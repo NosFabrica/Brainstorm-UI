@@ -397,24 +397,26 @@ describe("GitHubAccountView", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const strip = screen.getByTestId("github-account-verdict");
     expect(strip).toHaveTextContent("From your network");
-    // The lister is the item's author: AVI, "Bob" in this test's profiles; Ada listed it too.
+    // The item's author (AVI, "Bob") is the footer's; the strip names only who else listed it: Ada.
     const listed = within(strip).getByTestId("github-account-fact-listed");
-    expect(listed).toHaveTextContent("Listed by");
-    expect(within(listed).getByRole("link", { name: "Bob" })).toHaveAttribute("href", "/p/npub-b");
+    expect(listed).toHaveTextContent("Also listed by");
+    expect(within(listed).queryByRole("link", { name: "Bob" })).toBeNull();
     expect(within(listed).getByRole("link", { name: "Ada" })).toHaveAttribute("href", "/p/npub-a");
-    expect(listed.querySelectorAll("[data-face]")).toHaveLength(2);
+    expect(listed.querySelectorAll("[data-face]")).toHaveLength(1);
     const vouches = within(strip).getByTestId("github-account-fact-vouches");
     expect(vouches).toHaveTextContent("Vouches");
     expect(vouches).toHaveTextContent("2 in your network");
     const distanceFact = within(strip).getByTestId("github-account-fact-distance");
+    expect(distanceFact).toHaveTextContent("Lister");
     expect(distanceFact).toHaveTextContent("2 hops from you");
-    expect(distanceFact).toHaveAttribute("title", "Someone you follow follows the person who listed it.");
+    expect(distanceFact).toHaveAttribute("title", "Someone you follow follows Bob, who listed it.");
   });
 
   it("a visitor sees the lister and 'none yet'; a reader who endorsed it reads 'you', and one hop is explained", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const strip = screen.getByTestId("github-account-verdict");
-    expect(within(strip).getByTestId("github-account-fact-listed")).toHaveTextContent("Bob");
+    // One lister, the author: the footer says so; the strip doesn't repeat it.
+    expect(within(strip).queryByTestId("github-account-fact-listed")).toBeNull();
     expect(within(strip).getByTestId("github-account-fact-vouches")).toHaveTextContent("none yet");
     expect(within(strip).queryByTestId("github-account-fact-distance")).toBeNull();
 
@@ -426,6 +428,6 @@ describe("GitHubAccountView", () => {
     expect(within(mine).getByTestId("github-account-fact-vouches")).toHaveTextContent("You");
     const hop = within(mine).getByTestId("github-account-fact-distance");
     expect(hop).toHaveTextContent("1 hop from you");
-    expect(hop).toHaveAttribute("title", "You follow the person who listed it.");
+    expect(hop).toHaveAttribute("title", "You follow Bob, who listed it.");
   });
 });

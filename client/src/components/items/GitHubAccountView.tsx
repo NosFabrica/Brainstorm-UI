@@ -270,20 +270,21 @@ function useNetworkView(event: ItemEvent, handle: string, resolved: ReadyItemVie
 type NetworkView = ReturnType<typeof useNetworkView>;
 
 /** "1 hop from you": what a hop is, in words a newcomer can use. */
-function hopsExplained(hops: number): string {
-  if (hops === 1) return "You follow the person who listed it.";
-  if (hops === 2) return "Someone you follow follows the person who listed it.";
-  return `The person who listed it is ${hops} follows away from you.`;
+function hopsExplained(hops: number, lister: string): string {
+  if (hops === 1) return `You follow ${lister}, who listed it.`;
+  if (hops === 2) return `Someone you follow follows ${lister}, who listed it.`;
+  return `${lister}, who listed it, is ${hops} follows away from you.`;
 }
 
 /**
- * What the reader's network says, as three labelled facts between the name
- * and GitHub's numbers: who listed it (faces and names), how many in the
- * reader's network vouch for it (their faces, the Endorse button at the
- * row's end), and how far the lister is from the reader in the follows
- * graph — each with a line on hover saying what it means. A fact with
- * nothing to say is left out; vouches read "none yet" so a signed-in reader
- * sees the Endorse path.
+ * What the reader's network says, as labelled facts between the name and
+ * GitHub's numbers: how many in the reader's network vouch for it (their
+ * faces, the Endorse button at the row's end), how far the lister is from
+ * the reader in the follows graph, and — only when someone besides the
+ * author filed the same handle — who else listed it. The author themself is
+ * the footer's "Listed by" and isn't said twice. Each fact has a line on
+ * hover saying what it means; a fact with nothing to say is left out, except
+ * vouches, which read "none yet" so a signed-in reader sees the Endorse path.
  */
 function FromYourNetwork({ network: n }: { network: NetworkView }) {
   const tierRing = useTierRing();
@@ -295,8 +296,11 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
     : inNetwork > 0
       ? `${inNetwork} in your network`
       : "none yet";
-  const listers = n.listers.slice(0, 3);
-  const rest = n.listers.length - listers.length;
+  // The author is the footer's "Listed by"; the strip names only who else filed the same handle.
+  const others = n.listers.slice(1);
+  const listers = others.slice(0, 3);
+  const rest = others.length - listers.length;
+  const author = n.nameOf(n.listers[0]);
   return (
     <div className="space-y-2" data-testid="github-account-verdict">
       <div className="flex items-center justify-between gap-3">
@@ -306,56 +310,58 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
         {n.me && <EndorseButton network={n} />}
       </div>
       <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        <div
-          className="flex items-center gap-2"
-          data-testid="github-account-fact-listed"
-          title="People who filed this account in the GitHub Accounts list"
-        >
-          <dt className="text-slate-500 dark:text-slate-400">Listed by</dt>
-          <dd className="flex items-center gap-2">
-            <span className="flex -space-x-1.5">
-              {listers.map((pk) => (
-                <Avatar
-                  key={pk}
-                  data-face={pk}
-                  className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(pk), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
-                >
-                  {n.pictureOf(pk) ? <AvatarImage src={n.pictureOf(pk)} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden rounded-full">
-                    <DefaultAvatarImg />
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-            </span>
-            <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {listers.map((pk, i) => {
-                const npub = n.npubOf(pk);
-                const name = n.nameOf(pk);
-                return (
-                  <span key={pk}>
-                    {i > 0 && <span className="font-normal text-slate-400">, </span>}
-                    {npub ? (
-                      <Link href={`/p/${npub}`} className="hover:text-brand-link">
-                        {name}
-                      </Link>
-                    ) : (
-                      name
-                    )}
+        {listers.length > 0 && (
+          <div
+            className="flex items-center gap-2"
+            data-testid="github-account-fact-listed"
+            title={`People in your network who also filed this account in the GitHub Accounts list`}
+          >
+            <dt className="text-slate-500 dark:text-slate-400">Also listed by</dt>
+            <dd className="flex items-center gap-2">
+              <span className="flex -space-x-1.5">
+                {listers.map((pk) => (
+                  <Avatar
+                    key={pk}
+                    data-face={pk}
+                    className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(pk), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
+                  >
+                    {n.pictureOf(pk) ? <AvatarImage src={n.pictureOf(pk)} alt="" className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden rounded-full">
+                      <DefaultAvatarImg />
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+              </span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                {listers.map((pk, i) => {
+                  const npub = n.npubOf(pk);
+                  const name = n.nameOf(pk);
+                  return (
+                    <span key={pk}>
+                      {i > 0 && <span className="font-normal text-slate-400">, </span>}
+                      {npub ? (
+                        <Link href={`/p/${npub}`} className="hover:text-brand-link">
+                          {name}
+                        </Link>
+                      ) : (
+                        name
+                      )}
+                    </span>
+                  );
+                })}
+                {rest > 0 && (
+                  <span
+                    className="font-normal text-slate-500 dark:text-slate-400"
+                    title={others.slice(3).map(n.nameOf).join(", ")}
+                  >
+                    {" "}
+                    and {rest} more
                   </span>
-                );
-              })}
-              {rest > 0 && (
-                <span
-                  className="font-normal text-slate-500 dark:text-slate-400"
-                  title={n.listers.slice(3).map(n.nameOf).join(", ")}
-                >
-                  {" "}
-                  and {rest} more
-                </span>
-              )}
-            </span>
-          </dd>
-        </div>
+                )}
+              </span>
+            </dd>
+          </div>
+        )}
         <div
           className="flex items-center gap-2"
           data-testid="github-account-fact-vouches"
@@ -407,9 +413,9 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
           <div
             className="flex items-center gap-2"
             data-testid="github-account-fact-distance"
-            title={hopsExplained(n.hops)}
+            title={hopsExplained(n.hops, author)}
           >
-            <dt className="text-slate-500 dark:text-slate-400">Distance</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Lister</dt>
             <dd className="font-semibold text-slate-900 dark:text-slate-100">
               {n.hops} {n.hops === 1 ? "hop" : "hops"} from you
             </dd>
