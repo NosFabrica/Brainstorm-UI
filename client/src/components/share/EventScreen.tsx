@@ -46,6 +46,8 @@ import { DListItemHero } from "@/components/share/DListItemHero";
 import { dlistOfEvent } from "@/lib/dlists";
 import { dictionaryConceptOf } from "@/services/dictionary";
 import { isDListItem } from "@/lib/dlistFields";
+import { itemPageTitle } from "@/lib/itemPageTitle";
+import { isReady, useItemView } from "@/hooks/useItemView";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
@@ -156,6 +158,9 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  */
 const byCoord = (events: MinimalEvent[]) =>
   new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
+
+/** What the item view reads before a note is loaded: nothing it could name. */
+const NO_ITEM = { kind: 0, tags: [] as string[][] };
 
 export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; event?: MinimalEvent }) {
   const ptr: EventPointer | null = event
@@ -327,12 +332,25 @@ function EventView({
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
   const firstName = authorName.split(" ")[0];
 
+  // An item of a Dictionary concept is drawn from its definition. Until this device knows the
+  // concepts (its first visit), a list item waits for them rather than draw its tags and swap.
+  const asDictionaryItem =
+    !!note &&
+    (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlistOfEvent(note)));
+  // A list item's page is named for the item — "vitorpamplona · GitHub Account" — not for who listed it.
+  const itemView = useItemView(note ?? NO_ITEM);
+  const itemTitle =
+    asDictionaryItem && isReady(itemView) ? itemPageTitle(itemView.shown, itemView.resolved.governing.singular) : null;
+  const pageTitle = `${itemTitle ?? authorName} on Brainstorm`;
+
   const snippet = (note?.content || "").replace(/\s+/g, " ").trim().slice(0, 160);
   useShareMeta(
     note
       ? {
-          title: `${authorName} on Brainstorm`,
-          description: snippet || `A note by ${authorName}.`,
+          title: pageTitle,
+          description: itemTitle
+            ? (isReady(itemView) && itemView.shown.summary) || `Listed by ${authorName}.`
+            : snippet || `A note by ${authorName}.`,
           image: profile.picture,
           url: typeof window !== "undefined" ? window.location.href : "",
         }
@@ -347,11 +365,6 @@ function EventView({
   const DEDICATED_KINDS = new Set([
     30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923, 39998, 9998,
   ]);
-  // An item of a Dictionary concept is drawn from its definition. Until this device knows the
-  // concepts (its first visit), a list item waits for them rather than draw its tags and swap.
-  const asDictionaryItem =
-    !!note &&
-    (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlistOfEvent(note)));
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
@@ -431,12 +444,7 @@ function EventView({
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
         maxWidthClass="max-w-2xl"
-        actions={
-          <ShareButton
-            url={typeof window !== "undefined" ? window.location.href : ""}
-            title={`${authorName} on Brainstorm`}
-          />
-        }
+        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={pageTitle} />}
       />
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">

@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { apiClient } from "@/services/api";
 import { signingProblem } from "@/accounts/signing";
 import { fetchGitHubClaimants, fetchItemReactions, publishEndorsement } from "@/services/itemEngagement";
 import type { Endorser, GitHubClaimant } from "@/lib/itemEngagement";
@@ -56,24 +54,4 @@ export function useEndorseItem(item: ItemEvent) {
       if (description) toast({ title: "Couldn't endorse that", description, variant: "destructive" });
     },
   });
-}
-
-/**
- * How far the lister is from the reader in the follows graph, from the
- * server's shortest path (the key the profile's degree chip uses, so the two
- * share one answer). Null while unknown, for a visitor, for the reader's own
- * listing, or when unreachable.
- */
-export function useListerDistance(lister: string): { hops: number | null } {
-  const me = useActiveAccountDisplay()?.pubkey ?? null;
-  const enabled = !!me && me !== lister;
-  const query = useQuery({
-    queryKey: ["shortestHops", me, lister],
-    queryFn: () => apiClient.getShortestHops({ from: me!, to: lister }),
-    enabled,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const hops = query.data?.hops;
-  return { hops: enabled && typeof hops === "number" && hops > 0 ? hops : null };
 }
