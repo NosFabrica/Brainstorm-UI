@@ -1,0 +1,231 @@
+// @vitest-environment jsdom
+/**
+ * A book on its own page, the tier-three way (ADR 0007): the cover, the
+ * title and the author lead, as in a bookshop; what Open Library adds —
+ * subtitle, rating, publisher, description — arrives from our origin and
+ * is never needed; the buttons are the definition's templates. The item's
+ * fields are read through the governing definition, and while the
+ * community header declares none, by their Open Library names (lib/books).
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen, within } from "@testing-library/react";
+import { renderWithProviders } from "@/test/utils";
+import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
+import { useResolvedItemView, isReady } from "@/hooks/useItemView";
+
+const { COMMUNITY, OL_TEMPLATE, GOODREADS_TEMPLATE, SHOP_TEMPLATE } = vi.hoisted(() => ({
+  COMMUNITY: "39998:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:books",
+  OL_TEMPLATE: "a".repeat(64),
+  GOODREADS_TEMPLATE: "8382b369db6f7d3dc96be27513609a61491f33c2afcc6f7c005c8bd7cc190c83",
+  SHOP_TEMPLATE: "c".repeat(64),
+}));
+const LIBRARIAN = "6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b";
+const HOUSE = "3".repeat(64);
+
+const viewer = vi.hoisted(() => ({ isAdmin: false, pubkey: null as string | null }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => (viewer.pubkey ? { isAdmin: viewer.isAdmin, pubkey: viewer.pubkey } : null),
+}));
+vi.mock("@/hooks/useLinkTemplates", () => ({
+  useLinkTemplates: () => ({
+    data: new Map([
+      [
+        OL_TEMPLATE,
+        {
+          id: OL_TEMPLATE,
+          pubkey: "2".repeat(64),
+          name: "Open Library work",
+          template: "https://openlibrary.org/works/{id}",
+        },
+      ],
+      [
+        GOODREADS_TEMPLATE,
+        {
+          id: GOODREADS_TEMPLATE,
+          pubkey: "2".repeat(64),
+          name: "Goodreads book",
+          template: "https://www.goodreads.com/book/isbn/{isbn10}",
+        },
+      ],
+      [
+        SHOP_TEMPLATE,
+        {
+          id: SHOP_TEMPLATE,
+          pubkey: "2".repeat(64),
+          name: "Buy on Amazon",
+          template: "https://www.amazon.com/dp/{isbn10}",
+        },
+      ],
+    ]),
+  }),
+}));
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
+}));
+vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
+  DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
+}));
+vi.mock("@/hooks/useItemEngagement", () => ({
+  useItemEngagement: () => ({ endorsers: [], claimants: [], pending: false }),
+  useEndorseItem: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("@/hooks/useWotItems", () => ({
+  useWotItems: (items: { pubkey: string }[]) => ({
+    trusted: items,
+    outside: [],
+    pending: false,
+    source: "house",
+    observer: "house",
+  }),
+}));
+vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set(), ready: true, signedIn: false }) }));
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
+vi.mock("@/hooks/usePlaceReviews", () => ({
+  usePlaceReviews: () => ({ reviews: [], pending: false }),
+  usePostPlaceReview: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+// What our origin knows from Open Library (services/openLibrary); nothing unless a test says so.
+const openLibrary = vi.hoisted(() => ({ facts: null as null | Record<string, unknown> }));
+vi.mock("@/hooks/useBookFacts", () => ({ useBookFacts: () => ({ data: openLibrary.facts, isPending: false }) }));
+
+import { BookView } from "./BookView";
+
+/** The community header as on the relay: a name and nothing declared. */
+const community: HeaderEvent = {
+  id: "1".repeat(64),
+  pubkey: LIBRARIAN,
+  kind: 39998,
+  created_at: 1,
+  tags: [["d", "books"]],
+};
+/** The drafted house copy (docs/dictionary/house-copies.md), with its three templates. */
+const houseCopy: HeaderEvent = {
+  id: "2".repeat(64),
+  pubkey: HOUSE,
+  kind: 39998,
+  created_at: 2,
+  tags: [
+    ["d", "books"],
+    ["names", "Book", "Books"],
+    ["required", "title"],
+    ["recommended", "author"],
+    ["recommended", "cover", "Cover image"],
+    ["recommended", "isbn", "ISBN-13"],
+    ["optional", "isbn10"],
+    ["optional", "open-library-id"],
+    ["optional", "year"],
+    ["optional", "pages"],
+    ["optional", "lang"],
+    ["optional", "subject"],
+    ["optional", "format"],
+    ["optional", "source"],
+    ["field-type", "cover", "url"],
+    ["display", "title", "title"],
+    ["display", "summary", "author"],
+    ["display", "image", "cover"],
+    ["link", OL_TEMPLATE, "wss://dcosl.brainstorm.world", "id", "open-library-id"],
+    ["link", GOODREADS_TEMPLATE, "wss://dcosl.brainstorm.world", "isbn10", "isbn10"],
+    ["link", SHOP_TEMPLATE, "wss://dcosl.brainstorm.world", "isbn10", "isbn10"],
+    ["b", COMMUNITY, "pointer"],
+  ],
+};
+const storm = {
+  id: "86d5762bf1feb9172308a4871398498fe232c6eec02ea0a5ab91cc24baff7adf",
+  pubkey: LIBRARIAN,
+  kind: 39999,
+  created_at: 1_780_000_000,
+  content: "",
+  tags: [
+    ["d", "ol-ol19722168w"],
+    ["z", COMMUNITY],
+    ["title", "The storm before the storm"],
+    ["author", "Duncan, Michael (Podcaster)"],
+    ["isbn", "9781610397216"],
+    ["isbn10", "1549167774"],
+    ["open-library-id", "OL19722168W"],
+    ["lang", "eng"],
+    ["year", "2017"],
+    ["pages", "327"],
+    ["cover", "https://covers.openlibrary.org/b/id/10092515-L.jpg"],
+    ["subject", "History"],
+    ["subject", "nyt:combined-print-and-e-book-nonfiction=2017-11-12"],
+    ["subject", "Roman Empire"],
+    ["format", "reference"],
+    ["source", "openlibrary"],
+  ],
+};
+
+function Page({ event, copy = null }: { event: typeof storm; copy?: HeaderEvent | null }) {
+  const resolved = resolveConcept({ community, communityCoordinate: COMMUNITY, house: copy });
+  const view = useResolvedItemView(event, resolved);
+  if (!isReady(view)) return <p>not ready</p>;
+  return <BookView event={event} view={view} />;
+}
+
+const FACTS = {
+  subtitle: "the beginning of the end of the Roman Republic",
+  description: "The creator of the award-winning podcast series The History of Rome brings to life the bloody battles.",
+  publisher: "PublicAffairs",
+  publishDate: "2017",
+  pages: 327,
+  rating: { average: 4.714285714285714, count: 7 },
+};
+
+beforeEach(() => {
+  viewer.isAdmin = false;
+  viewer.pubkey = null;
+  openLibrary.facts = null;
+});
+
+describe("BookView", () => {
+  it("leads with the cover, the title and the author, as in a bookshop — from the item, before anything is asked", () => {
+    renderWithProviders(<Page event={storm} />);
+    const hero = screen.getByTestId("book-hero");
+    expect(within(hero).getByTestId("book-cover")).toHaveAttribute("src", expect.stringContaining("10092515-L.jpg"));
+    expect(within(hero).getByRole("heading", { level: 1 })).toHaveTextContent("The storm before the storm");
+    expect(within(hero).getByTestId("book-author")).toHaveTextContent("Michael Duncan");
+    expect(within(hero).getByTestId("book-meta")).toHaveTextContent("2017 · 327 pages · English");
+    expect(screen.getByTestId("book-subjects")).toHaveTextContent("History");
+    expect(screen.getByTestId("book-subjects")).toHaveTextContent("Roman Empire");
+    expect(screen.getByTestId("book-subjects")).not.toHaveTextContent("nyt:");
+    expect(screen.queryByTestId("book-rating")).toBeNull();
+    expect(screen.queryByTestId("book-description")).toBeNull();
+    // Nothing for a reader to open: the community header names no template.
+    expect(screen.queryByTestId("book-actions")).toBeNull();
+    expect(screen.getByTestId("neighbours-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("book-attribution")).toHaveTextContent("Open Library");
+  });
+
+  it("what Open Library adds: the subtitle, readers' rating, the publisher, and the book's description", () => {
+    openLibrary.facts = FACTS;
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.getByTestId("book-subtitle")).toHaveTextContent("the beginning of the end of the Roman Republic");
+    const rating = screen.getByTestId("book-rating");
+    expect(rating).toHaveTextContent("4.7");
+    expect(rating).toHaveTextContent("7 ratings");
+    expect(rating).toHaveAttribute("aria-label", "Rated 4.7 out of 5 by 7 readers on Open Library");
+    expect(screen.getByTestId("book-meta")).toHaveTextContent("2017 · 327 pages · English · PublicAffairs");
+    expect(screen.getByTestId("book-description")).toHaveTextContent("brings to life the bloody battles");
+  });
+
+  it("the buttons are the definition's templates: read it, see reviews, buy it", () => {
+    renderWithProviders(<Page event={storm} copy={houseCopy} />);
+    const actions = screen.getByTestId("book-actions");
+    const buttons = within(actions).getAllByRole("link");
+    expect(buttons.map((b) => b.textContent)).toEqual(["Open Library work", "Goodreads book", "Buy on Amazon"]);
+    expect(buttons[0]).toHaveAttribute("href", "https://openlibrary.org/works/OL19722168W");
+    expect(buttons[2]).toHaveAttribute("href", "https://www.amazon.com/dp/1549167774");
+    expect(buttons[0]).toHaveAttribute("target", "_blank");
+  });
+
+  it("readers see the book; the concept kicker and the field fold are the admin's", () => {
+    renderWithProviders(<Page event={storm} copy={houseCopy} />);
+    expect(screen.queryByTestId("dlist-item-admin-toggle")).toBeNull();
+    expect(screen.queryByText(/^Book$/)).toBeNull();
+    viewer.pubkey = "f".repeat(64);
+    viewer.isAdmin = true;
+    renderWithProviders(<Page event={storm} copy={houseCopy} />);
+    expect(screen.getByTestId("dlist-item-admin-toggle")).toBeInTheDocument();
+  });
+});
