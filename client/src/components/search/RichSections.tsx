@@ -5,7 +5,7 @@
  * poster or first frame, captions with author and age). Both open the in-app
  * event page; a story's headline goes out to the article.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { noteTitle } from "@/lib/noteTitle";
@@ -266,7 +266,7 @@ function MediaTile({
   // Every tile in the grid is 4:3 so a row stays one height. Cropped to fill it, an upright
   // video shows its middle third and a square one loses its top and bottom, so those two are
   // fitted in whole on a dark ground. A wide video, or one that gives no size, fills the tile.
-  const shape = VIDEO_KINDS.has(e.kind) ? videoShapeOf(readVideo(e).dim) : null;
+  const shape = useMemo(() => (VIDEO_KINDS.has(e.kind) ? videoShapeOf(readVideo(e).dim) : null), [e]);
   const whole = shape === "portrait" || shape === "square";
   const fit = whole ? "object-contain" : "object-cover";
   const openPost = () => navigate(eventPath(e));

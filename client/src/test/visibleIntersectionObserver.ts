@@ -9,25 +9,34 @@ import { vi } from "vitest";
  * Call this in suites covering such a component: it reports the element as
  * visible the moment it is observed, which is what a browser does for
  * something already on screen.
+ *
+ * It says nothing of how much is in view, so autoplay stays inert here too.
+ * A suite that is about autoplay passes `ratio` (1 for wholly in view), and
+ * stubs `HTMLMediaElement.prototype.play`, which jsdom does not implement.
  */
-class VisibleIntersectionObserver {
-  root = null;
-  rootMargin = "";
-  thresholds: number[] = [];
-  constructor(private cb: IntersectionObserverCallback) {}
-  observe(el: Element) {
-    this.cb(
-      [{ isIntersecting: true, target: el } as IntersectionObserverEntry],
-      this as unknown as IntersectionObserver,
-    );
+export function stubVisibleIntersectionObserver(opts: { ratio?: number } = {}): void {
+  class VisibleIntersectionObserver {
+    root = null;
+    rootMargin = "";
+    thresholds: number[] = [];
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(el: Element) {
+      this.cb(
+        [
+          {
+            isIntersecting: true,
+            target: el,
+            ...(opts.ratio === undefined ? {} : { intersectionRatio: opts.ratio }),
+          } as IntersectionObserverEntry,
+        ],
+        this as unknown as IntersectionObserver,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
   }
-  unobserve() {}
-  disconnect() {}
-  takeRecords(): IntersectionObserverEntry[] {
-    return [];
-  }
-}
-
-export function stubVisibleIntersectionObserver(): void {
   vi.stubGlobal("IntersectionObserver", VisibleIntersectionObserver);
 }

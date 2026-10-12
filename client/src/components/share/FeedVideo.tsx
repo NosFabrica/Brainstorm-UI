@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { usePipAwareAutoStop } from "@/lib/audioPlayer";
 import { useAutoplayInView } from "@/lib/feedVideo";
@@ -8,6 +8,18 @@ import { videoFrameStyle, videoShapeOf, type VideoDim } from "@/lib/videoFrame";
 
 /** The tallest a frame gets, in rem: `max-h-[34rem]` for a video whose size is not known. */
 const MAX_HEIGHT_REM = 34;
+
+/**
+ * The frame a video of this size plays in: its proportions, capped at the tallest a frame gets,
+ * and centred in a column wider than it. Undefined when the size is not known. For whatever
+ * stands where the player will be (a sensitive cover), so swapping one for the other moves nothing.
+ */
+export function feedVideoFrame(
+  dim: VideoDim | null | undefined,
+): { style: CSSProperties; className: string } | undefined {
+  const style = videoFrameStyle(dim, MAX_HEIGHT_REM);
+  return style ? { style, className: "mx-auto" } : undefined;
+}
 
 /**
  * An inline note video that behaves like X: it autoplays **muted** when it
@@ -94,9 +106,10 @@ export function FeedVideo({
     v.play().catch(() => {});
   };
 
-  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-black ${className ?? ""}`;
   // With a size, the frame is the shape and the video fills it; without, the video sizes the frame.
-  const frame = videoFrameStyle(dim, MAX_HEIGHT_REM);
+  const framed = feedVideoFrame(dim);
+  const frame = framed?.style;
+  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-black ${framed?.className ?? ""} ${className ?? ""}`;
   const shape = videoShapeOf(dim) ?? undefined;
   const fit = frame ? "absolute inset-0 h-full w-full object-contain" : "max-h-[34rem] w-full object-contain";
 

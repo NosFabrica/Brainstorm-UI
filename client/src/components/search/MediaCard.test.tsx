@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
+import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 vi.mock("@/services/nostr", async () => ({ ...(await import("@/test/fakeNostr")).nostrReadDefaults }));
@@ -109,33 +110,19 @@ describe("MediaCard — a video event's shape", () => {
 });
 
 describe("MediaCard — a flagged video in view", () => {
-  // In view from the moment it is watched, which is when an unflagged card starts to play.
-  class InView {
-    constructor(private cb: IntersectionObserverCallback) {}
-    observe(target: Element) {
-      this.cb(
-        [{ isIntersecting: true, intersectionRatio: 1, target } as IntersectionObserverEntry],
-        this as unknown as IntersectionObserver,
-      );
-    }
-    unobserve() {}
-    disconnect() {}
-    takeRecords(): IntersectionObserverEntry[] {
-      return [];
-    }
-  }
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
+  const dim = (event: NostrEvent) => {
+    event.tags = event.tags.map((t) => (t[0] === "imeta" ? [...t, "dim 1080x1920"] : t));
+    return event;
+  };
 
   it("shows the cover and starts nothing, where an unflagged one plays", () => {
-    vi.stubGlobal("IntersectionObserver", InView);
+    // Wholly in view from the moment it is watched, which is when an unflagged card starts to play.
+    stubVisibleIntersectionObserver({ ratio: 1 });
     const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
-    const dim = (event: NostrEvent) => {
-      event.tags = event.tags.map((t) => (t[0] === "imeta" ? [...t, "dim 1080x1920"] : t));
-      return event;
-    };
 
     const flagged = render(<MediaCard event={dim(short([["content-warning", "nudity"]]))} author={null} />);
     expect(screen.getByTestId("sensitive-cover")).toBeInTheDocument();
@@ -146,7 +133,30 @@ describe("MediaCard — a flagged video in view", () => {
     render(<MediaCard event={dim(short())} author={null} />);
     expect(play).toHaveBeenCalledTimes(1);
   });
+
+  // The cover used to be a wide box whatever the video was, so "Show video" on an upright
+  // short swapped a 16:9 cover for a 9:16 player and everything under it moved.
+  it("the cover holds the frame the video will take, so showing it moves nothing", () => {
+    render(<MediaCard event={dim(short([["content-warning", "nudity"]]))} author={null} />);
+    const cover = screen.getByTestId("media-card-cover");
+    expect(within(cover).getByTestId("sensitive-cover")).toBeInTheDocument();
+    const before = { aspectRatio: cover.style.aspectRatio, maxWidth: cover.style.maxWidth };
+    expect(before).toEqual({ aspectRatio: "1080 / 1920", maxWidth: "19.125rem" });
+    expect(cover.className).toContain("mx-auto");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show video" }));
+    const frame = screen.getByTestId("feed-video");
+    expect({ aspectRatio: frame.style.aspectRatio, maxWidth: frame.style.maxWidth }).toEqual(before);
+    expect(frame.className).toContain("mx-auto");
+  });
+
+  it("a flagged video that gives no size keeps the wide cover", () => {
+    render(<MediaCard event={short([["content-warning", "nudity"]])} author={null} />);
+    expect(screen.queryByTestId("media-card-cover")).toBeNull();
+    expect(screen.getByTestId("sensitive-cover").className).toContain("aspect-video");
+  });
 });
+
 // A restored Vine is signed the day it was imported; `published_at` is the day it was posted.
 const classicVine = (): NostrEvent =>
   ({

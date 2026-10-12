@@ -64,8 +64,13 @@ describe("FeedVideo — the frame", () => {
     expect(frame.style.aspectRatio).toBe("1920 / 1080");
   });
 
+  it("sits in the middle of its column when it is narrower than it", () => {
+    expect(frameOf({ width: 1080, height: 1920 }).className).toContain("mx-auto");
+  });
+
   it("stays the one frame it was when the size is not known", () => {
     const frame = frameOf();
+    expect(frame.className).not.toContain("mx-auto");
     expect(frame.dataset.shape).toBeUndefined();
     expect(frame.style.aspectRatio).toBe("");
     expect(frame.style.maxWidth).toBe("");
