@@ -55,6 +55,9 @@ import {
   Tag,
   Utensils,
   Wine,
+  Maximize2,
+  Minimize2,
+  X,
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -206,6 +209,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const place = placeOf(event, r.governing)!;
   const me = useActiveAccountDisplay();
   const isAdmin = me?.isAdmin === true;
+  // The map opened up in place, at the reader's ask — never on a stray zoom or drag.
+  const [mapOpen, setMapOpen] = useState(false);
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
   const listed = useListItems(event, r);
@@ -257,9 +262,43 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           picture, when it has one, is a small tile in the panel beside the name, like a logo: never a band
           that pushes the map down the page. */}
       <div className="relative" data-testid="place-hero">
-        {coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero />}
+        {coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero expanded={mapOpen} />}
+        {coords && (
+          <button
+            type="button"
+            onClick={() => setMapOpen((v) => !v)}
+            aria-pressed={mapOpen}
+            aria-label={mapOpen ? "Shrink the map" : "Expand the map"}
+            title={mapOpen ? "Shrink the map" : "Expand the map"}
+            className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            data-testid="place-map-expand"
+          >
+            {mapOpen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        )}
+        {/* Opened up, the panel folds to a name pill from sm up, so the map is clear; on a phone the
+            panel is under the map already and simply stays. */}
+        {mapOpen && (
+          <div
+            className="absolute left-4 top-4 z-10 hidden max-w-[70%] items-center gap-2 rounded-full border border-white/60 bg-white/85 py-1 pl-3 pr-1 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/85 dark:text-slate-100 sm:flex"
+            data-testid="place-identity-pill"
+          >
+            <span className="truncate">
+              <EmojiText text={place.name} tags={event} />
+            </span>
+            <button
+              type="button"
+              onClick={() => setMapOpen(false)}
+              aria-label="Shrink the map"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-slate-700"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         <div
-          className="mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85"
+          className={`mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85 ${mapOpen ? "sm:hidden" : ""}`}
+          data-folded={mapOpen ? "true" : undefined}
           data-testid="place-identity"
         >
           {/* The name leads; the logo, when the site has one, sits at the row's right end, as on a letterhead. */}

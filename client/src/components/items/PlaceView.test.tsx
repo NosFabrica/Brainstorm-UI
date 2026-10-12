@@ -47,8 +47,14 @@ const site = vi.hoisted(() => ({ card: null as null | { image: string | null; si
 vi.mock("@/hooks/useSiteCard", () => ({ useSiteCard: () => site.card }));
 // The map is Leaflet in a browser; here, what it was handed.
 vi.mock("@/components/items/PlaceMap", () => ({
-  PlaceMap: (p: { lat: number; lon: number; name: string }) => (
-    <div data-testid="place-map" data-lat={p.lat} data-lon={p.lon} data-name={p.name} />
+  PlaceMap: (p: { lat: number; lon: number; name: string; expanded?: boolean }) => (
+    <div
+      data-testid="place-map"
+      data-lat={p.lat}
+      data-lon={p.lon}
+      data-name={p.name}
+      data-expanded={String(!!p.expanded)}
+    />
   ),
 }));
 // The list's other places (components/dictionary/DListItemNeighbours useListItems): what the reader's web of trust holds.
@@ -402,6 +408,21 @@ describe("PlaceView", () => {
     expect(name.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(photo.parentElement).toBe(name.parentElement);
     expect(photo.className).toMatch(/ml-auto/);
+  });
+
+  it("Expand opens the map up in place — taller, the panel folded to a name pill — and Shrink brings the page back", async () => {
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-expanded", "false");
+    expect(screen.queryByTestId("place-identity-pill")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Expand the map" }));
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-expanded", "true");
+    const pill = screen.getByTestId("place-identity-pill");
+    expect(pill).toHaveTextContent("Il Sole Italian Food");
+    expect(screen.getByTestId("place-identity")).toHaveAttribute("data-folded", "true");
+    await userEvent.click(within(pill).getByRole("button", { name: "Shrink the map" }));
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-expanded", "false");
+    expect(screen.queryByTestId("place-identity-pill")).toBeNull();
+    expect(screen.getByTestId("place-identity")).not.toHaveAttribute("data-folded");
   });
 
   it("Accepts Bitcoin sits on its own line above the open-or-closed line, never beside it", () => {
