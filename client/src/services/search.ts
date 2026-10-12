@@ -25,6 +25,7 @@ import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
+import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
 import { isSellable, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -512,7 +513,16 @@ export function searchStream(
     // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
     // it is — `kind:5905` is the specs that define kind 5905. The relay
     // narrows by `#k` (probed 2026-09-23).
-    const tabKinds = params.kinds ?? (params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
+    // On the Media tab itself `#vine-archive` is the Classic Vines chip (lib/mediaFacet): the
+    // Vines Divine restored, which carry that word as a NIP-32 label and no `t` at all (probed
+    // 2026-10-12). Asked as a hashtag it is a `#t` filter that finds none of them and an `#l`
+    // filter at a quarter of the page, over every media kind; asked as the chip it is their
+    // one kind with the label on every filter, a whole page. A preview band is not the tab.
+    // (The Videos chip needs nothing here: it is `kind:` tokens, narrowed just below.)
+    const vines = params.tab === "media" && !params.band && !params.kinds && mediaFacetOf(query) === "vines";
+    const tabKinds =
+      params.kinds ??
+      (vines ? [CLASSIC_VINE_KIND] : params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
     const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
     const kinds =
       lifted.kinds && !coveredKinds && !params.kinds
@@ -539,7 +549,9 @@ export function searchStream(
     const limit = params.limit ?? DEFAULT_LIMIT;
     // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
     // dropped and the keys ride the base every filter carries.
-    const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
+    // The Classic Vines hashtag leaves the grammar's hands too: it is the label on the base.
+    const asVines = vines ? withoutVineArchiveTag(query) : query;
+    const askedBy = byHost ? asVines.replace(/(^|\s)from:\S+/gi, " ") : asVines;
     const built = searchFilters(askedBy, {
       kinds,
       limit,
@@ -551,10 +563,18 @@ export function searchStream(
         // grammar then asks for in a filter of their own.
         ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
         ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
+        ...(vines ? { "#l": [VINE_ARCHIVE_LABEL] } : {}),
       },
       since: params.since,
     });
-    const filters = params.tab === "reviews" ? askMintReviewsOnly(built) : built;
+    const filters =
+      params.tab === "reviews"
+        ? askMintReviewsOnly(built)
+        : vines
+          ? // Another hashtag beside the chip asks its own `#l` in a side filter, which would
+            // take the archive's label off that filter and let in what is not a Vine.
+            built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
+          : built;
     // A scope asked of a tab that holds no comments has nothing to ask.
     if (filters.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });

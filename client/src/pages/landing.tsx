@@ -862,6 +862,9 @@ export default function Landing() {
                 // them in `f` for Back, reload and sharing.
                 try {
                   const url = new URL(window.location.href);
+                  // The rewrite can be what emptied the box (the Media tab's All chip taking
+                  // Videos off a browse): the address must not keep the words it took away.
+                  url.searchParams.delete("q");
                   if (tokens) url.searchParams.set("f", tokens);
                   else url.searchParams.delete("f");
                   window.history.pushState({}, "", url.pathname + url.search);

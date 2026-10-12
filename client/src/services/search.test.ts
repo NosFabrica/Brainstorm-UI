@@ -109,6 +109,7 @@ import {
   type SearchTab,
 } from "./search";
 import { __resetAuthorProfileQueue } from "./authorProfileQueue";
+import { withMediaFacet } from "@/lib/mediaFacet";
 
 const HOUSE = "f".repeat(64);
 
@@ -867,6 +868,95 @@ describe("token lifting", () => {
     searchStream(`to:${note}`, { tab: "notes", pov: "nosfabrica" }, () => {});
     await tick();
     expect(asked()["#e"]).toEqual(["b".repeat(64)]);
+  });
+});
+
+// The Media tab's two chips that change the request (lib/mediaFacet). A chosen chip is tokens
+// in the query, so what is tested here is what the query the chip writes puts on the wire.
+describe("the Media tab's Videos and Classic Vines", () => {
+  const alice = "a".repeat(64);
+
+  it("Videos asks the four video kinds and nothing else", async () => {
+    controllable();
+    searchStream(withMediaFacet("", "videos"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked().kinds).toEqual([21, 22, 34235, 34236]);
+    expect(asked().search).toBe(`observer:${HOUSE}`);
+    expect(asked().limit).toBe(100);
+  });
+
+  it("Videos keeps a text query and from:", async () => {
+    controllable();
+    searchStream(withMediaFacet(`skate from:${alice}`, "videos"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(asked()).toMatchObject({
+      kinds: [21, 22, 34235, 34236],
+      authors: [alice],
+      search: `skate observer:${HOUSE}`,
+    });
+  });
+
+  // Probed on the search relay (2026-10-12): a restored Vine carries `["l","vine-archive",…]`
+  // and no `t` at all, so the hashtag's own `#t` filter finds none of them and its `#l` filter
+  // is a side question at a quarter of the page.
+  it("Classic Vines asks kind 34236 by the archive's label, a whole page of them", async () => {
+    controllable();
+    searchStream(withMediaFacet("", "vines"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked()).toEqual({
+      kinds: [34236],
+      "#l": ["vine-archive"],
+      search: `observer:${HOUSE}`,
+      limit: 100,
+    });
+  });
+
+  it("Classic Vines keeps a text query and from:", async () => {
+    controllable();
+    searchStream(withMediaFacet(`cats from:${alice}`, "vines"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked()).toEqual({
+      kinds: [34236],
+      "#l": ["vine-archive"],
+      authors: [alice],
+      search: `cats observer:${HOUSE}`,
+      limit: 100,
+    });
+  });
+
+  it("with another hashtag beside it, asks for Vines on that topic and nothing that is not a Vine", async () => {
+    controllable();
+    searchStream("#funny #vine-archive", { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    const filters = askedFilters();
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ kinds: [34236], "#l": ["vine-archive"], "#t": ["funny", "Funny", "FUNNY"] });
+  });
+
+  it("a typed kind that no Vine is asks nothing", async () => {
+    controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("#vine-archive kind:21", { tab: "media", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
+  });
+
+  it("anywhere but the Media tab itself, the hashtag is asked as any hashtag is", async () => {
+    controllable();
+    searchStream("#vine-archive", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()[0]["#t"]).toEqual(["vine-archive", "Vine-archive", "VINE-ARCHIVE"]);
+    expect(askedFilters()[0].kinds).toEqual(TAB_KINDS.notes);
+
+    reqMock.mockClear();
+    searchStream("#vine-archive", { tab: "media", pov: "nosfabrica", band: true }, () => {});
+    await tick();
+    expect(askedFilters()[0]["#t"]).toEqual(["vine-archive", "Vine-archive", "VINE-ARCHIVE"]);
+    expect(askedFilters()[0].kinds).toEqual(bandKindsForTab("media"));
   });
 });
 

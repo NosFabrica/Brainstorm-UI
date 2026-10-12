@@ -5,7 +5,7 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
@@ -20,6 +20,7 @@ import {
   queryWords,
   readFilters,
   sinceForPreset,
+  splitFilters,
   type DatePreset,
   type SearchFilterPatch,
   scopeOf,
@@ -129,6 +130,14 @@ import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { MEDIA_KIND_LABELS, MEDIA_KIND_ORDER, mediaKindOf, type MediaKind } from "@/lib/mediaKind";
+import {
+  MEDIA_FACET_LABELS,
+  isClassicVinesTopic,
+  mediaFacetOf,
+  mediaNarrowingOf,
+  withMediaFacet,
+  type MediaFacet,
+} from "@/lib/mediaFacet";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
@@ -138,6 +147,9 @@ import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
 const MEDIA_KINDS = new Set(TAB_KINDS.media);
+/** What a named person's own lead is asked by: their notes, pictures and videos; on Music, their tracks. */
+const LEAD_MEDIA_KINDS = [1, 20, 21, 22, 34235, 34236];
+const LEAD_MUSIC_KINDS = [31337];
 const APP_KINDS = new Set(TAB_KINDS.apps);
 // Repos, Issues and PRs all draw a RepoCard; the latter two carry a state.
 const REPO_KINDS = new Set([...TAB_KINDS.repos, ...TAB_KINDS.issues, ...TAB_KINDS.prs]);
@@ -427,6 +439,22 @@ function tabFromUrl(): SearchTab {
     /* default below */
   }
   return "top";
+}
+
+/**
+ * `#vine-archive` typed alone is the Media tab with Classic Vines chosen (lib/mediaFacet), where
+ * any other lone hashtag is a topic page. `query` is the box's words and the panel's tokens.
+ */
+const opensOnMedia = (query: string): boolean => isClassicVinesTopic(splitFilters(query).text);
+
+/** The tab a page opens on: the URL's, or Media for a query that is Classic Vines and names no tab. */
+function openingTab(query: string): SearchTab {
+  try {
+    if (!new URLSearchParams(window.location.search).get("t") && opensOnMedia(query)) return "media";
+  } catch {
+    /* the URL's tab below */
+  }
+  return tabFromUrl();
 }
 
 function writeTabToUrl(tab: SearchTab) {
@@ -799,10 +827,24 @@ export function SearchResults({
   peopleSeed?: SearchHit[];
 }) {
   const [, setLocation] = useLocation();
-  const [tab, setTab] = useState<SearchTab>(tabFromUrl);
+  const [tab, setTab] = useState<SearchTab>(() => openingTab(query));
+  // Typed on any other tab, `#vine-archive` alone moves the page to Media: decided as the new
+  // query renders, so the tab it was on never asks the relay for it.
+  const [queryWas, setQueryWas] = useState(query);
+  if (query !== queryWas) {
+    setQueryWas(query);
+    if (opensOnMedia(query) && tab !== "media") setTab("media");
+  }
+  const landsOnMedia = tab === "media" && opensOnMedia(query);
+  useEffect(() => {
+    // The tab was chosen here, not by a click: the address has to say so for a reload or a link.
+    if (landsOnMedia) writeTabToUrl("media");
+  }, [landsOnMedia]);
   useEffect(() => {
     onTabChange?.(tab);
   }, [tab, onTabChange]);
+  // Videos or Classic Vines, when the query carries one: the chips that change the request.
+  const mediaFacet = useMemo<MediaFacet | null>(() => (tab === "media" ? mediaFacetOf(query) : null), [tab, query]);
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // Whether the relay behind every search is answering (lib/serverStatus).
   const serverStatus = useServerStatus();
@@ -823,16 +865,31 @@ export function SearchResults({
   // Music tab leads with the person's own tracks the same way.
   const leadsTop = tab === "top" && !/(^|\s)sort:/i.test(query);
   const leadsMusic = tab === "music" && !scopeOf(query);
-  const leadWho = (tab === "media" || leadsTop || leadsMusic) && panelPerson ? panelPerson : null;
-  const leadEvents = useRecentByKinds(leadWho?.pubkey, leadsMusic ? [31337] : [1, 20, 21, 22, 34235, 34236], 40).events;
+  // On the Media tab the lead is held to what the tab is narrowed to (`kind:`, `video:`,
+  // Classic Vines): a page asked for as videos does not lead with the person's pictures. Only
+  // the kinds that can pass are asked for, and a narrowing none of them fits asks nothing.
+  const leadNarrowing = useMemo(() => (tab === "media" ? mediaNarrowingOf(query) : null), [tab, query]);
+  const leadKinds = useMemo(
+    () =>
+      leadsMusic
+        ? LEAD_MUSIC_KINDS
+        : leadNarrowing
+          ? LEAD_MEDIA_KINDS.filter((kind) => leadNarrowing.kinds.includes(kind))
+          : LEAD_MEDIA_KINDS,
+    [leadsMusic, leadNarrowing],
+  );
+  const leadWho =
+    (tab === "media" || leadsTop || leadsMusic) && panelPerson && leadKinds.length > 0 ? panelPerson : null;
+  const leadEvents = useRecentByKinds(leadWho?.pubkey, leadKinds, 40).events;
   const personMedia = useMemo<SearchHit[]>(
     () =>
       leadWho
         ? leadEvents
             .filter((e) => leadsMusic || mediaUrlOf(e as NostrEvent) !== null)
+            .filter((e) => !leadNarrowing || leadNarrowing.has(e as NostrEvent))
             .map((e) => ({ event: e as NostrEvent, author: leadWho, rank: null }))
         : [],
-    [leadEvents, leadWho, leadsMusic],
+    [leadEvents, leadWho, leadsMusic, leadNarrowing],
   );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [syntaxOpen, setSyntaxOpen] = useState(false);
@@ -964,9 +1021,10 @@ export function SearchResults({
 
   useEffect(() => {
     setMediaNotes(null);
-    if (composed || tab !== "media") return;
+    // Videos and Classic Vines ask for video events alone; a note with a clip is not one.
+    if (composed || tab !== "media" || mediaFacet) return;
     return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
-  }, [effectiveQuery, tab, pov, userPubkey, composed]);
+  }, [effectiveQuery, tab, pov, userPubkey, composed, mediaFacet]);
 
   const changeTab = useCallback((next: SearchTab) => {
     setTab(next);
@@ -1183,7 +1241,7 @@ export function SearchResults({
         : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
     return { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs, loading: catalogue.loading };
   }, [scope, wavlakeWords, catalogue, musicPerson]);
-  const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
+  const mediaSettled = tab !== "media" || !!mediaFacet || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&
     (!snapshot ||
@@ -1299,6 +1357,8 @@ export function SearchResults({
   const bands = useMemo(() => priceBands(viewerFiat), [viewerFiat]);
   // Photos · Videos · Audio — the Media tab's one narrowing (lib/mediaKind).
   const [mediaKind, setMediaKind] = useState<MediaKind | null>(null);
+  // Sorting through the page is for a page of mixed kinds; one asked for as videos or Vines has none.
+  const pageKind = mediaFacet ? null : mediaKind;
   const [articleType, setArticleType] = useState<ArticleType | null>(null);
   const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
   // Issues and PRs tabs: what became of each issue and patch — one request per page,
@@ -1463,9 +1523,10 @@ export function SearchResults({
     setRepoLabel(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
-  // What kinds of media the page holds, in fixed order, counted. One kind alone needs no row.
+  // What kinds of media the page holds, in fixed order, counted. One kind alone needs no chip
+  // of its own, and neither does a page already narrowed to videos or Vines.
   const mediaFacets = useMemo(() => {
-    if (tab !== "media") return [];
+    if (tab !== "media" || mediaFacet) return [];
     const counts = new Map<MediaKind, number>();
     for (const h of hits) {
       const k = mediaKindOf(h.event);
@@ -1475,7 +1536,19 @@ export function SearchResults({
       (k) => [k, counts.get(k)!] as [MediaKind, number],
     );
     return present.length > 1 ? present : [];
-  }, [tab, hits]);
+  }, [tab, hits, mediaFacet]);
+  // Videos and Classic Vines change what is asked: the chip rewrites the query, as the Filters
+  // panel does, and the page re-runs. All takes either off, and the page's own sorting with it.
+  const chooseMediaFacet = (next: MediaFacet | null) => {
+    setMediaKind(null);
+    if (next !== mediaFacet) onQueryRewrite?.(withMediaFacet(query, next));
+  };
+  // With nobody to rewrite the query through, Videos can only sort through the loaded page.
+  const toggleVideos = () => {
+    if (onQueryRewrite) chooseMediaFacet(mediaFacet === "videos" ? null : "videos");
+    else setMediaKind((cur) => (cur === "video" ? null : "video"));
+  };
+  const mediaCounts = new Map(mediaFacets);
   const shopFacets = useMemo(() => {
     if (tab !== "shop") return [];
     const counts = new Map<string, number>();
@@ -1612,7 +1685,7 @@ export function SearchResults({
       // declared mime is image/video/audio, and not when it is a video's
       // reusable soundtrack (lib/fileMetadata). Everything still shows the rest.
       shown = hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
-      if (mediaKind) shown = shown.filter((h) => mediaKindOf(h.event) === mediaKind);
+      if (pageKind) shown = shown.filter((h) => mediaKindOf(h.event) === pageKind);
     }
     if (tab === "lists") {
       // Lists must earn their place: untitled or empty ones are app
@@ -1736,7 +1809,7 @@ export function SearchResults({
     bands,
     viewerFiat,
     priceSort,
-    mediaKind,
+    pageKind,
     repoState,
     repoLabel,
     gitStatuses,
@@ -1797,7 +1870,7 @@ export function SearchResults({
     activeFilters > 0 ||
     !!shopCategory ||
     !!shopPrice ||
-    !!mediaKind ||
+    !!pageKind ||
     !!articleType ||
     !!recipeTopic ||
     !!appPlatform ||
@@ -1936,6 +2009,55 @@ export function SearchResults({
             className="lg:order-2 lg:w-72 lg:shrink-0"
           />
           <div className="w-full min-w-0 lg:order-1 lg:w-[42rem] lg:flex-none">
+            {/* Above the results and whatever stands in for them: Videos and Classic Vines are
+                offered on every Media page, and a narrowed page that found nothing still needs
+                the way back. Photos and Audio join them when the loaded page mixes kinds. */}
+            {tab === "media" && serverStatus.search !== "down" && (
+              <FacetRow className="mb-2" testId="media-facets">
+                <FacetChip
+                  pressed={!mediaFacet && pageKind === null}
+                  onClick={() => chooseMediaFacet(null)}
+                  testId="media-facet-all"
+                >
+                  All
+                </FacetChip>
+                {MEDIA_KIND_ORDER.map((kind) => {
+                  if (kind === "video")
+                    return (
+                      <Fragment key={kind}>
+                        <FacetChip
+                          pressed={mediaFacet === "videos" || pageKind === "video"}
+                          onClick={toggleVideos}
+                          testId="media-facet-video"
+                        >
+                          {MEDIA_FACET_LABELS.videos}
+                        </FacetChip>
+                        {onQueryRewrite && (
+                          <FacetChip
+                            pressed={mediaFacet === "vines"}
+                            onClick={() => chooseMediaFacet(mediaFacet === "vines" ? null : "vines")}
+                            testId="media-facet-vines"
+                          >
+                            {MEDIA_FACET_LABELS.vines}
+                          </FacetChip>
+                        )}
+                      </Fragment>
+                    );
+                  const count = mediaCounts.get(kind);
+                  return count === undefined ? null : (
+                    <FacetChip
+                      key={kind}
+                      pressed={pageKind === kind}
+                      onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
+                      count={count}
+                      testId={`media-facet-${kind}`}
+                    >
+                      {MEDIA_KIND_LABELS[kind]}
+                    </FacetChip>
+                  );
+                })}
+              </FacetRow>
+            )}
             {serverStatus.search === "down" ? (
               // The relay is the thing that is down: the results area says so, and
               // the box, the tabs and Filters above stay usable.
@@ -2264,24 +2386,6 @@ export function SearchResults({
                       >
                         {topic}
                       </button>
-                    ))}
-                  </FacetRow>
-                )}
-                {tab === "media" && mediaFacets.length > 0 && (
-                  <FacetRow className="mb-2" testId="media-facets">
-                    <FacetChip pressed={mediaKind === null} onClick={() => setMediaKind(null)} testId="media-facet-all">
-                      All
-                    </FacetChip>
-                    {mediaFacets.map(([kind, count]) => (
-                      <FacetChip
-                        key={kind}
-                        pressed={mediaKind === kind}
-                        onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
-                        count={count}
-                        testId={`media-facet-${kind}`}
-                      >
-                        {MEDIA_KIND_LABELS[kind]}
-                      </FacetChip>
                     ))}
                   </FacetRow>
                 )}

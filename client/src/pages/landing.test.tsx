@@ -456,6 +456,92 @@ describe("a # query that is more than one tag", () => {
   });
 });
 
+// The Media tab's Videos and Classic Vines chips are tokens in the query (lib/mediaFacet), so
+// the address bar's `q` is the whole of their state.
+describe("the Media tab's Videos and Classic Vines chips", () => {
+  const VIDEOS = "kind:21 kind:22 kind:34235 kind:34236";
+  const params = () => new URLSearchParams(window.location.search);
+  const mediaAsks = () =>
+    streamMock.mock.calls.filter(([, p]) => (p as { tab?: string }).tab === "media").map(([q]) => String(q));
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+  });
+
+  it("Videos on a browse lands in the URL and the box, and re-asks for videos alone; All goes back", async () => {
+    window.history.replaceState({}, "", "/?t=media");
+    render(<Landing />);
+    fireEvent.click(await screen.findByTestId("media-facet-video"));
+    await waitFor(() => expect(params().get("q")).toBe(VIDEOS));
+    expect(params().get("t")).toBe("media");
+    expect(boxValue()).toBe(VIDEOS);
+    await waitFor(() => expect(mediaAsks()).toContain(`${VIDEOS} sort:recent`));
+    await waitFor(() => expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(screen.getByTestId("media-facet-all"));
+    await waitFor(() => expect(window.location.search).toBe("?t=media"));
+    expect(boxValue()).toBe("");
+    await waitFor(() => expect(screen.getByTestId("media-facet-all")).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("a link with Videos chosen opens with it chosen", async () => {
+    window.history.replaceState({}, "", `/?q=${encodeURIComponent(`skate ${VIDEOS}`)}&t=media`);
+    render(<Landing />);
+    expect(await screen.findByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(mediaAsks()).toContain(`skate ${VIDEOS} sort:recent`));
+  });
+
+  it("Classic Vines beside words keeps the words, and the link reproduces it", async () => {
+    window.history.replaceState({}, "", "/?q=cats&t=media");
+    render(<Landing />);
+    fireEvent.click(await screen.findByTestId("media-facet-vines"));
+    await waitFor(() => expect(params().get("q")).toBe("cats #vine-archive"));
+    expect(params().get("t")).toBe("media");
+    expect(window.location.pathname).toBe("/");
+    await waitFor(() => expect(mediaAsks()).toContain("cats #vine-archive sort:recent"));
+    await waitFor(() => expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("Classic Vines on a browse is `#vine-archive` alone, and stays a search", async () => {
+    window.history.replaceState({}, "", "/?t=media");
+    render(<Landing />);
+    fireEvent.click(await screen.findByTestId("media-facet-vines"));
+    await waitFor(() => expect(params().get("q")).toBe("#vine-archive"));
+    expect(window.location.pathname).toBe("/");
+    expect(params().get("t")).toBe("media");
+    await waitFor(() => expect(mediaAsks()).toContain("#vine-archive sort:recent"));
+  });
+
+  it("`#vine-archive` typed alone opens Media with Classic Vines chosen, not the topic page", async () => {
+    window.history.replaceState({}, "", "/");
+    render(<Landing />);
+    typeInBox("#vine-archive");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(mediaAsks()).toContain("#vine-archive sort:recent"));
+    expect(window.location.pathname).toBe("/");
+    expect(params().get("q")).toBe("#vine-archive");
+    expect(params().get("t")).toBe("media");
+    expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a link to `#vine-archive` opens the same way", async () => {
+    window.history.replaceState({}, "", "/?q=%23vine-archive");
+    render(<Landing />);
+    expect(await screen.findByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(params().get("t")).toBe("media"));
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("another hyphenated hashtag alone is still its topic page", async () => {
+    window.history.replaceState({}, "", "/");
+    render(<Landing />);
+    typeInBox("#bitcoin-art");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(window.location.pathname).toBe("/t/bitcoinart"));
+  });
+});
+
 describe("typing in the home search", () => {
   const typeSlowly = (word: string) => {
     for (let i = 1; i <= word.length; i++) {
