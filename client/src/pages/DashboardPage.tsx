@@ -107,8 +107,44 @@ export default function DashboardPage() {
   const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  // The page's own search box — the header's is off here so there is one.
+  // The page's own search box — the header's is off here so there is one. Once
+  // the hero box has scrolled away, the header's comes in where it lives on every
+  // other page, so search is always in reach deep in the feed; it steps aside
+  // again when the hero is back. One box on screen at a time.
   const [query, setQuery] = useState("");
+  const heroRef = useRef<HTMLDivElement | null>(null);
+  const [heroAway, setHeroAway] = useState(false);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) setHeroAway(!e.isIntersecting);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  // "/" puts the cursor in whichever box is on screen — unless the reader is
+  // already typing somewhere, where a slash is just a slash.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const boxes = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]'));
+      if (!boxes.length) return;
+      const onScreen = boxes.find((b) => {
+        const r = b.getBoundingClientRect();
+        return r.bottom > 0 && r.top < window.innerHeight;
+      });
+      e.preventDefault();
+      // preventScroll: Chrome scrolls a focused element inside a sticky header to
+      // its *unstuck* position — the top of the page — which would hide the very
+      // box the reader just asked for.
+      (onScreen ?? boxes[0]).focus({ preventScroll: true });
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
@@ -606,12 +642,12 @@ export default function DashboardPage() {
   return (
     <TooltipProvider>
       <div
-        className="relative flex min-h-page flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
+        className="relative flex min-h-page flex-col overflow-x-clip bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
         data-testid="page-dashboard"
       >
         <PageBackground />
 
-        <AppHeader user={user} onLogout={handleLogout} active="dashboard" search={false} />
+        <AppHeader user={user} onLogout={handleLogout} active="dashboard" search={heroAway} />
 
         {/* One column, one rhythm: every block is a direct child and the column's gap
             is the only spacing between them — a block that renders nothing leaves no
@@ -781,7 +817,7 @@ export default function DashboardPage() {
             {/* A search app's signed-in home starts with the search. The box is the one
                 every surface shares; a search here is the usual trip to /?q=. The header's
                 own box is off on this page so there is exactly one. */}
-            <div data-testid="dashboard-search">
+            <div ref={heroRef} data-testid="dashboard-search">
               <SearchBox
                 className="w-full"
                 value={query}

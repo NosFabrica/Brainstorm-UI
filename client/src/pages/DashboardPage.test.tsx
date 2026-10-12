@@ -6,11 +6,12 @@
  * product. The network itself lives on /network.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 import { renderWithProviders } from "@/test/utils";
 import { accountKey } from "@/lib/accountStorage";
+import { stubControllableIntersectionObserver } from "@/test/controllableIntersectionObserver";
 
 const ME = "f".repeat(64);
 
@@ -20,7 +21,7 @@ vi.mock("@/components/AppHeader", () => ({
 }));
 vi.mock("@/components/search/SearchBox", () => ({
   SearchBox: ({ ariaLabel, autoFocus }: { ariaLabel?: string; autoFocus?: boolean }) => (
-    <input aria-label={ariaLabel} data-autofocus={String(!!autoFocus)} data-testid="search-box" />
+    <input role="combobox" aria-label={ariaLabel} data-autofocus={String(!!autoFocus)} data-testid="search-box" />
   ),
 }));
 vi.mock("@/components/Footer", () => ({ Footer: () => null }));
@@ -147,6 +148,35 @@ describe("DashboardPage for a returning user", () => {
     show();
     expect(await screen.findByTestId("search-box")).toHaveAttribute("data-autofocus", "false");
     mm.mockRestore();
+  });
+
+  it("brings the header's search box in once the hero box has scrolled away, and steps it aside when the hero is back", async () => {
+    const io = stubControllableIntersectionObserver();
+    show();
+    const hero = await screen.findByTestId("dashboard-search");
+    expect(screen.getByTestId("app-header")).toHaveAttribute("data-search", "false");
+    const watching = io.observers.find((o) => o.observed.has(hero));
+    expect(watching).toBeDefined();
+    watching!.report(hero, false);
+    expect(screen.getByTestId("app-header")).toHaveAttribute("data-search", "true");
+    watching!.report(hero, true);
+    expect(screen.getByTestId("app-header")).toHaveAttribute("data-search", "false");
+  });
+
+  it("the slash key puts the cursor in the search box, unless the reader is already typing somewhere", async () => {
+    show();
+    const box = await screen.findByTestId("search-box");
+    box.blur();
+    document.body.focus();
+    fireEvent.keyDown(document.body, { key: "/" });
+    expect(document.activeElement).toBe(box);
+
+    const field = document.createElement("textarea");
+    document.body.appendChild(field);
+    field.focus();
+    fireEvent.keyDown(field, { key: "/" });
+    expect(document.activeElement).toBe(field);
+    field.remove();
   });
 
   it("is a search page first: one search box, the page's own, with the header's switched off", async () => {
