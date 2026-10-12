@@ -331,26 +331,10 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       <ReviewPhotos reviews={ranked.reviews} />
 
       {(directions || call || website || menu || reserve) && (
-        <div className="flex flex-wrap gap-1 sm:gap-2" data-testid="place-actions">
+        <div className="flex gap-1 sm:gap-2" data-testid="place-actions">
           {directions && (
             <Action href={directions} label="Directions" primary>
               <Navigation className="h-5 w-5" />
-            </Action>
-          )}
-          {network.me && (
-            <Action
-              href="#place-reviews"
-              label="Review"
-              onClick={(e) => {
-                e.preventDefault();
-                const box = document.querySelector<HTMLTextAreaElement>(
-                  '[data-testid="place-review-composer"] textarea',
-                );
-                box?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-                box?.focus({ preventScroll: true });
-              }}
-            >
-              <PenLine className="h-5 w-5" />
             </Action>
           )}
           {call && (
@@ -371,6 +355,22 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           {reserve && (
             <Action href={reserve} label="Reserve">
               <CalendarCheck className="h-5 w-5" />
+            </Action>
+          )}
+          {network.me && (
+            <Action
+              href="#place-reviews"
+              label="Review"
+              onClick={(e) => {
+                e.preventDefault();
+                const box = document.querySelector<HTMLTextAreaElement>(
+                  '[data-testid="place-review-composer"] textarea',
+                );
+                box?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                box?.focus({ preventScroll: true });
+              }}
+            >
+              <PenLine className="h-5 w-5" />
             </Action>
           )}
         </div>
@@ -514,7 +514,7 @@ function Action({
       onClick={onClick}
       aria-label={label}
       title={inPage ? undefined : href}
-      className="group flex w-16 flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+      className="group flex min-w-0 flex-1 flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
     >
       <span
         className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
