@@ -67,12 +67,12 @@ export function placeLocalMinutes(lon: number, at: Date): { day: Day; minutes: n
  * once: trailing words that repeat the locality or the postcode are taken
  * off the street before the parts are joined.
  */
-export function addressLine(place: {
+export function addressLines(place: {
   address: string | null;
   locality: string | null;
   region: string | null;
   postalCode: string | null;
-}): string | null {
+}): string[] | null {
   const locality = place.locality?.trim() || null;
   const region = place.region?.trim() || null;
   const postal = place.postalCode?.trim() || null;
@@ -102,8 +102,15 @@ export function addressLine(place: {
     }
     street = words.join(" ").replace(/,\s*$/, "") || null;
   }
-  const code = postalSeen ?? postal;
+  // The five digits of a US ZIP are what anyone writes; the +4 extension is noise here.
+  const code = (postalSeen ?? postal)?.replace(/^(\d{5})-\d{4}$/, "$1") ?? null;
   const regionLine = [region, code].filter(Boolean).join(" ") || null;
-  const parts = [street, locality, regionLine].filter(Boolean);
-  return parts.length ? parts.join(", ") : null;
+  const cityLine = [locality, regionLine].filter(Boolean).join(", ") || null;
+  const lines = [street, cityLine].filter((l): l is string => !!l);
+  return lines.length ? lines : null;
+}
+
+/** The same address on one line, for a row or a title. */
+export function addressLine(place: Parameters<typeof addressLines>[0]): string | null {
+  return addressLines(place)?.join(", ") ?? null;
 }

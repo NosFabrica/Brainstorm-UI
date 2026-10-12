@@ -3,7 +3,7 @@
  * and its category as words. Expected values are the links a phone opens.
  */
 import { describe, expect, it } from "vitest";
-import { addressLine, categoryWords, directionsUrl, placeLocalMinutes, platformOf } from "./placeLinks";
+import { addressLine, addressLines, categoryWords, directionsUrl, placeLocalMinutes, platformOf } from "./placeLinks";
 
 describe("directionsUrl", () => {
   const place = { lat: "10.2875153", lon: "-85.8505374", name: "El Sapo" };
@@ -55,6 +55,35 @@ describe("placeLocalMinutes", () => {
   });
 });
 
+describe("addressLines", () => {
+  it("the street on one line, the city, state and postcode on the next, like a postal address", () => {
+    expect(
+      addressLines({
+        address: "6519 Midnight Pass Road Sarasota 34242",
+        locality: "Sarasota",
+        region: "FL",
+        postalCode: "34242",
+      }),
+    ).toEqual(["6519 Midnight Pass Road", "Sarasota, FL 34242"]);
+  });
+  it("a ZIP+4 extension is dropped: the five digits are what anyone writes", () => {
+    expect(
+      addressLines({ address: "2328 Gulf Gate Drive", locality: "Sarasota", region: "FL", postalCode: "34231-5608" }),
+    ).toEqual(["2328 Gulf Gate Drive", "Sarasota, FL 34231"]);
+    // Other countries' hyphenated codes stay whole.
+    expect(addressLines({ address: null, locality: "Rolante", region: null, postalCode: "95690-000" })).toEqual([
+      "Rolante, 95690-000",
+    ]);
+  });
+  it("one line when only one part is known", () => {
+    expect(addressLines({ address: null, locality: "Sarasota", region: "FL", postalCode: null })).toEqual([
+      "Sarasota, FL",
+    ]);
+    expect(addressLines({ address: "Calle 5", locality: null, region: null, postalCode: null })).toEqual(["Calle 5"]);
+    expect(addressLines({ address: null, locality: null, region: null, postalCode: null })).toBeNull();
+  });
+});
+
 describe("addressLine", () => {
   it("street, city, state and postcode, with the city and postcode said once however the list's line had them", () => {
     expect(
@@ -72,7 +101,7 @@ describe("addressLine", () => {
         region: "FL",
         postalCode: "34231",
       }),
-    ).toBe("2328 Gulf Gate Drive, Sarasota, FL 34231-5608");
+    ).toBe("2328 Gulf Gate Drive, Sarasota, FL 34231");
   });
   it("what the list gives, when it gives less", () => {
     expect(addressLine({ address: "Calle 5", locality: "Tamarindo", region: null, postalCode: null })).toBe(

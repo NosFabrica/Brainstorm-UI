@@ -75,7 +75,7 @@ import type { ConceptDefinition } from "@/lib/conceptResolution";
 import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
 import { contactHref } from "@/lib/contactHref";
 import { DAYS, openingStatus, parseOpeningHours, type Day, type Week } from "@/lib/openingHours";
-import { addressLine, categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
+import { addressLine, addressLines, categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
 import { proxiedSrc } from "@/lib/imageProxy";
 import { useSiteCard } from "@/hooks/useSiteCard";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -229,6 +229,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const listings = links.filter((l) => l.href !== website);
   const country = countryName(place.country);
   const address = addressLine(place);
+  const lines = addressLines(place) ?? [];
   const photo = shown.image ?? site?.image ?? null;
   const Mark = categoryIcon(place.category);
   const vouches = network.ranked.filter((e) => e.group !== "other").length;
@@ -387,21 +388,12 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           </p>
           {place.address && address ? (
             <Row icon={MapPin} label="Address" testId="place-address">
-              {directions ? (
-                <a
-                  href={directions}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="hover:text-brand-link"
-                >
-                  {address}
-                </a>
-              ) : (
-                address
-              )}
-              {country && !address.includes(country) && (
-                <span className="text-slate-500 dark:text-slate-400">, {country}</span>
-              )}
+              {/* Written as on an envelope: the street, the city line, then the country, muted. */}
+              <Address
+                lines={lines}
+                country={country && !address.includes(country) ? country : null}
+                href={directions}
+              />
             </Row>
           ) : (
             (address || country) && (
@@ -554,6 +546,41 @@ function Row({
       <dt className="sr-only">{label}</dt>
       <dd className="min-w-0 flex-1 break-words text-slate-900 dark:text-slate-100">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * The address written as on an envelope: the street on one line, the city,
+ * state and postcode on the next, the country on its own line, muted
+ * (lib/placeLinks addressLines). The whole of it opens directions.
+ */
+function Address({ lines, country, href }: { lines: string[]; country: string | null; href: string | null }) {
+  const [street, city] = lines.length > 1 ? lines : [null, lines[0] ?? null];
+  const body = (
+    <>
+      {street && (
+        <span className="block" data-testid="place-address-street">
+          {street}
+        </span>
+      )}
+      {city && (
+        <span className="block" data-testid="place-address-city">
+          {city}
+        </span>
+      )}
+      {country && (
+        <span className="block text-slate-500 dark:text-slate-400" data-testid="place-address-country">
+          {country}
+        </span>
+      )}
+    </>
+  );
+  return href ? (
+    <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="block hover:text-brand-link">
+      {body}
+    </a>
+  ) : (
+    body
   );
 }
 
