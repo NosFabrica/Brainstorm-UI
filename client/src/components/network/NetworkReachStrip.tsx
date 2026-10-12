@@ -61,7 +61,7 @@ export function NetworkReachStrip({
         <span>
           people within{" "}
           <span className="font-medium text-brand-primary dark:text-brand-link" data-testid="network-reach-hops">
-            {lo === hi ? `${lo}` : `${lo}–${hi}`} hops
+            {reach === null ? "— hops" : lo === hi ? `${lo} hop${lo === 1 ? "" : "s"}` : `${lo}–${hi} hops`}
           </span>
         </span>
         <span className="hidden w-28 items-center sm:flex" data-testid="network-reach-slider">

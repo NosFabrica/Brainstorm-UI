@@ -40,7 +40,16 @@ describe("NetworkReachStrip", () => {
   it("says nothing invented while there is no run: dashes, not made-up numbers", () => {
     render(<NetworkReachStrip counts={null} loading={false} onDetails={() => {}} />);
     expect(screen.getByTestId("network-reach-count")).toHaveTextContent("—");
+    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("— hops");
     expect(screen.getByTestId("network-health-legend")).toHaveTextContent("Verified —");
+  });
+
+  it("a run that only reached direct follows reads '1 hop', not '1 hops'", () => {
+    render(<NetworkReachStrip counts={{ high: { "1": 6 } }} loading={false} onDetails={() => {}} />);
+    expect(screen.getByTestId("network-reach-count")).toHaveTextContent("6");
+    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("1 hop");
+    expect(screen.getByTestId("network-reach-hops")).not.toHaveTextContent("hops");
+    expect(screen.getByTestId("network-health-legend")).toHaveTextContent("Verified 100%");
   });
 
   it("the Details link opens the explainer the page owns", () => {
