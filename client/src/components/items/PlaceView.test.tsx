@@ -42,6 +42,12 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
+// The map is Leaflet in a browser; here, what it was handed.
+vi.mock("@/components/items/PlaceMap", () => ({
+  PlaceMap: (p: { lat: number; lon: number; name: string }) => (
+    <div data-testid="place-map" data-lat={p.lat} data-lon={p.lon} data-name={p.name} />
+  ),
+}));
 vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
 }));
@@ -221,6 +227,9 @@ describe("PlaceView", () => {
     expect(within(details).getByTestId("place-phone")).toHaveTextContent("+1 346 493 2858");
     expect(within(details).getByTestId("place-website")).toHaveTextContent("ilsolefood.com");
     expect(screen.getByTestId("place-attribution")).toHaveTextContent("OpenStreetMap contributors");
+    // The map is shown outright, at the place.
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-lat", "27.2508994");
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-lon", "-82.5343946");
     expect(screen.getByTestId("place-verdict")).toHaveTextContent("Who stands behind it");
 
     // The week unfolds on tap, today first and bold, closed days said.
@@ -247,6 +256,7 @@ describe("PlaceView", () => {
     expect(within(details).queryByTestId("place-address")).toBeNull();
     expect(within(details).getByTestId("place-country")).toHaveTextContent("Costa Rica");
     expect(within(details).queryByTestId("place-hours")).toBeNull();
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-name", "El Sapo");
   });
 
   it("applies only when the definition declares a name and the item has one", () => {

@@ -34,7 +34,6 @@ import {
   Navigation,
   Phone,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
@@ -46,11 +45,11 @@ import {
   type ItemEvent,
 } from "@/components/share/DListItemParts";
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
+import { PlaceMap } from "@/components/items/PlaceMap";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
-import { osmEmbedUrl, osmPageUrl } from "@/lib/geohash";
 import { contactHref } from "@/lib/contactHref";
 import { DAYS, openingStatus, parseOpeningHours, type Day, type Week } from "@/lib/openingHours";
 import { categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
@@ -177,6 +176,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const status = week && localNow ? openingStatus(week, localNow) : null;
   const bitcoin = bitcoinWords(place.bitcoin);
   const directions = directionsUrl(place);
+  const coords =
+    Number.isFinite(Number(place.lat)) && Number.isFinite(lon) && place.lat ? { lat: Number(place.lat), lon } : null;
   const website = httpUrl(place.website);
   const call = place.phone ? contactHref(place.phone) : null;
   const menu = httpUrl(place.menu);
@@ -290,7 +291,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           data-testid="place-photo"
         />
       ) : (
-        shown.location && <PlaceMap location={shown.location} name={place.name} />
+        coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
       )}
 
       <dl
@@ -444,44 +445,6 @@ function HoursRow({ week, today }: { week: Week; today: Day }) {
           </tbody>
         </table>
       )}
-    </div>
-  );
-}
-
-/** The map as the page's picture: a tile with the pin until the reader asks, then OpenStreetMap's embed. */
-function PlaceMap({ location, name }: { location: NonNullable<ReadyItemView["shown"]["location"]>; name: string }) {
-  const [shown, setShown] = useState(false);
-  if (shown)
-    return (
-      <div className="space-y-1.5" data-testid="place-map">
-        <iframe
-          src={osmEmbedUrl(location)}
-          title={`Map: ${name}`}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-          className="aspect-[16/9] w-full rounded-xl border border-border"
-        />
-        <a
-          href={osmPageUrl(location)}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-link dark:text-slate-400"
-        >
-          Open in OpenStreetMap <ExternalLink className="h-3 w-3" />
-        </a>
-      </div>
-    );
-  return (
-    <div
-      className="flex aspect-[16/6] w-full flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-[radial-gradient(circle_at_center,_rgba(114,55,255,0.08),_transparent_60%)] text-center dark:border-slate-700"
-      data-testid="place-map-tile"
-    >
-      <MapPin className="h-8 w-8 text-brand-primary" />
-      <Button variant="outline" size="sm" onClick={() => setShown(true)} data-testid="place-map-show">
-        Show on map
-        <span className="text-xs font-normal text-slate-400">· openstreetmap.org</span>
-      </Button>
     </div>
   );
 }
