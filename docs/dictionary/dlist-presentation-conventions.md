@@ -171,8 +171,10 @@ event often carries once per precision (`["g","6ex01945p"]`, `["g","6ex019"]`, �
   fields would need a role naming two fields. Lists that carry both can still link out by
   coordinates through a URL template (§5.2).
 
-Brainstorm offers the place on the item's page as OpenStreetMap's embedded map, **loaded
-only when the reader asks**, so opening a page contacts no map server. A cell of 6
+Brainstorm's generic item page offers the place as OpenStreetMap's embedded map, **loaded
+only when the reader asks**, so opening a page contacts no map server. A concept's own
+page (a food and drink place's, ADR 0007) shows its map outright: there the map is the
+point of the page. A cell of 6
 characters or more (≈ 1 km and under) is a spot and gets a pin; a coarser one is framed as
 the area it is, with no pin to suggest a precision it doesn't have.
 
