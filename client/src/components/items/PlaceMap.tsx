@@ -19,12 +19,15 @@ export function PlaceMap({
   lon,
   name,
   compact = false,
+  tall = false,
 }: {
   lat: number;
   lon: number;
   name: string;
-  /** A tile under the actions, when a photo is the hero; else the hero itself. */
+  /** A short tile (under a photo, or on a phone before "Larger map"); else the column's map. */
   compact?: boolean;
+  /** The phone's expanded map. */
+  tall?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -71,7 +74,7 @@ export function PlaceMap({
     <div className="space-y-1.5" data-testid="place-map">
       <div
         ref={host}
-        className={`${compact ? "aspect-[16/6] sm:aspect-[16/5]" : "aspect-[16/9] sm:aspect-[16/7]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
+        className={`${tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
         role="img"
         aria-label={`Map showing ${name}`}
       >

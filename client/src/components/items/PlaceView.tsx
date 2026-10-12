@@ -2,9 +2,12 @@
  * A food and drink place on its own page (ADR 0007, tier three), the shape
  * a reader knows from Google Places or Yelp, in Brainstorm's own clothes:
  *
- * - The website's own picture as the hero when the site gives one (through
- *   our link-preview origin), else the map; a logo beside the name from the
- *   site's favicon, else a mark for the kind of place.
+ * - One column on a phone: who it is, the ways out, the map, the details.
+ *   Two from sm up, as Google's place panel sits beside its map: the facts on
+ *   the left, the map on the right, sticky, with the website's own picture
+ *   above it when the site gives one (through our link-preview origin). A
+ *   logo beside the name from the site's favicon, else a mark for the kind of
+ *   place.
  * - The name; what it is as words ("Fast food · Pizza"); where Google puts
  *   the stars, the trust line: how many people the reader trusts vouch for
  *   it and how many reviews it has; "Open now · until 10:00 PM" or "Closed ·
@@ -197,6 +200,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
+  const [mapTall, setMapTall] = useState(false);
   const price = priceSummary(ranked.reviews);
   const payments = paymentSummary(ranked.reviews);
 
@@ -231,30 +235,15 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
 
   return (
     <div className="space-y-5" data-testid="dlist-item-hero" data-definition="read" data-view="place">
-      <div className="space-y-4">
-        {isAdmin && (
-          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
-            <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
-          </p>
-        )}
-        {photo ? (
-          <img
-            src={proxiedSrc(photo, "media_1280")}
-            referrerPolicy="no-referrer"
-            alt=""
-            className="aspect-[16/9] w-full rounded-xl border border-border object-cover sm:aspect-[16/7]"
-            data-testid="place-photo"
-          />
-        ) : (
-          coords && (
-            <div data-testid="place-hero-map">
-              <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
-            </div>
-          )
-        )}
-        <ReviewPhotos reviews={ranked.reviews} />
-
-        <div className="flex items-start gap-3">
+      {isAdmin && (
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
+          <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
+        </p>
+      )}
+      {/* One column on a phone: who, then the ways out, then the map, then the details. Two from sm up:
+          the facts on the left, the map (and the photo, when a site gives one) sticky on the right. */}
+      <div className="grid grid-cols-1 gap-x-6 gap-y-4 [grid-template-areas:'identity''actions''media''details'] sm:grid-cols-[minmax(0,1fr)_224px] sm:[grid-template-areas:'identity_media''actions_media''details_media']">
+        <div className="flex items-start gap-3 [grid-area:identity]">
           <span
             className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-900"
             data-testid="place-logo"
@@ -326,103 +315,140 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             )}
           </div>
         </div>
-      </div>
 
-      {(directions || call || website || menu || reserve || others.length > 0) && (
-        <div className="flex flex-wrap gap-1 sm:gap-2" data-testid="place-actions">
-          {directions && (
-            <Action href={directions} label="Directions" primary>
-              <Navigation className="h-5 w-5" />
-            </Action>
+        {(directions || call || website || menu || reserve || others.length > 0) && (
+          <div className="flex flex-wrap gap-1 self-start [grid-area:actions] sm:gap-2" data-testid="place-actions">
+            {directions && (
+              <Action href={directions} label="Directions" primary>
+                <Navigation className="h-5 w-5" />
+              </Action>
+            )}
+            {call && (
+              <Action href={call} label="Call">
+                <Phone className="h-5 w-5" />
+              </Action>
+            )}
+            {website && (
+              <Action href={website} label="Website">
+                <Globe className="h-5 w-5" />
+              </Action>
+            )}
+            {menu && (
+              <Action href={menu} label="Menu">
+                <BookOpen className="h-5 w-5" />
+              </Action>
+            )}
+            {reserve && (
+              <Action href={reserve} label="Reserve">
+                <CalendarCheck className="h-5 w-5" />
+              </Action>
+            )}
+            {others.map((l) => (
+              <Action key={l.href} href={l.href} label={l.label.replace(/ place$/i, "")}>
+                <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
+              </Action>
+            ))}
+          </div>
+        )}
+
+        <aside className="min-w-0 [grid-area:media]">
+          <div className="space-y-3 sm:sticky sm:top-24">
+            {photo && (
+              <img
+                src={proxiedSrc(photo, "media_1280")}
+                referrerPolicy="no-referrer"
+                alt=""
+                className="aspect-[16/9] w-full rounded-xl border border-border object-cover sm:aspect-[4/3]"
+                data-testid="place-photo"
+              />
+            )}
+            {coords && (
+              <PlaceMap
+                lat={coords.lat}
+                lon={coords.lon}
+                name={place.name}
+                compact={!!photo || !mapTall}
+                tall={mapTall}
+              />
+            )}
+            {coords && !photo && (
+              <button
+                type="button"
+                onClick={() => setMapTall((v) => !v)}
+                className="text-xs font-semibold text-slate-500 hover:text-brand-link dark:text-slate-400 sm:hidden"
+                data-testid="place-map-expand"
+              >
+                {mapTall ? "Smaller map" : "Larger map"}
+              </button>
+            )}
+            <ReviewPhotos reviews={ranked.reviews} />
+          </div>
+        </aside>
+
+        <dl className="divide-y divide-slate-100 [grid-area:details] dark:divide-slate-800" data-testid="place-details">
+          {place.address ? (
+            <Row icon={MapPin} label="Address" testId="place-address">
+              {directions ? (
+                <a
+                  href={directions}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="hover:text-brand-link"
+                >
+                  {place.address}
+                </a>
+              ) : (
+                place.address
+              )}
+              {country && !place.address.includes(country) && (
+                <span className="text-slate-500 dark:text-slate-400">, {country}</span>
+              )}
+            </Row>
+          ) : (
+            (place.locality || country) && (
+              <Row icon={MapPin} label="Where" testId="place-country">
+                {[place.locality, place.region, country].filter(Boolean).join(", ")}
+              </Row>
+            )
           )}
-          {call && (
-            <Action href={call} label="Call">
-              <Phone className="h-5 w-5" />
-            </Action>
+          {week && localNow && <HoursRow week={week} today={localNow.day} />}
+          {place.phone && (
+            <Row icon={Phone} label="Phone" testId="place-phone">
+              {call ? (
+                <a href={call} className="hover:text-brand-link">
+                  {place.phone}
+                </a>
+              ) : (
+                place.phone
+              )}
+            </Row>
+          )}
+          {(price || place.priceRange) && (
+            <Row icon={Tag} label="Price" testId="place-price">
+              {price
+                ? `${price.dollars} · from ${price.count} ${price.count === 1 ? "review" : "reviews"}`
+                : "$".repeat(Number(place.priceRange) || 0)}
+            </Row>
+          )}
+          {payments.length > 0 && (
+            <Row icon={CreditCard} label="Paid with" testId="place-paid">
+              {payments.map((p) => `${p.label} · ${p.count}`).join(", ")}
+            </Row>
           )}
           {website && (
-            <Action href={website} label="Website">
-              <Globe className="h-5 w-5" />
-            </Action>
-          )}
-          {menu && (
-            <Action href={menu} label="Menu">
-              <BookOpen className="h-5 w-5" />
-            </Action>
-          )}
-          {reserve && (
-            <Action href={reserve} label="Reserve">
-              <CalendarCheck className="h-5 w-5" />
-            </Action>
-          )}
-          {others.map((l) => (
-            <Action key={l.href} href={l.href} label={l.label.replace(/ place$/i, "")}>
-              <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
-            </Action>
-          ))}
-        </div>
-      )}
-
-      {photo && coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} compact />}
-
-      <dl className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="place-details">
-        {place.address ? (
-          <Row icon={MapPin} label="Address" testId="place-address">
-            {directions ? (
-              <a href={directions} target="_blank" rel="noopener noreferrer nofollow" className="hover:text-brand-link">
-                {place.address}
+            <Row icon={Globe} label="Website" testId="place-website">
+              <a
+                href={website}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="inline-flex items-center gap-1 hover:text-brand-link"
+              >
+                {hostOf(website)} <ExternalLink className="h-3 w-3 opacity-60" />
               </a>
-            ) : (
-              place.address
-            )}
-            {country && !place.address.includes(country) && (
-              <span className="text-slate-500 dark:text-slate-400">, {country}</span>
-            )}
-          </Row>
-        ) : (
-          (place.locality || country) && (
-            <Row icon={MapPin} label="Where" testId="place-country">
-              {[place.locality, place.region, country].filter(Boolean).join(", ")}
             </Row>
-          )
-        )}
-        {week && localNow && <HoursRow week={week} today={localNow.day} />}
-        {place.phone && (
-          <Row icon={Phone} label="Phone" testId="place-phone">
-            {call ? (
-              <a href={call} className="hover:text-brand-link">
-                {place.phone}
-              </a>
-            ) : (
-              place.phone
-            )}
-          </Row>
-        )}
-        {(price || place.priceRange) && (
-          <Row icon={Tag} label="Price" testId="place-price">
-            {price
-              ? `${price.dollars} · from ${price.count} ${price.count === 1 ? "review" : "reviews"}`
-              : "$".repeat(Number(place.priceRange) || 0)}
-          </Row>
-        )}
-        {payments.length > 0 && (
-          <Row icon={CreditCard} label="Paid with" testId="place-paid">
-            {payments.map((p) => `${p.label} · ${p.count}`).join(", ")}
-          </Row>
-        )}
-        {website && (
-          <Row icon={Globe} label="Website" testId="place-website">
-            <a
-              href={website}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="inline-flex items-center gap-1 hover:text-brand-link"
-            >
-              {hostOf(website)} <ExternalLink className="h-3 w-3 opacity-60" />
-            </a>
-          </Row>
-        )}
-      </dl>
+          )}
+        </dl>
+      </div>
 
       <div id="place-reviews">
         <PlaceReviews item={event} ranked={ranked} />
@@ -462,7 +488,7 @@ function Action({
       target={href.startsWith("tel:") ? undefined : "_blank"}
       rel="noopener noreferrer nofollow"
       aria-label={label}
-      className="group flex w-[72px] flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+      className="group flex w-16 flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
     >
       <span
         className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${

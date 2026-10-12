@@ -282,7 +282,7 @@ describe("PlaceView", () => {
     // No website: the kind of place is the mark, and the map is the hero.
     expect(screen.getByTestId("place-logo").querySelector("img")).toBeNull();
     expect(screen.getByTestId("place-logo").querySelector("svg")).not.toBeNull();
-    expect(screen.getByTestId("place-hero-map")).toBeInTheDocument();
+    expect(screen.getByTestId("place-map")).toBeInTheDocument();
     expect(screen.queryByTestId("place-photo")).toBeNull();
     const actions = screen.getByTestId("place-actions");
     expect(within(actions).getByRole("link", { name: "Directions" })).toBeInTheDocument();
@@ -349,11 +349,10 @@ describe("PlaceView", () => {
     );
   });
 
-  it("the website's picture is the hero when the site gives one, and the map becomes a tile under the actions", () => {
+  it("the website's picture joins the map column when the site gives one", () => {
     site.card = { image: "https://www.ilsolefood.com/og.jpg", siteName: "Il Sole" };
     renderWithProviders(<Page event={ilSole} />);
     expect(screen.getByTestId("place-photo").getAttribute("src")).toContain("ilsolefood.com/og.jpg");
-    expect(screen.queryByTestId("place-hero-map")).toBeNull();
     expect(screen.getByTestId("place-map")).toBeInTheDocument();
   });
 
