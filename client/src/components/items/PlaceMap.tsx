@@ -20,14 +20,11 @@ export function PlaceMap({
   lat,
   lon,
   name,
-  compact = false,
   hero = false,
 }: {
   lat: number;
   lon: number;
   name: string;
-  /** A short tile under a photo; else the band's map. */
-  compact?: boolean;
   /** The page's hero band: wide, with the zoom buttons bottom right so a panel can sit top left. */
   hero?: boolean;
 }) {
@@ -90,7 +87,7 @@ export function PlaceMap({
     <div className="space-y-1.5" data-testid="place-map">
       <div
         ref={host}
-        className={`${hero ? "aspect-[16/9] sm:aspect-[16/7]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:[&_.leaflet-bar_a]:border-slate-700 dark:[&_.leaflet-bar_a]:bg-slate-800 dark:[&_.leaflet-bar_a]:text-slate-100 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500 dark:[&_.leaflet-control-attribution]:bg-slate-900/80 dark:[&_.leaflet-control-attribution]:text-slate-400 dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)]`}
+        className={`${hero ? "aspect-[16/9] sm:aspect-[16/7]" : "aspect-[16/9] sm:aspect-[4/5]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:[&_.leaflet-bar_a]:border-slate-700 dark:[&_.leaflet-bar_a]:bg-slate-800 dark:[&_.leaflet-bar_a]:text-slate-100 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500 dark:[&_.leaflet-control-attribution]:bg-slate-900/80 dark:[&_.leaflet-control-attribution]:text-slate-400 dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)]`}
         role="img"
         aria-label={`Map showing ${name}`}
       >

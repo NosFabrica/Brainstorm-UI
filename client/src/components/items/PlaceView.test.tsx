@@ -7,7 +7,7 @@
  * Sole) or sparse (El Sapo).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
@@ -374,11 +374,38 @@ describe("PlaceView", () => {
     );
   });
 
-  it("the website's picture joins the map column when the site gives one", () => {
+  /** The picture arrives with its true size: a square logo, or a wide link-preview banner. */
+  const loads = (img: HTMLElement, width: number, height: number) => {
+    Object.defineProperty(img, "naturalWidth", { value: width, configurable: true });
+    Object.defineProperty(img, "naturalHeight", { value: height, configurable: true });
+    fireEvent.load(img);
+  };
+
+  it("the map is the hero even when the site gives a picture; a square one — a logo — is a small tile in the panel beside the name", () => {
+    site.card = { image: "https://www.ilsolefood.com/logo.png", siteName: "Il Sole" };
+    renderWithProviders(<Page event={ilSole} />);
+    // One map, the hero; never a second one under a photo band.
+    expect(screen.getAllByTestId("place-map")).toHaveLength(1);
+    const hero = screen.getByTestId("place-hero");
+    expect(within(hero).getByTestId("place-map")).toBeInTheDocument();
+    const panel = within(hero).getByTestId("place-identity");
+    const photo = within(panel).getByTestId("place-photo");
+    expect(photo.getAttribute("src")).toContain("ilsolefood.com/logo.png");
+    // Unseen until it has loaded and proved square-ish; then a tile the height of the name, never a banner.
+    expect(photo).toHaveAttribute("data-shown", "false");
+    loads(photo, 400, 380);
+    expect(photo).toHaveAttribute("data-shown", "true");
+    expect(photo.className).toMatch(/h-14/);
+    expect(photo.className).not.toMatch(/w-full/);
+  });
+
+  it("a wide picture — a link-preview banner — is not shown at all: cropped square it would be a slice of lettering", () => {
     site.card = { image: "https://www.ilsolefood.com/og.jpg", siteName: "Il Sole" };
     renderWithProviders(<Page event={ilSole} />);
-    expect(screen.getByTestId("place-photo").getAttribute("src")).toContain("ilsolefood.com/og.jpg");
-    expect(screen.getByTestId("place-map")).toBeInTheDocument();
+    const photo = screen.getByTestId("place-photo");
+    loads(photo, 1200, 630);
+    expect(photo).toHaveAttribute("data-shown", "false");
+    expect(photo).not.toBeVisible();
   });
 
   it("the trust line counts the vouches from people the reader trusts and the reviews", () => {
