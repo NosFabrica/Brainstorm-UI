@@ -14,7 +14,7 @@
  * fold are the admin's.
  */
 import { useState } from "react";
-import { BookOpen, Library, Star, X } from "lucide-react";
+import { BookOpen, Library, Star } from "lucide-react";
 import { Favicon } from "@/components/share/LinkPreview";
 import { Link } from "wouter";
 import { DListItemNeighbours, useListItems } from "@/components/dictionary/DListItemNeighbours";
@@ -39,9 +39,7 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   const { resolved: r, links, usedFields } = view;
   const book = bookOf(event, r.governing)!;
   const facts = useBookFacts(book).data ?? null;
-  const [reading, setReading] = useState(false);
   const read = facts?.read ?? null;
-  const canRead = read?.kind === "full" && !!read.ocaid;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
   const recommenders = network.ranked.filter((e) => e.group !== "other").length;
@@ -142,24 +140,18 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
         </div>
       </section>
 
-      {/* Reading first — right here when a public-domain scan exists, else borrowing on the Internet
-          Archive — then the definition's templates: the canonical page, reviews, a shop. */}
+      {/* Reading first — on the Internet Archive, in a new window, read or borrowed as it allows — as a
+          quiet button; then the definition's templates: the canonical page, reviews, a shop. */}
       {(read || links.length > 0) && (
         <div className="flex flex-wrap gap-2" data-testid="book-actions">
-          {canRead && (
-            <button type="button" onClick={() => setReading((v) => !v)} aria-expanded={reading} className={pill(true)}>
-              <BookOpen className="h-4 w-4" />
-              Read it here
-            </button>
-          )}
-          {read && !canRead && (
-            <a href={read.url} target="_blank" rel="noopener noreferrer nofollow" className={pill(true)}>
+          {read && (
+            <a href={read.url} target="_blank" rel="noopener noreferrer nofollow" className={pill(false)}>
               <Library className="h-4 w-4" />
-              Borrow on Internet Archive
+              {read.kind === "full" ? "Read on Internet Archive" : "Borrow on Internet Archive"}
             </a>
           )}
           {links.map((l, i) => {
-            const primary = i === 0 && !read;
+            const primary = i === 0;
             return (
               <a
                 key={l.href}
@@ -176,35 +168,11 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
         </div>
       )}
 
-      {reading && canRead && read.ocaid && (
-        <section className="space-y-2" data-testid="book-reader">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-              Reading on the Internet Archive
-            </p>
-            <button
-              type="button"
-              onClick={() => setReading(false)}
-              aria-label="Close the reader"
-              className="rounded-full p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <iframe
-            src={`https://archive.org/embed/${encodeURIComponent(read.ocaid)}`}
-            title={`${book.title}, on the Internet Archive`}
-            allowFullScreen
-            className="aspect-[4/5] w-full rounded-xl border border-border bg-slate-100 dark:bg-slate-900 sm:aspect-[4/3]"
-          />
-        </section>
-      )}
-
-      <WhoStandsBehindIt network={network} noun="book" idPrefix="book" voice="recommend" />
-
       {facts?.description && <Description text={facts.description} />}
 
       {book.subjects.length > 0 && <Subjects all={book.subjects} />}
+
+      <WhoStandsBehindIt network={network} noun="book" idPrefix="book" voice="recommend" />
 
       <BookReviews item={event} ranked={ranked} />
 
