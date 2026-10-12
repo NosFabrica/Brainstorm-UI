@@ -231,8 +231,10 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-trust-line")).toHaveTextContent(
       "No one you trust has vouched for it yet · No reviews yet",
     );
-    // A logo beside the name: the site's favicon, since the place has a website.
-    expect(screen.getByTestId("place-logo").querySelector("img")?.getAttribute("src")).toContain(
+    // No logo circle beside the name: the kind-of-place glyph marks the kind line, the site's favicon sits by its website.
+    expect(screen.queryByTestId("place-logo")).toBeNull();
+    expect(screen.getByTestId("place-kind").querySelector("svg")).not.toBeNull();
+    expect(screen.getByTestId("place-website").querySelector("img")?.getAttribute("src")).toContain(
       "ilsolefood.com/favicon.ico",
     );
     expect(screen.getByTestId("place-bitcoin")).toHaveTextContent("Accepts Bitcoin · Lightning");
@@ -279,9 +281,9 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-kind")).toHaveTextContent("Fast food · Pizza");
     expect(screen.queryByTestId("place-open-status")).toBeNull();
     expect(screen.getByTestId("place-bitcoin")).toHaveTextContent("Accepts Bitcoin · Lightning and on-chain");
-    // No website: the kind of place is the mark, and the map is the hero.
-    expect(screen.getByTestId("place-logo").querySelector("img")).toBeNull();
-    expect(screen.getByTestId("place-logo").querySelector("svg")).not.toBeNull();
+    // No website: the kind of place still has its glyph, and the map is there.
+    expect(screen.queryByTestId("place-logo")).toBeNull();
+    expect(screen.getByTestId("place-kind").querySelector("svg")).not.toBeNull();
     expect(screen.getByTestId("place-map")).toBeInTheDocument();
     expect(screen.queryByTestId("place-photo")).toBeNull();
     const actions = screen.getByTestId("place-actions");

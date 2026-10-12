@@ -243,21 +243,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       {/* One column on a phone: who, then the ways out, then the map, then the details. Two from sm up:
           the facts on the left, the map (and the photo, when a site gives one) sticky on the right. */}
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 [grid-template-areas:'identity''actions''media''details'] sm:grid-cols-[minmax(0,1fr)_224px] sm:[grid-template-areas:'identity_media''actions_media''details_media']">
-        <div className="flex items-start gap-3 [grid-area:identity]">
-          <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-900"
-            data-testid="place-logo"
-          >
-            {website ? (
-              <Favicon
-                host={hostOf(website)}
-                className="h-6 w-6 text-slate-400"
-                fallback={<Mark className="h-5 w-5" aria-hidden />}
-              />
-            ) : (
-              <Mark className="h-5 w-5" aria-hidden />
-            )}
-          </span>
+        <div className="[grid-area:identity]">
           <div className="min-w-0 flex-1">
             <h1
               className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
@@ -267,7 +253,11 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               <EmojiText text={place.name} tags={event} />
             </h1>
             {kind && (
-              <p className="mt-0.5 text-[15px] text-slate-600 dark:text-slate-300" data-testid="place-kind">
+              <p
+                className="mt-1 inline-flex items-center gap-1.5 text-[15px] text-slate-600 dark:text-slate-300"
+                data-testid="place-kind"
+              >
+                <Mark className="h-4 w-4 text-slate-400" aria-hidden />
                 {kind}
                 {place.priceRange && (
                   <span className="text-slate-400"> · {"$".repeat(Math.min(4, Number(place.priceRange) || 0))}</span>
@@ -441,8 +431,9 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                 href={website}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="inline-flex items-center gap-1 hover:text-brand-link"
+                className="inline-flex items-center gap-1.5 hover:text-brand-link"
               >
+                <Favicon host={hostOf(website)} className="h-4 w-4 text-slate-400" fallback={null} />
                 {hostOf(website)} <ExternalLink className="h-3 w-3 opacity-60" />
               </a>
             </Row>
