@@ -511,11 +511,27 @@ describe("SerpRow — media taps", () => {
     render(<SerpRow event={clip} author={author} score={0.7} query="goal" />);
     fireEvent.click(screen.getByTestId("serp-video-thumb"));
     expect(openLightboxMock).toHaveBeenLastCalledWith(
-      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null }],
+      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null, loop: false }],
       0,
       expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
     );
     expect(window.location.pathname).toBe("/");
+  });
+
+  // A short goes round again in the full view, as on its own page.
+  it("a short's thumbnail plays it looping", () => {
+    const short = {
+      ...note("Goal!", [
+        ["d", "goal"],
+        ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"],
+      ]),
+      kind: 34236,
+    };
+    render(<SerpRow event={short} author={author} score={0.7} query="goal" />);
+    fireEvent.click(screen.getByTestId("serp-video-thumb"));
+    expect(openLightboxMock.mock.lastCall![0]).toEqual([
+      { url: "https://cdn.example/goal.mp4", kind: "video", poster: null, loop: true },
+    ]);
   });
 
   // Safe by default: a video its creator marked sensitive shows no poster and no frame in a row.
@@ -540,6 +556,7 @@ describe("SerpRow — media taps", () => {
           kind: "video",
           poster: "https://cdn.example/goal.jpg",
           warning: { reason: "violence" },
+          loop: true,
         },
       ],
       0,

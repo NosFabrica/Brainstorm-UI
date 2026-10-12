@@ -4,6 +4,7 @@ import { Pause, Play, Video } from "lucide-react";
 import { useLightbox } from "@/components/share/Lightbox";
 import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
+import { SHORT_VIDEO_KINDS } from "@/lib/nip71";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/components/search/cards";
 import { fetchFountainItem, fountainRef, type FountainItem } from "@/lib/fountain";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -33,6 +34,8 @@ export type LatestMediaItem =
       href: string;
       /** Its creator marked it sensitive: no poster in the row, and the full view asks first. */
       warning: ContentWarning | null;
+      /** A short (kind 22 or 34236): it goes round again in the full view. */
+      loop: boolean;
     }
   | {
       kind: "podcast";
@@ -63,6 +66,7 @@ export function latestVideos(events: NostrEvent[]): Extract<LatestMediaItem, { k
       at: postedAtOf(e),
       href: eventPath(e),
       warning: contentWarningOf(e),
+      loop: SHORT_VIDEO_KINDS.has(e.kind),
     });
   }
   return out;
@@ -159,7 +163,15 @@ export function PanelLatestMedia({
               icon={<Video className="h-3 w-3" />}
               onPlay={() =>
                 openLightbox(
-                  [{ url: item.url, kind: "video", poster: item.poster, warning: item.warning ?? undefined }],
+                  [
+                    {
+                      url: item.url,
+                      kind: "video",
+                      poster: item.poster,
+                      warning: item.warning ?? undefined,
+                      loop: item.loop,
+                    },
+                  ],
                   0,
                   {
                     author,
