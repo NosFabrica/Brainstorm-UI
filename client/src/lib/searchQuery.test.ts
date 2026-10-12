@@ -12,6 +12,7 @@ import {
   dayBound,
   drawable,
   groupAt,
+  kindNoun,
   mentionAt,
   parseQuery,
   scopeIds,
@@ -310,5 +311,16 @@ describe("the caret probes the pickers hang off", () => {
 describe("ymd", () => {
   it("writes a local day the way the language reads it", () => {
     expect(ymd(new Date(2026, 0, 2))).toBe("2026-01-02");
+  });
+});
+
+// A pill that reads "34236" answers nothing; the words are the ones lib/kindFamily uses.
+describe("kindNoun — what a kind: pill says", () => {
+  it("names the four NIP-71 video kinds", () => {
+    expect([21, 22, 34235, 34236].map(kindNoun)).toEqual(["videos", "short videos", "videos", "short videos"]);
+  });
+
+  it("leaves a kind this app has no word for as its number", () => {
+    expect(kindNoun(31999)).toBe("31999");
   });
 });

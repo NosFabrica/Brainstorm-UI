@@ -633,6 +633,9 @@ export const KIND_NOUNS: Record<number, string> = {
   6: "reposts",
   7: "reactions",
   20: "pictures",
+  // NIP-71, as lib/kindFamily words them: the addressable twins read the same.
+  21: "videos",
+  22: "short videos",
   1063: "files",
   1111: "comments",
   1617: "patches",
@@ -653,6 +656,8 @@ export const KIND_NOUNS: Record<number, string> = {
   31337: "tracks",
   31923: "calendar events",
   32267: "apps",
+  34235: "videos",
+  34236: "short videos",
   39000: "groups",
 };
 
