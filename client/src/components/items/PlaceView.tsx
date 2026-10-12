@@ -55,8 +55,10 @@ import {
   Tag,
   Utensils,
   Wine,
+  Maximize2,
+  Minimize2,
+  X,
 } from "lucide-react";
-import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours, useListItems } from "@/components/dictionary/DListItemNeighbours";
 import { ItemLine } from "@/components/dictionary/ItemLine";
@@ -206,6 +208,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const place = placeOf(event, r.governing)!;
   const me = useActiveAccountDisplay();
   const isAdmin = me?.isAdmin === true;
+  // The map opened up in place, at the reader's ask — never on a stray zoom or drag.
+  const [mapOpen, setMapOpen] = useState(false);
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
   const listed = useListItems(event, r);
@@ -257,20 +261,55 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           picture, when it has one, is a small tile in the panel beside the name, like a logo: never a band
           that pushes the map down the page. */}
       <div className="relative" data-testid="place-hero">
-        {coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero />}
+        {coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero expanded={mapOpen} />}
+        {coords && (
+          <button
+            type="button"
+            onClick={() => setMapOpen((v) => !v)}
+            aria-pressed={mapOpen}
+            aria-label={mapOpen ? "Shrink the map" : "Expand the map"}
+            title={mapOpen ? "Shrink the map" : "Expand the map"}
+            className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            data-testid="place-map-expand"
+          >
+            {mapOpen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        )}
+        {/* Opened up, the panel folds to a name pill from sm up, so the map is clear; on a phone the
+            panel is under the map already and simply stays. */}
+        {mapOpen && (
+          <div
+            className="absolute left-4 top-4 z-10 hidden max-w-[70%] items-center gap-2 rounded-full border border-white/60 bg-white/85 py-1 pl-3 pr-1 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur-md dark:border-slate-700/60 dark:bg-slate-900/85 dark:text-slate-100 sm:flex"
+            data-testid="place-identity-pill"
+          >
+            <span className="truncate">
+              <EmojiText text={place.name} tags={event} />
+            </span>
+            <button
+              type="button"
+              onClick={() => setMapOpen(false)}
+              aria-label="Shrink the map"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:hover:bg-slate-700"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         <div
-          className="mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85"
+          className={`mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85 ${mapOpen ? "sm:hidden" : ""}`}
+          data-folded={mapOpen ? "true" : undefined}
           data-testid="place-identity"
         >
+          {/* The name leads; the logo, when the site has one, sits at the row's right end, as on a letterhead. */}
           <div className="flex items-start gap-3">
-            {photo && <LogoTile src={photo} />}
             <h1
-              className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+              className="min-w-0 flex-1 break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="place-name"
             >
               <EmojiText text={place.name} tags={event} />
             </h1>
+            {photo && <LogoTile src={photo} />}
           </div>
           {kind && (
             <p
@@ -297,28 +336,21 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
             </a>
           </p>
-          {(status || bitcoin != null) && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {status && (
-                <span
-                  className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
-                  title="In the place's local time, estimated from where it is"
-                  data-testid="place-open-status"
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  {status.open
-                    ? `Open now · until ${clock(status.until)}`
-                    : status.opensAt != null && status.opensDay
-                      ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
-                      : "Closed"}
-                </span>
-              )}
-              {bitcoin != null && (
-                <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
-                  Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
-                </Chip>
-              )}
-            </div>
+          {status && (
+            <p className="mt-2">
+              <span
+                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
+                title="In the place's local time, estimated from where it is"
+                data-testid="place-open-status"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                {status.open
+                  ? `Open now · until ${clock(status.until)}`
+                  : status.opensAt != null && status.opensDay
+                    ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
+                    : "Closed"}
+              </span>
+            </p>
           )}
         </div>
       </div>
@@ -422,6 +454,13 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                 <Favicon host={hostOf(website)} className="h-4 w-4 text-slate-400" fallback={null} />
                 {hostOf(website)} <ExternalLink className="h-3 w-3 opacity-60" />
               </a>
+            </Row>
+          )}
+          {/* How to pay is a detail, with the address, phone and site — not a badge in the panel: every
+              place on a BTC Map list takes Bitcoin, so the badge said the same thing on every page. */}
+          {bitcoin != null && (
+            <Row icon={Bitcoin} label="Payment" testId="place-bitcoin">
+              Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
             </Row>
           )}
           {(price || place.priceRange) && (
@@ -604,7 +643,7 @@ function LogoTile({ src }: { src: string }) {
         setSquare(ratio >= SQUARE_ENOUGH[0] && ratio <= SQUARE_ENOUGH[1]);
       }}
       hidden={!square}
-      className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
+      className="ml-auto h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-white object-cover shadow-sm dark:border-slate-700"
       data-shown={square ? "true" : "false"}
       data-testid="place-photo"
     />

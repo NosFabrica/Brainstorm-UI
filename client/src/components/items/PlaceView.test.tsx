@@ -47,8 +47,14 @@ const site = vi.hoisted(() => ({ card: null as null | { image: string | null; si
 vi.mock("@/hooks/useSiteCard", () => ({ useSiteCard: () => site.card }));
 // The map is Leaflet in a browser; here, what it was handed.
 vi.mock("@/components/items/PlaceMap", () => ({
-  PlaceMap: (p: { lat: number; lon: number; name: string }) => (
-    <div data-testid="place-map" data-lat={p.lat} data-lon={p.lon} data-name={p.name} />
+  PlaceMap: (p: { lat: number; lon: number; name: string; expanded?: boolean }) => (
+    <div
+      data-testid="place-map"
+      data-lat={p.lat}
+      data-lon={p.lon}
+      data-name={p.name}
+      data-expanded={String(!!p.expanded)}
+    />
   ),
 }));
 // The list's other places (components/dictionary/DListItemNeighbours useListItems): what the reader's web of trust holds.
@@ -397,6 +403,36 @@ describe("PlaceView", () => {
     expect(photo).toHaveAttribute("data-shown", "true");
     expect(photo.className).toMatch(/h-14/);
     expect(photo.className).not.toMatch(/w-full/);
+    // At the right end of the name's row, as a logo sits on a letterhead — the name leads.
+    const name = within(panel).getByTestId("place-name");
+    expect(name.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(photo.parentElement).toBe(name.parentElement);
+    expect(photo.className).toMatch(/ml-auto/);
+  });
+
+  it("Expand opens the map up in place — taller, the panel folded to a name pill — and Shrink brings the page back", async () => {
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-expanded", "false");
+    expect(screen.queryByTestId("place-identity-pill")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Expand the map" }));
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-expanded", "true");
+    const pill = screen.getByTestId("place-identity-pill");
+    expect(pill).toHaveTextContent("Il Sole Italian Food");
+    expect(screen.getByTestId("place-identity")).toHaveAttribute("data-folded", "true");
+    await userEvent.click(within(pill).getByRole("button", { name: "Shrink the map" }));
+    expect(screen.getByTestId("place-map")).toHaveAttribute("data-expanded", "false");
+    expect(screen.queryByTestId("place-identity-pill")).toBeNull();
+    expect(screen.getByTestId("place-identity")).not.toHaveAttribute("data-folded");
+  });
+
+  it("Accepts Bitcoin is a detail among the details — a Location row under the website — not a badge in the panel", () => {
+    renderWithProviders(<Page event={ilSole} />);
+    const details = screen.getByTestId("place-details");
+    const bitcoin = within(details).getByTestId("place-bitcoin");
+    expect(bitcoin).toHaveTextContent("Accepts Bitcoin · Lightning");
+    const website = within(details).getByTestId("place-website");
+    expect(website.compareDocumentPosition(bitcoin) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByTestId("place-identity")).queryByTestId("place-bitcoin")).toBeNull();
   });
 
   it("a wide picture — a link-preview banner — is not shown at all: cropped square it would be a slice of lettering", () => {

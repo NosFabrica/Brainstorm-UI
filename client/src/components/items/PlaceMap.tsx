@@ -21,12 +21,15 @@ export function PlaceMap({
   lon,
   name,
   hero = false,
+  expanded = false,
 }: {
   lat: number;
   lon: number;
   name: string;
   /** The page's hero band: wide, with the zoom buttons bottom right so a panel can sit top left. */
   hero?: boolean;
+  /** The hero opened up by the reader: taller, so there is map to look around. */
+  expanded?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -83,17 +86,25 @@ export function PlaceMap({
     };
   }, [lat, lon, name, hero]);
 
+  // The size lives on a frame around the host: Leaflet adds its own classes to the host at init, and
+  // a React re-render of the host's className — opening the map up, say — would wipe them.
+  const shape = hero
+    ? expanded
+      ? "h-[66vh] sm:aspect-[4/3] sm:h-auto"
+      : "aspect-[16/9] sm:aspect-[16/7]"
+    : "aspect-[16/9] sm:aspect-[4/5]";
   return (
-    <div className="space-y-1.5" data-testid="place-map">
+    <div className="space-y-1.5" data-testid="place-map" data-expanded={expanded ? "true" : "false"}>
       <div
-        ref={host}
-        className={`${hero ? "aspect-[16/9] sm:aspect-[16/7]" : "aspect-[16/9] sm:aspect-[4/5]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:[&_.leaflet-bar_a]:border-slate-700 dark:[&_.leaflet-bar_a]:bg-slate-800 dark:[&_.leaflet-bar_a]:text-slate-100 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500 dark:[&_.leaflet-control-attribution]:bg-slate-900/80 dark:[&_.leaflet-control-attribution]:text-slate-400 dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)]`}
-        role="img"
-        aria-label={`Map showing ${name}`}
+        className={`${shape} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:[&_.leaflet-bar_a]:border-slate-700 dark:[&_.leaflet-bar_a]:bg-slate-800 dark:[&_.leaflet-bar_a]:text-slate-100 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500 dark:[&_.leaflet-control-attribution]:bg-slate-900/80 dark:[&_.leaflet-control-attribution]:text-slate-400 dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)]`}
       >
-        {failed && (
-          <p className="flex h-full items-center justify-center text-sm text-slate-500">The map couldn&rsquo;t load.</p>
-        )}
+        <div ref={host} className="h-full w-full" role="img" aria-label={`Map showing ${name}`}>
+          {failed && (
+            <p className="flex h-full items-center justify-center text-sm text-slate-500">
+              The map couldn&rsquo;t load.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
