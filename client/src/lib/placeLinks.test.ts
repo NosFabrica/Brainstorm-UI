@@ -3,7 +3,7 @@
  * and its category as words. Expected values are the links a phone opens.
  */
 import { describe, expect, it } from "vitest";
-import { addressLine, categoryWords, directionsUrl, placeLocalMinutes, platformOf } from "./placeLinks";
+import { addressLine, addressLines, categoryWords, directionsUrl, placeLocalMinutes, platformOf } from "./placeLinks";
 
 describe("directionsUrl", () => {
   const place = { lat: "10.2875153", lon: "-85.8505374", name: "El Sapo" };
@@ -52,6 +52,26 @@ describe("placeLocalMinutes", () => {
     expect(placeLocalMinutes(-85.85, at)).toEqual({ day: "th", minutes: 360 });
     // 23:30 UTC at +139.7° (Tokyo, UTC+9) is 08:30 the next day.
     expect(placeLocalMinutes(139.7, new Date("2026-10-15T23:30:00Z"))).toEqual({ day: "fr", minutes: 510 });
+  });
+});
+
+describe("addressLines", () => {
+  it("the street on one line, the city, state and postcode on the next, like a postal address", () => {
+    expect(
+      addressLines({
+        address: "6519 Midnight Pass Road Sarasota 34242",
+        locality: "Sarasota",
+        region: "FL",
+        postalCode: "34242",
+      }),
+    ).toEqual(["6519 Midnight Pass Road", "Sarasota, FL 34242"]);
+  });
+  it("one line when only one part is known", () => {
+    expect(addressLines({ address: null, locality: "Sarasota", region: "FL", postalCode: null })).toEqual([
+      "Sarasota, FL",
+    ]);
+    expect(addressLines({ address: "Calle 5", locality: null, region: null, postalCode: null })).toEqual(["Calle 5"]);
+    expect(addressLines({ address: null, locality: null, region: null, postalCode: null })).toBeNull();
   });
 });
 
