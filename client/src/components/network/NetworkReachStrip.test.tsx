@@ -23,9 +23,13 @@ describe("NetworkReachStrip", () => {
   it("shows the reach within 1–3 hops and the health split in the ladder's colours", () => {
     render(<NetworkReachStrip counts={counts} loading={false} onDetails={() => {}} />);
     expect(screen.getByTestId("network-reach-count")).toHaveTextContent("2,287");
-    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("1–3 hops");
-    // The slider is a tablet-and-up nicety; a phone gets the number and the bar.
-    expect(screen.getByTestId("network-reach-slider")).toHaveClass("hidden", "sm:flex");
+    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("3 hops");
+    // One thumb, how far out to count; a tablet-and-up nicety — a phone gets the number and the bar.
+    const slider = screen.getByTestId("network-reach-slider");
+    expect(slider).toHaveClass("hidden", "sm:flex");
+    expect(within(slider).getAllByRole("slider")).toHaveLength(1);
+    expect(within(slider).getByRole("slider")).toHaveAttribute("aria-valuenow", "3");
+    expect(within(slider).getByRole("slider")).toHaveAttribute("aria-valuemax", "4");
     const legend = screen.getByTestId("network-health-legend");
     expect(legend).toHaveTextContent("Verified 57%");
     expect(legend).toHaveTextContent("Unknown 43%");

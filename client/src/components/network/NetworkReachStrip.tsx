@@ -26,9 +26,12 @@ export function NetworkReachStrip({
   onDetails: () => void;
 }) {
   const maxHop = counts ? maxHopOf(counts) : 1;
-  const [range, setRange] = useState<[number, number]>([1, 3]);
-  const lo = Math.min(range[0], maxHop);
-  const hi = Math.min(range[1], maxHop);
+  // One thumb: how far out to count, from direct follows. A two-thumb range
+  // stacked both thumbs on the same step once dragged together, and nobody asks
+  // for "people between 2 and 3 hops".
+  const [within, setWithin] = useState(3);
+  const lo = 1;
+  const hi = Math.min(within, maxHop);
 
   const reach = counts ? reachByHops(counts, lo, hi) : null;
   const health = useMemo(() => {
@@ -61,24 +64,21 @@ export function NetworkReachStrip({
         <span>
           people within{" "}
           <span className="font-medium text-brand-primary dark:text-brand-link" data-testid="network-reach-hops">
-            {reach === null ? "— hops" : lo === hi ? `${lo} hop${lo === 1 ? "" : "s"}` : `${lo}–${hi} hops`}
+            {reach === null ? "— hops" : `${hi} hop${hi === 1 ? "" : "s"}`}
           </span>
         </span>
-        <span className="hidden w-28 items-center sm:flex" data-testid="network-reach-slider">
+        <span className="hidden w-40 items-center sm:flex" data-testid="network-reach-slider">
           <Slider
-            value={[lo, hi]}
+            value={[hi]}
             onValueChange={(v) => {
               if (!ready) return;
-              const next = (v ?? [1, maxHop]).slice(0, 2);
-              const a = Math.min(next[0] ?? 1, next[1] ?? 1);
-              const b = Math.min(maxHop, Math.max(next[0] ?? 1, next[1] ?? 1));
-              setRange([a, b]);
+              setWithin(Math.min(maxHop, Math.max(1, v?.[0] ?? 1)));
             }}
             min={1}
             max={Math.max(maxHop, 2)}
             step={1}
             disabled={!ready}
-            aria-label="Hop range"
+            aria-label="How far out to count, in hops"
             className={ready ? "w-full cursor-pointer" : "w-full cursor-not-allowed opacity-50"}
           />
         </span>
