@@ -4,7 +4,10 @@
  * pin: the page's picture, since no place in the list has a photo yet. Leaflet and its stylesheet load only on a place's
  * page (a dynamic import), never in the app's first bundle. The map doesn't
  * take the wheel: scrolling the page past it keeps scrolling; zoom with the
- * buttons or a pinch. It stays in the page: no link out to a bigger map;
+ * buttons or a pinch. The container is a stacking context of its own
+ * (`isolate z-0`): Leaflet's panes and controls carry z-indexes in the
+ * hundreds, and without that they'd rise over the app's header and menus.
+ * It stays in the page: no link out to a bigger map;
  * the Directions action is the way to a maps app.
  */
 import { useEffect, useRef, useState } from "react";
@@ -68,7 +71,7 @@ export function PlaceMap({
     <div className="space-y-1.5" data-testid="place-map">
       <div
         ref={host}
-        className={`${compact ? "aspect-[16/6] sm:aspect-[16/5]" : "aspect-[16/9] sm:aspect-[16/7]"} w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
+        className={`${compact ? "aspect-[16/6] sm:aspect-[16/5]" : "aspect-[16/9] sm:aspect-[16/7]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
         role="img"
         aria-label={`Map showing ${name}`}
       >
