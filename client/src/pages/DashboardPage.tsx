@@ -769,6 +769,9 @@ export default function DashboardPage() {
                 onClear={() => setQuery("")}
                 placeholder={<span className={SEARCH_PLACEHOLDER_CLASS}>Search people, topics, or handles</span>}
                 ariaLabel="Search Brainstorm"
+                // A returning reader on a desktop can just type. Not on a phone,
+                // where autofocus pops the keyboard over the page they came to read.
+                autoFocus={typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches}
               />
             </div>
 

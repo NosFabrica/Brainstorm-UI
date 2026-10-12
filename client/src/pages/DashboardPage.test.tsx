@@ -19,7 +19,9 @@ vi.mock("@/components/AppHeader", () => ({
   AppHeader: ({ search }: { search?: boolean }) => <div data-testid="app-header" data-search={String(search)} />,
 }));
 vi.mock("@/components/search/SearchBox", () => ({
-  SearchBox: ({ ariaLabel }: { ariaLabel?: string }) => <input aria-label={ariaLabel} data-testid="search-box" />,
+  SearchBox: ({ ariaLabel, autoFocus }: { ariaLabel?: string; autoFocus?: boolean }) => (
+    <input aria-label={ariaLabel} data-autofocus={String(!!autoFocus)} data-testid="search-box" />
+  ),
 }));
 vi.mock("@/components/Footer", () => ({ Footer: () => null }));
 vi.mock("@/components/PageBackground", () => ({ default: () => null }));
@@ -120,6 +122,28 @@ describe("DashboardPage for a returning user", () => {
     expect(before(search, alerts)).toBe(true);
     expect(before(alerts, reading)).toBe(true);
     expect(screen.queryByTestId("card-your-network")).toBeNull();
+  });
+
+  it("puts the cursor in the box on a desktop, so a returning reader can just type", async () => {
+    const mm = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation(
+        (query: string) => ({ matches: query === "(pointer: fine)", media: query }) as MediaQueryList,
+      );
+    show();
+    expect(await screen.findByTestId("search-box")).toHaveAttribute("data-autofocus", "true");
+    mm.mockRestore();
+  });
+
+  it("leaves the box alone on a phone, where autofocus would pop the keyboard over the page", async () => {
+    const mm = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation(
+        (query: string) => ({ matches: query === "(pointer: coarse)", media: query }) as MediaQueryList,
+      );
+    show();
+    expect(await screen.findByTestId("search-box")).toHaveAttribute("data-autofocus", "false");
+    mm.mockRestore();
   });
 
   it("is a search page first: one search box, the page's own, with the header's switched off", async () => {
