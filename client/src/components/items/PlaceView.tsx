@@ -19,7 +19,7 @@
  *   the links the definition's templates build (BTC Map).
  * - The map as the visual, since no place in the list has a photo yet; the
  *   photo when one has. Loaded on tap, as the privacy rule has it.
- * - The details as a compact grid, two across from sm up: the address on
+ * - The details under both columns, a compact grid two across from sm up: the address on
  *   its own line, then hours (today first, the week on tap), phone, website,
  *   price; the country alone when there's no address. Each thing is said
  *   once: Bitcoin is the chip, the address is the row.
@@ -243,7 +243,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       )}
       {/* One column on a phone: who, then the ways out, then the map, then the details. Two from sm up:
           the facts on the left, the map (and the photo, when a site gives one) sticky on the right. */}
-      <div className="grid grid-cols-1 gap-x-6 gap-y-4 [grid-template-areas:'identity''actions''media''details'] sm:grid-cols-[minmax(0,1fr)_224px] sm:[grid-template-areas:'identity_media''actions_media''details_media']">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-4 [grid-template-areas:'identity''actions''media''details'] sm:grid-cols-[minmax(0,1fr)_224px] sm:[grid-template-areas:'identity_media''actions_media''details_details']">
         <div className="[grid-area:identity]">
           <div className="min-w-0 flex-1">
             <h1
@@ -342,8 +342,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           </div>
         )}
 
-        <aside className="min-w-0 [grid-area:media]">
-          <div className="space-y-3">
+        <aside className="min-w-0 self-stretch [grid-area:media]">
+          <div className="flex h-full flex-col gap-3">
             {photo && (
               <img
                 src={proxiedSrc(photo, "media_1280")}
@@ -360,13 +360,14 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                 name={place.name}
                 compact={!!photo || !mapTall}
                 tall={mapTall}
+                fill={!photo}
               />
             )}
             {coords && !photo && (
               <button
                 type="button"
                 onClick={() => setMapTall((v) => !v)}
-                className="text-xs font-semibold text-slate-500 hover:text-brand-link dark:text-slate-400 sm:hidden"
+                className="self-start text-xs font-semibold text-slate-500 hover:text-brand-link dark:text-slate-400 sm:hidden"
                 data-testid="place-map-expand"
               >
                 {mapTall ? "Smaller map" : "Larger map"}

@@ -20,6 +20,7 @@ export function PlaceMap({
   name,
   compact = false,
   tall = false,
+  fill = false,
 }: {
   lat: number;
   lon: number;
@@ -28,6 +29,8 @@ export function PlaceMap({
   compact?: boolean;
   /** The phone's expanded map. */
   tall?: boolean;
+  /** From sm up, as tall as the column it sits in — the facts beside it set the height. */
+  fill?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -35,6 +38,7 @@ export function PlaceMap({
   useEffect(() => {
     let cancelled = false;
     let map: import("leaflet").Map | null = null;
+    let cleanup: (() => void) | null = null;
     (async () => {
       try {
         const [L] = await Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]);
@@ -60,21 +64,28 @@ export function PlaceMap({
           title: name,
           keyboard: false,
         }).addTo(map);
+        // The page sets the container's height (the column beside it); when that settles, the tiles follow.
+        if (typeof ResizeObserver !== "undefined") {
+          const ro = new ResizeObserver(() => map?.invalidateSize());
+          ro.observe(host.current);
+          cleanup = () => ro.disconnect();
+        }
       } catch {
         if (!cancelled) setFailed(true);
       }
     })();
     return () => {
       cancelled = true;
+      cleanup?.();
       map?.remove();
     };
   }, [lat, lon, name]);
 
   return (
-    <div className="space-y-1.5" data-testid="place-map">
+    <div className={`space-y-1.5 ${fill ? "sm:flex sm:min-h-0 sm:flex-1 sm:flex-col" : ""}`} data-testid="place-map">
       <div
         ref={host}
-        className={`${tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
+        className={`${tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} ${fill ? "sm:aspect-auto sm:h-full sm:min-h-[220px] sm:flex-1" : ""} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
         role="img"
         aria-label={`Map showing ${name}`}
       >
