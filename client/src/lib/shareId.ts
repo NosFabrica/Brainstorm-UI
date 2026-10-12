@@ -119,14 +119,21 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
  *  rendered as a note, markup and all. */
 export const READER_KINDS = new Set([30023, 30818, 30817]);
 
+/** Addressable kinds linked by address that keep their own page: NIP-71's
+ *  addressable videos (Divine publishes shorts as 34236). A creator who
+ *  republishes one gives it a new id, and a link by id is left on the old
+ *  version. Apart from READER_KINDS, which sends a kind to the article reader. */
+export const ADDRESS_LINK_KINDS: ReadonlySet<number> = new Set([34235, 34236]);
+
 /** On-site path for an event: `/e/<naddr>` (its latest version) for an
- *  article or wiki page we know by kind and name, else `/e/<nevent>` (falls
- *  back to the bare id). */
+ *  article, wiki page or addressable video we know by kind and name, else
+ *  `/e/<nevent>` (falls back to the bare id). */
 export function eventPath(
   event: { id: string; pubkey?: string; kind?: number; tags?: string[][] },
   relays: string[] = [],
 ): string {
-  if (event.kind !== undefined && READER_KINDS.has(event.kind) && event.pubkey && event.tags) {
+  const byAddress = event.kind !== undefined && (READER_KINDS.has(event.kind) || ADDRESS_LINK_KINDS.has(event.kind));
+  if (event.kind !== undefined && byAddress && event.pubkey && event.tags) {
     const identifier = event.tags.find((t) => t[0] === "d")?.[1];
     if (identifier !== undefined) {
       try {

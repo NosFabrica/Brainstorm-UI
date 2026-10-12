@@ -25,6 +25,7 @@ import { nip19, type NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 import { setTechnicalView } from "@/lib/technicalView";
+import { eventPath } from "@/lib/shareId";
 
 const AUTHOR = "9".repeat(64);
 const eventsByIds = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
@@ -45,7 +46,10 @@ vi.mock("@/services/nostr", async () => ({
   fetchEventsByIds: (...args: unknown[]) => eventsByIds(...args),
   fetchProfileMap: async () => new Map(),
 }));
-vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
+// The author-score batch (services/trustSignals) flushes on a timer, which can fire after the test that asked.
+vi.mock("@/services/api", () => ({
+  apiClient: { getHouseInfluence: async () => null, getTrustSignals: async () => new Map() },
+}));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
 // The Dictionary's concepts come from relays (hooks/useDictionaryConcepts): none here, already known.
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
@@ -334,6 +338,19 @@ describe("the kind and the content decide, not the route", () => {
     window.history.pushState({}, "", `/e/${naddr}`);
     renderPage();
     await waitFor(() => expect(screen.getByTestId("listing-hero-title")).toHaveTextContent("Obscura VPN"));
+    expect(screen.queryByTestId("article-body")).toBeNull();
+  });
+
+  // An addressable video is linked by its address (eventPath), and the address opens the video page.
+  it("the link to an addressable video opens the video page", async () => {
+    const short = event(34236, "b0f9", "Rings", [["imeta", "url https://cdn.example/b0f9", "m video/mp4"]], "");
+    served.mockReturnValue(short);
+    const path = eventPath(short);
+    expect(path.startsWith("/e/naddr1")).toBe(true);
+    window.history.pushState({}, "", path);
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("video-hero-title")).toHaveTextContent("Rings"));
+    expect(screen.getByTestId("video-hero-player").getAttribute("src")).toBe("https://cdn.example/b0f9");
     expect(screen.queryByTestId("article-body")).toBeNull();
   });
 });
