@@ -60,7 +60,7 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
           <Section
             title="Words"
             rows={[
-              { token: "bitcoin mining", what: "Both words, anywhere in the event." },
+              { token: "Austin Texas", what: "Both words, anywhere in the event." },
               { token: '"exact phrase"', what: "Those words, in that order." },
               {
                 token: "-word",
