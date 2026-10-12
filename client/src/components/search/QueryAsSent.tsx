@@ -6,6 +6,7 @@
  * Renders nothing with the view off.
  */
 import { liftQuery } from "@/lib/searchSyntax";
+import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf } from "@/lib/mediaFacet";
 import { technicalView } from "@/lib/technicalView";
 import { kindsForTab, tagsForTab, type SearchPov, type SearchTab } from "@/services/search";
 
@@ -22,7 +23,9 @@ export function QueryAsSent({
 }) {
   if (!technicalView()) return null;
   const lifted = liftQuery(query);
-  const tabKinds = kindsForTab(tab);
+  // …and on Media `#vine-archive` is Classic Vines: their one kind, asked by label.
+  const vines = tab === "media" && mediaFacetOf(query) === "vines";
+  const tabKinds = vines ? [CLASSIC_VINE_KIND] : kindsForTab(tab);
   // The same reading services/search gives the relay: on NIPs a kind is what a spec covers.
   const coveredKinds = tab === "nips" ? lifted.kinds : undefined;
   const kinds =
@@ -31,12 +34,14 @@ export function QueryAsSent({
         ? tabKinds.filter((k) => lifted.kinds!.includes(k))
         : lifted.kinds
       : tabKinds;
-  const tags = lifted["#t"] ?? tagsForTab(tab);
+  const typedTags = vines ? lifted["#t"]?.filter((t) => t !== VINE_ARCHIVE_LABEL) : lifted["#t"];
+  const tags = typedTags?.length ? typedTags : tagsForTab(tab);
   const parts: string[] = [];
   if (lifted.search) parts.push(`“${lifted.search}”`);
   parts.push(kinds?.length ? `kinds ${kinds.join(" ")}` : "kinds any");
   if (coveredKinds?.length) parts.push(`#k ${coveredKinds.join(" ")}`);
   if (tags?.length) parts.push(`#t ${tags.join(" ")}`);
+  if (vines) parts.push(`#l ${VINE_ARCHIVE_LABEL}`);
   if (lifted.authors?.length) parts.push(`authors ${lifted.authors.length}`);
   if (lifted["#p"]?.length) parts.push(`#p ${lifted["#p"].length}`);
   parts.push(`observer ${pov === "mywot" ? "you" : "house"}`);

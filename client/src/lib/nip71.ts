@@ -15,7 +15,7 @@
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
 import { expirationOf } from "@/lib/nip40";
 import { extractVideoUrls } from "@/lib/noteContent";
-import { tagValue } from "@/lib/resultReaders";
+import { tagValue } from "@/lib/tagValue";
 
 type Tagged = { tags: string[][] };
 type VideoEvent = Tagged & { kind: number; created_at: number; content?: string };

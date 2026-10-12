@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
 import { summarizeResult } from "./resultSummary";
-import { who } from "./resultReaders";
+import { readKind, who } from "./resultReaders";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -309,5 +309,72 @@ describe("a list's row", () => {
         ]),
       ).ref,
     ).toBeNull();
+  });
+});
+
+// A video's row said who and when and nothing about the video. Its own tags say how long it
+// runs, and a restored Vine's say how often it looped in its first life.
+describe("a NIP-71 video's row", () => {
+  const imeta = ["imeta", "url https://media.divine.video/b0f9", "m video/mp4", "dim 1080x1920"];
+  const native = (tags: string[][] = []) =>
+    ev(34236, [["d", "b0f9"], ["title", "Morning at the lake"], ["summary", "Mist over the water"], imeta, ...tags]);
+  const vine = (tags: string[][] = []) =>
+    ev(34236, [
+      ["d", "hF2PTbJmJBz"],
+      ["title", "Do it for the vine"],
+      ["imeta", "url https://media.divine.video/hf2p", "m video/mp4", "dim 480x480"],
+      ["platform", "vine"],
+      ["l", "vine-archive", "archive.divine.video"],
+      ["L", "archive.divine.video"],
+      ["likes", "40213"],
+      ...tags,
+    ]);
+
+  it("a native video says its length", () => {
+    expect(readKind(native([["duration", "6"]]))?.facts).toEqual(["6s"]);
+    // A fraction is the nearest second; from a minute up it reads as a clock.
+    expect(readKind(native([["duration", "6.033"]]))?.facts).toEqual(["6s"]);
+    expect(readKind(native([["duration", "65"]]))?.facts).toEqual(["1:05"]);
+    expect(readKind(native([["duration", "3725"]]))?.facts).toEqual(["1:02:05"]);
+  });
+
+  it("every video kind is read, the imeta's own length first", () => {
+    for (const kind of [21, 22, 34235, 34236]) {
+      const event = ev(kind, [
+        ["imeta", "url https://cdn.example/v.mp4", "m video/mp4", "duration 12"],
+        ["duration", "90"],
+      ]);
+      expect(readKind(event)?.facts).toEqual(["12s"]);
+    }
+  });
+
+  it("a classic Vine says its length and its loops, counted with separators", () => {
+    expect(
+      readKind(
+        vine([
+          ["duration", "6"],
+          ["loops", "1234567"],
+        ]),
+      )?.facts,
+    ).toEqual(["6s", "1,234,567 loops"]);
+    expect(readKind(vine([["loops", "1"]]))?.facts).toEqual(["1 loop"]);
+  });
+
+  it("a video without a duration says no length", () => {
+    expect(readKind(native())?.facts).toEqual([]);
+    expect(readKind(native([["duration", "soon"]]))?.facts).toEqual([]);
+    expect(readKind(vine([["loops", "9000"]]))?.facts).toEqual(["9,000 loops"]);
+  });
+
+  it("loops are a Vine's: the tag on anything else is not read", () => {
+    expect(readKind(native([["loops", "500"]]))?.facts).toEqual([]);
+  });
+
+  it("the row keeps its title, words and video, and gains the facts", () => {
+    const s = summarizeResult(native([["duration", "6"]]));
+    expect(s.title).toBe("Morning at the lake");
+    expect(s.body).toBe("Mist over the water");
+    expect(s.video).toBe("https://media.divine.video/b0f9");
+    expect(s.facts).toEqual(["6s"]);
   });
 });

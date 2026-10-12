@@ -96,3 +96,44 @@ describe("AllResultRow — a video marked sensitive", () => {
     expect(screen.getByTestId("all-row-thumb")).toBeInTheDocument();
   });
 });
+// A restored Vine is signed the day it was imported; `published_at` is the day it was posted.
+const classicVine = (): NostrEvent =>
+  ({
+    id: "7".repeat(64),
+    kind: 34236,
+    pubkey: "9".repeat(64),
+    created_at: Math.floor(Date.now() / 1000) - 60,
+    sig: "s",
+    content: "Vampire Eric",
+    tags: [
+      ["d", "OaXhLEvJxwA"],
+      ["title", "Vampire Eric"],
+      [
+        "imeta",
+        "url https://media.divine.video/9001",
+        "m video/mp4",
+        "image https://media.divine.video/9001.jpg",
+        "dim 480x480",
+      ],
+      ["published_at", "1410674550"],
+      ["platform", "vine"],
+      ["l", "vine-archive", "archive.divine.video"],
+    ],
+  }) as NostrEvent;
+
+describe("AllResultRow — a video's date", () => {
+  it("dates a classic Vine by the day it was posted, not the day it was imported", () => {
+    render(<AllResultRow event={classicVine()} author={null} query="" />);
+    const row = screen.getByTestId(`all-row-${"7".repeat(64)}`);
+    expect(row).toHaveTextContent("Sep 2014");
+    expect(row).not.toHaveTextContent("1m ago");
+  });
+
+  it("leaves every other kind dated by created_at", () => {
+    const note = { ...classicVine(), kind: 1 } as NostrEvent;
+    render(<AllResultRow event={note} author={null} query="" />);
+    const row = screen.getByTestId(`all-row-${"7".repeat(64)}`);
+    expect(row).toHaveTextContent("1m ago");
+    expect(row).not.toHaveTextContent("2014");
+  });
+});

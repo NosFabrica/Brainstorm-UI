@@ -52,6 +52,7 @@ import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
 import { VIDEO_KINDS } from "@/lib/nip71";
+import { postedAtOf } from "@/lib/eventDate";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
@@ -728,7 +729,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
         <AuthorLine
           author={author}
           score={score}
-          created_at={event.created_at}
+          created_at={postedAtOf(event)}
           type={showType ? typeLabelFor(event) : undefined}
           typeIcon={showType ? dlistTypeFor(event)?.icon : undefined}
           typeOf={event}

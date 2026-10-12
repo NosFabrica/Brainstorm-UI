@@ -237,6 +237,7 @@ describe("typeaheadWords — what the people typeahead may look up", () => {
     "kind:",
     "kind:2",
     "spec:",
+    "kind:video",
     "sort:",
     "sort:rec",
     "include:",

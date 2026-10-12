@@ -8,6 +8,7 @@ import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/components/search/cards
 import { fetchFountainItem, fountainRef, type FountainItem } from "@/lib/fountain";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { eventPath } from "@/lib/shareId";
+import { postedAtOf } from "@/lib/eventDate";
 import { relativeTime } from "@/lib/relativeTime";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import type { NostrEvent } from "nostr-tools";
@@ -58,7 +59,8 @@ export function latestVideos(events: NostrEvent[]): Extract<LatestMediaItem, { k
       title: noteTitle(e.content) || "Video",
       poster: mediaPosterOf(e),
       url,
-      at: e.created_at,
+      // A video event by the day it was posted; a note with a clip by the note's own day.
+      at: postedAtOf(e),
       href: eventPath(e),
       warning: contentWarningOf(e),
     });

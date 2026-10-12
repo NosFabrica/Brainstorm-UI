@@ -109,6 +109,7 @@ import {
   type SearchTab,
 } from "./search";
 import { __resetAuthorProfileQueue } from "./authorProfileQueue";
+import { withMediaFacet } from "@/lib/mediaFacet";
 
 const HOUSE = "f".repeat(64);
 
@@ -867,6 +868,211 @@ describe("token lifting", () => {
     searchStream(`to:${note}`, { tab: "notes", pov: "nosfabrica" }, () => {});
     await tick();
     expect(asked()["#e"]).toEqual(["b".repeat(64)]);
+  });
+});
+
+// The Media tab's two chips that change the request (lib/mediaFacet). A chosen chip is a token
+// in the query, so what is tested here is what the query the chip writes puts on the wire.
+describe("the Media tab's Videos and Classic Vines", () => {
+  const alice = "a".repeat(64);
+
+  it("Videos asks the four video kinds and nothing else", async () => {
+    controllable();
+    expect(withMediaFacet("", "videos")).toBe("kind:video");
+    searchStream(withMediaFacet("", "videos"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked().kinds).toEqual([21, 22, 34235, 34236]);
+    expect(asked().search).toBe(`observer:${HOUSE}`);
+    expect(asked().limit).toBe(100);
+  });
+
+  it("Videos keeps a text query and from:", async () => {
+    controllable();
+    searchStream(withMediaFacet(`skate from:${alice}`, "videos"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(asked()).toMatchObject({
+      kinds: [21, 22, 34235, 34236],
+      authors: [alice],
+      search: `skate observer:${HOUSE}`,
+    });
+  });
+
+  // `kind:video` is the four numeric kinds said in one token, wherever it is typed: a tab that
+  // holds no videos asks nothing for either spelling, and a tab with no kinds of its own asks
+  // exactly those four.
+  it("off the Media tab, `kind:video` asks what the four numeric kinds ask", async () => {
+    const NUMERIC = "kind:21 kind:22 kind:34235 kind:34236";
+    for (const tab of ["notes", "articles"] as const) {
+      for (const typed of ["kind:video", NUMERIC]) {
+        reqMock.mockClear();
+        controllable();
+        const snaps: SearchSnapshot[] = [];
+        searchStream(`dog ${typed}`, { tab, pov: "nosfabrica" }, (s) => snaps.push(s));
+        await tick();
+        expect(reqMock).not.toHaveBeenCalled();
+        expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
+      }
+    }
+    const askedOnAll: Record<string, unknown>[][] = [];
+    for (const typed of ["kind:video", NUMERIC]) {
+      reqMock.mockClear();
+      controllable();
+      searchStream(`dog ${typed}`, { tab: "all", pov: "nosfabrica" }, () => {});
+      await tick();
+      askedOnAll.push(askedFilters());
+    }
+    expect(askedOnAll[0]).toEqual([{ kinds: [21, 22, 34235, 34236], search: `dog observer:${HOUSE}`, limit: 100 }]);
+    expect(askedOnAll[1]).toEqual(askedOnAll[0]);
+  });
+
+  it("a sentence with the word video in it is searched as its words, on every kind the tab holds", async () => {
+    controllable();
+    searchStream("Video: Bitcoin explained", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(asked().kinds).toEqual(TAB_KINDS.notes);
+    expect(asked().search).toBe(`Video: Bitcoin explained observer:${HOUSE}`);
+  });
+
+  // Probed on the search relay (2026-10-12): a restored Vine carries `["l","vine-archive",…]`
+  // and never a `t` of that word, so the hashtag's own `#t` filter finds none of them and its `#l` filter
+  // is a side question at a quarter of the page.
+  it("Classic Vines asks kind 34236 by the archive's label, a whole page of them", async () => {
+    controllable();
+    searchStream(withMediaFacet("", "vines"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked()).toEqual({
+      kinds: [34236],
+      "#l": ["vine-archive"],
+      search: `observer:${HOUSE}`,
+      limit: 100,
+    });
+  });
+
+  it("Classic Vines keeps a text query and from:", async () => {
+    controllable();
+    searchStream(withMediaFacet(`cats from:${alice}`, "vines"), { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked()).toEqual({
+      kinds: [34236],
+      "#l": ["vine-archive"],
+      authors: [alice],
+      search: `cats observer:${HOUSE}`,
+      limit: 100,
+    });
+  });
+
+  it("with another hashtag beside it, asks for Vines on that topic and nothing that is not a Vine", async () => {
+    controllable();
+    searchStream("#funny #vine-archive", { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    const filters = askedFilters();
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ kinds: [34236], "#l": ["vine-archive"], "#t": ["funny", "Funny", "FUNNY"] });
+  });
+
+  it("a typed kind that no Vine is asks nothing", async () => {
+    controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("#vine-archive kind:21", { tab: "media", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
+  });
+
+  // Typed kinds are a union. `kind:20` beside the Videos chip's token asks for pictures and
+  // videos: the page is not videos alone, so the chip reads unpressed (lib/mediaFacet).
+  it("a typed `kind:20` beside `kind:video` asks for pictures and videos", async () => {
+    controllable();
+    searchStream("dog kind:20 kind:video", { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked().kinds).toEqual([20, 21, 22, 34235, 34236]);
+  });
+
+  // `label:` asks for NIP-32 label events (kind 1985) under its own mark. They are not Vines,
+  // so beside the chip there is nothing left to ask.
+  it("a `label:` beside Classic Vines asks nothing", async () => {
+    controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("label:review/app #vine-archive", { tab: "media", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
+  });
+
+  it("turning the page under Classic Vines asks the older Vines, still by kind and label", async () => {
+    const subjects = [new Subject<ReqFrame>(), new Subject<ReqFrame>()];
+    reqMock.mockImplementation(() => {
+      const idx = reqMock.mock.calls.length - 1;
+      return new Observable<ReqFrame>((subscriber) => {
+        const inner = subjects[idx].subscribe(subscriber);
+        return () => inner.unsubscribe();
+      });
+    });
+    const vine = (id: string, created_at: number): NostrEvent =>
+      ({
+        id,
+        kind: 34236,
+        pubkey: alice,
+        tags: [
+          ["d", id],
+          ["l", "vine-archive", "archive.divine.video"],
+        ],
+        content: id,
+        created_at,
+        sig: "s",
+      }) as NostrEvent;
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream(
+      `cats from:${alice} #vine-archive sort:recent`,
+      { tab: "media", pov: "nosfabrica", limit: 3 },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    for (const [id, at] of [
+      ["v1", 3000],
+      ["v2", 2000],
+      ["v3", 1000],
+    ] as const)
+      subjects[0].next(frame(vine(id, at)));
+    subjects[0].next(EOSE);
+    await tick();
+
+    handle.more();
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    expect(askedFilters(1)).toEqual([
+      {
+        kinds: [34236],
+        "#l": ["vine-archive"],
+        authors: [alice],
+        search: `cats sort:recent observer:${HOUSE}`,
+        until: 1000,
+        limit: 3,
+      },
+    ]);
+    subjects[1].next(frame(vine("v4", 900)));
+    subjects[1].next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["v1", "v2", "v3", "v4"]);
+    handle();
+  });
+
+  it("anywhere but the Media tab itself, the hashtag is asked as any hashtag is", async () => {
+    controllable();
+    searchStream("#vine-archive", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()[0]["#t"]).toEqual(["vine-archive", "Vine-archive", "VINE-ARCHIVE"]);
+    expect(askedFilters()[0].kinds).toEqual(TAB_KINDS.notes);
+
+    reqMock.mockClear();
+    searchStream("#vine-archive", { tab: "media", pov: "nosfabrica", band: true }, () => {});
+    await tick();
+    expect(askedFilters()[0]["#t"]).toEqual(["vine-archive", "Vine-archive", "VINE-ARCHIVE"]);
+    expect(askedFilters()[0].kinds).toEqual(bandKindsForTab("media"));
   });
 });
 

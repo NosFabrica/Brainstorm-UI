@@ -1,9 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { usePipAwareAutoStop } from "@/lib/audioPlayer";
 import { useAutoplayInView } from "@/lib/feedVideo";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { videoFrameStyle, videoShapeOf, type VideoDim } from "@/lib/videoFrame";
+
+/** The tallest a frame gets, in rem: `max-h-[34rem]` for a video whose size is not known. */
+const MAX_HEIGHT_REM = 34;
+
+/**
+ * The frame a video of this size plays in: its proportions, capped at the tallest a frame gets,
+ * and centred in a column wider than it. Undefined when the size is not known. For whatever
+ * stands where the player will be (a sensitive cover), so swapping one for the other moves nothing.
+ */
+export function feedVideoFrame(
+  dim: VideoDim | null | undefined,
+): { style: CSSProperties; className: string } | undefined {
+  const style = videoFrameStyle(dim, MAX_HEIGHT_REM);
+  return style ? { style, className: "mx-auto" } : undefined;
+}
 
 /**
  * An inline note video that behaves like X: it autoplays **muted** when it
@@ -15,17 +31,26 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
  *
  * `autoFocus` moves focus to the video as it appears, for the one case where
  * the reader has just asked for it ("Show video" on a sensitive cover).
+ *
+ * `dim` is the size a video event's imeta gives: the frame takes that shape
+ * (upright, square or wide) at once, no taller than the one frame a video of
+ * unknown size gets, so nothing jumps when the file loads. `loop` is for a
+ * short.
  */
 export function FeedVideo({
   src,
   poster,
   className,
   autoFocus = false,
+  dim,
+  loop = false,
 }: {
   src: string;
   poster?: string;
   className?: string;
   autoFocus?: boolean;
+  dim?: VideoDim;
+  loop?: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const playButton = useRef<HTMLButtonElement>(null);
@@ -81,19 +106,25 @@ export function FeedVideo({
     v.play().catch(() => {});
   };
 
-  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-black ${className ?? ""}`;
+  // With a size, the frame is the shape and the video fills it; without, the video sizes the frame.
+  const framed = feedVideoFrame(dim);
+  const frame = framed?.style;
+  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-black ${framed?.className ?? ""} ${className ?? ""}`;
+  const shape = videoShapeOf(dim) ?? undefined;
+  const fit = frame ? "absolute inset-0 h-full w-full object-contain" : "max-h-[34rem] w-full object-contain";
 
   // Reduced-motion: no autoplay — a clean click-to-play poster.
   if (reduce && !started) {
     return (
-      <div className={shell}>
+      <div className={shell} style={frame} data-shape={shape}>
         <video
           ref={ref}
           src={src}
           poster={poster}
           playsInline
+          loop={loop}
           preload={videoPreload(speed)}
-          className="max-h-[34rem] w-full object-contain"
+          className={fit}
         />
         <button
           ref={playButton}
@@ -112,19 +143,20 @@ export function FeedVideo({
   }
 
   return (
-    <div className={shell} data-testid="feed-video">
+    <div className={shell} style={frame} data-shape={shape} data-testid="feed-video">
       <video
         ref={ref}
         src={src}
         poster={poster}
         playsInline
+        loop={loop}
         preload={videoPreload(speed)}
         tabIndex={autoFocus ? 0 : undefined}
         controls={controls}
         onClick={() => {
           if (muted) unmute();
         }}
-        className="max-h-[34rem] w-full cursor-pointer object-contain"
+        className={`${fit} cursor-pointer`}
         data-testid="feed-video-el"
       />
       {!controls && (

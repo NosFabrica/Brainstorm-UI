@@ -57,10 +57,11 @@ import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
 import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
-import { FeedVideo } from "@/components/share/FeedVideo";
+import { FeedVideo, feedVideoFrame } from "@/components/share/FeedVideo";
 import { SensitiveCover } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { postedAtOf } from "@/lib/eventDate";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -313,6 +314,11 @@ export function MediaCard({
   // A video its creator marked sensitive neither plays nor shows its poster until the reader asks.
   const warning = isVideo || VIDEO_KINDS.has(event.kind) ? contentWarningOf(event) : null;
   const [shown, setShown] = useState(false);
+  // A video event says its own size and, as a short, that it loops; a note with a clip says neither.
+  // Read once per event: `readVideo` walks every tag, and a card re-renders as its list streams.
+  const dim = useMemo(() => (VIDEO_KINDS.has(event.kind) ? readVideo(event).dim : undefined), [event]);
+  // The cover stands in the frame the player will take, so "Show video" moves nothing under it.
+  const coverFrame = feedVideoFrame(dim);
   // The caption is the words, never the URL — the media itself is the link.
   // nostr: mentions stay IN and render as the person below.
   const caption = (tagVal(event, "title") ?? event.content ?? "")
@@ -352,7 +358,7 @@ export function MediaCard({
       <AuthorRow
         author={author}
         score={score}
-        created_at={event.created_at}
+        created_at={postedAtOf(event)}
         trailing={
           <>
             <KindPill event={event} mixed={false} />
@@ -374,13 +380,29 @@ export function MediaCard({
         </p>
       )}
       {warning && !shown ? (
-        <SensitiveCover
-          reason={warning.reason}
-          onShow={() => setShown(true)}
-          className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
-        />
+        coverFrame ? (
+          <div
+            className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 ${coverFrame.className}`}
+            style={coverFrame.style}
+            data-testid="media-card-cover"
+          >
+            <SensitiveCover reason={warning.reason} onShow={() => setShown(true)} className="h-full w-full" />
+          </div>
+        ) : (
+          <SensitiveCover
+            reason={warning.reason}
+            onShow={() => setShown(true)}
+            className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
+          />
+        )
       ) : isVideo && url ? (
-        <FeedVideo src={url} poster={poster ?? undefined} autoFocus={shown} />
+        <FeedVideo
+          src={url}
+          poster={poster ?? undefined}
+          autoFocus={shown}
+          dim={dim}
+          loop={SHORT_VIDEO_KINDS.has(event.kind)}
+        />
       ) : isAudio && url ? (
         <div className="mt-2" data-noopen>
           <EmbeddedTrackCard

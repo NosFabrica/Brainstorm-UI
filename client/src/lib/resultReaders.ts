@@ -16,6 +16,8 @@ import { contentShape } from "@/lib/contentShape";
 import { reactionEmoji } from "@/lib/customEmoji";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
+import { readVideo } from "@/lib/nip71";
+import { tagValue } from "@/lib/tagValue";
 
 export type ReaderEvent = {
   id: string;
@@ -52,14 +54,9 @@ export const HEX64 = /^[0-9a-f]{64}$/i;
 /** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
 export const OPAQUE_D = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,})$/i;
 
-/** The first non-empty value of the first of `names` the event carries. */
-export const tagValue = (ev: { tags: string[][] }, ...names: string[]): string | null => {
-  for (const name of names) {
-    const v = ev.tags.find((t) => t[0] === name && typeof t[1] === "string" && t[1].trim())?.[1];
-    if (v) return v.trim();
-  }
-  return null;
-};
+// Lives in a leaf of its own (lib/nip71 needs it, and this module needs lib/nip71); still
+// exported here, where its callers have always found it.
+export { tagValue };
 
 /** A url or relay as its host: "wss://nos.lol/" → "nos.lol". */
 export const hostOf = (url: string) =>
@@ -523,6 +520,28 @@ read([30054, 30055], (ev) => {
 read([30312], (ev) => ({ ref: refOf(ev, "first") }));
 
 read([1163], (ev) => ({ facts: unique([tagOf(ev, "dim")]), ref: refOf(ev, "first") }));
+
+/** A video's length: "6s" for a short, "1:05" from a minute up. */
+const videoLength = (seconds: number) => {
+  const s = Math.max(1, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const two = (n: number) => String(n).padStart(2, "0");
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}:${two(m)}:${two(s % 60)}` : `${m}:${two(s % 60)}`;
+};
+
+// A NIP-71 video: how long it runs, and how often a restored Vine looped in its first life.
+// Its title and words are the generic reading's.
+read([21, 22, 34235, 34236], (ev) => {
+  const video = readVideo(ev);
+  return {
+    facts: unique([
+      video.durationSeconds ? videoLength(video.durationSeconds) : null,
+      video.vine?.loops ? plural(video.vine.loops, "loop") : null,
+    ]),
+  };
+});
 
 /** DVM job requests (5000–5999), results (6000–6999) and feedback (7000). */
 function readJob(ev: ReaderEvent): ReaderResult | null {
