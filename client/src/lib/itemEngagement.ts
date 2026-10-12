@@ -14,6 +14,9 @@
  * `#i` filter loosely (probed 2026-10-12: `github:vitorpamplona` also
  * returned Twitter claims), so the claim is checked here, exactly, case-
  * insensitively as GitHub handles are.
+ *
+ * Endorsing is leaving the same reaction: NIP-25's "+", pointing at the item
+ * by id and by address with the hub as the hint, naming its author and kind.
  */
 
 type Reaction = { pubkey: string; created_at: number; content: string };
@@ -54,4 +57,16 @@ export function githubClaimantsOf(profiles: Profile[], handle: string): GitHubCl
     out.push({ pubkey: p.pubkey, proof: typeof claim[2] === "string" && claim[2] ? claim[2] : null });
   }
   return out;
+}
+
+/** The reaction a reader signs to endorse an item (NIP-25), the hub as every pointer's hint. */
+export function endorsementTemplate(
+  item: { id: string; kind: number; pubkey: string; tags: string[][] },
+  relayHint: string,
+): { kind: 7; content: "+"; tags: string[][] } {
+  const d = item.tags.find((t) => t[0] === "d")?.[1];
+  const tags: string[][] = [["e", item.id, relayHint]];
+  if (d != null) tags.push(["a", `${item.kind}:${item.pubkey}:${d}`, relayHint]);
+  tags.push(["p", item.pubkey], ["k", String(item.kind)]);
+  return { kind: 7, content: "+", tags };
 }

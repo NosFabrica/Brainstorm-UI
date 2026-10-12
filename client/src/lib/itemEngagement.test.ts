@@ -4,7 +4,7 @@
  * GitHub handle it names (NIP-39 `i` tags on kind 0).
  */
 import { describe, expect, it } from "vitest";
-import { endorsersOf, githubClaimantsOf } from "./itemEngagement";
+import { endorsementTemplate, endorsersOf, githubClaimantsOf } from "./itemEngagement";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -60,5 +60,21 @@ describe("githubClaimantsOf", () => {
       { pubkey: A, proof: "new-proof" },
       { pubkey: "d".repeat(64), proof: "p2" },
     ]);
+  });
+});
+
+describe("endorsementTemplate", () => {
+  it("is a NIP-25 '+' on the item: by id and by address, with its author and kind, each pointing at the hub", () => {
+    const item = { id: "1".repeat(64), kind: 39999, pubkey: B, tags: [["d", "nous-clawds4-1vk793p"]] };
+    expect(endorsementTemplate(item, "wss://dcosl.brainstorm.world")).toEqual({
+      kind: 7,
+      content: "+",
+      tags: [
+        ["e", "1".repeat(64), "wss://dcosl.brainstorm.world"],
+        ["a", `39999:${B}:nous-clawds4-1vk793p`, "wss://dcosl.brainstorm.world"],
+        ["p", B],
+        ["k", "39999"],
+      ],
+    });
   });
 });

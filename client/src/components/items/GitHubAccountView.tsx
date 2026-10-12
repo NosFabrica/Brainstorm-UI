@@ -106,67 +106,67 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
   return (
     <div className="space-y-5" data-testid="dlist-item-hero" data-definition="read" data-view="github-account">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
+      {/* Phone: the kicker and the buttons share the top row, the name has the next to itself —
+          a long name never meets a button. From sm up the buttons sit beside the name. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 [grid-template-areas:'kicker_buttons''title_title'] sm:[grid-template-areas:'kicker_kicker''title_buttons']">
+        <p className="min-w-0 self-center truncate text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary [grid-area:kicker]">
           {r.governing.singular}{" "}
           <span className="font-medium normal-case tracking-normal text-slate-400 dark:text-slate-500">
             in <ConceptLink event={event}>{r.governing.plural}</ConceptLink>
           </span>
         </p>
-        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
-            <AccountPicture handle={account.handle} listImage={shown.listImage} />
-            <div className="min-w-0 flex-1">
-              <h1
-                className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="github-account-name"
+        <div className="flex min-w-0 items-center gap-4 [grid-area:title]">
+          <AccountPicture handle={account.handle} listImage={shown.listImage} />
+          <div className="min-w-0 flex-1">
+            <h1
+              className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+              data-testid="github-account-name"
+            >
+              {facts?.name ?? <span data-testid="github-account-handle">{account.handle}</span>}
+            </h1>
+            {facts?.name && (
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400" data-testid="github-account-handle">
+                {account.handle}
+              </p>
+            )}
+            {facts?.bio && (
+              <p
+                className="mt-1 break-words text-[15px] leading-relaxed text-slate-700 dark:text-slate-200"
+                data-testid="github-account-bio"
               >
-                {facts?.name ?? <span data-testid="github-account-handle">{account.handle}</span>}
-              </h1>
-              {facts?.name && (
-                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400" data-testid="github-account-handle">
-                  {account.handle}
-                </p>
-              )}
-              {facts?.bio && (
-                <p
-                  className="mt-1 break-words text-[15px] leading-relaxed text-slate-700 dark:text-slate-200"
-                  data-testid="github-account-bio"
-                >
-                  {facts.bio}
-                </p>
-              )}
-              {account.byline && (
-                <p
-                  className={`mt-1 break-words leading-relaxed ${facts?.bio ? "text-sm text-slate-500 dark:text-slate-400" : "text-[15px] text-slate-600 dark:text-slate-300"}`}
-                  data-testid="github-account-byline"
-                >
-                  <EmojiText text={account.byline} tags={event} />
-                </p>
-              )}
-            </div>
+                {facts.bio}
+              </p>
+            )}
+            {account.byline && (
+              <p
+                className={`mt-1 break-words leading-relaxed ${facts?.bio ? "text-sm text-slate-500 dark:text-slate-400" : "text-[15px] text-slate-600 dark:text-slate-300"}`}
+                data-testid="github-account-byline"
+              >
+                <EmojiText text={account.byline} tags={event} />
+              </p>
+            )}
           </div>
-          {(profile || others.length > 0) && (
-            <div className="flex shrink-0 items-center gap-2" data-testid="github-account-buttons">
-              {profile && (
-                <IconButton href={profile.href} label={profile.label} primary testId="github-account-profile">
-                  <Github className="h-5 w-5" />
-                </IconButton>
-              )}
-              {repos && (
-                <IconButton href={repos} label="Repositories on GitHub" testId="github-account-repos">
-                  <FolderGit2 className="h-5 w-5" />
-                </IconButton>
-              )}
-              {others.map((l) => (
-                <IconButton key={l.href} href={l.href} label={`${l.label} · ${l.host}`} testId="dlist-item-link">
-                  <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
-                </IconButton>
-              ))}
-            </div>
-          )}
         </div>
+        {(profile || others.length > 0) && (
+          <div className="flex items-center gap-2 self-center [grid-area:buttons]" data-testid="github-account-buttons">
+            {profile && (
+              <IconButton href={profile.href} label={profile.label} primary testId="github-account-profile">
+                <Github className="h-4 w-4 sm:h-5 sm:w-5" />
+              </IconButton>
+            )}
+            {repos && (
+              <IconButton href={repos} label="Repositories on GitHub" testId="github-account-repos">
+                <FolderGit2 className="h-4 w-4 sm:h-5 sm:w-5" />
+              </IconButton>
+            )}
+            {others.map((l) => (
+              <IconButton key={l.href} href={l.href} label={`${l.label} · ${l.host}`} testId="dlist-item-link">
+                <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
+              </IconButton>
+            ))}
+          </div>
+        )}
       </div>
 
       {facts && <OnGitHub facts={facts} />}
@@ -184,8 +184,8 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
 /**
  * A square icon button that opens elsewhere: the icon is the whole face, the
- * label is for screen readers and the hover. Two sit side by side, under the
- * title on a phone and at the right of it from `sm` up.
+ * label is for screen readers and the hover. Two sit side by side: in the
+ * top right corner on a phone, at the right of the title from `sm` up.
  */
 function IconButton({
   href,
@@ -209,8 +209,8 @@ function IconButton({
       title={label}
       className={
         primary
-          ? "inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover"
-          : "inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          ? "inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover sm:h-11 sm:w-11"
+          : "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:h-11 sm:w-11"
       }
       data-testid={testId}
     >

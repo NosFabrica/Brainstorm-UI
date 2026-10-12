@@ -9,11 +9,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const reads = vi.hoisted(() => ({
   readListEvents: vi.fn(),
   fetchFromSearchRelayByFilters: vi.fn(),
+  signAs: vi.fn(),
+  publishTagEvent: vi.fn(),
 }));
+vi.mock("@/accounts/signing", () => ({
+  requireActiveAccount: () => ({ pubkey: "f".repeat(64) }),
+  signAs: reads.signAs,
+}));
+vi.mock("@/services/tags", () => ({ publishTagEvent: reads.publishTagEvent }));
+vi.mock("@/config/dictionary", () => ({ dictionaryRelays: () => ["wss://dcosl.brainstorm.world"] }));
 vi.mock("@/services/listReads", () => ({ readListEvents: reads.readListEvents }));
 vi.mock("@/services/nostr", () => ({ fetchFromSearchRelayByFilters: reads.fetchFromSearchRelayByFilters }));
 
-import { fetchItemReactions, fetchGitHubClaimants } from "./itemEngagement";
+import { fetchItemReactions, fetchGitHubClaimants, publishEndorsement } from "./itemEngagement";
 
 const A = "a".repeat(64);
 const item = {
@@ -64,5 +72,24 @@ describe("fetchGitHubClaimants", () => {
       [{ kinds: [0], "#i": ["github:vcavallo"], limit: 100 }],
       expect.any(Number),
     );
+  });
+});
+
+describe("publishEndorsement", () => {
+  it("signs a '+' on the item as the active account and publishes it where list events go", async () => {
+    const signed = { id: "s", kind: 7, pubkey: "f".repeat(64), created_at: 5, content: "+", tags: [], sig: "" };
+    reads.signAs.mockResolvedValue(signed);
+    reads.publishTagEvent.mockResolvedValue({ accepted: 1, total: 2 });
+    const out = await publishEndorsement(item);
+    expect(reads.signAs).toHaveBeenCalledWith(
+      { pubkey: "f".repeat(64) },
+      expect.objectContaining({
+        kind: 7,
+        content: "+",
+        tags: expect.arrayContaining([["e", item.id, "wss://dcosl.brainstorm.world"]]),
+      }),
+    );
+    expect(reads.publishTagEvent).toHaveBeenCalledWith(signed);
+    expect(out).toEqual({ pubkey: "f".repeat(64), at: 5 });
   });
 });
