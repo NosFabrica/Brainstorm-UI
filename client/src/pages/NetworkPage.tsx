@@ -1120,16 +1120,18 @@ export default function NetworkPage() {
                 What is this?
               </button>
             </div>
+            {/* What those scores add up to — reach and health, from the run this page
+                already loads. The dashboard's "Your Network" card, now a line under
+                the title it belongs to, not a second control panel. */}
+            <div className="mt-3">
+              <NetworkReachStrip
+                counts={countValuesOf(grapeRankData?.data?.count_values)}
+                loading={grapeRankLoading}
+                onDetails={() => setScoreExplainOpen(true)}
+              />
+            </div>
             <TrustScoreModal open={scoreExplainOpen} onOpenChange={setScoreExplainOpen} />
           </div>
-
-          {/* Reach and health, from the run this page already loads — the dashboard's
-              "Your Network" card, now where the network is. */}
-          <NetworkReachStrip
-            counts={countValuesOf(grapeRankData?.data?.count_values)}
-            loading={grapeRankLoading}
-            onDetails={() => setScoreExplainOpen(true)}
-          />
 
           <Card
             className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"

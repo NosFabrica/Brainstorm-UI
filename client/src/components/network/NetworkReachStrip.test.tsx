@@ -24,6 +24,8 @@ describe("NetworkReachStrip", () => {
     render(<NetworkReachStrip counts={counts} loading={false} onDetails={() => {}} />);
     expect(screen.getByTestId("network-reach-count")).toHaveTextContent("2,287");
     expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("1–3 hops");
+    // The slider is a tablet-and-up nicety; a phone gets the number and the bar.
+    expect(screen.getByTestId("network-reach-slider")).toHaveClass("hidden", "sm:flex");
     const legend = screen.getByTestId("network-health-legend");
     expect(legend).toHaveTextContent("Verified 57%");
     expect(legend).toHaveTextContent("Unknown 43%");

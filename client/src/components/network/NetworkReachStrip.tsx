@@ -1,19 +1,20 @@
 import { useMemo, useState } from "react";
-import { Network } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ladderFor } from "@/lib/trustLadder";
 import { healthByHops, maxHopOf, reachByHops, type CountValues } from "@/lib/networkReach";
 
 /**
- * Reach and health, above the Network page's filters: how many people the
+ * One status line under the Network page's title: how many people the
  * reader's run reached within a hop range, and how that reach splits into
- * verified, unknown and flagged. The slider only moves the range the two
- * numbers describe; the list below is not filtered by hops (the API has no
- * such filter yet).
+ * verified, unknown and flagged. It sits with "Scores from your perspective"
+ * because it is about the same thing — what those scores add up to — and not
+ * inside the filter card, because nothing here filters the list (the API has
+ * no hops filter; the slider only moves the range the number describes).
  *
  * This is where the dashboard's "Your Network" card went when the dashboard
  * became a search page. The card's invented fallback numbers did not come
- * with it: without a run the strip shows dashes.
+ * with it: without a run the line shows dashes. The slider is a tablet-and-up
+ * nicety; on a phone the line is a number and a bar.
  */
 export function NetworkReachStrip({
   counts,
@@ -44,26 +45,26 @@ export function NetworkReachStrip({
   const total = health.reduce((n, s) => n + (s.value ?? 0), 0);
   const ready = !loading && counts !== null;
 
-  const box =
-    "flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900";
-  const label =
-    "inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
-
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="network-reach-strip">
-      <div className={box}>
-        <div className="flex items-center justify-between">
-          <span className={label}>
-            <Network className="h-3 w-3" /> Extended reach
+    <div
+      className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-600 dark:text-slate-300"
+      data-testid="network-reach-strip"
+    >
+      {/* Reach: the number, the range it covers, and (from sm) the control that moves the range. */}
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className="font-mono text-base font-bold tabular-nums text-slate-900 dark:text-slate-100"
+          data-testid="network-reach-count"
+        >
+          {reach === null ? "—" : reach.toLocaleString()}
+        </span>
+        <span>
+          people within{" "}
+          <span className="font-medium text-brand-primary dark:text-brand-link" data-testid="network-reach-hops">
+            {lo === hi ? `${lo}` : `${lo}–${hi}`} hops
           </span>
-          <span
-            className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100"
-            data-testid="network-reach-count"
-          >
-            {reach === null ? "—" : reach.toLocaleString()}
-          </span>
-        </div>
-        <div className="flex h-5 items-center">
+        </span>
+        <span className="hidden w-28 items-center sm:flex" data-testid="network-reach-slider">
           <Slider
             value={[lo, hi]}
             onValueChange={(v) => {
@@ -80,57 +81,45 @@ export function NetworkReachStrip({
             aria-label="Hop range"
             className={ready ? "w-full cursor-pointer" : "w-full cursor-not-allowed opacity-50"}
           />
-        </div>
-        <div className="flex justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          <span>Direct</span>
-          <span className="text-brand-primary dark:text-brand-link" data-testid="network-reach-hops">
-            {lo === hi ? `${lo}` : `${lo}–${hi}`} hops
-          </span>
-          <span>Global</span>
-        </div>
+        </span>
       </div>
 
-      <div className={box}>
-        <div className="flex items-center justify-between">
-          <span className={label}>Trust health</span>
-          <button
-            type="button"
-            onClick={onDetails}
-            className="rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-            data-testid="network-health-details"
-          >
-            Details →
-          </button>
+      {/* Health: the bar and its legend, every rung even at 0% — a legend missing a tier reads as broken. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <div
+          className="flex h-1.5 w-32 overflow-hidden rounded-full bg-slate-200/70 dark:bg-slate-800 sm:w-44"
+          data-testid="network-health-bar"
+        >
+          {total > 0 &&
+            health.map((s) => (
+              <div
+                key={s.key}
+                className="h-full first:rounded-l-full last:rounded-r-full"
+                style={{ width: `${((s.value ?? 0) / total) * 100}%`, backgroundColor: s.color }}
+                title={`${s.label}: ${(s.value ?? 0).toLocaleString()}`}
+                data-testid="network-health-segment"
+              />
+            ))}
         </div>
-        <div className="flex h-5 items-center">
-          <div
-            className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
-            data-testid="network-health-bar"
-          >
-            {total > 0 &&
-              health.map((s) => (
-                <div
-                  key={s.key}
-                  className="h-full first:rounded-l-full last:rounded-r-full"
-                  style={{ width: `${((s.value ?? 0) / total) * 100}%`, backgroundColor: s.color }}
-                  title={`${s.label}: ${(s.value ?? 0).toLocaleString()}`}
-                  data-testid="network-health-segment"
-                />
-              ))}
-          </div>
-        </div>
-        {/* Every rung, even at 0% — a legend missing a tier reads as broken. */}
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5" data-testid="network-health-legend">
+        <span className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-xs" data-testid="network-health-legend">
           {health.map((s) => (
-            <span key={s.key} className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+            <span key={s.key} className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} aria-hidden="true" />
               {s.label}{" "}
               <span className="font-mono text-slate-400 dark:text-slate-500">
                 {s.value === null || total === 0 ? "—" : `${Math.round((s.value / total) * 100)}%`}
               </span>
             </span>
           ))}
-        </div>
+        </span>
+        <button
+          type="button"
+          onClick={onDetails}
+          className="rounded text-xs font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="network-health-details"
+        >
+          Details →
+        </button>
       </div>
     </div>
   );

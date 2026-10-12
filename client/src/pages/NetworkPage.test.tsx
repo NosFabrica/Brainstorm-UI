@@ -108,11 +108,14 @@ beforeEach(() => {
 describe("NetworkPage reach strip", () => {
   // The dashboard's "Your Network" card moved here: reach and health sit
   // above the filters, read from the same run the page already loads.
-  it("shows the run's reach and health above the filters", async () => {
+  it("shows the run's reach and health as a line under the title, above the filters", async () => {
     show();
     const strip = await screen.findByTestId("network-reach-strip");
+    const perspective = screen.getByTestId("network-perspective");
     const filters = screen.getByTestId("card-network-filters");
+    expect(perspective.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(strip.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByTestId("card-network-filters")).queryByTestId("network-reach-strip")).toBeNull();
     expect(within(strip).getByTestId("network-reach-count")).toHaveTextContent("150");
     expect(within(strip).getByTestId("network-health-legend")).toHaveTextContent("Flagged 4%");
   });
