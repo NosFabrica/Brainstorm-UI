@@ -20,10 +20,14 @@ from the item alone.
 GET /openlibrary/isbn/{isbn}.json            → 302 to /books/{edition}.json; follow it
 GET /openlibrary/works/{id}.json
 GET /openlibrary/works/{id}/ratings.json
+GET /openlibrary/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=viewapi
 ```
 
+The last is the Read API: whether a scan of the book can be read in full (public domain,
+embedded from archive.org on the page), only borrowed there, or neither.
+
 Proxy `/openlibrary/` to `https://openlibrary.org/`, stripping the prefix. Only `GET`,
-only paths under `/isbn/`, `/books/` and `/works/`; refuse the rest. The ISBN path answers
+only paths under `/isbn/`, `/books/`, `/works/` and `/api/books`; refuse the rest. The ISBN path answers
 with a redirect to the edition; follow it upstream (`proxy_intercept_errors` won't do, so
 either resolve the redirect in nginx with a named location, or let the browser follow it
 — the UI follows redirects within `/openlibrary/`, so rewriting `Location` from
@@ -57,3 +61,10 @@ location /openlibrary/ {
   anything but 200 as "nothing known".
 - **Dev:** Vite proxies `/openlibrary` to openlibrary.org directly (`vite.config.ts`), so
   local pages work without this.
+
+## Optional, for the image proxy
+
+If `/img/` ever sends `Access-Control-Allow-Origin: *` on its responses, the book's page
+can read the cover's colours on a canvas and tint its header band to match, as a Kindle
+does. Today the proxy sends no CORS header (checked 2026-10-12), so the page keeps a
+brand tint; nothing depends on it.

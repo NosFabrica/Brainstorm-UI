@@ -185,6 +185,7 @@ const FACTS = {
   publishDate: "2017",
   pages: 327,
   rating: { average: 4.714285714285714, count: 7 },
+  read: null,
 };
 
 beforeEach(() => {
@@ -334,5 +335,43 @@ describe("a book is recommended, not vouched for", () => {
     const verdict = screen.getByTestId("book-verdict");
     const about = screen.getByTestId("book-description");
     expect(verdict.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("reading it inside Brainstorm", () => {
+  it("a public-domain scan opens right here: Read it here leads the buttons and unfolds the Internet Archive reader", async () => {
+    openLibrary.facts = {
+      ...FACTS,
+      read: {
+        kind: "full",
+        url: "https://archive.org/details/stormbeforestorm00dunc",
+        ocaid: "stormbeforestorm00dunc",
+      },
+    };
+    renderWithProviders(<Page event={storm} copy={houseCopy} />);
+    const actions = screen.getByTestId("book-actions");
+    const read = within(actions).getByRole("button", { name: "Read it here" });
+    expect(actions.firstElementChild).toBe(read);
+    expect(screen.queryByTestId("book-reader")).toBeNull();
+    await userEvent.click(read);
+    const reader = screen.getByTestId("book-reader");
+    expect(reader.querySelector("iframe")).toHaveAttribute("src", "https://archive.org/embed/stormbeforestorm00dunc");
+    await userEvent.click(within(reader).getByRole("button", { name: "Close the reader" }));
+    expect(screen.queryByTestId("book-reader")).toBeNull();
+  });
+
+  it("a scan that can only be borrowed is a button to the Internet Archive, and a book with no scan has neither", () => {
+    openLibrary.facts = {
+      ...FACTS,
+      read: {
+        kind: "restricted",
+        url: "https://archive.org/details/stormbeforestorm00dunc",
+        ocaid: "stormbeforestorm00dunc",
+      },
+    };
+    renderWithProviders(<Page event={storm} />);
+    const borrow = within(screen.getByTestId("book-actions")).getByRole("link", { name: /Borrow on Internet Archive/ });
+    expect(borrow).toHaveAttribute("href", "https://archive.org/details/stormbeforestorm00dunc");
+    expect(screen.queryByRole("button", { name: "Read it here" })).toBeNull();
   });
 });

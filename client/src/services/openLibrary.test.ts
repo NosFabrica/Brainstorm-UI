@@ -36,7 +36,14 @@ const work = {
 };
 const ratings = { summary: { average: 4.714285714285714, count: 7, sortable: 3.41 }, counts: { 4: 2, 5: 5 } };
 
+// The Read API: whether a scan of the book can be read, borrowed, or neither.
+const viewapi = (preview: "full" | "restricted" | "noview", previewUrl: string) => ({
+  "ISBN:9781610397216": { bib_key: "ISBN:9781610397216", preview, preview_url: previewUrl },
+});
+let readable = viewapi("noview", "http://openlibrary.org/books/OL26935291M/The_storm_before_the_storm");
+
 const route = (url: string) => {
+  if (url === "/openlibrary/api/books?bibkeys=ISBN%3A9781610397216&format=json&jscmd=viewapi") return ok(readable);
   if (url === "/openlibrary/isbn/9781610397216.json") return ok(edition);
   if (url === "/openlibrary/works/OL19722168W.json") return ok(work);
   if (url === "/openlibrary/works/OL19722168W/ratings.json") return ok(ratings);
@@ -46,6 +53,7 @@ const route = (url: string) => {
 beforeEach(() => {
   fetchMock.mockReset();
   __resetOpenLibrary();
+  readable = viewapi("noview", "http://openlibrary.org/books/OL26935291M/The_storm_before_the_storm");
 });
 
 describe("fetchBookFacts", () => {
@@ -59,6 +67,7 @@ describe("fetchBookFacts", () => {
       publishDate: "2017",
       pages: 327,
       rating: { average: 4.714285714285714, count: 7 },
+      read: null,
     });
     const asked = fetchMock.mock.calls.map((c) => c[0]);
     expect(asked.every((u) => u.startsWith("/openlibrary/"))).toBe(true);
@@ -79,10 +88,34 @@ describe("fetchBookFacts", () => {
     expect(facts?.rating).toEqual({ average: 4.714285714285714, count: 7 });
   });
 
+  it("says when a scan can be read in full, with the Internet Archive id the reader embeds", async () => {
+    readable = viewapi("full", "https://archive.org/details/stormbeforestorm00dunc");
+    fetchMock.mockImplementation((url) => route(url));
+    const facts = await fetchBookFacts({ isbn: "9781610397216", workId: "OL19722168W" });
+    expect(facts?.read).toEqual({
+      kind: "full",
+      url: "https://archive.org/details/stormbeforestorm00dunc",
+      ocaid: "stormbeforestorm00dunc",
+    });
+  });
+
+  it("says when a scan can only be borrowed there", async () => {
+    readable = viewapi("restricted", "https://archive.org/details/stormbeforestorm00dunc");
+    fetchMock.mockImplementation((url) => route(url));
+    const facts = await fetchBookFacts({ isbn: "9781610397216", workId: "OL19722168W" });
+    expect(facts?.read).toMatchObject({
+      kind: "restricted",
+      url: "https://archive.org/details/stormbeforestorm00dunc",
+    });
+  });
+
   it("is null when Open Library knows nothing, and asks once per book", async () => {
     fetchMock.mockImplementation(() => status(404));
     expect(await fetchBookFacts({ isbn: "0000000000000", workId: null })).toBeNull();
+    const asked = fetchMock.mock.calls.length;
     expect(await fetchBookFacts({ isbn: "0000000000000", workId: null })).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // The edition and the Read API, once; the second ask is answered from memory.
+    expect(asked).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(asked);
   });
 });

@@ -4,8 +4,9 @@
  * page count, and how readers there rated it.
  *
  * Asked of our own origin — `GET /openlibrary/isbn/<isbn>.json`,
- * `/openlibrary/works/<id>.json`, `/openlibrary/works/<id>/ratings.json`
- * — which nginx proxies to openlibrary.org and caches, never of Open
+ * `/openlibrary/works/<id>.json`, `/openlibrary/works/<id>/ratings.json`,
+ * and the Read API, `/openlibrary/api/books?…&jscmd=viewapi`, which says
+ * whether a scan can be read in full, borrowed, or neither — which nginx proxies to openlibrary.org and caches, never of Open
  * Library from the reader's browser: the link-preview rule
  * (services/unfurl). One upstream call per book, readers never contact the
  * site. In development Vite proxies the same path. Only on the book's
@@ -23,6 +24,12 @@ export interface BookFacts {
   pages: number | null;
   /** Readers' average out of five, and how many rated — null when none have. */
   rating: { average: number; count: number } | null;
+  /**
+   * A scan of the book on the Internet Archive: readable in full (a public-
+   * domain scan, embeddable by its `ocaid`), or only borrowable there with an
+   * account (`restricted`). Null when there is none to read.
+   */
+  read: { kind: "full" | "restricted"; url: string; ocaid: string | null } | null;
 }
 
 const TIMEOUT_MS = 8000;
@@ -46,8 +53,26 @@ async function getJson<T>(path: string): Promise<T | null> {
 type Json = Record<string, unknown>;
 const workIdOf = (key: unknown): string | null => str(key)?.replace(/^\/works\//, "") ?? null;
 
+/** What the Read API says of the ISBN: readable, borrowable, or nothing. */
+async function readable(isbn: string | null): Promise<BookFacts["read"]> {
+  if (!isbn) return null;
+  const key = `ISBN:${isbn}`;
+  const answer = await getJson<Record<string, Json>>(
+    `/openlibrary/api/books?bibkeys=${encodeURIComponent(key)}&format=json&jscmd=viewapi`,
+  );
+  const hit = answer?.[key];
+  const preview = str(hit?.preview);
+  const url = str(hit?.preview_url);
+  if (!url || (preview !== "full" && preview !== "restricted")) return null;
+  const ocaid = url.match(/archive\.org\/(?:details|stream)\/([^/?#]+)/)?.[1] ?? null;
+  return { kind: preview, url, ocaid };
+}
+
 async function ask(isbn: string | null, workId: string | null): Promise<BookFacts | null> {
-  const edition = isbn ? await getJson<Json>(`/openlibrary/isbn/${encodeURIComponent(isbn)}.json`) : null;
+  const [edition, read] = await Promise.all([
+    isbn ? getJson<Json>(`/openlibrary/isbn/${encodeURIComponent(isbn)}.json`) : null,
+    readable(isbn),
+  ]);
   const works = Array.isArray(edition?.works) ? (edition.works as Json[]) : [];
   const id = workId ?? workIdOf(works[0]?.key);
   const [work, ratings] = id
@@ -68,6 +93,7 @@ async function ask(isbn: string | null, workId: string | null): Promise<BookFact
     publishDate: str(edition?.publish_date),
     pages: pages && pages > 0 ? pages : null,
     rating: average != null && count > 0 ? { average, count } : null,
+    read,
   };
 }
 
