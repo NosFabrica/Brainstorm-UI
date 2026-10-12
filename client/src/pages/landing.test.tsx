@@ -533,6 +533,59 @@ describe("the Media tab's Videos and Classic Vines chips", () => {
     expect(window.location.pathname).toBe("/");
   });
 
+  // A chip is a way of looking at a search, not words anyone typed. Recent searches offered
+  // "dog kind:video" back as if it had been.
+  it("pressing a chip on a search leaves Recent holding the words alone", async () => {
+    const queries = () => getRecentItems().flatMap((r) => (r.type === "query" ? [r.q] : []));
+    window.history.replaceState({}, "", "/?q=dog&t=media");
+    render(<Landing />);
+    fireEvent.click(await screen.findByTestId("media-facet-video"));
+    await waitFor(() => expect(params().get("q")).toBe(`dog ${VIDEOS}`));
+    expect(queries()).toEqual(["dog"]);
+    fireEvent.click(screen.getByTestId("media-facet-vines"));
+    await waitFor(() => expect(params().get("q")).toBe("dog #vine-archive"));
+    expect(queries()).toEqual(["dog"]);
+    // The four kinds typed out are the same chip.
+    cleanup();
+    window.history.replaceState({}, "", "/?t=media");
+    render(<Landing />);
+    typeInBox("cat kind:21 kind:22 kind:34235 kind:34236");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(queries()).toContain("cat"));
+    expect(queries()).toEqual(["cat", "dog"]);
+  });
+
+  it("typed off the Media tab, the same tokens are the reader's own words and are remembered", async () => {
+    const queries = () => getRecentItems().flatMap((r) => (r.type === "query" ? [r.q] : []));
+    window.history.replaceState({}, "", "/");
+    render(<Landing />);
+    typeInBox(`dog ${VIDEOS}`);
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(queries()).toEqual([`dog ${VIDEOS}`]));
+    typeInBox("cats #vine-archive");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(queries()).toEqual(["cats #vine-archive", `dog ${VIDEOS}`]));
+  });
+
+  it("a person's videos are remembered as the person and the tab, without the chip's word", async () => {
+    const MAKER = "6".repeat(64);
+    const npub = nip19.npubEncode(MAKER);
+    knownProfiles.set(MAKER, { display_name: "Maker" });
+    for (const [chip, words] of [
+      [VIDEOS, ""],
+      ["kind:21 kind:22 kind:34235 kind:34236", ""],
+      ["sunset #vine-archive", "sunset"],
+    ]) {
+      cleanup();
+      localStorage.clear();
+      window.history.replaceState({}, "", `/?q=${encodeURIComponent(`from:${npub} ${chip}`)}&t=media`);
+      render(<Landing />);
+      await waitFor(() => expect(getRecentItems()[0]).toMatchObject({ type: "scoped", pubkey: MAKER, tab: "media" }));
+      expect(getRecentItems()[0]).toMatchObject({ words });
+      expect(JSON.stringify(getRecentItems())).not.toMatch(/kind:|vine-archive/);
+    }
+  });
+
   it("another hyphenated hashtag alone is still its topic page", async () => {
     window.history.replaceState({}, "", "/");
     render(<Landing />);

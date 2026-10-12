@@ -572,7 +572,9 @@ export function searchStream(
         ? askMintReviewsOnly(built)
         : vines
           ? // Another hashtag beside the chip asks its own `#l` in a side filter, which would
-            // take the archive's label off that filter and let in what is not a Vine.
+            // take the archive's label off that filter and let in what is not a Vine. A
+            // `label:` beside it does the same with kind 1985 label events: its filter goes
+            // too, and with nothing else to ask the page is empty.
             built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
           : built;
     // A scope asked of a tab that holds no comments has nothing to ask.

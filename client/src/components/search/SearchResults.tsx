@@ -447,14 +447,18 @@ function tabFromUrl(): SearchTab {
  */
 const opensOnMedia = (query: string): boolean => isClassicVinesTopic(splitFilters(query).text);
 
+/** Does the address name a tab? Top is the default and is written as no tab at all. */
+function urlNamesTab(): boolean {
+  try {
+    return !!new URLSearchParams(window.location.search).get("t");
+  } catch {
+    return false;
+  }
+}
+
 /** The tab a page opens on: the URL's, or Media for a query that is Classic Vines and names no tab. */
 function openingTab(query: string): SearchTab {
-  try {
-    if (!new URLSearchParams(window.location.search).get("t") && opensOnMedia(query)) return "media";
-  } catch {
-    /* the URL's tab below */
-  }
-  return tabFromUrl();
+  return !urlNamesTab() && opensOnMedia(query) ? "media" : tabFromUrl();
 }
 
 function writeTabToUrl(tab: SearchTab) {
@@ -828,12 +832,14 @@ export function SearchResults({
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(() => openingTab(query));
-  // Typed on any other tab, `#vine-archive` alone moves the page to Media: decided as the new
-  // query renders, so the tab it was on never asks the relay for it.
+  // On a page already open, `#vine-archive` alone moves it to Media under the same rule as
+  // opening on it: only when the address names no tab. An address that names one is a link,
+  // Back or Forward saying where to be, or the tab the reader picked, and is not overridden.
+  // Decided as the new query renders, so the tab it was on never asks the relay for it.
   const [queryWas, setQueryWas] = useState(query);
   if (query !== queryWas) {
     setQueryWas(query);
-    if (opensOnMedia(query) && tab !== "media") setTab("media");
+    if (tab !== "media" && opensOnMedia(query) && !urlNamesTab()) setTab("media");
   }
   const landsOnMedia = tab === "media" && opensOnMedia(query);
   useEffect(() => {

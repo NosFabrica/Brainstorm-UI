@@ -982,6 +982,85 @@ describe("the Media tab's Videos and Classic Vines", () => {
     expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
   });
 
+  // Typed kinds are a union. `kind:20` beside the Videos chip's token asks for pictures and
+  // videos: the page is not videos alone, so the chip reads unpressed (lib/mediaFacet).
+  it("a typed `kind:20` beside `kind:video` asks for pictures and videos", async () => {
+    controllable();
+    searchStream("dog kind:20 kind:video", { tab: "media", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    expect(asked().kinds).toEqual([20, 21, 22, 34235, 34236]);
+  });
+
+  // `label:` asks for NIP-32 label events (kind 1985) under its own mark. They are not Vines,
+  // so beside the chip there is nothing left to ask.
+  it("a `label:` beside Classic Vines asks nothing", async () => {
+    controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("label:review/app #vine-archive", { tab: "media", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
+  });
+
+  it("turning the page under Classic Vines asks the older Vines, still by kind and label", async () => {
+    const subjects = [new Subject<ReqFrame>(), new Subject<ReqFrame>()];
+    reqMock.mockImplementation(() => {
+      const idx = reqMock.mock.calls.length - 1;
+      return new Observable<ReqFrame>((subscriber) => {
+        const inner = subjects[idx].subscribe(subscriber);
+        return () => inner.unsubscribe();
+      });
+    });
+    const vine = (id: string, created_at: number): NostrEvent =>
+      ({
+        id,
+        kind: 34236,
+        pubkey: alice,
+        tags: [
+          ["d", id],
+          ["l", "vine-archive", "archive.divine.video"],
+        ],
+        content: id,
+        created_at,
+        sig: "s",
+      }) as NostrEvent;
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream(
+      `cats from:${alice} #vine-archive sort:recent`,
+      { tab: "media", pov: "nosfabrica", limit: 3 },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    for (const [id, at] of [
+      ["v1", 3000],
+      ["v2", 2000],
+      ["v3", 1000],
+    ] as const)
+      subjects[0].next(frame(vine(id, at)));
+    subjects[0].next(EOSE);
+    await tick();
+
+    handle.more();
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    expect(askedFilters(1)).toEqual([
+      {
+        kinds: [34236],
+        "#l": ["vine-archive"],
+        authors: [alice],
+        search: `cats sort:recent observer:${HOUSE}`,
+        until: 1000,
+        limit: 3,
+      },
+    ]);
+    subjects[1].next(frame(vine("v4", 900)));
+    subjects[1].next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["v1", "v2", "v3", "v4"]);
+    handle();
+  });
+
   it("anywhere but the Media tab itself, the hashtag is asked as any hashtag is", async () => {
     controllable();
     searchStream("#vine-archive", { tab: "notes", pov: "nosfabrica" }, () => {});

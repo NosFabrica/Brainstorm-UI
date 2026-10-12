@@ -14,6 +14,7 @@ import {
   mediaFacetOf,
   mediaNarrowingOf,
   withMediaFacet,
+  withoutMediaFacet,
   withoutVineArchiveTag,
 } from "./mediaFacet";
 
@@ -56,6 +57,18 @@ describe("the Videos facet", () => {
     expect(mediaFacetOf("kind:video kind:20")).toBeNull();
     // Choosing the chip replaces it rather than stacking beside it.
     expect(withMediaFacet("kind:34236 skate", "videos")).toBe("skate kind:video");
+  });
+
+  // Typed kinds are a union, so `kind:20` beside the chip's token asks for pictures and
+  // videos. That page is not videos alone: the chip reads unpressed, and pressing it means
+  // "videos alone", which takes the typed kind out.
+  it("a typed `kind:20` beside it is pictures and videos, until the chip is pressed", () => {
+    expect(mediaFacetOf("dog kind:20 kind:video")).toBeNull();
+    expect(mediaNarrowingOf("dog kind:20 kind:video")!.kinds).toEqual([20, 21, 22, 34235, 34236]);
+    expect(withMediaFacet("dog kind:20 kind:video", "videos")).toBe("dog kind:video");
+    expect(withMediaFacet("dog kind:20", "videos")).toBe("dog kind:video");
+    // Classic Vines says which kind to ask as well: a typed kind beside it would ask nothing.
+    expect(withMediaFacet("dog kind:20", "vines")).toBe("dog #vine-archive");
   });
 
   it("taken off, leaves the rest of the query as it was", () => {
@@ -159,5 +172,27 @@ describe("mediaNarrowingOf — what a Media query narrows the tab to", () => {
     expect(narrowing.kinds).toEqual([]);
     expect(narrowing.has(vine)).toBe(false);
     expect(mediaNarrowingOf("#vine-archive kind:video")!.has(vine)).toBe(true);
+  });
+});
+
+// What Recent searches keeps: a chip is a way of looking, not words anyone typed.
+describe("withoutMediaFacet — the search without its chip", () => {
+  it("on the Media tab, drops the chosen chip's token and keeps the rest", () => {
+    expect(withoutMediaFacet("dog kind:video", "media")).toBe("dog");
+    expect(withoutMediaFacet("dog kind:21 kind:22 kind:34235 kind:34236", "media")).toBe("dog");
+    expect(withoutMediaFacet("dog #vine-archive #funny", "media")).toBe("dog #funny");
+    expect(withoutMediaFacet("kind:video", "media")).toBe("");
+  });
+
+  it("leaves a query that carries no chip alone", () => {
+    expect(withoutMediaFacet("dog kind:34236", "media")).toBe("dog kind:34236");
+    expect(withoutMediaFacet("dog #funny", "media")).toBe("dog #funny");
+  });
+
+  it("off the Media tab the tokens are words the reader typed, and stay", () => {
+    for (const tab of ["all", "notes", "top", null]) {
+      expect(withoutMediaFacet("dog kind:video", tab)).toBe("dog kind:video");
+      expect(withoutMediaFacet("dog #vine-archive", tab)).toBe("dog #vine-archive");
+    }
   });
 });

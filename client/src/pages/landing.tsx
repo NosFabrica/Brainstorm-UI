@@ -26,6 +26,7 @@ import { useSearchPov } from "@/hooks/useSearchPov";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
+import { withoutMediaFacet } from "@/lib/mediaFacet";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { isTouchScreen } from "@/lib/touchScreen";
@@ -51,6 +52,15 @@ const PLACEHOLDER_EXAMPLES = [
 // marks a "returning" visitor, who gets the calm static placeholder instead
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
+
+/** The tab the address names, or null on Top and where there is no address to read. */
+function tabInUrl(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("t");
+  } catch {
+    return null;
+  }
+}
 
 /** How far (px) a finger or the page may move before a touch on → stops being a tap. */
 const TAP_SLOP = 10;
@@ -252,7 +262,10 @@ export default function Landing() {
       // A scope is a step from somebody's profile, not words anyone typed, and a query with no
       // WORDS is a filter — `since:2026-09-16` on its own is what choosing a date preset while
       // browsing writes, and it is nothing to offer back in a list of recent searches.
-      if (!scopeOf(q) && queryWords(q)) pushRecentQuery(q);
+      // A chip of the Media tab (lib/mediaFacet) is a way of looking at the search, not part
+      // of what was searched for: pressing Videos on "dog" remembers "dog".
+      const searched = withoutMediaFacet(q, tabInUrl());
+      if (!scopeOf(q) && queryWords(searched)) pushRecentQuery(searched);
       // Running a full search cancels any pending/in-flight suggestion request and
       // closes the dropdown so it can't reopen on top of the results list.
       boxRef.current?.closeSuggestions();
@@ -418,7 +431,8 @@ export default function Landing() {
       label: scopeName,
       picture: scopeProfile?.picture,
       tab: openedOn,
-      words: ran.rest,
+      // The person, the tab and the words: a Media chip chosen under them is none of the three.
+      words: withoutMediaFacet(ran.rest, openedOn),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitted, hasSearched, scopeName, scopeProfile?.picture]);

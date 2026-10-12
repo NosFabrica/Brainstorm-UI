@@ -3731,30 +3731,62 @@ describe("SearchResults", () => {
     expect(tabs).toEqual(["media"]);
   });
 
-  it("typed on another tab, `#vine-archive` alone moves the page to Media; any other tag stays put", async () => {
-    setUrlTab("notes");
+  it("typed on the Top page, `#vine-archive` alone moves the page to Media; any other tag stays put", async () => {
     const view = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} />);
-    expect(screen.getByTestId("search-tab-notes")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+    window.history.replaceState({}, "", "/?q=%23bitcoin-art");
     view.rerender(<SearchResults query="#bitcoin-art" pov="nosfabrica" onQueryRewrite={() => {}} />);
-    expect(screen.getByTestId("search-tab-notes")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
 
     streamMock.mockClear();
+    window.history.replaceState({}, "", "/?q=%23vine-archive");
     view.rerender(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
     expect(screen.getByTestId("search-tab-media")).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("media"));
-    // The Notes tab it was on never asked for the tag.
-    expect(streamMock.mock.calls.some(([q, p]) => q === "#vine-archive sort:recent" && p.tab === "notes")).toBe(false);
-    // With words beside it, it is a search like any other and stays on the tab it was typed on.
+    // It asked the Media tab alone: the Top page it was on never asked for the tag.
+    const tabs = streamMock.mock.calls
+      .filter(([q]) => String(q).includes("#vine-archive sort:recent"))
+      .map(([, p]) => (p as { tab: string }).tab);
+    expect(tabs).toEqual(["media"]);
+    // With words beside it, it is a search like any other and stays where it was typed.
     cleanup();
-    setUrlTab("notes");
+    window.history.replaceState({}, "", "/?q=cats%20%23vine-archive");
     render(<SearchResults query="cats #vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
-    expect(screen.getByTestId("search-tab-notes")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
   });
 
   it("a link that names a tab keeps it, even for `#vine-archive` alone", async () => {
     window.history.replaceState({}, "", "/?q=%23vine-archive&t=all");
     render(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
     expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "true");
+  });
+
+  // The same rule once the page is up. Back, Forward and an in-app link change the address
+  // and the query under a mounted page; an address that names a tab is not overridden.
+  it("on a page already open, an address that names a tab is not moved to Media", async () => {
+    window.history.replaceState({}, "", "/?q=jack&t=all");
+    const view = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "true");
+    // What Back, or a link to `/?q=%23vine-archive&t=all`, does.
+    window.history.pushState({}, "", "/?q=%23vine-archive&t=all");
+    view.rerender(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "true");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
+    expect(streamMock.mock.calls.some(([q, p]) => String(q).includes("#vine-archive") && p.tab === "media")).toBe(
+      false,
+    );
+  });
+
+  // The address names the tab a reader is on once they have picked one, so the tag typed
+  // there is searched there. Media is one click away, with the chip already chosen.
+  it("typed on a tab the reader picked, `#vine-archive` alone stays on that tab", async () => {
+    setUrlTab("notes");
+    const view = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    window.history.replaceState({}, "", "/?q=%23vine-archive&t=notes");
+    view.rerender(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-notes")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByTestId("search-tab-media"));
+    expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("with nobody to rewrite the query through, Videos sorts through the loaded page", async () => {

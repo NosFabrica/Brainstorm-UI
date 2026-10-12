@@ -33,7 +33,9 @@ const isVideoKind = (kind: number) => VIDEO_FACET_KINDS.includes(kind);
 /**
  * Which chip a query carries. Videos is exactly the four kinds, as
  * `kind:video` or typed out one by one: a hand-typed `kind:34236` is the
- * reader's own narrowing and presses nothing.
+ * reader's own narrowing and presses nothing. Neither does a kind typed
+ * beside the chip's token (`kind:20 kind:video`): typed kinds are a union,
+ * so that page is pictures and videos, not videos alone.
  */
 export function mediaFacetOf(query: string): MediaFacet | null {
   const q = parseQuery(query);
@@ -89,18 +91,31 @@ export function withoutVineArchiveTag(query: string): string {
 
 /**
  * The query with `facet` chosen, or with neither chip when null. One chip at
- * a time: either one's tokens come out first, a hand-typed video kind with
- * them, and everything else stays where it was.
+ * a time: either one's tokens come out first, and everything else stays
+ * where it was. A chip says which kinds to ask, so choosing one takes out
+ * every typed `kind:` (beside Videos it would add its kind to the page, and
+ * beside Classic Vines it would leave nothing to ask). Taking a chip off
+ * takes out the video kinds alone, and leaves a `kind:20` the reader typed.
  */
 export function withMediaFacet(query: string, facet: MediaFacet | null): string {
   const rest = without(
     query,
     (seg) =>
       (seg.type === "tag" && seg.tag === VINE_ARCHIVE_LABEL) ||
-      (seg.type === "kind" && (seg.values ?? [seg.value]).every(isVideoKind)),
+      (seg.type === "kind" && (facet !== null || (seg.values ?? [seg.value]).every(isVideoKind))),
   );
   const token = facet === "videos" ? VIDEO_TOKEN : facet === "vines" ? `#${VINE_ARCHIVE_LABEL}` : "";
   return `${rest} ${token}`.trim();
+}
+
+/**
+ * The search without its chip, for a list of recent searches: pressing Videos
+ * on "dog" is still a search for "dog". Only on the Media tab, where the token
+ * is a chip. Typed on any other tab it is the reader's own narrowing, and is
+ * remembered as typed.
+ */
+export function withoutMediaFacet(query: string, tab: string | null): string {
+  return tab === "media" && mediaFacetOf(query) ? withMediaFacet(query, null) : query;
 }
 
 /**
