@@ -85,6 +85,14 @@ export default defineConfig({
     // a rate-limit tier, and a cross-origin dev setup lands the SPA in the
     // tight one.
     proxy: {
+      // GitHub's public API, as nginx proxies it in staging and production
+      // (services/github): the page asks our origin, never api.github.com.
+      "/github": {
+        target: "https://api.github.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/github/, ""),
+        headers: { "User-Agent": "Brainstorm-UI-dev" },
+      },
       "/link-preview": {
         target: `http://${process.env.OG_UPSTREAM ?? "127.0.0.1:8080"}`,
         // One hop, so a local service wanting real per-client keys needs

@@ -38,8 +38,12 @@ A tier-three view is a presentation of the tier-two view, not a way around it.
 - **Links come from the definition.** A view may shape the links its templates build (a
   Repositories button beside the GitHub profile, say) but adds no destination of its own:
   a definition that names no template still gives no link.
-- **It contacts no third party from the page.** Pictures go through the image proxy like
-  any other; a view that wants live data from a site's API asks the server for it, later.
+- **Third-party data arrives through our origin, on the item's own page only.** Pictures
+  go through the image proxy like any other. A view that wants a site's API (GitHub's
+  facts about an account, `services/github`) asks a same-origin path that nginx proxies
+  and caches, the link-preview rule: one upstream call per item, readers never contact
+  the site, and the site's rate limit is ours, not each reader's. Never during search or
+  in a results card: those draw only from the item.
 - **It shows readers the thing and admins the data.** The definition line, the agreement
   chip and the "More fields" fold stay, for admins. The rest of the list
   (`DListItemNeighbours`) stays for everyone.

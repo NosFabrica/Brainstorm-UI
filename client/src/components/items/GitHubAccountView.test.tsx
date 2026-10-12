@@ -38,6 +38,11 @@ vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
 }));
 vi.mock("@/lib/connection", () => ({ useConnectionSpeed: () => "normal" }));
+// What our origin knows from GitHub (services/github); nothing unless a test says so.
+const github = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
+vi.mock("@/hooks/useGitHubAccount", () => ({
+  useGitHubAccount: () => ({ data: github.facts, isPending: github.pending }),
+}));
 
 import { GitHubAccountView, githubAccountOf } from "./GitHubAccountView";
 
@@ -87,7 +92,70 @@ function Page({ event, copy }: { event: typeof item; copy?: HeaderEvent | null }
 
 beforeEach(() => {
   viewer.isAdmin = false;
+  github.facts = null;
+  github.pending = false;
 });
+
+const FACTS = {
+  handle: "nous-clawds4",
+  name: "Nous Clawds",
+  bio: "Tapestry's R&D agent",
+  company: "@nous-clawds4",
+  location: "Earth",
+  blog: null,
+  avatar: "https://avatars.githubusercontent.com/u/9?v=4",
+  followers: 1200,
+  publicRepos: 42,
+  joinedAt: "2026-03-04T00:00:00Z",
+  lastActiveAt: "2026-10-10T12:00:00Z",
+  repos: [
+    {
+      name: "tapestry",
+      url: "https://github.com/nous-clawds4/tapestry",
+      description: "Trust, as a protocol",
+      stars: 30,
+      language: "JavaScript",
+      pushedAt: "2026-10-01T00:00:00Z",
+      fork: false,
+    },
+    {
+      name: "dotfiles",
+      url: "https://github.com/nous-clawds4/dotfiles",
+      description: null,
+      stars: 2,
+      language: "Shell",
+      pushedAt: "2026-09-01T00:00:00Z",
+      fork: false,
+    },
+    {
+      name: "nostr-tools",
+      url: "https://github.com/nous-clawds4/nostr-tools",
+      description: "a fork",
+      stars: 900,
+      language: "TypeScript",
+      pushedAt: "2026-09-20T00:00:00Z",
+      fork: true,
+    },
+    {
+      name: "brainstorm",
+      url: "https://github.com/nous-clawds4/brainstorm",
+      description: "WoT",
+      stars: 30,
+      language: "TypeScript",
+      pushedAt: "2026-10-05T00:00:00Z",
+      fork: false,
+    },
+    {
+      name: "fourth",
+      url: "https://github.com/nous-clawds4/fourth",
+      description: null,
+      stars: 1,
+      language: null,
+      pushedAt: "2026-01-01T00:00:00Z",
+      fork: false,
+    },
+  ],
+};
 
 describe("GitHubAccountView", () => {
   it("leads with the handle, the account's avatar and the byline, whatever the copy calls its title", () => {
@@ -148,5 +216,35 @@ describe("GitHubAccountView", () => {
       ]),
     })!;
     expect(githubAccountOf(item, renamed.governing)).toBeNull();
+  });
+
+  it("with GitHub's facts: the name leads, the handle and bio follow, then followers, repos and activity, then the best repos", () => {
+    github.facts = FACTS;
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Nous Clawds");
+    expect(screen.getByTestId("github-account-handle")).toHaveTextContent("nous-clawds4");
+    expect(screen.getByTestId("github-account-bio")).toHaveTextContent("Tapestry's R&D agent");
+    expect(screen.getByTestId("github-account-byline")).toHaveTextContent("David's tapestry r&d agent");
+    const stats = screen.getByTestId("github-account-stats");
+    expect(stats).toHaveTextContent("1.2k followers");
+    expect(stats).toHaveTextContent("42 repos");
+    expect(stats).toHaveTextContent("Active");
+    expect(stats).toHaveTextContent("Joined 2026");
+    expect(stats).toHaveTextContent("Earth");
+    // The account's own work, by stars then last push, three at most; the fork is left out.
+    const repos = screen.getAllByTestId("github-account-repo");
+    expect(repos.map((r) => within(r).getByRole("link").textContent)).toEqual(["brainstorm", "tapestry", "dotfiles"]);
+    expect(within(repos[0]).getByRole("link")).toHaveAttribute("href", "https://github.com/nous-clawds4/brainstorm");
+    expect(repos[0]).toHaveTextContent("30");
+    expect(repos[0]).toHaveTextContent("TypeScript");
+    expect(repos[1]).toHaveTextContent("Trust, as a protocol");
+  });
+
+  it("an account GitHub doesn't know, or hasn't answered about yet, keeps the page as the list describes it", () => {
+    github.pending = true;
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("nous-clawds4");
+    expect(screen.queryByTestId("github-account-stats")).toBeNull();
+    expect(screen.queryByTestId("github-account-repo")).toBeNull();
   });
 });
