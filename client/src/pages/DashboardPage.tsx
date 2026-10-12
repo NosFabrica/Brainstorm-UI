@@ -661,101 +661,111 @@ export default function DashboardPage() {
                 // is no longer said here — the prompt line below the title says it,
                 // once, with the action beside it.
                 <Card
-                  className="flex flex-wrap items-center gap-x-2.5 gap-y-1 self-start rounded-xl px-3 py-2 text-xs leading-tight transition-all duration-200 md:self-end"
+                  // On a phone: two deliberate rows — the label and the state across the
+                  // top, the two actions across the bottom — instead of a wrapped line
+                  // with a ragged edge. From `md` the groups dissolve into the one line.
+                  className="flex w-full flex-col gap-1.5 self-start rounded-xl px-3 py-2 text-xs leading-tight transition-all duration-200 md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-x-2.5 md:gap-y-1 md:self-end"
                   data-testid="card-overall-trust-score"
                 >
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-                    Trust signals
-                  </span>
-                  {triggerGrapeRankMutation.isPending ? (
-                    <span
-                      className="flex items-center gap-1 font-medium text-brand-primary dark:text-brand-link"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Recalculating…
+                  <div className="flex items-center justify-between gap-2 md:contents">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+                      Trust signals
                     </span>
-                  ) : isErrorState ? (
-                    <span className="font-medium text-red-500" data-testid="text-overall-trust-score-sub">
-                      {isGrapeRankFailed
-                        ? "Calculation failed"
-                        : isPublishFailed
-                          ? "Publishing failed"
-                          : "Action needed"}
-                    </span>
-                  ) : isRecalculation || justFollowed ? (
-                    <span
-                      className="flex items-center gap-1 font-medium text-brand-primary"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {calcDone ? "Publishing…" : "Calculating…"}
-                    </span>
-                  ) : publishDone && nip85Activated ? (
-                    // Published AND other apps can find them: the one green pill.
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                      Active
-                    </span>
-                  ) : stale && age ? (
-                    // Weeks old: the strip's one job is to say whether the scores are current.
-                    <span
-                      className="font-semibold text-amber-600 dark:text-amber-400"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Scores are {age.old}
-                    </span>
-                  ) : publishDone ? (
-                    // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
-                    <span
-                      className="font-semibold text-emerald-600 dark:text-emerald-400"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Scores ready
-                    </span>
-                  ) : (
-                    <span
-                      className="font-medium text-slate-500 dark:text-slate-400"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Awaiting calculation
-                    </span>
-                  )}
-                  {publishDone && age && !stale && (
-                    <span className="text-slate-400 dark:text-slate-500" data-testid="text-trust-signals-updated">
-                      · Updated {age.label}
-                    </span>
-                  )}
-                  <span className="h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                  <button
-                    type="button"
-                    onClick={() => setRecalcConfirmOpen(true)}
-                    disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                    className={
-                      stale
-                        ? "inline-flex items-center gap-1 rounded-full bg-brand-primary px-2.5 py-0.5 font-semibold text-white hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40"
-                        : "inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
-                    }
-                    data-testid="button-trigger-graperank"
-                  >
                     {triggerGrapeRankMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span
+                        className="flex items-center gap-1 font-medium text-brand-primary dark:text-brand-link"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Recalculating…
+                      </span>
+                    ) : isErrorState ? (
+                      <span className="font-medium text-red-500" data-testid="text-overall-trust-score-sub">
+                        {isGrapeRankFailed
+                          ? "Calculation failed"
+                          : isPublishFailed
+                            ? "Publishing failed"
+                            : "Action needed"}
+                      </span>
+                    ) : isRecalculation || justFollowed ? (
+                      <span
+                        className="flex items-center gap-1 font-medium text-brand-primary"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {calcDone ? "Publishing…" : "Calculating…"}
+                      </span>
+                    ) : publishDone && nip85Activated ? (
+                      // Published AND other apps can find them: the one green pill.
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                        Active
+                      </span>
+                    ) : stale && age ? (
+                      // Weeks old: the strip's one job is to say whether the scores are current.
+                      <span
+                        className="font-semibold text-amber-600 dark:text-amber-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Scores are {age.old}
+                      </span>
+                    ) : publishDone ? (
+                      // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
+                      <span
+                        className="font-semibold text-emerald-600 dark:text-emerald-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Scores ready
+                      </span>
                     ) : (
-                      <RefreshCw className="h-3 w-3" />
+                      <span
+                        className="font-medium text-slate-500 dark:text-slate-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Awaiting calculation
+                      </span>
                     )}
-                    {triggerGrapeRankMutation.isPending ? "Calculating" : stale ? "Recalculate now" : "Recalculate"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/insights")}
-                    className="rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                    data-testid="link-view-insights"
-                  >
-                    View insights →
-                  </button>
+                    {publishDone && age && !stale && (
+                      <span className="text-slate-400 dark:text-slate-500" data-testid="text-trust-signals-updated">
+                        · Updated {age.label}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="hidden h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700 md:block"
+                    aria-hidden="true"
+                  />
+                  <div className="flex items-center justify-between gap-2 md:contents">
+                    <button
+                      type="button"
+                      onClick={() => setRecalcConfirmOpen(true)}
+                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                      className={
+                        stale
+                          ? "inline-flex items-center gap-1 rounded-full bg-brand-primary px-2.5 py-0.5 font-semibold text-white hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40"
+                          : "inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
+                      }
+                      data-testid="button-trigger-graperank"
+                    >
+                      {triggerGrapeRankMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      {triggerGrapeRankMutation.isPending ? "Calculating" : stale ? "Recalculate now" : "Recalculate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/insights")}
+                      className="rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                      data-testid="link-view-insights"
+                    >
+                      View insights →
+                    </button>
+                  </div>
                 </Card>
               )}
             </div>
