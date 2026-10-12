@@ -382,7 +382,7 @@ describe("GitHubAccountView", () => {
     expect(screen.getByText("Be the first to endorse this account.")).toBeInTheDocument();
   });
 
-  it("sums the page up under the name: who listed it and how far they are, and how many in the reader's network vouch", () => {
+  it("says what the reader's network thinks as labelled facts: who listed it, how many vouch, how far the lister is", () => {
     // A reader who hasn't endorsed it themselves, two hops from the lister; Ada listed the handle too.
     viewer.pubkey = "d".repeat(64);
     distance.hops = 2;
@@ -393,27 +393,37 @@ describe("GitHubAccountView", () => {
       { pubkey: STRANGER, at: 7 },
     ];
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    const verdict = screen.getByTestId("github-account-verdict");
-    // The lister is the item's author: AVI, "Bob" in this test's profiles.
-    expect(verdict).toHaveTextContent("Listed by Bob and Ada · 2 hops from you");
-    expect(within(verdict).getByRole("link", { name: "Bob" })).toHaveAttribute("href", "/p/npub-b");
-    expect(within(verdict).getByRole("link", { name: "Ada" })).toHaveAttribute("href", "/p/npub-a");
-    expect(verdict).toHaveTextContent("2 people in your network vouch for this account.");
+    const strip = screen.getByTestId("github-account-verdict");
+    expect(strip).toHaveTextContent("From your network");
+    // The lister is the item's author: AVI, "Bob" in this test's profiles; Ada listed it too.
+    const listed = within(strip).getByTestId("github-account-fact-listed");
+    expect(listed).toHaveTextContent("Listed by");
+    expect(within(listed).getByRole("link", { name: "Bob" })).toHaveAttribute("href", "/p/npub-b");
+    expect(within(listed).getByRole("link", { name: "Ada" })).toHaveAttribute("href", "/p/npub-a");
+    expect(listed.querySelectorAll("[data-face]")).toHaveLength(2);
+    const vouches = within(strip).getByTestId("github-account-fact-vouches");
+    expect(vouches).toHaveTextContent("Vouches");
+    expect(vouches).toHaveTextContent("2 in your network");
+    const distanceFact = within(strip).getByTestId("github-account-fact-distance");
+    expect(distanceFact).toHaveTextContent("2 hops from you");
+    expect(distanceFact).toHaveAttribute("title", "Someone you follow follows the person who listed it.");
   });
 
-  it("for a visitor the verdict names the lister and says nobody vouches yet; a single hop reads as one", () => {
+  it("a visitor sees the lister and 'none yet'; a reader who endorsed it reads 'you', and one hop is explained", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    const verdict = screen.getByTestId("github-account-verdict");
-    expect(verdict).toHaveTextContent("Listed by Bob");
-    expect(verdict).not.toHaveTextContent("hops");
-    expect(verdict).toHaveTextContent("No one in your network vouches for this account yet.");
+    const strip = screen.getByTestId("github-account-verdict");
+    expect(within(strip).getByTestId("github-account-fact-listed")).toHaveTextContent("Bob");
+    expect(within(strip).getByTestId("github-account-fact-vouches")).toHaveTextContent("none yet");
+    expect(within(strip).queryByTestId("github-account-fact-distance")).toBeNull();
 
     viewer.pubkey = TRUSTED;
     distance.hops = 1;
     network.endorsers = [{ pubkey: TRUSTED, at: 9 }];
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const mine = screen.getAllByTestId("github-account-verdict").at(-1)!;
-    expect(mine).toHaveTextContent("Listed by Bob · 1 hop from you");
-    expect(mine).toHaveTextContent("You vouch for this account.");
+    expect(within(mine).getByTestId("github-account-fact-vouches")).toHaveTextContent("You");
+    const hop = within(mine).getByTestId("github-account-fact-distance");
+    expect(hop).toHaveTextContent("1 hop from you");
+    expect(hop).toHaveAttribute("title", "You follow the person who listed it.");
   });
 });

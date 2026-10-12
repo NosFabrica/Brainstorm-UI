@@ -16,7 +16,9 @@
  * `description` fields — the community concept's names for them — so a
  * copy that renames the handle leaves the item to the tier-two page.
  *
- * Then what the network says (useItemEngagement): who endorsed the listing,
+ * Between the name and GitHub's numbers, what the reader's network says as
+ * three labelled facts (FromYourNetwork): who listed it, how many vouch, how
+ * far the lister is. Then the evidence (useItemEngagement): who endorsed the listing,
  * the people the reader follows first, with an Endorse button for a
  * signed-in reader (one "+", public and signed), and which Nostr profiles in
  * the reader's web of trust claim the handle. Strangers' claims are read
@@ -148,7 +150,6 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
                 <EmojiText text={account.byline} tags={event} />
               </p>
             )}
-            <Verdict event={event} network={network} />
           </div>
         </div>
         {(profile || others.length > 0) && (
@@ -171,6 +172,8 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
           </div>
         )}
       </div>
+
+      <FromYourNetwork network={network} />
 
       {facts && <OnGitHub facts={facts} />}
 
@@ -276,62 +279,119 @@ function useNetworkView(event: ItemEvent, handle: string, resolved: ReadyItemVie
 }
 type NetworkView = ReturnType<typeof useNetworkView>;
 
+/** "1 hop from you": what a hop is, in words a newcomer can use. */
+function hopsExplained(hops: number): string {
+  if (hops === 1) return "You follow the person who listed it.";
+  if (hops === 2) return "Someone you follow follows the person who listed it.";
+  return `The person who listed it is ${hops} follows away from you.`;
+}
+
 /**
- * The page in a sentence or two, under the name: who listed it and how far
- * they are from the reader, and how many people in the reader's network
- * vouch for it. Everything below is the evidence.
+ * What the reader's network says, as three labelled facts between the name
+ * and GitHub's numbers: who listed it (faces and names), how many in the
+ * reader's network vouch for it, and how far the lister is from the reader
+ * in the follows graph — each with a line on hover saying what it means. A
+ * fact with nothing to say is left out; vouches read "none yet" so a
+ * signed-in reader sees the Endorse path.
  */
-function Verdict({ event: _event, network: n }: { event: ItemEvent; network: NetworkView }) {
+function FromYourNetwork({ network: n }: { network: NetworkView }) {
+  const tierRing = useTierRing();
   const inNetwork = n.ranked.filter((e) => e.group !== "other" && e.pubkey !== n.me).length;
-  const vouch = n.mine
+  const vouches = n.mine
     ? inNetwork > 0
-      ? `You and ${inNetwork === 1 ? "1 other person" : `${inNetwork} others`} in your network vouch for this account.`
-      : "You vouch for this account."
+      ? `You and ${inNetwork} ${inNetwork === 1 ? "other" : "others"}`
+      : "You"
     : inNetwork > 0
-      ? `${inNetwork === 1 ? "1 person" : `${inNetwork} people`} in your network ${inNetwork === 1 ? "vouches" : "vouch"} for this account.`
-      : "No one in your network vouches for this account yet.";
-  const named = n.listers.slice(0, 2);
-  const rest = n.listers.length - named.length;
-  const person = (pk: string) => {
-    const npub = n.npubOf(pk);
-    const name = n.nameOf(pk);
-    return npub ? (
-      <Link
-        key={pk}
-        href={`/p/${npub}`}
-        className="font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-      >
-        {name}
-      </Link>
-    ) : (
-      <span key={pk} className="font-semibold text-slate-900 dark:text-slate-100">
-        {name}
-      </span>
-    );
-  };
+      ? `${inNetwork} in your network`
+      : "none yet";
+  const listers = n.listers.slice(0, 3);
+  const rest = n.listers.length - listers.length;
   return (
-    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="github-account-verdict">
-      <span className="text-slate-500 dark:text-slate-400">Listed by </span>
-      {named.map((pk, i) => (
-        <span key={pk}>
-          {i > 0 && <span className="text-slate-500 dark:text-slate-400">{rest > 0 ? ", " : " and "}</span>}
-          {person(pk)}
-        </span>
-      ))}
-      {rest > 0 && (
-        <span className="text-slate-500 dark:text-slate-400" title={n.listers.slice(2).map(n.nameOf).join(", ")}>
-          {" "}
-          and {rest} {rest === 1 ? "other" : "others"}
-        </span>
-      )}
-      {n.hops != null && (
-        <span className="text-slate-500 dark:text-slate-400">
-          {" "}
-          · {n.hops} {n.hops === 1 ? "hop" : "hops"} from you
-        </span>
-      )}
-      <span className="text-slate-500 dark:text-slate-400">. {vouch}</span>
-    </p>
+    <div className="space-y-2" data-testid="github-account-verdict">
+      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+        From your network
+      </p>
+      <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <div
+          className="flex items-center gap-2"
+          data-testid="github-account-fact-listed"
+          title="People who filed this account in the GitHub Accounts list"
+        >
+          <dt className="text-slate-500 dark:text-slate-400">Listed by</dt>
+          <dd className="flex items-center gap-2">
+            <span className="flex -space-x-1.5">
+              {listers.map((pk) => (
+                <Avatar
+                  key={pk}
+                  data-face={pk}
+                  className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(pk), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
+                >
+                  {n.pictureOf(pk) ? <AvatarImage src={n.pictureOf(pk)} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden rounded-full">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+            </span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">
+              {listers.map((pk, i) => {
+                const npub = n.npubOf(pk);
+                const name = n.nameOf(pk);
+                return (
+                  <span key={pk}>
+                    {i > 0 && <span className="font-normal text-slate-400">, </span>}
+                    {npub ? (
+                      <Link href={`/p/${npub}`} className="hover:text-brand-link">
+                        {name}
+                      </Link>
+                    ) : (
+                      name
+                    )}
+                  </span>
+                );
+              })}
+              {rest > 0 && (
+                <span
+                  className="font-normal text-slate-500 dark:text-slate-400"
+                  title={n.listers.slice(3).map(n.nameOf).join(", ")}
+                >
+                  {" "}
+                  and {rest} more
+                </span>
+              )}
+            </span>
+          </dd>
+        </div>
+        <div
+          className="flex items-center gap-2"
+          data-testid="github-account-fact-vouches"
+          title="People you follow, or your network verifies, who endorsed this listing"
+        >
+          <dt className="text-slate-500 dark:text-slate-400">Vouches</dt>
+          <dd
+            className={
+              inNetwork > 0 || n.mine
+                ? "font-semibold text-slate-900 dark:text-slate-100"
+                : "text-slate-500 dark:text-slate-400"
+            }
+          >
+            {vouches}
+          </dd>
+        </div>
+        {n.hops != null && (
+          <div
+            className="flex items-center gap-2"
+            data-testid="github-account-fact-distance"
+            title={hopsExplained(n.hops)}
+          >
+            <dt className="text-slate-500 dark:text-slate-400">Distance</dt>
+            <dd className="font-semibold text-slate-900 dark:text-slate-100">
+              {n.hops} {n.hops === 1 ? "hop" : "hops"} from you
+            </dd>
+          </div>
+        )}
+      </dl>
+    </div>
   );
 }
 
