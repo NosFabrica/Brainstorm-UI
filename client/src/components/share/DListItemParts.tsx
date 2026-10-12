@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
+import { FieldValue } from "@/components/dictionary/FieldValue";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf } from "@/services/dictionary";
@@ -90,12 +91,8 @@ function FieldList({ cells }: { cells: FieldCells }) {
               ) : (
                 <span className="text-slate-400">—</span>
               )
-            ) : cell.href ? (
-              <a href={cell.href} target="_blank" rel="noopener noreferrer" className="text-brand-link hover:underline">
-                {cell.value}
-              </a>
             ) : (
-              cell.value
+              <FieldValue value={cell.value} href={cell.href} address={cell.address} />
             )}
             {cell.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{cell.extra} more</span>}
           </dd>

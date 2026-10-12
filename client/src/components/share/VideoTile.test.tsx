@@ -33,4 +33,24 @@ describe("VideoTile", () => {
     fireEvent.click(screen.getByTestId("share-video-tile"));
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it("a video marked sensitive is a placeholder, never its poster or a frame; the tap still opens it", () => {
+    const onOpen = vi.fn();
+    render(
+      <VideoTile
+        poster="https://cdn.example/p.jpg"
+        url="https://cdn.example/clip.mp4"
+        warning={{ reason: "nudity" }}
+        title="Goal"
+        onOpen={onOpen}
+      />,
+    );
+    const tile = screen.getByTestId("share-video-tile");
+    // It is not offered as "Play": the tap opens a cover first.
+    expect(tile.getAttribute("aria-label")).toBe("Sensitive video: Goal");
+    expect(screen.getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(tile.querySelector("img, video")).toBeNull();
+    fireEvent.click(tile);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
 });

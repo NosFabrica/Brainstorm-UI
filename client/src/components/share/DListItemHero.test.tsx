@@ -53,6 +53,24 @@ vi.mock("@/components/share/EmbeddedTrackCard", () => ({
     </div>
   ),
 }));
+// An address field's value is looked up from the store: here, the list it names.
+vi.mock("@/hooks/useStoreReplaceable", () => ({
+  useStoreReplaceable: (kind: number, pubkey: string | undefined, _ask: unknown, opts?: { identifier?: string }) => ({
+    event:
+      kind === 39998 && opts?.identifier === "divine-videos"
+        ? {
+            kind,
+            pubkey,
+            tags: [
+              ["d", "divine-videos"],
+              ["names", "Divine Video", "Divine Videos"],
+            ],
+          }
+        : undefined,
+    loading: false,
+    settled: true,
+  }),
+}));
 vi.mock("@/components/share/FeedVideo", () => ({
   FeedVideo: (p: { src: string }) => <div data-testid="feed-video" data-src={p.src} />,
 }));
@@ -351,5 +369,33 @@ describe("DListItemHero — location", () => {
   it("without a location role, no map", () => {
     renderWithProviders(<DListItemHero event={item} />);
     expect(screen.queryByTestId("dlist-item-location")).toBeNull();
+  });
+});
+
+describe("DListItemHero — address fields", () => {
+  // A list of lists: each item names another list by its address.
+  const lists = header(AVI, [
+    ["required", "name"],
+    ["optional", "list"],
+    ["field-type", "list", "address"],
+    ["display", "title", "name"],
+    ["display", "fact", "list", "The list"],
+  ]);
+  const entry = {
+    ...item,
+    tags: [
+      ["z", COMMUNITY],
+      ["name", "Short videos"],
+      ["list", `39998:${AVI}:divine-videos`],
+    ],
+  };
+
+  it("shows what an address names, by its name, linking to its page", () => {
+    concept = { data: resolveConcept({ community: lists, communityCoordinate: COMMUNITY }), isPending: false };
+    renderWithProviders(<DListItemHero event={entry} />);
+    const ref = screen.getByTestId("address-ref");
+    expect(ref).toHaveTextContent("Divine Videos");
+    expect(ref.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+    expect(ref).toHaveAttribute("title", `39998:${AVI}:divine-videos`);
   });
 });

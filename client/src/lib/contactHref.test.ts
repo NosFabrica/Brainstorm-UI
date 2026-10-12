@@ -1,6 +1,6 @@
 /**
  * A fact's value as something to tap: a phone number calls, an email
- * address mails, a web address opens. Anything else is text.
+ * address mails. Anything else is text, a web address included.
  */
 import { describe, expect, it } from "vitest";
 import { contactHref } from "./contactHref";
@@ -13,9 +13,9 @@ describe("contactHref", () => {
   it("an email address becomes a mailto link", () => {
     expect(contactHref("hello@ilsolefood.com")).toBe("mailto:hello@ilsolefood.com");
   });
-  it("a web address opens as it is; one without a scheme gets https", () => {
-    expect(contactHref("https://www.ilsolefood.com/")).toBe("https://www.ilsolefood.com/");
-    expect(contactHref("ilsolefood.com/menu")).toBe("https://ilsolefood.com/menu");
+  it("a web address stays text: whether a field links is its declared type's call, not a guess", () => {
+    expect(contactHref("https://www.ilsolefood.com/")).toBeNull();
+    expect(contactHref("ilsolefood.com/menu")).toBeNull();
   });
   it("anything else is text: hours, a cuisine, a short number, a year", () => {
     expect(contactHref("Th 17:00-23:00; Fr 17:00-00:00")).toBeNull();

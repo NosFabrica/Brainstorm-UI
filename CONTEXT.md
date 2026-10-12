@@ -113,6 +113,14 @@ _Avoid_: schema, type, category
 A concept other people's headers point at: the shared definition.
 _Avoid_: global concept, canonical concept
 
+**Self-pointer**:
+A header's `["b", <its own coordinate>, "pointer"]`: its author putting it
+forward as a candidate community concept. A deliberate signal, never
+boilerplate: List Management ticks it for a list authored there (submitted as a
+community concept) and keeps a published list's as it was — no edit adds or
+drops it on its own.
+_Avoid_: self-reference, self-b (in prose)
+
 **Local copy**:
 Someone's own header for a community concept, pointing at it with
 `["b", <community coordinate>, "pointer"]`. A User's are authored by their

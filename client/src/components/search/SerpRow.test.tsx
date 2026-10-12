@@ -517,6 +517,36 @@ describe("SerpRow — media taps", () => {
     );
     expect(window.location.pathname).toBe("/");
   });
+
+  // Safe by default: a video its creator marked sensitive shows no poster and no frame in a row.
+  it("a video marked sensitive is a placeholder, and its tap opens the full view covered", () => {
+    const flagged = {
+      ...note("Goal!", [
+        ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4", "image https://cdn.example/goal.jpg"],
+        ["content-warning", "violence"],
+      ]),
+      kind: 34236,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="goal" />);
+    expect(screen.getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+    expect(screen.queryByTestId("serp-video-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="goal.jpg"], video')).toBeNull();
+    fireEvent.click(screen.getByTestId("sensitive-tile"));
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [
+        {
+          url: "https://cdn.example/goal.mp4",
+          kind: "video",
+          poster: "https://cdn.example/goal.jpg",
+          warning: { reason: "violence" },
+        },
+      ],
+      0,
+      expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
+    );
+    expect(window.location.pathname).toBe("/");
+  });
 });
 
 describe("SerpRow", () => {

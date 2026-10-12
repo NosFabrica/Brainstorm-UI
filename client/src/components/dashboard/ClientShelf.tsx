@@ -27,7 +27,7 @@ import { SUPPORTED_CLIENT_NAMES } from "@/config/supportedClients";
 export function ClientShelf({ expanded, onNavigate }: { expanded: boolean; onNavigate: (path: string) => void }) {
   return (
     <div
-      className={`mb-8 text-xs ${
+      className={`text-xs ${
         expanded
           ? "flex flex-col gap-3"
           : // Stacks centered on mobile (no awkward left/right split), settles into

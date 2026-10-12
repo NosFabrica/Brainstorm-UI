@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useLocation } from "wouter";
 import { BookOpen, Loader2, ArrowRight } from "lucide-react";
@@ -16,12 +16,18 @@ import { useNetworkArticles } from "@/hooks/useNetworkArticles";
  * article is satisfying to consume with no way to respond, whereas a text feed
  * begs for a reply the product can't offer.
  */
+const PAGE = 4;
+
 export function NetworkArticlesModule({ observer, enabled }: { observer: string; enabled: boolean }) {
   const [, navigate] = useLocation();
   const { articles, isLoading, hasAuthors } = useNetworkArticles(observer, { enabled });
-  const top = useMemo(() => articles.slice(0, 4), [articles]);
+  // Four to start, four more in place each time the reader asks: depth without
+  // leaving the dashboard. The full list is one click further.
+  const [shown, setShown] = useState(PAGE);
+  const top = useMemo(() => articles.slice(0, shown), [articles, shown]);
+  const left = articles.length - top.length;
   // Only advertise the full list when there's actually more behind the link.
-  const hasMore = articles.length > top.length;
+  const hasMore = articles.length > PAGE;
 
   const pubkeys = useMemo(() => top.map((a) => a.event.pubkey), [top]);
   const profileMap = useLiveProfiles(pubkeys);
@@ -33,7 +39,7 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
 
   return (
     <Card
-      className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       data-testid="card-network-articles"
     >
       <div className="mb-3 flex items-center gap-2">
@@ -67,18 +73,30 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
         </div>
       )}
 
-      {/* Depth lives one click away rather than crowding the dashboard — same move
-          as "View all flagged accounts" on the alerts card. */}
-      {hasMore && (
-        <button
-          type="button"
-          onClick={() => navigate("/reading")}
-          className="mt-3 inline-flex items-center gap-1 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-          data-testid="network-articles-see-all"
-        >
-          See all {articles.length} articles <ArrowRight className="h-3 w-3" />
-        </button>
-      )}
+      {/* One row: more on the left, the way out on the right, on a phone and a desktop alike. */}
+      <div className="mt-3 flex items-center gap-3">
+        {left > 0 && (
+          <button
+            type="button"
+            onClick={() => setShown((n) => n + PAGE)}
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+            data-testid="network-articles-more"
+          >
+            Show {Math.min(PAGE, left)} more
+          </button>
+        )}
+        {/* The full list, with its own sort, one click away. */}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => navigate("/reading")}
+            className="ml-auto inline-flex items-center gap-1 rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="network-articles-see-all"
+          >
+            See all {articles.length} articles <ArrowRight className="h-3 w-3" />
+          </button>
+        )}
+      </div>
 
       {!isLoading && !hasAuthors && (
         <p className="text-xs text-slate-500 dark:text-slate-400">

@@ -12,9 +12,23 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
  * for scrubbing/fullscreen. Users with "reduce motion" enabled never get
  * autoplay; they see a click-to-play poster instead. Auto-stops on unmount and
  * is Picture-in-Picture aware, like the rest of our media.
+ *
+ * `autoFocus` moves focus to the video as it appears, for the one case where
+ * the reader has just asked for it ("Show video" on a sensitive cover).
  */
-export function FeedVideo({ src, poster, className }: { src: string; poster?: string; className?: string }) {
+export function FeedVideo({
+  src,
+  poster,
+  className,
+  autoFocus = false,
+}: {
+  src: string;
+  poster?: string;
+  className?: string;
+  autoFocus?: boolean;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
+  const playButton = useRef<HTMLButtonElement>(null);
   usePipAwareAutoStop(ref);
   const reduce = usePrefersReducedMotion();
   const [started, setStarted] = useState(false); // reduce-motion click-to-play gate
@@ -25,6 +39,13 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
   // (React's `muted` attribute is unreliable for this).
   useEffect(() => {
     if (ref.current) ref.current.muted = true;
+  }, []);
+
+  // With reduced motion the video waits under a play button: that is what to focus.
+  useEffect(() => {
+    if (autoFocus) (playButton.current ?? ref.current)?.focus();
+    // Once, as it appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const speed = useConnectionSpeed();
@@ -75,6 +96,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
           className="max-h-[34rem] w-full object-contain"
         />
         <button
+          ref={playButton}
           type="button"
           onClick={startReduced}
           aria-label="Play video"
@@ -97,6 +119,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
         poster={poster}
         playsInline
         preload={videoPreload(speed)}
+        tabIndex={autoFocus ? 0 : undefined}
         controls={controls}
         onClick={() => {
           if (muted) unmute();

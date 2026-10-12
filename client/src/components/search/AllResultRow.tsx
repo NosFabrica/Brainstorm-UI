@@ -26,6 +26,7 @@ import { MediaImg } from "@/components/ui/media-img";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useConnectionSpeed } from "@/lib/connection";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
+import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { Headline } from "@/components/search/SerpRow";
 import { ago } from "@/lib/ago";
 import { kindTone } from "@/lib/kindFamily";
@@ -205,7 +206,10 @@ export const AllResultRow = memo(function AllResultRow({
               </p>
             )}
           </div>
-          {summary.image ? (
+          {summary.sensitive ? (
+            // A video its creator marked sensitive (or a repost of one): no poster or frame is asked for.
+            <SensitiveTile className={THUMB} />
+          ) : summary.image ? (
             <MediaImg
               src={summary.image}
               preset="media_320"

@@ -12,7 +12,8 @@ import { BookOpen } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { CardShell, CuratorFooter } from "@/components/search/cards";
 import { useAuthors } from "@/components/share/things/shared";
-import { isReady, useItemView } from "@/hooks/useItemView";
+import { isReady, useItemView, useResolvedItemView, type ItemView } from "@/hooks/useItemView";
+import type { ResolvedConcept } from "@/lib/conceptResolution";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { eventPath } from "@/lib/shareId";
 import { dictionaryRelays } from "@/config/dictionary";
@@ -29,6 +30,26 @@ export function DListItemCard({
   score?: number | null;
 }) {
   const view = useItemView(event);
+  return <CardBody event={event} view={view} author={author} score={score} />;
+}
+
+/** The card as it would read under a definition held in hand — List Management's preview. */
+export function DListItemCardPreview({ event, resolved }: { event: NostrEvent; resolved: ResolvedConcept }) {
+  const view = useResolvedItemView(event, resolved);
+  return <CardBody event={event} view={view} />;
+}
+
+function CardBody({
+  event,
+  view,
+  author,
+  score,
+}: {
+  event: NostrEvent;
+  view: ItemView;
+  author?: SearchResult | null;
+  score?: number | null;
+}) {
   const fetched = useAuthors(author === undefined ? [event.pubkey] : []);
   const who = author ?? fetched.get(event.pubkey) ?? null;
   const href = eventPath(event, dictionaryRelays());

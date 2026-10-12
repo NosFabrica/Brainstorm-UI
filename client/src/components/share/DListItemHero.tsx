@@ -35,13 +35,15 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { Favicon } from "@/components/share/LinkPreview";
-import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
+import { FieldValue } from "@/components/dictionary/FieldValue";
+import { isReady, useItemView, useResolvedItemView, type ItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { fieldCell, undeclaredFields } from "@/lib/dlistFields";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { osmEmbedUrl, osmPageUrl } from "@/lib/geohash";
 import type { ItemPresentation } from "@/lib/itemPresentation";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
+import type { ResolvedConcept } from "@/lib/conceptResolution";
 import { ConceptLink, DefinitionLine, MoreFields } from "@/components/share/DListItemParts";
 import { tierThreeFor } from "@/components/items/itemViews";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -50,7 +52,20 @@ type ItemEvent = { id: string; kind: number; pubkey: string; created_at: number;
 
 export function DListItemHero({ event }: { event: ItemEvent }) {
   const view = useItemView(event);
+  return <HeroFor event={event} view={view} />;
+}
 
+/**
+ * The page as it would read under a definition held in hand — List
+ * Management's preview of an item under a draft header (components/lists).
+ * No neighbours: the list it would be on isn't read.
+ */
+export function DListItemHeroPreview({ event, resolved }: { event: ItemEvent; resolved: ResolvedConcept }) {
+  const view = useResolvedItemView(event, resolved);
+  return <HeroFor event={event} view={view} preview />;
+}
+
+function HeroFor({ event, view, preview = false }: { event: ItemEvent; view: ItemView; preview?: boolean }) {
   if (view.pending)
     return (
       <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400" data-testid="dlist-item-hero">
@@ -60,12 +75,12 @@ export function DListItemHero({ event }: { event: ItemEvent }) {
 
   if (!isReady(view)) return <Undefined event={event} />;
   // A concept with a view of its own (ADR 0007) draws itself from the same view; everything else is drawn here.
-  const TierThree = tierThreeFor(event, view);
+  const TierThree = preview ? null : tierThreeFor(event, view);
   if (TierThree) return <TierThree event={event} view={view} />;
-  return <Defined event={event} view={view} />;
+  return <Defined event={event} view={view} preview={preview} />;
 }
 
-function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
+function Defined({ event, view, preview }: { event: ItemEvent; view: ReadyItemView; preview: boolean }) {
   const { resolved: r, shown, links, usedFields } = view;
   const fields = r.governing.fields;
   const cells = fields.map((f) => ({ field: f, cell: fieldCell(event, f) }));
@@ -145,18 +160,7 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
             <div key={f.field} className="contents" data-testid="dlist-item-fact" data-field={f.field}>
               <dt className="text-slate-500 dark:text-slate-400">{f.label}</dt>
               <dd className="min-w-0 break-words text-slate-900 dark:text-slate-100">
-                {f.href ? (
-                  <a
-                    href={f.href}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="text-brand-link hover:underline"
-                  >
-                    {f.value}
-                  </a>
-                ) : (
-                  f.value
-                )}
+                <FieldValue value={f.value} href={f.href} address={f.address} />
                 {f.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{f.extra} more</span>}
               </dd>
             </div>
@@ -194,7 +198,7 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
         <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />
       )}
 
-      <DListItemNeighbours event={event} resolved={r} />
+      {!preview && <DListItemNeighbours event={event} resolved={r} />}
 
       <DefinitionLine event={event} resolved={r} />
     </div>
