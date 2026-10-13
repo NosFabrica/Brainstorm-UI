@@ -72,6 +72,7 @@ import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsB
 import { PlaceMap } from "@/components/items/PlaceMap";
 import { PlaceReviews, ReviewPhotos, useRankedReviews } from "@/components/items/PlaceReviews";
 import { paymentSummary, priceSummary } from "@/lib/placeReviews";
+import { usePlaceReviews } from "@/hooks/usePlaceReviews";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -211,7 +212,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   // The map opened up in place, at the reader's ask — never on a stray zoom or drag.
   const [mapOpen, setMapOpen] = useState(false);
   const network = useNetworkView(event);
-  const ranked = useRankedReviews(event);
+  const ranked = useRankedReviews(usePlaceReviews(event));
   const listed = useListItems(event, r);
   const price = priceSummary(ranked.reviews);
   const payments = paymentSummary(ranked.reviews);

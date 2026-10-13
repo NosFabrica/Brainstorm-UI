@@ -6,7 +6,8 @@
  * are worked by hand.
  */
 import { describe, expect, it } from "vitest";
-import { paymentSummary, priceSummary, ratingSummary, reviewOf, reviewTemplate } from "./placeReviews";
+import { commentReviewOf as reviewOf, commentReviewTemplate as reviewTemplate, ratingSummary } from "./commentReviews";
+import { paymentSummary, priceSummary } from "./placeReviews";
 
 const PLACE = "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13302615652";
 const item = {

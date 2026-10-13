@@ -1,7 +1,6 @@
 /**
  * Reviews of a book, by people you'd ask: each a signed comment on the book
- * (lib/placeReviews — the same comment a place gets, with one to five
- * stars), shown with the reviewer's face and tier ring, their stars, their
+ * (lib/commentReviews — a comment with one to five stars), shown with the reviewer's face and tier ring, their stars, their
  * words — ordered the way every endorsement surface orders people
  * (services/endorsements: people the reader follows, then verified, then
  * everyone else), so the first review a reader sees is from someone they
@@ -18,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { usePostPlaceReview } from "@/hooks/usePlaceReviews";
+import { usePostBookReview } from "@/hooks/useBookReviews";
 import { relativeTime } from "@/lib/relativeTime";
 import { LinkedText } from "@/components/LinkedText";
 import type { useRankedReviews } from "@/components/items/PlaceReviews";
@@ -109,7 +108,7 @@ export function Stars({ value, size = "sm" }: { value: number; size?: "sm" | "md
 }
 
 function Composer({ item }: { item: Item }) {
-  const post = usePostPlaceReview(item);
+  const post = usePostBookReview(item);
   const [rating, setRating] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [text, setText] = useState("");

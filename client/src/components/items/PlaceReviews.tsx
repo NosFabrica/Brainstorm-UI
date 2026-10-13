@@ -19,7 +19,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useMyFollows } from "@/hooks/useMyFollows";
-import { usePlaceReviews, usePostPlaceReview } from "@/hooks/usePlaceReviews";
+import { usePostPlaceReview } from "@/hooks/usePlaceReviews";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useToast } from "@/hooks/use-toast";
 import { avatarSrc } from "@/lib/avatarSrc";
@@ -35,8 +35,7 @@ const MAX_LENGTH = 1200;
 const PRICES = [1, 2, 3, 4];
 
 /** The reviews in the one order, with names and faces: what the page and its photo strip read. */
-export function useRankedReviews(item: Item) {
-  const { reviews, pending } = usePlaceReviews(item);
+export function useRankedReviews({ reviews, pending }: { reviews: PlaceReview[]; pending: boolean }) {
   const { follows } = useMyFollows();
   const people = [...new Set(reviews.map((r) => r.pubkey))];
   const scoreOf = useAuthorScores(people);

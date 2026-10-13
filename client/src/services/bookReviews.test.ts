@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Reviews of a place come from wherever list events live — the hub and our
+ * Reviews of a book come from wherever list events live — the hub and our
  * index, both at once (services/listReads) — and a new one is signed as the
  * active account and published where list events go.
  */
@@ -12,7 +12,7 @@ vi.mock("@/accounts/signing", () => ({ requireActiveAccount: () => ({ pubkey: "f
 vi.mock("@/services/tags", () => ({ publishTagEvent: io.publishTagEvent }));
 vi.mock("@/config/dictionary", () => ({ dictionaryRelays: () => ["wss://dcosl.brainstorm.world"] }));
 
-import { fetchPlaceReviews, publishPlaceReview } from "./placeReviews";
+import { fetchBookReviews, publishBookReview } from "./bookReviews";
 
 const item = {
   id: "1".repeat(64),
@@ -24,7 +24,7 @@ const PLACE = `39999:${item.pubkey}:osm-node-13302615652`;
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("fetchPlaceReviews", () => {
+describe("fetchBookReviews", () => {
   it("asks for comments rooted on the place, newest first, and keeps the ones that are reviews", async () => {
     io.readListEvents.mockResolvedValue([
       { id: "r1", kind: 1111, pubkey: "a".repeat(64), created_at: 5, content: "Good.", tags: [["A", PLACE]] },
@@ -38,7 +38,7 @@ describe("fetchPlaceReviews", () => {
         tags: [["A", "39999:z:other"]],
       },
     ]);
-    const out = await fetchPlaceReviews(item);
+    const out = await fetchBookReviews(item);
     expect(out.map((r) => [r.id, r.text])).toEqual([
       ["r2", "Great."],
       ["r1", "Good."],
@@ -53,7 +53,7 @@ describe("fetchPlaceReviews", () => {
   });
 });
 
-describe("publishPlaceReview", () => {
+describe("publishBookReview", () => {
   it("signs the review as the active account, publishes it, and hands back the review as the page shows it", async () => {
     const signed = {
       id: "s".repeat(64),
@@ -69,7 +69,7 @@ describe("publishPlaceReview", () => {
     };
     io.signAs.mockResolvedValue(signed);
     io.publishTagEvent.mockResolvedValue({ accepted: 1, total: 2 });
-    const out = await publishPlaceReview(item, { text: "Best pizza on the key.", price: 2, paid: null, photos: [] });
+    const out = await publishBookReview(item, { text: "Best pizza on the key.", price: 2, paid: null, photos: [] });
     expect(io.signAs).toHaveBeenCalledWith(
       { pubkey: "f".repeat(64) },
       expect.objectContaining({ kind: 1111, content: "Best pizza on the key." }),

@@ -24,7 +24,8 @@ import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
 import { useRankedReviews } from "@/components/items/PlaceReviews";
 import { BookReviews } from "@/components/items/BookReviews";
-import { ratingSummary } from "@/lib/placeReviews";
+import { ratingSummary } from "@/lib/commentReviews";
+import { useBookReviews } from "@/hooks/useBookReviews";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBookFacts } from "@/hooks/useBookFacts";
 import type { ReadyItemView } from "@/hooks/useItemView";
@@ -45,7 +46,7 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   const awaiting = asked.isPending && !!(book.isbn || book.workId);
   const read = facts?.read ?? null;
   const network = useNetworkView(event);
-  const ranked = useRankedReviews(event);
+  const ranked = useRankedReviews(useBookReviews(event));
   const recommenders = network.ranked.filter((e) => e.group !== "other").length;
   // Stars alone are a rating; words are a review. Counted apart, as Open Library counts.
   const reviewCount = ranked.reviews.filter((r) => r.text).length;

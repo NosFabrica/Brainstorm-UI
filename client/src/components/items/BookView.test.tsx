@@ -85,7 +85,7 @@ vi.mock("@/hooks/useWotItems", () => ({
 vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set(), ready: true, signedIn: false }) }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
-// Reviews of the book (hooks/usePlaceReviews — the same signed comments a place gets, with stars).
+// Reviews of the book (hooks/useBookReviews — signed comments with stars).
 const reviews = vi.hoisted(() => ({
   list: [] as {
     id: string;
@@ -99,9 +99,9 @@ const reviews = vi.hoisted(() => ({
   }[],
   post: { mutate: vi.fn(), isPending: false },
 }));
-vi.mock("@/hooks/usePlaceReviews", () => ({
-  usePlaceReviews: () => ({ reviews: reviews.list, pending: false }),
-  usePostPlaceReview: () => reviews.post,
+vi.mock("@/hooks/useBookReviews", () => ({
+  useBookReviews: () => ({ reviews: reviews.list, pending: false }),
+  usePostBookReview: () => reviews.post,
 }));
 // What our origin knows from Open Library (services/openLibrary); nothing unless a test says so.
 const openLibrary = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
