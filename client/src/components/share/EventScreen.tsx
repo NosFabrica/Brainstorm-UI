@@ -58,6 +58,7 @@ import { contentWarningOf } from "@/lib/nip36";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ThingHero, ThingSections, hasThingPage } from "@/components/share/things";
+import { ActivityHero, activityAuthor, hasActivityHero } from "@/components/share/activity";
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
@@ -225,7 +226,8 @@ function EventView({
       ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] ||
         note.tags.find((t) => t[0] === "p")?.[1]
       : undefined;
-  const authorPk = liveHost || note?.pubkey || ptr?.author || "";
+  // A zap receipt is signed by the recipient's wallet service: the page is the payer's.
+  const authorPk = liveHost || (note && activityAuthor(note)) || note?.pubkey || ptr?.author || "";
   // The files a kind with no hero of its own carries (a kind-20 picture post, a
   // comment's imeta), each drawn as what it is. A file its words also link, by
   // a name the text knows as media, is drawn there, once, by the note's text.
@@ -254,7 +256,11 @@ function EventView({
   // card can embed them — same two batched queries the share page uses.
   // A bookmark set's page reads its own items a fold at a time (ItemListHero):
   // its hundreds of `a`s and `p`s are not asked for here all at once.
-  const refs = useMemo(() => collectRefs(note && !ITEM_LIST_KINDS.has(note.kind) ? [note] : []), [note]);
+  // An activity's hero (a reaction, a zap, a deletion…) asks for what it names itself.
+  const refs = useMemo(
+    () => collectRefs(note && !ITEM_LIST_KINDS.has(note.kind) && !hasActivityHero(note) ? [note] : []),
+    [note],
+  );
   const refEventsQuery = useStoreEvents(
     refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
     refs.ids.length ? [{ ids: refs.ids }] : null,
@@ -362,6 +368,7 @@ function EventView({
     !hasAudioHero(note) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
+    !hasActivityHero(note) &&
     !VIDEO_KINDS.has(note.kind) &&
     !(note.kind === 9802 && note.content.trim()) &&
     !NOTE_KINDS.has(note.kind);
@@ -494,8 +501,9 @@ function EventView({
               </div>
             )}
             {/* The conversation this reply sits in — parent (+ root) above, so a
-                permalinked reply reads in context instead of floating alone. */}
-            <ThreadAncestors note={note} relayHints={relayHints} />
+                permalinked reply reads in context instead of floating alone.
+                Not above an activity: its hero quotes the post a reaction or zap is about. */}
+            {!hasActivityHero(note) && <ThreadAncestors note={note} relayHints={relayHints} />}
 
             {/* Author header — and the ⋯, on the object it acts on (X puts it
                 on the post, not the page). A list event keeps only the ⋯ here. */}
@@ -536,11 +544,7 @@ function EventView({
                       <span className="truncate text-[15px] font-bold leading-tight text-slate-900 dark:text-slate-100">
                         <ProfileEmojiText pubkey={authorPk} text={authorName} />
                       </span>
-                      <Nip05Check
-                        nip05={profile.nip05}
-                        pubkey={note.pubkey}
-                        className="h-4 w-4 shrink-0 text-sky-500"
-                      />
+                      <Nip05Check nip05={profile.nip05} pubkey={authorPk} className="h-4 w-4 shrink-0 text-sky-500" />
                       <TierWordChip score01={score01} />
                     </div>
                     {/* A video says when it was published: a restored Vine's created_at is its import day. */}
@@ -605,6 +609,9 @@ function EventView({
                 <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
+              ) : hasActivityHero(note) ? (
+                // Zaps, reactions, deletions, reports, labels, votes, RSVPs, follows, trust scores.
+                <ActivityHero event={note} />
               ) : hasThingPage(note) ? (
                 // Communities, fundraisers, reviews, shops, apps, calendars,
                 // badges, emoji packs, playlists, lessons, torrents (lib/thing).

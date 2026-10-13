@@ -84,7 +84,7 @@ export function mentionPubkeysFromContent(content: string): string[] {
 }
 
 /** Parse an `a` tag value (`kind:pubkey:dTag`) into an address ref. */
-function parseATag(value: string, relay?: string): AddressRef | null {
+export function parseATag(value: string, relay?: string): AddressRef | null {
   const parts = value.split(":");
   if (parts.length < 3) return null;
   const kind = parseInt(parts[0], 10);

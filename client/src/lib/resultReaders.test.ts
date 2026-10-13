@@ -378,3 +378,46 @@ describe("a NIP-71 video's row", () => {
     expect(s.facts).toEqual(["6s"]);
   });
 });
+
+// The page's heroes and the row read through lib/activity: the row says the same in a line.
+describe("the row reads what the page reads", () => {
+  it("an external reaction (17) names its NIP-73 target, which has no event to quote", () => {
+    const s = summarizeResult(
+      ev(
+        17,
+        [
+          ["k", "web"],
+          ["i", "https://example.com/post/1"],
+        ],
+        "+",
+      ),
+    );
+    expect(s.title).toBe("Reacted ❤");
+    expect(s.body).toBe("on example.com/post/1");
+    expect(s.ref).toBeNull();
+  });
+
+  it("a BOLT12 zap (9736) is the payer's row; an onchain zap (8333) its signer's", () => {
+    const bolt12 = summarizeResult(
+      ev(9736, [
+        ["p", B],
+        ["amount", "21000"],
+        ["P", C],
+        ["e", NOTE],
+      ]),
+    );
+    expect(bolt12.title).toBe(`⚡ 21 sats to ${npub(B)}`);
+    expect(bolt12.by).toBe(C);
+    expect(bolt12.ref).toMatchObject({ id: NOTE });
+    const onchain = summarizeResult(
+      ev(8333, [
+        ["i", `bitcoin:tx:${"f".repeat(64)}`],
+        ["p", B],
+        ["amount", "50000"],
+      ]),
+    );
+    expect(onchain.title).toBe(`⚡ 50,000 sats to ${npub(B)}`);
+    expect(onchain.facts).toEqual(["Onchain"]);
+    expect(onchain.by).toBeNull();
+  });
+});

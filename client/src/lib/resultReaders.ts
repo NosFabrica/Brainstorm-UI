@@ -11,9 +11,24 @@
  */
 import { nip19 } from "nostr-tools";
 import { kindTypeLabel } from "@/lib/kindLabel";
-import { parseZapReceipt } from "@/services/search";
 import { contentShape } from "@/lib/contentShape";
-import { reactionEmoji } from "@/lib/customEmoji";
+import {
+  assertionMetrics,
+  readApproval,
+  readAssertion,
+  readBadgeAward,
+  readDeletion,
+  readFollows,
+  readLabel,
+  readPollVote,
+  readReaction,
+  readReport,
+  readRsvp,
+  readZap,
+  targetOf,
+  zapAmount,
+  type EventRef,
+} from "@/lib/activity";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
@@ -28,12 +43,8 @@ export type ReaderEvent = {
   content: string;
 };
 
-/** The event a row is about: by id, by address, or carried inside it (a repost's). */
-export interface ResultRef {
-  id?: string;
-  addr?: string;
-  relay?: string;
-}
+/** The event a row is about: by id, or by address (lib/activity reads it for both a row and a page). */
+export type ResultRef = EventRef;
 
 export interface ReaderResult {
   title?: string | null;
@@ -92,7 +103,6 @@ const firstLines = (text: string, n: number) => {
 
 const tagsOf = (ev: ReaderEvent, name: string) => ev.tags.filter((t) => t[0] === name && typeof t[1] === "string");
 const tagOf = (ev: ReaderEvent, name: string): string | null => tagValue(ev, name);
-const lastTag = (ev: ReaderEvent, name: string): string[] | null => tagsOf(ev, name).at(-1) ?? null;
 
 /** A person as the row writes them: a token it renders as their name. */
 export function who(pubkey: string | null | undefined): string {
@@ -120,38 +130,27 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** The `e` or `a` an event points at — NIP-25 and NIP-57 name the target last. */
-function refOf(ev: ReaderEvent, prefer: "first" | "last" = "last"): ResultRef | null {
-  const pick = (name: string) => (prefer === "last" ? lastTag(ev, name) : (tagsOf(ev, name)[0] ?? null));
-  const a = pick("a");
-  const e = pick("e");
-  if (e && HEX64.test(e[1])) return { id: e[1].toLowerCase(), relay: e[2] || undefined };
-  if (a && /^\d+:[0-9a-f]{64}:/i.test(a[1])) return { addr: a[1], relay: a[2] || undefined };
-  return null;
-}
+const refOf = (ev: ReaderEvent, prefer: "first" | "last" = "last"): ResultRef | null => targetOf(ev, prefer);
 
 const sats = (n: number) => `${Math.round(n).toLocaleString()} sats`;
 
 /** A reaction's content, as the mark it is. A NIP-30 custom emoji stays its whole `:shortcode:`, for the row to draw. */
 function reactionMark(ev: ReaderEvent): string {
-  const custom = reactionEmoji(ev);
-  if (custom) return `:${custom.code}:`;
-  const c = ev.content.trim();
-  if (!c || c === "+") return "❤";
-  if (c === "-") return "👎";
-  return c.length > 12 ? `${c.slice(0, 12)}…` : c;
+  const mark = readReaction(ev).mark;
+  if (mark.type === "custom") return `:${mark.emoji.code}:`;
+  if (mark.type === "like") return "❤";
+  if (mark.type === "dislike") return "👎";
+  return mark.text.length > 12 ? `${mark.text.slice(0, 12)}…` : mark.text;
 }
 
 /** The numbers a score carries, said in words: "Rank 87 · 3,057 followers". */
 function scoreFacts(ev: ReaderEvent): string[] {
-  const out: string[] = [];
-  for (const t of ev.tags) {
-    if (out.length >= 4 || t[0] === "d" || t[0] === "p" || t[0] === "e" || t[0] === "a" || t[0] === "client") continue;
-    const n = Number(t[1]);
-    if (!Number.isFinite(n) || t[1] === "") continue;
-    const noun = t[0].replace(/_cnt$/, "").replace(/_/g, " ");
-    out.push(t[0] === "rank" ? `Rank ${n}` : t[0].endsWith("_cnt") ? plural(n, noun) : `${n.toLocaleString()} ${noun}`);
-  }
-  return out;
+  return assertionMetrics(ev)
+    .slice(0, 4)
+    .map(({ tag, value: n }) => {
+      const noun = tag.replace(/_cnt$/, "").replace(/_/g, " ");
+      return tag === "rank" ? `Rank ${n}` : tag.endsWith("_cnt") ? plural(n, noun) : `${n.toLocaleString()} ${noun}`;
+    });
 }
 
 /** What a list holds, counted by what each tag is. */
@@ -233,41 +232,40 @@ const READERS = new Map<number, Reader>();
 const read = (kinds: number[], fn: Reader) => kinds.forEach((k) => READERS.set(k, fn));
 
 read([3], (ev) => {
-  const n = unique(tagsOf(ev, "p").map((t) => t[1])).length;
-  return { title: `Follows ${plural(n, "person", "people")}`, body: people(tagsOf(ev, "p").map((t) => t[1])) || null };
+  const { people: follows } = readFollows(ev);
+  return { title: `Follows ${plural(follows.length, "person", "people")}`, body: people(follows) || null };
 });
 
 read([5], (ev) => {
-  const n = tagsOf(ev, "e").length + tagsOf(ev, "a").length;
-  const kinds = unique(tagsOf(ev, "k").map((t) => (/^\d+$/.test(t[1]) ? kindTypeLabel(Number(t[1])) : null)));
+  const deletion = readDeletion(ev);
   return {
-    title: `Deleted ${plural(n, "event")}`,
-    body: ev.content.trim() || null,
-    facts: someFacts(kinds, 3),
-    ref: refOf(ev, "first"),
+    title: `Deleted ${plural(deletion.targets.length, "event")}`,
+    body: deletion.reason || null,
+    facts: someFacts(unique(deletion.kinds.map(kindTypeLabel)), 3),
+    ref: deletion.targets[0] ?? null,
   };
 });
 
 read([7, 17], (ev) => {
-  const to = lastTag(ev, "p")?.[1];
+  const reaction = readReaction(ev);
   return {
     title: `Reacted ${reactionMark(ev)}`,
-    body: null,
-    facts: to ? [`to ${who(to)}`] : [],
-    ref: refOf(ev),
+    // A reaction to a web page, a book or a hashtag (NIP-73) has no event to quote: it names its target.
+    body: !reaction.target && reaction.external ? `on ${reaction.external.label}` : null,
+    facts: reaction.to ? [`to ${who(reaction.to)}`] : [],
+    ref: reaction.target,
   };
 });
 
 read([8], (ev) => {
-  const badge = tagOf(ev, "a");
-  const d = badge?.split(":").slice(2).join(":") || null;
+  const award = readBadgeAward(ev);
+  const d = award.badge?.split(":").slice(2).join(":") || null;
   // A badge's `d` is often a UUID: then the badge itself, quoted below, says its name.
   const name = d && !OPAQUE_D.test(d) ? d : null;
-  const to = tagsOf(ev, "p").map((t) => t[1]);
   return {
     title: name ? `Awarded the “${name}” badge` : "Awarded a badge",
-    body: to.length ? `to ${people(to)}` : null,
-    ref: badge ? { addr: badge } : null,
+    body: award.awardees.length ? `to ${people(award.awardees)}` : null,
+    ref: award.badge ? { addr: award.badge, relay: award.relay } : null,
   };
 });
 
@@ -310,8 +308,9 @@ read([62], (ev) => {
 });
 
 read([1018], (ev) => {
-  const n = tagsOf(ev, "response").length;
-  return { title: "Voted in a poll", body: null, facts: n > 1 ? [plural(n, "choice")] : [], ref: refOf(ev, "first") };
+  const vote = readPollVote(ev);
+  const n = vote.responses.length;
+  return { title: "Voted in a poll", body: null, facts: n > 1 ? [plural(n, "choice")] : [], ref: vote.poll };
 });
 
 read([1312], (ev) => {
@@ -331,22 +330,24 @@ read([1337], (ev) => ({
 }));
 
 read([1984], (ev) => {
-  const p = tagsOf(ev, "p")[0];
-  const e = tagsOf(ev, "e")[0];
-  const reason = e?.[2] || p?.[2] || null;
+  const report = readReport(ev);
   return {
-    title: p && !e ? `Reported ${who(p[1])}` : "Reported an event",
-    body: ev.content.trim() || null,
-    facts: unique([reason ? cap(reason) : null, p && e ? `by ${who(p[1])}` : null]),
-    ref: e ? { id: e[1] } : null,
+    title: report.person && !report.event ? `Reported ${who(report.person)}` : "Reported an event",
+    body: report.comment || null,
+    facts: unique([
+      report.reason ? cap(report.reason) : null,
+      report.person && report.event ? `by ${who(report.person)}` : null,
+    ]),
+    ref: report.event,
   };
 });
 
 read([1985], (ev) => {
-  const labels = unique(tagsOf(ev, "l").map((t) => t[1]));
-  const ns = tagOf(ev, "L");
-  const targets = tagsOf(ev, "e").length + tagsOf(ev, "a").length;
-  const persons = tagsOf(ev, "p").map((t) => t[1]);
+  const label = readLabel(ev);
+  const labels = label.labels.map((l) => l.value);
+  const ns = label.namespaces[0] ?? null;
+  const targets = label.events.length;
+  const persons = label.people;
   return {
     title: labels.length
       ? `Labelled ${firstOf(
@@ -361,8 +362,9 @@ read([1985], (ev) => {
 });
 
 read([4550], (ev) => {
-  const community = tagOf(ev, "a")?.split(":").slice(2).join(":") || null;
-  return { title: "Approved a post", body: null, facts: community ? [community] : [], ref: refOf(ev, "first") };
+  const approval = readApproval(ev);
+  const community = approval.community?.split(":").slice(2).join(":") || null;
+  return { title: "Approved a post", body: null, facts: community ? [community] : [], ref: approval.post };
 });
 
 read([9021, 9022], (ev) => ({
@@ -371,44 +373,27 @@ read([9021, 9022], (ev) => ({
   facts: tagOf(ev, "h") ? [clip(tagOf(ev, "h")!, 17)] : [],
 }));
 
-read([9321], (ev) => {
-  let total = 0;
-  for (const t of tagsOf(ev, "proof")) {
-    try {
-      const amount = Number((JSON.parse(t[1]) as { amount?: unknown }).amount);
-      if (Number.isFinite(amount)) total += amount;
-    } catch {
-      /* a proof we cannot read counts nothing */
-    }
-  }
-  const unit = tagOf(ev, "unit") ?? "sat";
-  const mint = tagOf(ev, "u");
+// Every zap, whatever it was paid with (lib/activity): how much, to whom, and what for.
+read([9321, 9734, 9735, 9736, 8333], (ev) => {
+  const zap = readZap(ev)!;
+  const fallback = { cashu: "Nutzap", request: "Zap", lightning: "Zap", bolt12: "Zap", onchain: "Onchain zap" }[
+    zap.rail
+  ];
   return {
-    title: `⚡ ${total ? `${total.toLocaleString()} ${unit === "sat" ? "sats" : unit}` : "Nutzap"} to ${who(tagOf(ev, "p"))}`,
-    body: ev.content.trim() || null,
-    facts: mint ? [hostOf(mint)] : [],
-    ref: refOf(ev),
-  };
-});
-
-read([9734], (ev) => {
-  const msats = Number(tagOf(ev, "amount"));
-  return {
-    title: `⚡ ${msats > 0 ? sats(msats / 1000) : "Zap"} to ${who(tagOf(ev, "p"))}`,
-    body: ev.content.trim() || null,
-    facts: ["Requested"],
-    ref: refOf(ev),
-  };
-});
-
-read([9735], (ev) => {
-  const receipt = parseZapReceipt(ev as Parameters<typeof parseZapReceipt>[0]);
-  return {
-    title: `⚡ ${receipt.msats ? sats(receipt.msats / 1000) : "Zap"} to ${who(tagOf(ev, "p"))}`,
-    body: receipt.memo || null,
-    // A receipt is signed by the recipient's wallet service; the row is the payer's.
-    by: receipt.pubkey,
-    ref: refOf(ev),
+    title: `⚡ ${zapAmount(zap) ?? fallback} to ${who(zap.recipient)}`,
+    body: zap.comment || null,
+    facts:
+      zap.rail === "cashu" && zap.mint
+        ? [hostOf(zap.mint)]
+        : zap.rail === "request"
+          ? ["Requested"]
+          : zap.rail === "onchain"
+            ? ["Onchain"]
+            : [],
+    // A receipt is signed by the recipient's wallet service, an anonymous BOLT12 zap by a
+    // throwaway key: the row is the payer's.
+    by: zap.rail === "lightning" || zap.rail === "bolt12" ? zap.payer : undefined,
+    ref: zap.target,
   };
 });
 
@@ -428,20 +413,15 @@ read([11871], (ev) => {
 });
 
 read([30382, 30383, 30384, 30385], (ev) => {
-  const d = tagOf(ev, "d") ?? "";
+  const assertion = readAssertion(ev);
   if (ev.kind === 30382)
-    return { title: `Trust score for ${who(HEX64.test(d) ? d : null)}`, body: null, facts: scoreFacts(ev) };
-  const ref: ResultRef | null =
-    ev.kind === 30383 && HEX64.test(d)
-      ? { id: d }
-      : ev.kind === 30384 && /^\d+:[0-9a-f]{64}:/i.test(d)
-        ? { addr: d }
-        : null;
+    return { title: `Trust score for ${who(assertion.pubkey)}`, body: null, facts: scoreFacts(ev) };
   return {
-    title: ev.kind === 30385 ? `Score for ${clip(d, 60) || "an identifier"}` : "Score for an event",
+    title:
+      ev.kind === 30385 ? `Score for ${clip(assertion.identifier ?? "", 60) || "an identifier"}` : "Score for an event",
     body: null,
     facts: scoreFacts(ev),
-    ref,
+    ref: assertion.ref,
   };
 });
 
@@ -462,21 +442,12 @@ read([TRUSTED_PEOPLE_KIND], (ev) => {
 });
 
 read([31925], (ev) => {
-  const status = (tagOf(ev, "status") ?? "").toLowerCase();
-  const word =
-    status === "accepted"
-      ? "Going"
-      : status === "declined"
-        ? "Not going"
-        : status === "tentative"
-          ? "Maybe going"
-          : "Replied";
-  const fb = tagOf(ev, "fb");
+  const rsvp = readRsvp(ev);
   return {
-    title: word,
-    body: ev.content.trim() || null,
-    facts: fb ? [cap(fb)] : [],
-    ref: tagOf(ev, "a") ? { addr: tagOf(ev, "a")! } : refOf(ev, "first"),
+    title: rsvp.word,
+    body: rsvp.note || null,
+    facts: rsvp.freeBusy ? [cap(rsvp.freeBusy)] : [],
+    ref: rsvp.appointment ? { addr: rsvp.appointment, relay: rsvp.relay } : refOf(ev, "first"),
   };
 });
 
