@@ -9,7 +9,9 @@
   },
   "_roles": "Concepts the app relies on, kept out of the Dictionary's view and search: infrastructure, not demos. PROVISIONAL (2026-10-01) url-templates: Vinney's canonical URL Templates list (self-b); its items carry ['url-template', <RFC 6570 level-1 template>] and a name, and a header pins one by event id with ['link', <id>, <relay>, <placeholder>, <field>, …] (lib/linkTemplates). The link picker reads its governing list for the reader: their copy, their Assistant's, else this one. Its items still render through it.",
   "views": {
-    "github-account": "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts"
+    "github-account": "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts",
+    "place": "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:food-and-drink-places",
+    "book": "39998:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:books"
   },
   "_views": "Concepts with a tier-three view (ADR 0007): a hand-made page for a community concept, keyed by its coordinate so every copy of it (the house's, the reader's) gets the same page. The view still reads fields through the governing definition; it only decides how they look. A concept not listed here renders the tier-two way (DListItemHero).",
   "_pending": "URLs — no kind-39998 URLs concept exists on any relay (searched dcosl, tags.brainstorm.world, staging, tapestry; 2026-10-01). Decision 2026-10-01: GitHub Accounts first, URLs once someone authors it. Its coordinate is permanent once copies point at it, so choose the author first."

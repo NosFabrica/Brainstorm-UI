@@ -48,6 +48,7 @@ import { dictionaryConceptOf } from "@/services/dictionary";
 import { isDListItem } from "@/lib/dlistFields";
 import { itemPageTitle } from "@/lib/itemPageTitle";
 import { isReady, useItemView } from "@/hooks/useItemView";
+import { useSiteCard } from "@/hooks/useSiteCard";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
@@ -339,6 +340,8 @@ function EventView({
     (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlistOfEvent(note)));
   // A list item's page is named for the item — "vitorpamplona · GitHub Account" — not for who listed it.
   const itemView = useItemView(note ?? NO_ITEM);
+  // A place's own website gives a picture (through our link-preview origin); a shared link previews with it.
+  const siteCard = useSiteCard(isReady(itemView) ? (itemView.shown.link?.href ?? null) : null);
   const itemTitle =
     asDictionaryItem && isReady(itemView) ? itemPageTitle(itemView.shown, itemView.resolved.governing.singular) : null;
   const pageTitle = `${itemTitle ?? authorName} on Brainstorm`;
@@ -351,7 +354,7 @@ function EventView({
           description: itemTitle
             ? (isReady(itemView) && itemView.shown.summary) || `Listed by ${authorName}.`
             : snippet || `A note by ${authorName}.`,
-          image: profile.picture,
+          image: (itemTitle && (isReady(itemView) ? itemView.shown.image : null)) || siteCard?.image || profile.picture,
           url: typeof window !== "undefined" ? window.location.href : "",
         }
       : null,

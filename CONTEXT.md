@@ -129,7 +129,8 @@ it may change it.
 _Avoid_: fork, clone, override
 
 **Tier-three view**:
-A page made by hand for one community concept (GitHub Accounts), keyed by its
+A page made by hand for one community concept (GitHub Accounts, Food and
+Drink Places, Books), keyed by its
 coordinate, drawn from the same resolved view as the dynamic page and reading
 fields only through the governing definition (ADR 0007). Tier one is the raw
 tags; tier two is the page every concept gets from its definition.

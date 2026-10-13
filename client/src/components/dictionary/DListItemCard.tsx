@@ -67,6 +67,8 @@ function CardBody({
   const { resolved: r, shown, links } = view;
   const link = links[0];
   const picture = shown.image ?? shown.listImage;
+  // A cover is a portrait tile, as on a shelf; a face or a logo is round.
+  const portrait = !!shown.image && shown.imageShape === "portrait";
   return (
     <CardShell
       event={event}
@@ -80,7 +82,10 @@ function CardBody({
     >
       <div className="flex items-start gap-3">
         <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 ${shown.image ? "rounded-full" : "rounded-lg"}`}
+          className={`flex shrink-0 items-center justify-center overflow-hidden border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 ${
+            portrait ? "h-14 w-10 rounded-sm shadow-sm" : `h-10 w-10 ${shown.image ? "rounded-full" : "rounded-lg"}`
+          }`}
+          data-shape={portrait ? "portrait" : undefined}
         >
           {picture ? (
             <img

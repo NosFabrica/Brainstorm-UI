@@ -150,3 +150,45 @@ export function MoreFields({
     </div>
   );
 }
+
+/**
+ * An admin's fold at the foot of a tier-three page (ADR 0007): the fields
+ * the page doesn't show and where the definition comes from, behind one
+ * muted "Definition" toggle, closed — so an admin's page looks like a
+ * reader's until they ask. Nothing for anyone else.
+ */
+export function AdminDefinition({
+  event,
+  resolved,
+  cells,
+  extras,
+}: {
+  event: ItemEvent;
+  resolved: ResolvedConcept;
+  cells: FieldCells;
+  extras: { name: string; value: string }[];
+}) {
+  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+  const [open, setOpen] = useState(false);
+  if (!isAdmin) return null;
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-400 hover:text-brand-link dark:text-slate-500"
+        data-testid="dlist-item-admin-toggle"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        Definition
+      </button>
+      {open && (
+        <>
+          <MoreFields cells={cells} extras={extras} singular={resolved.governing.singular} />
+          <DefinitionLine event={event} resolved={resolved} />
+        </>
+      )}
+    </div>
+  );
+}

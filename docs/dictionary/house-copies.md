@@ -58,6 +58,7 @@ The community header (`39998:6aca05b8…:books`) declares no fields, so a book's
 ["image", "<a book icon URL, content-addressed>"]
 ["link", "8382b369db6f7d3dc96be27513609a61491f33c2afcc6f7c005c8bd7cc190c83", "wss://dcosl.brainstorm.world", "isbn10", "isbn10"]
 ["link", "<Open Library work template id>", "wss://dcosl.brainstorm.world", "id", "open-library-id"]
+["link", "<shop template id, e.g. https://www.amazon.com/dp/{isbn10}>", "wss://dcosl.brainstorm.world", "isbn10", "isbn10"]
 ["b", "39998:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:books", "pointer"]
 ```
 
@@ -67,6 +68,11 @@ Two notes:
   resolves an ISBN-13 at the same path (checked 2026-10-12: `/book/isbn/9781610397216`
   redirects to the book), so binding `isbn` is fine too; `isbn10` is bound here because
   every Open Library item carries it.
+- The book's page (`components/items/BookView`, ADR 0007) shows these as its buttons in
+  the header's order — first one primary — so list the canonical page first (Open
+  Library), then reviews (Goodreads), then a shop. Until the copy exists the page has no
+  buttons; everything else on it already works, since it reads the seed's field names
+  while the header declares none.
 - An Open Library template (`https://openlibrary.org/works/{id}`) does not exist on the
   URL Templates list yet (its six items on 2026-10-12: Divine profile and video,
   OpenStreetMap location, BTC Map place, Goodreads book, GitHub profile); file one there
