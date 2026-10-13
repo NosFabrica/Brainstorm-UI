@@ -164,6 +164,20 @@ describe("checkItem", () => {
     expect(codes(problems)).toEqual(["not-a-url"]);
   });
 
+  it("says a tel or email field that holds no phone number or address, and passes one that does", () => {
+    const header = [
+      ...books,
+      ["optional", "phone"],
+      ["field-type", "phone", "tel"],
+      ["optional", "contact"],
+      ["field-type", "contact", "email"],
+    ];
+    const bad = checkItem(header, duneWith(["phone", "call the shop"], ["contact", "ask at the till"]), [openLibrary]);
+    expect(codes(bad.problems)).toEqual(["not-a-phone", "not-an-email"]);
+    const good = checkItem(header, duneWith(["phone", "+1 555 123 4567"], ["contact", "a@b.com"]), [openLibrary]);
+    expect(good.problems).toEqual([]);
+  });
+
   it("says an address field that names nothing", () => {
     const { problems } = checkItem(books, duneWith(["series", "dune-saga"]), [openLibrary]);
     expect(codes(problems)).toEqual(["not-an-address"]);

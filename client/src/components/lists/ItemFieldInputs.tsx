@@ -1,9 +1,10 @@
 /**
  * Inputs for an item's fields, as a definition declares them: each labelled by
  * its name, its requirement and its type, with the header's words for it, and
- * typed by its `field-type` — a URL field is a URL input, and an address
- * field takes a `kind:pubkey:d` or an `naddr`, which it spells out as the
- * coordinate (what an item stores), and says so when a value is neither.
+ * typed by its `field-type` — a url, tel or email field is that kind of
+ * input, and an address field takes a `kind:pubkey:d` or an `naddr`, which
+ * it spells out as the coordinate (what an item stores), and says so when a
+ * value is neither.
  * Shared by the example item in a list's preview (ListEditor) and the form
  * that adds a real one (ItemComposer).
  */
@@ -19,8 +20,13 @@ export type FieldValues = Record<string, string>;
 const asTyped = (f: FieldDecl, raw: string) =>
   f.type === "address" && /^(nostr:)?naddr1/.test(raw.trim()) ? (addressOf(raw) ?? raw) : raw;
 
+/** Field types that are HTML input types too: a phone gets a dial pad, an email the @ key. */
+const INPUT_TYPES = new Set(["url", "tel", "email"]);
+
 const PLACEHOLDER: Record<string, string> = {
   url: "https://…",
+  tel: "+1 555 123 4567",
+  email: "name@example.com",
   address: "kind:pubkey:d, or an naddr",
 };
 
@@ -60,7 +66,7 @@ export function ItemFieldInputs({
           </Label>
           <Input
             id={`${testId}-${f.name}`}
-            type={f.type === "url" ? "url" : "text"}
+            type={INPUT_TYPES.has(f.type) ? f.type : "text"}
             value={values[f.name] ?? ""}
             onChange={(e) => onChange(f.name, asTyped(f, e.target.value))}
             placeholder={PLACEHOLDER[f.type] ?? ""}

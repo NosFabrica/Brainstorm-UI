@@ -32,6 +32,8 @@ export type ProblemCode =
   | "untitled"
   | "not-a-url"
   | "not-an-address"
+  | "not-a-phone"
+  | "not-an-email"
   | "image-unusable"
   | "link-unusable"
   | "media-unusable"
@@ -131,6 +133,10 @@ export function checkItem(
             : "isn't an http(s) URL";
       add(`${role}-unusable`, f.name, `"${f.name}" ${why}, so the item has ${ROLE_LOSS[role]}.`);
     } else if (f.type === "url" && !cell.href) add("not-a-url", f.name, `"${f.name}" isn't an http(s) URL.`);
+    else if (f.type === "tel" && !cell.href)
+      add("not-a-phone", f.name, `"${f.name}" isn't a phone number, so it doesn't call.`);
+    else if (f.type === "email" && !cell.href)
+      add("not-an-email", f.name, `"${f.name}" isn't an email address, so it doesn't mail.`);
     if (f.type === "address" && !cell.address)
       add("not-an-address", f.name, `"${f.name}" doesn't name an event as kind:pubkey:d or an naddr.`);
     // A location gives a geohash per precision; anything else shows its first value only.
