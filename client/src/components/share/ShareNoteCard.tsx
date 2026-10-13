@@ -107,6 +107,7 @@ export function ShareNoteCard({
   showAuthor = false,
   authorScore,
   tags,
+  relayHints,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
@@ -128,6 +129,8 @@ export function ShareNoteCard({
    *  fetched here: a page rendering several notes must read them in ONE batched
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
+  /** Where the event was found: a poll asks for its answers there too. */
+  relayHints?: string[];
 }) {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -400,7 +403,7 @@ export function ShareNoteCard({
       )}
 
       {/* A poll's options under its question: the tally on its own page, the options in a list. */}
-      {POLL_KINDS.has(event.kind) && <PollCard event={event} compact={!reading} />}
+      {POLL_KINDS.has(event.kind) && <PollCard event={event} compact={!reading} relayHints={relayHints} />}
 
       {quoted.map((qe) => (
         <EmbeddedNoteCard

@@ -11,7 +11,7 @@
  * The compact card — a row in a list — shows the options and when the poll
  * closes, and asks no relay: a page of polls is not a page of tallies.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Check, Loader2, Vote, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 import { Faces } from "@/components/search/thingCards";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { fetchPollResponses, fetchZapPollReceipts, publishPollVote } from "@/services/polls";
+import { POLL_ANSWERS_CAP, fetchPollResponses, fetchZapPollReceipts, publishPollVote } from "@/services/polls";
 import { nostrUriForEvent } from "@/lib/shareId";
 import {
   POLL_KIND,
@@ -46,6 +46,23 @@ const COMPACT_OPTIONS = 4;
 
 const sats = (n: number) => new Intl.NumberFormat("en-US").format(n);
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+/** The longest a browser timer waits; a later close re-arms from there. */
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
+ * The time, read again the moment a poll closes: one timeout to just past
+ * `closesAt`, not a clock ticking every second. An open card stops taking
+ * votes, and says "Ended", when its time comes.
+ */
+function useNowPast(closesAt: number | null): number {
+  const [now, setNow] = useState(nowSeconds);
+  useEffect(() => {
+    if (closesAt === null || closesAt < now) return;
+    const timer = setTimeout(() => setNow(nowSeconds()), Math.min((closesAt + 1 - now) * 1000, MAX_TIMER_MS));
+    return () => clearTimeout(timer);
+  }, [closesAt, now]);
+  return now;
+}
 
 export function PollCard({
   event,
@@ -55,7 +72,7 @@ export function PollCard({
   event: MinimalEvent;
   /** A row in a list: the options and the closing time, no tally and no relay asked. */
   compact?: boolean;
-  /** Where the poll was found, to ask for its zap receipts beside the usual relays. */
+  /** Where the poll was found, to ask for its answers beside the relays it names and the usual ones. */
   relayHints?: string[];
 }) {
   const poll = useMemo(() => parsePoll(event), [event]);
@@ -70,7 +87,8 @@ export function PollCard({
         closes={closingWords(poll.endsAt, nowSeconds())}
       />
     ) : (
-      <NostrPoll poll={poll} tags={event.tags} />
+      // Keyed by the poll: a pick or an error on one never carries to the next drawn in its place.
+      <NostrPoll key={poll.id} poll={poll} tags={event.tags} relayHints={relayHints} />
     );
   }
   if (event.kind === ZAP_POLL_KIND && zapPoll) {
@@ -83,7 +101,7 @@ export function PollCard({
         closes={closingWords(zapPoll.closedAt, nowSeconds())}
       />
     ) : (
-      <ZapPollResults poll={zapPoll} tags={event.tags} relayHints={relayHints} />
+      <ZapPollResults key={zapPoll.id} poll={zapPoll} tags={event.tags} relayHints={relayHints} />
     );
   }
   return null;
@@ -157,14 +175,18 @@ function PickMark({ multiple, checked }: { multiple: boolean; checked: boolean }
 
 const sameChoices = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
-function NostrPoll({ poll, tags }: { poll: Poll; tags: string[][] }) {
+function NostrPoll({ poll, tags, relayHints }: { poll: Poll; tags: string[][]; relayHints: string[] }) {
   const me = useActiveAccountDisplay()?.pubkey ?? null;
   const filters = useMemo(() => [{ kinds: [POLL_RESPONSE_KIND], "#e": [poll.id] }], [poll.id]);
-  const relays = poll.relays;
-  const answers = useStoreEvents(`poll-votes:${poll.id}`, filters, () => fetchPollResponses(poll.id, relays));
+  const answers = useStoreEvents(`poll-votes:${poll.id}`, filters, () =>
+    fetchPollResponses(poll.id, Array.from(new Set([...poll.relays, ...relayHints])), poll.endsAt),
+  );
   const tally = useMemo(() => tallyPoll(poll, answers.events), [poll, answers.events]);
+  // Read up to the ask's cap: past it, the count is "at least".
+  const capped = answers.events.length >= POLL_ANSWERS_CAP;
   const mine = choicesOf(poll, tally, me);
-  const closed = pollClosed(poll, nowSeconds());
+  const now = useNowPast(poll.endsAt);
+  const closed = pollClosed(poll, now);
   const canVote = !!me && !closed;
   const [picked, setPicked] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -255,14 +277,16 @@ function NostrPoll({ poll, tags }: { poll: Poll; tags: string[][] }) {
       <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
         <Faces pubkeys={tally.voters} testId="poll-faces" />
         <span data-testid="poll-total">
-          {answers.loading && total === 0 ? "Counting votes…" : `${total} ${total === 1 ? "voter" : "voters"}`}
+          {answers.loading && total === 0
+            ? "Counting votes…"
+            : `${total}${capped ? "+" : ""} ${total === 1 && !capped ? "voter" : "voters"}`}
         </span>
         <span aria-hidden="true">·</span>
         <span>{poll.multiple ? "Pick any" : "Pick one"}</span>
         {poll.endsAt !== null && (
           <>
             <span aria-hidden="true">·</span>
-            <span data-testid="poll-closes">{closingWords(poll.endsAt, nowSeconds())}</span>
+            <span data-testid="poll-closes">{closingWords(poll.endsAt, now)}</span>
           </>
         )}
       </div>
@@ -306,9 +330,12 @@ function NostrPoll({ poll, tags }: { poll: Poll; tags: string[][] }) {
 
 function ZapPollResults({ poll, tags, relayHints }: { poll: ZapPoll; tags: string[][]; relayHints: string[] }) {
   const filters = useMemo(() => [{ kinds: [ZAP_RECEIPT_KIND], "#e": [poll.id] }], [poll.id]);
-  const receipts = useStoreEvents(`zap-poll:${poll.id}`, filters, () => fetchZapPollReceipts(poll.id, relayHints));
+  const receipts = useStoreEvents(`zap-poll:${poll.id}`, filters, () =>
+    fetchZapPollReceipts(poll.id, relayHints, poll.closedAt),
+  );
   const tally = useMemo(() => tallyZapPoll(poll, receipts.events), [poll, receipts.events]);
-  const closed = zapPollClosed(poll, nowSeconds());
+  const now = useNowPast(poll.closedAt);
+  const closed = zapPollClosed(poll, now);
   const zappers = useMemo(() => Array.from(new Set([...tally.zappers.values()].flat())), [tally]);
   const range = zapRangeWords(poll);
 
@@ -346,6 +373,15 @@ function ZapPollResults({ poll, tags, relayHints }: { poll: ZapPoll; tags: strin
       </ul>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+        {/* Each zap's request is checked (lib/polls), but that it was paid is the wallet's word: any key can sign a receipt. */}
+        <span
+          className="font-medium text-amber-700 dark:text-amber-300"
+          title="Counted from zap receipts, which any key can sign: their requests are checked, the payments are not."
+          data-testid="zap-poll-unverified"
+        >
+          Unverified tally (zap receipts)
+        </span>
+        <span aria-hidden="true">·</span>
         <Faces pubkeys={zappers} testId="zap-poll-faces" />
         <span data-testid="zap-poll-total">
           {receipts.loading && tally.zaps === 0
@@ -367,7 +403,7 @@ function ZapPollResults({ poll, tags, relayHints }: { poll: ZapPoll; tags: strin
         {poll.closedAt !== null && (
           <>
             <span aria-hidden="true">·</span>
-            <span data-testid="zap-poll-closes">{closingWords(poll.closedAt, nowSeconds())}</span>
+            <span data-testid="zap-poll-closes">{closingWords(poll.closedAt, now)}</span>
           </>
         )}
       </div>

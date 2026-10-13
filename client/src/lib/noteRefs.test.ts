@@ -177,12 +177,29 @@ describe("NIP-C7 chat (kind 9): the `q` is the message it answers", () => {
     expect(a.quoteIds).toEqual([]);
   });
 
-  it("a `q` the text quotes is a quote, not the parent", () => {
+  it("the spec's own form — the text names the parent it answers — is still a reply to it", () => {
+    // NIP-C7: content "nostr:nevent1…\nyes", tags [["q", <id>, <relay>, <pubkey>]].
+    const nevent = nip19.neventEncode({ id: PARENT });
+    const msg = { ...ev(9, [["q", PARENT, "wss://r.example", SENDER]]), content: `nostr:${nevent}\nyes` };
+    expect(replyRefs(msg)).toEqual({ rootId: PARENT, parentId: PARENT, hints: ["wss://r.example"] });
+    const a = analyzeNote(msg);
+    expect(a.isReply).toBe(true);
+    expect(a.replyToPubkeys).toEqual([SENDER]);
+    // Drawn above as the parent, not again below as a quote.
+    expect(a.quoteIds).toEqual([]);
+  });
+
+  it("only the first `q` is the parent; a second one the text quotes stays a quote", () => {
     const nevent = nip19.neventEncode({ id: QUOTED });
-    const msg = { ...ev(9, [["q", QUOTED]]), content: `look nostr:${nevent}` };
-    expect(replyRefs(msg)).toEqual({});
+    const msg = {
+      ...ev(9, [
+        ["q", PARENT],
+        ["q", QUOTED],
+      ]),
+      content: `see nostr:${nevent}`,
+    };
+    expect(replyRefs(msg)).toMatchObject({ parentId: PARENT });
     expect(analyzeNote(msg).quoteIds).toEqual([QUOTED]);
-    expect(analyzeNote(msg).isReply).toBe(false);
   });
 
   it("a kind-1 `q` stays a quote", () => {

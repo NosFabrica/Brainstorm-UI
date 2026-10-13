@@ -128,6 +128,33 @@ describe("ThreadAncestors", () => {
     expect(screen.getByTestId("embedded-note")).toHaveTextContent("gm everyone");
   });
 
+  it("an article named as the root by address and as the parent by id is drawn once", () => {
+    const article: MinimalEvent = {
+      ...base,
+      id: "a".repeat(64),
+      kind: 30023,
+      content: "Long read",
+      tags: [
+        ["d", "essay"],
+        ["title", "My essay"],
+      ],
+    };
+    held = [article];
+    const comment: MinimalEvent = {
+      ...base,
+      id: "c".repeat(64),
+      kind: 1111,
+      tags: [
+        ["A", `30023:${AUTHOR}:essay`],
+        ["K", "30023"],
+        ["e", article.id],
+        ["k", "30023"],
+      ],
+    };
+    renderWithProviders(<ThreadAncestors note={comment} relayHints={[]} />);
+    expect(screen.getAllByTestId("embedded-article")).toHaveLength(1);
+  });
+
   it("a note that answers nothing shows nothing", () => {
     const note: MinimalEvent = { ...base, id: "c".repeat(64), kind: 1, content: "hi", tags: [] };
     renderWithProviders(<ThreadAncestors note={note} relayHints={[]} />);

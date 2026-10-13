@@ -123,22 +123,14 @@ export const COMMENT_KIND = 1111;
 export const CHAT_KIND = 9;
 
 /**
- * The message a NIP-C7 chat message (kind 9) answers: its `q` tag. A `q` whose
- * event the text itself quotes (`nostr:nevent…`, NIP-18) is a quote, not the
- * parent, so the parent is the first `q` the content does not name.
+ * The message a NIP-C7 chat message (kind 9) answers: its first `q` tag. The
+ * spec's own reply also names that parent in its text (`nostr:nevent1…\nyes`),
+ * so a `q` the content quotes is still the parent; `analyzeNote` drops it from
+ * the quotes, as it is drawn above. A later `q` is a quote.
  */
 export function chatParentOf(ev: MinimalEvent): { id: string; relay?: string; pubkey?: string } | null {
   if (ev.kind !== CHAT_KIND) return null;
-  const qTags = (ev.tags || []).filter((t) => t[0] === "q" && HEX64.test(t[1] ?? ""));
-  if (!qTags.length) return null;
-  const quoted = new Set<string>();
-  for (const tok of parseNoteContent(ev.content || "")) {
-    if (tok.type === "mention") {
-      const { id } = decodeNostrEntity(tok.bech32);
-      if (id) quoted.add(id);
-    }
-  }
-  const q = qTags.find((t) => !quoted.has(t[1]));
+  const q = (ev.tags || []).find((t) => t[0] === "q" && HEX64.test(t[1] ?? ""));
   if (!q) return null;
   return { id: q[1], relay: tagRelayOf(q), pubkey: HEX64.test(q[3] ?? "") ? q[3] : undefined };
 }

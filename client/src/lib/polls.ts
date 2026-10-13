@@ -7,6 +7,8 @@
  * The counting rules follow Amethyst's `PollTallyPolicy` (quartz/commons
  * nip88Polls) so the two clients give one answer for the same poll.
  */
+import { isLocalNetworkHost } from "@/lib/localNetwork";
+import { readZapRequest } from "@/lib/zapRequest";
 import { parseZapReceipt } from "@/services/search";
 
 export const POLL_KIND = 1068;
@@ -18,7 +20,22 @@ export const POLL_KINDS = new Set([POLL_KIND, ZAP_POLL_KIND]);
 
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][] };
 
-const RELAY_URL = /^wss?:\/\/\S+$/i;
+/** A poll's `relay` tags dialed at most: a reader's browser connects to each just by opening it. */
+export const MAX_POLL_RELAYS = 3;
+
+/**
+ * A relay a poll's author names that a reader may be made to dial: TLS only,
+ * and a public host — never the reader's own machine or network
+ * (lib/localNetwork), which a stranger's poll could otherwise probe.
+ */
+function dialable(url: string): boolean {
+  if (!/^wss:\/\/\S+$/i.test(url)) return false;
+  try {
+    return !isLocalNetworkHost(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
 
 function tagValue(tags: string[][], name: string): string | undefined {
   return tags.find((t) => t[0] === name && typeof t[1] === "string")?.[1];
@@ -47,7 +64,7 @@ export interface Poll {
   multiple: boolean;
   /** `endsAt`: responses stamped after it do not count. Null for a poll that never closes. */
   endsAt: number | null;
-  /** `relay` tags: where the author expects responses. */
+  /** `relay` tags: where the author expects responses — public wss:// ones, `MAX_POLL_RELAYS` at most. */
   relays: string[];
 }
 
@@ -63,8 +80,8 @@ export function parsePoll(ev: EventLike): Poll | null {
   }
   if (!options.length) return null;
   const relays = Array.from(
-    new Set(ev.tags.filter((t) => t[0] === "relay" && RELAY_URL.test(t[1] ?? "")).map((t) => t[1])),
-  );
+    new Set(ev.tags.filter((t) => t[0] === "relay" && typeof t[1] === "string" && dialable(t[1])).map((t) => t[1])),
+  ).slice(0, MAX_POLL_RELAYS);
   return {
     id: ev.id,
     pubkey: ev.pubkey,
@@ -238,11 +255,21 @@ export interface ZapPollTally {
   zaps: number;
 }
 
+/** All the bitcoin there will ever be, in sats: an invoice for more is not a payment. */
+const MAX_SATS = 21_000_000 * 100_000_000;
+
 /**
  * Sum a zap poll's receipts per option: receipts naming the poll whose request
  * carries a `poll_option` it declares, with an amount inside the poll's range,
  * received by `closed_at`. A receipt whose invoice and request disagree on the
  * amount is not counted (see `parseZapReceipt`).
+ *
+ * Any key can sign a 9735, so a receipt counts only when the zap request it
+ * embeds verifies (lib/zapRequest): signed, about this poll, and by the
+ * receipt's `P` when it names one. One request is one payment, however many
+ * receipts repeat it. That still takes the wallet's word that it was paid —
+ * checkable only against the poll author's LNURL `nostrPubkey`, which nothing
+ * here resolves — so the card calls this tally unverified.
  */
 export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally {
   const sats = new Map<number, number>(poll.options.map((o) => [o.index, 0]));
@@ -250,6 +277,7 @@ export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally
   let total = 0;
   let zaps = 0;
   const seen = new Set<string>();
+  const paid = new Set<string>();
   const newestFirst = [...receipts].sort((a, b) => b.created_at - a.created_at);
   for (const r of newestFirst) {
     if (r.kind !== ZAP_RECEIPT_KIND || seen.has(r.id)) continue;
@@ -258,15 +286,22 @@ export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally
     if (poll.closedAt !== null && r.created_at > poll.closedAt) continue;
     const option = zappedPollOption(r);
     if (option === null || !sats.has(option)) continue;
+    const request = readZapRequest(r);
+    if (!request?.verified || !request.id || paid.has(request.id)) continue;
+    if (!request.tags.some((t) => t[0] === "e" && t[1] === poll.id)) continue;
     const receipt = parseZapReceipt(r as Parameters<typeof parseZapReceipt>[0]);
     if (!receipt.msats) continue;
     const amount = Math.floor(receipt.msats / 1000);
-    if (amount <= 0 || (poll.min !== null && amount < poll.min) || (poll.max !== null && amount > poll.max)) continue;
+    if (amount <= 0 || amount > MAX_SATS) continue;
+    // NIP-69: outside `value_minimum`–`value_maximum` is no vote at all, so no one zap's size carries consensus past the cap.
+    if ((poll.min !== null && amount < poll.min) || (poll.max !== null && amount > poll.max)) continue;
+    paid.add(request.id);
     sats.set(option, (sats.get(option) ?? 0) + amount);
     total += amount;
     zaps += 1;
     const who = zappers.get(option)!;
-    if (receipt.pubkey && !who.includes(receipt.pubkey)) who.push(receipt.pubkey);
+    const zapper = request.anonymous ? null : request.pubkey;
+    if (zapper && !who.includes(zapper)) who.push(zapper);
   }
   return { sats, zappers, total, zaps };
 }

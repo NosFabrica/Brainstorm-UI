@@ -25,6 +25,13 @@ type Scope = { id?: string; addr?: AddressRef; external?: string };
 
 const named = (s: Scope) => !!(s.id || s.addr || s.external);
 
+/** An addressable event's coordinate, `kind:pubkey:d`; null for any other. */
+const coordOfEvent = (e: MinimalEvent) =>
+  e.kind >= 30000 && e.kind < 40000 ? `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}` : null;
+/** One event, or two versions of one address: a root named by `A` and a parent by `e` can be the same article. */
+const sameEvent = (a: MinimalEvent | undefined, b: MinimalEvent | undefined) =>
+  !!a && !!b && (a.id === b.id || (coordOfEvent(a) !== null && coordOfEvent(a) === coordOfEvent(b)));
+
 /**
  * The conversation *above* a focused reply — the post it's replying to, plus the
  * thread's root when that's a different post — rendered as compact cards joined
@@ -100,8 +107,10 @@ export function ThreadAncestors({ note, relayHints }: { note: MinimalEvent; rela
       (s.addr ? byCoord.get(addrCoord(s.addr)) : undefined) ?? (s.id ? byId.get(s.id) : undefined);
   }, [eventsQuery.events, addrQuery.events]);
 
-  const root = rootDistinct ? resolve(rootScope) : undefined;
   const parent = named(parentScope) ? resolve(parentScope) : undefined;
+  const rootFound = rootDistinct ? resolve(rootScope) : undefined;
+  // Scopes that name it two ways (an address, an id) can still be one event: drawn once, as the parent.
+  const root = sameEvent(rootFound, parent) ? undefined : rootFound;
   // What can be drawn: the event, or — off Nostr — the external id itself.
   const rootShown = !!root || (rootDistinct && !!rootScope.external && !rootScope.id && !rootScope.addr);
   const parentShown = !!parent || (!!parentScope.external && !parentScope.id && !parentScope.addr);

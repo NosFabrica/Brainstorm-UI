@@ -643,6 +643,7 @@ function EventView({
                     addrByCoord={addrByCoord}
                     forceExpanded
                     reading
+                    relayHints={relayHints}
                   />
                   {/* A file only its imeta names (a comment's voice clip): the text never draws it. */}
                   {imetaOnlyMedia.length > 0 && (

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools";
 import {
   acceptedChoices,
   choicesOf,
@@ -62,6 +63,25 @@ describe("parsePoll (NIP-88)", () => {
     expect(poll.endsAt).toBe(ENDS);
     expect(poll.relays).toEqual(["wss://relay.example.com"]);
     expect(poll.question).toBe("Best relay?");
+  });
+
+  it("dials only public wss:// relays it names, three at most", () => {
+    const poll = parsePoll(
+      pollEvent([
+        ["option", "a", "A"],
+        ["relay", "ws://plain.example.com"],
+        ["relay", "wss://localhost:7777"],
+        ["relay", "wss://127.0.0.1"],
+        ["relay", "wss://192.168.1.2"],
+        ["relay", "wss://[::1]"],
+        ["relay", "wss://umbrel.local"],
+        ["relay", "wss://one.example.com"],
+        ["relay", "wss://two.example.com"],
+        ["relay", "wss://three.example.com"],
+        ["relay", "wss://four.example.com"],
+      ]),
+    )!;
+    expect(poll.relays).toEqual(["wss://one.example.com", "wss://two.example.com", "wss://three.example.com"]);
   });
 
   it("defaults to single choice and no end; reads multiplechoice", () => {
@@ -162,7 +182,29 @@ describe("zap polls (kind 6969)", () => {
 
   // "lnbc<amount>n1…": n is nano-BTC, i.e. 100 msats — so 1000n is 100 sats.
   const invoice = (sats: number) => `lnbc${sats * 10}n1pexample`;
-  const receipt = (sender: string, sats: number, option: number | null, at = CREATED + 60, pollId = POLL_ID) => ({
+  // Zappers sign their requests; the receipt (by the wallet) carries them.
+  const keys = new Map<string, Uint8Array>();
+  const zapper = (name: string) => {
+    if (!keys.has(name)) keys.set(name, generateSecretKey());
+    return getPublicKey(keys.get(name)!);
+  };
+  const request = (sender: string, option: number | null, pollId: string, extra: string[][] = []) =>
+    finalizeEvent(
+      {
+        kind: 9734,
+        created_at: CREATED,
+        content: "",
+        tags: [["e", pollId], ...(option === null ? [] : [["poll_option", String(option)]]), ...extra],
+      },
+      keys.get(sender)!,
+    );
+  const receiptOf = (
+    req: object | string,
+    sats: number,
+    at = CREATED + 60,
+    pollId = POLL_ID,
+    tags: string[][] = [],
+  ) => ({
     id: String(++n).padStart(64, "0"),
     pubkey: "f".repeat(64),
     kind: 9735,
@@ -171,17 +213,15 @@ describe("zap polls (kind 6969)", () => {
     tags: [
       ["e", pollId],
       ["bolt11", invoice(sats)],
-      [
-        "description",
-        JSON.stringify({
-          kind: 9734,
-          pubkey: sender,
-          content: "",
-          tags: [["e", pollId], ...(option === null ? [] : [["poll_option", String(option)]])],
-        }),
-      ],
+      ["description", typeof req === "string" ? req : JSON.stringify(req)],
+      ...tags,
     ],
   });
+  const receipt = (sender: string, sats: number, option: number | null, at = CREATED + 60, pollId = POLL_ID) =>
+    receiptOf(request(sender, option, pollId), sats, at, pollId);
+  const ALICE_Z = zapper("alice");
+  const BOB_Z = zapper("bob");
+  zapper("carol");
 
   it("reads options and rules", () => {
     const zp = parseZapPoll(zapPollEvent)!;
@@ -207,29 +247,80 @@ describe("zap polls (kind 6969)", () => {
   });
 
   it("finds the option in the embedded zap request", () => {
-    expect(zappedPollOption(receipt(ALICE, 100, 1))).toBe(1);
-    expect(zappedPollOption(receipt(ALICE, 100, null))).toBeNull();
+    expect(zappedPollOption(receipt("alice", 100, 1))).toBe(1);
+    expect(zappedPollOption(receipt("alice", 100, null))).toBeNull();
   });
 
   it("sums sats per option: in range, before closing, for a declared option", () => {
     const zp = parseZapPoll(zapPollEvent)!;
     const tally = tallyZapPoll(zp, [
-      receipt(ALICE, 100, 0),
-      receipt(BOB, 300, 0),
-      receipt(CAROL, 200, 1),
-      receipt(CAROL, 5, 1), // below value_minimum
-      receipt(CAROL, 5000, 1), // above value_maximum
-      receipt(ALICE, 100, 1, ENDS + 1), // after closed_at
-      receipt(ALICE, 100, 7), // no such option
-      receipt(ALICE, 100, null), // a plain zap, no vote
-      receipt(ALICE, 100, 0, CREATED + 60, "q".repeat(64)), // another event
+      receipt("alice", 100, 0),
+      receipt("bob", 300, 0),
+      receipt("carol", 200, 1),
+      receipt("carol", 5, 1), // below value_minimum
+      receipt("carol", 5000, 1), // above value_maximum
+      receipt("alice", 100, 1, ENDS + 1), // after closed_at
+      receipt("alice", 100, 7), // no such option
+      receipt("alice", 100, null), // a plain zap, no vote
+      receipt("alice", 100, 0, CREATED + 60, "q".repeat(64)), // another event
     ]);
     expect(tally.sats.get(0)).toBe(400);
     expect(tally.sats.get(1)).toBe(200);
     expect(tally.total).toBe(600);
     expect(tally.zaps).toBe(3);
-    expect(tally.zappers.get(0)!.sort()).toEqual([ALICE, BOB].sort());
+    expect(tally.zappers.get(0)!.sort()).toEqual([ALICE_Z, BOB_Z].sort());
     expect(percentOf(tally.sats.get(0)!, tally.total)).toBe(67);
+  });
+
+  describe("counts a receipt only under its zapper's signature", () => {
+    const zp = parseZapPoll(zapPollEvent)!;
+    const open = parseZapPoll(
+      pollEvent(
+        [
+          ["poll_option", "0", "Yes"],
+          ["poll_option", "1", "No"],
+        ],
+        6969,
+      ),
+    )!;
+
+    it("not a request nobody signed (any key can sign a receipt)", () => {
+      const forged = {
+        kind: 9734,
+        pubkey: ALICE,
+        content: "",
+        tags: [
+          ["e", POLL_ID],
+          ["poll_option", "1"],
+        ],
+      };
+      expect(tallyZapPoll(zp, [receiptOf(forged, 500)]).total).toBe(0);
+    });
+
+    it("not a signed request about another event, or by someone else than the receipt's `P`", () => {
+      const elsewhere = receiptOf(request("alice", 1, "q".repeat(64)), 500);
+      const otherP = receiptOf(request("alice", 1, POLL_ID), 500, CREATED + 60, POLL_ID, [["P", BOB_Z]]);
+      expect(tallyZapPoll(zp, [elsewhere, otherP]).total).toBe(0);
+      // Its own `P`, it counts.
+      const ownP = receiptOf(request("alice", 1, POLL_ID), 500, CREATED + 60, POLL_ID, [["P", ALICE_Z]]);
+      expect(tallyZapPoll(zp, [ownP]).sats.get(1)).toBe(500);
+    });
+
+    it("one request is one payment, however many receipts repeat it", () => {
+      const req = request("bob", 0, POLL_ID);
+      const tally = tallyZapPoll(zp, [receiptOf(req, 300), receiptOf(req, 300), receiptOf(req, 300)]);
+      expect(tally.sats.get(0)).toBe(300);
+      expect(tally.zaps).toBe(1);
+    });
+
+    it("an amount past every bitcoin there is counts nothing, so it cannot carry consensus alone", () => {
+      // 22,000,000 BTC: no unit letter is whole bitcoin.
+      const absurd = receiptOf(request("carol", 1, POLL_ID), 0, CREATED + 60, POLL_ID);
+      absurd.tags[1] = ["bolt11", "lnbc220000001pexample"];
+      const tally = tallyZapPoll(open, [absurd, receipt("alice", 100, 0)]);
+      expect(tally.sats.get(1)).toBe(0);
+      expect(tally.total).toBe(100);
+    });
   });
 });
 

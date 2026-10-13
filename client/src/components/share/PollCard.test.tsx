@@ -6,7 +6,8 @@
  * poll, gets no voting. A zap poll shows sats per option and links out.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { finalizeEvent, generateSecretKey } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -25,17 +26,24 @@ vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map(), use
 /** What the store holds for the card's filters. */
 let held: MinimalEvent[] = [];
 const askedKeys: (string | null)[] = [];
+/** The asks the card would send, to run by hand. */
+const asks: (() => Promise<unknown>)[] = [];
 vi.mock("@/hooks/useStoreEvents", () => ({
-  useStoreEvents: (key: string | null) => {
+  useStoreEvents: (key: string | null, _filters: unknown, ask: () => Promise<unknown>) => {
     askedKeys.push(key);
+    asks.push(ask);
     return { events: held, loading: false, settled: true };
   },
 }));
 
 const publishPollVote = vi.fn(async () => ({ success: true }));
+const fetchPollResponses = vi.fn(async (..._args: unknown[]) => []);
+const fetchZapPollReceipts = vi.fn(async (..._args: unknown[]) => []);
 vi.mock("@/services/polls", () => ({
-  fetchPollResponses: vi.fn(async () => []),
-  fetchZapPollReceipts: vi.fn(async () => []),
+  // Small, so a test can reach it.
+  POLL_ANSWERS_CAP: 5,
+  fetchPollResponses: (...args: unknown[]) => fetchPollResponses(...args),
+  fetchZapPollReceipts: (...args: unknown[]) => fetchZapPollReceipts(...args),
   publishPollVote: (...args: unknown[]) => publishPollVote(...(args as [])),
 }));
 
@@ -67,7 +75,10 @@ beforeEach(() => {
   viewer = { pubkey: ME };
   held = [];
   askedKeys.length = 0;
+  asks.length = 0;
   publishPollVote.mockClear();
+  fetchPollResponses.mockClear();
+  fetchZapPollReceipts.mockClear();
 });
 
 describe("PollCard — NIP-88", () => {
@@ -145,28 +156,32 @@ describe("PollCard — zap poll (kind 6969)", () => {
       ["closed_at", String(NOW + 86_400 + 60)],
     ],
   };
-  const receipt = (sats: number, option: number): MinimalEvent => ({
-    id: String(++n).padStart(64, "0"),
-    pubkey: "f".repeat(64),
-    kind: 9735,
-    created_at: NOW - 60,
-    content: "",
-    tags: [
-      ["e", POLL_ID],
-      ["bolt11", `lnbc${sats * 10}n1pexample`],
-      [
-        "description",
-        JSON.stringify({
-          kind: 9734,
-          pubkey: ALICE,
-          tags: [
-            ["e", POLL_ID],
-            ["poll_option", String(option)],
-          ],
-        }),
+  const receipt = (sats: number, option: number, signed = true): MinimalEvent => {
+    const template = {
+      kind: 9734,
+      created_at: NOW - 70,
+      content: "",
+      tags: [
+        ["e", POLL_ID],
+        ["poll_option", String(option)],
       ],
-    ],
-  });
+    };
+    return {
+      id: String(++n).padStart(64, "0"),
+      pubkey: "f".repeat(64),
+      kind: 9735,
+      created_at: NOW - 60,
+      content: "",
+      tags: [
+        ["e", POLL_ID],
+        ["bolt11", `lnbc${sats * 10}n1pexample`],
+        [
+          "description",
+          JSON.stringify(signed ? finalizeEvent(template, generateSecretKey()) : { ...template, pubkey: ALICE }),
+        ],
+      ],
+    };
+  };
 
   it("shows sats per option, consensus, closing time and a way to zap", () => {
     held = [receipt(700, 0), receipt(300, 1)];
@@ -183,5 +198,72 @@ describe("PollCard — zap poll (kind 6969)", () => {
   it("compact: the options", () => {
     renderWithProviders(<PollCard event={zapPoll} compact />);
     expect(screen.getByTestId("poll-compact")).toHaveTextContent("Zap poll · Ends in 1 day");
+  });
+
+  it("counts no receipt whose zap request nobody signed, and says the tally is the wallets' word", () => {
+    held = [receipt(700, 0), receipt(100_000, 1, false)];
+    renderWithProviders(<PollCard event={zapPoll} />);
+    expect(screen.getByTestId("zap-poll-option-1")).toHaveTextContent("0 sats");
+    expect(screen.getByTestId("zap-poll-total")).toHaveTextContent("700 sats from 1 zap");
+    expect(screen.getByTestId("zap-poll-unverified")).toHaveTextContent("Unverified tally (zap receipts)");
+  });
+
+  it("asks for no receipt after it closed, from where it was found too", async () => {
+    renderWithProviders(<PollCard event={zapPoll} relayHints={["wss://found.example.com"]} />);
+    await asks.at(-1)!();
+    expect(fetchZapPollReceipts).toHaveBeenCalledWith(POLL_ID, ["wss://found.example.com"], NOW + 86_400 + 60);
+  });
+});
+
+describe("PollCard — the edges", () => {
+  it("says a count past what it read is at least that", () => {
+    held = [ALICE, BOB, ME, "3".repeat(64), "4".repeat(64)].map((pk) => vote(pk, "x1"));
+    renderWithProviders(<PollCard event={poll([])} />);
+    expect(screen.getByTestId("poll-total")).toHaveTextContent("5+ voters");
+  });
+
+  it("asks the poll's relays and where it was found, nothing after it ends", async () => {
+    const endsAt = NOW + 3600;
+    renderWithProviders(
+      <PollCard
+        event={poll([
+          ["relay", "wss://poll.example.com"],
+          ["endsAt", String(endsAt)],
+        ])}
+        relayHints={["wss://found.example.com"]}
+      />,
+    );
+    await asks.at(-1)!();
+    expect(fetchPollResponses).toHaveBeenCalledWith(
+      POLL_ID,
+      ["wss://poll.example.com", "wss://found.example.com"],
+      endsAt,
+    );
+  });
+
+  it("a pick on one poll does not carry to the next drawn in its place", () => {
+    const first = poll([]);
+    const { rerender } = renderWithProviders(<PollCard event={first} />);
+    fireEvent.click(screen.getByRole("radio", { name: /damus/ }));
+    expect(screen.getByRole("radio", { name: /damus/ })).toHaveAttribute("aria-checked", "true");
+    rerender(<PollCard event={{ ...first, id: "8".repeat(64) }} />);
+    expect(screen.getByRole("radio", { name: /damus/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("poll-vote")).toBeDisabled();
+  });
+
+  it("closes on screen when its time comes", () => {
+    vi.useFakeTimers({ now: Date.now(), toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const endsAt = Math.floor(Date.now() / 1000) + 2;
+      renderWithProviders(<PollCard event={poll([["endsAt", String(endsAt)]])} />);
+      expect(screen.getAllByRole("radio")).toHaveLength(2);
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+      expect(screen.queryByRole("radio")).toBeNull();
+      expect(screen.getByTestId("poll-closes")).toHaveTextContent(/^Ended /);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
