@@ -36,6 +36,22 @@ describe("SensitiveCover", () => {
   });
 });
 
+describe("SensitiveCover — what it covers", () => {
+  it("names pictures, several pictures, or a post's mixed media, and asks for them by name", () => {
+    const { rerender } = render(<SensitiveCover onShow={vi.fn()} subject="photo" />);
+    expect(screen.getByTestId("sensitive-reason")).toHaveTextContent("The creator marked this photo as sensitive");
+    expect(screen.getByRole("button", { name: "Show photo" })).toBeInTheDocument();
+    rerender(<SensitiveCover onShow={vi.fn()} subject="photo" count={3} />);
+    expect(screen.getByTestId("sensitive-reason")).toHaveTextContent("The creator marked these photos as sensitive");
+    expect(screen.getByRole("button", { name: "Show photos" })).toBeInTheDocument();
+    rerender(<SensitiveCover onShow={vi.fn()} subject="media" count={2} />);
+    expect(screen.getByTestId("sensitive-reason")).toHaveTextContent(
+      "The creator marked this post's media as sensitive",
+    );
+    expect(screen.getByRole("button", { name: "Show media" })).toBeInTheDocument();
+  });
+});
+
 describe("SensitiveTile", () => {
   it('is a placeholder labelled "Sensitive", with no picture in it', () => {
     render(<SensitiveTile className="h-16 w-16" />);

@@ -29,7 +29,6 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
 import { FileHero } from "@/components/share/FileHero";
-import { isMediaFile } from "@/lib/fileMetadata";
 import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
@@ -52,8 +51,14 @@ import { useSiteCard } from "@/hooks/useSiteCard";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
+import { EventMedia } from "@/components/share/EventMedia";
+import { hasAudioHero } from "@/lib/audioEvent";
+import { mediaItemsOf } from "@/lib/mediaKind";
+import { contentWarningOf } from "@/lib/nip36";
+import { EmojiText } from "@/components/ui/custom-emoji";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ThingHero, ThingSections, hasThingPage } from "@/components/share/things";
+import { ActivityHero, hasActivityHero } from "@/components/share/activity";
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
@@ -64,7 +69,6 @@ import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { useLightbox } from "@/components/share/Lightbox";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
@@ -73,10 +77,10 @@ import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS } from "@/lib
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { shareSnippet } from "@/lib/shareSnippet";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
@@ -116,34 +120,10 @@ function ago(ts?: number): string {
   }
 }
 
-const NOTE_KINDS = new Set([1, 6, 16]);
-const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i;
-const VID_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
-
-/**
- * Media URLs for picture/video events (NIP-68 kind-20 etc.): pull the `url`
- * field from `imeta` tags, plus any plain `url` tags, falling back to image/video
- * URLs found in the content text.
- */
-function eventMediaUrls(ev: MinimalEvent): string[] {
-  const urls: string[] = [];
-  for (const t of ev.tags || []) {
-    if (t[0] === "imeta") {
-      for (const part of t.slice(1)) {
-        const m = /^url\s+(\S+)/.exec(part);
-        if (m) urls.push(m[1]);
-      }
-    } else if (t[0] === "url" && t[1]) {
-      urls.push(t[1]);
-    }
-  }
-  if (urls.length === 0) {
-    for (const m of (ev.content || "").matchAll(/https?:\/\/\S+/gi)) {
-      if (IMG_RE.test(m[0]) || VID_RE.test(m[0])) urls.push(m[0]);
-    }
-  }
-  return Array.from(new Set(urls));
-}
+// Posts read on the note card: notes, reposts, NIP-7D threads (their title as
+// the heading), NIP-22 comments (their scope above as the thread) and polls
+// (NIP-88 and zap polls, their options and tally under the question).
+const NOTE_KINDS = new Set([1, 6, 11, 16, 1068, 1111, 6969]);
 
 /**
  * On-site event/note landing page (`/e/:nevent`) — Brainstorm's njump replacement
@@ -229,7 +209,6 @@ function EventView({
   note: MinimalEvent | null | undefined;
   loading: boolean;
 }) {
-  const speed = useConnectionSpeed();
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const relayHints = ptr?.relays || [];
@@ -251,8 +230,26 @@ function EventView({
       ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] ||
         note.tags.find((t) => t[0] === "p")?.[1]
       : undefined;
+  // A zap receipt stays its signer's page: the payer it names is a claim anyone
+  // could write (lib/zapRequest), so only its hero names them, and says how sure.
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
+  // Who signed it, for the links that name the event: never a host or a payer it only names.
+  const eventAuthor = note?.pubkey ?? ptr?.author;
+  // The files a kind with no hero of its own carries (a kind-20 picture post, a
+  // comment's imeta), each drawn as what it is — every one of them, its words'
+  // links too, so a sensitive post is one cover and one lightbox, each with its alt.
+  // A repost's tags are the reposted note's business, not files of its own.
+  const mediaItems = useMemo(() => (note && note.kind !== 6 && note.kind !== 16 ? mediaItemsOf(note) : []), [note]);
+  // What the media draws, the words beside it leave out (NoteContent `skipUrls`).
+  const mediaUrls = useMemo(() => new Set(mediaItems.map((item) => item.url)), [mediaItems]);
+  // Under a note card, only the files its text never mentions: the card draws
+  // every linked file itself, extensionless Blossom links included.
+  const imetaOnlyMedia = useMemo(
+    () => (note ? mediaItems.filter((item) => !note.content.includes(item.url)) : []),
+    [note, mediaItems],
+  );
+  // A picture post's own title (NIP-68 kind 20), above its pictures.
+  const mediaTitle = note?.tags.find((t) => t[0] === "title")?.[1]?.trim();
 
   // The author's held profile at once; the event's own relay hints are asked
   // beside their outbox, and a newer profile replaces it as it lands.
@@ -269,7 +266,11 @@ function EventView({
   // card can embed them — same two batched queries the share page uses.
   // A bookmark set's page reads its own items a fold at a time (ItemListHero):
   // its hundreds of `a`s and `p`s are not asked for here all at once.
-  const refs = useMemo(() => collectRefs(note && !ITEM_LIST_KINDS.has(note.kind) ? [note] : []), [note]);
+  // An activity's hero (a reaction, a zap, a deletion…) asks for what it names itself.
+  const refs = useMemo(
+    () => collectRefs(note && !ITEM_LIST_KINDS.has(note.kind) && !hasActivityHero(note) ? [note] : []),
+    [note],
+  );
   const refEventsQuery = useStoreEvents(
     refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
     refs.ids.length ? [{ ids: refs.ids }] : null,
@@ -346,7 +347,8 @@ function EventView({
     asDictionaryItem && isReady(itemView) ? itemPageTitle(itemView.shown, itemView.resolved.governing.singular) : null;
   const pageTitle = `${itemTitle ?? authorName} on Brainstorm`;
 
-  const snippet = (note?.content || "").replace(/\s+/g, " ").trim().slice(0, 160);
+  // A kind whose content is no words (a voice message's file, a reaction's "+", a repost's JSON) is said in words.
+  const snippet = note ? shareSnippet(note) : "";
   useShareMeta(
     note
       ? {
@@ -360,28 +362,33 @@ function EventView({
       : null,
   );
 
-  const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, authorPk || undefined);
+  const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, eventAuthor || undefined);
   // Whether the hero below is one of the kind-specific ones, or the generic
   // fallback (media, text, or the structural card). Mirrors the chain in the
   // JSX: a kind with no hero of its own is the one whose publishing client
   // is worth a way back to (the team, 2026-09-24: "open in original client").
+  // A sound (a track, an episode, a voice message) is dedicated when it has a
+  // file to play: lib/audioEvent's `hasAudioHero`, since 30054/30055 also carry
+  // other apps' records that have none.
   const DEDICATED_KINDS = new Set([
-    30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923, 39998, 9998,
+    30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998,
   ]);
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
+    !hasAudioHero(note) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
+    !hasActivityHero(note) &&
     !VIDEO_KINDS.has(note.kind) &&
     !(note.kind === 9802 && note.content.trim()) &&
     !NOTE_KINDS.has(note.kind);
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
-  const nevent = ptr ? neventFor(ptr.id, relayHints, authorPk || undefined) : "";
+  const nevent = ptr ? neventFor(ptr.id, relayHints, eventAuthor || undefined) : "";
   // An addressable event (a listing, a track) also has its address: the
   // link that follows its author's edits, not this one version.
   const naddr = note && note.kind >= 30000 && note.kind < 40000 ? naddrForEvent(note, relayHints) : null;
@@ -424,6 +431,9 @@ function EventView({
   // header a post or an article gets (the team, 2026-10-01).
   const quietAuthor = !!note && (!!dlistOfEvent(note) || asDictionaryItem || note.kind === 39998 || note.kind === 9998);
 
+  // A zap, a reaction, a report…: its hero is the page, with no thread or topics of its own.
+  const activityPage = !!note && hasActivityHero(note);
+
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
   const [threadGated, setThreadGated] = useState(false);
@@ -431,10 +441,6 @@ function EventView({
   // Sign up from here → come back to this exact event afterward.
   const here = typeof window !== "undefined" ? window.location.pathname : "";
   const funnelLoginHref = `/login?${[authorNpub ? `invite=${authorNpub}` : "", here ? `next=${encodeURIComponent(here)}` : ""].filter(Boolean).join("&")}`;
-
-  const openLightbox = useLightbox();
-  // Image-only subset of the event's media — the lightbox carousels through these.
-  const galleryImages = mediaUrls.filter((u) => !VID_RE.test(u));
 
   // New in-app accounts that landed here (e.g. via the thread gate) haven't saved
   // a backup yet — surface a slim, dismissible safety + discovery nudge. It asks
@@ -511,8 +517,9 @@ function EventView({
               </div>
             )}
             {/* The conversation this reply sits in — parent (+ root) above, so a
-                permalinked reply reads in context instead of floating alone. */}
-            <ThreadAncestors note={note} relayHints={relayHints} />
+                permalinked reply reads in context instead of floating alone.
+                Not above an activity: its hero quotes the post a reaction or zap is about. */}
+            {!hasActivityHero(note) && <ThreadAncestors note={note} relayHints={relayHints} />}
 
             {/* Author header — and the ⋯, on the object it acts on (X puts it
                 on the post, not the page). A list event keeps only the ⋯ here. */}
@@ -553,11 +560,7 @@ function EventView({
                       <span className="truncate text-[15px] font-bold leading-tight text-slate-900 dark:text-slate-100">
                         <ProfileEmojiText pubkey={authorPk} text={authorName} />
                       </span>
-                      <Nip05Check
-                        nip05={profile.nip05}
-                        pubkey={note.pubkey}
-                        className="h-4 w-4 shrink-0 text-sky-500"
-                      />
+                      <Nip05Check nip05={profile.nip05} pubkey={authorPk} className="h-4 w-4 shrink-0 text-sky-500" />
                       <TierWordChip score01={score01} />
                     </div>
                     {/* A video says when it was published: a restored Vine's created_at is its import day. */}
@@ -601,11 +604,12 @@ function EventView({
                 <LiveHero event={note} />
               ) : note.kind === 32267 ? (
                 <AppHero event={note} />
-              ) : note.kind === 1063 && !isMediaFile(note) ? (
+              ) : note.kind === 1063 ? (
+                // Any file: an installer offered for download, a picture, video or sound drawn as what it is.
                 <FileHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
-              ) : note.kind === 30000 ? (
+              ) : note.kind === 30000 || note.kind === 39089 || note.kind === 39092 ? (
                 <FollowSetHero event={note} />
               ) : note.kind === 30392 ? (
                 <TrustedListHero event={note} />
@@ -614,12 +618,17 @@ function EventView({
               ) : ITEM_LIST_KINDS.has(note.kind) ? (
                 // Bookmarks, bookmark sets, curation sets, pins: the things it holds.
                 <ItemListHero event={note} />
-              ) : note.kind === 31337 ? (
+              ) : hasAudioHero(note) ? (
+                // A track, a podcast episode or trailer, a voice message, an audio header.
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
                 <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
+              ) : hasActivityHero(note) ? (
+                // Zaps, reactions, deletions, reports, labels, votes, RSVPs, follows, trust scores.
+                // Keyed by the event: a reveal or an open fold is that event's, never the next one's.
+                <ActivityHero key={note.id} event={note} />
               ) : hasThingPage(note) ? (
                 // Communities, fundraisers, reviews, shops, apps, calendars,
                 // badges, emoji packs, playlists, lessons, torrents (lib/thing).
@@ -630,42 +639,42 @@ function EventView({
                 // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
                 <HighlightHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
-                <ShareNoteCard
-                  event={note}
-                  profiles={profiles}
-                  eventsById={eventsById}
-                  addrByCoord={addrByCoord}
-                  forceExpanded
-                  reading
-                />
-              ) : mediaUrls.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
+                <>
+                  <ShareNoteCard
+                    event={note}
+                    profiles={profiles}
+                    eventsById={eventsById}
+                    addrByCoord={addrByCoord}
+                    forceExpanded
+                    reading
+                    relayHints={relayHints}
+                  />
+                  {/* A file only its imeta names (a comment's voice clip): the text never draws it. */}
+                  {imetaOnlyMedia.length > 0 && (
+                    <div className="mt-3">
+                      <EventMedia key={note.id} event={note} items={imetaOnlyMedia} />
+                    </div>
+                  )}
+                </>
+              ) : mediaItems.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
                 // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />
               ) : (
                 <div data-testid="event-media">
-                  {mediaUrls.map((u, i) =>
-                    VID_RE.test(u) ? (
-                      <video
-                        key={i}
-                        src={u}
-                        controls
-                        preload={videoPreload(speed)}
-                        className="mb-2 max-h-[36rem] w-full rounded-xl border border-slate-200 dark:border-slate-800"
-                      />
-                    ) : (
-                      <img
-                        key={i}
-                        src={u}
-                        alt=""
-                        loading="lazy"
-                        onClick={() => openLightbox(galleryImages, Math.max(0, galleryImages.indexOf(u)))}
-                        className="mb-2 max-h-[36rem] w-full cursor-zoom-in rounded-xl border border-slate-200 object-contain dark:border-slate-800"
-                      />
-                    ),
+                  {mediaTitle && (
+                    <h1
+                      className="mb-3 text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                      style={{ fontFamily: "var(--font-display)" }}
+                      data-testid="event-media-title"
+                    >
+                      <EmojiText text={mediaTitle} tags={note} />
+                    </h1>
                   )}
+                  <EventMedia key={note.id} event={note} items={mediaItems} />
                   {note.content?.trim() && (
                     <div className="mt-1">
                       <NoteContent
+                        key={note.id}
                         content={note.content}
                         reading
                         profiles={profiles}
@@ -673,6 +682,8 @@ function EventView({
                         tags={note.tags}
                         authorName={profile.display_name || profile.name}
                         embedThings
+                        contentWarning={contentWarningOf(note)}
+                        skipUrls={mediaUrls}
                       />
                     </div>
                   )}
@@ -712,16 +723,21 @@ function EventView({
                 the note itself, where a reader has just finished it and a
                 tagger has the content in view. Reads from relays only, so it
                 renders for logged-out visitors too. */}
-            <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />
+            {!activityPage && <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />}
 
-            {/* Reply thread — teaser-gated for anon, trust-filterable for members. */}
-            <EventThread
-              eventId={note.id}
-              addressCoord={addressCoordOf(note)}
-              authorNpub={authorNpub}
-              relayHints={relayHints}
-              onGateChange={setThreadGated}
-            />
+            {/* Reply thread — teaser-gated for anon, trust-filterable for members.
+                Not under a zap, a reaction or a report: nobody replies to those,
+                and asking the relays for their replies is a REQ per visit for nothing
+                (as their ancestors and refs are not asked for either). */}
+            {!activityPage && (
+              <EventThread
+                eventId={note.id}
+                addressCoord={addressCoordOf(note)}
+                authorNpub={authorNpub}
+                relayHints={relayHints}
+                onGateChange={setThreadGated}
+              />
+            )}
 
             {/* More from this author — keep readers inside Brainstorm. Not under a list
                 event: who listed a GitHub account says nothing about the account. */}

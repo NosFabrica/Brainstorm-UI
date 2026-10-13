@@ -1,5 +1,6 @@
 /**
- * The pack page (kind 30000 on /e) — a follow set opens as its PEOPLE.
+ * The pack page (kind 30000 on /e, and NIP-51 starter packs 39089/39092) —
+ * a follow set opens as its PEOPLE. A starter pack's `image` leads as a banner.
  * Title + member count, the curator (whose web of trust this list speaks
  * for), the description, then the full roster: every member a tappable
  * row with avatar, tier ring, and name, into their profile. The search
@@ -19,6 +20,7 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type SetEvent = {
+  kind?: number;
   pubkey: string;
   tags: string[][];
   content: string;
@@ -43,12 +45,26 @@ function useProfiles(pubkeys: string[]): Map<string, MemberProfile> {
 const ROSTER_FOLD = 25;
 
 export function FollowSetHero({ event }: { event: SetEvent }) {
-  const title = event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1] ?? "Follow set";
+  const pack = event.kind === 39089 || event.kind === 39092;
+  const title =
+    event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1] ?? (pack ? "Starter pack" : "Follow set");
   const description = event.tags.find((t) => t[0] === "description")?.[1];
+  const image = event.tags.find((t) => t[0] === "image" && /^https?:\/\//i.test(t[1] ?? ""))?.[1];
+  const [imageBroken, setImageBroken] = useState(false);
   const members = useMemo(() => event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]), [event.tags]);
 
   return (
     <div data-testid="follow-set-hero">
+      {image && !imageBroken && (
+        <img
+          src={image}
+          alt=""
+          loading="lazy"
+          onError={() => setImageBroken(true)}
+          className="mb-4 aspect-[3/1] w-full rounded-xl border border-slate-200 object-cover dark:border-slate-800"
+          data-testid="set-hero-image"
+        />
+      )}
       {/* Title left, the list glyph right — the settled anatomy, at the title's
           own height: the glyph says "a list", it is not the list's picture
           (Benjamin, 2026-09-09: "this icon is big"). The curator is not named

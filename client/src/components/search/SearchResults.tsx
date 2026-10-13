@@ -74,6 +74,7 @@ import {
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { groupPeoplePacks } from "@/lib/listGroups";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { WEB_BOOKMARK_KIND } from "@/lib/webBookmark";
 import {
   AppCard,
   EventCard,
@@ -226,8 +227,9 @@ function recipeTopics(e: NostrEvent): string[] {
 }
 // Drawn as lists wherever they turn up; a Trusted List is not asked for by the
 // Lists tab (the relay holds a copy per perspective), but a `kind:` or a
-// mixed answer that meets one shows it as the people list it is.
-const LIST_KINDS = new Set([...TAB_KINDS.lists, TRUSTED_PEOPLE_KIND]);
+// mixed answer that meets one shows it as the people list it is. A web
+// bookmark sits on the Lists tab but is one link: its row is the page's.
+const LIST_KINDS = new Set([...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_KIND), TRUSTED_PEOPLE_KIND]);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
@@ -2695,6 +2697,7 @@ export function SearchResults({
                               forkOf={forkOf}
                             />,
                           );
+                        if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
                         if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
                         if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
                         // Open-set posture: an unmapped kind renders rather than vanishing —

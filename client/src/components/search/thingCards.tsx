@@ -267,7 +267,7 @@ function Topics({ topics, max = 3 }: { topics: string[]; max?: number }) {
 }
 
 /** A few faces with tier rings, overlapping, and how many more stand behind them. */
-function Faces({ pubkeys, max = 4, testId }: { pubkeys: string[]; max?: number; testId?: string }) {
+export function Faces({ pubkeys, max = 4, testId }: { pubkeys: string[]; max?: number; testId?: string }) {
   const shown = pubkeys.slice(0, max);
   const profiles = useFaceProfiles(shown);
   const scoreOf = useAuthorScores(shown);

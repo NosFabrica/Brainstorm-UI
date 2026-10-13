@@ -566,6 +566,65 @@ describe("SerpRow — media taps", () => {
   });
 });
 
+// NIP-36 is for any kind: a picture post or a note's photo its creator flagged is a placeholder too.
+describe("SerpRow — a picture marked sensitive", () => {
+  it("a flagged picture post shows the placeholder, not the picture, and its tap opens the post", () => {
+    const flagged = {
+      ...note("Harbour at dawn", [
+        ["imeta", "url https://cdn.example/harbour.jpg", "m image/jpeg"],
+        ["content-warning", "nudity"],
+      ]),
+      kind: 20,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="harbour" />);
+    expect(screen.getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="harbour.jpg"]')).toBeNull();
+    openLightboxMock.mockClear();
+    fireEvent.click(screen.getByTestId("sensitive-tile"));
+    expect(openLightboxMock).not.toHaveBeenCalled();
+  });
+
+  it("a note flagged by its NIP-32 label keeps its photo out of the row", () => {
+    const flagged = note("Look https://cdn.example/scene.jpg", [["l", "spoiler", "content-warning"]]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="look" />);
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+    expect(document.querySelector('img[src*="scene.jpg"]')).toBeNull();
+  });
+
+  // Audit: a flagged note's link card still drew the page's own picture.
+  it("a flagged note's link card says the page's words without its picture", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "The story",
+      description: "What happened.",
+      image: "https://img.test/og-nsfw.jpg",
+      siteName: null,
+    });
+    const flagged = note("My take on this https://news.test/story", [
+      ["title", "My take"],
+      ["content-warning", "gore"],
+    ]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("link-card")).toHaveTextContent("The story");
+    expect(document.querySelector('img[src*="og-nsfw"]')).toBeNull();
+  });
+
+  it("a flagged share's page picture is the placeholder", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "Liverpool F.C.",
+      description: "Club",
+      image: "https://img.test/og-nsfw.jpg",
+      siteName: "Wikipedia",
+    });
+    const flagged = note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.", [["content-warning", "x"]]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("news-headline")).toHaveTextContent("Liverpool F.C.");
+    expect(screen.queryByTestId("news-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="og-nsfw"]')).toBeNull();
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+  });
+});
+
 describe("SerpRow", () => {
   // Benjamin, over Reed's boost of a StableKraft song: "this should be able to
   // play audio in brainstorm but we cant right now". A news-shaped note whose
@@ -941,5 +1000,28 @@ describe("SerpRow — a video's date", () => {
     const row = screen.getByTestId(`serp-row-${"7".repeat(64)}`);
     expect(row).toHaveTextContent("Sep 2014");
     expect(row).not.toHaveTextContent("1m ago");
+  });
+});
+
+// A NIP-B0 web bookmark was drawn as a list card saying "0 items". It is one
+// link with its saver's words: the page's row, out to the page.
+describe("SerpRow — a web bookmark", () => {
+  it("shows the page it saves — site, name out to the page, the saver's words — not a list of nothing", () => {
+    const bookmark = {
+      ...note("The best explainer of relays I have read.", [
+        ["d", "alice.blog/relays-explained"],
+        ["title", "Relays, explained"],
+        ["t", "nostr"],
+      ]),
+      kind: 39701,
+    } as NostrEvent;
+    render(<SerpRow event={bookmark} author={author} score={0.7} query="relays" />);
+    const row = screen.getByTestId(`web-bookmark-${bookmark.id}`);
+    expect(screen.getByTestId("web-bookmark-source")).toHaveTextContent("alice.blog");
+    const title = screen.getByTestId("web-bookmark-title");
+    expect(title).toHaveTextContent("Relays, explained");
+    expect(title).toHaveAttribute("href", "https://alice.blog/relays-explained");
+    expect(row).toHaveTextContent("The best explainer of relays I have read.");
+    expect(row).not.toHaveTextContent("0 items");
   });
 });

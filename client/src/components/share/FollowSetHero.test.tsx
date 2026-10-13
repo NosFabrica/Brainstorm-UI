@@ -108,3 +108,35 @@ describe("FollowSetHero", () => {
     expect(screen.getByTestId(`set-member-${many[59]}`)).toBeInTheDocument();
   });
 });
+
+describe("FollowSetHero — a starter pack (39089)", () => {
+  const pack = (tags: string[][]) => ({ kind: 39089, pubkey: CURATOR, content: "", created_at: 1, tags });
+
+  it("leads with the pack's image and names it a starter pack when untitled", () => {
+    render(
+      <FollowSetHero
+        event={pack([
+          ["d", "p"],
+          ["image", "https://cdn.example/pack.jpg"],
+          ["p", ALICE],
+          ["p", BOB],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("set-hero-image")).toHaveAttribute("src", "https://cdn.example/pack.jpg");
+    expect(screen.getByText("Starter pack")).toBeInTheDocument();
+    expect(screen.getByText("2 members")).toBeInTheDocument();
+  });
+
+  it("draws no banner for an image that is not a web link", () => {
+    render(
+      <FollowSetHero
+        event={pack([
+          ["image", "javascript:alert(1)"],
+          ["p", ALICE],
+        ])}
+      />,
+    );
+    expect(screen.queryByTestId("set-hero-image")).toBeNull();
+  });
+});

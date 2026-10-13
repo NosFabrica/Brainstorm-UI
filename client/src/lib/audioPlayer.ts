@@ -11,7 +11,7 @@ import { playSolo, type Sounding } from "@/lib/playback";
 
 export type TrackStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
-const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|webm)(\?|#|$)/i;
+const AUDIO_EXT = /\.(mp3|mpga|wav|m4a|aac|ogg|oga|opus|flac|webm)(\?|#|$)/i;
 const isHttpUrl = (s: unknown): s is string => typeof s === "string" && /^https?:\/\//i.test(s);
 
 /**
