@@ -603,6 +603,19 @@ export function readAssertion(ev: ActivityEvent): Assertion {
   };
 }
 
+// A provider's own timestamps sit among its counts (MintRadar's `mint_audit_at`,
+// `mint_checked_at`, NIP-40's `expiration`): a moment, not an amount.
+const TIME_TAG = /(?:^expiration$|_at$|[a-z]At$|_time$|timestamp$)/;
+const Y2000 = 946_684_800;
+const Y2100 = 4_102_444_800;
+
+/** A metric that is a moment, in unix seconds (milliseconds read as such); null for a count. */
+export function metricTime(m: Metric): number | null {
+  if (!TIME_TAG.test(m.tag)) return null;
+  const s = m.value >= Y2000 * 1000 ? Math.floor(m.value / 1000) : m.value;
+  return s >= Y2000 && s < Y2100 ? s : null;
+}
+
 /** A metric's tag as words: `zap_cnt` → "zaps", `personalizedGrapeRank_influence` → "personalized grape rank influence". */
 export function metricNoun(tag: string): string {
   return tag

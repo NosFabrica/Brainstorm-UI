@@ -509,6 +509,22 @@ describe("a trust score's page", () => {
     expect(screen.getByTestId("assertion-metric-followers")).toHaveTextContent("Verified followers");
     expect(screen.getByTestId(`activity-person-${ALICE}`)).toBeInTheDocument();
   });
+
+  it("says a provider's timestamps as days, not as counts", () => {
+    open(
+      ev(30385, [
+        ["d", "https://mint.example"],
+        ["mint_audit_at", "1791913269"],
+        ["expiration", "1792086507"],
+        ["mint_test", "0"],
+      ]),
+    );
+    expect(screen.getByTestId("assertion-metric-mint_audit_at")).toHaveTextContent("Oct 13, 2026");
+    expect(screen.getByTestId("assertion-metric-mint_audit_at")).not.toHaveTextContent("1,791,913,269");
+    expect(screen.getByTestId("assertion-metric-expiration")).toHaveTextContent("Oct 15, 2026");
+    expect(screen.getByTestId("assertion-metric-expiration")).toHaveTextContent("Expires");
+    expect(screen.getByTestId("assertion-metric-mint_test")).toHaveTextContent("0");
+  });
 });
 
 describe("a score's page leads with what it scores", () => {

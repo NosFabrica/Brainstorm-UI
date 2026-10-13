@@ -57,8 +57,11 @@ function imetaPart(ev: EventLike, key: string): string | undefined {
   return undefined;
 }
 
-/** A file named as audio by its extension (what lib/audioPlayer reads too, `.webm` among them). */
-const AUDIO_EXT = /\.(?:mp3|wav|m4a|aac|ogg|oga|opus|flac|webm)(?:\?|#|$)/i;
+/**
+ * A file named as audio by its extension (what lib/audioPlayer reads too, `.webm` among them).
+ * `.mpga` is what Blossom servers name an `audio/mpeg` upload (podcast episodes and trailers, probed 2026-10-13).
+ */
+const AUDIO_EXT = /\.(?:mp3|mpga|wav|m4a|aac|ogg|oga|opus|flac|webm)(?:\?|#|$)/i;
 const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|avif|bmp|svg)(?:\?|#|$)/i;
 /** Kinds that are a sound whatever their file is called: voice messages and replies, audio headers. */
 const SOUND_KINDS = new Set([1222, 1244, 1808]);
@@ -88,7 +91,8 @@ function isAudioFile(kind: number, url: string, mime: string | undefined): boole
  */
 function audioCandidates(ev: EventLike): { url: string; mime?: string }[] {
   const out: { url: string; mime?: string }[] = [];
-  const eventMime = ev.tags.find((t) => t[0] === "m" && isMime(t[1]))?.[1];
+  // `m` (NIP-94), or `type` beside a 30055 trailer's `url` (Podcasting 2.0's enclosure type).
+  const eventMime = ev.tags.find((t) => (t[0] === "m" || t[0] === "type") && isMime(t[1]))?.[1];
   const push = (url: string | undefined, mime?: string) => {
     const u = url?.trim();
     if (isHttp(u)) out.push({ url: u, mime });
@@ -118,10 +122,13 @@ export function audioOf(ev: EventLike): string | undefined {
   return audioCandidates(ev).find((c) => isAudioFile(ev.kind, c.url, c.mime))?.url;
 }
 
-/** Whether the page draws this event as a sound: an audio kind with an audio file to play (a 31337 always, as before). */
+/**
+ * Whether the page draws this event as a sound: an audio kind with an audio file to play.
+ * A 31337 too — the kind also carries game state and AntennaPod ad-skip data
+ * (lib/trackEvent), which an empty "Untitled track" player only misnames.
+ */
 export function hasAudioHero(ev: EventLike): boolean {
-  if (!AUDIO_HERO_KINDS.has(ev.kind)) return false;
-  return ev.kind === 31337 || !!audioOf(ev);
+  return AUDIO_HERO_KINDS.has(ev.kind) && !!audioOf(ev);
 }
 
 /**

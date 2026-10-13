@@ -29,6 +29,8 @@ import { EmbeddedAudio, EmbeddedPictures, EmbeddedVideo } from "@/components/sha
 import { Favicon } from "@/components/share/LinkPreview";
 import { contentShape } from "@/lib/contentShape";
 import { WEB_BOOKMARK_KIND, webBookmarkOf } from "@/lib/webBookmark";
+import { ZAP_KINDS } from "@/lib/activity";
+import { readKind, who } from "@/lib/resultReaders";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -137,6 +139,15 @@ function NoteCardBody({
   const media = shape === "video" || shape === "picture" || shape === "audio" ? shape : null;
   // A web bookmark (NIP-B0) is its link, then its saver's words: never a list of nothing.
   const bookmark = useMemo(() => (event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(event) : null), [event]);
+  // A zap receipt's own content is empty — the amount, the people and the comment are in its
+  // tags — so a quoted zap is said as the All tab's row says it: "⚡ 21 sats to @alice", from
+  // its payer once their signed request vouches for them (lib/resultReaders), then the comment.
+  const zapWords = useMemo(() => {
+    if (!ZAP_KINDS.has(event.kind) || event.content.trim()) return null;
+    const read = readKind(event);
+    if (!read?.title) return null;
+    return [read.by ? `${read.title} from ${who(read.by)}` : read.title, read.body].filter(Boolean).join("\n\n");
+  }, [event]);
   // Ciphertext (a private follow set, a sealed list) is not for reading: the card says so.
   const sealed = useMemo(() => contentShape(event.content).kind === "encrypted", [event.content]);
   // None of these shows its content, so nothing it names is looked up.
@@ -282,7 +293,7 @@ function NoteCardBody({
           )}
           <NoteContent
             key={event.id}
-            content={event.content}
+            content={zapWords ?? event.content}
             compact
             profiles={profiles}
             imageOpensThread={!!href}

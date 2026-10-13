@@ -15,6 +15,7 @@ import { contentShape } from "@/lib/contentShape";
 import {
   approvalAuthority,
   assertionMetrics,
+  metricTime,
   readApproval,
   readAssertion,
   readBadgeAward,
@@ -148,6 +149,7 @@ function reactionMark(ev: ReaderEvent): string {
 /** The numbers a score carries, said in words: "Rank 87 · 3,057 followers". */
 function scoreFacts(ev: ReaderEvent): string[] {
   return assertionMetrics(ev)
+    .filter((m) => metricTime(m) === null)
     .slice(0, 4)
     .map(({ tag, value: n }) => {
       const noun = tag.replace(/_cnt$/, "").replace(/_/g, " ");

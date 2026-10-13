@@ -223,6 +223,17 @@ describe("the kinds whose meaning is in their tags", () => {
     expect(s.facts).toEqual(["Rank 87", "3,057 followers", "1 post"]);
   });
 
+  it("a score's row leaves its timestamps out of its numbers", () => {
+    const s = summarizeResult(
+      ev(30385, [
+        ["d", "https://mint.example"],
+        ["mint_audit_at", "1791913269"],
+        ["rank", "96"],
+      ]),
+    );
+    expect(s.facts).toEqual(["Rank 96"]);
+  });
+
   it("a badge award with an opaque badge id lets the badge name itself", () => {
     const s = summarizeResult(
       ev(8, [

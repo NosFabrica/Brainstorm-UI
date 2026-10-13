@@ -5,6 +5,7 @@ import {
   assertionMetrics,
   externalTargetOf,
   metricNoun,
+  metricTime,
   pollChoices,
   readApproval,
   readAssertion,
@@ -488,6 +489,17 @@ const signer = () => {
 };
 const zapRequest = (sk: Uint8Array, tags: string[][], content = "") =>
   finalizeEvent({ kind: 9734, created_at: 1_790_000_000, content, tags }, sk);
+
+describe("an assertion's timestamps are moments, not counts", () => {
+  it("reads `_at`, `expiration` and their kin as unix time, a count as none", () => {
+    expect(metricTime({ tag: "mint_audit_at", value: 1_791_913_269 })).toBe(1_791_913_269);
+    expect(metricTime({ tag: "expiration", value: 1_792_086_507 })).toBe(1_792_086_507);
+    expect(metricTime({ tag: "checkedAt", value: 1_791_913_501_000 })).toBe(1_791_913_501);
+    expect(metricTime({ tag: "followers", value: 1_791_913_269 })).toBeNull();
+    // A name alone is not enough: `seen_at` 3 is no moment.
+    expect(metricTime({ tag: "seen_at", value: 3 })).toBeNull();
+  });
+});
 
 describe("a zap receipt's payer is a claim until its request verifies", () => {
   it("a request nobody signed names a payer, but only as a claim", () => {

@@ -170,8 +170,48 @@ describe("hasAudioHero", () => {
     expect(readAudioEvent(e).audio).toBe("https://cdn/ep.mp3");
   });
 
-  it("a 31337 as before, whatever it carries", () => {
-    expect(hasAudioHero(ev(31337))).toBe(true);
+  it("a 31337 with a file to play, not one that only borrows the kind", () => {
+    expect(
+      hasAudioHero(
+        ev(31337, [
+          ["title", "Blue Hour"],
+          ["url", "https://cdn/a.mp3"],
+        ]),
+      ),
+    ).toBe(true);
+    expect(hasAudioHero(ev(31337))).toBe(false);
+    expect(
+      hasAudioHero(
+        ev(
+          31337,
+          [
+            ["d", "ba44"],
+            ["t", "antennapod-adskip"],
+          ],
+          '{"status":"complete","ads":[]}',
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  // A Podcasting 2.0 trailer as podcast apps publish it: a Blossom `.mpga`, its mime in `type`.
+  it("a 30055 trailer whose `.mpga` file says its mime in a `type` tag", () => {
+    const mpga = "https://cdn.test/ed13.mpga";
+    expect(
+      hasAudioHero(
+        ev(30055, [
+          ["title", "skreenplay 808"],
+          ["url", mpga],
+        ]),
+      ),
+    ).toBe(true);
+    const typed = ev(30055, [
+      ["title", "skreenplay 808"],
+      ["url", "https://cdn.test/ed13"],
+      ["type", "audio/mpeg"],
+    ]);
+    expect(hasAudioHero(typed)).toBe(true);
+    expect(readAudioEvent(typed).audio).toBe("https://cdn.test/ed13");
   });
 });
 

@@ -289,6 +289,23 @@ describe("EmbeddedNoteCard — things, lists and the rest", () => {
     quote(ev(1, [], "gm"));
     expect(screen.queryByTestId("embedded-kind")).toBeNull();
   });
+
+  // A receipt as wallets publish it: no content, the zap in its tags and its embedded request.
+  it("a zap receipt with no words says the zap — how much, to whom, and the comment", () => {
+    const request = JSON.stringify({ pubkey: "c".repeat(64), content: "great post", tags: [["amount", "21000"]] });
+    quote(
+      ev(9735, [
+        ["p", MEMBER],
+        ["bolt11", "lnbc210n1pxyz"],
+        ["description", request],
+      ]),
+    );
+    const card = screen.getByTestId("embedded-note");
+    // Unsigned here, so the amount is only the receipt's word: "≈" (lib/activity).
+    expect(card).toHaveTextContent(/⚡ ≈21 sats to/);
+    expect(card).toHaveTextContent("great post");
+    expect(screen.getByTestId("embedded-kind")).toHaveTextContent("Zap receipt");
+  });
 });
 
 describe("EmbeddedNoteCard — what a quoted card may show and link", () => {

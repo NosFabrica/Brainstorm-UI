@@ -11,7 +11,7 @@ import { Gauge } from "lucide-react";
 import { StatTile } from "@/components/ui/stat-tile";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { useRefEvents } from "@/hooks/useRefEvents";
-import { metricNoun, readAssertion, type ActivityEvent, type Metric } from "@/lib/activity";
+import { metricNoun, metricTime, readAssertion, type ActivityEvent, type Metric } from "@/lib/activity";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { identifierName } from "@/lib/nip73";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -45,14 +45,18 @@ function eventSubject(ev: MinimalEvent): ReactNode {
   );
 }
 
+const day = (sec: number) =>
+  new Date(sec * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 function MetricTile({ metric }: { metric: Metric }) {
   // Own keys only: a tag is anything an event says, `constructor` included.
   const named = Object.hasOwn(NAMED, metric.tag) ? NAMED[metric.tag] : undefined;
+  const at = metricTime(metric);
   return (
     <StatTile
       compact
-      value={metric.value.toLocaleString()}
-      label={named?.label ?? cap(metricNoun(metric.tag))}
+      value={at !== null ? day(at) : metric.value.toLocaleString()}
+      label={named?.label ?? (metric.tag === "expiration" ? "Expires" : cap(metricNoun(metric.tag)))}
       tone={named?.tone?.(metric.value) ?? "slate"}
       data-testid={`assertion-metric-${metric.tag}`}
     />
