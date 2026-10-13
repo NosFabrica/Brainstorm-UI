@@ -10,6 +10,11 @@ import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept } from "@/lib/conceptResolution";
 
+// Radix Select captures the pointer and scrolls its options into view; jsdom does neither.
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => {};
+Element.prototype.scrollIntoView ??= () => {};
+
 const { state } = vi.hoisted(() => ({
   state: {
     search: "",
@@ -425,6 +430,21 @@ describe("ListItems", () => {
     const row = screen.getAllByTestId("item-table-row")[0];
     expect(row).toHaveTextContent("Odd one");
     expect(row).toHaveTextContent("not-a-key…");
+  });
+
+  it("draws a list with an item whose curator's key is empty, and offers no empty curator to filter by", async () => {
+    state.items = [item("blank", "", 50, [["name", "Blank one"]]), ...items];
+    renderWithProviders(<ListItems header={places} listRef={COORD} />);
+    expect(screen.getAllByTestId("item-table-row")[0]).toHaveTextContent("Blank one");
+    // The filter lists A and B (and all curators), and no entry with an empty value.
+    await userEvent.click(screen.getByTestId("item-table-curator"));
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(3);
+    expect(options.map((o) => o.textContent)).toEqual([
+      "All curators",
+      `${nip19.npubEncode(A).slice(0, 12)}…`,
+      `${nip19.npubEncode(B).slice(0, 12)}…`,
+    ]);
   });
 
   it("opens the item the address names, and says so when the list doesn't have it", () => {

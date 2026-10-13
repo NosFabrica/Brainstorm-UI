@@ -134,6 +134,13 @@ describe("ItemTable", () => {
     expect(onQuery).toHaveBeenCalledWith({ ...query, problem: null });
   });
 
+  it("moves focus to the search when the problem filter is taken off, so the keyboard keeps its place", async () => {
+    const query = { ...EMPTY_QUERY, problem: "link-unusable:website" };
+    renderWithProviders(<ItemTable {...base} rows={rows} total={120} query={query} />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove problem filter" }));
+    expect(screen.getByTestId("item-table-search")).toHaveFocus();
+  });
+
   it("shows no problem filter when it is filtered to none", () => {
     renderWithProviders(<ItemTable {...base} rows={rows} total={120} query={{ ...EMPTY_QUERY, text: "cafe" }} />);
     expect(screen.queryByTestId("item-table-problem-filter")).toBeNull();

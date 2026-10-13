@@ -238,7 +238,7 @@ describe("ItemInspector", () => {
 
   it("lets a keyboard reach the raw event to scroll it", () => {
     renderWithProviders(<ItemInspector {...base} entry={entry} />);
-    const raw = screen.getByLabelText("Raw event");
+    const raw = screen.getByRole("region", { name: "Raw event" });
     expect(raw).toBe(screen.getByTestId("item-inspector-raw"));
     expect(raw).toHaveAttribute("tabindex", "0");
   });

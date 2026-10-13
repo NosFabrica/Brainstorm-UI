@@ -10,6 +10,7 @@
  * shows it as a chip that takes it off; and the count line says "matching"
  * for any query at all, so a filter every item passes still reads as on.
  */
+import { useRef } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -71,6 +72,7 @@ export function ItemTable({
   /** The read may be short of the list, so `total` is the items read. */
   partial?: boolean;
 }) {
+  const search = useRef<HTMLInputElement>(null);
   const names = new Map(curators.map((c) => [c.pubkey, c.name]));
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const current = Math.min(Math.max(page, 1), pages);
@@ -83,6 +85,7 @@ export function ItemTable({
     <div className="space-y-4" data-testid="item-table">
       <div className="flex flex-wrap items-center gap-3">
         <Input
+          ref={search}
           type="search"
           value={query.text}
           onChange={(e) => onQuery({ ...query, text: e.target.value })}
@@ -136,7 +139,11 @@ export function ItemTable({
             <button
               type="button"
               aria-label="Remove problem filter"
-              onClick={() => onQuery({ ...query, problem: null })}
+              onClick={() => {
+                onQuery({ ...query, problem: null });
+                // The button goes with the chip, and focus would fall to the page.
+                search.current?.focus();
+              }}
               className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent dark:hover:bg-slate-700"
             >
               <X className="h-3 w-3" aria-hidden="true" />

@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { shortCuratorKey } from "@/components/lists/curatorKey";
+import { curatorKey, shortCuratorKey } from "@/components/lists/curatorKey";
 import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
 import { ItemInspector } from "@/components/lists/ItemInspector";
 import { ItemTable } from "@/components/lists/ItemTable";
@@ -126,9 +126,11 @@ export function ListItems({
 
   const authors = useMemo(() => [...new Set(items.map((i) => i.pubkey))], [items]);
   const profiles = useLiveProfiles(authors);
+  // An author with no key can't be filtered to; their items still show, with the key's fallback text.
   const curators = useMemo(
     () =>
       authors
+        .filter((pubkey) => curatorKey(pubkey) !== "")
         .map((pubkey) => ({ pubkey, name: curatorName(pubkey, profiles) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [authors, profiles],

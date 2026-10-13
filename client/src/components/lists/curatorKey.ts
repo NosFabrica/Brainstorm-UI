@@ -9,13 +9,15 @@ import { nip19 } from "nostr-tools";
 
 const HEX_KEY = /^[0-9a-f]{64}$/;
 
-/** The npub of `pubkey`, or the pubkey itself when it can't be encoded. */
+/** The npub of `pubkey`, or the pubkey itself when it can't be encoded; "" for one that is missing. */
 export function curatorKey(pubkey: string): string {
-  if (!HEX_KEY.test(pubkey)) return pubkey;
+  // An index event can carry any value as its author, so a pubkey is text only once it is made so.
+  const key = String(pubkey ?? "");
+  if (!HEX_KEY.test(key)) return key;
   try {
-    return nip19.npubEncode(pubkey);
+    return nip19.npubEncode(key);
   } catch {
-    return pubkey;
+    return key;
   }
 }
 

@@ -291,6 +291,7 @@ export function ItemInspector({
                 {/* It scrolls, so the keyboard has to be able to land on it. */}
                 <pre
                   tabIndex={0}
+                  role="region"
                   aria-label="Raw event"
                   className="max-h-80 overflow-auto rounded-xl border border-border bg-muted p-3 font-mono text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent dark:text-slate-100"
                   data-testid="item-inspector-raw"
