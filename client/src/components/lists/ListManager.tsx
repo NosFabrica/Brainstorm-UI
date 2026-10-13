@@ -92,7 +92,9 @@ function EditorFor({ list, me, mine }: { list: string; me: string; mine: NostrEv
         <Loader2 className="h-4 w-4 animate-spin" /> Reading the list…
       </p>
     );
-  return <PublishedList key={coordinateOf(header) ?? header.id} header={header} me={me} takenDs={takenDs} />;
+  return (
+    <PublishedList key={coordinateOf(header) ?? header.id} header={header} listRef={list} me={me} takenDs={takenDs} />
+  );
 }
 
 type Mode = "definition" | "item" | "items";
@@ -102,11 +104,26 @@ type Mode = "definition" | "item" | "items";
  * form to add an item to it, and its items. The address says which when it
  * names one, and choosing a tab replaces the address; without one, someone
  * else's opens on adding and one's own on its definition.
+ *
+ * `listRef` is the address's own `list` value, and every address built here
+ * and in the Items tab keeps it. One rebuilt from the header could name a
+ * list the address never did: a 9998 opened by id that carries a `d` would
+ * become a coordinate no list is found by, and an naddr would lose its relay
+ * hints.
  */
-function PublishedList({ header, me, takenDs }: { header: NostrEvent; me: string; takenDs: ReadonlySet<string> }) {
+function PublishedList({
+  header,
+  listRef,
+  me,
+  takenDs,
+}: {
+  header: NostrEvent;
+  listRef: string;
+  me: string;
+  takenDs: ReadonlySet<string>;
+}) {
   const view = new URLSearchParams(useSearch()).get("view");
   const [, navigate] = useLocation();
-  const coordinate = coordinateOf(header) ?? header.id;
   // The tab when the address names no view. Definition has no `view` of its own, so
   // choosing it on someone else's list, which opens on adding, is kept here.
   const [unnamed, setUnnamed] = useState<"definition" | "item">(header.pubkey === me ? "definition" : "item");
@@ -114,7 +131,7 @@ function PublishedList({ header, me, takenDs }: { header: NostrEvent; me: string
   const choose = (next: Mode) => {
     if (next !== "items") setUnnamed(next);
     const named = next === "items" ? "items" : next === "item" ? "add" : undefined;
-    navigate(listManagerPath(coordinate, { view: named }), { replace: true });
+    navigate(listManagerPath(listRef, { view: named }), { replace: true });
   };
   return (
     <div className="space-y-5">
@@ -136,7 +153,7 @@ function PublishedList({ header, me, takenDs }: { header: NostrEvent; me: string
       ) : mode === "item" ? (
         <ItemComposer header={header} me={me} />
       ) : (
-        <ListItems header={header} />
+        <ListItems header={header} listRef={listRef} />
       )}
     </div>
   );

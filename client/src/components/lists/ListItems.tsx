@@ -7,16 +7,20 @@
  * `&item=<event id>` opens an item, so an item has a link. It is read on every
  * render and never copied into state; opening, closing and stepping replace
  * the address, so Back leaves the list. An id the list doesn't hold opens the
- * panel to say so, once the read has settled.
+ * panel to say so, once the read has settled. Every address is built from the
+ * `list` value this one was opened with, so a list opened by an naddr or an
+ * id stays at it.
  *
  * The check runs under the definition that governs for the reader, or another
- * one chosen (useListDefinitions), as adding an item previews under one. A
- * definition with links is checked once its URL templates are in hand, so no
- * item is called short of a template that is only on its way.
+ * one chosen (useListDefinitions), as adding an item previews under one.
+ * Nothing is checked or counted until it can be said of the list: the read
+ * has settled here once (items the store already held are only part of it),
+ * the definitions have settled, and a definition with links has its URL
+ * templates in hand, so no item is called short of a template that is only on
+ * its way. Until then the tab says it is reading.
  */
 import { useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
-import { nip19 } from "nostr-tools";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { Link, useLocation, useSearch } from "wouter";
 import { Loader2, RefreshCw } from "lucide-react";
@@ -24,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { shortCuratorKey } from "@/components/lists/curatorKey";
 import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
 import { ItemInspector } from "@/components/lists/ItemInspector";
 import { ItemTable } from "@/components/lists/ItemTable";
@@ -34,7 +39,7 @@ import { useListDefinitions } from "@/hooks/useListDefinitions";
 import { useListItems } from "@/hooks/useListItems";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { DefinitionSource } from "@/lib/conceptResolution";
-import { coordinateOf } from "@/lib/dlistFields";
+import { headerReference } from "@/lib/dlistFields";
 import type { UrlTemplate } from "@/lib/linkTemplates";
 import {
   EMPTY_QUERY,
@@ -52,18 +57,31 @@ const NO_TEMPLATES: ReadonlyMap<string, UrlTemplate> = new Map();
 /** A curator by profile name, or a short npub. Never a rank. */
 const curatorName = (pubkey: string, profiles: Map<string, ProfileContent>) => {
   const p = profiles.get(pubkey);
-  return p?.display_name || p?.name || `${nip19.npubEncode(pubkey).slice(0, 12)}…`;
+  return p?.display_name || p?.name || shortCuratorKey(pubkey);
 };
 
-export function ListItems({ header }: { header: NostrEvent }) {
-  const coordinate = coordinateOf(header) ?? header.id;
+export function ListItems({
+  header,
+  listRef,
+}: {
+  header: NostrEvent;
+  /** The `list` value of the address this list was opened by: every address built here keeps it. */
+  listRef: string;
+}) {
   const openId = new URLSearchParams(useSearch()).get("item") || null;
   const [, navigate] = useLocation();
   /** To the Items tab with `item` open, or with none. */
-  const show = (item?: string) => navigate(listManagerPath(coordinate, { view: "items", item }), { replace: true });
+  const show = (item?: string) => navigate(listManagerPath(listRef, { view: "items", item }), { replace: true });
 
   const { items, truncated, cutOff, settled, reload } = useListItems(header);
-  const { definitions, governing } = useListDefinitions(header);
+  // Whether this list's read has settled here once. Until it has, what the store already held is
+  // part of the list and not the list; after it, a read in flight keeps what is on screen.
+  const reference = headerReference(header) ?? header.id;
+  const [readOf, setReadOf] = useState<string | null>(null);
+  if (settled && readOf !== reference) setReadOf(reference);
+  const readOnce = settled || readOf === reference;
+
+  const { definitions, governing, settled: definitionsSettled } = useListDefinitions(header);
   const [chosen, setChosen] = useState<DefinitionSource | null>(null);
   const shown = definitions.find((d) => d.source === (chosen ?? governing)) ?? definitions[0];
   const def = shown.resolved.governing;
@@ -71,6 +89,8 @@ export function ListItems({ header }: { header: NostrEvent }) {
   const templates = linkTemplates.data ?? NO_TEMPLATES;
   // Templates that can't be read are done without: "template not given" is then true.
   const awaitingTemplates = def.links.length > 0 && linkTemplates.data === undefined && !linkTemplates.isError;
+  // A copy still on its way would change the numbers under the reader, as a template would.
+  const waiting = !readOnce || !definitionsSettled || awaitingTemplates;
 
   const [query, setQuery] = useState<ItemQuery>(EMPTY_QUERY);
   const [sort, setSort] = useState<ItemSort>("newest");
@@ -91,12 +111,17 @@ export function ListItems({ header }: { header: NostrEvent }) {
     setPage(1);
   };
 
-  const checked = useMemo(
-    () => (awaitingTemplates ? [] : checkList(def, items, templates)),
-    [awaitingTemplates, def, items, templates],
-  );
+  const checked = useMemo(() => (waiting ? [] : checkList(def, items, templates)), [waiting, def, items, templates]);
   const summary = useMemo(() => summarize(def, checked), [def, checked]);
-  const filtered = useMemo(() => filterItems(def, checked, query), [def, checked, query]);
+  // A problem the list no longer has (another definition governs, a read took it away) filters nothing.
+  const filter = useMemo(
+    () =>
+      query.problem !== null && !summary.problems.some((p) => p.key === query.problem)
+        ? { ...query, problem: null }
+        : query,
+    [query, summary],
+  );
+  const filtered = useMemo(() => filterItems(def, checked, filter), [def, checked, filter]);
   const rows = useMemo(() => sortItems(filtered, sort), [filtered, sort]);
 
   const authors = useMemo(() => [...new Set(items.map((i) => i.pubkey))], [items]);
@@ -114,41 +139,42 @@ export function ListItems({ header }: { header: NostrEvent }) {
   const entry = openId ? (checked.find((c) => c.item.id === openId) ?? null) : null;
   const at = openId ? rows.findIndex((c) => c.item.id === openId) : -1;
 
-  const readAgain = (
-    <Button variant="outline" size="sm" onClick={reload} disabled={!settled} data-testid="list-items-reload">
-      {settled ? <RefreshCw /> : <Loader2 className="animate-spin" />}
-      Read again
-    </Button>
-  );
-
   return (
     <div className="space-y-6" data-testid="list-items">
-      {items.length > 0 && !awaitingTemplates ? (
-        <>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            {definitions.length > 1 && (
-              <div className="space-y-1.5">
-                <Label>Check it as</Label>
-                <Tabs value={shown.source} onValueChange={(v) => onDefinition(v as DefinitionSource)}>
-                  <TabsList className="flex-wrap">
-                    {definitions.map((d) => (
-                      <TabsTrigger key={d.source} value={d.source} data-testid={`list-items-as-${d.source}`}>
-                        {SOURCE_LABEL[d.source]}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
-            )}
-            <div className="ml-auto">{readAgain}</div>
+      {/* The switch and Read again stay put through every state, so neither is lost from under a press. */}
+      {definitionsSettled && (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          {definitions.length > 1 && (
+            <div className="space-y-1.5">
+              <Label>Check it as</Label>
+              <Tabs value={shown.source} onValueChange={(v) => onDefinition(v as DefinitionSource)}>
+                <TabsList className="flex-wrap" aria-label="Check it as">
+                  {definitions.map((d) => (
+                    <TabsTrigger key={d.source} value={d.source} data-testid={`list-items-as-${d.source}`}>
+                      {SOURCE_LABEL[d.source]}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
+          <div className="ml-auto">
+            <Button variant="outline" size="sm" onClick={reload} disabled={!settled} data-testid="list-items-reload">
+              {settled ? <RefreshCw /> : <Loader2 className="animate-spin" />}
+              Read again
+            </Button>
           </div>
+        </div>
+      )}
 
+      {items.length > 0 && !waiting ? (
+        <>
           <ListHealth
             summary={summary}
             truncated={truncated}
             cutOff={cutOff}
-            activeProblem={query.problem}
-            onProblem={(problem) => onQuery({ ...query, problem })}
+            activeProblem={filter.problem}
+            onProblem={(problem) => onQuery({ ...filter, problem })}
           />
 
           <section className="space-y-3">
@@ -158,7 +184,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
               total={items.length}
               singular={def.singular}
               curators={curators}
-              query={query}
+              query={filter}
               onQuery={onQuery}
               sort={sort}
               onSort={onSort}
@@ -168,20 +194,17 @@ export function ListItems({ header }: { header: NostrEvent }) {
             />
           </section>
         </>
-      ) : items.length === 0 && settled ? (
+      ) : items.length === 0 && settled && definitionsSettled ? (
         <div className="space-y-3" data-testid="list-items-empty">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No items found for this list on the hub or our index.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            {readAgain}
-            <Link
-              href={listManagerPath(coordinate, { view: "add" })}
-              className="text-sm font-medium text-brand-link underline-offset-4 hover:underline"
-            >
-              Add an item
-            </Link>
-          </div>
+          <Link
+            href={listManagerPath(listRef, { view: "add" })}
+            className="inline-block text-sm font-medium text-brand-link underline-offset-4 hover:underline"
+          >
+            Add an item
+          </Link>
         </div>
       ) : (
         <p
@@ -194,7 +217,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
 
       {/* An id not found says so only once the read has settled: until then it may yet arrive. */}
       <ItemInspector
-        open={openId !== null && !awaitingTemplates && (entry !== null || settled)}
+        open={openId !== null && !waiting && (entry !== null || settled)}
         entry={entry}
         resolved={shown.resolved}
         curatorName={entry ? curatorName(entry.item.pubkey, profiles) : ""}

@@ -61,8 +61,10 @@ vi.mock("@/components/lists/ItemComposer", () => ({
   ),
 }));
 vi.mock("@/components/lists/ListItems", () => ({
-  ListItems: ({ header }: { header: NostrEvent }) => (
-    <div data-testid="items-for">{header.tags.find((t) => t[0] === "d")?.[1]}</div>
+  ListItems: ({ header, listRef }: { header: NostrEvent; listRef: string }) => (
+    <div data-testid="items-for" data-list-ref={listRef}>
+      {header.tags.find((t) => t[0] === "d")?.[1]}
+    </div>
   ),
 }));
 
@@ -137,6 +139,26 @@ describe("ListManager", () => {
     expect(state.navigate).toHaveBeenLastCalledWith(`${base}&view=add`, { replace: true });
     await userEvent.click(screen.getByTestId("list-manager-mode-definition"));
     expect(state.navigate).toHaveBeenLastCalledWith(base, { replace: true });
+  });
+
+  it("keeps the address a list was opened by, relay hints and all, through a tab choice", async () => {
+    const naddr = nip19.naddrEncode({
+      kind: 39998,
+      pubkey: AVI,
+      identifier: "divine-videos",
+      relays: ["wss://hub.example"],
+    });
+    state.search = `tab=dictionary&manage=lists&list=${naddr}`;
+    const { rerender } = renderWithProviders(<ListManager />);
+    const base = `/settings?tab=dictionary&manage=lists&list=${naddr}`;
+    await userEvent.click(screen.getByTestId("list-manager-mode-items"));
+    expect(state.navigate).toHaveBeenLastCalledWith(`${base}&view=items`, { replace: true });
+    await userEvent.click(screen.getByTestId("list-manager-mode-definition"));
+    expect(state.navigate).toHaveBeenLastCalledWith(base, { replace: true });
+    // And the Items tab is handed that value to build its own addresses from.
+    state.search = `tab=dictionary&manage=lists&list=${naddr}&view=items`;
+    rerender(<ListManager />);
+    expect(screen.getByTestId("items-for")).toHaveAttribute("data-list-ref", naddr);
   });
 
   it("opens someone else's list on adding an item, its definition a tab away", async () => {
