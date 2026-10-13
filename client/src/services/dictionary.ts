@@ -50,6 +50,9 @@ export interface DictionaryEntry {
 
 const TIMEOUT_MS = 8000;
 const ITEM_LIMIT = 500;
+/** The most a relay answers to one filter: List Management reads a list's items up to it. */
+export const INSPECT_LIMIT = 10_000;
+export const INSPECT_TIMEOUT_MS = 20_000;
 
 const zValues = (ev: { tags: string[][] }) => ev.tags.filter((t) => t[0] === "z" && t[1]).map((t) => t[1]);
 
@@ -69,8 +72,8 @@ export function itemIdentity(ev: DictionaryItem): string {
 }
 
 /** The newest version of each item, newest first. A tie keeps the original over its copy. */
-export function distinctItems(events: DictionaryItem[]): DictionaryItem[] {
-  const best = new Map<string, DictionaryItem>();
+export function distinctItems<T extends DictionaryItem>(events: T[]): T[] {
+  const best = new Map<string, T>();
   for (const ev of events) {
     const key = itemIdentity(ev);
     const cur = best.get(key);
@@ -143,29 +146,47 @@ export interface ListItems {
 const HEX_ID = /^[0-9a-f]{64}$/i;
 
 /**
- * The items filed under these headers. A header is named by its coordinate
- * (39998) or its event id (9998); a 9998's items name it by `z`, or by `e`
- * when they carry no `z` (lib/dlistFields `headerReferenceOf`).
+ * The filters for the items filed under these headers; `limit` when given. A
+ * header is named by its coordinate (39998) or its event id (9998); a 9998's
+ * items name it by `z`, or by `e` when they carry no `z` (lib/dlistFields
+ * `headerReferenceOf`).
  */
-export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
-  if (!headers.length) return { items: [], truncated: false };
+export function itemFilters(headers: string[], limit?: number): Record<string, unknown>[] {
   const ids = headers.filter((h) => HEX_ID.test(h));
-  const events = (await readListEvents(
-    [
-      { kinds: [...DLIST_ITEM_KINDS], "#z": headers, limit: ITEM_LIMIT },
-      ...(ids.length ? [{ kinds: [...DLIST_ITEM_KINDS], "#e": ids, limit: ITEM_LIMIT }] : []),
-    ],
-    TIMEOUT_MS,
-    hubRelays,
-  )) as DictionaryItem[];
+  const cap = limit === undefined ? {} : { limit };
+  return [
+    { kinds: [...DLIST_ITEM_KINDS], "#z": headers, ...cap },
+    ...(ids.length ? [{ kinds: [...DLIST_ITEM_KINDS], "#e": ids, ...cap }] : []),
+  ];
+}
+
+/** Of these events, the list items filed under these headers: newest version of each, newest first. */
+export function filedItems<T extends DictionaryItem>(events: T[], headers: string[]): T[] {
   const filed = new Set(headers);
-  const isFiled = (ev: DictionaryItem) => {
+  const isFiled = (ev: T) => {
     const z = zValues(ev);
     return z.length ? z.some((v) => filed.has(v)) : filed.has(headerReferenceOf(ev) ?? "");
   };
+  return distinctItems(events.filter(isDListItem).filter(isFiled));
+}
+
+/** The items filed under these headers, up to `limit` events per filter. */
+async function readItems(headers: string[], limit: number, timeoutMs: number, hubRelays: string[]): Promise<ListItems> {
+  if (!headers.length) return { items: [], truncated: false };
+  const events = (await readListEvents(itemFilters(headers, limit), timeoutMs, hubRelays)) as DictionaryItem[];
   // Index and hub answers arrive merged, so a full answer from either can't be told apart from two
   // partial ones adding up: this errs toward saying more may exist.
-  return { items: distinctItems(events.filter(isDListItem).filter(isFiled)), truncated: events.length >= ITEM_LIMIT };
+  return { items: filedItems(events, headers), truncated: events.length >= limit };
+}
+
+/** The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. */
+export function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
+  return readItems(headers, ITEM_LIMIT, TIMEOUT_MS, hubRelays);
+}
+
+/** Every item filed under these headers, up to the relay's cap (INSPECT_LIMIT), for List Management. */
+export function loadAllListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
+  return readItems(headers, INSPECT_LIMIT, INSPECT_TIMEOUT_MS, hubRelays);
 }
 
 /**
