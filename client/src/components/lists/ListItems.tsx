@@ -10,7 +10,9 @@
  * panel to say so, once the read has settled.
  *
  * The check runs under the definition that governs for the reader, or another
- * one chosen (useListDefinitions), as adding an item previews under one.
+ * one chosen (useListDefinitions), as adding an item previews under one. A
+ * definition with links is checked once its URL templates are in hand, so no
+ * item is called short of a template that is only on its way.
  */
 import { useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
@@ -26,7 +28,7 @@ import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
 import { ItemInspector } from "@/components/lists/ItemInspector";
 import { ItemTable } from "@/components/lists/ItemTable";
 import { ListHealth } from "@/components/lists/ListHealth";
-import { listManagerPath } from "@/components/lists/ListManager";
+import { listManagerPath } from "@/components/lists/listManagerPath";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { useListDefinitions } from "@/hooks/useListDefinitions";
 import { useListItems } from "@/hooks/useListItems";
@@ -65,7 +67,10 @@ export function ListItems({ header }: { header: NostrEvent }) {
   const [chosen, setChosen] = useState<DefinitionSource | null>(null);
   const shown = definitions.find((d) => d.source === (chosen ?? governing)) ?? definitions[0];
   const def = shown.resolved.governing;
-  const templates = useLinkTemplates(def.links).data ?? NO_TEMPLATES;
+  const linkTemplates = useLinkTemplates(def.links);
+  const templates = linkTemplates.data ?? NO_TEMPLATES;
+  // Templates that can't be read are done without: "template not given" is then true.
+  const awaitingTemplates = def.links.length > 0 && linkTemplates.data === undefined && !linkTemplates.isError;
 
   const [query, setQuery] = useState<ItemQuery>(EMPTY_QUERY);
   const [sort, setSort] = useState<ItemSort>("newest");
@@ -79,12 +84,17 @@ export function ListItems({ header }: { header: NostrEvent }) {
     setSort(s);
     setPage(1);
   };
+  // A problem is keyed by what one definition declares, and another may not have it.
   const onDefinition = (s: DefinitionSource) => {
     setChosen(s);
+    setQuery({ ...query, problem: null });
     setPage(1);
   };
 
-  const checked = useMemo(() => checkList(def, items, templates), [def, items, templates]);
+  const checked = useMemo(
+    () => (awaitingTemplates ? [] : checkList(def, items, templates)),
+    [awaitingTemplates, def, items, templates],
+  );
   const summary = useMemo(() => summarize(def, checked), [def, checked]);
   const filtered = useMemo(() => filterItems(def, checked, query), [def, checked, query]);
   const rows = useMemo(() => sortItems(filtered, sort), [filtered, sort]);
@@ -113,7 +123,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
 
   return (
     <div className="space-y-6" data-testid="list-items">
-      {items.length > 0 ? (
+      {items.length > 0 && !awaitingTemplates ? (
         <>
           <div className="flex flex-wrap items-end justify-between gap-3">
             {definitions.length > 1 && (
@@ -157,7 +167,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
             />
           </section>
         </>
-      ) : settled ? (
+      ) : items.length === 0 && settled ? (
         <div className="space-y-3" data-testid="list-items-empty">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No items found for this list on the hub or our index.
@@ -183,7 +193,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
 
       {/* An id not found says so only once the read has settled: until then it may yet arrive. */}
       <ItemInspector
-        open={openId !== null && (entry !== null || settled)}
+        open={openId !== null && !awaitingTemplates && (entry !== null || settled)}
         entry={entry}
         resolved={shown.resolved}
         curatorName={entry ? curatorName(entry.item.pubkey, profiles) : ""}

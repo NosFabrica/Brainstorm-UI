@@ -21,16 +21,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ItemComposer } from "@/components/lists/ItemComposer";
 import { ListEditor } from "@/components/lists/ListEditor";
 import { ListItems } from "@/components/lists/ListItems";
+import { listManagerPath } from "@/components/lists/listManagerPath";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useListAt, useMyLists } from "@/hooks/useLists";
 import { coordinateOf, headerNames } from "@/lib/dlistFields";
 import { parseListRef } from "@/lib/listRef";
 
-export const listManagerPath = (list?: string, opts: { view?: "items" | "add"; item?: string } = {}) =>
-  "/settings?tab=dictionary&manage=lists" +
-  (list ? `&list=${encodeURIComponent(list)}` : "") +
-  (opts.view ? `&view=${opts.view}` : "") +
-  (opts.item ? `&item=${encodeURIComponent(opts.item)}` : "");
+export { listManagerPath } from "./listManagerPath";
 
 export function ListManager() {
   const list = new URLSearchParams(useSearch()).get("list");

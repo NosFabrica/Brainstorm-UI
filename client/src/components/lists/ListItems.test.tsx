@@ -19,6 +19,7 @@ const { state } = vi.hoisted(() => ({
     definitions: [] as unknown[],
     governing: "community",
     profiles: new Map<string, { display_name?: string; name?: string }>(),
+    templates: { data: undefined as unknown, isError: false },
     navigate: vi.fn(),
     reload: vi.fn(),
   },
@@ -39,11 +40,15 @@ vi.mock("@/hooks/useListItems", () => ({
 vi.mock("@/hooks/useListDefinitions", () => ({
   useListDefinitions: () => ({ definitions: state.definitions, governing: state.governing, settled: true }),
 }));
-vi.mock("@/hooks/useLinkTemplates", () => ({ useLinkTemplates: () => ({ data: new Map() }) }));
+vi.mock("@/hooks/useLinkTemplates", () => ({ useLinkTemplates: () => state.templates }));
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => state.profiles }));
 vi.mock("@/components/lists/ItemPreview", () => ({
   ItemPreview: () => <div data-testid="item-preview-stub" />,
 }));
+// The tab is drawn inside ListManager, so it builds its addresses without importing it.
+vi.mock("@/components/lists/ListManager", () => {
+  throw new Error("ListItems must not import ListManager");
+});
 
 import { ListItems } from "./ListItems";
 
@@ -90,6 +95,16 @@ const houseCopy = {
   source: "house",
   resolved: resolveConcept({ community: places, communityCoordinate: COORD, house: houseHeader })!,
 };
+// The list's own header again, with a link built from a URL template.
+const TPL = "d".repeat(64);
+const linked = {
+  source: "community",
+  resolved: resolveConcept({
+    community: { ...places, tags: [...places.tags, ["link", TPL, "wss://relay.example", "q", "name"]] },
+    communityCoordinate: COORD,
+  })!,
+};
+const searchTemplate = { id: TPL, pubkey: A, name: "Search", template: "https://search.example/{q}" };
 
 const item = (id: string, pubkey: string, created_at: number, tags: string[][]): NostrEvent => ({
   id,
@@ -133,6 +148,7 @@ beforeEach(() => {
   state.definitions = [own];
   state.governing = "community";
   state.profiles = new Map();
+  state.templates = { data: new Map(), isError: false };
   state.navigate.mockReset();
   state.reload.mockReset();
 });
@@ -186,6 +202,34 @@ describe("ListItems", () => {
     state.truncated = true;
     renderWithProviders(<ListItems header={places} />);
     expect(screen.getByTestId("list-items-truncated")).toBeInTheDocument();
+  });
+
+  it("waits for a definition's URL templates before it checks the items", () => {
+    state.search = at("&item=i1");
+    state.definitions = [linked];
+    state.templates = { data: undefined, isError: false };
+    const { rerender } = renderWithProviders(<ListItems header={places} />);
+    expect(screen.getByTestId("list-items-reading")).toBeInTheDocument();
+    expect(screen.queryByTestId("list-health")).toBeNull();
+    expect(screen.queryByTestId("item-inspector")).toBeNull();
+    state.templates = { data: new Map([[TPL, searchTemplate]]), isError: false };
+    rerender(<ListItems header={places} />);
+    expect(screen.getByTestId("list-health-tile-items")).toHaveTextContent("64");
+    expect(screen.queryByTestId("list-health-problem-template-not-given")).toBeNull();
+    expect(screen.getByTestId("item-inspector-problems")).toHaveTextContent("None.");
+  });
+
+  it("checks without the templates when they can't be read", () => {
+    state.definitions = [linked];
+    state.templates = { data: undefined, isError: true };
+    renderWithProviders(<ListItems header={places} />);
+    expect(screen.getByTestId("list-health-problem-template-not-given")).toBeInTheDocument();
+  });
+
+  it("waits for no templates under a definition with no links", () => {
+    state.templates = { data: undefined, isError: false };
+    renderWithProviders(<ListItems header={places} />);
+    expect(screen.getByTestId("list-health")).toBeInTheDocument();
   });
 
   it("a problem row narrows the table, and the page goes back to the first", async () => {
@@ -296,5 +340,19 @@ describe("ListItems", () => {
     expect(screen.getByTestId("list-items-as-community")).toHaveAttribute("data-state", "active");
     expect(screen.queryByTestId("list-health-problem-required-missing:website")).toBeNull();
     expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64.");
+  });
+
+  it("drops the problem filter when the definition changes, and keeps the rest", async () => {
+    state.definitions = [own, houseCopy];
+    state.governing = "house";
+    renderWithProviders(<ListItems header={places} />);
+    await userEvent.click(screen.getByTestId("item-table-only-problems"));
+    await userEvent.click(screen.getByTestId("list-health-problem-required-missing:name"));
+    expect(screen.getAllByTestId("item-table-row")).toHaveLength(1);
+    await userEvent.click(screen.getByTestId("list-items-as-community"));
+    // The list's own definition has the same problem, and it is not pressed.
+    expect(screen.getByTestId("list-health-problem-required-missing:name")).not.toHaveAttribute("data-state");
+    expect(screen.getByTestId("item-table-only-problems")).toBeChecked();
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 3 of 3 matching, 64 on the list.");
   });
 });
