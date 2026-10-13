@@ -77,6 +77,21 @@ describe("a post's files on its page", () => {
       expect(srcs().filter((s) => s.includes("bbbb"))).toHaveLength(1);
     });
 
+  it("a picture post's link to a web page stays in its words, even when a url tag names it", () => {
+    open(
+      eventOf(
+        20,
+        [
+          ["imeta", "url https://x.test/pic.jpg", "m image/jpeg"],
+          ["url", "https://news.example/a"],
+        ],
+        "read https://news.example/a",
+      ),
+    );
+    expect(document.querySelector('a[href="https://news.example/a"]')).not.toBeNull();
+    expect(srcs().filter((s) => s.includes("news.example"))).toEqual([]);
+  });
+
   it("a web page in a note's url tag is no picture", () => {
     open(eventOf(1, [["url", "https://news.example/article"]], "read this"));
     expect(srcs().filter((s) => s.includes("news.example"))).toEqual([]);
