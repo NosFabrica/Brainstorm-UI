@@ -4,6 +4,8 @@
  * an option or videos"). The URL, the poster and the mime are read here too,
  * lifted out of the media card so the card and the facets agree.
  */
+import { parseNoteContent } from "@/lib/noteContent";
+
 type EventLike = { kind: number; tags: string[][]; content: string };
 
 export type MediaKind = "photo" | "video" | "audio";
@@ -77,15 +79,20 @@ export function isVideoUrl(event: EventLike, url: string): boolean {
 const AUDIO_EVENT_KINDS = new Set([1222, 1244, 1808]);
 /** NIP-A0 voice messages and replies: a `.webm` there is a recording, whatever its mime says. */
 const VOICE_EVENT_KINDS = new Set([1222, 1244]);
+/** Kinds that are a sound — voice, audio headers, tracks, episodes, trailers: a `.webm` with a running
+ *  time and no frame size is a recording there. Anywhere else every clip has a running time too. */
+const SOUND_KINDS = new Set([1222, 1244, 1808, 31337, 36787, 54, 30054, 30055]);
 
+/**
+ * What a media hit is, in one word: what its first file is (`mediaItemsOf`), so
+ * the Media tab's word for it and its page's drawing of it agree. With no file,
+ * a picture post's or a still's `thumb`/`image` tag is a photo.
+ */
 export function mediaKindOf(event: EventLike): MediaKind | null {
-  const url = mediaUrlOf(event);
-  if (!url) return null;
-  const mime = mediaMimeOf(event);
-  if (event.kind === 20 || mime.startsWith("image/") || IMAGE_RE.test(url)) return "photo";
-  if (AUDIO_EVENT_KINDS.has(event.kind) || mime.startsWith("audio/") || AUDIO_RE.test(url)) return "audio";
-  if (isVideoUrl(event, url)) return "video";
-  return null;
+  const first = mediaItemsOf(event)[0];
+  if (first) return first.kind;
+  const still = tagVal(event, "thumb") ?? tagVal(event, "image");
+  return still && (event.kind === 20 || IMAGE_RE.test(still)) ? "photo" : null;
 }
 
 /** One file an event carries, with what its `imeta` says about it (NIP-92/94). */
@@ -131,20 +138,24 @@ const parseDim = (raw: string | undefined): MediaItem["dim"] => {
 /**
  * Every file an event carries, each with what it plays as: one per `imeta`,
  * then plain `url` tags (a kind-1063 file, its mime in `m`), then — only when
- * there are none — the media links in its words. What a file is comes from its
- * declared mime, then the event's kind when it is a sound (a voice message's
- * `.webm` is not a video), then its extension; a link that says nothing is a
- * picture, as it always was.
+ * there are none — the media links in its words, read as the note's text reads
+ * them (lib/noteContent), so a file there is the same URL the text draws. What
+ * a file is comes from its declared mime, then the event's kind when it is a
+ * sound (a voice message's `.webm` is not a video), then its extension; an
+ * `imeta` that says nothing is a picture, as it always was. A `url` tag that
+ * says nothing is a link, not a file: a note's `url` tag often names a web page.
  * An audio file is never called a picture: it would draw as a broken image.
  */
 export function mediaItemsOf(event: EventLike): MediaItem[] {
-  const kindOf = (url: string, mime: string | undefined, sized: boolean, timed: boolean): MediaKind => {
+  const kindOf = (url: string, mime: string | undefined, sized: boolean, timed: boolean): MediaKind | null => {
     // A `.webm` holds a sound as often as a clip: in a voice message it is one, whatever its mime
-    // says; with a running time and no frame size, it is one too.
-    if (WEBM_RE.test(url) && (VOICE_EVENT_KINDS.has(event.kind) || (!mime && timed && !sized))) return "audio";
-    return (
-      (mime && kindOfMime(mime)) || (AUDIO_EVENT_KINDS.has(event.kind) ? "audio" : (mediaKindOfUrl(url) ?? "photo"))
-    );
+    // says; in a sound's kind, with a running time and no frame size, it is one too.
+    if (
+      WEBM_RE.test(url) &&
+      (VOICE_EVENT_KINDS.has(event.kind) || (SOUND_KINDS.has(event.kind) && !mime && timed && !sized))
+    )
+      return "audio";
+    return (mime && kindOfMime(mime)) || (AUDIO_EVENT_KINDS.has(event.kind) ? "audio" : mediaKindOfUrl(url));
   };
   const items: MediaItem[] = [];
   const seen = new Set<string>();
@@ -169,7 +180,7 @@ export function mediaItemsOf(event: EventLike): MediaItem[] {
       const poster = part("image") ?? part("thumb");
       add({
         url,
-        kind: kindOf(url, mime, !!dim, !!durationSec),
+        kind: kindOf(url, mime, !!dim, !!durationSec) ?? "photo",
         mime,
         alt: part("alt"),
         dim,
@@ -180,13 +191,16 @@ export function mediaItemsOf(event: EventLike): MediaItem[] {
       const mime = tagVal(event, "m");
       const dim = parseDim(tagVal(event, "dim"));
       const durationSec = parseDuration(tagVal(event, "duration"));
-      add({ url: tag[1], kind: kindOf(tag[1], mime, !!dim, !!durationSec), mime, dim, durationSec });
+      const kind = kindOf(tag[1], mime, !!dim, !!durationSec);
+      if (kind) add({ url: tag[1], kind, mime, dim, durationSec });
     }
   }
   if (items.length > 0) return items;
-  for (const m of event.content.matchAll(/https?:\/\/\S+/gi)) {
-    const kind = mediaKindOfUrl(m[0]);
-    if (kind) add({ url: m[0], kind });
+  for (const token of parseNoteContent(event.content)) {
+    if (token.type !== "image" && token.type !== "video" && token.type !== "audio" && token.type !== "live") continue;
+    if (!/^https?:\/\//i.test(token.value)) continue;
+    const kind = mediaKindOfUrl(token.value);
+    if (kind) add({ url: token.value, kind });
   }
   return items;
 }
