@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nip19 } from "nostr-tools";
+import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from "nostr-tools";
 import { summarizeResult } from "./resultSummary";
 import { readKind, who } from "./resultReaders";
 
@@ -38,7 +38,23 @@ describe("the kinds whose meaning is in their tags", () => {
   });
 
   it("a zap receipt: the amount from its invoice, the payer, the memo", () => {
-    const request = JSON.stringify({ pubkey: C, content: "great post", tags: [["amount", "21000"]] });
+    const sk = generateSecretKey();
+    const payer = getPublicKey(sk);
+    const request = JSON.stringify(
+      finalizeEvent(
+        {
+          kind: 9734,
+          created_at: 1,
+          content: "great post",
+          tags: [
+            ["amount", "21000"],
+            ["p", B],
+            ["e", NOTE],
+          ],
+        },
+        sk,
+      ),
+    );
     const s = summarizeResult(
       ev(9735, [
         ["p", B],
@@ -49,9 +65,28 @@ describe("the kinds whose meaning is in their tags", () => {
     );
     expect(s.title).toBe(`⚡ 21 sats to ${npub(B)}`);
     // The row is the payer's; the signer is their recipient's wallet service.
-    expect(s.by).toBe(C);
+    expect(s.by).toBe(payer);
     expect(s.body).toBe("great post");
     expect(s.ref).toMatchObject({ id: NOTE });
+  });
+
+  it("a zap receipt whose request nobody signed stays the signer's row, not the payer it names", () => {
+    const request = JSON.stringify({ kind: 9734, pubkey: C, content: "", tags: [["e", NOTE]] });
+    const s = summarizeResult(
+      ev(9735, [
+        ["p", B],
+        ["P", C],
+        ["e", NOTE],
+        ["description", request],
+      ]),
+    );
+    // No `by`: the row is the signer's.
+    expect(s.by).toBeNull();
+  });
+
+  it("an RSVP status that is an object's own property name reads as a reply", () => {
+    expect(summarizeResult(ev(31925, [["status", "constructor"]])).title).toBe("Replied");
+    expect(summarizeResult(ev(31925, [["status", "__proto__"]])).title).toBe("Replied");
   });
 
   it("a repost is the note it carries", () => {
@@ -156,12 +191,27 @@ describe("the kinds whose meaning is in their tags", () => {
   it("a badge award with an opaque badge id lets the badge name itself", () => {
     const s = summarizeResult(
       ev(8, [
-        ["a", `30009:${B}:e787ec6d-872e-4153-88b0-74cab22b6947`],
+        ["a", `30009:${A}:e787ec6d-872e-4153-88b0-74cab22b6947`],
         ["p", C],
       ]),
     );
     expect(s.title).toBe("Awarded a badge");
     expect(s.ref?.addr).toContain("30009:");
+  });
+
+  it("a badge award by someone else than the badge's issuer only claims it (NIP-58)", () => {
+    const s = summarizeResult(
+      ev(8, [
+        ["a", `30009:${B}:bravery`],
+        ["p", C],
+      ]),
+    );
+    expect(s.title).toBe("Claims the “bravery” badge");
+  });
+
+  it("an approval is the community's word only from its owner; anyone else says it approved", () => {
+    expect(summarizeResult(ev(4550, [["a", `34550:${A}:cooking`]])).title).toBe("Approved a post");
+    expect(summarizeResult(ev(4550, [["a", `34550:${B}:cooking`]])).title).toBe("Says it approved a post");
   });
 
   it("a P2P order: side, fiat amount, status and sats", () => {

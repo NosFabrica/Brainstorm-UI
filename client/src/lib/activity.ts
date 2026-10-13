@@ -9,6 +9,7 @@
  */
 import { reactionEmoji, type CustomEmoji } from "@/lib/customEmoji";
 import { tagValue } from "@/lib/tagValue";
+import { isVerifiedEvent, readZapRequest } from "@/lib/zapRequest";
 import { parseZapReceipt } from "@/services/search";
 
 export type ActivityEvent = {
@@ -38,10 +39,19 @@ const hexKey = (v: string | null | undefined) => (v && HEX64.test(v) ? v.toLower
 /** A relay hint, when the tag's third value is one (some clients put a marker there). */
 const relayOf = (t: string[]) => (t[2] && /^wss?:\/\//i.test(t[2]) ? t[2] : undefined);
 
+/** An address with its key lower-cased: `30023:<PK>:d` names the same event as `30023:<pk>:d`. */
+const normalAddr = (addr: string) => {
+  const [kind, pubkey, ...d] = addr.split(":");
+  return [kind, pubkey.toLowerCase(), ...d].join(":");
+};
+/** The key of an address: its issuer, its owner. */
+const addrPubkey = (addr: string | null | undefined) =>
+  addr && ADDRESS.test(addr) ? addr.split(":")[1].toLowerCase() : null;
+
 const refOfTag = (t: string[] | null | undefined): EventRef | null => {
   if (!t) return null;
   if (t[0] === "e" && HEX64.test(t[1])) return { id: t[1].toLowerCase(), relay: relayOf(t) };
-  if (t[0] === "a" && ADDRESS.test(t[1])) return { addr: t[1], relay: relayOf(t) };
+  if (t[0] === "a" && ADDRESS.test(t[1])) return { addr: normalAddr(t[1]), relay: relayOf(t) };
   return null;
 };
 
@@ -80,12 +90,20 @@ export interface Zap {
   rail: ZapRail;
   /** Who paid. Null when the zap is anonymous, or its payer cannot be read. */
   payer: string | null;
+  /**
+   * The payer is only what the event says, with no signature of theirs behind
+   * it: a receipt (signed by a wallet service) whose embedded request does not
+   * verify against it. Anyone can write such a receipt naming anyone.
+   */
+  payerClaimed: boolean;
   recipient: string | null;
   /** In sats, or in `unit` when a mint counts in something else. Null when unknown. */
   amount: number | null;
   /** "sats", or a mint's own unit ("usd"). */
   unit: string;
   comment: string;
+  /** The tags the comment's NIP-30 emoji are read from: a receipt's own, and its request's. */
+  commentTags: string[][];
   /** The zapped event or address; null for a zap to the person. */
   target: EventRef | null;
   /** A nutzap's mint. */
@@ -117,23 +135,45 @@ function proofTotal(ev: ActivityEvent): number | null {
 export function readZap(ev: ActivityEvent): Zap | null {
   if (!ZAP_KINDS.has(ev.kind)) return null;
   const recipient = hexKey(tagValue(ev, "p"));
-  const base = { recipient, comment: ev.content.trim(), mint: null, txid: null, block: null, unit: "sats" };
+  const base = {
+    recipient,
+    comment: ev.content.trim(),
+    commentTags: ev.tags,
+    payerClaimed: false,
+    mint: null,
+    txid: null,
+    block: null,
+    unit: "sats",
+  };
   switch (ev.kind) {
     case 9735: {
-      // A receipt is signed by the recipient's wallet service: the payer is in the request it carries.
+      // A receipt is signed by the recipient's wallet service: the payer is in
+      // the request it carries, and is theirs only if that request verifies.
       const receipt = parseZapReceipt(ev as Parameters<typeof parseZapReceipt>[0]);
+      const request = readZapRequest(ev);
+      const payer = request?.anonymous ? null : receipt.pubkey;
       return {
         ...base,
         rail: "lightning",
-        payer: receipt.pubkey,
+        payer,
+        payerClaimed: !!payer && !request?.verified,
         amount: receipt.msats ? receipt.msats / 1000 : null,
         comment: receipt.memo,
+        commentTags: [...ev.tags, ...(request?.tags.filter((t) => t[0] === "emoji") ?? [])],
         target: targetOf(ev),
       };
     }
     case 9734: {
       const msats = msatsTag(ev);
-      return { ...base, rail: "request", payer: ev.pubkey, amount: msats ? msats / 1000 : null, target: targetOf(ev) };
+      // An anonymous request is signed by a throwaway key: it names nobody.
+      const anonymous = ev.tags.some((t) => t[0] === "anon");
+      return {
+        ...base,
+        rail: "request",
+        payer: anonymous ? null : ev.pubkey,
+        amount: msats ? msats / 1000 : null,
+        target: targetOf(ev),
+      };
     }
     case 9321: {
       const unit = (tagValue(ev, "unit") ?? "sat").toLowerCase();
@@ -212,12 +252,20 @@ export interface ExternalTarget {
   label: string;
 }
 
+const WEB = /^https?:\/\//i;
+const webLabel = (url: string) => url.replace(/^https?:\/\/(?:www\.)?/i, "").replace(/\/+$/, "");
+
 export function externalTargetOf(ev: { tags: string[][] }): ExternalTarget | null {
   const id = tagValue(ev, "i");
   if (!id) return null;
-  const url = /^https?:\/\//i.test(id) ? id : null;
-  const label = url ? url.replace(/^https?:\/\/(?:www\.)?/i, "").replace(/\/+$/, "") : id;
-  return { id, url, kind: tagValue(ev, "k"), label };
+  const url = WEB.test(id) ? id : null;
+  return { id, url, kind: tagValue(ev, "k"), label: url ? webLabel(url) : id };
+}
+
+/** A kind-17 reaction from before NIP-73 names its web page in `r`: only a web page, never another scheme. */
+function webTargetOfR(ev: { tags: string[][] }): ExternalTarget | null {
+  const url = tagsOf(ev, "r").find((t) => WEB.test(t[1]))?.[1];
+  return url ? { id: url, url, kind: tagValue(ev, "k") ?? "web", label: webLabel(url) } : null;
 }
 
 export interface Reaction {
@@ -237,7 +285,7 @@ export function readReaction(ev: ActivityEvent): Reaction {
     to: hexKey(tagsOf(ev, "p").at(-1)?.[1]),
     target: targetOf(ev),
     targetKind: k && /^\d+$/.test(k) ? Number(k) : null,
-    external: ev.kind === 17 ? externalTargetOf(ev) : null,
+    external: ev.kind === 17 ? (externalTargetOf(ev) ?? webTargetOfR(ev)) : null,
   };
 }
 
@@ -264,14 +312,21 @@ export interface BadgeAward {
   badge: string | null;
   relay?: string;
   awardees: string[];
+  /**
+   * Signed by the badge's issuer (NIP-58: only they award it). Anyone else
+   * naming the badge only claims it.
+   */
+  byIssuer: boolean;
 }
 
 export function readBadgeAward(ev: ActivityEvent): BadgeAward {
   const a = tagsOf(ev, "a").find((t) => ADDRESS.test(t[1]));
+  const badge = a ? normalAddr(a[1]) : null;
   return {
-    badge: a?.[1] ?? null,
+    badge,
     relay: a ? relayOf(a) : undefined,
     awardees: unique(tagsOf(ev, "p").map((t) => hexKey(t[1]))),
+    byIssuer: !!badge && addrPubkey(badge) === ev.pubkey.toLowerCase(),
   };
 }
 
@@ -315,10 +370,19 @@ export interface Label {
 }
 
 export function readLabel(ev: ActivityEvent): Label {
-  const labels = tagsOf(ev, "l").map((t) => ({ value: t[1], namespace: t[2] || null }));
+  // One value in two namespaces is two labels ("funny" in ugc, "funny" in a moderation vocabulary).
+  const seen = new Set<string>();
+  const labels: Label["labels"] = [];
+  for (const t of tagsOf(ev, "l")) {
+    const label = { value: t[1], namespace: t[2] || null };
+    const key = JSON.stringify([label.value, label.namespace]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    labels.push(label);
+  }
   return {
     namespaces: unique(tagsOf(ev, "L").map((t) => t[1])),
-    labels: labels.filter((l, i) => labels.findIndex((m) => m.value === l.value) === i),
+    labels,
     people: unique(tagsOf(ev, "p").map((t) => hexKey(t[1]))),
     events: targetsOf(ev),
     links: unique(tagsOf(ev, "r").map((t) => t[1])),
@@ -333,37 +397,54 @@ export interface Approval {
   /** The community's address, `34550:<owner>:<d>`. */
   community: string | null;
   post: EventRef | null;
-  /** The approved post as the approval carries it (NIP-72 puts its JSON in the content). */
+  /**
+   * The approved post as the approval carries it (NIP-72 puts its JSON in the
+   * content) — only when it is signed by its author and is the post the
+   * approval names. Otherwise null, and the post is asked for by its `e`.
+   */
   embedded: ActivityEvent | null;
 }
 
-const EVENT_SHAPE = (v: unknown): v is ActivityEvent => {
-  const e = v as ActivityEvent | null;
-  return (
-    !!e &&
-    typeof e.id === "string" &&
-    HEX64.test(e.pubkey ?? "") &&
-    typeof e.kind === "number" &&
-    typeof e.content === "string" &&
-    Array.isArray(e.tags)
-  );
-};
+const coordOfEvent = (e: ActivityEvent) => `${e.kind}:${e.pubkey}:${tagValue(e, "d") ?? ""}`;
 
 export function readApproval(ev: ActivityEvent): Approval {
   const community = tagsOf(ev, "a").find((t) => t[1].startsWith("34550:") && ADDRESS.test(t[1]));
   const postAddr = tagsOf(ev, "a").find((t) => !t[1].startsWith("34550:") && ADDRESS.test(t[1]));
+  const post = refOfTag(tagsOf(ev, "e")[0]) ?? refOfTag(postAddr);
   let embedded: ActivityEvent | null = null;
   try {
     const parsed: unknown = JSON.parse(ev.content);
-    if (EVENT_SHAPE(parsed)) embedded = parsed;
+    // Anyone can write any JSON here: a post is shown as its author's only under their signature.
+    if (post && isVerifiedEvent(parsed) && (post.id ? parsed.id === post.id : coordOfEvent(parsed) === post.addr))
+      embedded = parsed;
   } catch {
     /* an approval that does not carry its post still names it */
   }
-  return {
-    community: community?.[1] ?? null,
-    post: refOfTag(tagsOf(ev, "e")[0]) ?? refOfTag(postAddr),
-    embedded,
-  };
+  return { community: community ? normalAddr(community[1]) : null, post, embedded };
+}
+
+/**
+ * Whose word an approval is (NIP-72): the community's owner, one of the
+ * moderators its definition names, or nobody's in particular — anyone can
+ * sign a 4550. The owner is in the address; moderators need the definition,
+ * and one by anyone else than the owner is not the community's.
+ */
+export function approvalAuthority(
+  approval: Pick<Approval, "community">,
+  signer: string,
+  definition: { pubkey: string; tags: string[][] } | null | undefined,
+): "owner" | "moderator" | null {
+  const owner = addrPubkey(approval.community);
+  const who = signer.toLowerCase();
+  if (!owner) return null;
+  if (who === owner) return "owner";
+  if (
+    definition &&
+    definition.pubkey.toLowerCase() === owner &&
+    tagsOf(definition, "p").some((t) => t[1].toLowerCase() === who && t[3] === "moderator")
+  )
+    return "moderator";
+  return null;
 }
 
 // ---- Poll vote (NIP-88, 1018) ----
@@ -405,7 +486,8 @@ const RSVP_WORDS: Record<RsvpStatus, string> = { accepted: "Going", declined: "N
 
 export function readRsvp(ev: ActivityEvent): Rsvp {
   const raw = (tagValue(ev, "status") ?? "").toLowerCase();
-  const status = raw in RSVP_WORDS ? (raw as RsvpStatus) : null;
+  // Own keys only: `__proto__` or `constructor` is no status.
+  const status = Object.hasOwn(RSVP_WORDS, raw) ? (raw as RsvpStatus) : null;
   const fb = (tagValue(ev, "fb") ?? "").toLowerCase();
   const a = tagsOf(ev, "a").find((t) => ADDRESS.test(t[1]));
   return {

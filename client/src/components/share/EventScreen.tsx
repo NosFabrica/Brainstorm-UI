@@ -58,7 +58,7 @@ import { contentWarningOf } from "@/lib/nip36";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ThingHero, ThingSections, hasThingPage } from "@/components/share/things";
-import { ActivityHero, activityAuthor, hasActivityHero } from "@/components/share/activity";
+import { ActivityHero, hasActivityHero } from "@/components/share/activity";
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
@@ -229,8 +229,11 @@ function EventView({
       ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] ||
         note.tags.find((t) => t[0] === "p")?.[1]
       : undefined;
-  // A zap receipt is signed by the recipient's wallet service: the page is the payer's.
-  const authorPk = liveHost || (note && activityAuthor(note)) || note?.pubkey || ptr?.author || "";
+  // A zap receipt stays its signer's page: the payer it names is a claim anyone
+  // could write (lib/zapRequest), so only its hero names them, and says how sure.
+  const authorPk = liveHost || note?.pubkey || ptr?.author || "";
+  // Who signed it, for the links that name the event: never a host or a payer it only names.
+  const eventAuthor = note?.pubkey ?? ptr?.author;
   // The files a kind with no hero of its own carries (a kind-20 picture post, a
   // comment's imeta), each drawn as what it is. A file its words also link, by
   // a name the text knows as media, is drawn there, once, by the note's text.
@@ -361,7 +364,7 @@ function EventView({
       : null,
   );
 
-  const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, authorPk || undefined);
+  const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, eventAuthor || undefined);
   // Whether the hero below is one of the kind-specific ones, or the generic
   // fallback (media, text, or the structural card). Mirrors the chain in the
   // JSX: a kind with no hero of its own is the one whose publishing client
@@ -385,7 +388,7 @@ function EventView({
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
-  const nevent = ptr ? neventFor(ptr.id, relayHints, authorPk || undefined) : "";
+  const nevent = ptr ? neventFor(ptr.id, relayHints, eventAuthor || undefined) : "";
   // An addressable event (a listing, a track) also has its address: the
   // link that follows its author's edits, not this one version.
   const naddr = note && note.kind >= 30000 && note.kind < 40000 ? naddrForEvent(note, relayHints) : null;

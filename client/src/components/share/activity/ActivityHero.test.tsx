@@ -10,16 +10,21 @@ import { render, screen, waitFor, within, fireEvent } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
-import { nip19, type NostrEvent } from "nostr-tools";
+import { finalizeEvent, generateSecretKey, getPublicKey, nip19, type NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 const relayEvents = new Map<string, MinimalEvent>();
 const relayAddresses = new Map<string, MinimalEvent>();
+/** Every id list the page asked the relays for. */
+const askedIds: string[][] = [];
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
-  fetchEventsByIds: async (ids: string[]) => ids.map((id) => relayEvents.get(id)).filter(Boolean),
+  fetchEventsByIds: async (ids: string[]) => {
+    askedIds.push(ids);
+    return ids.map((id) => relayEvents.get(id)).filter(Boolean);
+  },
   fetchAddressableEvents: async (addrs: { kind: number; pubkey: string; identifier: string }[]) =>
     new Map(
       addrs
@@ -45,7 +50,10 @@ vi.mock("@/components/share/EventThread", () => ({ EventThread: () => null }));
 vi.mock("@/components/share/NoteTagChips", () => ({ NoteTagChips: () => null }));
 vi.mock("@/components/share/MoreFromAuthor", () => ({ MoreFromAuthor: () => null }));
 vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
-vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => null }));
+vi.mock("@/components/share/EntityMenu", () => ({
+  // The share link the page's ⋯ copies, said where a test can read it.
+  EntityMenu: ({ entity }: { entity: { bech32: string } }) => <span data-testid="entity-bech32">{entity.bech32}</span>,
+}));
 vi.mock("@/components/share/LinkPreview", () => ({
   LinkChip: ({ url }: { url: string }) => <a href={url} data-testid="link-chip" />,
   LinkPreviewCard: () => null,
@@ -131,17 +139,41 @@ describe("the activity hero dispatch", () => {
   });
 });
 
+const seedProfile = (pubkey: string, name: string) =>
+  eventStore.add({
+    ...ev(0, [], JSON.stringify({ name }), pubkey),
+    created_at: NOW - 100,
+    sig: "s",
+  } as NostrEvent);
+
+/** The pubkey the page's share link (its nevent) names as the event's author. */
+const sharedAuthor = () => {
+  const d = nip19.decode(screen.getByTestId("entity-bech32").textContent!);
+  return d.type === "nevent" ? d.data.author : null;
+};
+
 describe("a zap receipt's page", () => {
-  it("is the payer's: the author line names them, not the wallet service that signed it", async () => {
-    const payer = "c".repeat(64);
-    eventStore.add({
-      ...ev(0, [], JSON.stringify({ name: "Pat Payer" }), payer),
-      created_at: NOW - 100,
-      sig: "s",
-    } as NostrEvent);
+  it("names the payer in the zap, signed; the page itself stays the signer's", async () => {
+    const sk = generateSecretKey();
+    const payer = getPublicKey(sk);
+    seedProfile(payer, "Pat Payer");
     const target = ev(1, [], "the zapped note", ALICE);
     relayEvents.set(target.id, target);
-    const request = JSON.stringify({ pubkey: payer, content: "great post", tags: [["amount", "21000"]] });
+    const request = JSON.stringify(
+      finalizeEvent(
+        {
+          kind: 9734,
+          created_at: NOW - 70,
+          content: "great post",
+          tags: [
+            ["amount", "21000"],
+            ["p", ALICE],
+            ["e", target.id],
+          ],
+        },
+        sk,
+      ),
+    );
     open(
       ev(9735, [
         ["p", ALICE],
@@ -154,10 +186,70 @@ describe("a zap receipt's page", () => {
     expect(screen.getByTestId("zap-comment")).toHaveTextContent("great post");
     expect(screen.getByTestId("activity-from").getAttribute("href")).toBe(`/p/${nip19.npubEncode(payer)}`);
     expect(screen.getByTestId("activity-to").getAttribute("href")).toBe(`/p/${nip19.npubEncode(ALICE)}`);
-    // The page's own author line is the payer.
-    await waitFor(() => expect(screen.getAllByText("Pat Payer").length).toBeGreaterThan(0));
+    await waitFor(() => expect(within(screen.getByTestId("activity-from")).getByText("Pat Payer")).toBeInTheDocument());
+    expect(screen.queryByTestId("zap-payer-unverified")).toBeNull();
     // The zapped note, quoted.
     expect(await within(screen.getByTestId("zap-target")).findByText("the zapped note")).toBeInTheDocument();
+  });
+
+  it("a forged receipt naming someone as its payer does not make the page theirs", async () => {
+    const victim = "d".repeat(64);
+    seedProfile(victim, "Victim Vee");
+    const request = JSON.stringify({ kind: 9734, pubkey: victim, content: "", tags: [["p", ALICE]] });
+    open(
+      ev(9735, [
+        ["p", ALICE],
+        ["P", victim],
+        ["bolt11", "lnbc210n1pxyz"],
+        ["description", request],
+      ]),
+    );
+    // The zap says whom it names — and that nothing they signed backs it.
+    expect(screen.getByTestId("activity-from").getAttribute("href")).toBe(`/p/${nip19.npubEncode(victim)}`);
+    expect(screen.getByTestId("zap-payer-unverified")).toHaveTextContent(/unverified/i);
+    await waitFor(() =>
+      expect(within(screen.getByTestId("activity-from")).getByText("Victim Vee")).toBeInTheDocument(),
+    );
+    // Nowhere else: not the author line, not "More from", not the share link.
+    expect(screen.getAllByText("Victim Vee")).toHaveLength(1);
+    expect(sharedAuthor()).toBe(WALLET);
+  });
+
+  it("an anonymous zap names nobody", () => {
+    const sk = generateSecretKey();
+    const request = JSON.stringify(
+      finalizeEvent(
+        {
+          kind: 9734,
+          created_at: NOW - 70,
+          content: "",
+          tags: [
+            ["anon", ""],
+            ["p", ALICE],
+          ],
+        },
+        sk,
+      ),
+    );
+    open(
+      ev(9735, [
+        ["p", ALICE],
+        ["description", request],
+      ]),
+    );
+    expect(screen.getByTestId("activity-from")).toHaveTextContent("Anonymous");
+  });
+
+  it("draws the request's NIP-30 emoji in its comment", () => {
+    const request = JSON.stringify({
+      kind: 9734,
+      pubkey: "c".repeat(64),
+      content: "gm :soapbox:",
+      tags: [["emoji", "soapbox", "https://cdn.example/soapbox.png"]],
+    });
+    open(ev(9735, [["description", request]]));
+    const img = within(screen.getByTestId("zap-comment")).getByTestId("custom-emoji");
+    expect(img.getAttribute("src")).toBe("https://cdn.example/soapbox.png");
   });
 
   it("an onchain zap links its transaction", () => {
@@ -317,5 +409,110 @@ describe("a deletion's page", () => {
     expect(screen.getByTestId("deletion-kind")).toHaveTextContent("Note");
     expect(screen.getByTestId("deletion-reason")).toHaveTextContent("oops");
     expect(await screen.findByText("No longer available")).toBeInTheDocument();
+  });
+});
+
+describe("hostile and forged activity", () => {
+  it("an RSVP whose status is `__proto__` reads as a reply, and draws", () => {
+    open(
+      ev(31925, [
+        ["status", "__proto__"],
+        ["a", `31922:${ALICE}:x`],
+      ]),
+    );
+    expect(screen.getByTestId("rsvp-status")).toHaveTextContent("Replied");
+  });
+
+  it("an approval carrying a post nobody signed asks for the post it names, and says it is only a claim", async () => {
+    const real = ev(1, [], "the real post", ALICE);
+    relayEvents.set(real.id, real);
+    open(
+      ev(
+        4550,
+        [
+          ["a", `34550:${ALICE}:c`],
+          ["e", real.id],
+        ],
+        JSON.stringify({ id: real.id, pubkey: ALICE, kind: 1, content: "I endorse scams", tags: [null] }),
+      ),
+    );
+    expect(screen.getByTestId("activity-title")).toHaveTextContent("Says it approved a post");
+    expect(await within(screen.getByTestId("approval-post")).findByText("the real post")).toBeInTheDocument();
+    expect(screen.queryByText("I endorse scams")).toBeNull();
+  });
+
+  it("an approval by the community's moderator is its word, once the definition says so", async () => {
+    const owner = "e".repeat(64);
+    relayAddresses.set(
+      `34550:${owner}:mods`,
+      ev(
+        34550,
+        [
+          ["d", "mods"],
+          ["name", "Mods"],
+          ["p", WALLET, "", "moderator"],
+        ],
+        "",
+        owner,
+      ),
+    );
+    open(ev(4550, [["a", `34550:${owner}:mods`]]));
+    await waitFor(() => expect(screen.getByTestId("activity-title")).toHaveTextContent(/^Approved a post$/));
+  });
+
+  it("a badge award by someone else than its issuer only claims the badge", async () => {
+    relayAddresses.set(
+      `30009:${ALICE}:hero`,
+      ev(
+        30009,
+        [
+          ["d", "hero"],
+          ["name", "Hero"],
+          ["image", "https://cdn.example/hero.png"],
+        ],
+        "",
+        ALICE,
+      ),
+    );
+    open(
+      ev(8, [
+        ["a", `30009:${ALICE}:hero`],
+        ["p", "c".repeat(64)],
+      ]),
+    );
+    expect(screen.getByTestId("activity-title")).toHaveTextContent("Claims a badge");
+    // Drawn as nothing of the badge's: no picture, no name in its colours.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("badge-image")).toBeNull();
+    expect(screen.queryByTestId("badge-name")).toBeNull();
+  });
+
+  it("a deletion of many asks for the five it shows, and the rest on Show all", async () => {
+    const targets = Array.from({ length: 12 }, (_, i) => `${"7".repeat(62)}${String(i).padStart(2, "0")}`);
+    askedIds.length = 0;
+    open(
+      ev(
+        5,
+        targets.map((t) => ["e", t]),
+      ),
+    );
+    await waitFor(() => expect(askedIds.length).toBeGreaterThan(0));
+    expect(Math.max(...askedIds.map((ids) => ids.length))).toBe(5);
+    fireEvent.click(screen.getByTestId("activity-quotes-toggle"));
+    await waitFor(() => expect(askedIds.some((ids) => ids.length === 12)).toBe(true));
+  });
+
+  it("a label on a thousand people draws a folded roster, not a thousand chips", () => {
+    const people = Array.from({ length: 1000 }, (_, i) => i.toString(16).padStart(64, "0"));
+    open(ev(1985, [["L", "ugc"], ["l", "spam", "ugc"], ["l", "spam", "com.example"], ...people.map((p) => ["p", p])]));
+    expect(screen.queryAllByTestId("mention-chip")).toHaveLength(0);
+    expect(within(screen.getByTestId("label-targets")).getAllByTestId(/^set-member-/)).toHaveLength(25);
+    // One value in two namespaces is two labels.
+    expect(screen.getAllByTestId("label-value")).toHaveLength(2);
+  });
+
+  it("a kind-17 reaction with only an `r` shows the page it names", () => {
+    open(ev(17, [["r", "https://example.com/old"]], "+"));
+    expect(screen.getByTestId("link-chip").getAttribute("href")).toBe("https://example.com/old");
   });
 });

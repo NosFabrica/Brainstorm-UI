@@ -40,16 +40,23 @@ export function FollowsHero({ event }: { event: ActivityEvent }) {
 
 export function BadgeAwardHero({ event }: { event: ActivityEvent }) {
   const award = useMemo(() => readBadgeAward(event), [event]);
-  const targets = useMemo(() => (award.badge ? [{ addr: award.badge, relay: award.relay }] : []), [award]);
+  // NIP-58: only the badge's issuer awards it. Anyone else naming it claims it,
+  // and is not drawn in the badge's picture and name.
+  const targets = useMemo(
+    () => (award.badge && award.byIssuer ? [{ addr: award.badge, relay: award.relay }] : []),
+    [award],
+  );
   const refs = useRefEvents(targets);
-  const definition = award.badge ? refs.get({ addr: award.badge }) : undefined;
+  const definition = award.badge && award.byIssuer ? refs.get({ addr: award.badge }) : undefined;
   const badge = definition ? describeThing(definition) : null;
   const d = award.badge?.split(":").slice(2).join(":") || "";
   return (
     <div data-testid="badge-award-hero">
       <ActivityHeader
         title={
-          badge ? (
+          !award.byIssuer ? (
+            "Claims a badge"
+          ) : badge ? (
             <>
               Awarded the{" "}
               <Link
@@ -68,6 +75,10 @@ export function BadgeAwardHero({ event }: { event: ActivityEvent }) {
         subtitle={
           badge?.description ? (
             <EmojiText text={badge.description} tags={badge.emoji} />
+          ) : !award.byIssuer ? (
+            award.badge ? (
+              `“${d}” is someone else's badge: only its issuer awards it.`
+            ) : null
           ) : !badge && refs.settled && d ? (
             `The badge “${d}” was not found on the relays we asked.`
           ) : null
@@ -81,7 +92,11 @@ export function BadgeAwardHero({ event }: { event: ActivityEvent }) {
       />
       <Section
         kicker={
-          award.awardees.length === 1 ? "Awarded to" : `Awarded to ${award.awardees.length.toLocaleString()} people`
+          !award.byIssuer
+            ? "Names"
+            : award.awardees.length === 1
+              ? "Awarded to"
+              : `Awarded to ${award.awardees.length.toLocaleString()} people`
         }
         testId="badge-awardees"
       >

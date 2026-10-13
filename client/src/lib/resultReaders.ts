@@ -13,6 +13,7 @@ import { nip19 } from "nostr-tools";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { contentShape } from "@/lib/contentShape";
 import {
+  approvalAuthority,
   assertionMetrics,
   readApproval,
   readAssertion,
@@ -262,8 +263,10 @@ read([8], (ev) => {
   const d = award.badge?.split(":").slice(2).join(":") || null;
   // A badge's `d` is often a UUID: then the badge itself, quoted below, says its name.
   const name = d && !OPAQUE_D.test(d) ? d : null;
+  // NIP-58: only the badge's issuer awards it; anyone else naming it claims it.
+  const verb = award.byIssuer ? "Awarded" : "Claims";
   return {
-    title: name ? `Awarded the “${name}” badge` : "Awarded a badge",
+    title: name ? `${verb} the “${name}” badge` : `${verb} a badge`,
     body: award.awardees.length ? `to ${people(award.awardees)}` : null,
     ref: award.badge ? { addr: award.badge, relay: award.relay } : null,
   };
@@ -364,7 +367,9 @@ read([1985], (ev) => {
 read([4550], (ev) => {
   const approval = readApproval(ev);
   const community = approval.community?.split(":").slice(2).join(":") || null;
-  return { title: "Approved a post", body: null, facts: community ? [community] : [], ref: approval.post };
+  // The row cannot read the community's moderators: from anyone but its owner it is a claim.
+  const title = approvalAuthority(approval, ev.pubkey, null) ? "Approved a post" : "Says it approved a post";
+  return { title, body: null, facts: community ? [community] : [], ref: approval.post };
 });
 
 read([9021, 9022], (ev) => ({
@@ -391,8 +396,9 @@ read([9321, 9734, 9735, 9736, 8333], (ev) => {
             ? ["Onchain"]
             : [],
     // A receipt is signed by the recipient's wallet service, an anonymous BOLT12 zap by a
-    // throwaway key: the row is the payer's.
-    by: zap.rail === "lightning" || zap.rail === "bolt12" ? zap.payer : undefined,
+    // throwaway key: the row is the payer's — once their signed request vouches for them.
+    // A payer only claimed (anyone can write a receipt naming anyone) leaves it the signer's.
+    by: (zap.rail === "lightning" || zap.rail === "bolt12") && !zap.payerClaimed ? zap.payer : undefined,
     ref: zap.target,
   };
 });

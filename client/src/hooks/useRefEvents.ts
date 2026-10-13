@@ -26,42 +26,31 @@ export interface RefEvents {
   settled: boolean;
 }
 
+const NO_PEOPLE: string[] = [];
+
 const byCoord = (events: MinimalEvent[]) =>
   new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
 
 export function useRefEvents(refs: EventRef[]): RefEvents {
-  const idKey = refs
-    .map((r) => r.id)
-    .filter(Boolean)
-    .join(",");
-  // The relays the ids' own tags name, asked beside the default set.
-  const hintKey = refs
-    .filter((r) => r.id && r.relay)
-    .map((r) => r.relay)
-    .slice(0, MAX_REF_HINTS)
-    .join(",");
-  const addrKey = refs
-    .map((r) => (r.addr ? `${r.addr}|${r.relay ?? ""}` : ""))
-    .filter(Boolean)
-    .join(",");
-  const idRelays = useMemo(
-    () => Array.from(new Set([...(hintKey ? hintKey.split(",") : []), ...PROFILE_RELAYS])),
-    [hintKey],
-  );
-  const ids = useMemo(() => (idKey ? idKey.split(",") : []), [idKey]);
-  const addrs = useMemo(
-    () =>
-      addrKey
-        ? addrKey
-            .split(",")
-            .map((k) => {
-              const [addr, relay] = k.split("|");
-              return parseATag(addr, relay || undefined);
-            })
-            .filter((a): a is AddressRef => a !== null)
-        : [],
-    [addrKey],
-  );
+  // Keyed on the refs' values, never round-tripped through a joined string: an
+  // address's `d` may hold any character, commas and bars included.
+  const refsKey = JSON.stringify(refs.map((r) => [r.id ?? null, r.addr ?? null, r.relay ?? null]));
+  const { ids, idKey, idRelays, addrs } = useMemo(() => {
+    const ids = Array.from(new Set(refs.flatMap((r) => (r.id ? [r.id.toLowerCase()] : []))));
+    // The relays the ids' own tags name, asked beside the default set.
+    const hints = refs.flatMap((r) => (r.id && r.relay ? [r.relay] : [])).slice(0, MAX_REF_HINTS);
+    const addrs = refs
+      .map((r) => (r.addr ? parseATag(r.addr, r.relay) : null))
+      .filter((a): a is AddressRef => a !== null);
+    return {
+      ids,
+      idKey: ids.join(","),
+      idRelays: Array.from(new Set([...hints, ...PROFILE_RELAYS])),
+      addrs,
+    };
+    // `refsKey` is `refs`, as a value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refsKey]);
 
   const idFilters = useMemo(() => (ids.length ? [{ ids }] : null), [ids]);
   const byId = useStoreEvents(ids.length ? `activity-refs:${idKey}` : null, idFilters, () =>
@@ -69,7 +58,7 @@ export function useRefEvents(refs: EventRef[]): RefEvents {
   );
   const held = useHeldReplaceables(addrs);
   const byAddr = useStoreEvents(
-    addrs.length ? `activity-addrs:${addrs.map(addrCoord).join(",")}` : null,
+    addrs.length ? `activity-addrs:${JSON.stringify(addrs.map(addrCoord))}` : null,
     null,
     async () => Array.from((await fetchAddressableEvents(capHints(addrs), PROFILE_RELAYS)).values()),
   );
@@ -81,7 +70,11 @@ export function useRefEvents(refs: EventRef[]): RefEvents {
     return m;
   }, [byId.events, addrs, held, byAddr.events]);
 
+  const settled = (!ids.length || byId.settled) && (!addrs.length || byAddr.settled);
+  // The profile ask waits for the events (CODING_STANDARDS: settled before
+  // dependents): keyed on a set that grows as each one lands, it would re-ask per event.
   const people = useMemo(() => {
+    if (!settled) return NO_PEOPLE;
     const set = new Set<string>();
     for (const e of found.values()) {
       set.add(e.pubkey);
@@ -89,7 +82,7 @@ export function useRefEvents(refs: EventRef[]): RefEvents {
       refs.mentionPubkeys.forEach((pk) => set.add(pk));
     }
     return Array.from(set);
-  }, [found]);
+  }, [found, settled]);
   const profiles = useLiveProfiles(people) as Map<string, ProfileLite>;
 
   return useMemo(
@@ -100,8 +93,8 @@ export function useRefEvents(refs: EventRef[]): RefEvents {
         return a ? found.get(addrCoord(a)) : undefined;
       },
       profiles,
-      settled: (!ids.length || byId.settled) && (!addrs.length || byAddr.settled),
+      settled,
     }),
-    [found, profiles, ids.length, byId.settled, addrs.length, byAddr.settled],
+    [found, profiles, settled],
   );
 }

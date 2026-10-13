@@ -83,12 +83,16 @@ export function mentionPubkeysFromContent(content: string): string[] {
   return out;
 }
 
-/** Parse an `a` tag value (`kind:pubkey:dTag`) into an address ref. */
+/**
+ * Parse an `a` tag value (`kind:pubkey:dTag`) into an address ref. The key is
+ * lower-cased: relays return it so, and a store keyed by it never matches an
+ * upper-case one.
+ */
 export function parseATag(value: string, relay?: string): AddressRef | null {
   const parts = value.split(":");
   if (parts.length < 3) return null;
   const kind = parseInt(parts[0], 10);
-  const pubkey = parts[1];
+  const pubkey = parts[1].toLowerCase();
   const identifier = parts.slice(2).join(":");
   if (!Number.isFinite(kind) || !/^[0-9a-f]{64}$/i.test(pubkey)) return null;
   return { kind, pubkey, identifier, relays: relay ? [relay] : undefined };

@@ -25,7 +25,8 @@ const NAMED: Record<string, { label: string; tone?: (n: number) => Tone }> = {
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function MetricTile({ metric }: { metric: Metric }) {
-  const named = NAMED[metric.tag];
+  // Own keys only: a tag is anything an event says, `constructor` included.
+  const named = Object.hasOwn(NAMED, metric.tag) ? NAMED[metric.tag] : undefined;
   return (
     <StatTile
       compact

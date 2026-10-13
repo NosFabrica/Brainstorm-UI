@@ -5,32 +5,52 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { nip19 } from "nostr-tools";
 import { Flag, ShieldCheck, Tag, Trash2, Users } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { SetRoster } from "@/components/share/FollowSetHero";
 import { HashtagChips } from "@/components/share/ListPreview";
 import { LinkChip } from "@/components/share/LinkPreview";
-import { MentionChip } from "@/components/share/MentionChip";
 import { ReadingText } from "@/components/share/ReadingText";
 import { useRefEvents, type ProfileLite } from "@/hooks/useRefEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { readApproval, readDeletion, readLabel, readReport, type ActivityEvent, type EventRef } from "@/lib/activity";
+import {
+  approvalAuthority,
+  readApproval,
+  readDeletion,
+  readLabel,
+  readReport,
+  type ActivityEvent,
+  type EventRef,
+} from "@/lib/activity";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { hostOf } from "@/lib/resultReaders";
 import { describeThing } from "@/lib/thing";
 import type { MinimalEvent } from "@/lib/noteRefs";
-import { ActivityHeader, PersonCard, PersonName, QuotedCard, QuotedRef, QuotedRefs, Section, refHref } from "./parts";
+import {
+  ActivityHeader,
+  PersonCard,
+  PersonName,
+  QuotedCard,
+  QuotedRef,
+  QuotedRefs,
+  Section,
+  refHref,
+  useFoldedRefs,
+} from "./parts";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
 export function DeletionHero({ event }: { event: ActivityEvent }) {
   const deletion = useMemo(() => readDeletion(event), [event]);
-  const refs = useRefEvents(deletion.targets);
+  // Asked for the ones on screen: a deletion of hundreds asks for five, "Show all" for the rest.
+  const fold = useFoldedRefs(deletion.targets);
+  const refs = useRefEvents(fold.shown);
   const n = deletion.targets.length;
   // NIP-09: only an event's own author can delete it. One by someone else is still there.
-  const notTheirs = deletion.targets.filter((t) => {
+  // Counted among the ones asked for.
+  const notTheirs = fold.shown.filter((t) => {
     const found = refs.get(t);
     return found && found.pubkey !== event.pubkey;
   }).length;
@@ -59,7 +79,13 @@ export function DeletionHero({ event }: { event: ActivityEvent }) {
       )}
       {n > 0 && (
         <Section kicker="Deleted" testId="deletion-targets">
-          <QuotedRefs targets={deletion.targets} refs={refs} missing="No longer available" />
+          <QuotedRefs
+            targets={deletion.targets}
+            refs={refs}
+            missing="No longer available"
+            open={fold.open}
+            onOpenChange={fold.setOpen}
+          />
         </Section>
       )}
     </div>
@@ -131,7 +157,8 @@ export function ReportHero({ event }: { event: ActivityEvent }) {
 
 export function LabelHero({ event }: { event: ActivityEvent }) {
   const label = useMemo(() => readLabel(event), [event]);
-  const refs = useRefEvents(label.events);
+  const fold = useFoldedRefs(label.events);
+  const refs = useRefEvents(fold.shown);
   const relays = label.links.filter((l) => /^wss?:\/\//i.test(l));
   const pages = label.links.filter((l) => /^https?:\/\//i.test(l));
   const nothing = !label.people.length && !label.events.length && !label.links.length && !label.hashtags.length;
@@ -147,7 +174,12 @@ export function LabelHero({ event }: { event: ActivityEvent }) {
       {label.labels.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5" data-testid="label-values">
           {label.labels.map((l) => (
-            <Chip key={l.value} tone="brand" title={l.namespace ?? undefined} data-testid="label-value">
+            <Chip
+              key={JSON.stringify([l.namespace, l.value])}
+              tone="brand"
+              title={l.namespace ?? undefined}
+              data-testid="label-value"
+            >
               {l.value}
             </Chip>
           ))}
@@ -156,14 +188,21 @@ export function LabelHero({ event }: { event: ActivityEvent }) {
       {label.comment && <ReadingText text={label.comment} tags={event.tags} className="mt-3" testId="label-comment" />}
       {!nothing && (
         <Section kicker="Labelled" testId="label-targets">
+          {/* A label on a thousand people is a roster folded after 25, not a thousand chips. */}
           {label.people.length > 0 && (
-            <div className="flex flex-wrap gap-1.5" data-testid="label-people">
-              {label.people.map((pk) => (
-                <MentionChip key={pk} uri={`nostr:${npub(pk)}`} />
-              ))}
+            <div data-testid="label-people">
+              <SetRoster members={label.people} />
             </div>
           )}
-          {label.events.length > 0 && <QuotedRefs targets={label.events} refs={refs} testId="label-events" />}
+          {label.events.length > 0 && (
+            <QuotedRefs
+              targets={label.events}
+              refs={refs}
+              testId="label-events"
+              open={fold.open}
+              onOpenChange={fold.setOpen}
+            />
+          )}
           {pages.length > 0 && (
             <div className="flex flex-wrap gap-1.5" data-testid="label-links">
               {pages.map((u) => (
@@ -187,14 +226,6 @@ export function LabelHero({ event }: { event: ActivityEvent }) {
   );
 }
 
-function npub(pubkey: string): string {
-  try {
-    return nip19.npubEncode(pubkey);
-  } catch {
-    return pubkey;
-  }
-}
-
 export function ApprovalHero({ event }: { event: ActivityEvent }) {
   const approval = useMemo(() => readApproval(event), [event]);
   const targets = useMemo(
@@ -206,6 +237,10 @@ export function ApprovalHero({ event }: { event: ActivityEvent }) {
   );
   const refs = useRefEvents(targets);
   const community = approval.community ? refs.get({ addr: approval.community }) : undefined;
+  // Anyone can sign a 4550: it is the community's word from its owner or a
+  // moderator its definition names. Until the definition lands, a claim — the
+  // page draws now, and firms up when it does.
+  const authority = approvalAuthority(approval, event.pubkey, community);
   const thing = community ? describeThing(community) : null;
   const name = thing?.title ?? approval.community?.split(":").slice(2).join(":") ?? null;
   const embeddedPeople = useMemo(() => (approval.embedded ? [approval.embedded.pubkey] : []), [approval]);
@@ -213,7 +248,7 @@ export function ApprovalHero({ event }: { event: ActivityEvent }) {
   return (
     <div data-testid="approval-hero">
       <ActivityHeader
-        title="Approved a post"
+        title={authority ? "Approved a post" : "Says it approved a post"}
         subtitle={
           name && approval.community ? (
             <>

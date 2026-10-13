@@ -271,21 +271,41 @@ export function QuotedRef({
   );
 }
 
+/** How many quoted refs show before "Show all". */
+export const QUOTE_FOLD = 5;
+
+/**
+ * The refs a folded list shows, and the toggle that unfolds it — held by the
+ * page, so it asks the relays (useRefEvents) for only the ones on screen.
+ */
+export function useFoldedRefs(targets: EventRef[], fold = QUOTE_FOLD) {
+  const [open, setOpen] = useState(false);
+  const shown = useMemo(() => (open ? targets : targets.slice(0, fold)), [open, targets, fold]);
+  return { shown, open, setOpen };
+}
+
 /** Quoted refs, the first few shown and the rest a click away. */
 export function QuotedRefs({
   targets,
   refs,
   missing,
-  fold = 5,
+  fold = QUOTE_FOLD,
   testId = "activity-quotes",
+  open: openAs,
+  onOpenChange,
 }: {
   targets: EventRef[];
   refs: RefEvents;
   missing?: string;
   fold?: number;
   testId?: string;
+  /** Held by the page (useFoldedRefs), when it asks for only what is shown. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openHere, setOpenHere] = useState(false);
+  const open = openAs ?? openHere;
+  const setOpen = (o: boolean) => (onOpenChange ? onOpenChange(o) : setOpenHere(o));
   const shown = open ? targets : targets.slice(0, fold);
   return (
     <div className="space-y-2" data-testid={testId}>
@@ -295,7 +315,7 @@ export function QuotedRefs({
       {targets.length > fold && (
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => setOpen(!open)}
           className="text-xs font-medium text-brand-primary hover:underline dark:text-brand-link"
           data-testid={`${testId}-toggle`}
         >

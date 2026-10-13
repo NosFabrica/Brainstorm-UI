@@ -3,7 +3,9 @@
  * request behind one (9734), a Cashu nutzap (9321), a BOLT12 zap (9736) or an
  * onchain one (8333): how much, from whom to whom, what they said, and the
  * post it was for. A receipt is signed by the recipient's wallet service, so
- * the payer is read from the request it carries (lib/activity), never its key.
+ * the payer is read from the request it carries (lib/activity), never its key —
+ * and said to be unverified when that request is not theirs, signed. The page
+ * itself stays the signer's: anyone can write a receipt naming anyone.
  */
 import { useMemo } from "react";
 import { Bitcoin, Coins, Zap as ZapIcon } from "lucide-react";
@@ -35,12 +37,25 @@ export function ZapHero({ event }: { event: ActivityEvent }) {
         subtitle={RAIL_WORDS[zap.rail]}
         icon={Icon}
       />
-      <PeopleFlow from={zap.payer} to={zap.recipient} fromPlaceholder="Anonymous" />
+      <PeopleFlow
+        from={zap.payer}
+        to={zap.recipient}
+        fromKicker={zap.payerClaimed ? "From (claimed)" : "From"}
+        fromPlaceholder="Anonymous"
+      />
+      {zap.payerClaimed && (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <Chip tone="warning" size="sm" data-testid="zap-payer-unverified">
+            Sender unverified
+          </Chip>
+          The zap request it carries is not signed by them, so anyone could have written this receipt.
+        </p>
+      )}
 
       {zap.comment && (
         <ReadingText
           text={zap.comment}
-          tags={event.tags}
+          tags={zap.commentTags}
           className="mt-4 border-l-2 border-slate-200 pl-3 dark:border-slate-700"
           testId="zap-comment"
         />

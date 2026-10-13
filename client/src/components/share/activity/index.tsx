@@ -5,7 +5,7 @@
  * this is the same reading as a page: who, to whom, how much, and the event
  * it is about, quoted. Parsing is lib/activity's, shared with the row.
  */
-import { ASSERTION_KINDS, ZAP_KINDS, readZap, type ActivityEvent } from "@/lib/activity";
+import { ASSERTION_KINDS, ZAP_KINDS, type ActivityEvent } from "@/lib/activity";
 import { AssertionHero } from "./AssertionHero";
 import { ApprovalHero, DeletionHero, LabelHero, ReportHero } from "./ModerationHeroes";
 import { ReactionHero } from "./ReactionHero";
@@ -29,15 +29,6 @@ export const ACTIVITY_KINDS: ReadonlySet<number> = new Set([
 ]);
 
 export const hasActivityHero = (event: { kind: number }): boolean => ACTIVITY_KINDS.has(event.kind);
-
-/**
- * Whose the page is, when not the signer's: a zap receipt is signed by the
- * recipient's wallet service, and the page — its author line, its "More from" —
- * is the payer's. Null keeps the signer.
- */
-export function activityAuthor(event: ActivityEvent): string | null {
-  return event.kind === 9735 ? (readZap(event)?.payer ?? null) : null;
-}
 
 export function ActivityHero({ event }: { event: ActivityEvent }) {
   if (ZAP_KINDS.has(event.kind)) return <ZapHero event={event} />;

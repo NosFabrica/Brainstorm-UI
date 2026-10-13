@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools";
 import {
+  approvalAuthority,
   assertionMetrics,
   externalTargetOf,
   metricNoun,
@@ -256,7 +258,12 @@ describe("the rest of the activities", () => {
           ["p", ALICE],
         ]),
       ),
-    ).toEqual({ badge: `30009:${WALLET}:bravery`, relay: "wss://relay.example", awardees: [ALICE, PAYER] });
+    ).toEqual({
+      badge: `30009:${WALLET}:bravery`,
+      relay: "wss://relay.example",
+      awardees: [ALICE, PAYER],
+      byIssuer: true,
+    });
   });
 
   it("a report (1984): the type on the event's tag, else on the person's; a relay there is no reason", () => {
@@ -313,7 +320,7 @@ describe("the rest of the activities", () => {
     });
   });
 
-  it("an approval (4550): the community, and the post as it carries it", () => {
+  it("an approval (4550): the community, and the post it names", () => {
     const post = { id: NOTE, pubkey: ALICE, kind: 1, created_at: 1, tags: [], content: "hello", sig: "x" };
     const a = readApproval(
       ev(
@@ -329,7 +336,8 @@ describe("the rest of the activities", () => {
     );
     expect(a.community).toBe(`34550:${WALLET}:cooking`);
     expect(a.post).toMatchObject({ id: NOTE });
-    expect(a.embedded?.content).toBe("hello");
+    // Unsigned: not shown as Alice's (a signed one is, below).
+    expect(a.embedded).toBeNull();
     expect(
       readApproval(
         ev(4550, [
@@ -462,5 +470,220 @@ describe("trusted assertions (NIP-85)", () => {
     ).toEqual([{ tag: "zap_cnt", value: 3 }]);
     expect(metricNoun("zap_cnt")).toBe("zaps");
     expect(metricNoun("personalizedGrapeRank_influence")).toBe("personalized grape rank influence");
+  });
+});
+
+// ---- Hostile and forged input (audit 2026-10) ----
+
+const signer = () => {
+  const sk = generateSecretKey();
+  return { sk, pubkey: getPublicKey(sk) };
+};
+const zapRequest = (sk: Uint8Array, tags: string[][], content = "") =>
+  finalizeEvent({ kind: 9734, created_at: 1_790_000_000, content, tags }, sk);
+
+describe("a zap receipt's payer is a claim until its request verifies", () => {
+  it("a request nobody signed names a payer, but only as a claim", () => {
+    const request = JSON.stringify({ kind: 9734, pubkey: ALICE, content: "", tags: [["e", NOTE]] });
+    const zap = readZap(
+      ev(9735, [
+        ["p", PAYER],
+        ["P", ALICE],
+        ["e", NOTE],
+        ["description", request],
+      ]),
+    )!;
+    expect(zap.payer).toBe(ALICE);
+    expect(zap.payerClaimed).toBe(true);
+  });
+
+  it("a signed request about the same post, by the `P` it names, is the payer's", () => {
+    const alice = signer();
+    const req = zapRequest(alice.sk, [
+      ["p", ALICE],
+      ["e", NOTE],
+    ]);
+    const zap = readZap(
+      ev(9735, [
+        ["p", ALICE],
+        ["P", alice.pubkey],
+        ["e", NOTE],
+        ["description", JSON.stringify(req)],
+      ]),
+    )!;
+    expect(zap.payer).toBe(alice.pubkey);
+    expect(zap.payerClaimed).toBe(false);
+  });
+
+  it("a signed request replayed into a receipt for another post, or under another `P`, is a claim", () => {
+    const alice = signer();
+    const req = JSON.stringify(zapRequest(alice.sk, [["e", NOTE]]));
+    expect(
+      readZap(
+        ev(9735, [
+          ["e", NOTE2],
+          ["description", req],
+        ]),
+      )!.payerClaimed,
+    ).toBe(true);
+    expect(
+      readZap(
+        ev(9735, [
+          ["e", NOTE],
+          ["P", PAYER],
+          ["description", req],
+        ]),
+      )!.payerClaimed,
+    ).toBe(true);
+  });
+
+  it("an anonymous zap (`anon` in its request) names no payer", () => {
+    const throwaway = signer();
+    const req = zapRequest(throwaway.sk, [
+      ["anon", ""],
+      ["p", ALICE],
+    ]);
+    const receipt = readZap(
+      ev(9735, [
+        ["p", ALICE],
+        ["description", JSON.stringify(req)],
+      ]),
+    )!;
+    expect(receipt.payer).toBeNull();
+    // The request's own page, too: its key is a throwaway.
+    expect(readZap({ ...ev(9734, req.tags, "", req.pubkey) })!.payer).toBeNull();
+  });
+
+  it("a receipt's comment draws its request's NIP-30 emoji", () => {
+    const request = JSON.stringify({
+      kind: 9734,
+      pubkey: PAYER,
+      content: "gm :soapbox:",
+      tags: [["emoji", "soapbox", "https://cdn.example/soapbox.png"]],
+    });
+    const zap = readZap(ev(9735, [["description", request]]))!;
+    expect(zap.comment).toBe("gm :soapbox:");
+    expect(zap.commentTags).toContainEqual(["emoji", "soapbox", "https://cdn.example/soapbox.png"]);
+  });
+});
+
+describe("an RSVP status is a word, never an object's own property", () => {
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])("status %s reads as a reply", (status) => {
+    const r = readRsvp(ev(31925, [["status", status]]));
+    expect(r.status).toBeNull();
+    expect(r.word).toBe("Replied");
+  });
+});
+
+describe("an approval's embedded post is believed only when it is the post, signed", () => {
+  const community = `34550:${WALLET}:cooking`;
+  it("a post its author never signed is not shown as theirs", () => {
+    const forged = { id: NOTE, pubkey: ALICE, kind: 1, created_at: 1, tags: [], content: "I endorse scams", sig: "x" };
+    const a = readApproval(
+      ev(
+        4550,
+        [
+          ["a", community],
+          ["e", NOTE],
+        ],
+        JSON.stringify(forged),
+      ),
+    );
+    expect(a.embedded).toBeNull();
+    expect(a.post).toMatchObject({ id: NOTE });
+  });
+
+  it("tags that are not strings, or no id, are not an event", () => {
+    const bad = { id: "zz", pubkey: ALICE, kind: 1, content: "fake", tags: [null, [1]] };
+    expect(readApproval(ev(4550, [], JSON.stringify(bad))).embedded).toBeNull();
+  });
+
+  it("a signed post is shown only when it is the one the `e` names", () => {
+    const alice = signer();
+    const post = finalizeEvent({ kind: 1, created_at: 1, content: "hello", tags: [] }, alice.sk);
+    const ok = readApproval(
+      ev(
+        4550,
+        [
+          ["a", community],
+          ["e", post.id],
+        ],
+        JSON.stringify(post),
+      ),
+    );
+    expect(ok.embedded?.content).toBe("hello");
+    const other = readApproval(
+      ev(
+        4550,
+        [
+          ["a", community],
+          ["e", NOTE],
+        ],
+        JSON.stringify(post),
+      ),
+    );
+    expect(other.embedded).toBeNull();
+  });
+
+  it("is the community's word when its owner or a moderator signs it, else only a claim", () => {
+    const a = readApproval(ev(4550, [["a", community]], "", PAYER));
+    expect(approvalAuthority(a, WALLET, undefined)).toBe("owner");
+    expect(approvalAuthority(a, PAYER, undefined)).toBeNull();
+    const definition = { pubkey: WALLET, tags: [["p", PAYER, "", "moderator"]] };
+    expect(approvalAuthority(a, PAYER, definition)).toBe("moderator");
+    expect(approvalAuthority(a, ALICE, definition)).toBeNull();
+    // A definition by someone else is not this community's.
+    expect(approvalAuthority(a, PAYER, { pubkey: ALICE, tags: [["p", PAYER, "", "moderator"]] })).toBeNull();
+  });
+});
+
+describe("a badge award is an award only from the badge's issuer (NIP-58)", () => {
+  it("the issuer awarding their badge", () => {
+    expect(readBadgeAward(ev(8, [["a", `30009:${WALLET}:bravery`]], "", WALLET)).byIssuer).toBe(true);
+  });
+  it("anyone else naming it only claims it", () => {
+    expect(readBadgeAward(ev(8, [["a", `30009:${WALLET}:bravery`]], "", ALICE)).byIssuer).toBe(false);
+    expect(readBadgeAward(ev(8, [["a", `30009:${WALLET.toUpperCase()}:bravery`]], "", WALLET)).byIssuer).toBe(true);
+  });
+});
+
+describe("kind 17 without an `i`", () => {
+  it("reacts to the web page its `r` names", () => {
+    expect(readReaction(ev(17, [["r", "https://example.com/post"]], "+")).external).toMatchObject({
+      id: "https://example.com/post",
+      url: "https://example.com/post",
+      label: "example.com/post",
+    });
+  });
+  it("but not to an `r` that is no web page", () => {
+    expect(readReaction(ev(17, [["r", "wss://relay.example"]], "+")).external).toBeNull();
+    expect(readReaction(ev(17, [["r", "javascript:alert(1)"]], "+")).external).toBeNull();
+  });
+});
+
+describe("labels", () => {
+  it("one value in two namespaces is two labels; a repeat is one", () => {
+    const l = readLabel(
+      ev(1985, [
+        ["l", "funny", "ugc"],
+        ["l", "funny", "com.example"],
+        ["l", "funny", "ugc"],
+        ["l", "funny"],
+        ["l", "funny"],
+      ]),
+    );
+    expect(l.labels).toEqual([
+      { value: "funny", namespace: "ugc" },
+      { value: "funny", namespace: "com.example" },
+      { value: "funny", namespace: null },
+    ]);
+  });
+});
+
+describe("addresses with an upper-case key", () => {
+  it("are read with the key lower-cased, so they match what relays return", () => {
+    expect(targetsOf({ tags: [["a", `30023:${WALLET.toUpperCase()}:Essay`]] })).toEqual([
+      { addr: `30023:${WALLET}:Essay`, relay: undefined },
+    ]);
   });
 });
