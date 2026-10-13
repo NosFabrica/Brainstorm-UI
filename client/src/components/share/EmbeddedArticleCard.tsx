@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -26,6 +26,8 @@ import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
+import { embedShapeOf } from "@/lib/embedShape";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -55,13 +57,7 @@ function ago(ts?: number): string {
 /** How many of a spec's kinds a card shows; the spec page has them all. */
 const KIND_CHIPS_SHOWN = 6;
 
-export function EmbeddedArticleCard({
-  event,
-  author,
-  trustScore01,
-  leadKinds = [],
-  mixed = true,
-}: {
+type EmbeddedArticleCardProps = {
   trustScore01?: number | null;
   event: MinimalEvent;
   author?: ProfileLite;
@@ -69,7 +65,22 @@ export function EmbeddedArticleCard({
   leadKinds?: string[];
   /** Whether the surface mixes kinds. The Recipes and NIPs tabs hold one and say so; the pill stays away there. */
   mixed?: boolean;
-}) {
+};
+
+/**
+ * Callers hand this card whatever a note links by address — a stream, a
+ * listing, a video, a list — not only articles. Those are drawn as what they
+ * are (EmbeddedNoteCard, by lib/embedShape), never as an article with the
+ * default cover. EmbeddedNoteCard sends articles back here, so the two never
+ * pass an event between them twice.
+ */
+export function EmbeddedArticleCard(props: EmbeddedArticleCardProps) {
+  const shape = useMemo(() => embedShapeOf(props.event), [props.event]);
+  if (shape !== "article" && shape !== "note") return <EmbeddedNoteCard event={props.event} author={props.author} />;
+  return <ArticleCardBody {...props} />;
+}
+
+function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = true }: EmbeddedArticleCardProps) {
   // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
   // The hooks still run for it — an article overwritten while its card is on
   // screen turns blank on a later render, and the hook count must not move —

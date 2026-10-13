@@ -68,6 +68,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
+import { EventDateTile } from "@/components/share/EventDateTile";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -1124,6 +1125,7 @@ export function EventCard({
   score,
   going = 0,
   faces = [],
+  dateTile = false,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -1131,6 +1133,8 @@ export function EventCard({
   /** People whose latest RSVP is "accepted", and up to a few of their faces. */
   going?: number;
   faces?: string[];
+  /** Lead with the date tile: where the card stands alone, with no day header above it (a quoted event). */
+  dateTile?: boolean;
 }) {
   const cal = parseCalendarEvent(event);
   // "Past" means over — an all-day event today or a running conference is not.
@@ -1164,6 +1168,7 @@ export function EventCard({
       testId={`event-card-${event.id}`}
     >
       <div className="flex items-start gap-3">
+        {dateTile && <EventDateTile startSec={cal.startSec} past={past} testId={`event-date-tile-${event.id}`} />}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             {cal.startSec > 0 && (

@@ -21,6 +21,11 @@ import { DeletedStub } from "@/components/share/DeletedStub";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { Chip } from "@/components/ui/chip";
+import { embedShapeOf, namesItsKind, type EmbedShape } from "@/lib/embedShape";
+import { kindLabel } from "@/lib/kindLabel";
+import { EmbeddedKindCard, KIND_CARD_SHAPES, type KindCardShape } from "@/components/share/EmbeddedKindCard";
+import { EmbeddedAudio, EmbeddedPictures, EmbeddedVideo } from "@/components/share/EmbeddedMedia";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -58,13 +63,30 @@ export type EmbeddedNoteCardProps = {
  * note card, with its author's avatar + name (Primal-style). Links to the
  * author's share page. Truncates long content.
  *
- * A quoted event that is a list (bookmarks, a bookmark set — lib/listItems)
- * has no words of its own: it is drawn as the list, not as an empty note.
+ * A quoted event is drawn as what it is (lib/embedShape), with the card its
+ * kind has elsewhere: a list (bookmarks, a bookmark set — lib/listItems) as
+ * the list, an article as its teaser, a thing, a people list, a stream, a
+ * dated event, a listing, an app, a repo or a track as its card
+ * (EmbeddedKindCard). A video, a picture post or a voice message keeps this
+ * card's author line and shows its media; anything else its words, with its
+ * kind named when it is not a note — a quoted zap or reaction is no mystery.
  */
 export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
-  if (ITEM_LIST_KINDS.has(props.event.kind))
+  const shape = useMemo(() => embedShapeOf(props.event), [props.event]);
+  if (shape === "item-list")
     return <EmbeddedListCard event={props.event} author={props.author} href={props.href} nested={props.nested} />;
-  return <NoteCardBody {...props} />;
+  if (shape === "article") return <EmbeddedArticleCard event={props.event} author={props.author} />;
+  // A market or ballot keeps its compact drawing in this card (MarketSummary, BallotAnswers).
+  if (KIND_CARD_SHAPES.has(shape) && !isInlineThing(props.event))
+    return <EmbeddedKindCard event={props.event} author={props.author} shape={shape as KindCardShape} />;
+  return <NoteCardBody {...props} shape={shape} />;
+}
+
+/** A kind-38000 prediction market or ballot: drawn in the note card itself, its question and where it stands. */
+function isInlineThing(event: MinimalEvent): boolean {
+  if (event.kind !== 38000) return false;
+  const type = describeThing(event)?.detail.type;
+  return type === "market" || type === "ballot";
 }
 
 function NoteCardBody({
@@ -75,7 +97,8 @@ function NoteCardBody({
   trustScore01,
   showReplyContext = false,
   nested = false,
-}: EmbeddedNoteCardProps) {
+  shape,
+}: EmbeddedNoteCardProps & { shape: EmbedShape }) {
   const tierRing = useTierRing();
   // Deleted by overwriting: a quiet stub in the quote's place, nothing to click.
   const blank = isBlankEvent(event);
@@ -95,19 +118,24 @@ function NoteCardBody({
   // a market's content is BAO's social post, a ballot's is raw JSON.
   const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
   const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
-  // Neither shows its content, so nothing it names is looked up.
-  const linked = useLinkedArticles(nested || shaped ? EMPTY_NOTE : event);
+  // A video, a picture post or a voice message shows its media, not its words.
+  const media = shape === "video" || shape === "picture" || shape === "audio" ? shape : null;
+  // None of these shows its content, so nothing it names is looked up.
+  const wordless = !!shaped || !!media;
+  const linked = useLinkedArticles(nested || wordless ? EMPTY_NOTE : event);
   // The note read once, for everything below that asks what it names.
   const refs = useMemo(() => analyzeNote(event), [event]);
   // A list it links by address: the list's name and count, one level deep.
-  const linkedLists = useArticlesByRefs(nested || shaped ? [] : refs.addrs.filter((a) => ITEM_LIST_KINDS.has(a.kind)));
+  const linkedLists = useArticlesByRefs(
+    nested || wordless ? [] : refs.addrs.filter((a) => ITEM_LIST_KINDS.has(a.kind)),
+  );
   // Drawn as cards below, so not again as links in the text.
   const cardCoords = useMemo(
     () => (linkedLists.coords.size ? new Set([...linked.coords, ...linkedLists.coords]) : linked.coords),
     [linked.coords, linkedLists.coords],
   );
   // Likewise a note it quotes: the quoted note, with its author, one level deep.
-  const quoted = useQuotedNotes(nested || shaped ? [] : refs.quoteIds);
+  const quoted = useQuotedNotes(nested || wordless ? [] : refs.quoteIds);
   let npub = "";
   try {
     npub = npubFromPubkey(event.pubkey);
@@ -152,6 +180,11 @@ function NoteCardBody({
           {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
         </a>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {namesItsKind(event.kind) && (
+            <Chip tone="slate" size="sm" className="shrink-0" data-testid="embedded-kind">
+              {kindLabel(event)}
+            </Chip>
+          )}
           {typeof effectiveScore01 === "number" && Number.isFinite(effectiveScore01) && (
             <VerificationCoin
               score01={effectiveScore01}
@@ -197,6 +230,12 @@ function NoteCardBody({
             ) : null}
           </div>
         </div>
+      ) : media === "video" ? (
+        <EmbeddedVideo key={event.id} event={event} />
+      ) : media === "picture" ? (
+        <EmbeddedPictures key={event.id} event={event} opensThread={!!href} />
+      ) : media === "audio" ? (
+        <EmbeddedAudio key={event.id} event={event} artist={author?.display_name || author?.name} href={href} />
       ) : (
         <div className="line-clamp-5 text-[14px]">
           <NoteContent
