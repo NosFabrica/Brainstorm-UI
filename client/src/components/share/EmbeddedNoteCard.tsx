@@ -4,7 +4,6 @@ import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
@@ -207,7 +206,7 @@ function NoteCardBody({
             profiles={profiles}
             imageOpensThread={!!href}
             tags={event.tags}
-            videoWarning={VIDEO_KINDS.has(event.kind) ? contentWarningOf(event) : null}
+            contentWarning={contentWarningOf(event)}
             authorName={author?.display_name || author?.name}
             embeddedCoords={cardCoords}
             embeddedIds={quoted.ids}

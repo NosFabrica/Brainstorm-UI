@@ -291,7 +291,7 @@ function naddrOf(event: NostrEvent): string | null {
 // The media helpers live in lib/mediaKind (the Media tab's facets read them
 // too); re-exported here for the callers that always found them on the card.
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
-import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
+import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export function MediaCard({
@@ -311,8 +311,14 @@ export function MediaCard({
   const isImage = kind === "photo";
   const isAudio = kind === "audio";
   const isVideo = kind === "video";
-  // A video its creator marked sensitive neither plays nor shows its poster until the reader asks.
-  const warning = isVideo || VIDEO_KINDS.has(event.kind) ? contentWarningOf(event) : null;
+  // Media its creator marked sensitive — a video, a picture post, a note's photo — neither
+  // plays nor shows a picture until the reader asks.
+  const warning = isAudio && !poster ? null : contentWarningOf(event);
+  // A picture post (kind 20) can hold several: the card shows the first and says how many more.
+  const photoCount = useMemo(
+    () => (isImage ? mediaItemsOf(event).filter((i) => i.kind === "photo").length : 0),
+    [event, isImage],
+  );
   const [shown, setShown] = useState(false);
   // A video event says its own size and, as a short, that it loops; a note with a clip says neither.
   // Read once per event: `readVideo` walks every tag, and a card re-renders as its list streams.
@@ -392,6 +398,8 @@ export function MediaCard({
           <SensitiveCover
             reason={warning.reason}
             onShow={() => setShown(true)}
+            subject={isVideo || VIDEO_KINDS.has(event.kind) ? "video" : isImage ? "photo" : "media"}
+            count={Math.max(1, photoCount)}
             className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
           />
         )
@@ -415,14 +423,25 @@ export function MediaCard({
           />
         </div>
       ) : (isImage || poster) && url ? (
-        <MediaImg
-          src={isImage ? url : (poster as string)}
-          preset="media_1280"
-          alt=""
-          loading="lazy"
-          className="mt-2 max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
-          data-testid={`media-thumb-${event.id}`}
-        />
+        <div className="relative">
+          <MediaImg
+            src={isImage ? url : (poster as string)}
+            preset="media_1280"
+            alt=""
+            loading="lazy"
+            className="mt-2 block max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
+            data-testid={`media-thumb-${event.id}`}
+          />
+          {photoCount > 1 && (
+            <span
+              className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white"
+              aria-label={`${photoCount - 1} more ${photoCount - 1 === 1 ? "photo" : "photos"}`}
+              data-testid="media-card-more"
+            >
+              +{photoCount - 1}
+            </span>
+          )}
+        </div>
       ) : (
         <div className="mt-2 flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
           {(() => {

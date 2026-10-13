@@ -51,7 +51,7 @@ import { MediaImg } from "@/components/ui/media-img";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { SHORT_VIDEO_KINDS, VIDEO_KINDS } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS } from "@/lib/nip71";
 import { postedAtOf } from "@/lib/eventDate";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
@@ -232,8 +232,9 @@ function RowThumb({
     postHref: eventPath(event),
   };
   const { url, poster, isVideo } = rowThumbMedia(event);
-  // A video its creator marked sensitive: no poster and no frame here, and the full view asks first.
-  const warning = isVideo || VIDEO_KINDS.has(event.kind) ? (contentWarningOf(event) ?? undefined) : undefined;
+  // Media its creator marked sensitive — a video, a picture post, a note's photo: no picture and
+  // no frame here. A clip's tap opens the full view covered; a picture's row opens the post.
+  const warning = contentWarningOf(event) ?? undefined;
   // Google's result thumbnail is a 92px square; a 64px one undersold every picture.
   const cls = "h-[92px] w-[92px] shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   // The thumbnail IS the media: a tap opens it full view (a clip plays), not

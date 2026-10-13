@@ -1,37 +1,56 @@
-import { Music as MusicIcon, Play, Pause, Loader2, AlertCircle } from "lucide-react";
-import {
-  useTrackPlayer,
-  useTrackDuration,
-  toggleTrack,
-  seekTrack,
-  formatTime,
-  audioUrlFromEvent,
-} from "@/lib/audioPlayer";
+import { Music as MusicIcon, Mic, Podcast, Play, Pause, Loader2, AlertCircle } from "lucide-react";
+import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
+import { readAudioEvent, type AudioEventShape } from "@/lib/audioEvent";
 import audioDefault from "@/assets/audio-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
+import { Chip } from "@/components/ui/chip";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
-const tagVal = (ev: MinimalEvent, k: string) => ev.tags.find((t) => t[0] === k)?.[1];
+const SHAPE_ICON: Record<AudioEventShape, typeof MusicIcon> = {
+  track: MusicIcon,
+  episode: Podcast,
+  trailer: Podcast,
+  voice: Mic,
+  audio: MusicIcon,
+};
+
+/** "2024-03-01" as a reader says it, on the day the publisher wrote; a year, a month or anything else as published. */
+function releasedLabel(raw: string): string {
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0];
+  if (!day) return raw;
+  const t = Date.parse(day);
+  if (Number.isNaN(t)) return raw;
+  return new Date(t).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 /**
- * A focused "now playing" hero for a music event (kind-31337) on the /e page:
- * large cover art, title + artist, a full-width player (big play/pause, seek bar,
- * elapsed/total time) and genre + description metadata. Reuses the shared audio
- * player, so it's the same one-at-a-time playback that pauses on navigation.
+ * The "now playing" hero for a sound on its /e page — a music track (31337,
+ * 36787), a podcast episode or trailer (54, 30054, 30055), a voice message
+ * (1222, 1244) or an audio header (1808), read by lib/audioEvent: large cover
+ * art, title + artist, a full-width player (big play/pause, seek bar,
+ * elapsed/total time), the facts its kind carries (album, track, release,
+ * season, episode, explicit) and its description or caption. Reuses the
+ * shared audio player, so it's the same one-at-a-time playback that pauses on
+ * navigation.
  */
 export function AudioHero({ event }: { event: MinimalEvent }) {
   const id = event.id;
-  const title = tagVal(event, "title") || tagVal(event, "subject") || "Untitled track";
-  const artist = tagVal(event, "artist") || tagVal(event, "creator") || tagVal(event, "c") || "";
-  const cover = tagVal(event, "image") || tagVal(event, "cover");
-  const audio = audioUrlFromEvent(event);
-  const genres = event.tags
-    .filter((t) => t[0] === "t" && t[1])
-    .map((t) => t[1])
-    .filter((g) => g.toLowerCase() !== "music")
-    .map((g) => g.charAt(0).toUpperCase() + g.slice(1));
-  const durationSec = Number(tagVal(event, "duration")) || undefined;
-  const description = (tagVal(event, "summary") || event.content || "").trim();
+  const a = readAudioEvent(event);
+  const { title, artist, cover, audio, genres, durationSec, text: description } = a;
+  const Icon = SHAPE_ICON[a.shape];
+  const facts = [
+    a.album,
+    a.trackNumber ? `Track ${a.trackNumber}` : "",
+    a.season ? `Season ${a.season}` : "",
+    a.episode ? `Episode ${a.episode}` : "",
+    a.released ? `Released ${releasedLabel(a.released)}` : "",
+  ].filter(Boolean);
 
   const player = useTrackPlayer(id);
   const metaDuration = useTrackDuration(durationSec ? undefined : audio);
@@ -58,25 +77,39 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
         {/* Title, artist, genre, player */}
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-link">
-            <MusicIcon className="h-3 w-3" /> Track
+            <Icon className="h-3 w-3" /> {a.label}
           </span>
           <h1
             className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {title}
+            <EmojiText text={title} tags={event} />
           </h1>
-          {artist && <p className="mt-0.5 text-sm font-medium text-slate-500 dark:text-slate-400">{artist}</p>}
+          {artist && (
+            <p
+              className="mt-0.5 text-sm font-medium text-slate-500 dark:text-slate-400"
+              data-testid="audio-hero-artist"
+            >
+              <EmojiText text={artist} tags={event} />
+            </p>
+          )}
+          {facts.length > 0 && (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" data-testid="audio-hero-facts">
+              {facts.join(" · ")}
+            </p>
+          )}
 
-          {genres.length > 0 && (
+          {(a.explicit || genres.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
+              {a.explicit && (
+                <Chip tone="slate" size="sm" data-testid="audio-hero-explicit">
+                  Explicit
+                </Chip>
+              )}
               {genres.map((g) => (
-                <span
-                  key={g}
-                  className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                >
+                <Chip key={g} tone="slate" size="sm">
                   {g}
-                </span>
+                </Chip>
               ))}
             </div>
           )}
@@ -87,7 +120,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
               type="button"
               disabled={!playable}
               onClick={() => {
-                if (audio) toggleTrack(id, audio);
+                if (audio) toggleTrack(id, audio, { title, artist, cover });
               }}
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white shadow-sm transition-colors hover:bg-brand-primary-hover disabled:opacity-40"
               aria-label={player.isPlaying ? "Pause" : "Play"}
@@ -121,8 +154,8 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
                 />
               </div>
               <div className="mt-1.5 flex justify-between text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
-                <span>{player.isError ? "Couldn't play this track" : formatTime(player.currentTime)}</span>
-                <span>{formatTime(total)}</span>
+                <span>{player.isError ? "Couldn't play this" : formatTime(player.currentTime)}</span>
+                <span data-testid="audio-hero-duration">{formatTime(total)}</span>
               </div>
             </div>
           </div>

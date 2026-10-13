@@ -29,7 +29,6 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
 import { FileHero } from "@/components/share/FileHero";
-import { isMediaFile } from "@/lib/fileMetadata";
 import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
@@ -52,6 +51,11 @@ import { useSiteCard } from "@/hooks/useSiteCard";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
+import { EventMedia } from "@/components/share/EventMedia";
+import { hasAudioHero } from "@/lib/audioEvent";
+import { mediaItemsOf, mediaKindOfUrl } from "@/lib/mediaKind";
+import { contentWarningOf } from "@/lib/nip36";
+import { EmojiText } from "@/components/ui/custom-emoji";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ThingHero, ThingSections, hasThingPage } from "@/components/share/things";
 import { ListingRelated } from "@/components/share/ListingRelated";
@@ -64,7 +68,6 @@ import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { useLightbox } from "@/components/share/Lightbox";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
@@ -76,7 +79,6 @@ import { useShareMeta } from "@/hooks/useShareMeta";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
@@ -117,33 +119,6 @@ function ago(ts?: number): string {
 }
 
 const NOTE_KINDS = new Set([1, 6, 16]);
-const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i;
-const VID_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
-
-/**
- * Media URLs for picture/video events (NIP-68 kind-20 etc.): pull the `url`
- * field from `imeta` tags, plus any plain `url` tags, falling back to image/video
- * URLs found in the content text.
- */
-function eventMediaUrls(ev: MinimalEvent): string[] {
-  const urls: string[] = [];
-  for (const t of ev.tags || []) {
-    if (t[0] === "imeta") {
-      for (const part of t.slice(1)) {
-        const m = /^url\s+(\S+)/.exec(part);
-        if (m) urls.push(m[1]);
-      }
-    } else if (t[0] === "url" && t[1]) {
-      urls.push(t[1]);
-    }
-  }
-  if (urls.length === 0) {
-    for (const m of (ev.content || "").matchAll(/https?:\/\/\S+/gi)) {
-      if (IMG_RE.test(m[0]) || VID_RE.test(m[0])) urls.push(m[0]);
-    }
-  }
-  return Array.from(new Set(urls));
-}
 
 /**
  * On-site event/note landing page (`/e/:nevent`) — Brainstorm's njump replacement
@@ -229,7 +204,6 @@ function EventView({
   note: MinimalEvent | null | undefined;
   loading: boolean;
 }) {
-  const speed = useConnectionSpeed();
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const relayHints = ptr?.relays || [];
@@ -252,7 +226,18 @@ function EventView({
         note.tags.find((t) => t[0] === "p")?.[1]
       : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
+  // The files a kind with no hero of its own carries (a kind-20 picture post, a
+  // comment's imeta), each drawn as what it is. A file its words also link, by
+  // a name the text knows as media, is drawn there, once, by the note's text.
+  const mediaItems = useMemo(
+    () =>
+      note && !NOTE_KINDS.has(note.kind)
+        ? mediaItemsOf(note).filter((item) => !(note.content.includes(item.url) && mediaKindOfUrl(item.url)))
+        : [],
+    [note],
+  );
+  // A picture post's own title (NIP-68 kind 20), above its pictures.
+  const mediaTitle = note?.tags.find((t) => t[0] === "title")?.[1]?.trim();
 
   // The author's held profile at once; the event's own relay hints are asked
   // beside their outbox, and a newer profile replaces it as it lands.
@@ -365,14 +350,16 @@ function EventView({
   // fallback (media, text, or the structural card). Mirrors the chain in the
   // JSX: a kind with no hero of its own is the one whose publishing client
   // is worth a way back to (the team, 2026-09-24: "open in original client").
-  const DEDICATED_KINDS = new Set([
-    30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923, 39998, 9998,
-  ]);
+  // A sound (a track, an episode, a voice message) is dedicated when it has a
+  // file to play: lib/audioEvent's `hasAudioHero`, since 30054/30055 also carry
+  // other apps' records that have none.
+  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 30392, 10040, 30402, 31922, 31923, 39998, 9998]);
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
+    !hasAudioHero(note) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
     !VIDEO_KINDS.has(note.kind) &&
@@ -431,10 +418,6 @@ function EventView({
   // Sign up from here → come back to this exact event afterward.
   const here = typeof window !== "undefined" ? window.location.pathname : "";
   const funnelLoginHref = `/login?${[authorNpub ? `invite=${authorNpub}` : "", here ? `next=${encodeURIComponent(here)}` : ""].filter(Boolean).join("&")}`;
-
-  const openLightbox = useLightbox();
-  // Image-only subset of the event's media — the lightbox carousels through these.
-  const galleryImages = mediaUrls.filter((u) => !VID_RE.test(u));
 
   // New in-app accounts that landed here (e.g. via the thread gate) haven't saved
   // a backup yet — surface a slim, dismissible safety + discovery nudge. It asks
@@ -601,7 +584,8 @@ function EventView({
                 <LiveHero event={note} />
               ) : note.kind === 32267 ? (
                 <AppHero event={note} />
-              ) : note.kind === 1063 && !isMediaFile(note) ? (
+              ) : note.kind === 1063 ? (
+                // Any file: an installer offered for download, a picture, video or sound drawn as what it is.
                 <FileHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
@@ -614,7 +598,8 @@ function EventView({
               ) : ITEM_LIST_KINDS.has(note.kind) ? (
                 // Bookmarks, bookmark sets, curation sets, pins: the things it holds.
                 <ItemListHero event={note} />
-              ) : note.kind === 31337 ? (
+              ) : hasAudioHero(note) ? (
+                // A track, a podcast episode or trailer, a voice message, an audio header.
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
                 <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
@@ -638,34 +623,25 @@ function EventView({
                   forceExpanded
                   reading
                 />
-              ) : mediaUrls.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
+              ) : mediaItems.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
                 // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />
               ) : (
                 <div data-testid="event-media">
-                  {mediaUrls.map((u, i) =>
-                    VID_RE.test(u) ? (
-                      <video
-                        key={i}
-                        src={u}
-                        controls
-                        preload={videoPreload(speed)}
-                        className="mb-2 max-h-[36rem] w-full rounded-xl border border-slate-200 dark:border-slate-800"
-                      />
-                    ) : (
-                      <img
-                        key={i}
-                        src={u}
-                        alt=""
-                        loading="lazy"
-                        onClick={() => openLightbox(galleryImages, Math.max(0, galleryImages.indexOf(u)))}
-                        className="mb-2 max-h-[36rem] w-full cursor-zoom-in rounded-xl border border-slate-200 object-contain dark:border-slate-800"
-                      />
-                    ),
+                  {mediaTitle && (
+                    <h1
+                      className="mb-3 text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                      style={{ fontFamily: "var(--font-display)" }}
+                      data-testid="event-media-title"
+                    >
+                      <EmojiText text={mediaTitle} tags={note} />
+                    </h1>
                   )}
+                  <EventMedia key={note.id} event={note} items={mediaItems} />
                   {note.content?.trim() && (
                     <div className="mt-1">
                       <NoteContent
+                        key={note.id}
                         content={note.content}
                         reading
                         profiles={profiles}
@@ -673,6 +649,7 @@ function EventView({
                         tags={note.tags}
                         authorName={profile.display_name || profile.name}
                         embedThings
+                        contentWarning={contentWarningOf(note)}
                       />
                     </div>
                   )}

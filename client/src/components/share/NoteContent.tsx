@@ -94,7 +94,7 @@ export function NoteContent({
   embeddedIds,
   embeddedCoords,
   embedThings = false,
-  videoWarning,
+  contentWarning,
 }: {
   content: string;
   compact?: boolean;
@@ -120,13 +120,15 @@ export function NoteContent({
   tags?: string[][];
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
-  /** The event is a video its creator marked sensitive (lib/nip36): a clip in its words is
-   *  covered until the reader asks for it, and a picture there (its poster) is a placeholder. */
-  videoWarning?: ContentWarning | null;
+  /** The event's creator marked it sensitive (lib/nip36), whatever its kind — a note, a
+   *  comment, a chat message, a video: each clip in its words is covered until the reader
+   *  asks for it. Its pictures are too: one cover asks for them all when there is no clip,
+   *  and beside a clip (a video's poster) each is a placeholder the clip's cover reveals. */
+  contentWarning?: ContentWarning | null;
 }) {
   // The callers key this component on the event, so a reveal never carries to another one.
   const [sensitiveShown, setSensitiveShown] = useState(false);
-  const covered = !!videoWarning && !sensitiveShown;
+  const covered = !!contentWarning && !sensitiveShown;
   // On the event's own page, whatever markup the text came in (HTML, a
   // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
   const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
@@ -150,6 +152,8 @@ export function NoteContent({
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
+  // A covered note with no clip asks for its pictures on the first one; the rest wait beside it.
+  const imageCover = covered && !firstClip ? imageUrls[0] : undefined;
   const renderToken = (token: NoteToken, i: number | string): ReactNode => {
     switch (token.type) {
       case "text":
@@ -179,7 +183,16 @@ export function NoteContent({
         );
       case "image":
         if (covered)
-          return (
+          return token.value === imageCover ? (
+            <SensitiveCover
+              key={i}
+              reason={contentWarning?.reason}
+              onShow={() => setSensitiveShown(true)}
+              subject="photo"
+              count={imageUrls.length}
+              className="mt-2 aspect-[16/10] max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800"
+            />
+          ) : (
             <SensitiveTile
               key={i}
               className="mt-2 aspect-[16/10] max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800"
@@ -222,7 +235,7 @@ export function NoteContent({
           return (
             <SensitiveCover
               key={i}
-              reason={videoWarning?.reason}
+              reason={contentWarning?.reason}
               onShow={() => setSensitiveShown(true)}
               className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
             />

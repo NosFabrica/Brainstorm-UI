@@ -11,7 +11,6 @@ import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
 import { TranslateLine } from "@/components/share/TranslateLine";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -354,7 +353,7 @@ export function ShareNoteCard({
           linkCard
           imageOpensThread={!!href}
           tags={event.tags}
-          videoWarning={VIDEO_KINDS.has(event.kind) ? contentWarningOf(event) : null}
+          contentWarning={contentWarningOf(event)}
           embeddedIds={new Set(quoted.map((q) => q.id))}
           // A linked list is drawn as its card below: the card is its link.
           embeddedCoords={listCoords}

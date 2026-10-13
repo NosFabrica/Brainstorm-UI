@@ -1,6 +1,7 @@
 /**
  * Which hits earn the Top stories strip. The strip draws a picture large, with no way to ask
- * first, so a video its creator marked sensitive stays out of it and reads as a row.
+ * first, so a post its creator marked sensitive — a video, or a note with a picture — stays out
+ * of it and reads as a row.
  */
 import { describe, expect, it, vi } from "vitest";
 import type { NostrEvent } from "nostr-tools";
@@ -35,8 +36,15 @@ describe("pickTopStories — a video marked sensitive", () => {
     }
   });
 
-  it("leaves an unflagged video, and a flagged note, where they were", () => {
-    const stories = pickTopStories([hit(1, 1, [["content-warning"]]), hit(2, 34236), hit(3, 1)]);
+  it("keeps a flagged note's picture out too, by its tag or its NIP-32 label", () => {
+    for (const flag of [["content-warning"], ["l", "nudity", "content-warning"]]) {
+      const stories = pickTopStories([hit(1, 1), hit(2, 1, [flag]), hit(3, 1), hit(4, 1)]);
+      expect(stories.map((s) => s.hit.event.id[0])).toEqual(["1", "3", "4"]);
+    }
+  });
+
+  it("leaves an unflagged video where it was", () => {
+    const stories = pickTopStories([hit(1, 1), hit(2, 34236), hit(3, 1)]);
     expect(stories.map((s) => s.hit.event.id[0])).toEqual(["1", "2", "3"]);
   });
 });

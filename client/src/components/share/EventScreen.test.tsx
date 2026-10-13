@@ -6,7 +6,7 @@
  * Vine's `created_at` is the day it was imported.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
@@ -114,5 +114,159 @@ describe("the event page — a video's date", () => {
   it("is created_at for every other kind, whatever its published_at says", () => {
     open({ ...vine(), kind: 1, content: "hello", tags: [["published_at", String(VINE_DAY)]] });
     expect(screen.getByTestId("event-date")).toHaveTextContent(dateOf(NOW - 3600));
+  });
+});
+
+const MP3 = "https://cdn.example/episode.mp3";
+const eventOf = (kind: number, tags: string[][], content = ""): MinimalEvent => ({
+  id: "2".repeat(64),
+  kind,
+  pubkey: "9".repeat(64),
+  created_at: NOW - 3600,
+  content,
+  tags,
+});
+
+// A sound on a page with no hero of its own was drawn as an <img>: a broken picture.
+describe("the event page — a file that is a sound", () => {
+  it("plays an audio file in the player, never as a picture", () => {
+    open(eventOf(1111, [["imeta", `url ${MP3}`, "m audio/mpeg"]], "Listen to this"));
+    expect(screen.getByTestId("event-media-audio")).toBeInTheDocument();
+    expect(screen.getByTestId("embedded-track")).toBeInTheDocument();
+    expect(document.querySelector(`img[src="${MP3}"]`)).toBeNull();
+  });
+
+  it("a media file (1063) is drawn as what it is, with its mime, size and hash under it", () => {
+    const hash = "cbb49d834143aa9047325603dacd4f8142093567973566de3b1e20a89557b728";
+    open(
+      eventOf(1063, [
+        ["url", MP3],
+        ["m", "audio/mpeg"],
+        ["size", "2048"],
+        ["x", hash],
+      ]),
+    );
+    const hero = screen.getByTestId("file-hero");
+    expect(screen.getByTestId("embedded-track")).toBeInTheDocument();
+    expect(hero.querySelector(`img[src="${MP3}"]`)).toBeNull();
+    expect(screen.getByTestId("file-hero-facts")).toHaveTextContent("Audio · audio/mpeg · 2 KB");
+    expect(screen.getByTestId("file-hero-hash")).toHaveTextContent("SHA-256 cbb49d834143…57b728");
+  });
+});
+
+describe("the event page — an audio hero for every sound", () => {
+  it("a 36787 music track: cover, title, artist, album, track number, explicit", () => {
+    open(
+      eventOf(
+        36787,
+        [
+          ["d", "t1"],
+          ["title", "Night Drive"],
+          ["artist", "The Relays"],
+          ["url", MP3],
+          ["image", "https://cdn.example/cover.jpg"],
+          ["album", "Signals"],
+          ["track_number", "3"],
+          ["explicit", "true"],
+          ["duration", "214"],
+        ],
+        "Recorded live.",
+      ),
+    );
+    const hero = screen.getByTestId("audio-hero");
+    expect(hero).toHaveTextContent("Night Drive");
+    expect(screen.getByTestId("audio-hero-artist")).toHaveTextContent("The Relays");
+    expect(screen.getByTestId("audio-hero-facts")).toHaveTextContent("Signals · Track 3");
+    expect(screen.getByTestId("audio-hero-explicit")).toBeInTheDocument();
+    expect(screen.getByTestId("audio-hero-duration")).toHaveTextContent("3:34");
+    expect(hero).toHaveTextContent("Recorded live.");
+    expect(hero.querySelector('img[src="https://cdn.example/cover.jpg"]')).not.toBeNull();
+    expect(screen.queryByTestId("event-media")).toBeNull();
+  });
+
+  it("a 54 podcast episode, and a 30054 with its season and episode", () => {
+    const { unmount } = open(
+      eventOf(54, [
+        ["title", "Ep 12: Relays"],
+        ["audio", MP3, "audio/mpeg"],
+        ["description", "On running relays."],
+      ]),
+    );
+    expect(screen.getByTestId("audio-hero")).toHaveTextContent("Episode");
+    expect(screen.getByTestId("audio-hero")).toHaveTextContent("On running relays.");
+    unmount();
+    open(
+      eventOf(30054, [
+        ["d", "pilot"],
+        ["title", "Pilot"],
+        ["audio", MP3],
+        ["season", "2"],
+        ["episode", "1"],
+      ]),
+    );
+    expect(screen.getByTestId("audio-hero-facts")).toHaveTextContent("Season 2 · Episode 1");
+  });
+
+  it("a voice message: its words beside the file are the caption", () => {
+    const voice = "https://cdn.example/voice.webm";
+    open(eventOf(1222, [["imeta", `url ${voice}`, "m audio/webm"]], `${voice} on my way`));
+    const hero = screen.getByTestId("audio-hero");
+    expect(hero).toHaveTextContent("Voice message");
+    expect(hero).toHaveTextContent("on my way");
+    expect(document.querySelector(`img[src="${voice}"]`)).toBeNull();
+  });
+
+  // Another app's reading progress rides 30054 too, with nothing to play.
+  it("a 30054 with nothing to play is not a sound", () => {
+    open(eventOf(30054, [["d", "book"]], "Chapter 3"));
+    expect(screen.queryByTestId("audio-hero")).toBeNull();
+  });
+});
+
+describe("the event page — a picture post (kind 20)", () => {
+  const picture = (tags: string[][] = []) =>
+    eventOf(
+      20,
+      [
+        ["title", "Harbour at dawn"],
+        ["imeta", "url https://cdn.example/a.jpg", "m image/jpeg", "alt Boats in fog", "dim 1200x800"],
+        ["imeta", "url https://cdn.example/b.jpg", "m image/jpeg"],
+        ...tags,
+      ],
+      "Early start today.",
+    );
+
+  it("shows its title, each picture in its own shape, and the alt under it", () => {
+    open(picture());
+    expect(screen.getByTestId("event-media-title")).toHaveTextContent("Harbour at dawn");
+    const first = document.querySelector<HTMLImageElement>('img[src="https://cdn.example/a.jpg"]')!;
+    expect(first.alt).toBe("Boats in fog");
+    expect(first.style.aspectRatio).toBe("1200 / 800");
+    expect(screen.getByTestId("event-media-alt")).toHaveTextContent("Boats in fog");
+    expect(document.querySelector('img[src="https://cdn.example/b.jpg"]')).not.toBeNull();
+  });
+
+  it("marked sensitive, shows a cover in place of its pictures until asked", () => {
+    open(picture([["content-warning", "nudity"]]));
+    expect(screen.getByTestId("sensitive-cover")).toHaveTextContent(
+      "The creator marked these photos as sensitive: nudity",
+    );
+    expect(document.querySelector('img[src^="https://cdn.example/"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show photos" }));
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    expect(document.querySelectorAll('img[src^="https://cdn.example/"]')).toHaveLength(2);
+    expect(document.activeElement).toBe(screen.getByTestId("event-media-items"));
+  });
+});
+
+describe("the event page — a note marked sensitive", () => {
+  it("covers the picture in its words until asked", () => {
+    open(eventOf(1, [["content-warning", "spoilers"]], "Look at this https://cdn.example/scene.jpg"));
+    expect(screen.getByTestId("sensitive-cover")).toHaveTextContent(
+      "The creator marked this photo as sensitive: spoilers",
+    );
+    expect(document.querySelector('img[src*="scene.jpg"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show photo" }));
+    expect(document.querySelector('img[src*="scene.jpg"]')).not.toBeNull();
   });
 });

@@ -566,6 +566,33 @@ describe("SerpRow — media taps", () => {
   });
 });
 
+// NIP-36 is for any kind: a picture post or a note's photo its creator flagged is a placeholder too.
+describe("SerpRow — a picture marked sensitive", () => {
+  it("a flagged picture post shows the placeholder, not the picture, and its tap opens the post", () => {
+    const flagged = {
+      ...note("Harbour at dawn", [
+        ["imeta", "url https://cdn.example/harbour.jpg", "m image/jpeg"],
+        ["content-warning", "nudity"],
+      ]),
+      kind: 20,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="harbour" />);
+    expect(screen.getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="harbour.jpg"]')).toBeNull();
+    openLightboxMock.mockClear();
+    fireEvent.click(screen.getByTestId("sensitive-tile"));
+    expect(openLightboxMock).not.toHaveBeenCalled();
+  });
+
+  it("a note flagged by its NIP-32 label keeps its photo out of the row", () => {
+    const flagged = note("Look https://cdn.example/scene.jpg", [["l", "spoiler", "content-warning"]]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="look" />);
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+    expect(document.querySelector('img[src*="scene.jpg"]')).toBeNull();
+  });
+});
+
 describe("SerpRow", () => {
   // Benjamin, over Reed's boost of a StableKraft song: "this should be able to
   // play audio in brainstorm but we cant right now". A news-shaped note whose
