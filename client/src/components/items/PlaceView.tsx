@@ -485,7 +485,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       </section>
 
       <div id="place-reviews">
-        <PlaceReviews item={event} ranked={ranked} />
+        <PlaceReviews item={event} name={place.name} ranked={ranked} />
       </div>
 
       <div id="place-verdict">

@@ -100,12 +100,16 @@ const reviews = vi.hoisted(() => ({
     photos: string[];
     price: number | null;
     paid: string | null;
+    rating?: number | null;
+    tags?: string[][];
   }[],
   post: { mutate: vi.fn(), isPending: false },
+  remove: { mutate: vi.fn(), isPending: false },
 }));
 vi.mock("@/hooks/usePlaceReviews", () => ({
   usePlaceReviews: () => ({ reviews: reviews.list, pending: false }),
   usePostPlaceReview: () => reviews.post,
+  useRemovePlaceReview: () => reviews.remove,
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.5 }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
@@ -234,6 +238,7 @@ beforeEach(() => {
   network.endorsers = [];
   reviews.list = [];
   reviews.post.mutate.mockClear();
+  reviews.remove.mutate.mockClear();
   site.card = null;
   list.items = [];
   // Thursday 2026-10-15, 23:30 UTC: 18:30 in Sarasota by the longitude estimate (UTC−5), when Il Sole is open.
@@ -377,7 +382,7 @@ describe("PlaceView", () => {
     expect(screen.queryByTestId("place-review-composer")).toBeNull();
   });
 
-  it("a signed-in reader writes a review: words, a price, how they paid; it posts as one signed comment", async () => {
+  it("a signed-in reader writes a review: stars first, then words, a price, how they paid", async () => {
     viewer.pubkey = "d".repeat(64);
     renderWithProviders(<Page event={ilSole} />);
     expect(screen.getByTestId("place-reviews")).toHaveTextContent("No reviews yet");
@@ -387,12 +392,80 @@ describe("PlaceView", () => {
     await userEvent.type(within(composer).getByRole("textbox"), "Best pizza on the key.");
     await userEvent.click(within(composer).getByRole("button", { name: "$$" }));
     await userEvent.click(within(composer).getByRole("button", { name: "Lightning" }));
+    // A review of a place gives stars: words alone don't post.
+    expect(post).toBeDisabled();
+    await userEvent.click(within(composer).getByRole("button", { name: "4 stars" }));
     expect(post).toBeEnabled();
     await userEvent.click(post);
     expect(reviews.post.mutate).toHaveBeenCalledWith(
-      { text: "Best pizza on the key.", price: 2, paid: "lightning", photos: [] },
+      {
+        draft: { text: "Best pizza on the key.", rating: 4, price: 2, paid: "lightning", photos: [] },
+        previous: undefined,
+      },
       expect.anything(),
     );
+  });
+
+  it("each review shows its stars", () => {
+    reviews.list = [
+      { id: "r1", pubkey: "a".repeat(64), at: 9, text: "Good.", photos: [], price: null, paid: null, rating: 4 },
+      { id: "r2", pubkey: "b".repeat(64), at: 8, text: "No stars here.", photos: [], price: null, paid: null },
+    ];
+    renderWithProviders(<Page event={ilSole} />);
+    const [first, second] = screen.getAllByTestId("place-review");
+    expect(within(first).getByRole("img", { name: "4 out of 5 stars" })).toBeInTheDocument();
+    expect(within(second).queryByRole("img", { name: /out of 5 stars/ })).toBeNull();
+  });
+
+  /** The reader's own review, as the relays hold it. */
+  const mine = () => ({
+    id: "m1",
+    pubkey: "d".repeat(64),
+    at: 7,
+    text: "Okay.",
+    photos: [],
+    price: 1,
+    paid: null,
+    rating: 3,
+    tags: [
+      ["d", "place:x"],
+      ["t", "brunch"],
+    ],
+  });
+
+  it("a reader who has reviewed it changes that review: the composer opens with it, and never adds a second", async () => {
+    viewer.pubkey = "d".repeat(64);
+    reviews.list = [mine()];
+    renderWithProviders(<Page event={ilSole} />);
+    const composer = screen.getByTestId("place-review-composer");
+    expect(within(composer).getByRole("textbox")).toHaveValue("Okay.");
+    expect(within(composer).getByRole("button", { name: "3 stars" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(composer).getByRole("button", { name: "$" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(composer).queryByRole("button", { name: "Post review" })).toBeNull();
+    await userEvent.click(within(composer).getByRole("button", { name: "5 stars" }));
+    await userEvent.click(within(composer).getByRole("button", { name: "Update review" }));
+    expect(reviews.post.mutate).toHaveBeenCalledWith(
+      { draft: { text: "Okay.", rating: 5, price: 1, paid: null, photos: [] }, previous: mine() },
+      expect.anything(),
+    );
+  });
+
+  it("a reader removes their review, after saying so on the review itself; nobody else's has the choice", async () => {
+    viewer.pubkey = "d".repeat(64);
+    reviews.list = [
+      mine(),
+      { id: "r2", pubkey: "b".repeat(64), at: 8, text: "Fine.", photos: [], price: null, paid: null, rating: 4 },
+    ];
+    renderWithProviders(<Page event={ilSole} />);
+    const rows = screen.getAllByTestId("place-review");
+    const own = rows.find((row) => row.textContent?.includes("Okay."))!;
+    const other = rows.find((row) => row.textContent?.includes("Fine."))!;
+    expect(within(other).queryByRole("button", { name: "Remove" })).toBeNull();
+    await userEvent.click(within(own).getByRole("button", { name: "Remove" }));
+    expect(reviews.remove.mutate).not.toHaveBeenCalled();
+    expect(own).toHaveTextContent("Remove your review? Apps that read it will stop showing it.");
+    await userEvent.click(within(own).getByRole("button", { name: "Remove review" }));
+    expect(reviews.remove.mutate).toHaveBeenCalledWith(mine());
   });
 
   /** The picture arrives with its true size: a square logo, or a wide link-preview banner. */

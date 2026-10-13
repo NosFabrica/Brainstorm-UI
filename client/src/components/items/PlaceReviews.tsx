@@ -1,14 +1,17 @@
 /**
- * Reviews of a place, by people: each a signed comment on the place
- * (lib/placeReviews), shown with the reviewer's face and tier ring, name,
- * words, photos, and the price and payment they gave — ordered the way every
+ * Reviews of a place, by people: each a signed record, one per person
+ * (lib/placeReviews — the same record Regulars reads and writes), shown with
+ * the reviewer's face and tier ring, name, stars, words, photos, and the
+ * price and payment they gave — ordered the way every
  * endorsement surface orders people (services/endorsements: people the
  * reader follows, then verified, then everyone else), so the first review a
  * reader sees is from someone they'd ask.
  *
- * A signed-in reader writes one in the composer: the words, a price from $
- * to $$$$, how they paid, photos uploaded to the reader's Blossom server
- * (services/blossom). It's public and signed, and the composer says so.
+ * A signed-in reader writes one in the composer: stars, the words, a price
+ * from $ to $$$$, how they paid, photos uploaded to the reader's Blossom
+ * server (services/blossom). It's public and signed, and the composer says
+ * so. A reader who has reviewed the place finds their review in the
+ * composer to change, never a second one, and can remove it.
  */
 import { useRef, useState } from "react";
 import { Link } from "wouter";
@@ -19,16 +22,17 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useMyFollows } from "@/hooks/useMyFollows";
-import { usePostPlaceReview } from "@/hooks/usePlaceReviews";
+import { usePostPlaceReview, useRemovePlaceReview } from "@/hooks/usePlaceReviews";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useToast } from "@/hooks/use-toast";
 import { avatarSrc } from "@/lib/avatarSrc";
-import { PAID_LABELS, type Paid, type PlaceReview } from "@/lib/placeReviews";
+import { PAID_LABELS, draftOf, type Paid, type PlaceReview } from "@/lib/placeReviews";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { relativeTime } from "@/lib/relativeTime";
 import { rankEndorsers } from "@/services/endorsements";
 import { uploadToBlossom } from "@/services/blossom";
 import { LinkedText } from "@/components/LinkedText";
+import { StarPicker, Stars } from "@/components/items/Stars";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 const MAX_LENGTH = 1200;
@@ -57,16 +61,25 @@ export function useRankedReviews({ reviews, pending }: { reviews: PlaceReview[];
   };
 }
 
-export function PlaceReviews({ item, ranked }: { item: Item; ranked: ReturnType<typeof useRankedReviews> }) {
+export function PlaceReviews({
+  item,
+  name,
+  ranked,
+}: {
+  item: Item;
+  name: string;
+  ranked: ReturnType<typeof useRankedReviews>;
+}) {
   const me = useActiveAccountDisplay()?.pubkey ?? null;
   const tierRing = useTierRing();
   const { reviews, nameOf, pictureOf, npubOf, scoreOf } = ranked;
+  const own = me ? reviews.find((r) => r.pubkey === me) : undefined;
   return (
     <section className="space-y-3" data-testid="place-reviews">
       <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
         Reviews{reviews.length > 0 ? ` · ${reviews.length}` : ""}
       </p>
-      {me && <Composer item={item} />}
+      {me && <Composer key={own?.id ?? "new"} item={item} name={name} own={own} />}
       {reviews.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           No reviews yet.{me ? " Be the first." : " Sign in to write one."}
@@ -95,6 +108,7 @@ export function PlaceReviews({ item, ranked }: { item: Item; ranked: ReturnType<
                   ) : (
                     <span className="font-semibold text-slate-900 dark:text-slate-100">{nameOf(r.pubkey)}</span>
                   )}
+                  {r.rating != null && <Stars value={r.rating} />}
                   <span className="text-xs text-slate-400">{relativeTime(r.at)}</span>
                   {(r.price || r.paid) && (
                     <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -122,6 +136,7 @@ export function PlaceReviews({ item, ranked }: { item: Item; ranked: ReturnType<
                     ))}
                   </div>
                 )}
+                {r.pubkey === me && <RemoveReview item={item} review={r} />}
               </div>
             </li>
           ))}
@@ -146,13 +161,45 @@ export function ReviewPhotos({ reviews }: { reviews: PlaceReview[] }) {
   );
 }
 
-function Composer({ item }: { item: Item }) {
-  const post = usePostPlaceReview(item);
+/** The reader's own review can be taken down, once they say so on the review itself. */
+function RemoveReview({ item, review }: { item: Item; review: PlaceReview }) {
+  const remove = useRemovePlaceReview(item);
+  const [asking, setAsking] = useState(false);
+  const quiet = "text-xs font-semibold text-slate-500 hover:text-brand-link dark:text-slate-400";
+  if (!asking)
+    return (
+      <button type="button" className={quiet} onClick={() => setAsking(true)}>
+        Remove
+      </button>
+    );
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+      <span>Remove your review? Apps that read it will stop showing it.</span>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 font-semibold text-red-600 hover:text-red-700 disabled:opacity-60 dark:text-red-400"
+        onClick={() => remove.mutate(review)}
+        disabled={remove.isPending}
+      >
+        {remove.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+        Remove review
+      </button>
+      <button type="button" className={quiet} onClick={() => setAsking(false)}>
+        Keep it
+      </button>
+    </p>
+  );
+}
+
+function Composer({ item, name, own }: { item: Item; name: string; own?: PlaceReview }) {
+  const post = usePostPlaceReview(item, name);
   const { toast } = useToast();
-  const [text, setText] = useState("");
-  const [price, setPrice] = useState<number | null>(null);
-  const [paid, setPaid] = useState<Paid | null>(null);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const start = own ? draftOf(own) : null;
+  const [rating, setRating] = useState<number | null>(start?.rating ?? null);
+  const [text, setText] = useState(start?.text ?? "");
+  const [price, setPrice] = useState<number | null>(start?.price ?? null);
+  const [paid, setPaid] = useState<Paid | null>(start?.paid ?? null);
+  const [photos, setPhotos] = useState<string[]>(start?.photos ?? []);
   const [uploading, setUploading] = useState(false);
   const file = useRef<HTMLInputElement>(null);
 
@@ -174,20 +221,10 @@ function Composer({ item }: { item: Item }) {
     }
   };
 
+  // A review of a place gives stars; the words, price, payment and photos are the reader's to add.
   const submit = () => {
-    const words = text.trim();
-    if (!words && photos.length === 0) return;
-    post.mutate(
-      { text: words, price, paid, photos },
-      {
-        onSuccess: () => {
-          setText("");
-          setPrice(null);
-          setPaid(null);
-          setPhotos([]);
-        },
-      },
-    );
+    if (rating == null) return;
+    post.mutate({ draft: { text: text.trim(), rating, price, paid, photos }, previous: own }, {});
   };
 
   const chip = (active: boolean) =>
@@ -202,6 +239,10 @@ function Composer({ item }: { item: Item }) {
       className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700"
       data-testid="place-review-composer"
     >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-slate-500 dark:text-slate-400">{own ? "Your review" : "Your rating"}</span>
+        <StarPicker value={rating} onChange={setRating} />
+      </div>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value.slice(0, MAX_LENGTH))}
@@ -278,11 +319,11 @@ function Composer({ item }: { item: Item }) {
         <button
           type="button"
           onClick={submit}
-          disabled={(!text.trim() && photos.length === 0) || post.isPending || uploading}
+          disabled={rating == null || post.isPending || uploading}
           className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 sm:self-auto"
         >
           {post.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-          Post review
+          {own ? "Update review" : "Post review"}
         </button>
       </div>
     </div>

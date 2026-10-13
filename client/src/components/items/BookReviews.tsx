@@ -12,7 +12,7 @@
  */
 import { useState } from "react";
 import { Link } from "wouter";
-import { Loader2, Star } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -20,11 +20,11 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { usePostBookReview } from "@/hooks/useBookReviews";
 import { relativeTime } from "@/lib/relativeTime";
 import { LinkedText } from "@/components/LinkedText";
+import { StarPicker, Stars } from "@/components/items/Stars";
 import type { useRankedReviews } from "@/components/items/PlaceReviews";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 const MAX_LENGTH = 1200;
-const STARS = [1, 2, 3, 4, 5];
 
 export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<typeof useRankedReviews> }) {
   const me = useActiveAccountDisplay()?.pubkey ?? null;
@@ -69,7 +69,7 @@ export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<t
                   ) : (
                     <span className="font-semibold text-slate-900 dark:text-slate-100">{nameOf(r.pubkey)}</span>
                   )}
-                  {r.rating != null && <Stars value={r.rating} />}
+                  {r.rating != null && <Stars value={r.rating} testId="book-review-stars" />}
                   <span className="text-xs text-slate-400">{relativeTime(r.at)}</span>
                 </p>
                 {r.text && (
@@ -86,31 +86,9 @@ export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<t
   );
 }
 
-/** One to five stars, read out as such. */
-export function Stars({ value, size = "sm" }: { value: number; size?: "sm" | "md" }) {
-  const px = size === "md" ? "h-5 w-5" : "h-3.5 w-3.5";
-  return (
-    <span
-      className="inline-flex items-center gap-0.5"
-      role="img"
-      aria-label={`${value} out of 5 stars`}
-      data-testid="book-review-stars"
-    >
-      {STARS.map((n) => (
-        <Star
-          key={n}
-          aria-hidden="true"
-          className={`${px} ${n <= value ? "fill-amber-400 text-amber-400" : "fill-slate-200 text-slate-200 dark:fill-slate-700 dark:text-slate-700"}`}
-        />
-      ))}
-    </span>
-  );
-}
-
 function Composer({ item }: { item: Item }) {
   const post = usePostBookReview(item);
   const [rating, setRating] = useState<number | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
   const [text, setText] = useState("");
   const words = text.trim();
 
@@ -127,7 +105,6 @@ function Composer({ item }: { item: Item }) {
     );
   };
 
-  const lit = hover ?? rating ?? 0;
   return (
     <div
       className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700"
@@ -135,24 +112,7 @@ function Composer({ item }: { item: Item }) {
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-slate-500 dark:text-slate-400">Your rating</span>
-        <span className="inline-flex items-center" onMouseLeave={() => setHover(null)}>
-          {STARS.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setRating(rating === n ? null : n)}
-              onMouseEnter={() => setHover(n)}
-              aria-label={`${n} ${n === 1 ? "star" : "stars"}`}
-              aria-pressed={rating === n}
-              className="p-0.5"
-            >
-              <Star
-                aria-hidden="true"
-                className={`h-6 w-6 transition-colors ${n <= lit ? "fill-amber-400 text-amber-400" : "fill-slate-200 text-slate-200 hover:text-amber-300 dark:fill-slate-700 dark:text-slate-700"}`}
-              />
-            </button>
-          ))}
-        </span>
+        <StarPicker value={rating} onChange={setRating} />
       </div>
       <textarea
         value={text}
