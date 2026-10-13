@@ -9,7 +9,7 @@
  */
 import { reactionEmoji, type CustomEmoji } from "@/lib/customEmoji";
 import { tagValue } from "@/lib/tagValue";
-import { POLL_KIND, acceptedChoices } from "@/lib/polls";
+import { POLL_KIND, acceptedChoices } from "@/lib/pollKinds";
 import { isVerifiedEvent, readZapRequest } from "@/lib/zapRequest";
 import { parseZapReceipt } from "@/services/search";
 

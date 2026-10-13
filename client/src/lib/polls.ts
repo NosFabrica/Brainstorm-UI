@@ -10,13 +10,10 @@
 import { isLocalNetworkHost } from "@/lib/localNetwork";
 import { readZapRequest, zapDescription } from "@/lib/zapRequest";
 import { parseZapReceipt } from "@/services/search";
+import { POLL_KIND, POLL_RESPONSE_KIND, ZAP_POLL_KIND, acceptedChoices } from "@/lib/pollKinds";
 
-export const POLL_KIND = 1068;
-export const POLL_RESPONSE_KIND = 1018;
-export const ZAP_POLL_KIND = 6969;
+export { POLL_KIND, POLL_KINDS, POLL_RESPONSE_KIND, ZAP_POLL_KIND, acceptedChoices } from "@/lib/pollKinds";
 export const ZAP_RECEIPT_KIND = 9735;
-/** Kinds drawn with a poll card under their question. */
-export const POLL_KINDS = new Set([POLL_KIND, ZAP_POLL_KIND]);
 
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][] };
 
@@ -102,18 +99,6 @@ export function pollClosed(poll: Pick<Poll, "endsAt">, now: number): boolean {
 /** The option ids a response's `response` tags name, in order. */
 export function responseCodes(vote: { tags: string[][] }): string[] {
   return vote.tags.filter((t) => t[0] === "response" && typeof t[1] === "string").map((t) => t[1]);
-}
-
-/**
- * What a response actually casts. NIP-88: on a single-choice poll the first
- * `response` tag is the answer — a response naming every option casts nothing
- * valid rather than one vote each; on a multiple-choice poll each id counts
- * once, order aside. Ids the poll never declared are dropped.
- */
-export function acceptedChoices(poll: Pick<Poll, "options" | "multiple">, codes: string[]): string[] {
-  const valid = new Set(poll.options.map((o) => o.id));
-  if (!poll.multiple) return codes[0] !== undefined && valid.has(codes[0]) ? [codes[0]] : [];
-  return Array.from(new Set(codes.filter((c) => valid.has(c))));
 }
 
 /** Whether a response falls inside the poll's window: not before the question, not after `endsAt`. */

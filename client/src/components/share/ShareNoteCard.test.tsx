@@ -205,7 +205,7 @@ describe("ShareNoteCard — headings and polls", () => {
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 
-  it("a poll in a row shows its options", () => {
+  it("a poll in a row shows its options", async () => {
     const poll: MinimalEvent = {
       ...base,
       id: "p".repeat(64),
@@ -217,7 +217,8 @@ describe("ShareNoteCard — headings and polls", () => {
       ],
     };
     renderWithProviders(card(poll));
-    expect(screen.getByTestId("poll-compact")).toHaveTextContent("damus");
+    // The poll card is loaded the first time a poll shows (components/share/LazyPollCard).
+    expect(await screen.findByTestId("poll-compact")).toHaveTextContent("damus");
     expect(screen.getByTestId("poll-compact")).toHaveTextContent("nos.lol");
   });
 });

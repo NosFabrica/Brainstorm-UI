@@ -30,7 +30,7 @@ const poll: MinimalEvent = {
 };
 
 describe("ShareNoteCard — a poll's relay hints", () => {
-  it("reach the full poll card on the poll's page", () => {
+  it("reach the full poll card on the poll's page", async () => {
     renderWithProviders(
       <ShareNoteCard
         event={poll}
@@ -41,7 +41,8 @@ describe("ShareNoteCard — a poll's relay hints", () => {
         relayHints={["wss://found.example.com"]}
       />,
     );
-    expect(screen.getByTestId("poll-card")).toHaveAttribute("data-compact", "false");
+    // The poll card is loaded the first time a poll shows (components/share/LazyPollCard).
+    expect(await screen.findByTestId("poll-card")).toHaveAttribute("data-compact", "false");
     expect(screen.getByTestId("poll-card")).toHaveTextContent("wss://found.example.com");
   });
 });

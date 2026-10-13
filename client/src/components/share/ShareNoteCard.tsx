@@ -21,8 +21,8 @@ import { EmbeddedListCard } from "@/components/share/ListPreview";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
-import { POLL_KINDS } from "@/lib/polls";
-import { PollCard } from "@/components/share/PollCard";
+import { POLL_KINDS } from "@/lib/pollKinds";
+import { LazyPollCard } from "@/components/share/LazyPollCard";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
@@ -403,7 +403,7 @@ export function ShareNoteCard({
       )}
 
       {/* A poll's options under its question: the tally on its own page, the options in a list. */}
-      {POLL_KINDS.has(event.kind) && <PollCard event={event} compact={!reading} relayHints={relayHints} />}
+      {POLL_KINDS.has(event.kind) && <LazyPollCard event={event} compact={!reading} relayHints={relayHints} />}
 
       {quoted.map((qe) => (
         <EmbeddedNoteCard
