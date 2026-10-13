@@ -51,7 +51,7 @@ import { PollCard } from "@/components/share/PollCard";
 import { POLL_KINDS } from "@/lib/polls";
 import { MediaImg } from "@/components/ui/media-img";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
-import { SensitiveTile } from "@/components/share/SensitiveMedia";
+import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
 import { SHORT_VIDEO_KINDS } from "@/lib/nip71";
 import { postedAtOf } from "@/lib/eventDate";
@@ -252,7 +252,11 @@ function RowThumb({
   if (warning && (poster || (isVideo && url))) {
     // With a clip to play, the tap opens it covered; with only a poster, the row opens the post.
     return isVideo && url ? (
-      <SensitiveTile onClick={openMedia} className={`cursor-pointer ${cls}`} />
+      <SensitiveTile
+        onClick={openMedia}
+        label={sensitiveVideoLabel(tagVal(event, "title"))}
+        className={`cursor-pointer ${cls}`}
+      />
     ) : (
       <SensitiveTile className={cls} />
     );
@@ -517,6 +521,8 @@ function WebBookmarkRow({
   const title = bookmark.title ?? meta?.title ?? bookmark.url.replace(/^https?:\/\//i, "");
   const description = bookmark.description || meta?.description || "";
   const thumb = !thumbFailed ? (meta?.image ?? null) : null;
+  // The page's own picture under a bookmark its saver flagged (NIP-36) is the placeholder.
+  const warned = !!contentWarningOf(event);
   const out = {
     href: bookmark.url,
     target: "_blank",
@@ -555,18 +561,22 @@ function WebBookmarkRow({
         )}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
-      {thumb && (
-        <a {...out} className="shrink-0" tabIndex={-1}>
-          <img
-            src={thumb}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setThumbFailed(true)}
-            className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
-            data-testid="web-bookmark-thumb"
-          />
-        </a>
+      {thumb && warned ? (
+        <SensitiveTile className="h-[92px] w-[92px] shrink-0 rounded-xl" />
+      ) : (
+        thumb && (
+          <a {...out} className="shrink-0" tabIndex={-1}>
+            <img
+              src={thumb}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setThumbFailed(true)}
+              className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
+              data-testid="web-bookmark-thumb"
+            />
+          </a>
+        )
       )}
     </div>
   );
