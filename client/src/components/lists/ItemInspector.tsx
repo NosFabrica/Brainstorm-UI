@@ -6,12 +6,16 @@
  * itself; a caller decides which item is open. An `entry` of null with the
  * panel open is an address that names no item on this list.
  *
+ * A curator's name is one they chose, and two may choose the same: the start
+ * of their npub shows beside it, and the whole of it copies. Never a rank.
+ *
  * The copy buttons hand the panel's own element to `copyToClipboard`: a
  * dialog traps focus, so the fallback's textarea has to live inside it.
  */
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { curatorKey, shortCuratorKey } from "@/components/lists/curatorKey";
 import { ItemPreview } from "@/components/lists/ItemPreview";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -96,6 +100,10 @@ export function ItemInspector({
   const item = entry?.item ?? null;
   const title = entry ? entry.check.resolved.title?.trim() || `Untitled ${singular}` : "Item not found";
   const address = item ? coordinateOf(item) : null;
+  // An empty `d` names nothing, so it reads as none.
+  const d = item?.tags.find((t) => t[0] === "d")?.[1] || null;
+  const key = item ? curatorKey(item.pubkey) : "";
+  const shortKey = item ? shortCuratorKey(item.pubkey) : "";
   const raw = item ? JSON.stringify(item, null, 2) : "";
   const extra = item ? undeclaredFields(item, fields) : [];
 
@@ -143,9 +151,11 @@ export function ItemInspector({
                 <SectionHeader kicker="Identity" />
                 <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-2 text-sm">
                   <dt className="text-slate-500 dark:text-slate-400">d tag</dt>
-                  <dd className="break-all text-slate-900 dark:text-slate-100">
-                    {item.tags.find((t) => t[0] === "d")?.[1] ?? "none"}
-                  </dd>
+                  {d ? (
+                    <dd className="break-all text-slate-900 dark:text-slate-100">{d}</dd>
+                  ) : (
+                    <dd className="text-slate-500 dark:text-slate-400">—</dd>
+                  )}
                   <dt className="text-slate-500 dark:text-slate-400">Event id</dt>
                   <dd className="space-y-2">
                     <span
@@ -174,7 +184,21 @@ export function ItemInspector({
                   <dt className="text-slate-500 dark:text-slate-400">Kind</dt>
                   <dd className="text-slate-900 dark:text-slate-100">{item.kind}</dd>
                   <dt className="text-slate-500 dark:text-slate-400">Curator</dt>
-                  <dd className="text-slate-900 dark:text-slate-100">{curatorName}</dd>
+                  <dd className="space-y-2">
+                    <span className="flex flex-wrap items-baseline gap-x-2 text-slate-900 dark:text-slate-100">
+                      {/* A curator with no profile name is already shown by this key. */}
+                      {curatorName !== shortKey && <span className="break-words">{curatorName}</span>}
+                      <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{shortKey}</span>
+                    </span>
+                    <span className="flex flex-wrap gap-2">
+                      <CopyButton
+                        text={key}
+                        label={key === item.pubkey ? "Copy key" : "Copy npub"}
+                        container={container}
+                        testId="item-inspector-copy-curator"
+                      />
+                    </span>
+                  </dd>
                   <dt className="text-slate-500 dark:text-slate-400">Updated</dt>
                   <dd className="text-slate-900 dark:text-slate-100">{updatedOf(item.created_at)}</dd>
                 </dl>
@@ -264,8 +288,11 @@ export function ItemInspector({
               <section className="space-y-3">
                 <SectionHeader kicker="Raw event" />
                 <CopyButton text={raw} label="Copy raw event" container={container} testId="item-inspector-copy-raw" />
+                {/* It scrolls, so the keyboard has to be able to land on it. */}
                 <pre
-                  className="max-h-80 overflow-auto rounded-xl border border-border bg-muted p-3 font-mono text-xs text-slate-900 dark:text-slate-100"
+                  tabIndex={0}
+                  aria-label="Raw event"
+                  className="max-h-80 overflow-auto rounded-xl border border-border bg-muted p-3 font-mono text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent dark:text-slate-100"
                   data-testid="item-inspector-raw"
                 >
                   {raw}

@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 import { copyToClipboard } from "@/lib/clipboard";
 import { checkList } from "@/lib/listHealth";
@@ -66,6 +67,12 @@ const base = {
   onPrev: () => {},
   onNext: () => {},
 };
+
+/** What the identity section says under a heading: the `dd` beside its `dt`. */
+const identity = (term: string) => screen.getByText(term, { selector: "dt" }).nextElementSibling as HTMLElement;
+/** The item, as checked, with these tags and this author. */
+const entryOf = (tags: string[][], pubkey = PUBKEY) =>
+  checkList(resolved.governing, [{ ...item, pubkey, tags }], new Map())[0];
 
 describe("ItemInspector", () => {
   beforeEach(() => {
@@ -199,6 +206,65 @@ describe("ItemInspector", () => {
     )[0];
     renderWithProviders(<ItemInspector {...base} entry={noD} />);
     expect(screen.queryByTestId("item-inspector-copy-address")).toBeNull();
+  });
+
+  it("shows the d tag, or a dash where an item has none or an empty one", () => {
+    const { unmount } = renderWithProviders(<ItemInspector {...base} entry={entry} />);
+    expect(identity("d tag").textContent).toBe("uno");
+    unmount();
+    const none = renderWithProviders(
+      <ItemInspector
+        {...base}
+        entry={entryOf([
+          ["z", COORD],
+          ["name", "Uno"],
+        ])}
+      />,
+    );
+    expect(identity("d tag").textContent).toBe("—");
+    none.unmount();
+    renderWithProviders(
+      <ItemInspector
+        {...base}
+        entry={entryOf([
+          ["d", ""],
+          ["z", COORD],
+          ["name", "Uno"],
+        ])}
+      />,
+    );
+    expect(identity("d tag").textContent).toBe("—");
+  });
+
+  it("lets a keyboard reach the raw event to scroll it", () => {
+    renderWithProviders(<ItemInspector {...base} entry={entry} />);
+    const raw = screen.getByLabelText("Raw event");
+    expect(raw).toBe(screen.getByTestId("item-inspector-raw"));
+    expect(raw).toHaveAttribute("tabindex", "0");
+  });
+
+  it("tells a curator by their key beside their name, and copies the whole npub", async () => {
+    const npub = nip19.npubEncode(PUBKEY);
+    renderWithProviders(<ItemInspector {...base} entry={entry} />);
+    expect(identity("Curator")).toHaveTextContent("Mise");
+    expect(identity("Curator")).toHaveTextContent(`${npub.slice(0, 12)}…`);
+    expect(identity("Curator")).not.toHaveTextContent(npub);
+    await userEvent.click(screen.getByTestId("item-inspector-copy-curator"));
+    expect(copyToClipboard).toHaveBeenLastCalledWith(npub, { container: expect.any(HTMLElement) });
+    await waitFor(() => expect(screen.getByTestId("item-inspector-copy-curator")).toHaveTextContent("Copied"));
+  });
+
+  it("shows a curator with no profile name by their key, once", () => {
+    const short = `${nip19.npubEncode(PUBKEY).slice(0, 12)}…`;
+    renderWithProviders(<ItemInspector {...base} curatorName={short} entry={entry} />);
+    expect(identity("Curator").textContent).toBe(`${short}Copy npub`);
+  });
+
+  it("shows a curator key that is not a key as it came, and copies that", async () => {
+    renderWithProviders(<ItemInspector {...base} curatorName="not-a-key…" entry={entryOf(item.tags, "not-a-key")} />);
+    expect(identity("Curator")).toHaveTextContent("not-a-key…");
+    await userEvent.click(screen.getByTestId("item-inspector-copy-curator"));
+    expect(copyToClipboard).toHaveBeenLastCalledWith("not-a-key", { container: expect.any(HTMLElement) });
   });
 
   it("says so when the address names an item the list doesn't have", async () => {
