@@ -48,13 +48,13 @@ relay adds the NIP-50 `include:spam` token to any filter sent there that has no
 `search` of its own (`withSearchToken`, `lib/relayPool.ts`). It is an index, not
 a publish target: publishes leave it out.
 
-My-WoT search is offered only once the search relay holds what it ranks through: the
-user's newest 10040 naming their assistant (`useHasMywot`'s `taPubkey`) for `30382:rank`,
-and a 30382 that assistant signed. One REQ on the search socket, two `limit: 1` filters,
-both `include:spam` (an `observer:` would trust-gate the user's own reads away); an error or
-timeout is "not yet" (`isSearchObserverOnRelay`, `services/searchObserver.ts`). It checks
-stored cards, not projected ones, so just after a first sync My-WoT can be offered a moment
-before its ranking is ready.
+My-WoT search is offered (once the Account has an assistant, `useHasMywot`'s `taPubkey`) only
+when the search relay already ranks through the Active Account: one REQ on the search socket,
+`{kinds:[0], limit:1, search:"observer:<Active Account>"}`. The observer gate fails closed, so any
+profile back means a projected rank (`isSearchObserverOnRelay`, `services/searchObserver.ts`).
+Nothing back, an error or a timeout is "not yet". While the relay is still projecting a new
+assistant's cards, ranking can be partial for a few minutes. A "yes" is kept for the session
+(re-asked if the Account's 10040 changes); a "no" is re-asked every minute.
 
 A read with many authors goes through `planOutboxReads()` + `requestAllByRelay()`
 instead, so each relay is asked only about the authors it serves, under a

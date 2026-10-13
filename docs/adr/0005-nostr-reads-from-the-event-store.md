@@ -38,6 +38,9 @@ invalidates, rollbacks).
   `TrustedListMembers`) stay react-query queries, uncached (`staleTime: 0`,
   `gcTime: 0`), and mark the call with
   `eslint-disable-next-line no-restricted-syntax -- relay probe`.
+  `useIsSearchObserver` (is My-WoT search ready on the search relay?) is the same
+  kind of probe but cached: it gates every search. A "yes" holds for the session
+  (re-asked when the Account's 10040 changes), a "no" is re-asked every minute.
 - **Tags (deferred).** `hooks/useTags.ts` still wraps relay reads in react-query.
   Its reads already merge store-held events, so our own tags show; what remains is
   optimistic patching and a 5–30 minute staleness. The catalogue is a costly

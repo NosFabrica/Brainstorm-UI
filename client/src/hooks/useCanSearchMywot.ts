@@ -9,7 +9,7 @@ import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/
  * (`/user/history`) AND is permitted to be its own search observer (`useIsSearchObserver`).
  * The one rule behind every "My WoT or the house?" choice — search, threads, profile pages.
  *
- * Both are API answers a reload asks again. While each is still LOADING, the Account's last
+ * Both are asked again on reload (API, search relay). While each is still LOADING, the Account's last
  * confirmed answer (`canSearchMywot`) stands in for it: otherwise every reload read through the
  * house first and then again through the user's own lens once the API caught up — a wasted
  * REQ and a flash of the wrong ranking. Only while loading: with no Session (nothing will be
