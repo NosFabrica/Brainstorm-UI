@@ -3,7 +3,9 @@
  * it, and an item as the renderers draw it, with what doesn't come through.
  */
 import { describe, expect, it } from "vitest";
-import { checkHeader, checkItem, type Problem } from "./listCheck";
+import { definitionOf } from "./conceptResolution";
+import { templateOf } from "./linkTemplates";
+import { checkHeader, checkItem, checkItemUnder, type Problem } from "./listCheck";
 
 const TPL = "a".repeat(64);
 const SAGA = `39998:${"3".repeat(64)}:dune-saga`;
@@ -205,5 +207,19 @@ describe("checkItem", () => {
         message: 'The Open Library link builds nothing: "isbn" is empty.',
       }),
     ]);
+  });
+});
+
+describe("checkItemUnder", () => {
+  it("gives what checkItem gives, from a definition and a template map", () => {
+    const item = [
+      ["d", "dune"],
+      ["title", "Dune"],
+      ["isbn", "9780441172719"],
+      ["website", "not a url"],
+    ];
+    const def = definitionOf({ id: "0".repeat(64), pubkey: "0".repeat(64), kind: 39998, created_at: 0, tags: books });
+    const templates = new Map([[TPL, templateOf(openLibrary)!]]);
+    expect(checkItemUnder(def, item, templates)).toEqual(checkItem(books, item, [openLibrary]));
   });
 });

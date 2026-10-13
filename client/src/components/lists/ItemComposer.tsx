@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
 import { ItemFieldInputs } from "@/components/lists/ItemFieldInputs";
 import { ItemPreview } from "@/components/lists/ItemPreview";
 import { dictionaryRelays } from "@/config/dictionary";
@@ -28,13 +29,6 @@ import type { DefinitionSource } from "@/lib/conceptResolution";
 import { itemProblems, itemTemplate, randomTail, type ItemValues } from "@/lib/listItem";
 import { eventPath } from "@/lib/shareId";
 import { publishListEvent } from "@/services/lists";
-
-const SOURCE_LABEL: Record<DefinitionSource, string> = {
-  community: "The list's own",
-  house: "Brainstorm's copy",
-  assistant: "Your Assistant's copy",
-  personal: "Your version",
-};
 
 export function ItemComposer({ header, me }: { header: NostrEvent; me: string }) {
   const { definitions, governing } = useListDefinitions(header);
