@@ -368,7 +368,9 @@ function EventView({
   // A sound (a track, an episode, a voice message) is dedicated when it has a
   // file to play: lib/audioEvent's `hasAudioHero`, since 30054/30055 also carry
   // other apps' records that have none.
-  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 30392, 10040, 30402, 31922, 31923, 39998, 9998]);
+  const DEDICATED_KINDS = new Set([
+    30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998,
+  ]);
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
@@ -602,7 +604,7 @@ function EventView({
                 <FileHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
-              ) : note.kind === 30000 ? (
+              ) : note.kind === 30000 || note.kind === 39089 || note.kind === 39092 ? (
                 <FollowSetHero event={note} />
               ) : note.kind === 30392 ? (
                 <TrustedListHero event={note} />

@@ -289,3 +289,17 @@ describe("the event page — a note marked sensitive", () => {
     expect(document.querySelector('img[src*="scene.jpg"]')).not.toBeNull();
   });
 });
+
+describe("the event page — a starter pack", () => {
+  it("opens a 39089 as its people, not a tag table", () => {
+    open(
+      eventOf(39089, [
+        ["d", "pack"],
+        ["title", "Builders"],
+        ["p", "1".repeat(64)],
+      ]),
+    );
+    expect(screen.getByTestId("follow-set-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("structural-hero")).toBeNull();
+  });
+});
