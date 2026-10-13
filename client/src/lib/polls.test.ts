@@ -18,9 +18,10 @@ const POLL_ID = "p".repeat(64);
 const CREATED = 1_760_000_000;
 const ENDS = CREATED + 86_400;
 
+const AUTHOR = "a".repeat(64);
 const pollEvent = (tags: string[][], kind = 1068) => ({
   id: POLL_ID,
-  pubkey: "a".repeat(64),
+  pubkey: AUTHOR,
   kind,
   created_at: CREATED,
   content: "Best relay?",
@@ -194,7 +195,7 @@ describe("zap polls (kind 6969)", () => {
         kind: 9734,
         created_at: CREATED,
         content: "",
-        tags: [["e", pollId], ...(option === null ? [] : [["poll_option", String(option)]]), ...extra],
+        tags: [["e", pollId], ["p", AUTHOR], ...(option === null ? [] : [["poll_option", String(option)]]), ...extra],
       },
       keys.get(sender)!,
     );
@@ -212,6 +213,7 @@ describe("zap polls (kind 6969)", () => {
     content: "",
     tags: [
       ["e", pollId],
+      ["p", AUTHOR],
       ["bolt11", invoice(sats)],
       ["description", typeof req === "string" ? req : JSON.stringify(req)],
       ...tags,
@@ -268,6 +270,8 @@ describe("zap polls (kind 6969)", () => {
     expect(tally.sats.get(1)).toBe(200);
     expect(tally.total).toBe(600);
     expect(tally.zaps).toBe(3);
+    // None of these requests names its amount: each size is the receipt's word.
+    expect(tally.unpinned).toBe(3);
     expect(tally.zappers.get(0)!.sort()).toEqual([ALICE_Z, BOB_Z].sort());
     expect(percentOf(tally.sats.get(0)!, tally.total)).toBe(67);
   });
@@ -304,6 +308,25 @@ describe("zap polls (kind 6969)", () => {
       // Its own `P`, it counts.
       const ownP = receiptOf(request("alice", 1, POLL_ID), 500, CREATED + 60, POLL_ID, [["P", ALICE_Z]]);
       expect(tallyZapPoll(zp, [ownP]).sats.get(1)).toBe(500);
+    });
+
+    it("not a zap to someone else than the poll's author", () => {
+      const req = finalizeEvent(
+        {
+          kind: 9734,
+          created_at: CREATED,
+          content: "",
+          tags: [
+            ["e", POLL_ID],
+            ["p", "b".repeat(64)],
+            ["poll_option", "1"],
+          ],
+        },
+        keys.get("alice")!,
+      );
+      const r = receiptOf(req, 500);
+      r.tags[1] = ["p", "b".repeat(64)];
+      expect(tallyZapPoll(zp, [r]).total).toBe(0);
     });
 
     it("one request is one payment, however many receipts repeat it", () => {

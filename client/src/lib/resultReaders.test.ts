@@ -84,6 +84,41 @@ describe("the kinds whose meaning is in their tags", () => {
     expect(s.by).toBeNull();
   });
 
+  it("a receipt wrapping someone's real request: the comment is the request's, the amount unpinned", () => {
+    const sk = generateSecretKey();
+    const payer = getPublicKey(sk);
+    const request = JSON.stringify(
+      finalizeEvent(
+        {
+          kind: 9734,
+          created_at: 1,
+          content: "great post",
+          tags: [
+            ["p", B],
+            ["e", NOTE],
+          ],
+        },
+        sk,
+      ),
+    );
+    const s = summarizeResult(
+      ev(
+        9735,
+        [
+          ["p", B],
+          ["e", NOTE],
+          ["bolt11", "lnbc210n1pxyz"],
+          ["description", request],
+        ],
+        "I endorse scam.example",
+      ),
+    );
+    expect(s.by).toBe(payer);
+    expect(s.body).toBe("great post");
+    // The request names no amount: the invoice's is the receipt's word.
+    expect(s.title).toBe(`⚡ ≈21 sats to ${npub(B)}`);
+  });
+
   it("an RSVP status that is an object's own property name reads as a reply", () => {
     expect(summarizeResult(ev(31925, [["status", "constructor"]])).title).toBe("Replied");
     expect(summarizeResult(ev(31925, [["status", "__proto__"]])).title).toBe("Replied");
@@ -448,17 +483,27 @@ describe("the row reads what the page reads", () => {
   });
 
   it("a BOLT12 zap (9736) is the payer's row; an onchain zap (8333) its signer's", () => {
-    const bolt12 = summarizeResult(
-      ev(9736, [
+    const bolt12 = summarizeResult({
+      ...ev(9736, [
         ["p", B],
         ["amount", "21000"],
         ["P", C],
         ["e", NOTE],
       ]),
-    );
+      pubkey: C,
+    });
     expect(bolt12.title).toBe(`⚡ 21 sats to ${npub(B)}`);
     expect(bolt12.by).toBe(C);
     expect(bolt12.ref).toMatchObject({ id: NOTE });
+    // Signed by another key than the `P` it names: the payer is only claimed, so the row stays the signer's.
+    const claimed = summarizeResult(
+      ev(9736, [
+        ["p", B],
+        ["amount", "21000"],
+        ["P", C],
+      ]),
+    );
+    expect(claimed.by).toBeNull();
     const onchain = summarizeResult(
       ev(8333, [
         ["i", `bitcoin:tx:${"f".repeat(64)}`],

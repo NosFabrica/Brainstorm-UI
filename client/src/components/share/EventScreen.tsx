@@ -622,7 +622,8 @@ function EventView({
                 <EventHero event={note} />
               ) : hasActivityHero(note) ? (
                 // Zaps, reactions, deletions, reports, labels, votes, RSVPs, follows, trust scores.
-                <ActivityHero event={note} />
+                // Keyed by the event: a reveal or an open fold is that event's, never the next one's.
+                <ActivityHero key={note.id} event={note} />
               ) : hasThingPage(note) ? (
                 // Communities, fundraisers, reviews, shops, apps, calendars,
                 // badges, emoji packs, playlists, lessons, torrents (lib/thing).

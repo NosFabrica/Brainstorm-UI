@@ -46,43 +46,65 @@ export function isVerifiedEvent(v: unknown): v is NostrEvent {
   }
 }
 
-/**
- * Signature checks are the costly part, and a zap poll's tally re-reads every
- * receipt as each one arrives: remember each embedded JSON's answer. Bounded —
- * the oldest answers go first.
- */
-const SIGNED = new Map<string, boolean>();
-const SIGNED_MAX = 5000;
-function signedJson(raw: string, parsed: unknown): boolean {
-  const held = SIGNED.get(raw);
-  if (held !== undefined) return held;
-  const ok = isVerifiedEvent(parsed);
-  if (SIGNED.size >= SIGNED_MAX) SIGNED.delete(SIGNED.keys().next().value as string);
-  SIGNED.set(raw, ok);
-  return ok;
-}
-
 export interface ZapRequest {
   /** The request's own id; one request is one payment, however many receipts repeat it. */
   id: string | null;
   /** Who signed the request — a throwaway key on an anonymous zap. */
   pubkey: string | null;
+  /** The zap's comment (NIP-57: the request's content), untrimmed. */
   content: string;
   /** Its tags, string ones only. */
   tags: string[][];
   /** `anon` (NIP-57): signed by a throwaway key, so it names nobody. */
   anonymous: boolean;
   /**
-   * Signed, a 9734, and about what the receipt says it is about: the same `e`,
-   * `a` and `p`, and — when the receipt names its payer in `P` — signed by them.
+   * Signed, a 9734, and about what the receipt says it is about: the same set
+   * of `e` and of `a`, the same `p`, and — when the receipt names its payer in
+   * `P` — signed by them.
    */
   verified: boolean;
 }
 
-const first = (tags: string[][], name: string) => tags.find((t) => t[0] === name && typeof t[1] === "string")?.[1];
+/** A receipt's `description`, parsed: the request as it claims to be, before any check. */
+export interface ZapDescription {
+  /** The parsed JSON, for the signature check. */
+  parsed: Record<string, unknown>;
+  id: string | null;
+  pubkey: string | null;
+  kind: unknown;
+  content: string;
+  tags: string[][];
+}
 
-/** A zap receipt's embedded request, read and checked against the receipt. Null when it carries none. */
-export function readZapRequest(receipt: { tags: string[][] }): ZapRequest | null {
+const first = (tags: string[][], name: string) => tags.find((t) => t[0] === name && typeof t[1] === "string")?.[1];
+const valuesOf = (tags: string[][], name: string, norm: (v: string) => string) =>
+  new Set(tags.filter((t) => t[0] === name && typeof t[1] === "string").map((t) => norm(t[1])));
+const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((v) => b.has(v));
+const lower = (v: string) => v.toLowerCase();
+/** An address with its kind and key lower-cased; its `d` is case-sensitive. */
+const normalAddr = (v: string) => {
+  const [kind, pubkey = "", ...d] = v.split(":");
+  return [kind, pubkey.toLowerCase(), ...d].join(":");
+};
+
+/*
+ * Both answers are kept per receipt EVENT (the object the store hands out), so
+ * a zap poll's tally — re-read over every receipt as each one arrives — parses
+ * each description once and checks each signature once, ever. Never keyed on
+ * what the request claims (its id or signature): that is the thing unchecked.
+ */
+const DESCRIPTIONS = new WeakMap<object, ZapDescription | null>();
+const REQUESTS = new WeakMap<object, ZapRequest | null>();
+
+/** A receipt's embedded request as JSON says it, unchecked; null when it carries none. Read once per receipt. */
+export function zapDescription(receipt: { tags: string[][] }): ZapDescription | null {
+  if (DESCRIPTIONS.has(receipt)) return DESCRIPTIONS.get(receipt)!;
+  const read = parseDescription(receipt);
+  DESCRIPTIONS.set(receipt, read);
+  return read;
+}
+
+function parseDescription(receipt: { tags: string[][] }): ZapDescription | null {
   const raw = first(receipt.tags, "description");
   if (!raw) return null;
   let parsed: unknown;
@@ -91,31 +113,50 @@ export function readZapRequest(receipt: { tags: string[][] }): ZapRequest | null
   } catch {
     return null;
   }
-  if (!parsed || typeof parsed !== "object") return null;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const req = parsed as Record<string, unknown>;
   const tags = Array.isArray(req.tags)
     ? (req.tags as unknown[]).filter((t): t is string[] => Array.isArray(t) && t.every((x) => typeof x === "string"))
     : [];
-  const pubkey =
-    typeof req.pubkey === "string" && HEX64.test(req.pubkey.toLowerCase()) ? req.pubkey.toLowerCase() : null;
-  const P = first(receipt.tags, "P")?.toLowerCase();
-  // The receipt copies these from the request; one that differs is about something else.
-  const agrees = (name: string) => {
-    const said = first(receipt.tags, name);
-    return said === undefined || first(tags, name)?.toLowerCase() === said.toLowerCase();
+  return {
+    parsed: req,
+    id: typeof req.id === "string" && HEX64.test(req.id) ? req.id : null,
+    pubkey: typeof req.pubkey === "string" && HEX64.test(req.pubkey.toLowerCase()) ? req.pubkey.toLowerCase() : null,
+    kind: req.kind,
+    content: typeof req.content === "string" ? req.content : "",
+    tags,
   };
+}
+
+/** A zap receipt's embedded request, read and checked against the receipt. Null when it carries none. */
+export function readZapRequest(receipt: { tags: string[][] }): ZapRequest | null {
+  if (REQUESTS.has(receipt)) return REQUESTS.get(receipt)!;
+  const read = checkRequest(receipt);
+  REQUESTS.set(receipt, read);
+  return read;
+}
+
+function checkRequest(receipt: { tags: string[][] }): ZapRequest | null {
+  const desc = zapDescription(receipt);
+  if (!desc) return null;
+  const { tags, pubkey } = desc;
+  const P = first(receipt.tags, "P")?.toLowerCase();
+  const receiptP = first(receipt.tags, "p")?.toLowerCase();
+  const requestP = first(tags, "p")?.toLowerCase();
   const verified =
-    req.kind === 9734 &&
+    desc.kind === 9734 &&
     !!pubkey &&
     (P === undefined || P === pubkey) &&
-    agrees("e") &&
-    agrees("a") &&
-    agrees("p") &&
-    signedJson(raw, parsed);
+    // The receipt copies these from the request (NIP-57). One that names more,
+    // fewer or other events is about something else than what was asked.
+    sameSet(valuesOf(receipt.tags, "e", lower), valuesOf(tags, "e", lower)) &&
+    sameSet(valuesOf(receipt.tags, "a", normalAddr), valuesOf(tags, "a", normalAddr)) &&
+    receiptP === requestP &&
+    isVerifiedEvent(desc.parsed);
   return {
-    id: typeof req.id === "string" && HEX64.test(req.id) ? req.id : null,
+    id: desc.id,
     pubkey,
-    content: typeof req.content === "string" ? req.content : "",
+    content: desc.content,
     tags,
     anonymous: tags.some((t) => t[0] === "anon"),
     verified,

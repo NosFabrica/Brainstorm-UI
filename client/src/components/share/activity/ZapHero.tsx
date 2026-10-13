@@ -4,8 +4,10 @@
  * onchain one (8333): how much, from whom to whom, what they said, and the
  * post it was for. A receipt is signed by the recipient's wallet service, so
  * the payer is read from the request it carries (lib/activity), never its key —
- * and said to be unverified when that request is not theirs, signed. The page
- * itself stays the signer's: anyone can write a receipt naming anyone.
+ * and said to be unverified when that request is not theirs, signed. What they
+ * said is the request's content, never the receipt's, and an amount their
+ * request does not name is marked as only the receipt's word. The page itself
+ * stays the signer's: anyone can write a receipt naming anyone.
  */
 import { useMemo } from "react";
 import { Bitcoin, Coins, Zap as ZapIcon } from "lucide-react";
@@ -33,7 +35,9 @@ export function ZapHero({ event }: { event: ActivityEvent }) {
   return (
     <div data-testid="zap-hero">
       <ActivityHeader
-        title={<span data-testid="zap-amount">{amount ? `⚡ ${amount}` : "⚡ A zap"}</span>}
+        title={
+          <span data-testid="zap-amount">{amount ? `⚡ ${zap.amountClaimed ? "≈" : ""}${amount}` : "⚡ A zap"}</span>
+        }
         subtitle={RAIL_WORDS[zap.rail]}
         icon={Icon}
       />
@@ -48,7 +52,17 @@ export function ZapHero({ event }: { event: ActivityEvent }) {
           <Chip tone="warning" size="sm" data-testid="zap-payer-unverified">
             Sender unverified
           </Chip>
-          The zap request it carries is not signed by them, so anyone could have written this receipt.
+          {zap.rail === "bolt12"
+            ? "It is signed by another key than theirs, so anyone could have written it."
+            : "The zap request it carries is not signed by them, so anyone could have written this receipt."}
+        </p>
+      )}
+      {amount && zap.amountClaimed && !zap.payerClaimed && (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <Chip tone="warning" size="sm" data-testid="zap-amount-unverified">
+            Amount unverified
+          </Chip>
+          The payer's signed request names no amount, so this one is only the receipt's word.
         </p>
       )}
 

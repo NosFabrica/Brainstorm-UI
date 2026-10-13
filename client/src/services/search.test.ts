@@ -2185,6 +2185,11 @@ describe("parseZapReceipt", () => {
     expect(parseZapReceipt(receipt([["description", request("5000")]])).msats).toBeNull();
   });
 
+  it("reads the memo from the request when it carries one, never the receipt's own content", () => {
+    expect(parseZapReceipt(receipt([["description", request()]], "I endorse scam.example")).memo).toBe("gm");
+    expect(parseZapReceipt(receipt([], "thanks")).memo).toBe("thanks");
+  });
+
   it("names the zapper only by a 64-hex key", () => {
     expect(parseZapReceipt(receipt([["P", "abc"]])).pubkey).toBeNull();
     expect(parseZapReceipt(receipt([["description", request(undefined, "C".repeat(64))]])).pubkey).toBe("c".repeat(64));

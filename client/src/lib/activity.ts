@@ -9,6 +9,7 @@
  */
 import { reactionEmoji, type CustomEmoji } from "@/lib/customEmoji";
 import { tagValue } from "@/lib/tagValue";
+import { POLL_KIND, acceptedChoices } from "@/lib/polls";
 import { isVerifiedEvent, readZapRequest } from "@/lib/zapRequest";
 import { parseZapReceipt } from "@/services/search";
 
@@ -99,10 +100,16 @@ export interface Zap {
   recipient: string | null;
   /** In sats, or in `unit` when a mint counts in something else. Null when unknown. */
   amount: number | null;
+  /**
+   * A receipt's amount is its invoice's, the wallet's word: it is the payer's
+   * only when their signed request names it (NIP-57 `amount`). Otherwise it is
+   * a claim anyone writing the receipt could inflate.
+   */
+  amountClaimed: boolean;
   /** "sats", or a mint's own unit ("usd"). */
   unit: string;
   comment: string;
-  /** The tags the comment's NIP-30 emoji are read from: a receipt's own, and its request's. */
+  /** The tags the comment's NIP-30 emoji are read from: a receipt's request's, or its own when it carries none. */
   commentTags: string[][];
   /** The zapped event or address; null for a zap to the person. */
   target: EventRef | null;
@@ -140,6 +147,7 @@ export function readZap(ev: ActivityEvent): Zap | null {
     comment: ev.content.trim(),
     commentTags: ev.tags,
     payerClaimed: false,
+    amountClaimed: false,
     mint: null,
     txid: null,
     block: null,
@@ -149,6 +157,9 @@ export function readZap(ev: ActivityEvent): Zap | null {
     case 9735: {
       // A receipt is signed by the recipient's wallet service: the payer is in
       // the request it carries, and is theirs only if that request verifies.
+      // What they said (NIP-57: the request's content, and its NIP-30 emoji) is
+      // the request's alone — a receipt wrapping someone's real request does
+      // not get to put words in their mouth.
       const receipt = parseZapReceipt(ev as Parameters<typeof parseZapReceipt>[0]);
       const request = readZapRequest(ev);
       const payer = request?.anonymous ? null : receipt.pubkey;
@@ -158,9 +169,13 @@ export function readZap(ev: ActivityEvent): Zap | null {
         payer,
         payerClaimed: !!payer && !request?.verified,
         amount: receipt.msats ? receipt.msats / 1000 : null,
+        // The invoice is the wallet's word; it is what the payer asked to pay only when their signed request names the amount.
+        amountClaimed: !request?.verified || !request.tags.some((t) => t[0] === "amount"),
         comment: receipt.memo,
-        commentTags: [...ev.tags, ...(request?.tags.filter((t) => t[0] === "emoji") ?? [])],
-        target: targetOf(ev),
+        commentTags: request ? request.tags : ev.tags,
+        // What was zapped is what the payer asked to zap: a verified request's
+        // `e`/`a` (which the receipt's must match), else the receipt's own claim.
+        target: request?.verified ? targetOf(request) : targetOf(ev),
       };
     }
     case 9734: {
@@ -189,12 +204,16 @@ export function readZap(ev: ActivityEvent): Zap | null {
       };
     }
     case 9736: {
-      // Signed by the payer when attributed (`P`), by a throwaway key when anonymous.
+      // Signed by the payer when attributed (`P`), by a throwaway key when
+      // anonymous. A `P` that is not the signer's key is only a claim: anyone
+      // can sign a 9736 naming anyone.
       const msats = msatsTag(ev);
+      const payer = hexKey(tagValue(ev, "P"));
       return {
         ...base,
         rail: "bolt12",
-        payer: hexKey(tagValue(ev, "P")),
+        payer,
+        payerClaimed: !!payer && payer !== ev.pubkey.toLowerCase(),
         amount: msats ? msats / 1000 : null,
         target: targetOf(ev, "first"),
       };
@@ -320,7 +339,8 @@ export interface BadgeAward {
 }
 
 export function readBadgeAward(ev: ActivityEvent): BadgeAward {
-  const a = tagsOf(ev, "a").find((t) => ADDRESS.test(t[1]));
+  // NIP-58: an award names a badge definition (30009); any other address is no badge.
+  const a = tagsOf(ev, "a").find((t) => t[1].startsWith("30009:") && ADDRESS.test(t[1]));
   const badge = a ? normalAddr(a[1]) : null;
   return {
     badge,
@@ -459,10 +479,21 @@ export function readPollVote(ev: ActivityEvent): PollVote {
   return { poll: targetOf(ev, "first"), responses: unique(tagsOf(ev, "response").map((t) => t[1])) };
 }
 
-/** A vote's choices in the poll's own words, once the poll is in hand; the ids until then. */
-export function pollChoices(responses: string[], poll: { tags: string[][] } | null | undefined): string[] {
-  const options = new Map((poll ? tagsOf(poll, "option") : []).map((t) => [t[1], t[2]?.trim() || t[1]]));
-  return responses.map((r) => options.get(r) ?? r);
+/**
+ * What a vote casts, in the poll's own words once the poll is in hand: on a
+ * single-choice poll only its first response, and only ids the poll declares
+ * (NIP-88 — the same rule its tally counts by). Until then, or when the event
+ * it names is no poll (kind 1068), the ids as the vote gives them.
+ */
+export function pollChoices(
+  responses: string[],
+  poll: { kind: number; tags: string[][] } | null | undefined,
+): string[] {
+  if (!poll || poll.kind !== POLL_KIND) return responses;
+  const options = new Map(tagsOf(poll, "option").map((t) => [t[1], t[2]?.trim() || t[1]]));
+  const multiple = (tagValue(poll, "polltype") ?? "").trim().toLowerCase() === "multiplechoice";
+  const cast = acceptedChoices({ options: [...options.keys()].map((id) => ({ id, label: "" })), multiple }, responses);
+  return cast.map((r) => options.get(r) ?? r);
 }
 
 // ---- Calendar RSVP (NIP-52, 31925) ----

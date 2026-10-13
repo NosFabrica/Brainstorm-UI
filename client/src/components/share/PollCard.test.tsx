@@ -163,6 +163,7 @@ describe("PollCard — zap poll (kind 6969)", () => {
       content: "",
       tags: [
         ["e", POLL_ID],
+        ["p", AUTHOR],
         ["poll_option", String(option)],
       ],
     };
@@ -174,6 +175,7 @@ describe("PollCard — zap poll (kind 6969)", () => {
       content: "",
       tags: [
         ["e", POLL_ID],
+        ["p", AUTHOR],
         ["bolt11", `lnbc${sats * 10}n1pexample`],
         [
           "description",
@@ -183,14 +185,16 @@ describe("PollCard — zap poll (kind 6969)", () => {
     };
   };
 
-  it("shows sats per option, consensus, closing time and a way to zap", () => {
+  it("shows sats per option, closing time and a way to zap — and no consensus on an unverified tally", () => {
     held = [receipt(700, 0), receipt(300, 1)];
     renderWithProviders(<PollCard event={zapPoll} />);
     expect(screen.getByTestId("zap-poll-option-0")).toHaveTextContent("Yes");
-    expect(screen.getByTestId("zap-poll-option-0")).toHaveTextContent("Consensus");
+    // 70% passes the 60% threshold, but the receipts are the wallets' word: no option is declared the consensus.
+    expect(screen.getByTestId("zap-poll-option-0")).not.toHaveTextContent("Consensus");
     expect(screen.getByTestId("zap-poll-option-0")).toHaveTextContent("700 sats · 70%");
     expect(screen.getByTestId("zap-poll-option-1")).toHaveTextContent("300 sats · 30%");
-    expect(screen.getByTestId("zap-poll-total")).toHaveTextContent("1,000 sats from 2 zaps");
+    // Neither request names its amount: the total is only the receipts' word.
+    expect(screen.getByTestId("zap-poll-total")).toHaveTextContent("≈1,000 sats from 2 zaps");
     expect(screen.getByTestId("zap-poll-closes")).toHaveTextContent("Ends in 1 day");
     expect(screen.getByTestId("zap-poll-open").getAttribute("href")).toMatch(/^nostr:nevent1/);
   });
@@ -204,7 +208,7 @@ describe("PollCard — zap poll (kind 6969)", () => {
     held = [receipt(700, 0), receipt(100_000, 1, false)];
     renderWithProviders(<PollCard event={zapPoll} />);
     expect(screen.getByTestId("zap-poll-option-1")).toHaveTextContent("0 sats");
-    expect(screen.getByTestId("zap-poll-total")).toHaveTextContent("700 sats from 1 zap");
+    expect(screen.getByTestId("zap-poll-total")).toHaveTextContent("≈700 sats from 1 zap");
     expect(screen.getByTestId("zap-poll-unverified")).toHaveTextContent("Unverified tally (zap receipts)");
   });
 

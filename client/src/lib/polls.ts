@@ -8,7 +8,7 @@
  * nip88Polls) so the two clients give one answer for the same poll.
  */
 import { isLocalNetworkHost } from "@/lib/localNetwork";
-import { readZapRequest } from "@/lib/zapRequest";
+import { readZapRequest, zapDescription } from "@/lib/zapRequest";
 import { parseZapReceipt } from "@/services/search";
 
 export const POLL_KIND = 1068;
@@ -230,18 +230,8 @@ export function zapPollClosed(poll: Pick<ZapPoll, "closedAt">, now: number): boo
 
 /** The option a zap receipt's embedded request (`description`) votes for, or null. */
 export function zappedPollOption(receipt: { tags: string[][] }): number | null {
-  try {
-    const raw = receipt.tags.find((t) => t[0] === "description")?.[1];
-    if (!raw) return null;
-    const request = JSON.parse(raw) as { tags?: unknown };
-    if (!Array.isArray(request?.tags)) return null;
-    const tag = (request.tags as unknown[]).find(
-      (t): t is string[] => Array.isArray(t) && t[0] === "poll_option" && typeof t[1] === "string",
-    );
-    return tag && /^\d+$/.test(tag[1]) ? Number(tag[1]) : null;
-  } catch {
-    return null;
-  }
+  const tag = zapDescription(receipt)?.tags.find((t) => t[0] === "poll_option");
+  return tag && /^\d+$/.test(tag[1]) ? Number(tag[1]) : null;
 }
 
 export interface ZapPollTally {
@@ -253,6 +243,11 @@ export interface ZapPollTally {
   total: number;
   /** Counted zaps. */
   zaps: number;
+  /**
+   * Counted zaps whose request names no amount (NIP-57 `amount`): their size
+   * is only the receipt's invoice, which whoever wrote the receipt could inflate.
+   */
+  unpinned: number;
 }
 
 /** All the bitcoin there will ever be, in sats: an invoice for more is not a payment. */
@@ -265,8 +260,10 @@ const MAX_SATS = 21_000_000 * 100_000_000;
  * amount is not counted (see `parseZapReceipt`).
  *
  * Any key can sign a 9735, so a receipt counts only when the zap request it
- * embeds verifies (lib/zapRequest): signed, about this poll, and by the
- * receipt's `P` when it names one. One request is one payment, however many
+ * embeds verifies (lib/zapRequest): signed, about this poll, to its author,
+ * and by the receipt's `P` when it names one. Each receipt is parsed and
+ * checked once (lib/zapRequest keeps the answer per receipt), so re-tallying
+ * as each one arrives costs a lookup per receipt, not a signature check. One request is one payment, however many
  * receipts repeat it. That still takes the wallet's word that it was paid —
  * checkable only against the poll author's LNURL `nostrPubkey`, which nothing
  * here resolves — so the card calls this tally unverified.
@@ -276,6 +273,7 @@ export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally
   const zappers = new Map<number, string[]>(poll.options.map((o) => [o.index, []]));
   let total = 0;
   let zaps = 0;
+  let unpinned = 0;
   const seen = new Set<string>();
   const paid = new Set<string>();
   const newestFirst = [...receipts].sort((a, b) => b.created_at - a.created_at);
@@ -289,6 +287,8 @@ export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally
     const request = readZapRequest(r);
     if (!request?.verified || !request.id || paid.has(request.id)) continue;
     if (!request.tags.some((t) => t[0] === "e" && t[1] === poll.id)) continue;
+    // A vote is a zap to the poll's author: one paid to anyone else pays nothing into the poll.
+    if (request.tags.find((t) => t[0] === "p")?.[1]?.toLowerCase() !== poll.pubkey.toLowerCase()) continue;
     const receipt = parseZapReceipt(r as Parameters<typeof parseZapReceipt>[0]);
     if (!receipt.msats) continue;
     const amount = Math.floor(receipt.msats / 1000);
@@ -299,11 +299,12 @@ export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally
     sats.set(option, (sats.get(option) ?? 0) + amount);
     total += amount;
     zaps += 1;
+    if (!request.tags.some((t) => t[0] === "amount")) unpinned += 1;
     const who = zappers.get(option)!;
     const zapper = request.anonymous ? null : request.pubkey;
     if (zapper && !who.includes(zapper)) who.push(zapper);
   }
-  return { sats, zappers, total, zaps };
+  return { sats, zappers, total, zaps, unpinned };
 }
 
 /** "100–1,000 sats", "at least 100 sats", "up to 1,000 sats"; null when any amount counts. */

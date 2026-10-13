@@ -385,8 +385,10 @@ read([9321, 9734, 9735, 9736, 8333], (ev) => {
   const fallback = { cashu: "Nutzap", request: "Zap", lightning: "Zap", bolt12: "Zap", onchain: "Onchain zap" }[
     zap.rail
   ];
+  const amount = zapAmount(zap);
   return {
-    title: `⚡ ${zapAmount(zap) ?? fallback} to ${who(zap.recipient)}`,
+    // ≈: an amount the payer's signed request does not name is only the receipt's word (lib/activity).
+    title: `⚡ ${amount ? `${zap.amountClaimed ? "≈" : ""}${amount}` : fallback} to ${who(zap.recipient)}`,
     body: zap.comment || null,
     facts:
       zap.rail === "cashu" && zap.mint

@@ -359,8 +359,15 @@ describe("the rest of the activities", () => {
       ]),
     );
     expect(vote).toEqual({ poll: { id: NOTE, relay: undefined }, responses: ["opt1", "opt9"] });
-    const poll = { tags: [["option", "opt1", "Yes"]] };
-    expect(pollChoices(vote.responses, poll)).toEqual(["Yes", "opt9"]);
+    const poll = {
+      kind: 1068,
+      tags: [
+        ["option", "opt1", "Yes"],
+        ["polltype", "multiplechoice"],
+      ],
+    };
+    // An id the poll never declared casts nothing (NIP-88).
+    expect(pollChoices(vote.responses, poll)).toEqual(["Yes"]);
     expect(pollChoices(vote.responses, undefined)).toEqual(["opt1", "opt9"]);
   });
 
@@ -685,5 +692,144 @@ describe("addresses with an upper-case key", () => {
     expect(targetsOf({ tags: [["a", `30023:${WALLET.toUpperCase()}:Essay`]] })).toEqual([
       { addr: `30023:${WALLET}:Essay`, relay: undefined },
     ]);
+  });
+});
+
+// ---- Forged receipts around a real request (audit 2026-10, second pass) ----
+
+describe("a receipt around someone's real request says only what the request says", () => {
+  const alice = signer();
+  const mallory = signer();
+  const NOTE3 = "3".repeat(64);
+  const request = zapRequest(
+    alice.sk,
+    [
+      ["p", ALICE],
+      ["e", NOTE],
+      ["relays", "wss://r.example"],
+    ],
+    "great post",
+  );
+  const receiptBy = (tags: string[][], content = "") =>
+    finalizeEvent({ kind: 9735, created_at: 1_790_000_001, content, tags }, mallory.sk);
+
+  it("the comment and its emoji are the request's, never the receipt's own content or tags", () => {
+    const zap = readZap(
+      receiptBy(
+        [
+          ["p", ALICE],
+          ["e", NOTE],
+          ["P", alice.pubkey],
+          ["emoji", "scam", "https://scam.example/x.png"],
+          ["description", JSON.stringify(request)],
+        ],
+        "I endorse scam.example :scam:",
+      ),
+    )!;
+    expect(zap.payer).toBe(alice.pubkey);
+    expect(zap.payerClaimed).toBe(false);
+    expect(zap.comment).toBe("great post");
+    expect(zap.commentTags).not.toContainEqual(["emoji", "scam", "https://scam.example/x.png"]);
+  });
+
+  it("a receipt with no request keeps its own content", () => {
+    expect(readZap(receiptBy([["p", ALICE]], "thanks"))!.comment).toBe("thanks");
+  });
+
+  it("the zapped post is the one the request names; a receipt naming more is not the request's", () => {
+    const extra = readZap(
+      receiptBy([
+        ["p", ALICE],
+        ["e", NOTE],
+        ["e", NOTE3],
+        ["P", alice.pubkey],
+        ["description", JSON.stringify(request)],
+      ]),
+    )!;
+    expect(extra.payerClaimed).toBe(true);
+    const same = readZap(
+      receiptBy([
+        ["p", ALICE],
+        ["e", NOTE],
+        ["description", JSON.stringify(request)],
+      ]),
+    )!;
+    expect(same.payerClaimed).toBe(false);
+    expect(same.target).toMatchObject({ id: NOTE });
+  });
+
+  it("a receipt that drops the request's target is not the request's", () => {
+    const zap = readZap(
+      receiptBy([
+        ["p", ALICE],
+        ["description", JSON.stringify(request)],
+      ]),
+    )!;
+    expect(zap.payerClaimed).toBe(true);
+  });
+
+  it("a verified request with no `amount` leaves the invoice's amount unverified", () => {
+    const pinned = zapRequest(alice.sk, [
+      ["p", ALICE],
+      ["e", NOTE],
+      ["amount", "21000"],
+    ]);
+    const tags = (req: object) => [
+      ["p", ALICE],
+      ["e", NOTE],
+      ["bolt11", "lnbc210n1pxyz"],
+      ["description", JSON.stringify(req)],
+    ];
+    expect(readZap(receiptBy(tags(pinned)))!).toMatchObject({ amount: 21, amountClaimed: false });
+    expect(readZap(receiptBy(tags(request)))!).toMatchObject({ amount: 21, amountClaimed: true });
+  });
+});
+
+describe("a BOLT12 zap names its payer only under their signature", () => {
+  it("a `P` that is not the signer is only a claim", () => {
+    const tags = [
+      ["p", ALICE],
+      ["amount", "5000000"],
+    ];
+    const claimed = readZap(ev(9736, [...tags, ["P", PAYER]], "from alice", WALLET))!;
+    expect(claimed.payer).toBe(PAYER);
+    expect(claimed.payerClaimed).toBe(true);
+    expect(readZap(ev(9736, [...tags, ["P", PAYER]], "", PAYER))!.payerClaimed).toBe(false);
+  });
+});
+
+describe("a badge award names a badge definition (30009), nothing else", () => {
+  it("any other address is no badge", () => {
+    expect(readBadgeAward(ev(8, [["a", `30023:${WALLET}:essay`]], "", WALLET)).badge).toBeNull();
+    expect(
+      readBadgeAward(
+        ev(
+          8,
+          [
+            ["a", `30023:${WALLET}:essay`],
+            ["a", `30009:${WALLET}:bravery`],
+          ],
+          "",
+          WALLET,
+        ),
+      ).badge,
+    ).toBe(`30009:${WALLET}:bravery`);
+  });
+});
+
+describe("a poll vote's choices are what it casts in that poll (NIP-88)", () => {
+  const options = [
+    ["option", "a", "Apples"],
+    ["option", "b", "Bananas"],
+  ];
+  it("on a single-choice poll only the first response counts", () => {
+    expect(pollChoices(["a", "b"], { kind: 1068, tags: options })).toEqual(["Apples"]);
+    expect(pollChoices(["a", "b"], { kind: 1068, tags: [...options, ["polltype", "multiplechoice"]] })).toEqual([
+      "Apples",
+      "Bananas",
+    ]);
+  });
+  it("an event that is no poll lends the vote no words", () => {
+    expect(pollChoices(["a"], { kind: 1, tags: options })).toEqual(["a"]);
   });
 });

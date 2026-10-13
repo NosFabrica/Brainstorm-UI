@@ -192,6 +192,44 @@ describe("a zap receipt's page", () => {
     expect(await within(screen.getByTestId("zap-target")).findByText("the zapped note")).toBeInTheDocument();
   });
 
+  it("a receipt wrapping someone's real request says only what they said, and no amount they did not sign", () => {
+    const sk = generateSecretKey();
+    const target = ev(1, [], "the zapped note", ALICE);
+    relayEvents.set(target.id, target);
+    const request = JSON.stringify(
+      finalizeEvent(
+        {
+          kind: 9734,
+          created_at: NOW - 70,
+          content: "great post",
+          tags: [
+            ["p", ALICE],
+            ["e", target.id],
+          ],
+        },
+        sk,
+      ),
+    );
+    open(
+      ev(
+        9735,
+        [
+          ["p", ALICE],
+          ["e", target.id],
+          ["bolt11", "lnbc210n1pxyz"],
+          ["emoji", "scam", "https://scam.example/x.png"],
+          ["description", request],
+        ],
+        "I endorse scam.example :scam:",
+      ),
+    );
+    expect(screen.getByTestId("zap-comment")).toHaveTextContent("great post");
+    expect(screen.queryByText(/scam\.example/)).toBeNull();
+    expect(screen.getByTestId("zap-amount")).toHaveTextContent("⚡ ≈21 sats");
+    expect(screen.getByTestId("zap-amount-unverified")).toBeInTheDocument();
+    expect(screen.queryByTestId("zap-payer-unverified")).toBeNull();
+  });
+
   it("a forged receipt naming someone as its payer does not make the page theirs", async () => {
     const victim = "d".repeat(64);
     seedProfile(victim, "Victim Vee");
@@ -344,6 +382,67 @@ describe("a report's page", () => {
     expect(screen.queryByText("reported words")).toBeNull();
     fireEvent.click(screen.getByTestId("report-event-reveal"));
     expect(await screen.findByText("reported words")).toBeInTheDocument();
+  });
+});
+
+describe("one hero, then another event's", () => {
+  it("a post revealed under one report is behind its own click under the next", async () => {
+    const postA = ev(1, [], "first reported words", ALICE);
+    const postB = ev(1, [], "second reported words", ALICE);
+    relayEvents.set(postA.id, postA);
+    relayEvents.set(postB.id, postB);
+    const page = (e: MinimalEvent) => (
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
+        <EventStoreProvider eventStore={eventStore}>
+          <AccountsProvider manager={new AccountManager<AccountMetadata>()}>
+            <EventScreen event={e} />
+          </AccountsProvider>
+        </EventStoreProvider>
+      </QueryClientProvider>
+    );
+    const r = render(page(ev(1984, [["e", postA.id, "nudity"]])));
+    fireEvent.click(screen.getByTestId("report-event-reveal"));
+    expect(await screen.findByText("first reported words")).toBeInTheDocument();
+    r.rerender(page(ev(1984, [["e", postB.id, "nudity"]])));
+    expect(screen.getByTestId("report-event-reveal")).toBeInTheDocument();
+    expect(screen.queryByText("second reported words")).toBeNull();
+  });
+});
+
+describe("a poll vote's page", () => {
+  it("on a single-choice poll shows the one choice that counts", async () => {
+    const poll = ev(
+      1068,
+      [
+        ["option", "a", "Apples"],
+        ["option", "b", "Bananas"],
+      ],
+      "Fruit?",
+      ALICE,
+    );
+    relayEvents.set(poll.id, poll);
+    open(
+      ev(1018, [
+        ["e", poll.id],
+        ["response", "a"],
+        ["response", "b"],
+      ]),
+    );
+    await waitFor(() => expect(screen.getByTestId("poll-vote-choices")).toHaveTextContent("Apples"));
+    expect(screen.getAllByTestId("poll-vote-choice")).toHaveLength(1);
+  });
+
+  it("an event that is not a poll lends its tags no words", async () => {
+    const note = ev(1, [["option", "a", "Lies"]], "not a poll", ALICE);
+    relayEvents.set(note.id, note);
+    open(
+      ev(1018, [
+        ["e", note.id],
+        ["response", "a"],
+      ]),
+    );
+    expect(await screen.findByText("not a poll")).toBeInTheDocument();
+    expect(screen.queryByText("Lies")).toBeNull();
   });
 });
 

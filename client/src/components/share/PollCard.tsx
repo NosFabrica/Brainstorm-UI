@@ -328,6 +328,13 @@ function NostrPoll({ poll, tags, relayHints }: { poll: Poll; tags: string[][]; r
   );
 }
 
+/**
+ * Whether a zap poll's tally is known to be paid. Not yet: that takes checking
+ * each receipt's signer against the poll author's LNURL `nostrPubkey`, which
+ * nothing here resolves. Until then no option is shown as the consensus.
+ */
+const TALLY_VERIFIED: boolean = false;
+
 function ZapPollResults({ poll, tags, relayHints }: { poll: ZapPoll; tags: string[][]; relayHints: string[] }) {
   const filters = useMemo(() => [{ kinds: [ZAP_RECEIPT_KIND], "#e": [poll.id] }], [poll.id]);
   const receipts = useStoreEvents(`zap-poll:${poll.id}`, filters, () =>
@@ -345,7 +352,9 @@ function ZapPollResults({ poll, tags, relayHints }: { poll: ZapPoll; tags: strin
         {poll.options.map((o) => {
           const amount = tally.sats.get(o.index) ?? 0;
           const pct = percentOf(amount, tally.total);
-          const consensus = poll.threshold !== null && tally.total > 0 && pct >= poll.threshold;
+          // Never declared on this tally: it is counted from receipts any key can sign
+          // (the payments are the wallets' word), so a forged receipt could carry it.
+          const consensus = TALLY_VERIFIED && poll.threshold !== null && tally.total > 0 && pct >= poll.threshold;
           return (
             <li
               key={o.index}
@@ -383,10 +392,17 @@ function ZapPollResults({ poll, tags, relayHints }: { poll: ZapPoll; tags: strin
         </span>
         <span aria-hidden="true">·</span>
         <Faces pubkeys={zappers} testId="zap-poll-faces" />
-        <span data-testid="zap-poll-total">
+        <span
+          data-testid="zap-poll-total"
+          title={
+            tally.unpinned > 0
+              ? `${tally.unpinned} of these zaps' requests name no amount: their size is only the receipt's word.`
+              : undefined
+          }
+        >
           {receipts.loading && tally.zaps === 0
             ? "Counting zaps…"
-            : `${sats(tally.total)} sats from ${tally.zaps} ${tally.zaps === 1 ? "zap" : "zaps"}`}
+            : `${tally.unpinned > 0 ? "≈" : ""}${sats(tally.total)} sats from ${tally.zaps} ${tally.zaps === 1 ? "zap" : "zaps"}`}
         </span>
         {range && (
           <>
