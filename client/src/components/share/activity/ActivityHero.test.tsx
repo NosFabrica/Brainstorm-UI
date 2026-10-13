@@ -393,6 +393,53 @@ describe("a trust score's page", () => {
   });
 });
 
+describe("a score's page leads with what it scores", () => {
+  const before = (a: HTMLElement, b: HTMLElement) =>
+    !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("names an identifier in the title, and shows it above the numbers", () => {
+    open(
+      ev(30385, [
+        ["d", "wss://yabu.me"],
+        ["rank", "71"],
+      ]),
+    );
+    expect(screen.getByTestId("activity-title")).toHaveTextContent("Score for relay yabu.me");
+    expect(before(screen.getByTestId("assertion-subject"), screen.getByTestId("assertion-metrics"))).toBe(true);
+  });
+
+  it("names a book by its kind of id", () => {
+    open(
+      ev(30385, [
+        ["d", "isbn:9780141439518"],
+        ["rank", "40"],
+      ]),
+    );
+    expect(screen.getByTestId("activity-title")).toHaveTextContent("Score for Book 9780141439518");
+  });
+
+  it("names a scored article by its title once it loads", async () => {
+    const article = ev(
+      30023,
+      [
+        ["d", "essay"],
+        ["title", "On Trust"],
+      ],
+      "body",
+      ALICE,
+    );
+    relayAddresses.set(`30023:${ALICE}:essay`, article);
+    open(
+      ev(30384, [
+        ["d", `30023:${ALICE}:essay`],
+        ["rank", "12"],
+      ]),
+    );
+    expect(screen.getByTestId("activity-title")).toHaveTextContent(/Score for (an article|“On Trust”)/);
+    await waitFor(() => expect(screen.getByTestId("activity-title")).toHaveTextContent("Score for “On Trust”"));
+  });
+});
+
 describe("a deletion's page", () => {
   it("counts what it deleted and says a target that is gone is gone", async () => {
     open(

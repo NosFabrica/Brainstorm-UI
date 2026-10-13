@@ -33,6 +33,7 @@ import {
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
+import { identifierName } from "@/lib/nip73";
 import { tagValue } from "@/lib/tagValue";
 
 export type ReaderEvent = {
@@ -422,9 +423,16 @@ read([30382, 30383, 30384, 30385], (ev) => {
   const assertion = readAssertion(ev);
   if (ev.kind === 30382)
     return { title: `Trust score for ${who(assertion.pubkey)}`, body: null, facts: scoreFacts(ev) };
+  // The thing scored leads the row, as on its page: a named id, else the kind addressed.
+  const addrKind = assertion.ref?.addr ? Number(assertion.ref.addr.split(":")[0]) : NaN;
+  const named = identifierName(assertion.identifier ?? undefined);
   return {
     title:
-      ev.kind === 30385 ? `Score for ${clip(assertion.identifier ?? "", 60) || "an identifier"}` : "Score for an event",
+      ev.kind === 30385
+        ? `Score for ${clip(named ?? "", 60) || "an identifier"}`
+        : Number.isFinite(addrKind)
+          ? `Score for ${/^[aeiou]/i.test(kindTypeLabel(addrKind)) ? "an" : "a"} ${kindTypeLabel(addrKind).toLowerCase()}`
+          : "Score for an event",
     body: null,
     facts: scoreFacts(ev),
     ref: assertion.ref,

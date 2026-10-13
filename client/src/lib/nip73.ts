@@ -32,6 +32,7 @@ export function externalRef(value: string | undefined): ExternalRef | null {
   const v = (value ?? "").trim();
   if (!v) return null;
   if (/^https?:\/\//i.test(v)) return { label: "Web page", text: v, href: v };
+  if (/^wss?:\/\//i.test(v)) return { label: "Relay", text: v };
   if (v.startsWith("#")) return { label: "Hashtag", text: v };
   const lower = v.toLowerCase();
   for (const [prefix, label, href] of PREFIXES) {
@@ -41,4 +42,25 @@ export function externalRef(value: string | undefined): ExternalRef | null {
     }
   }
   return { label: "External", text: v };
+}
+
+/**
+ * An id as a title says it — "Score for …": a page by its host and path, a
+ * relay by its host, a hashtag as written, a book as "Book 978-…".
+ */
+export function identifierName(value: string | undefined): string | null {
+  const ref = externalRef(value);
+  if (!ref) return null;
+  if (ref.label === "Web page" || ref.label === "Relay") {
+    try {
+      const url = new URL(ref.text);
+      if (ref.label === "Relay") return `relay ${url.host}`;
+      const path = url.pathname === "/" ? "" : url.pathname;
+      return `${url.host}${path}`;
+    } catch {
+      return ref.text;
+    }
+  }
+  if (ref.label === "Hashtag" || ref.label === "External") return ref.text;
+  return `${ref.label} ${ref.text}`;
 }
