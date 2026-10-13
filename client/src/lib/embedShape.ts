@@ -15,7 +15,7 @@ import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { parseListing } from "@/lib/listing";
 import { mediaKindOf } from "@/lib/mediaKind";
 import { VIDEO_KINDS } from "@/lib/nip71";
-import { describeThing, THING_KINDS } from "@/lib/thing";
+import { describeThing, THING_KINDS, type Thing } from "@/lib/thing";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { audioUrlFromEvent } from "@/lib/audioPlayer";
 import { extractImageUrls } from "@/lib/noteContent";
@@ -117,14 +117,16 @@ export function embedAudioUrl(ev: EventLike): string | null {
   return VOICE_KINDS.has(ev.kind) && /^https?:\/\/\S+$/i.test(content) ? content : null;
 }
 
-export function embedShapeOf(ev: MinimalEvent): EmbedShape {
+/** `thing`: the event already read by lib/thing, when the caller has it — it is not read twice. */
+export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape {
   // Deleted by overwriting: the note card's quiet stub says so.
   if (isBlankEvent(ev)) return "note";
   const { kind } = ev;
   if (ITEM_LIST_KINDS.has(kind)) return "item-list";
   if (ARTICLE_EMBED_KINDS.has(kind)) return "article";
-  if (THING_KINDS.has(kind)) return describeThing(ev) ? "thing" : "note";
-  if (PEOPLE_LIST_KINDS.has(kind)) return "people-list";
+  if (THING_KINDS.has(kind)) return (thing !== undefined ? thing : describeThing(ev)) ? "thing" : "note";
+  // A roster needs someone on it: a private follow set keeps its members in encrypted content.
+  if (PEOPLE_LIST_KINDS.has(kind)) return ev.tags.some((t) => t[0] === "p" && t[1]?.trim()) ? "people-list" : "note";
   if (LIVE_EMBED_KINDS.has(kind)) return "live";
   if (CALENDAR_EVENT_KINDS.has(kind)) return "calendar-event";
   if (LISTING_EMBED_KINDS.has(kind)) return parseListing(ev) ? "listing" : "note";

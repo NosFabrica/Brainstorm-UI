@@ -26,7 +26,8 @@ import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
-import { embedShapeOf } from "@/lib/embedShape";
+import { ARTICLE_EMBED_KINDS, embedShapeOf } from "@/lib/embedShape";
+import { nip19 } from "nostr-tools";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -66,17 +67,37 @@ type EmbeddedArticleCardProps = {
   mixed?: boolean;
 };
 
+/** An address names a replaceable or addressable event; anything else is opened by its id. */
+const isAddressable = (kind: number) =>
+  kind === 0 || kind === 3 || (kind >= 10000 && kind < 20000) || (kind >= 30000 && kind < 40000);
+
+/** The event's page here: by its address when it has one, else by its id. */
+function eventHref(event: MinimalEvent): string | undefined {
+  if (isAddressable(event.kind)) {
+    const naddr = naddrForEvent(event);
+    return naddr ? `/e/${naddr}` : undefined;
+  }
+  try {
+    return `/e/${nip19.neventEncode({ id: event.id, author: event.pubkey })}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Callers hand this card whatever a note links by address — a stream, a
- * listing, a video, a list — not only articles. Those are drawn as what they
- * are (EmbeddedNoteCard, by lib/embedShape), never as an article with the
- * default cover. EmbeddedNoteCard sends articles back here, so the two never
- * pass an event between them twice.
+ * listing, a video, a list, a web bookmark, junk on a shared kind — not only
+ * articles. Those are drawn as what they are (EmbeddedNoteCard, by
+ * lib/embedShape), opening their own page, never as an "Untitled article"
+ * with the default cover. EmbeddedNoteCard sends articles back here, so the
+ * two never pass an event between them twice.
  */
 export function EmbeddedArticleCard(props: EmbeddedArticleCardProps) {
   const shape = useMemo(() => embedShapeOf(props.event), [props.event]);
-  if (shape !== "article" && shape !== "note") return <EmbeddedNoteCard event={props.event} author={props.author} />;
-  return <ArticleCardBody {...props} />;
+  // An article, or one overwritten to nothing (the article's own deleted stub).
+  if (shape === "article" || (shape === "note" && ARTICLE_EMBED_KINDS.has(props.event.kind)))
+    return <ArticleCardBody {...props} />;
+  return <EmbeddedNoteCard event={props.event} author={props.author} href={eventHref(props.event)} nested />;
 }
 
 function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = true }: EmbeddedArticleCardProps) {

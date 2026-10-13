@@ -652,10 +652,14 @@ export function RepoCard({
   state,
   comments,
   forkOf,
+  counts: askCounts = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
+  /** Ask the relay how busy the repo is (two COUNTs and a REQ per card). Off where the card is
+   *  quoted inside a note: the repo's page says it. */
+  counts?: boolean;
   state?: GitState;
   /** Comments on this issue or patch, when the page fetched them. */
   comments?: number;
@@ -689,7 +693,7 @@ export function RepoCard({
     lastAt: number | null;
   }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
-    if (!isRepo || !d) return;
+    if (!askCounts || !isRepo || !d) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
       if (alive)
@@ -703,7 +707,7 @@ export function RepoCard({
     return () => {
       alive = false;
     };
-  }, [isRepo, d, event.pubkey]);
+  }, [askCounts, isRepo, d, event.pubkey]);
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);
@@ -1128,6 +1132,7 @@ export function EventCard({
   going = 0,
   faces = [],
   dateTile = false,
+  rsvp = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -1137,6 +1142,8 @@ export function EventCard({
   faces?: string[];
   /** Lead with the date tile: where the card stands alone, with no day header above it (a quoted event). */
   dateTile?: boolean;
+  /** The "I'm going" pill (it asks the relay for the reader's RSVP). Off in a quote: its page has the button. */
+  rsvp?: boolean;
 }) {
   const cal = parseCalendarEvent(event);
   // "Past" means over — an all-day event today or a running conference is not.
@@ -1150,7 +1157,7 @@ export function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    !past && cal.startSec > 0 ? (
+    rsvp && !past && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>

@@ -27,9 +27,12 @@ vi.mock("@/services/nostr", async () => ({
     ),
   fetchEventsByIds: async (ids: string[]) => ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : [])),
 }));
+const repoCounts = vi.hoisted(() =>
+  vi.fn(async (_address: string) => ({ issues: 0, patches: 0, contributors: [], lastAt: null })),
+);
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
-  fetchRepoCounts: async () => ({ issues: 0, patches: 0, contributors: [], lastAt: null }),
+  fetchRepoCounts: repoCounts,
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useNip05", () => ({ useNip05: () => "none" }));
@@ -208,6 +211,19 @@ describe("EmbeddedNoteCard — things, lists and the rest", () => {
     expect(card).toHaveTextContent("Lisbon");
   });
 
+  // Audit: a quote mounted the RSVP pill (CSS-hidden on phones), which asks the relay for the reader's answer.
+  it("a quoted upcoming event has no RSVP pill", () => {
+    const soon = ev(31923, [
+      ["d", "soon"],
+      ["title", "Next meetup"],
+      ["start", String(Math.floor(Date.now() / 1000) + 30 * 86400)],
+    ]);
+    quote(soon);
+    const card = screen.getByTestId(`event-card-${soon.id}`);
+    expect(card).toHaveTextContent("Next meetup");
+    expect(within(card).queryByTestId("card-corner")).toBeNull();
+  });
+
   it("a quoted listing is its shop tile, and a click on it does not also open the quoting note", () => {
     const listing = ev(
       30402,
@@ -244,8 +260,11 @@ describe("EmbeddedNoteCard — things, lists and the rest", () => {
       ["name", "amethyst"],
       ["description", "Nostr client"],
     ]);
+    repoCounts.mockClear();
     quote(repo);
     expect(screen.getByTestId(`repo-card-${repo.id}`)).toHaveTextContent("amethyst");
+    // Audit: each quoted repo sent two COUNTs and a REQ; its page says how busy it is.
+    expect(repoCounts).not.toHaveBeenCalled();
   });
 
   it("a quoted publication goes through the article card, named as what it is", () => {
@@ -359,6 +378,62 @@ describe("references by address and from an article", () => {
     expect(screen.queryByTestId("embedded-article")).toBeNull();
   });
 
+  // Audit: a video, picture or sound handed to the article card drew without a way to its page.
+  it("the article card asked to draw a video draws it as a card that opens the video's page", () => {
+    window.history.replaceState({}, "", "/");
+    const video = ev(34235, [
+      ["d", "clip"],
+      ["title", "V"],
+      ["imeta", "url https://v.example/a.mp4", "m video/mp4"],
+    ]);
+    renderWithProviders(<EmbeddedArticleCard event={video} author={{ name: "M" }} />);
+    const card = screen.getByTestId("embedded-note");
+    expect(within(card).getByTestId("embedded-video")).toBeInTheDocument();
+    fireEvent.click(within(card).getByTestId("embedded-caption"));
+    expect(window.location.pathname).toBe(`/e/${naddrOf(video)}`);
+  });
+
+  // Audit: junk on a card kind, an untitled listing, a video with no file — each said "Untitled article".
+  it("an event the article card cannot read as an article keeps its words and its link", () => {
+    for (const odd of [
+      ev(31337, [["d", "save"]], "level 3"),
+      ev(30402, [["d", "x"]], "A thing for sale"),
+      ev(34235, [["d", "x"]], "A clip, somewhere"),
+    ]) {
+      const { unmount } = renderWithProviders(<EmbeddedArticleCard event={odd} author={{ name: "M" }} />);
+      expect(screen.queryByTestId("embedded-article")).toBeNull();
+      expect(document.body).not.toHaveTextContent("Untitled article");
+      expect(screen.getByTestId("embedded-note").className).toContain("cursor-pointer");
+      unmount();
+    }
+  });
+
+  it("a web bookmark is its link, with its title and site", () => {
+    const bookmark = ev(
+      39701,
+      [
+        ["d", "alice.blog/post"],
+        ["title", "Alice on relays"],
+      ],
+      "Worth keeping",
+    );
+    renderWithProviders(<EmbeddedArticleCard event={bookmark} author={{ name: "M" }} />);
+    expect(screen.queryByTestId("embedded-article")).toBeNull();
+    const link = screen.getByTestId("embedded-web-bookmark");
+    expect(link).toHaveAttribute("href", "https://alice.blog/post");
+    expect(link).toHaveTextContent("Alice on relays");
+    expect(link).toHaveTextContent("alice.blog");
+    expect(screen.getByTestId("embedded-note")).toHaveTextContent("Worth keeping");
+  });
+
+  it("a private follow set says it is sealed, not its ciphertext or 0 items", () => {
+    quote(ev(30000, [["d", "secret"]], "AbCdEfGh==?iv=XyZ12345"));
+    const card = screen.getByTestId("embedded-note");
+    expect(card).not.toHaveTextContent("AbCdEf");
+    expect(card).toHaveTextContent("Encrypted");
+    expect(card).not.toHaveTextContent("0 items");
+  });
+
   it("an article's naddr to a listing is the listing's card; to a publication, the article card", async () => {
     const listing = held(
       ev(30402, [
@@ -378,6 +453,17 @@ describe("references by address and from an article", () => {
     );
     renderWithProviders(<NostrRef bech32={naddrOf(book)} />);
     expect(await screen.findByTestId("embedded-article")).toHaveTextContent("Chapter one");
+  });
+
+  // Audit: a draft, publication or section the lookup did not find lost the author's own link.
+  it("an unfound draft or publication keeps the author's link around it", async () => {
+    for (const kind of [30024, 30040, 30041]) {
+      const bech32 = nip19.naddrEncode({ kind, pubkey: PK, identifier: "gone" });
+      const { unmount } = renderWithProviders(<NostrRef bech32={bech32} url="https://site.example/read/gone" />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(document.querySelector('a[href="https://site.example/read/gone"]')).not.toBeNull();
+      unmount();
+    }
   });
 
   it("an article's nevent to a dated event is its card", async () => {

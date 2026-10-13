@@ -108,6 +108,19 @@ describe("embedShapeOf", () => {
     expect(embedShapeOf(ev(38000, [["d", "b21068c8"]]))).toBe("note");
   });
 
+  // Audit: a follow set kept private (its members encrypted in its content) drew as "0 items".
+  it("a people list with no one named in its tags is words, not an empty roster", () => {
+    expect(embedShapeOf(ev(30000, [["d", "secret"]], "AbCdEf==?iv=xyz"))).toBe("note");
+    expect(
+      embedShapeOf(
+        ev(39089, [
+          ["d", "pack"],
+          ["p", ""],
+        ]),
+      ),
+    ).toBe("note");
+  });
+
   it("people lists are faces; bookmark sets are item lists", () => {
     expect(
       embedShapeOf(

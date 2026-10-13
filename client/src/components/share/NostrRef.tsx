@@ -50,10 +50,12 @@ function QuotedNoteRef({ id, bech32 }: { id: string; bech32: string }) {
   );
 }
 
-function ArticleRef({ address, bech32 }: { address: AddressRef; bech32: string }) {
+function ArticleRef({ address, bech32, url }: { address: AddressRef; bech32: string; url?: string }) {
   const { articles } = useArticlesByRefs([address]);
   const ev = articles[0];
-  if (!ev) return <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;
+  // Not (yet) found: the author's own link around it when they wrote one (a draft's or a
+  // publication's reader elsewhere), else its page here.
+  if (!ev) return addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;
   return <EmbeddedArticleCard event={ev} />;
 }
 
@@ -69,7 +71,7 @@ export function NostrRef({
   if (id) return <QuotedNoteRef id={id} bech32={bech32} />;
   if (address) {
     // Long-form — articles, drafts, publications and their sections, wiki pages, specs — as the article's card.
-    if (ARTICLE_EMBED_KINDS.has(address.kind)) return <ArticleRef address={address} bech32={bech32} />;
+    if (ARTICLE_EMBED_KINDS.has(address.kind)) return <ArticleRef address={address} bech32={bech32} url={url} />;
     // Anything with a card of its own (a stream, a listing, a community…) as that card.
     if (ADDRESS_CARD_KINDS.has(address.kind)) return <ThingAddressRef address={address} bech32={bech32} url={url} />;
     if (ITEM_LIST_KINDS.has(address.kind))

@@ -6,6 +6,7 @@
  * While the lookup runs, or when the address holds something the card cannot
  * read (junk on a shared kind), it stays a link.
  */
+import { useMemo } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -41,7 +42,8 @@ export function ThingAddressRef({
   const ev =
     articles[0] ??
     (eventStore.getReplaceable(address.kind, address.pubkey, address.identifier) as MinimalEvent | undefined);
-  const shape = ev ? embedShapeOf(ev) : null;
+  // Read once per event, not on every render while the profiles land.
+  const shape = useMemo(() => (ev ? embedShapeOf(ev) : null), [ev]);
   const profiles = useFaceProfiles(ev ? [ev.pubkey] : []);
   if (!ev || shape === "note")
     return (

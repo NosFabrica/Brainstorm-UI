@@ -22,6 +22,7 @@ import type { EmbedShape } from "@/lib/embedShape";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import type { SearchResult } from "@/lib/profileSearch";
 import { npubFromPubkey } from "@/lib/shareId";
+import type { Thing } from "@/lib/thing";
 import { contentWarningOf } from "@/lib/nip36";
 import { SensitiveCover } from "@/components/share/SensitiveMedia";
 
@@ -61,10 +62,13 @@ export function EmbeddedKindCard({
   event,
   author,
   shape,
+  thing,
 }: {
   event: MinimalEvent;
   author?: ProfileLite;
   shape: KindCardShape;
+  /** The event as lib/thing read it, when the caller already did: not read again. */
+  thing?: Thing | null;
 }) {
   const who = useCardAuthor(event.pubkey, author);
   const scoreOf = useAuthorScores([event.pubkey]);
@@ -90,13 +94,14 @@ export function EmbeddedKindCard({
   const card = (() => {
     switch (shape) {
       case "thing":
-        return <ThingCard {...typed} />;
+        return <ThingCard {...typed} thing={thing} />;
       case "people-list":
         return <ListCard {...typed} />;
       case "live":
         return <LiveCard {...typed} />;
       case "calendar-event":
-        return <EventCard {...typed} dateTile />;
+        // No RSVP pill in a quote: it would ask the relay for the reader's answer, card by card.
+        return <EventCard {...typed} dateTile rsvp={false} />;
       case "listing":
         // A shop tile, at the width it has in the Shop grid: a full-width photo would swamp the note.
         return (
@@ -107,7 +112,8 @@ export function EmbeddedKindCard({
       case "app":
         return <AppCard {...typed} />;
       case "repo":
-        return <RepoCard {...typed} />;
+        // How busy the repo is costs three asks per card; its page says it.
+        return <RepoCard {...typed} counts={false} />;
       case "track":
         return <TrackCard {...typed} />;
     }

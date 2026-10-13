@@ -1,6 +1,6 @@
 import { useMemo, type MouseEvent } from "react";
 import { useLocation } from "wouter";
-import { BadgeCheck, MessageSquare } from "lucide-react";
+import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { contentWarningOf } from "@/lib/nip36";
@@ -19,13 +19,16 @@ import { nip19 } from "nostr-tools";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
-import { describeThing, THING_KINDS } from "@/lib/thing";
+import { describeThing, THING_KINDS, type Thing } from "@/lib/thing";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { Chip } from "@/components/ui/chip";
 import { embedShapeOf, namesItsKind, type EmbedShape } from "@/lib/embedShape";
 import { kindLabel } from "@/lib/kindLabel";
 import { EmbeddedKindCard, KIND_CARD_SHAPES, type KindCardShape } from "@/components/share/EmbeddedKindCard";
 import { EmbeddedAudio, EmbeddedPictures, EmbeddedVideo } from "@/components/share/EmbeddedMedia";
+import { Favicon } from "@/components/share/LinkPreview";
+import { contentShape } from "@/lib/contentShape";
+import { WEB_BOOKMARK_KIND, webBookmarkOf } from "@/lib/webBookmark";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -72,22 +75,32 @@ export type EmbeddedNoteCardProps = {
  * kind named when it is not a note — a quoted zap or reaction is no mystery.
  */
 export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
-  const shape = useMemo(() => embedShapeOf(props.event), [props.event]);
+  // A thing is read once here, for the shape, the inline check, the body and the card alike.
+  const { shape, thing } = useMemo(() => {
+    const read = THING_KINDS.has(props.event.kind) ? describeThing(props.event) : null;
+    return { shape: embedShapeOf(props.event, read), thing: read };
+  }, [props.event]);
   if (shape === "item-list")
     return <EmbeddedListCard event={props.event} author={props.author} href={props.href} nested={props.nested} />;
   if (shape === "article") return <EmbeddedArticleCard event={props.event} author={props.author} />;
   // A market or ballot keeps its compact drawing in this card (MarketSummary, BallotAnswers).
-  if (KIND_CARD_SHAPES.has(shape) && !isInlineThing(props.event))
+  if (KIND_CARD_SHAPES.has(shape) && !isInlineThing(props.event, thing))
     return (
-      <EmbeddedKindCard key={props.event.id} event={props.event} author={props.author} shape={shape as KindCardShape} />
+      <EmbeddedKindCard
+        key={props.event.id}
+        event={props.event}
+        author={props.author}
+        shape={shape as KindCardShape}
+        thing={thing}
+      />
     );
-  return <NoteCardBody {...props} shape={shape} />;
+  return <NoteCardBody {...props} shape={shape} thing={thing} />;
 }
 
 /** A kind-38000 prediction market or ballot: drawn in the note card itself, its question and where it stands. */
-function isInlineThing(event: MinimalEvent): boolean {
+function isInlineThing(event: MinimalEvent, thing: Thing | null): boolean {
   if (event.kind !== 38000) return false;
-  const type = describeThing(event)?.detail.type;
+  const type = thing?.detail.type;
   return type === "market" || type === "ballot";
 }
 
@@ -100,7 +113,8 @@ function NoteCardBody({
   showReplyContext = false,
   nested = false,
   shape,
-}: EmbeddedNoteCardProps & { shape: EmbedShape }) {
+  thing,
+}: EmbeddedNoteCardProps & { shape: EmbedShape; thing: Thing | null }) {
   const tierRing = useTierRing();
   // Deleted by overwriting: a quiet stub in the quote's place, nothing to click.
   const blank = isBlankEvent(event);
@@ -118,10 +132,13 @@ function NoteCardBody({
   // page does the same — and not as a bare "📄 article" link.
   // A quoted prediction market or ballot (kind 38000) is drawn as what it is:
   // a market's content is BAO's social post, a ballot's is raw JSON.
-  const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
   const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
   // A video, a picture post or a voice message shows its media, not its words.
   const media = shape === "video" || shape === "picture" || shape === "audio" ? shape : null;
+  // A web bookmark (NIP-B0) is its link, then its saver's words: never a list of nothing.
+  const bookmark = useMemo(() => (event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(event) : null), [event]);
+  // Ciphertext (a private follow set, a sealed list) is not for reading: the card says so.
+  const sealed = useMemo(() => contentShape(event.content).kind === "encrypted", [event.content]);
   // None of these shows its content, so nothing it names is looked up.
   const wordless = !!shaped || !!media;
   const linked = useLinkedArticles(nested || wordless ? EMPTY_NOTE : event);
@@ -238,8 +255,31 @@ function NoteCardBody({
         <EmbeddedPictures key={event.id} event={event} opensThread={!!href} />
       ) : media === "audio" ? (
         <EmbeddedAudio key={event.id} event={event} artist={author?.display_name || author?.name} href={href} />
+      ) : sealed ? (
+        <p className="text-sm italic text-slate-500 dark:text-slate-400" data-testid="embedded-sealed">
+          Encrypted — only its owner can read it
+        </p>
       ) : (
         <div className="line-clamp-5 text-[14px]">
+          {bookmark && (
+            <a
+              href={bookmark.url}
+              target="_blank"
+              rel="noopener"
+              onClick={(e) => e.stopPropagation()}
+              className="mb-1 block rounded-lg border border-slate-200 bg-white px-3 py-2 no-underline transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+              data-testid="embedded-web-bookmark"
+            >
+              <span className="flex min-w-0 items-center gap-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+                <Favicon host={bookmark.host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+                <span className="truncate">{bookmark.host}</span>
+                <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
+              </span>
+              <span className="mt-0.5 line-clamp-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {bookmark.title ?? bookmark.url.replace(/^https?:\/\//i, "")}
+              </span>
+            </a>
+          )}
           <NoteContent
             key={event.id}
             content={event.content}
