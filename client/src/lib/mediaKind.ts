@@ -4,7 +4,7 @@
  * an option or videos"). The URL, the poster and the mime are read here too,
  * lifted out of the media card so the card and the facets agree.
  */
-import { parseNoteContent } from "@/lib/noteContent";
+import { parseNoteContent, type NoteToken } from "@/lib/noteContent";
 
 type EventLike = { kind: number; tags: string[][]; content: string };
 
@@ -203,4 +203,43 @@ export function mediaItemsOf(event: EventLike): MediaItem[] {
     if (kind) add({ url: token.value, kind });
   }
   return items;
+}
+
+/** The files an event's `imeta` types as a picture, a clip or a sound, by URL — a declared mime only. */
+export function typedImetaFiles(tags: string[][]): Map<string, MediaKind> {
+  const typed = new Map<string, MediaKind>();
+  for (const tag of tags) {
+    if (tag[0] !== "imeta") continue;
+    let url: string | undefined;
+    let kind: MediaKind | null = null;
+    for (const part of tag.slice(1)) {
+      if (part.startsWith("url ")) url = part.slice(4).trim();
+      else if (part.startsWith("m ")) kind = kindOfMime(part.slice(2));
+    }
+    if (url && kind && !typed.has(url)) typed.set(url, kind);
+  }
+  return typed;
+}
+
+const TOKEN_OF_KIND = { photo: "image", video: "video", audio: "audio" } as const;
+
+/**
+ * A note's links that its `imeta` types as media, as that media: a Blossom
+ * picture has no extension, so the words alone call it a link. Punctuation the
+ * link swallowed (`…/abc.`) stays words after it.
+ */
+export function withTypedFiles(tokens: NoteToken[], tags: string[][]): NoteToken[] {
+  if (!tags.some((t) => t[0] === "imeta")) return tokens;
+  const typed = typedImetaFiles(tags);
+  if (typed.size === 0) return tokens;
+  return tokens.flatMap((token): NoteToken[] => {
+    if (token.type !== "url") return [token];
+    let url = token.value;
+    while (url && !typed.has(url) && /[.,;:!?)\]]$/.test(url)) url = url.slice(0, -1);
+    const kind = typed.get(url);
+    if (!kind) return [token];
+    const media: NoteToken = { type: TOKEN_OF_KIND[kind], value: url };
+    const rest = token.value.slice(url.length);
+    return rest ? [media, { type: "text", value: rest }] : [media];
+  });
 }

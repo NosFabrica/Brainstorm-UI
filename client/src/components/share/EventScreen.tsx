@@ -52,6 +52,7 @@ import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventMedia } from "@/components/share/EventMedia";
+import { SensitiveRevealScope } from "@/components/share/SensitiveMedia";
 import { hasAudioHero } from "@/lib/audioEvent";
 import { mediaItemsOf } from "@/lib/mediaKind";
 import { contentWarningOf } from "@/lib/nip36";
@@ -639,7 +640,7 @@ function EventView({
                 // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
                 <HighlightHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
-                <>
+                <SensitiveRevealScope key={note.id}>
                   <ShareNoteCard
                     event={note}
                     profiles={profiles}
@@ -655,7 +656,7 @@ function EventView({
                       <EventMedia key={note.id} event={note} items={imetaOnlyMedia} />
                     </div>
                   )}
-                </>
+                </SensitiveRevealScope>
               ) : mediaItems.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
                 // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />
@@ -670,23 +671,25 @@ function EventView({
                       <EmojiText text={mediaTitle} tags={note} />
                     </h1>
                   )}
-                  <EventMedia key={note.id} event={note} items={mediaItems} />
-                  {note.content?.trim() && (
-                    <div className="mt-1">
-                      <NoteContent
-                        key={note.id}
-                        content={note.content}
-                        reading
-                        profiles={profiles}
-                        linkCard
-                        tags={note.tags}
-                        authorName={profile.display_name || profile.name}
-                        embedThings
-                        contentWarning={contentWarningOf(note)}
-                        skipUrls={mediaUrls}
-                      />
-                    </div>
-                  )}
+                  <SensitiveRevealScope key={note.id}>
+                    <EventMedia event={note} items={mediaItems} />
+                    {note.content?.trim() && (
+                      <div className="mt-1">
+                        <NoteContent
+                          key={note.id}
+                          content={note.content}
+                          reading
+                          profiles={profiles}
+                          linkCard
+                          tags={note.tags}
+                          authorName={profile.display_name || profile.name}
+                          embedThings
+                          contentWarning={contentWarningOf(note)}
+                          skipUrls={mediaUrls}
+                        />
+                      </div>
+                    )}
+                  </SensitiveRevealScope>
                 </div>
               )}
               {quietAuthor && (
