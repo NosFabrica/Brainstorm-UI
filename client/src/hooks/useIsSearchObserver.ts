@@ -18,12 +18,12 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
   const query = useQuery({
     // taPubkey: gaining an assistant must refetch, since without one the query is disabled.
     queryKey: ["search-observer", pubkey, mywot.taPubkey],
-    queryFn: () => isSearchObserverOnRelay(pubkey!),
+    queryFn: () => isSearchObserverOnRelay(pubkey!, mywot.taPubkey!),
     enabled,
     staleTime: 60_000,
   });
 
-  // No probe without an assistant: until `/user/history` answers, this is loading too.
+  // No check without an assistant: until `/user/history` answers, this is loading too.
   if (!enabled)
     return { isSearchObserver: false, isLoading: !!pubkey && mywot.isLoading, known: !!pubkey && mywot.known };
   return {

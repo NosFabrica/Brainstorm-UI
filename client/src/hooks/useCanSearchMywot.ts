@@ -6,7 +6,7 @@ import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/
 
 /**
  * May the active Account read through its own web of trust: it has a personalized graph
- * (`/user/history`) AND is permitted to be its own search observer (the ORE-05 probe, `useIsSearchObserver`).
+ * (`/user/history`) AND is permitted to be its own search observer (`useIsSearchObserver`).
  * The one rule behind every "My WoT or the house?" choice — search, threads, profile pages.
  *
  * Both are API answers a reload asks again. While each is still LOADING, the Account's last

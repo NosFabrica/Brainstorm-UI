@@ -1,31 +1,41 @@
-import { getBrainstormApi } from "@/services/api/core";
+import { lastValueFrom, toArray } from "rxjs";
+import type { NostrEvent } from "nostr-tools";
+import { beats } from "@/lib/relayRequest";
+import { searchRelay } from "@/lib/searchRelay";
 
 const TIMEOUT_MS = 5000;
 
 /**
- * A lone NIP-50 extension: the relay still decides readiness (the lens comes first), then has no
- * text to match, so no index search runs. ORE-05 refuses an empty query.
+ * Not `observer:`: the relay trust-gates an observer's plain reads, and the user and their own
+ * assistant sit below the floor.
  */
-const PROBE_QUERY = "include:spam";
+const SEARCH = "include:spam";
 
 /**
- * Whether the search relay can rank through `pubkey`, by its own rule, asked through our API's
- * ORE-05 proxy: unauthenticated, and unobserved (the global fetch, not the API folder's), so a
- * failing probe never feeds the server-down detector. `relevance-pov` answers 200 only when the
- * user's 10040 names a rank service with a projected, ranked card. 202 (still mirroring), 422
- * (cannot) and any error are all "not available".
+ * Whether the search relay can rank through `pubkey`: it holds the user's newest 10040 naming
+ * `taPubkey` for `30382:rank`, and a 30382 that assistant signed. One REQ, two `limit: 1` reads.
+ * Checks stored cards, not projected ones. Error or timeout is "not available".
  */
-export async function isSearchObserverOnRelay(pubkey: string): Promise<boolean> {
-  const api = getBrainstormApi();
-  if (!api) return false;
+export async function isSearchObserverOnRelay(pubkey: string, taPubkey: string): Promise<boolean> {
+  const relay = searchRelay();
+  if (!relay) return false;
   try {
-    const res = await globalThis.fetch(`${api}/search/pubkeys`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: PROBE_QUERY, algorithm: "relevance-pov", pov: pubkey, limit: 1 }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    return res.status === 200;
+    const events = await lastValueFrom(
+      relay
+        .request(
+          [
+            { kinds: [10040], authors: [pubkey], limit: 1, search: SEARCH },
+            { kinds: [30382], authors: [taPubkey], limit: 1, search: SEARCH },
+          ],
+          { timeout: TIMEOUT_MS },
+        )
+        .pipe(toArray()),
+    );
+    const list = events
+      .filter((e) => e.kind === 10040 && e.pubkey === pubkey)
+      .reduce<NostrEvent | undefined>((best, e) => (beats(e, best) ? e : best), undefined);
+    const namesAssistant = !!list?.tags.some((t) => t[0] === "30382:rank" && t[1] === taPubkey);
+    return namesAssistant && events.some((e) => e.kind === 30382 && e.pubkey === taPubkey);
   } catch {
     return false;
   }

@@ -1,81 +1,102 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetServerStatus, reportApiFailure } from "@/lib/serverStatus";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Observable, from, throwError } from "rxjs";
+import type { Filter, NostrEvent } from "nostr-tools";
+
+let held: NostrEvent[] = [];
+let respond: (filters: Filter[]) => Observable<NostrEvent> = (filters) =>
+  from(held.filter((e) => filters.some((f) => f.kinds!.includes(e.kind) && f.authors!.includes(e.pubkey))));
+const requests: Filter[][] = [];
+const relay = {
+  url: "wss://search.example/",
+  request: (filters: Filter[]) => {
+    requests.push(filters);
+    return respond(filters);
+  },
+};
+let current: typeof relay | null = relay;
+vi.mock("@/lib/searchRelay", () => ({ searchRelay: () => current }));
+
 import { isSearchObserverOnRelay } from "./searchObserver";
 
-const api = vi.hoisted(() => ({ base: "http://test.local" }));
-vi.mock("@/services/api/core", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/api/core")>()),
-  getBrainstormApi: () => api.base,
-}));
-
 const USER = "a".repeat(64);
+const TA = "b".repeat(64);
+const OTHER_TA = "c".repeat(64);
 
-const fetchMock = vi.fn<typeof fetch>();
-const reply = (status: number, body: unknown) =>
-  fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status }));
+const event = (kind: number, pubkey: string, tags: string[][] = [], created_at = 1): NostrEvent => ({
+  id: `${kind}${pubkey}${created_at}`.padEnd(64, "0").slice(0, 64),
+  kind,
+  pubkey,
+  created_at,
+  content: "",
+  tags,
+  sig: "s",
+});
+
+const providerList = (rankService: string, created_at = 1) =>
+  event(10040, USER, [["30382:rank", rankService, "wss://scores.example"]], created_at);
+const card = () =>
+  event(30382, TA, [
+    ["d", "d".repeat(64)],
+    ["rank", "90"],
+  ]);
 
 beforeEach(() => {
-  api.base = "http://test.local";
-  __resetServerStatus();
-  fetchMock.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
+  current = relay;
+  held = [];
+  requests.length = 0;
+  respond = (filters) =>
+    from(held.filter((e) => filters.some((f) => f.kinds!.includes(e.kind) && f.authors!.includes(e.pubkey))));
 });
-afterEach(() => vi.unstubAllGlobals());
 
 describe("isSearchObserverOnRelay", () => {
-  it("asks our API's ORE-05 to rank through the user, and is true on 200", async () => {
-    reply(200, { results: [], ttl: 300 });
-    expect(await isSearchObserverOnRelay(USER)).toBe(true);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/search/pubkeys");
-    expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
-      query: "include:spam",
-      algorithm: "relevance-pov",
-      pov: USER,
-      limit: 1,
-    });
+  it("is available when the 10040 names the assistant for rank and the assistant has a card", async () => {
+    held = [providerList(TA), card()];
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(true);
   });
 
-  it("sends no session token: the endpoint is public", async () => {
-    reply(200, { results: [], ttl: 300 });
-    await isSearchObserverOnRelay(USER);
-    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).has("access_token")).toBe(false);
+  it("asks once, on the search relay, with both reads under include:spam and no observer", async () => {
+    held = [providerList(TA), card()];
+    await isSearchObserverOnRelay(USER, TA);
+    expect(requests).toEqual([
+      [
+        { kinds: [10040], authors: [USER], limit: 1, search: "include:spam" },
+        { kinds: [30382], authors: [TA], limit: 1, search: "include:spam" },
+      ],
+    ]);
   });
 
-  it("is false while the relay is still mirroring the user's scores (202)", async () => {
-    reply(202, { status: "computing", retry_after: 60 });
-    expect(await isSearchObserverOnRelay(USER)).toBe(false);
+  it("is not available without the user's 10040", async () => {
+    held = [card()];
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(false);
   });
 
-  it("is false when the relay cannot rank through the user (422)", async () => {
-    reply(422, { error: "the pov has no trust provider list" });
-    expect(await isSearchObserverOnRelay(USER)).toBe(false);
+  it("is not available when the 10040 names another service for rank", async () => {
+    held = [providerList(OTHER_TA), card()];
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(false);
   });
 
-  it("is false when the API errors", async () => {
-    reply(503, { error: "busy" });
-    expect(await isSearchObserverOnRelay(USER)).toBe(false);
+  it("judges by the newest 10040", async () => {
+    held = [providerList(TA, 1), providerList(OTHER_TA, 2), card()];
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(false);
+    held = [providerList(OTHER_TA, 1), providerList(TA, 2), card()];
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(true);
   });
 
-  it("does not feed the server-down detector on a 503", async () => {
-    reportApiFailure("/user/aaa/overview");
-    reply(503, { error: "busy" });
-    await isSearchObserverOnRelay(USER);
-    await new Promise((r) => setTimeout(r, 0));
-    // A second failing route would have earned a health probe: none went out.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it("is not available when the assistant has no cards", async () => {
+    held = [providerList(TA)];
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(false);
   });
 
-  it("is false without an API base, and does not ask", async () => {
-    api.base = "";
-    expect(await isSearchObserverOnRelay(USER)).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("is not available when the relay errors or times out", async () => {
+    held = [providerList(TA), card()];
+    respond = () => throwError(() => new Error("Timeout"));
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(false);
   });
 
-  it("is false when the API is unreachable", async () => {
-    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
-    expect(await isSearchObserverOnRelay(USER)).toBe(false);
+  it("is not available without a search relay, and does not ask", async () => {
+    current = null;
+    expect(await isSearchObserverOnRelay(USER, TA)).toBe(false);
+    expect(requests).toEqual([]);
   });
 });

@@ -8,14 +8,14 @@ const TA = "b".repeat(64);
 let user: { pubkey: string } | null = { pubkey: USER };
 let taPubkey: string | null = TA;
 let mywotLoading = false;
-const onRelay = vi.fn<(pubkey: string) => Promise<boolean>>();
+const onRelay = vi.fn<(pubkey: string, taPubkey: string) => Promise<boolean>>();
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => user }));
 vi.mock("@/hooks/useHasMywot", () => ({
   useHasMywot: () => ({ hasMywot: !!taPubkey, taPubkey, known: !mywotLoading, isLoading: mywotLoading }),
 }));
 vi.mock("@/services/searchObserver", () => ({
-  isSearchObserverOnRelay: (pk: string) => onRelay(pk),
+  isSearchObserverOnRelay: (pk: string, ta: string) => onRelay(pk, ta),
 }));
 
 import { useIsSearchObserver } from "./useIsSearchObserver";
@@ -28,11 +28,11 @@ beforeEach(() => {
 });
 
 describe("useIsSearchObserver", () => {
-  it("asks the search relay about the user", async () => {
+  it("asks the search relay about the user and their assistant", async () => {
     onRelay.mockResolvedValue(true);
     const { result } = renderHook(() => useIsSearchObserver(), { wrapper: queryWrapper() });
     await waitFor(() => expect(result.current.isSearchObserver).toBe(true));
-    expect(onRelay).toHaveBeenCalledWith(USER);
+    expect(onRelay).toHaveBeenCalledWith(USER, TA);
   });
 
   it("stays false while the relay cannot rank through them", async () => {
