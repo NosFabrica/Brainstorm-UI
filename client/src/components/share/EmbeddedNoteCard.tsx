@@ -1,9 +1,11 @@
 import { useMemo, type MouseEvent } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
-import { contentWarningOf } from "@/lib/nip36";
+import { contentWarningOf, revealKeyOf } from "@/lib/nip36";
+import { SensitiveRevealBoundary } from "@/components/share/SensitiveMedia";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
@@ -36,6 +38,9 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
 
 /** What a nested card asks the relays about: nothing. */
 const EMPTY_NOTE: MinimalEvent = { id: "", kind: 1, pubkey: "", created_at: 0, content: "", tags: [] };
+
+/** NIP-31: what a client that cannot read the kind should say it is. */
+const altOf = (event: MinimalEvent) => event.tags.find((t) => t[0] === "alt")?.[1]?.trim() || undefined;
 
 function ago(ts?: number): string {
   if (!ts) return "";
@@ -77,6 +82,15 @@ export type EmbeddedNoteCardProps = {
  * kind named when it is not a note — a quoted zap or reaction is no mystery.
  */
 export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
+  // A quote is its own post: the quoting post's "show" (SensitiveRevealScope) does not show it.
+  return (
+    <SensitiveRevealBoundary>
+      <EmbeddedNoteCardInner {...props} />
+    </SensitiveRevealBoundary>
+  );
+}
+
+function EmbeddedNoteCardInner(props: EmbeddedNoteCardProps) {
   // A thing is read once here, for the shape, the inline check, the body and the card alike.
   const { shape, thing } = useMemo(() => {
     const read = THING_KINDS.has(props.event.kind) ? describeThing(props.event) : null;
@@ -89,14 +103,45 @@ export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
   if (KIND_CARD_SHAPES.has(shape) && !isInlineThing(props.event, thing))
     return (
       <EmbeddedKindCard
-        key={props.event.id}
+        // A newer version of the same stream or listing keeps the reader's "show".
+        key={revealKeyOf(props.event)}
         event={props.event}
         author={props.author}
         shape={shape as KindCardShape}
         thing={thing}
+        href={props.href}
+        trustScore01={props.trustScore01}
       />
     );
   return <NoteCardBody {...props} shape={shape} thing={thing} />;
+}
+
+/** Reposts (NIP-18): their content is the reposted event, as JSON. */
+const REPOST_KINDS: ReadonlySet<number> = new Set([6, 16]);
+
+/** The event a repost carries in its content, when it is one. */
+function repostedEvent(event: MinimalEvent): MinimalEvent | null {
+  if (!REPOST_KINDS.has(event.kind)) return null;
+  try {
+    const raw: unknown = JSON.parse(event.content);
+    if (!raw || typeof raw !== "object") return null;
+    const e = raw as Partial<MinimalEvent>;
+    const ok =
+      typeof e.id === "string" &&
+      /^[0-9a-f]{64}$/i.test(e.id) &&
+      typeof e.pubkey === "string" &&
+      /^[0-9a-f]{64}$/i.test(e.pubkey) &&
+      typeof e.kind === "number" &&
+      typeof e.content === "string" &&
+      typeof e.created_at === "number" &&
+      Array.isArray(e.tags) &&
+      e.tags.every((t) => Array.isArray(t) && t.every((v) => typeof v === "string"));
+    return ok
+      ? { id: e.id!, pubkey: e.pubkey!, kind: e.kind!, content: e.content!, created_at: e.created_at!, tags: e.tags! }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A kind-38000 prediction market or ballot: drawn in the note card itself, its question and where it stands. */
@@ -149,9 +194,22 @@ function NoteCardBody({
     return [read.by ? `${read.title} from ${who(read.by)}` : read.title, read.body].filter(Boolean).join("\n\n");
   }, [event]);
   // Ciphertext (a private follow set, a sealed list) is not for reading: the card says so.
-  const sealed = useMemo(() => contentShape(event.content).kind === "encrypted", [event.content]);
+  // JSON (a profile, app data) or nothing at all (a contact list) is not for reading either:
+  // one line says what it is — unless it is a zap, said in words above. A repost is the note it
+  // reposts — one level down, never deeper.
+  const { sealed, structural, reposted } = useMemo(() => {
+    const kind = contentShape(event.content).kind;
+    const inner = nested ? null : repostedEvent(event);
+    return {
+      sealed: kind === "encrypted",
+      structural: !inner && !bookmark && !zapWords && (kind === "json" || kind === "empty"),
+      reposted: inner,
+    };
+  }, [event, nested, bookmark, zapWords]);
+  const repostedAuthor = useLiveProfiles(reposted ? [reposted.pubkey] : []).get(reposted?.pubkey ?? "") as
+    ProfileLite | undefined;
   // None of these shows its content, so nothing it names is looked up.
-  const wordless = !!shaped || !!media;
+  const wordless = !!shaped || !!media || structural || !!reposted;
   const linked = useLinkedArticles(nested || wordless ? EMPTY_NOTE : event);
   // The note read once, for everything below that asks what it names.
   const refs = useMemo(() => analyzeNote(event), [event]);
@@ -223,7 +281,20 @@ function NoteCardBody({
               className={ring && coinReplaced ? "sr-only" : ""}
             />
           )}
-          <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
+          {href ? (
+            // The card's way to its page from the keyboard: a link of its own, never one around the card's links.
+            <Link
+              href={href}
+              onClick={(e: MouseEvent) => e.stopPropagation()}
+              aria-label={`Open this ${kindLabel(event).toLowerCase()}`}
+              className="rounded text-xs text-slate-400 hover:text-slate-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-slate-300"
+              data-testid="embedded-open"
+            >
+              {ago(event.created_at) || "Open"}
+            </Link>
+          ) : (
+            <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
+          )}
         </div>
       </div>
       {replyTargets.length > 0 && (
@@ -261,14 +332,31 @@ function NoteCardBody({
           </div>
         </div>
       ) : media === "video" ? (
-        <EmbeddedVideo key={event.id} event={event} />
+        <EmbeddedVideo key={revealKeyOf(event)} event={event} />
       ) : media === "picture" ? (
-        <EmbeddedPictures key={event.id} event={event} opensThread={!!href} />
+        <EmbeddedPictures key={revealKeyOf(event)} event={event} opensThread={!!href} />
       ) : media === "audio" ? (
-        <EmbeddedAudio key={event.id} event={event} artist={author?.display_name || author?.name} href={href} />
+        <EmbeddedAudio
+          key={revealKeyOf(event)}
+          event={event}
+          artist={author?.display_name || author?.name}
+          href={href}
+        />
       ) : sealed ? (
         <p className="text-sm italic text-slate-500 dark:text-slate-400" data-testid="embedded-sealed">
           Encrypted — only its owner can read it
+        </p>
+      ) : reposted ? (
+        <EmbeddedNoteCard
+          event={reposted}
+          author={repostedAuthor}
+          href={`/e/${nip19.neventEncode({ id: reposted.id, author: reposted.pubkey })}`}
+          nested
+        />
+      ) : structural ? (
+        <p className="truncate text-sm text-slate-500 dark:text-slate-400" data-testid="embedded-structural">
+          {kindLabel(event)}
+          {altOf(event) ? ` — ${altOf(event)}` : ""}
         </p>
       ) : (
         <div className="line-clamp-5 text-[14px]">
@@ -292,7 +380,7 @@ function NoteCardBody({
             </a>
           )}
           <NoteContent
-            key={event.id}
+            key={revealKeyOf(event)}
             content={zapWords ?? event.content}
             compact
             profiles={profiles}
