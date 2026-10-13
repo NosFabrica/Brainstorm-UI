@@ -187,7 +187,7 @@ export interface LinkReadout {
 export function linkReadouts(
   def: ConceptDefinition,
   item: { tags: string[][] },
-  templates: Map<string, UrlTemplate>,
+  templates: ReadonlyMap<string, UrlTemplate>,
 ): LinkReadout[] {
   const valueOf = (field: string) => item.tags.find((t) => t[0] === field)?.[1]?.trim() || null;
   return def.links.map((ref) => {

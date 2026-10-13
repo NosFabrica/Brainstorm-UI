@@ -1,9 +1,9 @@
 /**
- * List Management's checks as two functions a script can call — tags in,
- * plain JSON out — for tools outside the app that write lists and want them
- * held to the rules the form and the renderers hold them to, by the same
- * code. Nothing here reads a relay: a caller fetches the URL templates a
- * header's links pin (`templateIds`) and passes their events in.
+ * List Management's checks as functions a script can call — tags in, plain
+ * JSON out — for tools outside the app that write lists and want them held to
+ * the rules the form and the renderers hold them to, by the same code.
+ * Nothing here reads a relay: a caller fetches the URL templates a header's
+ * links pin (`templateIds`) and passes their events in.
  *
  * - `checkHeader`: what importing the header would drop, and why
  *   (lib/listImport), and what would stop it publishing (conceptCopy
@@ -11,12 +11,15 @@
  * - `checkItem`: how an item reads under a header (lib/itemPresentation), the
  *   links it builds (listDraft `linkReadouts`), and what doesn't come through
  *   — a renderer leaves those out without a word, so they're named here.
+ * - `checkItemUnder`: the same check for the app, which already holds a list's
+ *   definition and its templates by id; `checkItem` reads its arguments into
+ *   those and calls it.
  *
  * `blocking` is the one judgment made here: the form won't publish it.
  * Weighing the rest is the caller's; `code` is stable for it.
  */
 import { draftProblems } from "@/lib/conceptCopy";
-import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
+import { definitionOf, type ConceptDefinition, type HeaderEvent } from "@/lib/conceptResolution";
 import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { linkReadouts, listProblems, type LinkReadout } from "@/lib/listDraft";
@@ -95,15 +98,23 @@ export function checkItem(
   itemTags: string[][],
   templateEvents: { id: string; pubkey: string; tags: string[][] }[] = [],
 ): ItemCheck {
-  const def = definitionOf(headerOf(headerTags));
-  const item = { tags: itemTags };
-  const shown = presentItem(item, def);
   const templates = new Map(
     templateEvents.flatMap((ev): [string, UrlTemplate][] => {
       const t = templateOf(ev);
       return t ? [[t.id, t]] : [];
     }),
   );
+  return checkItemUnder(definitionOf(headerOf(headerTags)), itemTags, templates);
+}
+
+/** An item's tags checked under a list's definition, with its URL templates by id. */
+export function checkItemUnder(
+  def: ConceptDefinition,
+  itemTags: string[][],
+  templates: ReadonlyMap<string, UrlTemplate>,
+): ItemCheck {
+  const item = { tags: itemTags };
+  const shown = presentItem(item, def);
   const links = linkReadouts(def, item, templates);
   const problems: Problem[] = [];
   const add = (code: ProblemCode, field: string | null, message: string, blocking = false) =>
