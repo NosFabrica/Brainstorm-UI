@@ -16,6 +16,7 @@
  * A relay that fails or times out reads as empty: no copies, no items. The
  * page says what it found, not that the network is down.
  */
+import type { Filter } from "applesauce-core/helpers/filter";
 import { dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
 import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
@@ -151,7 +152,7 @@ const HEX_ID = /^[0-9a-f]{64}$/i;
  * items name it by `z`, or by `e` when they carry no `z` (lib/dlistFields
  * `headerReferenceOf`).
  */
-export function itemFilters(headers: string[], limit?: number): Record<string, unknown>[] {
+export function itemFilters(headers: string[], limit?: number): Filter[] {
   const ids = headers.filter((h) => HEX_ID.test(h));
   const cap = limit === undefined ? {} : { limit };
   return [
@@ -170,23 +171,13 @@ export function filedItems<T extends DictionaryItem>(events: T[], headers: strin
   return distinctItems(events.filter(isDListItem).filter(isFiled));
 }
 
-/** The items filed under these headers, up to `limit` events per filter. */
-async function readItems(headers: string[], limit: number, timeoutMs: number, hubRelays: string[]): Promise<ListItems> {
+/** The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. */
+export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
   if (!headers.length) return { items: [], truncated: false };
-  const events = (await readListEvents(itemFilters(headers, limit), timeoutMs, hubRelays)) as DictionaryItem[];
+  const events = (await readListEvents(itemFilters(headers, ITEM_LIMIT), TIMEOUT_MS, hubRelays)) as DictionaryItem[];
   // Index and hub answers arrive merged, so a full answer from either can't be told apart from two
   // partial ones adding up: this errs toward saying more may exist.
-  return { items: filedItems(events, headers), truncated: events.length >= limit };
-}
-
-/** The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. */
-export function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
-  return readItems(headers, ITEM_LIMIT, TIMEOUT_MS, hubRelays);
-}
-
-/** Every item filed under these headers, up to the relay's cap (INSPECT_LIMIT), for List Management. */
-export function loadAllListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
-  return readItems(headers, INSPECT_LIMIT, INSPECT_TIMEOUT_MS, hubRelays);
+  return { items: filedItems(events, headers), truncated: events.length >= ITEM_LIMIT };
 }
 
 /**

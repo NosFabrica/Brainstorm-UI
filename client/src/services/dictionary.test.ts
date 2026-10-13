@@ -60,15 +60,7 @@ vi.mock("@/services/trustSource", () => ({
   resolveTrustSource: (pk: string) => trustSourceMock(pk),
 }));
 
-import {
-  distinctItems,
-  filedItems,
-  itemIdentity,
-  loadAllListItems,
-  loadConceptItems,
-  loadDictionary,
-  loadListItems,
-} from "./dictionary";
+import { distinctItems, filedItems, itemIdentity, loadConceptItems, loadDictionary, loadListItems } from "./dictionary";
 
 /** Answers each filter the way a relay would, from a fixed corpus. */
 /** One filter, as a relay matches it. */
@@ -367,7 +359,7 @@ describe("loadListItems", () => {
   });
 });
 
-describe("reading every item of a list", () => {
+describe("the items filed under a list", () => {
   const COORD = COMMUNITY;
   const OTHER = TA_COPY;
   /** A kind-39999 item filed under COORD. */
@@ -381,17 +373,6 @@ describe("reading every item of a list", () => {
       ],
       created_at,
     );
-
-  it("loadAllListItems asks for up to 10,000 items and allows 20 seconds", async () => {
-    await loadAllListItems([COORD]);
-    expect(indexMock).toHaveBeenCalledWith([{ kinds: [39999, 9999], "#z": [COORD], limit: 10_000 }], 20_000);
-    expect(fetchMock).toHaveBeenCalledWith([{ kinds: [39999, 9999], "#z": [COORD], limit: 10_000 }], expect.anything());
-  });
-
-  it("loadAllListItems says so when the answer reaches the limit", async () => {
-    indexMock.mockResolvedValueOnce(Array.from({ length: 10_000 }, (_, i) => item(`d${i}`, 1)));
-    expect((await loadAllListItems([COORD])).truncated).toBe(true);
-  });
 
   it("filedItems keeps the newer version of an item and drops what is filed elsewhere", () => {
     const older = item("cafe", 10);

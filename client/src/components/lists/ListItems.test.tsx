@@ -16,6 +16,7 @@ const { state } = vi.hoisted(() => ({
     items: [] as unknown[],
     settled: true,
     truncated: false,
+    cutOff: false,
     definitions: [] as unknown[],
     governing: "community",
     profiles: new Map<string, { display_name?: string; name?: string }>(),
@@ -33,6 +34,7 @@ vi.mock("@/hooks/useListItems", () => ({
   useListItems: () => ({
     items: state.items,
     truncated: state.truncated,
+    cutOff: state.cutOff,
     settled: state.settled,
     reload: state.reload,
   }),
@@ -145,6 +147,7 @@ beforeEach(() => {
   state.items = items;
   state.settled = true;
   state.truncated = false;
+  state.cutOff = false;
   state.definitions = [own];
   state.governing = "community";
   state.profiles = new Map();
@@ -202,6 +205,15 @@ describe("ListItems", () => {
     state.truncated = true;
     renderWithProviders(<ListItems header={places} />);
     expect(screen.getByTestId("list-items-truncated")).toBeInTheDocument();
+  });
+
+  it("says when a relay did not finish answering in time", () => {
+    const { rerender } = renderWithProviders(<ListItems header={places} />);
+    expect(screen.queryByTestId("list-items-cut-off")).toBeNull();
+    state.cutOff = true;
+    rerender(<ListItems header={places} />);
+    expect(screen.getByTestId("list-items-cut-off")).toBeInTheDocument();
+    expect(screen.getByTestId("list-health-tile-items")).toHaveTextContent("Items read");
   });
 
   it("waits for a definition's URL templates before it checks the items", () => {

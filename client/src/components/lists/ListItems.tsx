@@ -62,7 +62,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
   /** To the Items tab with `item` open, or with none. */
   const show = (item?: string) => navigate(listManagerPath(coordinate, { view: "items", item }), { replace: true });
 
-  const { items, truncated, settled, reload } = useListItems(header);
+  const { items, truncated, cutOff, settled, reload } = useListItems(header);
   const { definitions, governing } = useListDefinitions(header);
   const [chosen, setChosen] = useState<DefinitionSource | null>(null);
   const shown = definitions.find((d) => d.source === (chosen ?? governing)) ?? definitions[0];
@@ -146,6 +146,7 @@ export function ListItems({ header }: { header: NostrEvent }) {
           <ListHealth
             summary={summary}
             truncated={truncated}
+            cutOff={cutOff}
             activeProblem={query.problem}
             onProblem={(problem) => onQuery({ ...query, problem })}
           />

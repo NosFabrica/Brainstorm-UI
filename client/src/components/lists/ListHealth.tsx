@@ -26,11 +26,15 @@ const share = (count: number, total: number) => (total > 0 ? `${((count / total)
 export function ListHealth({
   summary,
   truncated,
+  cutOff,
   activeProblem,
   onProblem,
 }: {
   summary: ListSummary;
+  /** The read reached the relay's cap, so the list may hold more. */
   truncated: boolean;
+  /** The read ran to its deadline, so a relay may not have finished answering. */
+  cutOff: boolean;
   activeProblem: string | null;
   onProblem: (key: string | null) => void;
 }) {
@@ -43,10 +47,17 @@ export function ListHealth({
           <AlertDescription>The relay returned its maximum of 10,000 items. This list may hold more.</AlertDescription>
         </Alert>
       )}
+      {cutOff && (
+        <Alert variant="warning" data-testid="list-items-cut-off">
+          <AlertDescription>
+            A relay didn't finish answering within 20 seconds. This may not be every item.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
-          label={truncated ? "Items read" : "Items"}
+          label={truncated || cutOff ? "Items read" : "Items"}
           value={items.toLocaleString()}
           tone="brand"
           data-testid="list-health-tile-items"
