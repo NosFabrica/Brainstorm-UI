@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "nostr-tools";
 import { definitionOf } from "./conceptResolution";
 import { templateOf } from "./linkTemplates";
+import type { ItemCheck } from "./listCheck";
 import {
   checkList,
   EMPTY_QUERY,
@@ -13,6 +14,7 @@ import {
   problemKey,
   sortItems,
   summarize,
+  type CheckedItem,
   type ItemQuery,
   type ItemSort,
 } from "./listHealth";
@@ -107,6 +109,40 @@ describe("listHealth", () => {
     const rows = summarize(places, checkList(places, twice, new Map())).problems;
     expect(rows.filter((p) => p.key === "repeated:g")).toHaveLength(1);
     expect(rows[0].items).toBe(1);
+  });
+
+  it("calls a problem blocking when any occurrence of it is", () => {
+    /** An item whose check is written out by hand: one problem on its website, blocking or not. */
+    const withProblem = (id: string, blocking: boolean): CheckedItem => ({
+      item: item(id, A, 1, []),
+      check: {
+        problems: [{ code: "not-a-url", field: "website", message: `From ${id}.`, blocking }],
+        resolved: checked[0].check.resolved,
+      } satisfies ItemCheck,
+    });
+    const rowOf = (list: CheckedItem[]) => summarize(places, list).problems;
+    // Whichever comes first: the row is one, counts both items, and blocks.
+    expect(rowOf([withProblem("free", false), withProblem("stuck", true)])).toEqual([
+      {
+        key: "not-a-url:website",
+        code: "not-a-url",
+        field: "website",
+        items: 2,
+        blocking: true,
+        example: "From free.",
+      },
+    ]);
+    expect(rowOf([withProblem("stuck", true), withProblem("free", false)])).toEqual([
+      {
+        key: "not-a-url:website",
+        code: "not-a-url",
+        field: "website",
+        items: 2,
+        blocking: true,
+        example: "From stuck.",
+      },
+    ]);
+    expect(rowOf([withProblem("free", false), withProblem("easy", false)])[0].blocking).toBe(false);
   });
 
   it("counts the roles a list gives, and template links only when every one builds", () => {

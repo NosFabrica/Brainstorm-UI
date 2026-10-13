@@ -146,9 +146,8 @@ export function summarize(def: ConceptDefinition, checked: readonly CheckedItem[
   };
 }
 
-/** What a search reads of an item, folded: what shows, its `d`, and every value of every declared field. */
-function searchText(def: ConceptDefinition, c: CheckedItem): string {
-  const declared = new Set(def.fields.map((f) => f.name));
+/** What a search reads of an item, folded: what shows, its `d`, and every value of every `declared` field. */
+function searchText(declared: ReadonlySet<string>, c: CheckedItem): string {
   const { title, summary } = c.check.resolved;
   const d = c.item.tags.find((t) => t[0] === "d")?.[1];
   const values = c.item.tags.filter((t) => declared.has(t[0])).map((t) => t[1]);
@@ -157,15 +156,20 @@ function searchText(def: ConceptDefinition, c: CheckedItem): string {
 
 export function filterItems(def: ConceptDefinition, checked: readonly CheckedItem[], query: ItemQuery): CheckedItem[] {
   const words = fold(query.text).split(/\s+/).filter(Boolean);
+  // Once a search, not once an item: a list is thousands of items and this runs on every keystroke.
+  const declared = new Set(def.fields.map((f) => f.name));
   return checked.filter((c) => {
     if (query.curator != null && c.item.pubkey !== query.curator) return false;
     if (query.problem != null && !c.check.problems.some((p) => problemKey(p) === query.problem)) return false;
     if (query.onlyProblems && c.check.problems.length === 0) return false;
     if (words.length === 0) return true;
-    const text = searchText(def, c);
+    const text = searchText(declared, c);
     return words.every((w) => text.includes(w));
   });
 }
+
+/** Titles in the reader's alphabet, case and accents aside. One collator: a sort compares thousands of times. */
+const byTitle = new Intl.Collator(undefined, { sensitivity: "base" });
 
 const newest = (a: CheckedItem, b: CheckedItem) =>
   b.item.created_at - a.item.created_at || a.item.id.localeCompare(b.item.id);
@@ -179,6 +183,6 @@ export function sortItems(checked: readonly CheckedItem[], sort: ItemSort): Chec
     const ta = titleOf(a);
     const tb = titleOf(b);
     if (ta == null || tb == null) return ta == null && tb == null ? newest(a, b) : ta == null ? 1 : -1;
-    return ta.localeCompare(tb, undefined, { sensitivity: "base" }) || newest(a, b);
+    return byTitle.compare(ta, tb) || newest(a, b);
   });
 }
