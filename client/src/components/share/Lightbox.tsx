@@ -21,7 +21,8 @@ import { useSoloEmbed } from "@/lib/playback";
  * button, a backdrop tap, or Esc. Desktop + mobile friendly.
  *
  * A video item with a `warning` (its creator marked it sensitive) opens
- * covered: no clip and no poster until the reader asks for it.
+ * covered: no clip and no poster until the reader asks for it. One with
+ * `loop` goes round again: the caller sets it for a short (kinds 22 / 34236).
  */
 /** `hls` is a live or recorded HLS stream through our player; `embed` a platform player's page URL (YouTube, Twitch…). */
 export type LightboxItem =
@@ -31,6 +32,7 @@ export type LightboxItem =
       kind: "image" | "video" | "hls" | "embed";
       poster?: string | null;
       warning?: ContentWarning | null;
+      loop?: boolean;
     };
 /** Who the media is from and where the post lives — the quiet bar in full view. */
 export type LightboxContextInfo = {
@@ -42,6 +44,7 @@ type MediaItem = {
   kind: "image" | "video" | "hls" | "embed";
   poster: string | null;
   warning: ContentWarning | null;
+  loop: boolean;
 };
 type LightboxState = { images: MediaItem[]; index: number; context: LightboxContextInfo | null } | null;
 
@@ -57,8 +60,14 @@ function normalize(items: LightboxItem[]): MediaItem[] {
   return items
     .map((it) =>
       typeof it === "string"
-        ? { url: it, kind: "image" as const, poster: null, warning: null }
-        : { url: it.url, kind: it.kind, poster: it.poster ?? null, warning: it.warning ?? null },
+        ? { url: it, kind: "image" as const, poster: null, warning: null, loop: false }
+        : {
+            url: it.url,
+            kind: it.kind,
+            poster: it.poster ?? null,
+            warning: it.warning ?? null,
+            loop: it.loop === true,
+          },
     )
     .filter((it) => !!it.url);
 }
@@ -251,6 +260,7 @@ function LightboxOverlay({
           controls
           autoPlay
           playsInline
+          loop={images[index].loop}
           onClick={(e) => e.stopPropagation()}
           className="max-h-[92vh] max-w-[96vw] rounded-lg bg-black shadow-2xl"
           data-testid="lightbox-video"

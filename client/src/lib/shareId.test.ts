@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { eventPath, nprofileFor } from "./shareId";
+import { ADDRESS_LINK_KINDS, READER_KINDS, eventPath, nprofileFor } from "./shareId";
 
 const PK = "a".repeat(64);
 const ID = "e".repeat(64);
@@ -49,6 +49,42 @@ describe("eventPath", () => {
     );
     expect(eventPath({ id: ID, pubkey: PK, kind: 1, tags: [] }).startsWith("/e/nevent1")).toBe(true);
     expect(eventPath({ id: ID, pubkey: PK }).startsWith("/e/nevent1")).toBe(true);
+  });
+
+  // A creator who republishes an addressable video gives it a new id. A link by address still
+  // finds it; a link by id is left pointing at the version that was replaced.
+  describe("an addressable video", () => {
+    const short = { id: ID, pubkey: PK, kind: 34236, tags: [["d", "b0f9"]] };
+
+    it("is linked by its address, on /e", () => {
+      const path = eventPath(short);
+      expect(path.startsWith("/e/naddr1")).toBe(true);
+      expect(nip19.decode(path.slice(3)).data).toMatchObject({ kind: 34236, pubkey: PK, identifier: "b0f9" });
+      expect(eventPath({ ...short, kind: 34235 }).startsWith("/e/naddr1")).toBe(true);
+    });
+
+    it("carries the relay hint when one is known", () => {
+      const decoded = nip19.decode(eventPath(short, ["wss://relay.divine.video"]).slice(3));
+      expect(decoded.data).toMatchObject({ identifier: "b0f9", relays: ["wss://relay.divine.video"] });
+    });
+
+    it("is not a reader kind: the address opens the video page, not the article reader", () => {
+      expect(ADDRESS_LINK_KINDS.has(34235) && ADDRESS_LINK_KINDS.has(34236)).toBe(true);
+      expect([...ADDRESS_LINK_KINDS].some((k) => READER_KINDS.has(k))).toBe(false);
+      expect([...READER_KINDS].sort()).toEqual([30023, 30817, 30818]);
+    });
+
+    it("without a d tag, or as a plain video (21, 22), it stays a link by id", () => {
+      expect(eventPath({ ...short, tags: [] }).startsWith("/e/nevent1")).toBe(true);
+      expect(eventPath({ ...short, kind: 22 }).startsWith("/e/nevent1")).toBe(true);
+      expect(eventPath({ ...short, kind: 21 }).startsWith("/e/nevent1")).toBe(true);
+    });
+
+    it("a note keeps its link by id, with its relay hint and author", () => {
+      const decoded = nip19.decode(eventPath({ id: ID, pubkey: PK, kind: 1, tags: [] }, ["wss://a.example"]).slice(3));
+      expect(decoded.type).toBe("nevent");
+      expect(decoded.data).toMatchObject({ id: ID, author: PK, relays: ["wss://a.example"] });
+    });
   });
 });
 

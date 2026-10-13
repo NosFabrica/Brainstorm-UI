@@ -31,7 +31,11 @@ export function stubControllableIntersectionObserver() {
     }
     report(el: Element, isIntersecting: boolean) {
       act(() => {
-        this.cb([{ target: el, isIntersecting } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+        this.cb(
+          // Wholly in view or wholly out: enough for code that asks how much of it shows.
+          [{ target: el, isIntersecting, intersectionRatio: isIntersecting ? 1 : 0 } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        );
       });
     }
   }

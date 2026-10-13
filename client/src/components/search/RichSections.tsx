@@ -18,7 +18,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
 import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
 import { videoShapeOf } from "@/lib/videoFrame";
 import { postedAtOf } from "@/lib/eventDate";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
@@ -285,7 +285,9 @@ function MediaTile({
     postHref: eventPath(e),
   };
   const openMedia = () => {
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning }], 0, context);
+    // A short goes round again in the full view, as on its own page.
+    const loop = SHORT_VIDEO_KINDS.has(e.kind);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning, loop }], 0, context);
     else if (poster && !warning) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };

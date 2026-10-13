@@ -51,7 +51,7 @@ import { MediaImg } from "@/components/ui/media-img";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS } from "@/lib/nip71";
 import { postedAtOf } from "@/lib/eventDate";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
@@ -240,7 +240,9 @@ function RowThumb({
   // the post — the rest of the row still opens the post.
   const openMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning }], 0, context);
+    // A short goes round again in the full view, as on its own page.
+    const loop = SHORT_VIDEO_KINDS.has(event.kind);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning, loop }], 0, context);
     else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
   };
   if (warning && (poster || (isVideo && url))) {
