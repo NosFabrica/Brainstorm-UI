@@ -71,6 +71,12 @@ editor won't publish it. The codes:
 
 ## Where List Management comes in
 
+Once a list is published, its **Items** tab in List Management runs the same checks over every
+item on the relay and shows them as one table, with the problems that recur across the list.
+Open it at `/settings?tab=dictionary&manage=lists&list=<coordinate>&view=items`, and add
+`&item=<event id>` to open one item. It only reads, so it's a quick way to see what a bulk
+publish did before you share the list.
+
 **Depends on List Management (#207):**
 
 - `checkHeader` reports what List Management's import would do to a header:
