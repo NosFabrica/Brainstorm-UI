@@ -120,9 +120,11 @@ describe("EmbeddedNoteCard — media", () => {
 
   it("a picture post marked sensitive loads none of its pictures until one is asked for", () => {
     quote(pictures(2, [["content-warning", "nudity"]]));
-    expect(screen.getAllByTestId("embedded-picture-sensitive")).toHaveLength(2);
+    // One ask for the post, not one per tile.
+    expect(screen.getAllByTestId("embedded-picture-sensitive")).toHaveLength(1);
+    expect(screen.getAllByTestId("sensitive-tile")).toHaveLength(2);
     expect(screen.queryByTestId("embedded-picture")).toBeNull();
-    fireEvent.click(screen.getAllByTestId("embedded-picture-sensitive")[0]);
+    fireEvent.click(screen.getByTestId("embedded-picture-sensitive"));
     expect(screen.getAllByTestId("embedded-picture")).toHaveLength(2);
   });
 

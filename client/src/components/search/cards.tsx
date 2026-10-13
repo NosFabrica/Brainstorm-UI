@@ -6,7 +6,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -175,6 +175,31 @@ export function CuratorFooter({
   );
 }
 
+/**
+ * Where a card opens when the caller knows better than its id — a quote's `naddr` with relay
+ * hints (EmbeddedKindCard). For the one event named, so a card drawn inside it is not moved.
+ */
+const CardHrefContext = createContext<{ eventId: string; href: string } | null>(null);
+
+export function CardHrefProvider({
+  eventId,
+  href,
+  children,
+}: {
+  eventId: string;
+  href?: string;
+  children: React.ReactNode;
+}) {
+  const value = useMemo(() => (href ? { eventId, href } : null), [eventId, href]);
+  return <CardHrefContext.Provider value={value}>{children}</CardHrefContext.Provider>;
+}
+
+/** The caller's link for this event, else none. */
+function useCardHref(event: { id: string }): string | undefined {
+  const given = useContext(CardHrefContext);
+  return given && given.eventId === event.id ? given.href : undefined;
+}
+
 export function CardShell({
   event,
   children,
@@ -217,6 +242,7 @@ export function CardShell({
   /** Where the card goes, when the event's own page needs more than its id — a relay hint for a list item. */
   href?: string;
 }) {
+  const givenHref = useCardHref(event);
   const footer = openInPlacement === "footer";
   const iconOnly = openInPlacement === "corner-icon";
   // Every card's link out comes from someone's tags: a web page or a magnet, never `javascript:` or `data:`.
@@ -227,7 +253,7 @@ export function CardShell({
       data-testid={testId}
     >
       <Link
-        href={href ?? eventPath(event)}
+        href={href ?? givenHref ?? eventPath(event)}
         className={`block rounded-xl p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:p-4 ${fill ? "h-full" : ""}`}
       >
         {children}
@@ -307,7 +333,9 @@ export function MediaCard({
   score?: number | null;
 }) {
   const [, navigate] = useLocation();
-  const url = mediaUrlOf(event);
+  // Its files, read once: the first is what the card shows and what its kind says (lib/mediaKind).
+  const items = useMemo(() => mediaItemsOf(event), [event]);
+  const url = items[0]?.url ?? mediaUrlOf(event);
   const poster = mediaPosterOf(event);
   const kind = mediaKindOf(event);
   const mime = mediaMimeOf(event);
@@ -318,10 +346,7 @@ export function MediaCard({
   // plays nor shows a picture until the reader asks.
   const warning = isAudio && !poster ? null : contentWarningOf(event);
   // A picture post (kind 20) can hold several: the card shows the first and says how many more.
-  const photoCount = useMemo(
-    () => (isImage ? mediaItemsOf(event).filter((i) => i.kind === "photo").length : 0),
-    [event, isImage],
-  );
+  const photoCount = isImage ? items.filter((i) => i.kind === "photo").length : 0;
   const [shown, setShown] = useState(false);
   // A video event says its own size and, as a short, that it loops; a note with a clip says neither.
   // Read once per event: `readVideo` walks every tag, and a card re-renders as its list streams.
@@ -423,6 +448,8 @@ export function MediaCard({
             cover={poster ?? undefined}
             audio={url}
             sourceLabel={brand?.name}
+            // Its imeta's `duration`: the row says it without loading the file to ask.
+            durationSec={items[0]?.durationSec}
           />
         </div>
       ) : (isImage || poster) && url ? (
@@ -438,10 +465,12 @@ export function MediaCard({
           {photoCount > 1 && (
             <span
               className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white"
-              aria-label={`${photoCount - 1} more ${photoCount - 1 === 1 ? "photo" : "photos"}`}
               data-testid="media-card-more"
             >
-              +{photoCount - 1}
+              <span aria-hidden="true">+{photoCount - 1}</span>
+              <span className="sr-only">
+                {photoCount - 1} more {photoCount - 1 === 1 ? "photo" : "photos"}
+              </span>
             </span>
           )}
         </div>
@@ -1548,11 +1577,14 @@ export function TrackCard({
   event,
   author,
   flat,
+  href,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
   flat?: boolean;
+  /** Where the title opens, when the caller knows better than the event's id (a quote's `naddr`). */
+  href?: string;
 }) {
   const track = parseTrack(event);
   if (!track) return null;
@@ -1563,11 +1595,12 @@ export function TrackCard({
         id={track.id}
         title={track.title}
         artist={track.artist ?? author?.displayName ?? author?.name}
-        cover={track.cover}
+        // Art its creator marked sensitive (NIP-36) is not drawn, nor handed to the now-playing bar.
+        cover={contentWarningOf(event) ? undefined : track.cover}
         audio={track.audio}
         genre={track.genre}
         durationSec={track.durationSec}
-        href={eventPath(event)}
+        href={href ?? eventPath(event)}
         artistHref={author ? `/p/${author.npub}` : undefined}
         artistPubkey={event.pubkey}
         flat={flat}
