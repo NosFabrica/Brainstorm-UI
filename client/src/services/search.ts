@@ -1736,12 +1736,13 @@ export function fetchCommentsByAddress(
     const filters: Record<string, unknown>[] = [
       ...(address
         ? [
-            { kinds: [1111], "#A": [address] },
-            { kinds: [1111], "#a": [address] },
+            { kinds: [1111, 1244], "#A": [address] },
+            { kinds: [1111, 1244], "#a": [address] },
           ]
         : []),
-      { kinds: [1111], "#E": [eventId] },
-      { kinds: [1, 1111], "#e": [eventId] },
+      // Comments (1111) and voice replies (1244, NIP-A0) thread by the same NIP-22 tags.
+      { kinds: [1111, 1244], "#E": [eventId] },
+      { kinds: [1, 1111, 1244], "#e": [eventId] },
     ];
     const byId = new Map<string, NostrEvent>();
     let open = filters.length;

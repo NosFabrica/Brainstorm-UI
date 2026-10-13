@@ -226,3 +226,83 @@ describe("noteHeadingOf", () => {
     expect(noteHeadingOf(ev(11, [["title", " "]]))).toBeNull();
   });
 });
+
+describe("threading, second audit (2026-10)", () => {
+  const A = "a".repeat(64);
+  const B = "b".repeat(64);
+  const D = "d".repeat(64);
+  const ev = (kind: number, tags: string[][], content = "") => ({
+    id: "c".repeat(64),
+    kind,
+    pubkey: "1".repeat(64),
+    created_at: 1,
+    content,
+    tags,
+  });
+
+  it("a repost (6/16) is no reply: its `e` is the post it carries, drawn once, inside it", () => {
+    for (const kind of [6, 16]) {
+      const rp = ev(kind, [
+        ["e", D, "wss://r.example"],
+        ["p", "2".repeat(64)],
+      ]);
+      expect(replyRefs(rp)).toEqual({});
+      expect(analyzeNote(rp).isReply).toBe(false);
+    }
+  });
+
+  it("a voice reply (1244) threads by its NIP-22 scopes, like a comment", () => {
+    const v = ev(
+      1244,
+      [
+        ["E", A, "", "2".repeat(64)],
+        ["K", "1222"],
+        ["e", B, "", "3".repeat(64)],
+        ["k", "1244"],
+      ],
+      "https://x.example/a.webm",
+    );
+    expect(replyRefs(v)).toMatchObject({ rootId: A, parentId: B, rootKind: "1222", parentKind: "1244" });
+    expect(analyzeNote(v).isReply).toBe(true);
+  });
+
+  it("a comment naming only its root scope (E/A/I) is still a reply", () => {
+    expect(
+      analyzeNote(
+        ev(
+          1111,
+          [
+            ["E", A],
+            ["K", "1"],
+          ],
+          "hi",
+        ),
+      ).isReply,
+    ).toBe(true);
+    expect(
+      analyzeNote(
+        ev(
+          1111,
+          [
+            ["A", `30023:${B}:x`],
+            ["K", "30023"],
+          ],
+          "hi",
+        ),
+      ).isReply,
+    ).toBe(true);
+    expect(
+      analyzeNote(
+        ev(
+          1111,
+          [
+            ["I", "https://example.com"],
+            ["K", "web"],
+          ],
+          "hi",
+        ),
+      ).isReply,
+    ).toBe(true);
+    expect(replyRefs(ev(1111, [["E", A]], "hi"))).toMatchObject({ rootId: A, parentId: A });
+  });
+});

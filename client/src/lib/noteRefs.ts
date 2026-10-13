@@ -102,11 +102,13 @@ export function parseATag(value: string, relay?: string): AddressRef | null {
  * Whether an event's `e` tags can make it a reply. Not a highlight's (the
  * text it quotes), and not a replaceable or addressable event's: a bookmark
  * set's `e` tags are the notes it holds, an article's what it cites — never a
- * post it answers. Everything else keeps its thread: a note, a comment, a
- * live-chat message, and the post a reaction or zap is about.
+ * post it answers; nor a repost's, which is the post it carries. Everything
+ * else keeps its thread: a note, a comment, a live-chat message, and the post
+ * a reaction or zap is about.
  */
 export function isThreadedKind(kind: number): boolean {
-  if (kind === 9802 || kind === 0 || kind === 3) return false;
+  // A repost's `e` (NIP-18) is the post it carries, drawn inside it — not one it answers.
+  if (kind === 9802 || kind === 0 || kind === 3 || kind === 6 || kind === 16) return false;
   return !((kind >= 10000 && kind < 20000) || (kind >= 30000 && kind < 40000));
 }
 
@@ -119,6 +121,10 @@ const HEX64 = /^[0-9a-f]{64}$/i;
 
 /** NIP-22 comment kind. */
 export const COMMENT_KIND = 1111;
+/** NIP-A0 voice reply: threads by NIP-22 scopes, as a comment does. */
+export const VOICE_REPLY_KIND = 1244;
+/** Kinds that thread by NIP-22 scopes (`E`/`A`/`I` root, `e`/`a`/`i` parent). */
+const NIP22_KINDS: ReadonlySet<number> = new Set([COMMENT_KIND, VOICE_REPLY_KIND]);
 /** NIP-C7 chat message kind: a reply names its parent with a `q` tag. */
 export const CHAT_KIND = 9;
 
@@ -135,9 +141,13 @@ export function chatParentOf(ev: MinimalEvent): { id: string; relay?: string; pu
   return { id: q[1], relay: tagRelayOf(q), pubkey: HEX64.test(q[3] ?? "") ? q[3] : undefined };
 }
 
-/** Whether a NIP-22 comment names a parent scope at all: an event, an address or an external id. */
+/**
+ * Whether a NIP-22 comment names a scope at all: an event, an address or an
+ * external id, as its parent or its root — one naming only its root answers
+ * the root (commentRefs).
+ */
 function hasCommentParent(tags: string[][]): boolean {
-  return tags.some((t) => (t[0] === "e" || t[0] === "a" || t[0] === "i") && !!t[1]);
+  return tags.some((t) => ["e", "a", "i", "E", "A", "I"].includes(t[0]) && !!t[1]);
 }
 
 export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
@@ -157,7 +167,7 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
   // comment's `a` is the thing it answers (its NIP-22 scope), drawn above it
   // as the thread, not again below as a link it carries.
   const tagAddrs = tags
-    .filter((t) => t[0] === "a" && typeof t[1] === "string" && ev.kind !== COMMENT_KIND)
+    .filter((t) => t[0] === "a" && typeof t[1] === "string" && !NIP22_KINDS.has(ev.kind))
     .map((t) => parseATag(t[1], t[2]))
     .filter((a): a is AddressRef => a !== null);
 
@@ -216,7 +226,7 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
   const chatParent = chatParentOf(ev);
   const isReply =
     (isThreadedKind(ev.kind) && eTags.some((t) => t[3] !== "mention")) ||
-    (ev.kind === COMMENT_KIND && hasCommentParent(tags)) ||
+    (NIP22_KINDS.has(ev.kind) && hasCommentParent(tags)) ||
     !!chatParent;
   const quoteIds = Array.from(new Set([...qTags, ...mentionMarkerIds, ...contentQuoteIds])).filter(
     (id) => id !== chatParent?.id,
@@ -334,8 +344,8 @@ export function noteHeadingOf(ev: { kind: number; tags: string[][] }): string | 
 export function replyRefs(ev: MinimalEvent): ReplyRefs {
   // A list's `e` is an item it holds, a highlight's the text it quotes: not a post either answers.
   if (!isThreadedKind(ev.kind)) return {};
-  // A comment threads by its NIP-22 scopes, which may be addresses or external ids.
-  if (ev.kind === COMMENT_KIND) return commentRefs(ev);
+  // A comment (and a voice reply) threads by its NIP-22 scopes, which may be addresses or external ids.
+  if (NIP22_KINDS.has(ev.kind)) return commentRefs(ev);
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
   if (threadTags.length === 0) {

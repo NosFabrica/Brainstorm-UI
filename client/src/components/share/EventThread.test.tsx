@@ -77,4 +77,35 @@ describe("EventThread", () => {
     expect(thread).toHaveTextContent("Great private alternative.");
     expect(indexedMock).toHaveBeenCalledWith(COORD, ROOT);
   });
+
+  it("shows voice replies (1244) under a voice message", async () => {
+    const VOICE = "f".repeat(64);
+    const reply = {
+      id: "v1".padEnd(64, "0"),
+      kind: 1244,
+      pubkey: "c".repeat(64),
+      created_at: 1_700_000_000,
+      content: "https://blossom.example/reply.webm",
+      sig: "",
+      tags: [
+        ["E", VOICE],
+        ["K", "1222"],
+        ["e", VOICE],
+        ["k", "1222"],
+      ],
+    } as NostrEvent;
+    byFilterMock.mockImplementation(async (f) => {
+      const kinds = (f.kinds as number[] | undefined) ?? [];
+      return kinds.includes(1244) ? [reply] : [];
+    });
+    indexedMock.mockResolvedValue([]);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <EventThread eventId={VOICE} authorNpub="npub1voice" relayHints={[]} />
+      </QueryClientProvider>,
+    );
+    const thread = await screen.findByTestId("event-thread");
+    expect(thread).toHaveTextContent(/\(1\)/);
+  });
 });
