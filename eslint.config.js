@@ -12,7 +12,7 @@ import pluginQuery from "@tanstack/eslint-plugin-query";
  * `eslint-disable-next-line no-restricted-syntax -- relay probe` comment.
  */
 const RELAY_FETCHERS =
-  "^(fetchEventsByIds|fetchEventsByFilter|fetchEventsByAuthors|fetchAddressableEvents|fetchRecentByKinds|fetchLiveStreams|fetchNotesByHashtag|fetchContactList|fetchMuteList|fetchProfile|fetchProfileEvent|fetchProfileMap|refreshProfileEvent|fetchProfilePrefs|fetchOutboxRelayList|fetchTrustProviderList|fetchReportsForPubkey|fetchMyReport|loadDmRelays|loadDmRelaysFor|loadBlossomServers|requestAll|requestNewest|requestNewestWithReach|requestOne)$";
+  "^(fetchEventsByIds|fetchEventsByFilter|fetchEventsByAuthors|fetchAddressableEvents|fetchRecentByKinds|fetchLiveStreams|fetchNotesByHashtag|fetchContactList|fetchMuteList|fetchProfile|fetchProfileEvent|fetchProfileMap|refreshProfileEvent|fetchProfilePrefs|fetchOutboxRelayList|fetchTrustProviderList|fetchReportsForPubkey|fetchMyReport|loadDmRelays|loadDmRelaysFor|loadBlossomServers|requestAll|requestNewest|requestNewestWithReach|requestOne|fetchPollResponses|fetchZapPollReceipts)$";
 const QUERY_HOOKS =
   "^(useQuery|useQueries|useInfiniteQuery|useSuspenseQuery|prefetchQuery|fetchQuery|ensureQueryData)$";
 const relayReadInQuery = (callee) => ({

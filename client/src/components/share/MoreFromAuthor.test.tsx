@@ -24,6 +24,10 @@ vi.mock("@/lib/relayRouting", async (orig) => ({
   outboxRelays: async (_pubkey: string, relays: string[]) => relays,
 }));
 
+// The note cards' tier rings ask the API after a 50ms gather window; a slow
+// render let that request out mid-test. Rings are not what this strip is about.
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+
 import { MoreFromAuthor } from "./MoreFromAuthor";
 
 const HINTS = ["wss://relay.divine.video"];

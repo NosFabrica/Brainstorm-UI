@@ -174,3 +174,50 @@ describe("ShareNoteCard", () => {
     });
   });
 });
+
+describe("ShareNoteCard — headings and polls", () => {
+  it("a NIP-7D thread's title is the heading of its page", () => {
+    const thread: MinimalEvent = {
+      ...base,
+      id: "t".repeat(64),
+      kind: 11,
+      content: "What breaks first when a relay grows?",
+      tags: [["title", "Relay operators"]],
+    };
+    renderWithProviders(
+      <ShareNoteCard event={thread} profiles={new Map()} eventsById={new Map()} reading forceExpanded />,
+    );
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Relay operators");
+    expect(heading).toHaveAttribute("data-testid", "note-heading");
+  });
+
+  it("a note's NIP-14 subject is its heading; a row shows it too", () => {
+    const update: MinimalEvent = {
+      ...base,
+      id: "s".repeat(64),
+      kind: 1,
+      content: "Shipped the thing.",
+      tags: [["subject", "Weekly update"]],
+    };
+    renderWithProviders(card(update));
+    expect(screen.getByTestId("note-heading")).toHaveTextContent("Weekly update");
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+
+  it("a poll in a row shows its options", () => {
+    const poll: MinimalEvent = {
+      ...base,
+      id: "p".repeat(64),
+      kind: 1068,
+      content: "Best relay?",
+      tags: [
+        ["option", "x1", "damus"],
+        ["option", "x2", "nos.lol"],
+      ],
+    };
+    renderWithProviders(card(poll));
+    expect(screen.getByTestId("poll-compact")).toHaveTextContent("damus");
+    expect(screen.getByTestId("poll-compact")).toHaveTextContent("nos.lol");
+  });
+});

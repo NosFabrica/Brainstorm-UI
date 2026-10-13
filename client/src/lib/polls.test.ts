@@ -1,0 +1,246 @@
+import { describe, expect, it } from "vitest";
+import {
+  acceptedChoices,
+  choicesOf,
+  closingWords,
+  parsePoll,
+  parseZapPoll,
+  percentOf,
+  pollClosed,
+  tallyPoll,
+  tallyZapPoll,
+  zapRangeWords,
+  zappedPollOption,
+} from "./polls";
+
+const POLL_ID = "p".repeat(64);
+const CREATED = 1_760_000_000;
+const ENDS = CREATED + 86_400;
+
+const pollEvent = (tags: string[][], kind = 1068) => ({
+  id: POLL_ID,
+  pubkey: "a".repeat(64),
+  kind,
+  created_at: CREATED,
+  content: "Best relay?",
+  tags,
+});
+
+const singleChoice = pollEvent([
+  ["option", "x1", "damus"],
+  ["option", "x2", "nos.lol"],
+  ["option", "x3", "primal"],
+  ["relay", "wss://relay.example.com"],
+  ["relay", "not a relay"],
+  ["polltype", "singlechoice"],
+  ["endsAt", String(ENDS)],
+]);
+
+let n = 0;
+const vote = (pubkey: string, at: number, responses: string[], pollId = POLL_ID) => ({
+  id: String(++n).padStart(64, "0"),
+  pubkey,
+  kind: 1018,
+  created_at: at,
+  content: "",
+  tags: [["e", pollId], ...responses.map((r) => ["response", r])],
+});
+
+const ALICE = "1".repeat(64);
+const BOB = "2".repeat(64);
+const CAROL = "3".repeat(64);
+
+describe("parsePoll (NIP-88)", () => {
+  it("reads options, type, endsAt and relays", () => {
+    const poll = parsePoll(singleChoice)!;
+    expect(poll.options).toEqual([
+      { id: "x1", label: "damus" },
+      { id: "x2", label: "nos.lol" },
+      { id: "x3", label: "primal" },
+    ]);
+    expect(poll.multiple).toBe(false);
+    expect(poll.endsAt).toBe(ENDS);
+    expect(poll.relays).toEqual(["wss://relay.example.com"]);
+    expect(poll.question).toBe("Best relay?");
+  });
+
+  it("defaults to single choice and no end; reads multiplechoice", () => {
+    expect(parsePoll(pollEvent([["option", "a", "A"]]))).toMatchObject({ multiple: false, endsAt: null });
+    expect(
+      parsePoll(
+        pollEvent([
+          ["option", "a", "A"],
+          ["polltype", "multiplechoice"],
+        ]),
+      )!.multiple,
+    ).toBe(true);
+  });
+
+  it("is not a poll without options, or of another kind", () => {
+    expect(parsePoll(pollEvent([]))).toBeNull();
+    expect(parsePoll(pollEvent([["option", "a", "A"]], 1))).toBeNull();
+  });
+
+  it("closes after endsAt", () => {
+    const poll = parsePoll(singleChoice)!;
+    expect(pollClosed(poll, ENDS)).toBe(false);
+    expect(pollClosed(poll, ENDS + 1)).toBe(true);
+  });
+});
+
+describe("tallyPoll", () => {
+  const poll = parsePoll(singleChoice)!;
+
+  it("counts only each person's latest vote", () => {
+    const tally = tallyPoll(poll, [
+      vote(ALICE, CREATED + 10, ["x1"]),
+      vote(ALICE, CREATED + 20, ["x2"]), // changed their mind
+      vote(BOB, CREATED + 15, ["x2"]),
+    ]);
+    expect(tally.voters).toHaveLength(2);
+    expect(tally.votersByOption.get("x1")).toEqual([]);
+    expect(tally.votersByOption.get("x2")!.sort()).toEqual([ALICE, BOB].sort());
+    expect(choicesOf(poll, tally, ALICE)).toEqual(["x2"]);
+  });
+
+  it("ignores votes after endsAt — a late vote does not replace an earlier one", () => {
+    const tally = tallyPoll(poll, [
+      vote(ALICE, CREATED + 10, ["x1"]),
+      vote(ALICE, ENDS + 1, ["x3"]), // after the poll closed
+      vote(CAROL, ENDS + 60, ["x3"]),
+    ]);
+    expect(tally.voters).toEqual([ALICE]);
+    expect(tally.votersByOption.get("x1")).toEqual([ALICE]);
+    expect(tally.votersByOption.get("x3")).toEqual([]);
+    expect(choicesOf(poll, tally, CAROL)).toEqual([]);
+  });
+
+  it("ignores votes before the poll existed, and votes for other polls", () => {
+    const tally = tallyPoll(poll, [vote(ALICE, CREATED - 1, ["x1"]), vote(BOB, CREATED + 1, ["x1"], "q".repeat(64))]);
+    expect(tally.voters).toEqual([]);
+  });
+
+  it("single choice: only the first response counts; unknown ids are dropped", () => {
+    expect(acceptedChoices(poll, ["x2", "x1", "x3"])).toEqual(["x2"]);
+    expect(acceptedChoices(poll, ["nope", "x1"])).toEqual([]);
+    const tally = tallyPoll(poll, [vote(ALICE, CREATED + 1, ["x1", "x2", "x3"]), vote(BOB, CREATED + 1, ["zzz"])]);
+    expect(tally.voters).toEqual([ALICE]);
+    expect(tally.votersByOption.get("x1")).toEqual([ALICE]);
+    expect(tally.votersByOption.get("x2")).toEqual([]);
+  });
+
+  it("multiple choice: each picked option counts once; shares are of voters", () => {
+    const multi = parsePoll(
+      pollEvent([
+        ["option", "a", "A"],
+        ["option", "b", "B"],
+        ["polltype", "multiplechoice"],
+      ]),
+    )!;
+    const tally = tallyPoll(multi, [vote(ALICE, CREATED + 1, ["a", "b", "a"]), vote(BOB, CREATED + 2, ["a"])]);
+    expect(tally.voters).toHaveLength(2);
+    expect(tally.votersByOption.get("a")).toHaveLength(2);
+    expect(tally.votersByOption.get("b")).toEqual([ALICE]);
+    expect(percentOf(2, 2)).toBe(100);
+    expect(percentOf(1, 2)).toBe(50);
+    expect(percentOf(0, 0)).toBe(0);
+  });
+});
+
+describe("zap polls (kind 6969)", () => {
+  const zapPollEvent = pollEvent(
+    [
+      ["poll_option", "0", "Yes"],
+      ["poll_option", "1", "No"],
+      ["value_minimum", "10"],
+      ["value_maximum", "1000"],
+      ["closed_at", String(ENDS)],
+      ["consensus_threshold", "60"],
+    ],
+    6969,
+  );
+
+  // "lnbc<amount>n1…": n is nano-BTC, i.e. 100 msats — so 1000n is 100 sats.
+  const invoice = (sats: number) => `lnbc${sats * 10}n1pexample`;
+  const receipt = (sender: string, sats: number, option: number | null, at = CREATED + 60, pollId = POLL_ID) => ({
+    id: String(++n).padStart(64, "0"),
+    pubkey: "f".repeat(64),
+    kind: 9735,
+    created_at: at,
+    content: "",
+    tags: [
+      ["e", pollId],
+      ["bolt11", invoice(sats)],
+      [
+        "description",
+        JSON.stringify({
+          kind: 9734,
+          pubkey: sender,
+          content: "",
+          tags: [["e", pollId], ...(option === null ? [] : [["poll_option", String(option)]])],
+        }),
+      ],
+    ],
+  });
+
+  it("reads options and rules", () => {
+    const zp = parseZapPoll(zapPollEvent)!;
+    expect(zp.options).toEqual([
+      { index: 0, label: "Yes" },
+      { index: 1, label: "No" },
+    ]);
+    expect(zp).toMatchObject({ min: 10, max: 1000, closedAt: ENDS, threshold: 60 });
+    expect(zapRangeWords(zp)).toBe("10–1,000 sats");
+  });
+
+  it("reads an old days-after-posting closed_at as a date", () => {
+    const zp = parseZapPoll(
+      pollEvent(
+        [
+          ["poll_option", "0", "Yes"],
+          ["closed_at", "7"],
+        ],
+        6969,
+      ),
+    )!;
+    expect(zp.closedAt).toBe(CREATED + 7 * 86_400);
+  });
+
+  it("finds the option in the embedded zap request", () => {
+    expect(zappedPollOption(receipt(ALICE, 100, 1))).toBe(1);
+    expect(zappedPollOption(receipt(ALICE, 100, null))).toBeNull();
+  });
+
+  it("sums sats per option: in range, before closing, for a declared option", () => {
+    const zp = parseZapPoll(zapPollEvent)!;
+    const tally = tallyZapPoll(zp, [
+      receipt(ALICE, 100, 0),
+      receipt(BOB, 300, 0),
+      receipt(CAROL, 200, 1),
+      receipt(CAROL, 5, 1), // below value_minimum
+      receipt(CAROL, 5000, 1), // above value_maximum
+      receipt(ALICE, 100, 1, ENDS + 1), // after closed_at
+      receipt(ALICE, 100, 7), // no such option
+      receipt(ALICE, 100, null), // a plain zap, no vote
+      receipt(ALICE, 100, 0, CREATED + 60, "q".repeat(64)), // another event
+    ]);
+    expect(tally.sats.get(0)).toBe(400);
+    expect(tally.sats.get(1)).toBe(200);
+    expect(tally.total).toBe(600);
+    expect(tally.zaps).toBe(3);
+    expect(tally.zappers.get(0)!.sort()).toEqual([ALICE, BOB].sort());
+    expect(percentOf(tally.sats.get(0)!, tally.total)).toBe(67);
+  });
+});
+
+describe("closingWords", () => {
+  const now = 1_760_000_000;
+  it("counts down, then names the day it ended", () => {
+    expect(closingWords(null, now)).toBeNull();
+    expect(closingWords(now + 3 * 86_400 + 5, now)).toBe("Ends in 3 days");
+    expect(closingWords(now + 86_400, now)).toBe("Ends in 1 day");
+    expect(closingWords(now + 5 * 3600, now)).toBe("Ends in 5 hours");
+    expect(closingWords(now + 90, now)).toBe("Ends in 2 minutes");
+    expect(closingWords(now - 10, now)).toMatch(/^Ended [A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+  });
+});

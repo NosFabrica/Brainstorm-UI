@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { analyzeNote, replyRefs } from "./noteRefs";
+import { nip19 } from "nostr-tools";
+import { analyzeNote, noteHeadingOf, replyRefs, sameScope } from "./noteRefs";
+import { externalRef } from "./nip73";
 
 const ev = (kind: number, tags: string[][]) => ({ id: "", kind, pubkey: "", created_at: 0, content: "", tags });
 
@@ -63,5 +65,147 @@ describe("a list's `e` tags are items, not a thread", () => {
         ]),
       ),
     ).toEqual({ rootId: "r", parentId: "p" });
+  });
+});
+
+describe("NIP-22 comment scopes (kind 1111)", () => {
+  const AUTHOR = "b".repeat(64);
+  const ARTICLE = `30023:${AUTHOR}:my-article`;
+  const ROOT_ID = "1".repeat(64);
+  const PARENT_ID = "2".repeat(64);
+
+  it("a reply to a comment: root from `E`, parent from `e`, kinds from `K`/`k`", () => {
+    const refs = replyRefs(
+      ev(1111, [
+        ["E", ROOT_ID, "wss://root.example.com", AUTHOR],
+        ["K", "1"],
+        ["e", PARENT_ID, "wss://parent.example.com", AUTHOR],
+        ["k", "1111"],
+        ["p", AUTHOR],
+      ]),
+    );
+    expect(refs).toEqual({
+      rootId: ROOT_ID,
+      parentId: PARENT_ID,
+      rootKind: "1",
+      parentKind: "1111",
+      hints: ["wss://root.example.com", "wss://parent.example.com"],
+    });
+  });
+
+  it("a top-level comment on an article: the address is both root and parent", () => {
+    const comment = ev(1111, [
+      ["A", ARTICLE, "wss://relay.example.com"],
+      ["K", "30023"],
+      ["a", ARTICLE, "wss://relay.example.com"],
+      ["e", PARENT_ID, "wss://relay.example.com"],
+      ["k", "30023"],
+      ["P", AUTHOR],
+      ["p", AUTHOR],
+    ]);
+    const refs = replyRefs(comment);
+    const addr = { kind: 30023, pubkey: AUTHOR, identifier: "my-article", relays: ["wss://relay.example.com"] };
+    expect(refs.rootAddr).toEqual(addr);
+    expect(refs.parentAddr).toEqual(addr);
+    expect(refs.parentId).toBe(PARENT_ID);
+    expect(refs.rootKind).toBe("30023");
+    expect(sameScope({ addr: refs.rootAddr }, { id: refs.parentId, addr: refs.parentAddr })).toBe(true);
+    // The scope is the thread above it, not a link it carries below.
+    const a = analyzeNote(comment);
+    expect(a.isReply).toBe(true);
+    expect(a.addrs).toEqual([]);
+    expect(a.replyToPubkeys).toEqual([AUTHOR]);
+  });
+
+  it("a reply under an article's comment: the article is the root, the comment the parent", () => {
+    const refs = replyRefs(
+      ev(1111, [
+        ["A", ARTICLE],
+        ["K", "30023"],
+        ["e", PARENT_ID],
+        ["k", "1111"],
+      ]),
+    );
+    expect(refs.rootAddr?.identifier).toBe("my-article");
+    expect(refs.parentId).toBe(PARENT_ID);
+    expect(refs.parentAddr).toBeUndefined();
+    expect(sameScope({ addr: refs.rootAddr }, { id: refs.parentId })).toBe(false);
+  });
+
+  it("a comment on a web page: an external root (`I`)", () => {
+    const comment = ev(1111, [
+      ["I", "https://example.com/post"],
+      ["K", "web"],
+      ["i", "https://example.com/post"],
+      ["k", "web"],
+    ]);
+    expect(replyRefs(comment)).toEqual({
+      rootExternal: "https://example.com/post",
+      parentExternal: "https://example.com/post",
+      rootKind: "web",
+      parentKind: "web",
+    });
+    expect(analyzeNote(comment).isReply).toBe(true);
+    expect(analyzeNote(comment).replyToPubkeys).toEqual([]);
+  });
+
+  it("names external ids: a URL links, a book is labelled", () => {
+    expect(externalRef("https://example.com/post")).toEqual({
+      label: "Web page",
+      text: "https://example.com/post",
+      href: "https://example.com/post",
+    });
+    expect(externalRef("isbn:9780765382030")).toEqual({ label: "Book", text: "9780765382030", href: undefined });
+    expect(externalRef("podcast:item:guid:abc")).toMatchObject({ label: "Podcast episode", text: "abc" });
+    expect(externalRef("#bitcoin")).toEqual({ label: "Hashtag", text: "#bitcoin" });
+    expect(externalRef("")).toBeNull();
+  });
+});
+
+describe("NIP-C7 chat (kind 9): the `q` is the message it answers", () => {
+  const PARENT = "c".repeat(64);
+  const QUOTED = "d".repeat(64);
+  const SENDER = "e".repeat(64);
+
+  it("reads the `q` tag as the parent", () => {
+    const msg = ev(9, [["q", PARENT, "wss://chat.example.com", SENDER]]);
+    expect(replyRefs(msg)).toEqual({ rootId: PARENT, parentId: PARENT, hints: ["wss://chat.example.com"] });
+    const a = analyzeNote(msg);
+    expect(a.isReply).toBe(true);
+    expect(a.replyToPubkeys).toEqual([SENDER]);
+    // The parent is drawn above, not again as a quote below.
+    expect(a.quoteIds).toEqual([]);
+  });
+
+  it("a `q` the text quotes is a quote, not the parent", () => {
+    const nevent = nip19.neventEncode({ id: QUOTED });
+    const msg = { ...ev(9, [["q", QUOTED]]), content: `look nostr:${nevent}` };
+    expect(replyRefs(msg)).toEqual({});
+    expect(analyzeNote(msg).quoteIds).toEqual([QUOTED]);
+    expect(analyzeNote(msg).isReply).toBe(false);
+  });
+
+  it("a kind-1 `q` stays a quote", () => {
+    expect(replyRefs(ev(1, [["q", QUOTED]]))).toEqual({});
+    expect(analyzeNote(ev(1, [["q", QUOTED]])).quoteIds).toEqual([QUOTED]);
+  });
+});
+
+describe("noteHeadingOf", () => {
+  it("a NIP-7D thread's title", () => {
+    expect(noteHeadingOf(ev(11, [["title", "  Relay operators: what breaks first?  "]]))).toBe(
+      "Relay operators: what breaks first?",
+    );
+  });
+
+  it("a note's NIP-14 subject, but not a reply's Re:", () => {
+    expect(noteHeadingOf(ev(1, [["subject", "Weekly update"]]))).toBe("Weekly update");
+    expect(noteHeadingOf(ev(1, [["subject", "Re: Weekly update"]]))).toBeNull();
+  });
+
+  it("nothing for other kinds or empty tags", () => {
+    expect(noteHeadingOf(ev(1, [["title", "not a subject"]]))).toBeNull();
+    expect(noteHeadingOf(ev(1111, [["title", "x"]]))).toBeNull();
+    expect(noteHeadingOf(ev(11, [["title", " "]]))).toBeNull();
   });
 });

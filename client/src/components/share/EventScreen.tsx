@@ -119,7 +119,10 @@ function ago(ts?: number): string {
   }
 }
 
-const NOTE_KINDS = new Set([1, 6, 16]);
+// Posts read on the note card: notes, reposts, NIP-7D threads (their title as
+// the heading), NIP-22 comments (their scope above as the thread) and polls
+// (NIP-88 and zap polls, their options and tally under the question).
+const NOTE_KINDS = new Set([1, 6, 11, 16, 1068, 1111, 6969]);
 
 /**
  * On-site event/note landing page (`/e/:nevent`) — Brainstorm's njump replacement

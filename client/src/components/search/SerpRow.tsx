@@ -47,6 +47,8 @@ import { describeThing, THING_KINDS } from "@/lib/thing";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
+import { PollCard } from "@/components/share/PollCard";
+import { POLL_KINDS } from "@/lib/polls";
 import { MediaImg } from "@/components/ui/media-img";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
@@ -854,6 +856,12 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
         {thing?.detail.type === "ballot" && (
           <div className="mt-2.5 max-w-md">
             <BallotAnswers detail={thing.detail} testId={`serp-ballot-${event.id}`} />
+          </div>
+        )}
+        {/* A poll's options, compactly — its tally is on its page. */}
+        {POLL_KINDS.has(event.kind) && (
+          <div className="max-w-md" data-testid={`serp-poll-${event.id}`}>
+            <PollCard event={event} compact />
           </div>
         )}
         {linkedArticle && (

@@ -20,10 +20,12 @@ import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedListCard } from "@/components/share/ListPreview";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
-import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
+import { analyzeNote, addrCoord, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
+import { POLL_KINDS } from "@/lib/polls";
+import { PollCard } from "@/components/share/PollCard";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -234,6 +236,7 @@ export function ShareNoteCard({
   const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
+  const heading = noteHeadingOf(event);
   const authorProfile = profiles.get(event.pubkey);
   const authorName =
     authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
@@ -343,6 +346,25 @@ export function ShareNoteCard({
         </p>
       )}
 
+      {/* A thread's title (NIP-7D) or a note's subject (NIP-14): its heading. */}
+      {heading &&
+        (reading ? (
+          <h1
+            className="mb-3 break-words text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="note-heading"
+          >
+            <EmojiText text={heading} tags={event} />
+          </h1>
+        ) : (
+          <p
+            className="mb-1 break-words text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100"
+            data-testid="note-heading"
+          >
+            <EmojiText text={heading} tags={event} />
+          </p>
+        ))}
+
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
         <NoteContent
           key={event.id}
@@ -376,6 +398,9 @@ export function ShareNoteCard({
           {expanded ? "Show less" : "Show more"}
         </button>
       )}
+
+      {/* A poll's options under its question: the tally on its own page, the options in a list. */}
+      {POLL_KINDS.has(event.kind) && <PollCard event={event} compact={!reading} />}
 
       {quoted.map((qe) => (
         <EmbeddedNoteCard
