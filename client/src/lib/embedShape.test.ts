@@ -192,7 +192,54 @@ describe("embedShapeOf", () => {
         ]),
       ),
     ).toBe("app");
-    for (const kind of [30617, 1617, 1618, 1621]) expect(embedShapeOf(ev(kind, [["d", "r"]], "x"))).toBe("repo");
+    expect(
+      embedShapeOf(
+        ev(30617, [
+          ["d", "r"],
+          ["name", "Amethyst"],
+        ]),
+      ),
+    ).toBe("repo");
+    // A repo named by its identifier alone, with somewhere to get it.
+    expect(
+      embedShapeOf(
+        ev(30617, [
+          ["d", "amethyst"],
+          ["clone", "https://github.com/vitorpamplona/amethyst.git"],
+        ]),
+      ),
+    ).toBe("repo");
+    expect(embedShapeOf(ev(1617, [["subject", "fix: a thing"]], "x"))).toBe("repo");
+    for (const kind of [1618, 1621]) expect(embedShapeOf(ev(kind, [["d", "r"]], "x"))).toBe("repo");
+  });
+
+  // Audit: junk on these kinds still got a card — "Live event", a TBA date tile, "Untitled app".
+  it("a stream, an app, a repo or a git item with no name, or a dated event with no title or date, stays words", () => {
+    for (const kind of [30311, 31922, 31923, 32267, 30617, 1617, 1618, 1621])
+      expect(
+        embedShapeOf(
+          ev(kind, [
+            ["d", "x"],
+            ["foo", "junk"],
+          ]),
+        ),
+      ).toBe("note");
+    expect(
+      embedShapeOf(
+        ev(31922, [
+          ["d", "x"],
+          ["start", "2026-11-01"],
+        ]),
+      ),
+    ).toBe("calendar-event");
+    expect(
+      embedShapeOf(
+        ev(30311, [
+          ["d", "x"],
+          ["name", "Show"],
+        ]),
+      ),
+    ).toBe("live");
   });
 
   it("long-form — articles, drafts, publications, sections, specs, wiki pages — is the article teaser", () => {
