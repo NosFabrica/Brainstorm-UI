@@ -42,13 +42,17 @@ export function EventMedia({ event, items }: { event: MinimalEvent; items: Media
   if (items.length === 0) return null;
 
   if (warning && !shown) {
+    // In the shape the first file will take, when its `dim` says it: showing it moves nothing below.
+    const first = items[0];
+    const sized = first.kind !== "audio" && first.dim;
     return (
       <SensitiveCover
         reason={warning.reason}
         onShow={() => setShown(true)}
         subject={subjectOf(items)}
         count={items.length}
-        className="mb-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
+        style={sized ? { aspectRatio: `${sized.w} / ${sized.h}` } : undefined}
+        className={`mb-2 ${sized ? "" : "aspect-video"} ${FRAME}`}
       />
     );
   }
@@ -72,6 +76,8 @@ export function EventMedia({ event, items }: { event: MinimalEvent; items: Media
             <video
               key={item.url}
               src={item.url}
+              // Its own still (imeta `image`), else the event's when this is its one file.
+              poster={item.poster ?? (items.length === 1 ? poster : undefined)}
               controls
               preload={videoPreload(speed)}
               style={ratio}
@@ -86,6 +92,8 @@ export function EventMedia({ event, items }: { event: MinimalEvent; items: Media
                 title={item.alt || title || "Audio"}
                 cover={poster !== item.url ? poster : undefined}
                 audio={item.url}
+                // Its imeta's `duration`: the player says it without loading the file to ask.
+                durationSec={item.durationSec}
               />
             </div>
           );

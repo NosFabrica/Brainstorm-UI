@@ -7,6 +7,7 @@
  * frame of the video. The caller holds the "shown" state, and moves focus to
  * the media once it is shown: the button that had it is gone.
  */
+import type { CSSProperties } from "react";
 import { EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { clip } from "@/lib/resultReaders";
@@ -37,10 +38,13 @@ export function SensitiveCover({
   className,
   subject = "video",
   count = 1,
+  style,
 }: {
   reason?: string;
   onShow: () => void;
   className?: string;
+  /** The frame the media will take (an `aspectRatio` from its `dim`), so showing it moves nothing. */
+  style?: CSSProperties;
   subject?: SensitiveSubject;
   /** How many of `subject` it covers: "these photos" past one. */
   count?: number;
@@ -52,6 +56,7 @@ export function SensitiveCover({
         "flex flex-col items-center justify-center gap-3 bg-slate-100 p-4 text-center dark:bg-slate-800",
         className,
       )}
+      style={style}
       data-testid="sensitive-cover"
     >
       <EyeOff className="h-5 w-5 text-slate-400 dark:text-slate-500" aria-hidden="true" />

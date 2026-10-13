@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MEDIA_KIND_ORDER, MEDIA_KIND_LABELS, mediaItemsOf, mediaKindOf } from "./mediaKind";
+import { MEDIA_KIND_ORDER, MEDIA_KIND_LABELS, mediaItemsOf, mediaKindOf, mediaKindOfUrl } from "./mediaKind";
 
 // Benjamin (2026-09-25): "we don't have images as an option or videos — that
 // gets filtered into Media". The tab's facets need one word per hit.
@@ -132,5 +132,48 @@ describe("mediaItemsOf — each file as what it is", () => {
   it("a voice message and an audio header are audio for the Media tab", () => {
     expect(mediaKindOf(ev(1244, [["imeta", "url https://cdn/v.webm"]]))).toBe("audio");
     expect(mediaKindOf(ev(1808, [["url", "https://cdn/a.webm"]]))).toBe("audio");
+  });
+
+  // Audit: the names and mimes the note text (lib/noteContent) already knows.
+  it("an .m4v is a video, a .bmp or .svg a picture, and a mime in capitals is still a mime", () => {
+    expect(mediaKindOfUrl("https://x.test/a.m4v")).toBe("video");
+    expect(mediaItemsOf(ev(20, [["imeta", "url https://x.test/a.m4v"]]))[0].kind).toBe("video");
+    expect(mediaKindOfUrl("https://x.test/a.svg")).toBe("photo");
+    expect(mediaKindOfUrl("https://x.test/a.bmp?x=1")).toBe("photo");
+    expect(mediaItemsOf(ev(1, [], "https://x.test/a.svg"))[0]).toMatchObject({ kind: "photo" });
+    expect(mediaItemsOf(ev(1111, [["imeta", "url https://x.test/a", "m Audio/MPEG"]]))[0].kind).toBe("audio");
+    expect(mediaItemsOf(ev(1111, [["imeta", "url https://x.test/a", "m Video/MP4"]]))[0].kind).toBe("video");
+    expect(
+      mediaKindOf(
+        ev(1063, [
+          ["url", "https://x.test/a"],
+          ["m", "VIDEO/MP4"],
+        ]),
+      ),
+    ).toBe("video");
+  });
+
+  it("a .webm that says a duration but no size is a sound; one in a voice message always is", () => {
+    expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/a.webm", "duration 12"]]))[0].kind).toBe("audio");
+    expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/a.webm", "duration 12", "dim 640x360"]]))[0].kind).toBe(
+      "video",
+    );
+    expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/a.webm"]]))[0].kind).toBe("video");
+    expect(mediaItemsOf(ev(1222, [["imeta", "url https://x.test/a.webm", "m video/webm"]]))[0].kind).toBe("audio");
+  });
+
+  it("carries each file's duration and poster, as its imeta says them", () => {
+    const [clip, sound] = mediaItemsOf(
+      ev(1, [
+        ["imeta", "url https://x.test/v.mp4", "m video/mp4", "image https://x.test/v.jpg", "dim 640x360"],
+        ["imeta", "url https://x.test/a.mp3", "duration 61.5"],
+        ["imeta", "url https://x.test/b.mp3", "duration nonsense"],
+      ]),
+    );
+    expect(clip).toMatchObject({ kind: "video", poster: "https://x.test/v.jpg" });
+    expect(sound).toMatchObject({ kind: "audio", durationSec: 61.5 });
+    expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/b.mp3", "duration nonsense"]]))[0].durationSec).toBe(
+      undefined,
+    );
   });
 });

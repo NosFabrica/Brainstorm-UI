@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatEventTime, shortPlace } from "./calendarEvent";
+import { formatEventTime, parseCalendarEvent, shortPlace } from "./calendarEvent";
 
 describe("formatEventTime", () => {
   it("says the clock time, or All day for a date-only event", () => {
@@ -22,5 +22,33 @@ describe("shortPlace", () => {
     expect(shortPlace("Chicago, IL")).toBe("Chicago, IL");
     expect(shortPlace("Online")).toBe("Online");
     expect(shortPlace("")).toBe("");
+  });
+});
+
+describe("parseCalendarEvent — the replay link", () => {
+  const ev = (tags: string[][], content = "") => ({
+    id: "e".repeat(64),
+    pubkey: "a".repeat(64),
+    kind: 31923,
+    created_at: 1,
+    tags: [["d", "x"], ["start", "1600000000"], ...tags],
+    content,
+  });
+
+  // Audit: a `recording` of `javascript:…` became the card's "Watch replay" href.
+  it("is only ever a web address", () => {
+    expect(parseCalendarEvent(ev([["recording", "javascript:alert(2)"]])).recordingUrl).toBeUndefined();
+    expect(parseCalendarEvent(ev([["streaming", "data:text/html,hi"]])).recordingUrl).toBeUndefined();
+    expect(
+      parseCalendarEvent(
+        ev([
+          ["recording", "javascript:alert(2)"],
+          ["streaming", "https://live.example/s"],
+        ]),
+      ).recordingUrl,
+    ).toBe("https://live.example/s");
+    expect(parseCalendarEvent(ev([["recording", " https://v.example/r.mp4 "]])).recordingUrl).toBe(
+      "https://v.example/r.mp4",
+    );
   });
 });

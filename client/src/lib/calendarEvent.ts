@@ -25,11 +25,17 @@ const toSec = (raw?: string): number => {
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
 };
 
+/** A link a card may hand a reader: a web address, never `javascript:` or `data:` from someone's tags. */
+const webUrl = (raw: string | undefined): string | undefined => {
+  const v = raw?.trim();
+  return v && /^https?:\/\//i.test(v) ? v : undefined;
+};
+
 export function parseCalendarEvent(ev: MinimalEvent): CalendarEvent {
   const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
   const recordingUrl =
-    tag("recording") ||
-    tag("streaming") ||
+    webUrl(tag("recording")) ||
+    webUrl(tag("streaming")) ||
     (ev.content || "").match(/https?:\/\/\S+\.(mp4|webm|m3u8|mov|youtube\.com\/\S+|youtu\.be\/\S+)/i)?.[0] ||
     undefined;
   return {

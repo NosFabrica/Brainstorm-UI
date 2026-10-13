@@ -219,6 +219,8 @@ export function CardShell({
 }) {
   const footer = openInPlacement === "footer";
   const iconOnly = openInPlacement === "corner-icon";
+  // Every card's link out comes from someone's tags: a web page or a magnet, never `javascript:` or `data:`.
+  const openInHref = openInUrl && /^(?:https?:\/\/|magnet:\?)/i.test(openInUrl.trim()) ? openInUrl.trim() : undefined;
   return (
     <div
       className={`relative w-full rounded-xl border border-slate-100 bg-white/70 transition-all duration-150 hover:border-slate-200 hover:bg-white hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 dark:hover:bg-slate-900 ${fill ? "h-full" : ""}`}
@@ -235,13 +237,13 @@ export function CardShell({
           {corner}
         </span>
       )}
-      {openInUrl && (
+      {openInHref && (
         <span
           className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"}
           data-testid={openInSlotTestId}
         >
           <a
-            href={openInUrl}
+            href={openInHref}
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}

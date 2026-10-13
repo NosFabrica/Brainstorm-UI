@@ -43,7 +43,9 @@ function fileIcon(mime: string) {
 export function FileHero({ event }: { event: MinimalEvent }) {
   const tag = (k: string) => event.tags.find((t) => t[0] === k)?.[1] ?? "";
   const mime = fileMime(event);
-  const url = tag("url");
+  // Only a web address is offered: a tag's `javascript:` or `data:` never becomes a link.
+  const rawUrl = tag("url").trim();
+  const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : "";
   const isApk = mime === APK;
   // "package@version" is Zap Store's content; the version rides a tag too.
   const packaged = event.content.trim().match(/^([\w.-]+)@([\w.-]+)$/);
@@ -57,7 +59,8 @@ export function FileHero({ event }: { event: MinimalEvent }) {
   })();
   const name = packaged?.[1] || tag("alt") || event.content.trim() || fileName || "File";
   const size = formatBytes(Number(tag("size")));
-  const hash = tag("x");
+  // A SHA-256 is 64 hex characters; anything else in `x` is not one to quote.
+  const hash = /^[0-9a-f]{64}$/i.test(tag("x").trim()) ? tag("x").trim() : "";
   const media = isMediaFile(event);
   const dim = /^(\d+)x(\d+)$/.exec(tag("dim"));
   const facts = [

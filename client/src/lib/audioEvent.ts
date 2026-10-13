@@ -15,8 +15,6 @@
  * progress, probed 2026-09-29): without a file to play they are not a sound,
  * and the page draws them as it would any other event.
  */
-import { audioUrlFromEvent } from "@/lib/audioPlayer";
-
 type EventLike = { kind: number; tags: string[][]; content: string };
 
 export type AudioEventShape = "track" | "episode" | "trailer" | "voice" | "audio";
@@ -59,20 +57,89 @@ function imetaPart(ev: EventLike, key: string): string | undefined {
   return undefined;
 }
 
-/** The file to play: an audio header names its stream before its download; everything else as the players read it. */
-export function audioOf(ev: EventLike): string | undefined {
-  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim();
-  if (ev.kind === 1808) {
-    const named = [tag("stream_url"), tag("download_url")].find(isHttp);
-    if (named) return named;
-  }
-  return audioUrlFromEvent(ev);
+/** A file named as audio by its extension (what lib/audioPlayer reads too, `.webm` among them). */
+const AUDIO_EXT = /\.(?:mp3|wav|m4a|aac|ogg|oga|opus|flac|webm)(?:\?|#|$)/i;
+const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|avif|bmp|svg)(?:\?|#|$)/i;
+/** Kinds that are a sound whatever their file is called: voice messages and replies, audio headers. */
+const SOUND_KINDS = new Set([1222, 1244, 1808]);
+
+const isMime = (s: string | undefined): s is string => !!s && /^[a-z]+\/[\w.+-]+/i.test(s.trim());
+
+/**
+ * Whether a named file is a sound: its declared mime says audio, or its name
+ * does. A voice message or an audio header is one unless its mime or name says
+ * it is a picture or a video. Anything else — a reading app's page link on a
+ * 30054, a picture in a voice message's imeta — is nothing to play.
+ */
+function isAudioFile(kind: number, url: string, mime: string | undefined): boolean {
+  const m = mime?.trim().toLowerCase() ?? "";
+  if (m.startsWith("audio/")) return true;
+  if (m.startsWith("image/") || m.startsWith("video/")) return false;
+  if (AUDIO_EXT.test(url)) return true;
+  return SOUND_KINDS.has(kind) && !IMAGE_EXT.test(url);
 }
 
-/** Whether the page draws this event as a sound: an audio kind with a file to play (a 31337 always, as before). */
+/**
+ * The files an event names, in the order the players read them, each with
+ * the mime said beside it: an audio header's stream before its download, the
+ * media tags (an `audio` tag's third value is its mime, NIP-F4), each imeta,
+ * any tag value named as audio, then an audio link in the words — or, for a
+ * voice message, the URL its content is.
+ */
+function audioCandidates(ev: EventLike): { url: string; mime?: string }[] {
+  const out: { url: string; mime?: string }[] = [];
+  const eventMime = ev.tags.find((t) => t[0] === "m" && isMime(t[1]))?.[1];
+  const push = (url: string | undefined, mime?: string) => {
+    const u = url?.trim();
+    if (isHttp(u)) out.push({ url: u, mime });
+  };
+  if (ev.kind === 1808) for (const key of ["stream_url", "download_url"]) push(ev.tags.find((t) => t[0] === key)?.[1]);
+  for (const key of ["media", "url", "stream", "streaming", "enclosure", "audio"])
+    for (const t of ev.tags) if (t[0] === key) push(t[1], isMime(t[2]) ? t[2] : eventMime);
+  for (const t of ev.tags) {
+    if (t[0] !== "imeta") continue;
+    const part = (k: string) =>
+      t
+        .slice(1)
+        .find((p) => p.startsWith(`${k} `))
+        ?.slice(k.length + 1)
+        .trim();
+    push(part("url"), part("m"));
+  }
+  for (const t of ev.tags) for (const v of t.slice(1)) if (AUDIO_EXT.test(v ?? "")) push(v);
+  for (const u of (ev.content || "").match(/https?:\/\/\S+/g) ?? []) if (AUDIO_EXT.test(u)) push(u);
+  const content = (ev.content || "").trim();
+  if (VOICE_KINDS.has(ev.kind) && /^https?:\/\/\S+$/i.test(content)) push(content);
+  return out;
+}
+
+/** The file to play: the first one the event names that is a sound (an audio header's stream before its download). */
+export function audioOf(ev: EventLike): string | undefined {
+  return audioCandidates(ev).find((c) => isAudioFile(ev.kind, c.url, c.mime))?.url;
+}
+
+/** Whether the page draws this event as a sound: an audio kind with an audio file to play (a 31337 always, as before). */
 export function hasAudioHero(ev: EventLike): boolean {
   if (!AUDIO_HERO_KINDS.has(ev.kind)) return false;
   return ev.kind === 31337 || !!audioOf(ev);
+}
+
+/**
+ * "2024-03-01" as a reader says it, on the day the publisher wrote; a year, a
+ * month, a day that does not exist ("2024-02-30", which Date.parse rolls over
+ * to 1 March) or anything else as published.
+ */
+export function releasedLabel(raw: string): string {
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0];
+  if (!day) return raw;
+  const t = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== day) return raw;
+  return new Date(t).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 const LABELS: Record<AudioEventShape, string> = {
@@ -99,8 +166,9 @@ export function readAudioEvent(ev: EventLike): AudioEvent {
   // No song runs ten hours, so past that the number can only be milliseconds (as lib/trackEvent).
   const raw = Number(tag("duration") ?? imetaPart(ev, "duration"));
   const dur = raw > 36_000 ? Math.round(raw / 1000) : raw;
-  // A voice message's content is its file's URL; only the words around it are a caption.
-  const content = (shape === "voice" && audio ? ev.content.split(audio).join(" ") : ev.content)
+  // A voice message's content is its file's URL; only the words around it are a caption —
+  // never a link, the file's or another (a query string, a second file, a page).
+  const content = (shape === "voice" ? ev.content.replace(/https?:\/\/\S+/gi, " ") : ev.content)
     .replace(/[^\S\n]+/g, " ")
     .trim();
   const title =
@@ -133,10 +201,15 @@ export function readAudioEvent(ev: EventLike): AudioEvent {
     explicit: tag("explicit")?.toLowerCase() === "true",
     season: tag("season"),
     episode: tag("episode"),
-    genres: ev.tags
-      .filter((t) => t[0] === "t" && t[1])
-      .map((t) => t[1])
-      .filter((g) => g.toLowerCase() !== "music")
-      .map((g) => g.charAt(0).toUpperCase() + g.slice(1)),
+    // Each genre once, however its cases were published: "rock" and "Rock" are one chip (and one React key).
+    genres: [
+      ...new Map(
+        ev.tags
+          .filter((t) => t[0] === "t" && t[1]?.trim())
+          .map((t) => t[1].trim())
+          .filter((g) => g.toLowerCase() !== "music")
+          .map((g) => [g.toLowerCase(), g.charAt(0).toUpperCase() + g.slice(1)] as const),
+      ).values(),
+    ],
   };
 }
