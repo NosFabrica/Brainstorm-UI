@@ -12,7 +12,6 @@
  * reads "Untitled <singular>" rather than borrowing another field, so the
  * same field always fills the same slot down a list (the team, 2026-10-02).
  */
-import { contactHref } from "@/lib/contactHref";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
 import { factLabel } from "@/lib/displayHints";
 import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
@@ -30,8 +29,9 @@ export interface ItemPresentation {
   imageField: string | null;
   /**
    * How the picture is cut where the item is one among many: round, as a
-   * face or a logo, unless a concept's view says the picture is a portrait —
-   * a book's cover (lib/books). Unset means round.
+   * face or a logo, unless the presentation says it's a portrait, as a cover
+   * is. Unset means round; nothing here sets it, a tier-three view may
+   * (useItemView's override, ADR 0007).
    */
   imageShape?: "round" | "portrait";
   /** The item's own link — a field holding a whole URL — labelled by its field's description, else its host. */
@@ -96,8 +96,7 @@ export function presentItem(item: { tags: string[][] }, definition: ConceptDefin
             field: f.field,
             label: factLabel(f),
             value: cell.value,
-            // A typed url field links as declared; a text fact still taps when its value is a phone or an email.
-            href: cell.href ?? contactHref(cell.value),
+            href: cell.href,
             address: cell.address,
             extra: cell.extra,
           },

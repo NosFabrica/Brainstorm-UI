@@ -7,6 +7,11 @@
  * (useItemView) and reads fields only through the governing definition; a
  * view that can't find what it needs there says so, and the item renders the
  * tier-two way.
+ *
+ * Tier two never imports this. An item's page asks for its view (ItemPage),
+ * and a view's reading among many reaches tier two's cards, rows and tiles
+ * through the override tier two leaves open (TierThreeProvider). Remove a
+ * view here and its items read the tier-two way everywhere.
  */
 import type { ComponentType } from "react";
 import { conceptViewOf, type ConceptViewKey } from "@/config/dictionary";
@@ -35,7 +40,8 @@ interface TierThreeView {
   present?: (item: { tags: string[][] }, definition: ConceptDefinition, shown: ItemPresentation) => ItemPresentation;
 }
 
-const VIEWS: Record<ConceptViewKey, TierThreeView> = {
+// Partial: a view taken out leaves its config key behind, and its items to tier two.
+const VIEWS: Partial<Record<ConceptViewKey, TierThreeView>> = {
   "github-account": {
     applies: (event, view) => githubAccountOf(event, view.resolved.governing) !== null,
     View: GitHubAccountView,
@@ -64,7 +70,7 @@ export function tierThreePresentation(
   shown: ItemPresentation,
 ): ItemPresentation {
   const key = conceptViewOf(communityOf(resolved));
-  const present = key ? VIEWS[key].present : undefined;
+  const present = key ? VIEWS[key]?.present : undefined;
   return present ? present(item, resolved.governing, shown) : shown;
 }
 
@@ -76,7 +82,6 @@ export function communityCoordinateOf(view: ReadyItemView): string | null {
 /** The page this item draws itself with, or null for the tier-two page. */
 export function tierThreeFor(event: ItemEvent, view: ReadyItemView): ComponentType<ItemViewProps> | null {
   const key = conceptViewOf(communityCoordinateOf(view));
-  if (!key) return null;
-  const candidate = VIEWS[key];
-  return candidate.applies(event, view) ? candidate.View : null;
+  const candidate = key ? VIEWS[key] : undefined;
+  return candidate?.applies(event, view) ? candidate.View : null;
 }

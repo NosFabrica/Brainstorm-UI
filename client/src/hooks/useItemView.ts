@@ -1,7 +1,7 @@
+import { createContext, useContext } from "react";
 import { useItemConcept } from "@/hooks/useItemConcept";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
-import { tierThreePresentation } from "@/components/items/itemViews";
 import { itemLinks, type ItemLink } from "@/lib/linkTemplates";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
 
@@ -23,6 +23,21 @@ export interface ItemView {
 export type ReadyItemView = ItemView & { resolved: ResolvedConcept; shown: ItemPresentation };
 
 export const isReady = (v: ItemView): v is ReadyItemView => !!v.resolved && !!v.shown;
+
+/**
+ * A reading of an item that replaces the hints' one: how a tier-three view
+ * (ADR 0007) says its concept's items read on the cards, rows and tiles tier
+ * two draws. Supplied from above (components/items/TierThreeProvider); with
+ * none, the hints' reading stands, as it always did. Tier two names no
+ * concept and imports nothing from tier three.
+ */
+export type PresentationOverride = (
+  item: { tags: string[][] },
+  resolved: ResolvedConcept,
+  shown: ItemPresentation,
+) => ItemPresentation;
+
+export const PresentationOverrideContext = createContext<PresentationOverride | null>(null);
 
 /**
  * Everything a list item's renderers draw from — the page, the results card,
@@ -50,9 +65,10 @@ export function useResolvedItemView(
 ): ItemView {
   const refs = resolved ? resolved.governing.links : [];
   const templates = useLinkTemplates(refs);
+  const override = useContext(PresentationOverrideContext);
   if (pending || !resolved) return { pending, resolved: null, shown: null, links: [], usedFields: new Set() };
-  // The hints' reading, then the concept's own when it has a tier-three view (ADR 0007).
-  const shown = tierThreePresentation(item, resolved, presentItem(item, resolved.governing));
+  const hinted = presentItem(item, resolved.governing);
+  const shown = override ? override(item, resolved, hinted) : hinted;
   // The item's own link (a `link` role) first, then the ones its templates build; one per address.
   const links = [...(shown.link ? [shown.link] : []), ...itemLinks(item, refs, templates.data ?? new Map())].filter(
     (l, i, all) => all.findIndex((x) => x.href === l.href) === i,

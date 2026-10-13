@@ -3,7 +3,9 @@
  * A GitHub account where it is one among many — the results card, the
  * search popup row — reads the tier-three way too (ADR 0007): the handle
  * first, the account's own avatar, the description as the line. No API is
- * asked; the avatar is a picture URL the proxy serves like any other.
+ * asked; the avatar is a picture URL the proxy serves like any other. It
+ * reaches tier two only through TierThreeProvider: without it, the card is
+ * plain tier two.
  */
 import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
@@ -34,8 +36,12 @@ vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
 
+import type { ReactElement } from "react";
 import { DListItemCard } from "@/components/dictionary/DListItemCard";
 import { DListSuggestionRow } from "@/components/dictionary/DListSuggestionRow";
+import { TierThreeProvider } from "@/components/items/TierThreeProvider";
+
+const withTierThree = (ui: ReactElement) => renderWithProviders(<TierThreeProvider>{ui}</TierThreeProvider>);
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   id: pubkey.slice(0, 8).padEnd(64, "0"),
@@ -76,7 +82,7 @@ describe("a GitHub account among results", () => {
       data: resolveConcept({ community, communityCoordinate: COMMUNITY, house: houseCopy }),
       isPending: false,
     };
-    renderWithProviders(<DListItemCard event={item} author={null} />);
+    withTierThree(<DListItemCard event={item} author={null} />);
     expect(screen.getByTestId("dlist-item-card-title")).toHaveTextContent("vcavallo");
     expect(screen.getByTestId("dlist-item-card-summary")).toHaveTextContent("Vinney Cavallo");
     expect(screen.getByTestId("dlist-item-card-image").getAttribute("src")).toContain("github.com/vcavallo.png");
@@ -87,16 +93,29 @@ describe("a GitHub account among results", () => {
       data: resolveConcept({ community, communityCoordinate: COMMUNITY, house: houseCopy }),
       isPending: false,
     };
-    renderWithProviders(<DListSuggestionRow event={item} />);
+    withTierThree(<DListSuggestionRow event={item} />);
     expect(screen.getByTestId("dlist-suggestion-title")).toHaveTextContent("vcavallo");
     expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("GitHub Account · Vinney Cavallo");
   });
 
   it("under the bare community definition the handle still leads, with the avatar, and no description", () => {
     concept = { data: resolveConcept({ community, communityCoordinate: COMMUNITY }), isPending: false };
-    renderWithProviders(<DListItemCard event={item} author={null} />);
+    withTierThree(<DListItemCard event={item} author={null} />);
     expect(screen.getByTestId("dlist-item-card-title")).toHaveTextContent("vcavallo");
     expect(screen.queryByTestId("dlist-item-card-summary")).toBeNull();
     expect(screen.getByTestId("dlist-item-card-image").getAttribute("src")).toContain("github.com/vcavallo.png");
+  });
+
+  it("without tier three, the card reads as the copy's hints say: tier two on its own", () => {
+    concept = {
+      data: resolveConcept({ community, communityCoordinate: COMMUNITY, house: houseCopy }),
+      isPending: false,
+    };
+    renderWithProviders(<DListItemCard event={item} author={null} />);
+    expect(screen.getByTestId("dlist-item-card-title")).toHaveTextContent("Vinney Cavallo");
+    expect(screen.getByTestId("dlist-item-card-summary")).toHaveTextContent("vcavallo");
+    expect(screen.queryByTestId("dlist-item-card-image")?.getAttribute("src") ?? "").not.toContain(
+      "github.com/vcavallo.png",
+    );
   });
 });

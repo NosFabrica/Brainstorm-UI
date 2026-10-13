@@ -32,11 +32,6 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
     ]),
   }),
 }));
-// These are the tier-two page's tests; GitHub's tier-three view (ADR 0007) has its own.
-vi.mock("@/components/items/itemViews", () => ({
-  tierThreeFor: () => null,
-  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: unknown) => shown,
-}));
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));

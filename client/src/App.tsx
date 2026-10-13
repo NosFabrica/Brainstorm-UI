@@ -41,6 +41,7 @@ import { SignerApprovalModal } from "@/components/SignerApprovalModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { RequireAuth } from "@/components/RequireAuth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TierThreeProvider } from "@/components/items/TierThreeProvider";
 import { isAdminPubkey } from "@/config/adminAccess";
 
 // Every route but the search home, a shared profile, the 404 and the admin
@@ -310,30 +311,33 @@ function App() {
     <AccountsProvider manager={accountManager}>
       <EventStoreProvider eventStore={eventStore}>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-            <DmShelvesProvider>
-              <Toaster />
-              <DemoScoreDisplaySwitcher />
-              <UnlockModal />
-              <SignerApprovalModal />
-              <CrossTabIdentity />
-              <PovAutoDefault />
-              <MobileTabBar />
-              <NowPlayingBar />
-              <CommandPalette />
-              <DmNotifications />
-              <AppUpdatePrompt />
-              <InstallAppDialog />
-              <MobileSearchOverlay />
-              <ScoringStatusBar />
-              <AutoScoreReturning />
-              <AutoActivateBrainstorm />
-              <AutoPublishAssistant />
-              <LightboxProvider>
-                <Router />
-              </LightboxProvider>
-            </DmShelvesProvider>
-          </TooltipProvider>
+          {/* Tier three's cards, rows and tiles (ADR 0007): everywhere items read, the search popups included. */}
+          <TierThreeProvider>
+            <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+              <DmShelvesProvider>
+                <Toaster />
+                <DemoScoreDisplaySwitcher />
+                <UnlockModal />
+                <SignerApprovalModal />
+                <CrossTabIdentity />
+                <PovAutoDefault />
+                <MobileTabBar />
+                <NowPlayingBar />
+                <CommandPalette />
+                <DmNotifications />
+                <AppUpdatePrompt />
+                <InstallAppDialog />
+                <MobileSearchOverlay />
+                <ScoringStatusBar />
+                <AutoScoreReturning />
+                <AutoActivateBrainstorm />
+                <AutoPublishAssistant />
+                <LightboxProvider>
+                  <Router />
+                </LightboxProvider>
+              </DmShelvesProvider>
+            </TooltipProvider>
+          </TierThreeProvider>
         </QueryClientProvider>
       </EventStoreProvider>
     </AccountsProvider>
