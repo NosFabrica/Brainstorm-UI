@@ -970,3 +970,26 @@ describe("SerpRow — a video's date", () => {
     expect(row).not.toHaveTextContent("1m ago");
   });
 });
+
+// A NIP-B0 web bookmark was drawn as a list card saying "0 items". It is one
+// link with its saver's words: the page's row, out to the page.
+describe("SerpRow — a web bookmark", () => {
+  it("shows the page it saves — site, name out to the page, the saver's words — not a list of nothing", () => {
+    const bookmark = {
+      ...note("The best explainer of relays I have read.", [
+        ["d", "alice.blog/relays-explained"],
+        ["title", "Relays, explained"],
+        ["t", "nostr"],
+      ]),
+      kind: 39701,
+    } as NostrEvent;
+    render(<SerpRow event={bookmark} author={author} score={0.7} query="relays" />);
+    const row = screen.getByTestId(`web-bookmark-${bookmark.id}`);
+    expect(screen.getByTestId("web-bookmark-source")).toHaveTextContent("alice.blog");
+    const title = screen.getByTestId("web-bookmark-title");
+    expect(title).toHaveTextContent("Relays, explained");
+    expect(title).toHaveAttribute("href", "https://alice.blog/relays-explained");
+    expect(row).toHaveTextContent("The best explainer of relays I have read.");
+    expect(row).not.toHaveTextContent("0 items");
+  });
+});

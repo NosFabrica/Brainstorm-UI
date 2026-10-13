@@ -2966,7 +2966,7 @@ describe("kindsForTab", () => {
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.
   it("splits the old code tab into Apps, Repos, Issues and PRs, junk kind dropped", () => {
     // Zap Store listings lead Apps; NIP-89 handlers, Nostr sites and mini apps sit beside them.
-    expect(kindsForTab("apps")).toEqual([32267, 31990, 35128, 15128, 35129]);
+    expect(kindsForTab("apps")).toEqual([32267, 31990, 35128, 15128, 35129, 15129]);
     expect(kindsForTab("repos")).toEqual([30617]);
     expect(kindsForTab("issues")).toEqual([1621]);
     expect(kindsForTab("prs")).toEqual([1617, 1618]);

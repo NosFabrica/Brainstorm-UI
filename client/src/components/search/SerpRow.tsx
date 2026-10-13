@@ -58,6 +58,7 @@ import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
 import { parseHighlight } from "@/lib/nip84";
 import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
+import { WEB_BOOKMARK_KIND, webBookmarkOf, type WebBookmark } from "@/lib/webBookmark";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -481,10 +482,91 @@ export function SerpRow(props: SerpRowProps) {
   // says what it holds and shows the first few.
   if (props.event.kind === TRUSTED_PEOPLE_KIND || ITEM_LIST_KINDS.has(props.event.kind))
     return <ListCard event={props.event} author={props.author} score={props.score} />;
+  // A web bookmark is one link with its saver's words: the page's row, not a list of nothing.
+  const bookmark = props.event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(props.event) : null;
+  if (bookmark) return <WebBookmarkRow {...props} bookmark={bookmark} />;
   return props.event.kind === 9802 && parseHighlight(props.event) ? (
     <HighlightRow {...props} />
   ) : (
     <NoteRow {...props} />
+  );
+}
+
+/**
+ * A NIP-B0 web bookmark (kind 39701), the way a search engine shows a page:
+ * who saved it, the site, the page's name out to the page, and the saver's
+ * words. The site's own picture joins once the row is near. Title and site
+ * open the page; the rest of the row opens the bookmark.
+ */
+function WebBookmarkRow({
+  event,
+  author,
+  score,
+  query,
+  engagement,
+  showType = true,
+  bookmark,
+}: SerpRowProps & { bookmark: WebBookmark }) {
+  const [, setLocation] = useLocation();
+  const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const meta = useLinkMetadata(bookmark.url, rowRef);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const title = bookmark.title ?? meta?.title ?? bookmark.url.replace(/^https?:\/\//i, "");
+  const description = bookmark.description || meta?.description || "";
+  const thumb = !thumbFailed ? (meta?.image ?? null) : null;
+  const out = {
+    href: bookmark.url,
+    target: "_blank",
+    rel: "noopener",
+    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+  };
+  return (
+    <div {...rowPropsFor(event, open)} ref={rowRef}>
+      <div className="min-w-0 flex-1" data-testid={`web-bookmark-${event.id}`}>
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={postedAtOf(event)}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeOf={event}
+        />
+        <a
+          {...out}
+          className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400"
+          data-testid="web-bookmark-source"
+        >
+          <Favicon host={bookmark.host} className="h-4 w-4 shrink-0 rounded-sm object-contain" />
+          <span className="truncate font-medium text-slate-600 dark:text-slate-300">{bookmark.host}</span>
+        </a>
+        <a
+          {...out}
+          className="mt-1 line-clamp-2 block break-words text-lg font-semibold leading-[1.3] text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100 sm:text-xl"
+          data-testid="web-bookmark-title"
+        >
+          <Headline text={title} query={query} tags={event.tags} />
+        </a>
+        {description && (
+          <div className="mt-1.5 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
+            <Snippet text={description} query={query} lines={2} tags={event.tags} />
+          </div>
+        )}
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+      </div>
+      {thumb && (
+        <a {...out} className="shrink-0" tabIndex={-1}>
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setThumbFailed(true)}
+            className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
+            data-testid="web-bookmark-thumb"
+          />
+        </a>
+      )}
+    </div>
   );
 }
 

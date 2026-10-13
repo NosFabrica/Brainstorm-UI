@@ -77,8 +77,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
   // probing showed it ~90% JSON junk; it still surfaces via All.
-  // Beside them: NIP-89 app handlers, NIP-5A Nostr sites, NIP-5D mini apps.
-  apps: [32267, 31990, 35128, 15128, 35129],
+  // Beside them: NIP-89 app handlers, NIP-5A Nostr sites, NIP-5D mini apps (root 15129 and named 35129).
+  apps: [32267, 31990, 35128, 15128, 35129, 15129],
   // NIP-99 classifieds — the Shop. Sold, hidden and priceless are gated in the UI (lib/listing).
   // NIP-15 beside it: products and auctions sell in the grid; stalls and
   // marketplaces are shops, shown by name.
