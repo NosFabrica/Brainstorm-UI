@@ -124,6 +124,7 @@ export function ListHealth({
                       <button
                         type="button"
                         aria-pressed={active}
+                        aria-label={p.field ? `${problemLabel(p.code)}, ${p.field}` : problemLabel(p.code)}
                         className={cn(
                           "rounded text-left font-medium text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent dark:text-slate-100",
                           active && "underline",

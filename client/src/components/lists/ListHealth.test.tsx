@@ -101,4 +101,19 @@ describe("ListHealth", () => {
     expect(row).not.toHaveTextContent("%");
     expect(screen.queryByTestId("list-health-coverage-title")).toBeNull();
   });
+
+  it("tells problem rows apart by name: a shared code is named with its field, a fieldless row by its label", () => {
+    const base = summary.problems[0];
+    const problems = [
+      base,
+      { ...base, key: "link-unusable:image", field: "image" },
+      { ...base, key: "untitled", code: "untitled" as const, field: null },
+    ];
+    renderWithProviders(
+      <ListHealth summary={{ ...summary, problems }} truncated={false} activeProblem={null} onProblem={() => {}} />,
+    );
+    expect(screen.getByRole("button", { name: "Link unusable, website" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link unusable, image" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Untitled" })).toBeInTheDocument();
+  });
 });
