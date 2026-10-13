@@ -60,9 +60,10 @@ const answerWith = (events: NostrEvent[]) =>
     return events;
   });
 
+// The events here are unsigned, so the store takes them on trust for this file.
 const realVerify = eventStore.verifyEvent;
 beforeAll(() => {
-  eventStore.verifyEvent = undefined;
+  eventStore.verifyEvent = () => true;
 });
 afterAll(() => {
   eventStore.verifyEvent = realVerify;
