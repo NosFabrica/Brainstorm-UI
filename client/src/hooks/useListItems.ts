@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useReducer } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { dictionaryRelays } from "@/config/dictionary";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { forget } from "@/lib/askOnce";
 import { headerReference } from "@/lib/dlistFields";
 import { INSPECT_LIMIT, INSPECT_TIMEOUT_MS, filedItems, itemFilters } from "@/services/dictionary";
 import { readListEvents } from "@/services/listReads";
@@ -13,27 +14,41 @@ const WINDOW = { minMs: 60_000, stream: false };
 const DEADLINE_SLACK_MS = 500;
 
 /**
- * Per ask key, whether its last read ran to its deadline. Kept beside the asks
- * (lib/askOnce) and not in a component: a mount within the window is served
- * the earlier answer without the read running again, and must still know.
+ * Per list, how many times it has been read again: the ask key's last part.
+ * Kept beside the asks (lib/askOnce) and not in a component, so a mount after
+ * a Read again asks under the latest key, never one already asked.
  */
-const ranToDeadline = new Map<string, boolean>();
-/** The same, per list: the latest read to settle, for the rows kept on screen while the next is out. */
-const lastRanToDeadline = new Map<string, boolean>();
+const generation = new Map<string, number>();
+
+/** What a read measured of its own answer: whether it ran to its deadline, and whether it reached the cap. */
+interface ReadFlags {
+  key: string;
+  cutOff: boolean;
+  truncated: boolean;
+}
+
+/**
+ * Per list, the latest read to settle. Kept beside the asks too: a mount
+ * within the window is served the earlier answer without the read running
+ * again, and must still know. One per list, so reading again replaces it.
+ */
+const lastRead = new Map<string, ReadFlags>();
+
+const ask = (ref: string, n: number) => `list-items:${ref}:${n}`;
 
 /**
  * Every item filed under a list — the newest version of each, newest first —
  * read from the tag hub and our index into the EventStore (ADR 0005), up to
- * the relay's cap. `truncated` says the read reached it, so more may exist;
- * `cutOff` says the read ran to its deadline, so a relay may not have finished
- * answering; `reload` asks again, past the window.
+ * the relay's cap. `truncated` says the read's answer reached it, so more may
+ * exist; `cutOff` says the read ran to its deadline, so a relay may not have
+ * finished answering; `reload` asks again, past the window.
  */
 export function useListItems(header: NostrEvent) {
   const ref = headerReference(header);
   /** The one header the items are filed under, or none: a header with no reference has no items to ask for. */
   const filedUnder = useMemo(() => (ref ? [ref] : []), [ref]);
-  const [n, setN] = useState(0);
-  const key = ref ? `list-items:${ref}:${n}` : null;
+  const [, rerender] = useReducer((i: number) => i + 1, 0);
+  const key = ref ? ask(ref, generation.get(ref) ?? 0) : null;
   const filters = useMemo(() => (filedUnder.length ? itemFilters(filedUnder) : null), [filedUnder]);
   const read = useStoreEvents(
     key,
@@ -45,27 +60,36 @@ export function useListItems(header: NostrEvent) {
         INSPECT_TIMEOUT_MS,
         dictionaryRelays(),
       );
-      // The deadline cuts both relays off at once, so a read that took all of it may have lost part of an answer.
       if (key && ref) {
-        const cut = Date.now() - asked >= INSPECT_TIMEOUT_MS - DEADLINE_SLACK_MS;
-        ranToDeadline.set(key, cut);
-        lastRanToDeadline.set(ref, cut);
+        lastRead.set(ref, {
+          key,
+          // The deadline cuts both relays off at once, so a read that took all of it may have lost part of an answer.
+          cutOff: Date.now() - asked >= INSPECT_TIMEOUT_MS - DEADLINE_SLACK_MS,
+          // Measured on the answer, not the store: events kept from earlier reads are not this read reaching the cap.
+          // Index and hub answers arrive merged, so this errs toward saying more may exist (loadListItems).
+          truncated: events.length >= INSPECT_LIMIT,
+        });
       }
       return events;
     },
     WINDOW,
   );
   const items = useMemo(() => filedItems(read.events, filedUnder), [read.events, filedUnder]);
-  // Reading again keeps the earlier rows on screen, so until it settles they keep the earlier read's flag.
-  const cutOff =
-    key !== null &&
-    ref !== null &&
-    (ranToDeadline.get(key) ?? (read.settled ? false : lastRanToDeadline.get(ref))) === true;
-  const reload = useCallback(() => setN((i) => i + 1), []);
+  // Reading again keeps the earlier rows on screen, so until it settles they keep the earlier read's flags.
+  const last = ref ? lastRead.get(ref) : undefined;
+  const flags = last && (last.key === key || !read.settled) ? last : undefined;
+  const reload = useCallback(() => {
+    if (!ref) return;
+    const n = generation.get(ref) ?? 0;
+    // That key is never asked again, so its answer is let go rather than kept for the page's life.
+    forget(ask(ref, n));
+    generation.set(ref, n + 1);
+    rerender();
+  }, [ref]);
   return {
     items,
-    truncated: read.events.length >= INSPECT_LIMIT,
-    cutOff,
+    truncated: flags?.truncated ?? false,
+    cutOff: flags?.cutOff ?? false,
     // A header with no reference has nothing to ask, so it is settled at once.
     settled: !ref || read.settled,
     reload,

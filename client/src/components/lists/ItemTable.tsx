@@ -20,6 +20,7 @@ import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/p
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { shortNpub } from "@/components/messages/people";
 import { EMPTY_QUERY, type CheckedItem, type ItemQuery, type ItemSort } from "@/lib/listHealth";
 
 export const PAGE_SIZE = 50;
@@ -68,7 +69,8 @@ export function ItemTable({
   /** 1-based. */
   page: number;
   onPage: (p: number) => void;
-  onOpen: (id: string) => void;
+  /** The row's item, for the caller to name in a link. */
+  onOpen: (row: CheckedItem) => void;
   /** The read may be short of the list, so `total` is the items read. */
   partial?: boolean;
 }) {
@@ -174,7 +176,8 @@ export function ItemTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shown.map(({ item, check }) => {
+              {shown.map((row) => {
+                const { item, check } = row;
                 const title = check.resolved.title?.trim() || null;
                 const problems = check.problems.length;
                 const blocking = check.problems.some((p) => p.blocking);
@@ -185,7 +188,7 @@ export function ItemTable({
                     key={item.id}
                     className="cursor-pointer"
                     data-testid="item-table-row"
-                    onClick={() => onOpen(item.id)}
+                    onClick={() => onOpen(row)}
                   >
                     <TableCell className="max-w-[16rem]">
                       <button
@@ -203,7 +206,7 @@ export function ItemTable({
                       <div className="truncate">{check.resolved.summary}</div>
                     </TableCell>
                     <TableCell className="max-w-[10rem]">
-                      <div className="truncate">{names.get(item.pubkey) ?? `${item.pubkey.slice(0, 12)}…`}</div>
+                      <div className="truncate">{names.get(item.pubkey) ?? shortNpub(item.pubkey)}</div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-slate-500 dark:text-slate-400">
                       {dateOf(item.created_at)}

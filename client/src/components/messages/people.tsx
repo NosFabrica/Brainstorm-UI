@@ -9,13 +9,14 @@ import type { DmRoom } from "@/lib/dm/store";
 
 export type Profiles = Map<string, ProfileContent>;
 
+const HEX_KEY = /^[0-9a-f]{64}$/;
+
 export function shortNpub(pubkey: string): string {
-  try {
-    const npub = npubFromPubkey(pubkey);
-    return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
-  } catch {
-    return `${pubkey.slice(0, 8)}…`;
-  }
+  // An unverified event can carry anything as its author, and the encoder takes much that isn't a key.
+  const key = String(pubkey ?? "");
+  if (!HEX_KEY.test(key)) return `${key.slice(0, 8)}…`;
+  const npub = npubFromPubkey(key);
+  return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
 }
 
 export function nameOf(pubkey: string, profiles: Profiles): string {

@@ -3,7 +3,8 @@
  * to show: an npub, or, for a pubkey that isn't a key, the pubkey as it came.
  * An index event the store did not verify can carry anything as its author,
  * and encoding that would throw in the middle of a render; here it never
- * does. For ListItems and ItemInspector.
+ * does. For ListItems and ItemInspector; a short key to show is
+ * `shortNpub` (components/messages/people), which never throws either.
  */
 import { nip19 } from "nostr-tools";
 
@@ -20,6 +21,3 @@ export function curatorKey(pubkey: string): string {
     return key;
   }
 }
-
-/** Its first 12 characters, to tell one curator from another at a glance. */
-export const shortCuratorKey = (pubkey: string) => `${curatorKey(pubkey).slice(0, 12)}…`;

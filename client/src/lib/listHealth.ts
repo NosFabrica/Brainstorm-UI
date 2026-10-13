@@ -81,18 +81,39 @@ export function checkList(
   return items.map((item) => ({ item, check: checkItemUnder(def, item.tags, templates) }));
 }
 
-const titleOf = (c: CheckedItem) => c.check.resolved.title?.trim() || null;
+/**
+ * What a search and a sort read of each item, worked out once per checked item
+ * and not once per keystroke or comparison: a list is thousands of items.
+ * Keyed by the checked item, which checkList makes anew when the definition
+ * or the items change, so nothing kept outlives what it was made from.
+ */
+const titles = new WeakMap<CheckedItem, { title: string | null; folded: string }>();
+const searchTexts = new WeakMap<CheckedItem, { declared: ReadonlySet<string>; text: string }>();
+
+function titled(c: CheckedItem) {
+  let t = titles.get(c);
+  if (!t) {
+    const title = c.check.resolved.title?.trim() || null;
+    t = { title, folded: title == null ? "" : fold(title) };
+    titles.set(c, t);
+  }
+  return t;
+}
+
+const titleOf = (c: CheckedItem) => titled(c).title;
 
 /** The roles a list can show, given its definition and what its first item resolved. */
 function rolesOf(def: ConceptDefinition, first: CheckedItem): Role[] {
   const r = first.check.resolved;
   const roles: Role[] = ["title"];
-  if (r.summaryField != null) roles.push("summary");
+  // A summary drawn from the title's own field is never shown, so it is not a role the list has.
+  if (r.summaryField != null && r.summaryField !== r.titleField) roles.push("summary");
   if (r.imageField != null) roles.push("image");
   if (r.linkField != null) roles.push("link");
   if (r.mediaField != null) roles.push("media");
   if (r.locationField != null) roles.push("location");
-  if (def.display.facts.length > 0) roles.push("facts");
+  // Facts another role already shows are not shown as facts, so only those left make the role.
+  if (r.factFields.length > 0) roles.push("facts");
   if (def.links.length > 0) roles.push("templateLinks");
   return roles;
 }
@@ -150,16 +171,30 @@ export function summarize(def: ConceptDefinition, checked: readonly CheckedItem[
 
 /** What a search reads of an item, folded: what shows, its `d`, and every value of every `declared` field. */
 function searchText(declared: ReadonlySet<string>, c: CheckedItem): string {
+  const kept = searchTexts.get(c);
+  if (kept && kept.declared === declared) return kept.text;
   const { title, summary } = c.check.resolved;
   const d = c.item.tags.find((t) => t[0] === "d")?.[1];
   const values = c.item.tags.filter((t) => declared.has(t[0])).map((t) => t[1]);
-  return fold([title, summary, d, ...values].filter(Boolean).join(" "));
+  const text = fold([title, summary, d, ...values].filter(Boolean).join(" "));
+  searchTexts.set(c, { declared, text });
+  return text;
+}
+
+/** The names a definition declares, one set per definition, so a search's cache holds across keystrokes. */
+const declaredOf = new WeakMap<ConceptDefinition, ReadonlySet<string>>();
+function declaredFields(def: ConceptDefinition): ReadonlySet<string> {
+  let names = declaredOf.get(def);
+  if (!names) {
+    names = new Set(def.fields.map((f) => f.name));
+    declaredOf.set(def, names);
+  }
+  return names;
 }
 
 export function filterItems(def: ConceptDefinition, checked: readonly CheckedItem[], query: ItemQuery): CheckedItem[] {
   const words = fold(query.text).split(/\s+/).filter(Boolean);
-  // Once a search, not once an item: a list is thousands of items and this runs on every keystroke.
-  const declared = new Set(def.fields.map((f) => f.name));
+  const declared = declaredFields(def);
   return checked.filter((c) => {
     if (query.curator != null && c.item.pubkey !== query.curator) return false;
     if (query.problem != null && !c.check.problems.some((p) => problemKey(p) === query.problem)) return false;
@@ -182,8 +217,7 @@ export function titleMatchesFirst(checked: readonly CheckedItem[], text: string)
   const named: CheckedItem[] = [];
   const rest: CheckedItem[] = [];
   for (const c of checked) {
-    const title = titleOf(c);
-    const folded = title == null ? "" : fold(title);
+    const { title, folded } = titled(c);
     (title != null && words.every((w) => folded.includes(w)) ? named : rest).push(c);
   }
   return [...named, ...rest];

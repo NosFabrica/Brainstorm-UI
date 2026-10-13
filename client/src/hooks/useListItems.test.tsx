@@ -126,7 +126,7 @@ describe("useListItems", () => {
     expect(result.current.items.map((i) => i.id)).toEqual([byZ.id, byE.id]);
   });
 
-  it("says the read reached the relay's cap when 10,000 matching events are held", async () => {
+  it("says the read reached the relay's cap when its answer holds 10,000 events", async () => {
     const author = "d".repeat(64);
     const { header, coordinate } = list(author);
     answerWith(Array.from({ length: 10_000 }, (_, i) => item(author, `d${i}`, coordinate, 1 + i)));
@@ -151,6 +151,42 @@ describe("useListItems", () => {
     expect(readMock).toHaveBeenCalledTimes(2);
     expect(readMock.mock.calls[1]).toEqual(readMock.mock.calls[0]);
     expect(result.current.items.map((i) => i.id)).toEqual([late.id]);
+  });
+
+  it("asks again when told to read again after the tab was left and come back to", async () => {
+    const author = "9".repeat(64);
+    const { header, coordinate } = list(author);
+    const first = renderHook(() => useListItems(header));
+    await waitFor(() => expect(first.result.current.settled).toBe(true));
+    act(() => first.result.current.reload());
+    await waitFor(() => expect(first.result.current.settled).toBe(true));
+    expect(readMock).toHaveBeenCalledTimes(2);
+    first.unmount();
+
+    // Back within the window: served the latest read, then asking again reads again.
+    const second = renderHook(() => useListItems(header));
+    await waitFor(() => expect(second.result.current.settled).toBe(true));
+    expect(readMock).toHaveBeenCalledTimes(2);
+    const late = item(author, "late", coordinate, 5);
+    answerWith([late]);
+    act(() => second.result.current.reload());
+    await waitFor(() => expect(second.result.current.settled).toBe(true));
+    expect(readMock).toHaveBeenCalledTimes(3);
+    expect(second.result.current.items.map((i) => i.id)).toEqual([late.id]);
+  });
+
+  it("does not say the read reached the cap for events the store kept from before it", async () => {
+    const author = "a1".repeat(32);
+    const { header, coordinate } = list(author);
+    // Held from earlier reads; this read answers with fewer than the cap.
+    Array.from({ length: 10_000 }, (_, i) => item(author, `old${i}`, coordinate, 1 + i)).forEach((e) =>
+      eventStore.add(e),
+    );
+    answerWith([item(author, "new", coordinate, 20_000)]);
+    const { result } = renderHook(() => useListItems(header));
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.items.length).toBeGreaterThan(10_000);
+    expect(result.current.truncated).toBe(false);
   });
 
   it("asks nothing for a header with no reference, and is settled at once", () => {
@@ -222,6 +258,31 @@ describe("useListItems", () => {
     expect(readMock).toHaveBeenCalledTimes(1);
     expect(second.result.current.settled).toBe(true);
     expect(second.result.current.cutOff).toBe(true);
+  });
+
+  it("tells a mount the latest read's flag, not the first's", async () => {
+    vi.useFakeTimers();
+    answerAfter(20_000);
+    const { header } = list("b2".repeat(32));
+    const first = renderHook(() => useListItems(header));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(first.result.current.cutOff).toBe(true);
+    answerAfter(50);
+    act(() => first.result.current.reload());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(first.result.current.cutOff).toBe(false);
+    first.unmount();
+    const second = renderHook(() => useListItems(header));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(readMock).toHaveBeenCalledTimes(2);
+    expect(second.result.current.settled).toBe(true);
+    expect(second.result.current.cutOff).toBe(false);
   });
 
   it("forgets a cut off read once reading again is answered in time", async () => {

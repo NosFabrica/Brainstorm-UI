@@ -15,7 +15,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { curatorKey, shortCuratorKey } from "@/components/lists/curatorKey";
+import { curatorKey } from "@/components/lists/curatorKey";
+import { shortNpub } from "@/components/messages/people";
 import { ItemPreview } from "@/components/lists/ItemPreview";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -103,7 +104,7 @@ export function ItemInspector({
   // An empty `d` names nothing, so it reads as none.
   const d = item?.tags.find((t) => t[0] === "d")?.[1] || null;
   const key = item ? curatorKey(item.pubkey) : "";
-  const shortKey = item ? shortCuratorKey(item.pubkey) : "";
+  const shortKey = item ? shortNpub(item.pubkey) : "";
   const raw = item ? JSON.stringify(item, null, 2) : "";
   const extra = item ? undeclaredFields(item, fields) : [];
 

@@ -53,6 +53,12 @@ export function askOnce<T>(key: string, window: AskWindow, ask: () => Promise<T>
   return track([key], ask());
 }
 
+/** Drop what is kept of `key`: its answer and its window. For a key that will not be asked again. */
+export function forget(key: string): void {
+  askedUntil.delete(key);
+  answers.delete(key);
+}
+
 /** Test seam. */
 export function __resetAsks(): void {
   askedUntil.clear();

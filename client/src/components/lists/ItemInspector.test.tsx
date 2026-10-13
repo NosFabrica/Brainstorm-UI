@@ -8,6 +8,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
+import { shortNpub } from "@/components/messages/people";
 import { copyToClipboard } from "@/lib/clipboard";
 import { checkList } from "@/lib/listHealth";
 import { resolveConcept } from "@/lib/conceptResolution";
@@ -247,7 +248,7 @@ describe("ItemInspector", () => {
     const npub = nip19.npubEncode(PUBKEY);
     renderWithProviders(<ItemInspector {...base} entry={entry} />);
     expect(identity("Curator")).toHaveTextContent("Mise");
-    expect(identity("Curator")).toHaveTextContent(`${npub.slice(0, 12)}…`);
+    expect(identity("Curator")).toHaveTextContent(shortNpub(PUBKEY));
     expect(identity("Curator")).not.toHaveTextContent(npub);
     await userEvent.click(screen.getByTestId("item-inspector-copy-curator"));
     expect(copyToClipboard).toHaveBeenLastCalledWith(npub, { container: expect.any(HTMLElement) });
@@ -255,14 +256,14 @@ describe("ItemInspector", () => {
   });
 
   it("shows a curator with no profile name by their key, once", () => {
-    const short = `${nip19.npubEncode(PUBKEY).slice(0, 12)}…`;
+    const short = shortNpub(PUBKEY);
     renderWithProviders(<ItemInspector {...base} curatorName={short} entry={entry} />);
     expect(identity("Curator").textContent).toBe(`${short}Copy npub`);
   });
 
   it("shows a curator key that is not a key as it came, and copies that", async () => {
-    renderWithProviders(<ItemInspector {...base} curatorName="not-a-key…" entry={entryOf(item.tags, "not-a-key")} />);
-    expect(identity("Curator")).toHaveTextContent("not-a-key…");
+    renderWithProviders(<ItemInspector {...base} curatorName="not-a-ke…" entry={entryOf(item.tags, "not-a-key")} />);
+    expect(identity("Curator").textContent).toBe("not-a-ke…Copy key");
     await userEvent.click(screen.getByTestId("item-inspector-copy-curator"));
     expect(copyToClipboard).toHaveBeenLastCalledWith("not-a-key", { container: expect.any(HTMLElement) });
   });

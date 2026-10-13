@@ -75,8 +75,9 @@ Once a list is published, its **Items** tab in List Management runs the same che
 item the relays returned, up to 10,000, and shows them as one table, with the problems that
 recur across the list. An item deleted since it was read stays listed until the page is reloaded.
 Open it at `/settings?tab=dictionary&manage=lists&list=<coordinate>&view=items`, and add
-`&item=<event id>` to open one item. It only reads, so it's a quick way to see what a bulk
-publish did before you share the list.
+`&item=<item coordinate>` (or the event id, for a kind-9999 item) to open one item; a link by
+coordinate keeps working when the item is published again. It only reads, so it's a quick way
+to see what a bulk publish did before you share the list.
 
 **Depends on List Management (#207):**
 

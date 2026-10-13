@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
+import { shortNpub } from "@/components/messages/people";
 import { resolveConcept } from "@/lib/conceptResolution";
 
 // Radix Select captures the pointer and scrolls its options into view; jsdom does neither.
@@ -157,6 +158,8 @@ const items = [
 ];
 
 const at = (rest: string) => `tab=dictionary&manage=lists&list=${COORD}&view=items${rest}`;
+/** An item's link: its coordinate, as the address carries it. */
+const linkOf = (d: string, pubkey = A) => encodeURIComponent(`39999:${pubkey}:${d}`);
 
 beforeEach(() => {
   state.search = at("");
@@ -432,7 +435,7 @@ describe("ListItems", () => {
     renderWithProviders(<ListItems header={places} listRef={COORD} />);
     const rows = screen.getAllByTestId("item-table-row");
     expect(rows[0]).toHaveTextContent("Mise");
-    expect(rows[2]).toHaveTextContent(`${nip19.npubEncode(B).slice(0, 12)}…`);
+    expect(rows[2]).toHaveTextContent(shortNpub(B));
   });
 
   it("draws a list with an item whose curator's key is not a key", () => {
@@ -440,7 +443,7 @@ describe("ListItems", () => {
     renderWithProviders(<ListItems header={places} listRef={COORD} />);
     const row = screen.getAllByTestId("item-table-row")[0];
     expect(row).toHaveTextContent("Odd one");
-    expect(row).toHaveTextContent("not-a-key…");
+    expect(row).toHaveTextContent("not-a-ke…");
   });
 
   it("draws a list with an item whose curator's key is empty, and offers no empty curator to filter by", async () => {
@@ -451,11 +454,7 @@ describe("ListItems", () => {
     await userEvent.click(screen.getByTestId("item-table-curator"));
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(3);
-    expect(options.map((o) => o.textContent)).toEqual([
-      "All curators",
-      `${nip19.npubEncode(A).slice(0, 12)}…`,
-      `${nip19.npubEncode(B).slice(0, 12)}…`,
-    ]);
+    expect(options.map((o) => o.textContent)).toEqual(["All curators", shortNpub(A), shortNpub(B)]);
   });
 
   it("opens the item the address names, and says so when the list doesn't have it", () => {
@@ -482,7 +481,9 @@ describe("ListItems", () => {
   it("a row puts its item in the address", async () => {
     renderWithProviders(<ListItems header={places} listRef={COORD} />);
     await userEvent.click(screen.getAllByTestId("item-table-row")[0]);
-    expect(state.navigate).toHaveBeenCalledWith(expect.stringContaining("&view=items&item=i1"), { replace: true });
+    expect(state.navigate).toHaveBeenCalledWith(expect.stringContaining(`&view=items&item=${linkOf("i1")}`), {
+      replace: true,
+    });
   });
 
   it("builds its addresses from the list value it was opened with, not from the header", async () => {
@@ -490,7 +491,7 @@ describe("ListItems", () => {
     const { rerender } = renderWithProviders(<ListItems header={places} listRef={naddr} />);
     await userEvent.click(screen.getAllByTestId("item-table-row")[0]);
     expect(state.navigate).toHaveBeenCalledWith(
-      `/settings?tab=dictionary&manage=lists&list=${naddr}&view=items&item=i1`,
+      `/settings?tab=dictionary&manage=lists&list=${naddr}&view=items&item=${linkOf("i1")}`,
       { replace: true },
     );
     state.items = [];
@@ -509,11 +510,45 @@ describe("ListItems", () => {
     expect(panel).toHaveTextContent("bar dos");
     expect(panel).toHaveTextContent("mise");
     await userEvent.click(screen.getByTestId("item-inspector-next"));
-    expect(state.navigate).toHaveBeenLastCalledWith(expect.stringMatching(/&view=items&item=i3$/), { replace: true });
+    expect(state.navigate).toHaveBeenLastCalledWith(expect.stringMatching(`&view=items&item=${linkOf("i3", B)}$`), {
+      replace: true,
+    });
     await userEvent.click(screen.getByTestId("item-inspector-prev"));
-    expect(state.navigate).toHaveBeenLastCalledWith(expect.stringMatching(/&view=items&item=i1$/), { replace: true });
+    expect(state.navigate).toHaveBeenLastCalledWith(expect.stringMatching(`&view=items&item=${linkOf("i1")}$`), {
+      replace: true,
+    });
     await userEvent.click(screen.getByTestId("item-inspector-close"));
     expect(state.navigate).toHaveBeenLastCalledWith(expect.stringMatching(/&view=items$/), { replace: true });
+  });
+
+  it("opens an item by its coordinate after it is published again under a new id", () => {
+    state.search = at(`&item=${linkOf("i2")}`);
+    state.items = items.map((i) => (i.id === "i2" ? { ...i, id: "i2-v2", created_at: 45 } : i));
+    renderWithProviders(<ListItems header={places} listRef={COORD} />);
+    expect(screen.getByTestId("item-inspector")).toHaveTextContent("bar dos");
+    expect(screen.queryByTestId("item-inspector-missing")).toBeNull();
+  });
+
+  it("turns the table to the page the item stepped to is on", async () => {
+    /** Follow the panel to where it last sent the address, as the router would. */
+    const follow = () => {
+      const to = (state.navigate.mock.lastCall as [string])[0];
+      state.search = to.slice(to.indexOf("?") + 1);
+    };
+    const { rerender } = renderWithProviders(<ListItems header={places} listRef={COORD} />);
+    // The last row on the first page, then the next: the first on the second.
+    await userEvent.click(screen.getAllByTestId("item-table-row")[49]);
+    follow();
+    rerender(<ListItems header={places} listRef={COORD} />);
+    await userEvent.click(screen.getByTestId("item-inspector-next"));
+    follow();
+    rerender(<ListItems header={places} listRef={COORD} />);
+    const open = screen.getByTestId("item-inspector").querySelector("h2")?.textContent ?? "";
+    await userEvent.click(screen.getByTestId("item-inspector-close"));
+    follow();
+    rerender(<ListItems header={places} listRef={COORD} />);
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 51 to 64 of 64.");
+    expect(screen.getAllByTestId("item-table-row")[0]).toHaveTextContent(open);
   });
 
   it("has no previous at the first row", () => {

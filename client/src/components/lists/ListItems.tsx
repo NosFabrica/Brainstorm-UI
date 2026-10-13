@@ -4,12 +4,15 @@
  * for the one item the address names, a side panel. Read-only: it publishes
  * nothing.
  *
- * `&item=<event id>` opens an item, so an item has a link. It is read on every
- * render and never copied into state; opening, closing and stepping replace
- * the address, so Back leaves the list. An id the list doesn't hold opens the
- * panel to say so, once the read has settled. Every address is built from the
- * `list` value this one was opened with, so a list opened by an naddr or an
- * id stays at it.
+ * `&item=<identity>` opens an item, so an item has a link: its coordinate for
+ * an addressable item, its id otherwise (`itemIdentity`), so a link outlives
+ * the item being published again; a link by an event id still opens that
+ * version's item. It is read on every render and never copied into state;
+ * opening, closing and stepping replace the address, so Back leaves the list,
+ * and stepping turns the table to the page the item is on. One the list
+ * doesn't hold opens the panel to say so, once the read has settled. Every
+ * address is built from the `list` value this one was opened with, so a list
+ * opened by an naddr or an id stays at it.
  *
  * The check runs under the definition that governs for the reader, or another
  * one chosen (useListDefinitions), as adding an item previews under one.
@@ -21,19 +24,19 @@
  */
 import { useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
-import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { Link, useLocation, useSearch } from "wouter";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { curatorKey, shortCuratorKey } from "@/components/lists/curatorKey";
+import { curatorKey } from "@/components/lists/curatorKey";
 import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
 import { ItemInspector } from "@/components/lists/ItemInspector";
-import { ItemTable } from "@/components/lists/ItemTable";
+import { ItemTable, PAGE_SIZE } from "@/components/lists/ItemTable";
 import { CutOffNotice, ListHealth } from "@/components/lists/ListHealth";
 import { listManagerPath } from "@/components/lists/listManagerPath";
+import { nameOf } from "@/components/messages/people";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { useListDefinitions } from "@/hooks/useListDefinitions";
 import { useListItems } from "@/hooks/useListItems";
@@ -48,18 +51,17 @@ import {
   sortItems,
   summarize,
   titleMatchesFirst,
+  type CheckedItem,
   type ItemQuery,
   type ItemSort,
 } from "@/lib/listHealth";
+import { itemIdentity } from "@/services/dictionary";
 
 /** One map for every render without templates, so the check isn't run again for want of them. */
 const NO_TEMPLATES: ReadonlyMap<string, UrlTemplate> = new Map();
 
-/** A curator by profile name, or a short npub. Never a rank. */
-const curatorName = (pubkey: string, profiles: Map<string, ProfileContent>) => {
-  const p = profiles.get(pubkey);
-  return p?.display_name || p?.name || shortCuratorKey(pubkey);
-};
+/** What `&item=` names an item by: the same through every version of it. */
+const linkOf = (c: CheckedItem) => itemIdentity(c.item);
 
 export function ListItems({
   header,
@@ -135,15 +137,23 @@ export function ListItems({
     () =>
       authors
         .filter((pubkey) => curatorKey(pubkey) !== "")
-        .map((pubkey) => ({ pubkey, name: curatorName(pubkey, profiles) }))
+        // A curator by profile name, or a short npub. Never a rank.
+        .map((pubkey) => ({ pubkey, name: nameOf(pubkey, profiles) }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [authors, profiles],
   );
 
   // The open item is looked for among every item, so a link to one opens it whatever
   // the table is filtered to; its neighbours are the rows the table is showing.
-  const entry = openId ? (checked.find((c) => c.item.id === openId) ?? null) : null;
-  const at = openId ? rows.findIndex((c) => c.item.id === openId) : -1;
+  const entry = openId
+    ? (checked.find((c) => linkOf(c) === openId) ?? checked.find((c) => c.item.id === openId) ?? null)
+    : null;
+  const at = entry ? rows.indexOf(entry) : -1;
+  /** Open the row at `i`, on the page that holds it, so closing the panel leaves it in view. */
+  const step = (i: number) => {
+    setPage(Math.floor(i / PAGE_SIZE) + 1);
+    show(linkOf(rows[i]));
+  };
 
   return (
     <div className="space-y-6" data-testid="list-items">
@@ -197,7 +207,7 @@ export function ListItems({
               onSort={onSort}
               page={page}
               onPage={setPage}
-              onOpen={show}
+              onOpen={(c) => show(linkOf(c))}
             />
           </section>
         </>
@@ -229,10 +239,10 @@ export function ListItems({
         open={openId !== null && !waiting && (entry !== null || settled)}
         entry={entry}
         resolved={shown.resolved}
-        curatorName={entry ? curatorName(entry.item.pubkey, profiles) : ""}
+        curatorName={entry ? nameOf(entry.item.pubkey, profiles) : ""}
         onClose={() => show()}
-        onPrev={at > 0 ? () => show(rows[at - 1].item.id) : null}
-        onNext={at >= 0 && at < rows.length - 1 ? () => show(rows[at + 1].item.id) : null}
+        onPrev={at > 0 ? () => step(at - 1) : null}
+        onNext={at >= 0 && at < rows.length - 1 ? () => step(at + 1) : null}
       />
     </div>
   );

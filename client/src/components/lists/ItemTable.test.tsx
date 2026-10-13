@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
+import { shortNpub } from "@/components/messages/people";
 import { EMPTY_QUERY, type CheckedItem } from "@/lib/listHealth";
 import type { ItemCheck } from "@/lib/listCheck";
 import { ItemTable } from "./ItemTable";
@@ -180,7 +181,13 @@ describe("ItemTable", () => {
     );
     const row = screen.getByTestId("item-table-row");
     expect(within(row).queryByText(/problem/)).toBeNull();
-    expect(row).toHaveTextContent(`${C.slice(0, 12)}…`);
+    expect(row).toHaveTextContent(shortNpub(C));
+  });
+
+  it("draws a row whose curator has no key at all", () => {
+    const keyless = { ...rows[0].item, pubkey: undefined as unknown as string };
+    renderWithProviders(<ItemTable {...base} rows={[{ ...rows[0], item: keyless }]} total={1} />);
+    expect(screen.getByTestId("item-table-row")).toHaveTextContent("Place 0");
   });
 
   it("typing searches, and a row opens its item", async () => {
@@ -190,7 +197,7 @@ describe("ItemTable", () => {
     await userEvent.type(screen.getByTestId("item-table-search"), "z");
     expect(onQuery).toHaveBeenLastCalledWith({ ...EMPTY_QUERY, text: "z" });
     await userEvent.click(screen.getAllByTestId("item-table-row")[0]);
-    expect(onOpen).toHaveBeenCalledWith(rows[0].item.id);
+    expect(onOpen).toHaveBeenCalledWith(rows[0]);
   });
 
   it("a row opens from the keyboard", async () => {
@@ -201,7 +208,7 @@ describe("ItemTable", () => {
     expect(button).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith(rows[0].item.id);
+    expect(onOpen).toHaveBeenCalledWith(rows[0]);
   });
 
   it("the problems toggle sets the query", async () => {

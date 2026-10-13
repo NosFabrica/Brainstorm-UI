@@ -192,6 +192,25 @@ describe("listHealth", () => {
     ]);
   });
 
+  it("has no facts row when every fact is a field another role shows, nor a summary row for the title's own field", () => {
+    const shown = definitionOf({
+      id: "2".repeat(64),
+      pubkey: A,
+      kind: 39998,
+      created_at: 0,
+      tags: [
+        ["d", "notes"],
+        ["names", "Note", "Notes"],
+        ["required", "name"],
+        ["display", "title", "name"],
+        ["display", "summary", "name"],
+        ["display", "fact", "name"],
+      ],
+    });
+    const s = summarize(shown, checkList(shown, [item("n1", A, 1, [["name", "One"]])], new Map()));
+    expect(s.coverage).toEqual([{ role: "title", count: 1 }]);
+  });
+
   it("summarises an empty list without dividing by anything", () => {
     expect(summarize(places, [])).toEqual({
       items: 0,
