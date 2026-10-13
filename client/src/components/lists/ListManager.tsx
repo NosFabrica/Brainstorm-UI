@@ -5,7 +5,9 @@
  * list found by pasting its address (lib/listRef). "New list" starts one.
  *
  * `?manage=lists` opens it; `&list=<coordinate>` (or `new`) opens the editor,
- * so a list and its editor have a link.
+ * so a list and its editor have a link. `&view=items` opens a list on its
+ * items and `&view=add` on adding one; `&item=<event id>` opens one item
+ * there (ListItems), so an item has a link too.
  */
 import { useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
@@ -18,13 +20,17 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ItemComposer } from "@/components/lists/ItemComposer";
 import { ListEditor } from "@/components/lists/ListEditor";
+import { ListItems } from "@/components/lists/ListItems";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useListAt, useMyLists } from "@/hooks/useLists";
 import { coordinateOf, headerNames } from "@/lib/dlistFields";
 import { parseListRef } from "@/lib/listRef";
 
-export const listManagerPath = (list?: string) =>
-  `/settings?tab=dictionary&manage=lists${list ? `&list=${encodeURIComponent(list)}` : ""}`;
+export const listManagerPath = (list?: string, opts: { view?: "items" | "add"; item?: string } = {}) =>
+  "/settings?tab=dictionary&manage=lists" +
+  (list ? `&list=${encodeURIComponent(list)}` : "") +
+  (opts.view ? `&view=${opts.view}` : "") +
+  (opts.item ? `&item=${encodeURIComponent(opts.item)}` : "");
 
 export function ListManager() {
   const list = new URLSearchParams(useSearch()).get("list");
@@ -92,15 +98,30 @@ function EditorFor({ list, me, mine }: { list: string; me: string; mine: NostrEv
   return <PublishedList key={coordinateOf(header) ?? header.id} header={header} me={me} takenDs={takenDs} />;
 }
 
+type Mode = "definition" | "item" | "items";
+
 /**
- * A published list: its definition (editable when it's the author's own) and
- * a form to add an item to it. Someone else's opens on adding, all one can do.
+ * A published list: its definition (editable when it's the author's own), a
+ * form to add an item to it, and its items. The address says which when it
+ * names one, and choosing a tab replaces the address; without one, someone
+ * else's opens on adding and one's own on its definition.
  */
 function PublishedList({ header, me, takenDs }: { header: NostrEvent; me: string; takenDs: ReadonlySet<string> }) {
-  const [mode, setMode] = useState<"definition" | "item">(header.pubkey === me ? "definition" : "item");
+  const view = new URLSearchParams(useSearch()).get("view");
+  const [, navigate] = useLocation();
+  const coordinate = coordinateOf(header) ?? header.id;
+  // The tab when the address names no view. Definition has no `view` of its own, so
+  // choosing it on someone else's list, which opens on adding, is kept here.
+  const [unnamed, setUnnamed] = useState<"definition" | "item">(header.pubkey === me ? "definition" : "item");
+  const mode: Mode = view === "items" ? "items" : view === "add" ? "item" : unnamed;
+  const choose = (next: Mode) => {
+    if (next !== "items") setUnnamed(next);
+    const named = next === "items" ? "items" : next === "item" ? "add" : undefined;
+    navigate(listManagerPath(coordinate, { view: named }), { replace: true });
+  };
   return (
     <div className="space-y-5">
-      <Tabs value={mode} onValueChange={(v) => setMode(v as "definition" | "item")}>
+      <Tabs value={mode} onValueChange={(v) => choose(v as Mode)}>
         <TabsList>
           <TabsTrigger value="definition" data-testid="list-manager-mode-definition">
             Definition
@@ -108,12 +129,17 @@ function PublishedList({ header, me, takenDs }: { header: NostrEvent; me: string
           <TabsTrigger value="item" data-testid="list-manager-mode-item">
             Add an item
           </TabsTrigger>
+          <TabsTrigger value="items" data-testid="list-manager-mode-items">
+            Items
+          </TabsTrigger>
         </TabsList>
       </Tabs>
       {mode === "definition" ? (
         <ListEditor header={header} me={me} takenDs={takenDs} onPublished={() => {}} />
-      ) : (
+      ) : mode === "item" ? (
         <ItemComposer header={header} me={me} />
+      ) : (
+        <ListItems header={header} />
       )}
     </div>
   );

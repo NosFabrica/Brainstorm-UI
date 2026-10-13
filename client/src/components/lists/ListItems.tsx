@@ -1,0 +1,196 @@
+/**
+ * A list's Items tab: every item filed under it (useListItems), checked under
+ * a definition of the list (lib/listHealth), as a health summary, a table and,
+ * for the one item the address names, a side panel. Read-only: it publishes
+ * nothing.
+ *
+ * `&item=<event id>` opens an item, so an item has a link. It is read on every
+ * render and never copied into state; opening, closing and stepping replace
+ * the address, so Back leaves the list. An id the list doesn't hold opens the
+ * panel to say so, once the read has settled.
+ *
+ * The check runs under the definition that governs for the reader, or another
+ * one chosen (useListDefinitions), as adding an item previews under one.
+ */
+import { useMemo, useState } from "react";
+import type { NostrEvent } from "nostr-tools";
+import { nip19 } from "nostr-tools";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
+import { Link, useLocation, useSearch } from "wouter";
+import { Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
+import { ItemInspector } from "@/components/lists/ItemInspector";
+import { ItemTable } from "@/components/lists/ItemTable";
+import { ListHealth } from "@/components/lists/ListHealth";
+import { listManagerPath } from "@/components/lists/ListManager";
+import { useLinkTemplates } from "@/hooks/useLinkTemplates";
+import { useListDefinitions } from "@/hooks/useListDefinitions";
+import { useListItems } from "@/hooks/useListItems";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import type { DefinitionSource } from "@/lib/conceptResolution";
+import { coordinateOf } from "@/lib/dlistFields";
+import type { UrlTemplate } from "@/lib/linkTemplates";
+import {
+  EMPTY_QUERY,
+  checkList,
+  filterItems,
+  sortItems,
+  summarize,
+  type ItemQuery,
+  type ItemSort,
+} from "@/lib/listHealth";
+
+/** One map for every render without templates, so the check isn't run again for want of them. */
+const NO_TEMPLATES: ReadonlyMap<string, UrlTemplate> = new Map();
+
+/** A curator by profile name, or a short npub. Never a rank. */
+const curatorName = (pubkey: string, profiles: Map<string, ProfileContent>) => {
+  const p = profiles.get(pubkey);
+  return p?.display_name || p?.name || `${nip19.npubEncode(pubkey).slice(0, 12)}…`;
+};
+
+export function ListItems({ header }: { header: NostrEvent }) {
+  const coordinate = coordinateOf(header) ?? header.id;
+  const openId = new URLSearchParams(useSearch()).get("item") || null;
+  const [, navigate] = useLocation();
+  /** To the Items tab with `item` open, or with none. */
+  const show = (item?: string) => navigate(listManagerPath(coordinate, { view: "items", item }), { replace: true });
+
+  const { items, truncated, settled, reload } = useListItems(header);
+  const { definitions, governing } = useListDefinitions(header);
+  const [chosen, setChosen] = useState<DefinitionSource | null>(null);
+  const shown = definitions.find((d) => d.source === (chosen ?? governing)) ?? definitions[0];
+  const def = shown.resolved.governing;
+  const templates = useLinkTemplates(def.links).data ?? NO_TEMPLATES;
+
+  const [query, setQuery] = useState<ItemQuery>(EMPTY_QUERY);
+  const [sort, setSort] = useState<ItemSort>("newest");
+  const [page, setPage] = useState(1);
+  // Whatever changes the rows starts them from the first page again.
+  const onQuery = (q: ItemQuery) => {
+    setQuery(q);
+    setPage(1);
+  };
+  const onSort = (s: ItemSort) => {
+    setSort(s);
+    setPage(1);
+  };
+  const onDefinition = (s: DefinitionSource) => {
+    setChosen(s);
+    setPage(1);
+  };
+
+  const checked = useMemo(() => checkList(def, items, templates), [def, items, templates]);
+  const summary = useMemo(() => summarize(def, checked), [def, checked]);
+  const filtered = useMemo(() => filterItems(def, checked, query), [def, checked, query]);
+  const rows = useMemo(() => sortItems(filtered, sort), [filtered, sort]);
+
+  const authors = useMemo(() => [...new Set(items.map((i) => i.pubkey))], [items]);
+  const profiles = useLiveProfiles(authors);
+  const curators = useMemo(
+    () =>
+      authors
+        .map((pubkey) => ({ pubkey, name: curatorName(pubkey, profiles) }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [authors, profiles],
+  );
+
+  // The open item is looked for among every item, so a link to one opens it whatever
+  // the table is filtered to; its neighbours are the rows the table is showing.
+  const entry = openId ? (checked.find((c) => c.item.id === openId) ?? null) : null;
+  const at = openId ? rows.findIndex((c) => c.item.id === openId) : -1;
+
+  const readAgain = (
+    <Button variant="outline" size="sm" onClick={reload} disabled={!settled} data-testid="list-items-reload">
+      {settled ? <RefreshCw /> : <Loader2 className="animate-spin" />}
+      Read again
+    </Button>
+  );
+
+  return (
+    <div className="space-y-6" data-testid="list-items">
+      {items.length > 0 ? (
+        <>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            {definitions.length > 1 && (
+              <div className="space-y-1.5">
+                <Label>Check it as</Label>
+                <Tabs value={shown.source} onValueChange={(v) => onDefinition(v as DefinitionSource)}>
+                  <TabsList className="flex-wrap">
+                    {definitions.map((d) => (
+                      <TabsTrigger key={d.source} value={d.source} data-testid={`list-items-as-${d.source}`}>
+                        {SOURCE_LABEL[d.source]}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
+            <div className="ml-auto">{readAgain}</div>
+          </div>
+
+          <ListHealth
+            summary={summary}
+            truncated={truncated}
+            activeProblem={query.problem}
+            onProblem={(problem) => onQuery({ ...query, problem })}
+          />
+
+          <section className="space-y-3">
+            <SectionHeader kicker="Items" />
+            <ItemTable
+              rows={rows}
+              total={items.length}
+              singular={def.singular}
+              curators={curators}
+              query={query}
+              onQuery={onQuery}
+              sort={sort}
+              onSort={onSort}
+              page={page}
+              onPage={setPage}
+              onOpen={show}
+            />
+          </section>
+        </>
+      ) : settled ? (
+        <div className="space-y-3" data-testid="list-items-empty">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            No items found for this list on the hub or our index.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            {readAgain}
+            <Link
+              href={listManagerPath(coordinate, { view: "add" })}
+              className="text-sm font-medium text-brand-link underline-offset-4 hover:underline"
+            >
+              Add an item
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <p
+          className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
+          data-testid="list-items-reading"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" /> Reading the list's items…
+        </p>
+      )}
+
+      {/* An id not found says so only once the read has settled: until then it may yet arrive. */}
+      <ItemInspector
+        open={openId !== null && (entry !== null || settled)}
+        entry={entry}
+        resolved={shown.resolved}
+        curatorName={entry ? curatorName(entry.item.pubkey, profiles) : ""}
+        onClose={() => show()}
+        onPrev={at > 0 ? () => show(rows[at - 1].item.id) : null}
+        onNext={at >= 0 && at < rows.length - 1 ? () => show(rows[at + 1].item.id) : null}
+      />
+    </div>
+  );
+}
