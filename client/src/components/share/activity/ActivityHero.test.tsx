@@ -46,8 +46,9 @@ vi.mock("@/hooks/useBackupNeed", () => ({ useBackupNeed: () => null }));
 vi.mock("@/hooks/useDictionaryConcepts", () => ({ useDictionaryConcepts: () => ({ rendered: [], known: true }) }));
 vi.mock("@/hooks/useSpecsForKind", () => ({ useSpecsForKind: () => [] }));
 vi.mock("@/components/PublicPageHeader", () => ({ PublicPageHeader: () => <header data-testid="header" /> }));
-vi.mock("@/components/share/EventThread", () => ({ EventThread: () => null }));
-vi.mock("@/components/share/NoteTagChips", () => ({ NoteTagChips: () => null }));
+// Drawn as markers: a thread or topic chips mounted is a relay ask made.
+vi.mock("@/components/share/EventThread", () => ({ EventThread: () => <div data-testid="thread-mounted" /> }));
+vi.mock("@/components/share/NoteTagChips", () => ({ NoteTagChips: () => <div data-testid="tag-chips-mounted" /> }));
 vi.mock("@/components/share/MoreFromAuthor", () => ({ MoreFromAuthor: () => null }));
 vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
 vi.mock("@/components/share/EntityMenu", () => ({
@@ -131,11 +132,19 @@ describe("the activity hero dispatch", () => {
     expect(screen.queryByTestId("structural-hero")).toBeNull();
   });
 
+  it("asks for no replies and no topics under an activity, as for no ancestors", () => {
+    open(ev(7, [["e", "1".repeat(64)]], "+"));
+    expect(screen.getByTestId("reaction-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("thread-mounted")).toBeNull();
+    expect(screen.queryByTestId("tag-chips-mounted")).toBeNull();
+  });
+
   it("leaves every other kind to the chain it had", () => {
     expect(hasActivityHero({ kind: 1 })).toBe(false);
     expect(hasActivityHero({ kind: 10002 })).toBe(false);
     open(ev(10002, [["r", "wss://relay.example"]], ""));
     expect(screen.getByTestId("structural-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-mounted")).toBeInTheDocument();
   });
 });
 

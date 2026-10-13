@@ -429,6 +429,9 @@ function EventView({
   // header a post or an article gets (the team, 2026-10-01).
   const quietAuthor = !!note && (!!dlistOfEvent(note) || asDictionaryItem || note.kind === 39998 || note.kind === 9998);
 
+  // A zap, a reaction, a report…: its hero is the page, with no thread or topics of its own.
+  const activityPage = !!note && hasActivityHero(note);
+
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
   const [threadGated, setThreadGated] = useState(false);
@@ -718,16 +721,21 @@ function EventView({
                 the note itself, where a reader has just finished it and a
                 tagger has the content in view. Reads from relays only, so it
                 renders for logged-out visitors too. */}
-            <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />
+            {!activityPage && <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />}
 
-            {/* Reply thread — teaser-gated for anon, trust-filterable for members. */}
-            <EventThread
-              eventId={note.id}
-              addressCoord={addressCoordOf(note)}
-              authorNpub={authorNpub}
-              relayHints={relayHints}
-              onGateChange={setThreadGated}
-            />
+            {/* Reply thread — teaser-gated for anon, trust-filterable for members.
+                Not under a zap, a reaction or a report: nobody replies to those,
+                and asking the relays for their replies is a REQ per visit for nothing
+                (as their ancestors and refs are not asked for either). */}
+            {!activityPage && (
+              <EventThread
+                eventId={note.id}
+                addressCoord={addressCoordOf(note)}
+                authorNpub={authorNpub}
+                relayHints={relayHints}
+                onGateChange={setThreadGated}
+              />
+            )}
 
             {/* More from this author — keep readers inside Brainstorm. Not under a list
                 event: who listed a GitHub account says nothing about the account. */}
