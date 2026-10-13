@@ -42,7 +42,7 @@ import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { DListHero } from "@/components/share/DListHero";
 import { DListHeaderHero } from "@/components/share/DListHeaderHero";
 import { CuratorFooter } from "@/components/search/cards";
-import { DListItemHero } from "@/components/share/DListItemHero";
+import { ItemPage } from "@/components/items/ItemPage";
 import { dlistOfEvent } from "@/lib/dlists";
 import { dictionaryConceptOf } from "@/services/dictionary";
 import { isDListItem } from "@/lib/dlistFields";
@@ -586,8 +586,8 @@ function EventView({
                 // Any other list's header: the list and its items, its tags behind "Advanced view".
                 <DListHeaderHero event={note} />
               ) : asDictionaryItem ? (
-                // An item of a Dictionary concept, drawn from its governing definition (ADR 0004).
-                <DListItemHero event={note} />
+                // An item of a Dictionary concept: its concept's own page (ADR 0007), else drawn from its definition (ADR 0004).
+                <ItemPage event={note} />
               ) : isGitItem(note.kind) ? (
                 <GitItemHero
                   event={note}

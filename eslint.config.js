@@ -21,6 +21,35 @@ const relayReadInQuery = (callee) => ({
     "Relay reads render from the EventStore (useStoreEvents / useStoreReplaceable / useLiveProfile), not react-query. See docs/adr.",
 });
 
+/**
+ * Tier two never imports tier three (docs/adr/0007): nothing outside
+ * components/items/ reaches into it, and only it asks which concept has a
+ * view of its own. Tier three plugs in from above, in three places: the app's
+ * root (TierThreeProvider), and an item's page (ItemPage, in EventScreen and
+ * the renderer playground). `allow` names the one module a wiring site may import.
+ */
+const TIER_THREE = "^(@/|(\\.\\./)+)(components/)?items/";
+const tierTwoImports = (allow) => [
+  "error",
+  {
+    paths: [
+      {
+        name: "@/config/dictionary",
+        importNames: ["conceptViewOf", "ConceptViewKey"],
+        message:
+          "Only components/items/ asks which concept has a view of its own: tier two never branches on a concept (docs/adr/0007).",
+      },
+    ],
+    patterns: [
+      {
+        regex: allow ? `${TIER_THREE}(?!${allow}$)` : TIER_THREE,
+        message:
+          "Tier two doesn't import tier three (docs/adr/0007, CODING_STANDARDS.md). Tier three plugs in from above: ItemPage for an item's page, TierThreeProvider for cards, rows and tiles.",
+      },
+    ],
+  },
+];
+
 export default tseslint.config(
   {
     ignores: ["client/src/components/ui", "client/src/lib/tagging-sdk"],
@@ -45,6 +74,16 @@ export default tseslint.config(
       // `let x; ...; x = subscribe(...)` is deliberate where a sync callback reads x.
       "prefer-const": ["error", { ignoreReadBeforeAssign: true }],
     },
+  },
+  {
+    files: ["client/src/**/*.{ts,tsx}"],
+    ignores: ["client/src/components/items/**"],
+    rules: { "no-restricted-imports": tierTwoImports() },
+  },
+  { files: ["client/src/App.tsx"], rules: { "no-restricted-imports": tierTwoImports("TierThreeProvider") } },
+  {
+    files: ["client/src/components/share/EventScreen.tsx", "client/src/pages/dev/RendererPlayground.tsx"],
+    rules: { "no-restricted-imports": tierTwoImports("ItemPage") },
   },
   prettier,
 );

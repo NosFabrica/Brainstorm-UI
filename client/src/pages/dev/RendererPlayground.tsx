@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DListItemHero } from "@/components/share/DListItemHero";
+import { ItemPage } from "@/components/items/ItemPage";
 import { DListItemCard } from "@/components/dictionary/DListItemCard";
 import { DListSuggestionRow } from "@/components/dictionary/DListSuggestionRow";
 import { dictionaryRelays } from "@/config/dictionary";
@@ -187,7 +187,7 @@ function Rendered({ event, view, onView }: { event: NostrEvent; view: View; onVi
   const single = (
     <div className="space-y-2">
       <div className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-        <DListItemHero event={event} />
+        <ItemPage event={event} />
       </div>
       <Link href={page} className="inline-flex items-center gap-1 text-xs text-brand-link hover:underline">
         Open the real page <ExternalLink className="h-3 w-3" />

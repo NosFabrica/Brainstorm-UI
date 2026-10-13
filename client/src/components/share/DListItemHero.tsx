@@ -27,7 +27,9 @@
  *   nothing shows, and tags outside the definition, fold into "More fields";
  *   an item the definition fully covers has none.
  *
- * The lister, the time and the ids are EventScreen's, around this.
+ * The lister, the time and the ids are EventScreen's, around this. A concept
+ * with a page of its own (tier three, ADR 0007) is drawn instead of this one
+ * by components/items/ItemPage; nothing here knows of it.
  */
 import { useState } from "react";
 import { BookOpen, ExternalLink, Loader2, MapPin, TriangleAlert } from "lucide-react";
@@ -45,7 +47,6 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
 import { ConceptLink, DefinitionLine, MoreFields } from "@/components/share/DListItemParts";
-import { tierThreeFor } from "@/components/items/itemViews";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
 type ItemEvent = { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] };
@@ -74,9 +75,6 @@ function HeroFor({ event, view, preview = false }: { event: ItemEvent; view: Ite
     );
 
   if (!isReady(view)) return <Undefined event={event} />;
-  // A concept with a view of its own (ADR 0007) draws itself from the same view; everything else is drawn here.
-  const TierThree = preview ? null : tierThreeFor(event, view);
-  if (TierThree) return <TierThree event={event} view={view} />;
   return <Defined event={event} view={view} preview={preview} />;
 }
 

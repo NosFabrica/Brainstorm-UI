@@ -32,11 +32,6 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
     ]),
   }),
 }));
-// These are the tier-two page's tests; GitHub's tier-three view (ADR 0007) has its own.
-vi.mock("@/components/items/itemViews", () => ({
-  tierThreeFor: () => null,
-  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: unknown) => shown,
-}));
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
@@ -327,6 +322,21 @@ describe("DListItemHero — facts", () => {
     await userEvent.click(screen.getByTestId("dlist-item-more-toggle"));
     expect(screen.getByTestId("dlist-item-fields")).toHaveTextContent("opening-hours");
     expect(screen.getByTestId("dlist-item-fields")).not.toHaveTextContent("phone");
+  });
+
+  it("a phone fact is text until the definition types it tel; then it calls, on the device, not in a tab", () => {
+    concept = { data: resolveConcept({ community: places, communityCoordinate: COMMUNITY }), isPending: false };
+    const { unmount } = renderWithProviders(<DListItemHero event={place} />);
+    expect(screen.getAllByTestId("dlist-item-fact")[0].querySelector("a")).toBeNull();
+    unmount();
+
+    const typed = header(AVI, [...places.tags.slice(2), ["field-type", "phone", "tel"]]);
+    concept = { data: resolveConcept({ community: typed, communityCoordinate: COMMUNITY }), isPending: false };
+    renderWithProviders(<DListItemHero event={place} />);
+    const call = screen.getAllByTestId("dlist-item-fact")[0].querySelector("a");
+    expect(call).toHaveAttribute("href", "tel:+15403910134");
+    expect(call).toHaveTextContent("+1-540-391-0134");
+    expect(call).not.toHaveAttribute("target");
   });
 
   it("without fact hints, no facts", () => {

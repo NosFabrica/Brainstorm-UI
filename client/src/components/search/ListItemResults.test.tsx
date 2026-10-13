@@ -16,11 +16,6 @@ const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 
 // Who's reading: an admin, anyone signed in, or a signed-out visitor (null).
 let viewer: { pubkey: string; isAdmin: boolean } | null = { pubkey: "1".repeat(64), isAdmin: true };
-// These tests pin the tier-two reading; GitHub's tier-three view (ADR 0007) has its own.
-vi.mock("@/components/items/itemViews", () => ({
-  tierThreeFor: () => null,
-  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: unknown) => shown,
-}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => viewer,
 }));

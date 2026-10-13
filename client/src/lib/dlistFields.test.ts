@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
 import {
   addressOf,
+  emailHref,
   coordinateOf,
   fieldCell,
   headerNames,
@@ -15,6 +16,7 @@ import {
   isDListItem,
   parseCoordinate,
   parseFieldDecls,
+  telHref,
   undeclaredFields,
 } from "./dlistFields";
 
@@ -232,5 +234,40 @@ describe("address fields (provisional)", () => {
     expect(
       fieldCell(item, { name: "list", requirement: "optional", description: null, type: "text" }).address,
     ).toBeNull();
+  });
+});
+
+describe("tel and email fields (provisional)", () => {
+  const field = (type: string) => ({ name: "contact", requirement: "optional" as const, description: null, type });
+  const cell = (type: string, value: string) => fieldCell({ tags: [["contact", value]] }, field(type));
+
+  it("a tel field calls: its digits and a leading +, the separators people write gone", () => {
+    expect(telHref("+1-540-391-0134")).toBe("tel:+15403910134");
+    expect(telHref("(020) 7946.0958")).toBe("tel:02079460958");
+    expect(telHref(" 911 ")).toBe("tel:911");
+    expect(cell("tel", "+1 346 493 2858")).toMatchObject({ value: "+1 346 493 2858", href: "tel:+13464932858" });
+  });
+
+  it("a tel value with anything else in it stays text", () => {
+    expect(telHref("call us")).toBeNull();
+    expect(telHref("555-1234 ext 2")).toBeNull();
+    expect(telHref("1+2")).toBeNull();
+    expect(telHref("")).toBeNull();
+  });
+
+  it("an email field mails one address, and nothing else", () => {
+    expect(emailHref(" hello@ilsolefood.com ")).toBe("mailto:hello@ilsolefood.com");
+    expect(cell("email", "hello@ilsolefood.com").href).toBe("mailto:hello@ilsolefood.com");
+    expect(emailHref("hello at ilsolefood.com")).toBeNull();
+    expect(emailHref("a@b")).toBeNull();
+    expect(emailHref("a@b.com?bcc=c@d.com")).toBeNull();
+    expect(emailHref("mailto:a@b.com")).toBeNull();
+  });
+
+  it("a value's look never types it: a phone or an email in a text field stays text", () => {
+    expect(cell("text", "+1-540-391-0134").href).toBeNull();
+    expect(cell("text", "hello@ilsolefood.com").href).toBeNull();
+    // A type the reader doesn't know is text too, whatever it's called.
+    expect(cell("toString", "+1-540-391-0134").href).toBeNull();
   });
 });

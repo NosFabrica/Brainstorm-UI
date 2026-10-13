@@ -40,11 +40,12 @@ const ROLE_LABEL: Record<DisplayRole, string> = {
 /** Title and summary always read from some field; a picture, link, media or location only when one is named. */
 const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
 /**
- * The value types the form offers (dlistFields): `url` makes a value a link;
+ * The value types the form offers (dlistFields): `url` makes a value a link,
+ * `tel` and `email` (provisional, 2026-10-13) a call and a mail;
  * `address` (provisional, 2026-10-10) says it names another event by its
  * `kind:pubkey:d`, and a page shows what it names (AddressRef).
  */
-export const FIELD_TYPES = ["text", "url", "address"] as const;
+export const FIELD_TYPES = ["text", "url", "tel", "email", "address"] as const;
 /** The DList NIP's levels a form can set (`allowed` reads as optional; `disallowed` is never declared here). */
 const REQUIREMENTS: FieldRequirement[] = ["required", "recommended", "optional"];
 const REQUIREMENT_LABEL: Record<FieldRequirement, string> = {
