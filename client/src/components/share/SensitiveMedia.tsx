@@ -7,7 +7,16 @@
  * frame of the video. The caller holds the "shown" state, and moves focus to
  * the media once it is shown: the button that had it is gone.
  */
-import type { CSSProperties } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { clip } from "@/lib/resultReaders";
@@ -70,19 +79,128 @@ export function SensitiveCover({
   );
 }
 
-/** In place of a thumbnail. The caller sizes it and keeps the tap. */
-export function SensitiveTile({ className, onClick }: { className?: string; onClick?: (e: React.MouseEvent) => void }) {
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center gap-1 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-        className,
-      )}
-      data-testid="sensitive-tile"
-    >
+/**
+ * In place of a thumbnail. The caller sizes it. Given `onClick` it is a button
+ * a keyboard reaches, named `label` ("Sensitive video: …"); without, a picture.
+ */
+export function SensitiveTile({
+  className,
+  onClick,
+  label,
+}: {
+  className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  /** What the button is called for a screen reader; "Sensitive" alone says nothing of what opens. */
+  label?: string;
+}) {
+  const cls = cn(
+    "flex flex-col items-center justify-center gap-1 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+    className,
+  );
+  const inner = (
+    <>
       <EyeOff className="h-4 w-4" aria-hidden="true" />
-      <span className="text-[11px] font-medium leading-none">Sensitive</span>
+      <span className="text-[11px] font-medium leading-none" aria-hidden={onClick ? true : undefined}>
+        Sensitive
+      </span>
+    </>
+  );
+  if (onClick)
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label ?? "Show sensitive media"}
+        className={cn(cls, "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40")}
+        data-testid="sensitive-tile"
+      >
+        {inner}
+      </button>
+    );
+  return (
+    <div className={cls} data-testid="sensitive-tile">
+      {inner}
     </div>
   );
+}
+
+/**
+ * One post, one reveal. A post's sensitive media can sit in two places — the
+ * pictures in its words (NoteContent) and the files only its imeta names
+ * (EventMedia) — and the reader asks once for all of it. Inside a scope, the
+ * first part that has something to cover draws the cover; the others stand in
+ * quietly (a tile, or a sound without its art) and show when it is asked.
+ * The caller keys the scope on the event, so a reveal never carries to another.
+ */
+type RevealStore = {
+  shown: boolean;
+  claims: symbol[];
+  version: number;
+  listeners: Set<() => void>;
+  show: () => void;
+  claim: (id: symbol) => () => void;
+  subscribe: (fn: () => void) => () => void;
+};
+
+function createRevealStore(): RevealStore {
+  const store: RevealStore = {
+    shown: false,
+    claims: [],
+    version: 0,
+    listeners: new Set(),
+    show: () => {
+      if (store.shown) return;
+      store.shown = true;
+      bump();
+    },
+    claim: (id) => {
+      store.claims = [...store.claims, id];
+      bump();
+      return () => {
+        store.claims = store.claims.filter((c) => c !== id);
+        bump();
+      };
+    },
+    subscribe: (fn) => {
+      store.listeners.add(fn);
+      return () => void store.listeners.delete(fn);
+    },
+  };
+  function bump() {
+    store.version++;
+    store.listeners.forEach((fn) => fn());
+  }
+  return store;
+}
+
+const RevealContext = createContext<RevealStore | null>(null);
+
+/** One reveal for everything sensitive inside it: one post's words and files. */
+export function SensitiveRevealScope({ children }: { children: ReactNode }) {
+  const [store] = useState(createRevealStore);
+  return <RevealContext.Provider value={store}>{children}</RevealContext.Provider>;
+}
+
+/** Where another post starts inside a scope (a quoted note): its media are asked for on their own. */
+export function SensitiveRevealBoundary({ children }: { children: ReactNode }) {
+  return <RevealContext.Provider value={null}>{children}</RevealContext.Provider>;
+}
+
+const noSubscribe = () => () => {};
+const noVersion = () => 0;
+
+/**
+ * Whether the reader has asked for this post's sensitive media, how to ask, and
+ * whether this part `leads` — draws the cover and takes focus once shown. Out of
+ * a scope every part leads its own reveal. `covers`: this part has media to cover.
+ */
+export function useSensitiveReveal(covers: boolean): { shown: boolean; show: () => void; leads: boolean } {
+  const store = useContext(RevealContext);
+  const [own, setOwn] = useState(false);
+  const [id] = useState(() => Symbol("reveal"));
+  useSyncExternalStore(store?.subscribe ?? noSubscribe, store ? () => store.version : noVersion, noVersion);
+  useLayoutEffect(() => (store && covers ? store.claim(id) : undefined), [store, covers, id]);
+  const showOwn = useCallback(() => setOwn(true), []);
+  if (!store) return { shown: own, show: showOwn, leads: true };
+  return { shown: store.shown, show: store.show, leads: store.claims.length === 0 || store.claims[0] === id };
 }

@@ -8,7 +8,7 @@
  *
  * The caller keys each on the event, so a reveal never carries to another one.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo, feedVideoFrame } from "@/components/share/FeedVideo";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -17,7 +17,8 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 import { MediaImg } from "@/components/ui/media-img";
 import { embedAudioUrl, embedPictures, taggedVideoUrl } from "@/lib/embedShape";
 import { kindLabel } from "@/lib/kindLabel";
-import { mediaPosterOf } from "@/lib/mediaKind";
+import { mediaItemsOf, mediaPosterOf } from "@/lib/mediaKind";
+import { readAudioEvent } from "@/lib/audioEvent";
 import { contentWarningOf } from "@/lib/nip36";
 import { SHORT_VIDEO_KINDS, readVideo } from "@/lib/nip71";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -93,7 +94,8 @@ export function EmbeddedVideo({ event }: { event: MinimalEvent }) {
  * A picture post (kind 20) or an image file (1063): its pictures, one large
  * or up to four in a grid. In a card that opens on a click (`opensThread`)
  * a picture is a thumbnail whose click opens the post; otherwise it opens the
- * lightbox. A flagged picture is a "Sensitive" tile until it is asked for.
+ * lightbox. A flagged post is "Sensitive" tiles until it is asked for — one
+ * button, on the first tile — and focus moves to the first picture once shown.
  */
 export function EmbeddedPictures({ event, opensThread = false }: { event: MinimalEvent; opensThread?: boolean }) {
   const urls = useMemo(() => embedPictures(event), [event]);
@@ -101,6 +103,10 @@ export function EmbeddedPictures({ event, opensThread = false }: { event: Minima
   const [shown, setShown] = useState(false);
   const openLightbox = useLightbox();
   const covered = !!warning && !shown;
+  const firstRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (shown) firstRef.current?.focus();
+  }, [shown]);
   const tiles = urls.slice(0, PICTURES_SHOWN);
   const more = urls.length - tiles.length;
   const single = tiles.length === 1;
@@ -110,23 +116,34 @@ export function EmbeddedPictures({ event, opensThread = false }: { event: Minima
       <div className={`mt-2 grid gap-1 overflow-hidden rounded-xl ${single ? "grid-cols-1" : "grid-cols-2"}`}>
         {tiles.map((url, i) => {
           const box = `relative overflow-hidden border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 ${single ? "aspect-[16/10] max-h-80 rounded-xl" : "aspect-square"}`;
-          if (covered)
+          if (covered) {
+            // One ask for them all, on the first tile: the rest wait beside it.
+            if (i > 0)
+              return (
+                <div key={url} className={box}>
+                  <SensitiveTile className="absolute inset-0" />
+                </div>
+              );
+            const what = urls.length > 1 ? "pictures" : "picture";
             return (
               <button
                 key={url}
                 type="button"
                 className={box}
                 onClick={() => setShown(true)}
-                aria-label={warning?.reason ? `Show sensitive picture: ${warning.reason}` : "Show sensitive picture"}
+                aria-label={warning?.reason ? `Show sensitive ${what}: ${warning.reason}` : `Show sensitive ${what}`}
                 data-testid="embedded-picture-sensitive"
               >
                 <SensitiveTile className="absolute inset-0" />
               </button>
             );
+          }
           return (
             <div
               key={url}
-              className={box}
+              ref={i === 0 ? firstRef : undefined}
+              tabIndex={i === 0 && shown ? -1 : undefined}
+              className={`${box} focus:outline-none`}
               {...(opensThread
                 ? {}
                 : {
@@ -147,7 +164,10 @@ export function EmbeddedPictures({ event, opensThread = false }: { event: Minima
               />
               {more > 0 && i === tiles.length - 1 && (
                 <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-lg font-semibold text-white">
-                  +{more}
+                  <span aria-hidden="true">+{more}</span>
+                  <span className="sr-only">
+                    {more} more {more === 1 ? "picture" : "pictures"}
+                  </span>
                 </span>
               )}
             </div>
@@ -163,6 +183,14 @@ export function EmbeddedAudio({ event, artist, href }: { event: MinimalEvent; ar
   const audio = embedAudioUrl(event);
   // Art its creator marked sensitive is not drawn here, nor handed to the player bar.
   const cover = contentWarningOf(event) ? undefined : tagVal(event, "image");
+  // Its length as its tags say it: the row does not load the file to ask.
+  const durationSec = useMemo(
+    () =>
+      audio
+        ? (mediaItemsOf(event).find((i) => i.url === audio)?.durationSec ?? readAudioEvent(event).durationSec)
+        : undefined,
+    [event, audio],
+  );
   if (!audio) return null;
   return (
     <div className="mt-1" data-noopen data-testid="embedded-audio">
@@ -173,6 +201,7 @@ export function EmbeddedAudio({ event, artist, href }: { event: MinimalEvent; ar
         cover={cover}
         audio={audio}
         href={href}
+        durationSec={durationSec}
       />
     </div>
   );

@@ -11,6 +11,7 @@
 import { useMemo } from "react";
 import { addrCoord, analyzeNote, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
 import { fetchAddressableEvents } from "@/services/nostr";
+import { fetchRefBatched } from "@/services/refBatch";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { mergeNewest } from "@/hooks/useNoteRefs";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -32,13 +33,22 @@ export function linkedArticleRefs(event: MinimalEvent): AddressRef[] {
 const byCoord = (events: MinimalEvent[]) =>
   new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
 
-/** The articles behind a set of addresses: held copies at once, newer ones as the relays answer. */
-export function useArticlesByRefs(refs: AddressRef[]): { articles: MinimalEvent[]; coords: ReadonlySet<string> } {
+/**
+ * The articles behind a set of addresses: held copies at once, newer ones as the relays answer.
+ * `batched`: asked in the page's batch (services/refBatch) — for one reference per component, as
+ * an article's `naddr`s each are, so dozens of them make one ask and not one each.
+ */
+export function useArticlesByRefs(
+  refs: AddressRef[],
+  { batched = false }: { batched?: boolean } = {},
+): { articles: MinimalEvent[]; coords: ReadonlySet<string> } {
   const key = refs.map(addrCoord).join(",");
   const stable = useMemo(() => refs, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const held = useHeldReplaceables(stable);
-  const asked = useStoreEvents(key ? `linked-articles:${key}` : null, null, async () =>
-    Array.from((await fetchAddressableEvents(stable).catch(() => new Map<string, MinimalEvent>())).values()),
+  const asked = useStoreEvents(key ? `linked-articles:${batched ? "batch:" : ""}${key}` : null, null, async () =>
+    batched
+      ? (await Promise.all(stable.map((a) => fetchRefBatched({ addr: addrCoord(a), relay: a.relays?.[0] })))).flat()
+      : Array.from((await fetchAddressableEvents(stable).catch(() => new Map<string, MinimalEvent>())).values()),
   );
   return useMemo(() => {
     const merged = mergeNewest(stable, held, byCoord(asked.events as MinimalEvent[]));

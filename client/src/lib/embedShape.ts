@@ -21,6 +21,7 @@ import { audioUrlFromEvent } from "@/lib/audioPlayer";
 import { extractImageUrls } from "@/lib/noteContent";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { gitItemTitleOf } from "@/lib/gitPatch";
 
 type EventLike = Pick<MinimalEvent, "kind" | "tags" | "content">;
 
@@ -117,6 +118,14 @@ export function embedAudioUrl(ev: EventLike): string | null {
   return VOICE_KINDS.has(ev.kind) && /^https?:\/\/\S+$/i.test(content) ? content : null;
 }
 
+const hasTag = (ev: EventLike, ...names: string[]) => ev.tags.some((t) => names.includes(t[0]) && !!t[1]?.trim());
+
+/** A repo by its `name`, or by its identifier when it says where to get it; an issue, patch or PR by a title. */
+function namedGitItem(ev: EventLike): boolean {
+  if (ev.kind === 30617) return hasTag(ev, "name") || (hasTag(ev, "d") && hasTag(ev, "clone", "web", "description"));
+  return !/^Untitled /.test(gitItemTitleOf(ev));
+}
+
 /** `thing`: the event already read by lib/thing, when the caller has it — it is not read twice. */
 export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape {
   // Deleted by overwriting: the note card's quiet stub says so.
@@ -127,11 +136,12 @@ export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape
   if (THING_KINDS.has(kind)) return (thing !== undefined ? thing : describeThing(ev)) ? "thing" : "note";
   // A roster needs someone on it: a private follow set keeps its members in encrypted content.
   if (PEOPLE_LIST_KINDS.has(kind)) return ev.tags.some((t) => t[0] === "p" && t[1]?.trim()) ? "people-list" : "note";
-  if (LIVE_EMBED_KINDS.has(kind)) return "live";
-  if (CALENDAR_EVENT_KINDS.has(kind)) return "calendar-event";
+  // A card needs a name to say: junk on these kinds would draw "Live event", a TBA tile, "Untitled app".
+  if (LIVE_EMBED_KINDS.has(kind)) return hasTag(ev, "title", "name") ? "live" : "note";
+  if (CALENDAR_EVENT_KINDS.has(kind)) return hasTag(ev, "title", "name", "start") ? "calendar-event" : "note";
   if (LISTING_EMBED_KINDS.has(kind)) return parseListing(ev) ? "listing" : "note";
-  if (APP_EMBED_KINDS.has(kind)) return "app";
-  if (REPO_EMBED_KINDS.has(kind)) return "repo";
+  if (APP_EMBED_KINDS.has(kind)) return hasTag(ev, "name") ? "app" : "note";
+  if (REPO_EMBED_KINDS.has(kind)) return namedGitItem(ev) ? "repo" : "note";
   if (TRACK_KINDS.has(kind)) return parseTrack(ev) ? "track" : "note";
   // A video that names its file in its words plays from there already (NoteContent).
   if (VIDEO_KINDS.has(kind)) return taggedVideoUrl(ev) ? "video" : "note";

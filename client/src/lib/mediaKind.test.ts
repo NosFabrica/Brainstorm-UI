@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MEDIA_KIND_ORDER, MEDIA_KIND_LABELS, mediaItemsOf, mediaKindOf, mediaKindOfUrl } from "./mediaKind";
+import { parseNoteContent } from "./noteContent";
 
 // Benjamin (2026-09-25): "we don't have images as an option or videos — that
 // gets filtered into Media". The tab's facets need one word per hit.
@@ -153,8 +154,12 @@ describe("mediaItemsOf — each file as what it is", () => {
     ).toBe("video");
   });
 
-  it("a .webm that says a duration but no size is a sound; one in a voice message always is", () => {
-    expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/a.webm", "duration 12"]]))[0].kind).toBe("audio");
+  it("a .webm that says a duration but no size is a sound in a sound's kind; one in a voice message always is", () => {
+    // Audit: only where the event is a sound — a track, an episode, an audio header. In a note
+    // a running time is what every clip has, and mediaKindOf already called it a video.
+    for (const kind of [31337, 36787, 54, 30054, 30055, 1808])
+      expect(mediaItemsOf(ev(kind, [["imeta", "url https://x.test/a.webm", "duration 12"]]))[0].kind).toBe("audio");
+    expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/a.webm", "duration 12"]]))[0].kind).toBe("video");
     expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/a.webm", "duration 12", "dim 640x360"]]))[0].kind).toBe(
       "video",
     );
@@ -174,6 +179,57 @@ describe("mediaItemsOf — each file as what it is", () => {
     expect(sound).toMatchObject({ kind: "audio", durationSec: 61.5 });
     expect(mediaItemsOf(ev(1, [["imeta", "url https://x.test/b.mp3", "duration nonsense"]]))[0].durationSec).toBe(
       undefined,
+    );
+  });
+});
+
+describe("mediaKindOf and mediaItemsOf agree", () => {
+  // Audit: the Media tab's word for a hit and the page's drawing of its first file were two readings.
+  it("the hit's kind is its first file's", () => {
+    for (const e of [
+      ev(1, [["imeta", "url https://x.test/clip.webm", "duration 12.5"]]),
+      ev(1, [["imeta", "url https://blossom/abc"]]),
+      ev(1063, [
+        ["url", "https://x.test/f"],
+        ["m", "audio/mpeg"],
+      ]),
+      ev(1, [], "x https://x.test/a.jpg?w=1, nice"),
+      ev(1222, [["imeta", "url https://x.test/v.webm", "m video/webm"]]),
+    ])
+      expect(mediaKindOf(e)).toBe(mediaItemsOf(e)[0].kind);
+  });
+});
+
+describe("a `url` tag is a file only when it says it is one", () => {
+  // Audit: a note's `url` tag naming a web page was a "photo", drawn as a broken picture.
+  it("a web page in a `url` tag is no file; a picture, a typed file or a sound kind's file is", () => {
+    expect(mediaItemsOf(ev(1, [["url", "https://news.example/article"]], "read this"))).toEqual([]);
+    expect(mediaKindOf(ev(1, [["url", "https://news.example/article"]], "read this"))).toBeNull();
+    expect(mediaItemsOf(ev(1, [["url", "https://x.test/p.png"]]))[0]).toMatchObject({ kind: "photo" });
+    expect(
+      mediaItemsOf(
+        ev(1063, [
+          ["url", "https://x.test/blob"],
+          ["m", "image/png"],
+        ]),
+      )[0],
+    ).toMatchObject({ kind: "photo" });
+    expect(mediaItemsOf(ev(1808, [["url", "https://x.test/blob"]]))[0]).toMatchObject({ kind: "audio" });
+    // An imeta that says nothing is still a picture, as before.
+    expect(mediaItemsOf(ev(1, [["imeta", "url https://blossom/abc"]]))[0]).toMatchObject({ kind: "photo" });
+  });
+});
+
+describe("the files in a note's words are the ones its text draws", () => {
+  // Audit: the fallback kept a markdown picture's closing paren, so the page drew it twice.
+  it("each is the URL the note's tokenizer reads, a markdown picture's paren left out", () => {
+    expect(mediaItemsOf(ev(20, [], "pic ![](https://x.test/b.png?x=1)")).map((i) => i.url)).toEqual([
+      "https://x.test/b.png?x=1",
+    ]);
+    expect(mediaItemsOf(ev(1, [], "see (https://x.test/c.jpg) and https://x.test/d.mp4")).map((i) => i.url)).toEqual(
+      parseNoteContent("see (https://x.test/c.jpg) and https://x.test/d.mp4")
+        .filter((t) => t.type === "image" || t.type === "video")
+        .map((t) => (t as { value: string }).value),
     );
   });
 });

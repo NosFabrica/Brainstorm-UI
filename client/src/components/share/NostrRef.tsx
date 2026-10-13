@@ -51,7 +51,8 @@ function QuotedNoteRef({ id, bech32 }: { id: string; bech32: string }) {
 }
 
 function ArticleRef({ address, bech32, url }: { address: AddressRef; bech32: string; url?: string }) {
-  const { articles } = useArticlesByRefs([address]);
+  // Asked in the page's batch with every other reference in the text.
+  const { articles } = useArticlesByRefs([address], { batched: true });
   const ev = articles[0];
   // Not (yet) found: the author's own link around it when they wrote one (a draft's or a
   // publication's reader elsewhere), else its page here.

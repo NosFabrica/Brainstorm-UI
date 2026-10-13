@@ -315,8 +315,8 @@ export function ListAddressRef({
   fallback: ReactNode;
   nested?: boolean;
 }) {
-  // Reads any address, not only articles: held copy first, then the relays.
-  const { articles } = useArticlesByRefs([address]);
+  // Reads any address, not only articles: held copy first, then the relays, in the page's batch.
+  const { articles } = useArticlesByRefs([address], { batched: true });
   const ev = articles[0];
   if (!ev) return <>{fallback}</>;
   return <EmbeddedListCard event={ev} href={`/e/${bech32}`} nested={nested} />;

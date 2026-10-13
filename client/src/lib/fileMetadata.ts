@@ -8,8 +8,9 @@ type EventLike = { kind: number; tags: string[][] };
 
 const tagVal = (e: EventLike, k: string) => e.tags.find((t) => t[0] === k)?.[1] ?? "";
 
+/** The `m` tag, trimmed and lower-cased: a mime type is case-insensitive ("Image/JPEG"). */
 export function fileMime(event: EventLike): string {
-  return tagVal(event, "m");
+  return tagVal(event, "m").trim().toLowerCase();
 }
 
 /** A picture, a video or a sound — the file kinds the Media tab means. */

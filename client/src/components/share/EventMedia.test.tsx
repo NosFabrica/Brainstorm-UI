@@ -47,4 +47,38 @@ describe("EventMedia", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show video" }));
     expect(document.querySelector("video")?.style.aspectRatio).toBe("1080 / 1920");
   });
+
+  it("a picture decodes off the main thread", () => {
+    draw(ev([["imeta", "url https://x.test/p.jpg", "m image/jpeg"]]));
+    expect(document.querySelector("img")?.getAttribute("decoding")).toBe("async");
+  });
+
+  // Audit: a sensitive post with only a sound drew a 16:9 "Show media" box over a player.
+  it("a sensitive post's sound plays uncovered, without its art", () => {
+    draw(
+      ev([
+        ["imeta", "url https://x.test/a.mp3", "m audio/mpeg"],
+        ["image", "https://x.test/art.jpg"],
+        ["content-warning", "x"],
+      ]),
+    );
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    expect(screen.getByTestId("event-media-audio")).toBeInTheDocument();
+    expect(Array.from(document.querySelectorAll("img")).map((i) => i.getAttribute("src"))).not.toContain(
+      "https://x.test/art.jpg",
+    );
+  });
+
+  it("a sensitive post's pictures and sound: one cover for the pictures, the sound beside it without art", () => {
+    draw(
+      ev([
+        ["imeta", "url https://x.test/p.jpg", "m image/jpeg"],
+        ["imeta", "url https://x.test/a.mp3", "m audio/mpeg"],
+        ["content-warning", "x"],
+      ]),
+    );
+    expect(screen.getAllByTestId("sensitive-show")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Show photo" })).toBeInTheDocument();
+    expect(screen.getByTestId("event-media-audio")).toBeInTheDocument();
+  });
 });

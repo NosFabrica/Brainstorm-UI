@@ -1025,3 +1025,46 @@ describe("SerpRow — a web bookmark", () => {
     expect(row).not.toHaveTextContent("0 items");
   });
 });
+
+// Audit: the row drew the page's own picture under a bookmark its saver flagged (NIP-36).
+describe("SerpRow — a web bookmark marked sensitive", () => {
+  it("shows the placeholder in place of the page's picture", async () => {
+    stubVisibleIntersectionObserver();
+    unfurlMock.mockResolvedValueOnce({
+      title: "Page",
+      description: "Words",
+      image: "https://img.example/nsfw.jpg",
+      siteName: null,
+    });
+    const bookmark = {
+      ...note("words", [
+        ["d", "nsfw.example/page"],
+        ["title", "Page"],
+        ["content-warning", "nudity"],
+      ]),
+      kind: 39701,
+    } as NostrEvent;
+    render(<SerpRow event={bookmark} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("sensitive-tile")).toBeInTheDocument();
+    expect(screen.queryByTestId("web-bookmark-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="nsfw.jpg"]')).toBeNull();
+  });
+});
+
+// Audit: the flagged clip's placeholder took a tap but no keyboard.
+describe("SerpRow — a sensitive clip's placeholder", () => {
+  it("is a button a keyboard reaches, named for what it opens", () => {
+    const flagged = {
+      ...note("Goal!", [
+        ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"],
+        ["title", "Goal"],
+        ["content-warning", "violence"],
+      ]),
+      kind: 34236,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="goal" />);
+    const tile = screen.getByTestId("sensitive-tile");
+    expect(tile.tagName).toBe("BUTTON");
+    expect(tile).toHaveAccessibleName(/^Sensitive video/);
+  });
+});

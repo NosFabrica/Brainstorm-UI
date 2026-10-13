@@ -16,7 +16,7 @@ vi.mock("@/lib/eventStore", async () => ({
   eventStore: { ...(await import("@/test/fakeEventStore")).eventStoreDefaults },
 }));
 
-import { MediaCard } from "./cards";
+import { MediaCard, TrackCard } from "./cards";
 
 const short = (tags: string[][] = []): NostrEvent =>
   ({
@@ -222,12 +222,62 @@ describe("MediaCard — a picture post (kind 20)", () => {
   it("says how many more pictures the post holds than the one it shows", () => {
     render(<MediaCard event={pictures(3)} author={null} />);
     expect(screen.getByTestId("media-card-more")).toHaveTextContent("+2");
-    expect(screen.getByTestId("media-card-more")).toHaveAttribute("aria-label", "2 more photos");
+    // Said as words a screen reader reads: an aria-label on a plain span is not announced.
+    expect(screen.getByTestId("media-card-more")).not.toHaveAttribute("aria-label");
+    expect(within(screen.getByTestId("media-card-more")).getByText("2 more photos")).toHaveClass("sr-only");
   });
 
   it("one picture, no count", () => {
     render(<MediaCard event={pictures(1)} author={null} />);
     expect(screen.getByTestId(`media-thumb-${"2".repeat(64)}`)).toBeInTheDocument();
     expect(screen.queryByTestId("media-card-more")).toBeNull();
+  });
+});
+
+describe("MediaCard — a sound", () => {
+  it("says the length its imeta gives, without loading the file to ask", () => {
+    const probe = vi.spyOn(window, "Audio");
+    stubVisibleIntersectionObserver();
+    const ev = {
+      id: "3".repeat(64),
+      kind: 1,
+      pubkey: "9".repeat(64),
+      created_at: 1_790_000_000,
+      sig: "s",
+      content: "a talk",
+      tags: [["imeta", "url https://cdn.example/talk.mp3", "m audio/mpeg", "duration 61"]],
+    } as NostrEvent;
+    render(<MediaCard event={ev} author={null} />);
+    expect(screen.getByTestId("embedded-track")).toHaveTextContent("1:01");
+    expect(probe).not.toHaveBeenCalled();
+  });
+});
+
+describe("TrackCard — a track marked sensitive", () => {
+  const track = (tags: string[][] = []): NostrEvent =>
+    ({
+      id: "4".repeat(64),
+      kind: 31337,
+      pubkey: "9".repeat(64),
+      created_at: 1_790_000_000,
+      sig: "s",
+      content: "",
+      tags: [
+        ["d", "t"],
+        ["title", "Song"],
+        ["media", "https://cdn.example/song.mp3"],
+        ["image", "https://cdn.example/art.jpg"],
+        ...tags,
+      ],
+    }) as NostrEvent;
+  const art = () => document.querySelector('img[src*="art.jpg"]');
+
+  it("plays without its art (NIP-36); an unflagged one shows it", () => {
+    const { unmount } = render(<TrackCard event={track()} author={null} />);
+    expect(art()).not.toBeNull();
+    unmount();
+    render(<TrackCard event={track([["content-warning", "explicit"]])} author={null} />);
+    expect(screen.getByTestId("embedded-track")).toBeInTheDocument();
+    expect(art()).toBeNull();
   });
 });

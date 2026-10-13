@@ -38,7 +38,8 @@ export function ThingAddressRef({
   const [, navigate] = useLocation();
   // The resolver is the articles' one — one ask per coordinate, kept — whatever the kind.
   // A copy the store already holds (a feed fetched it) draws at once; the ask only replaces it.
-  const { articles } = useArticlesByRefs([address]);
+  // Asked in the page's batch: an article naming dozens of these makes one ask, not one each.
+  const { articles } = useArticlesByRefs([address], { batched: true });
   const ev =
     articles[0] ??
     (eventStore.getReplaceable(address.kind, address.pubkey, address.identifier) as MinimalEvent | undefined);
