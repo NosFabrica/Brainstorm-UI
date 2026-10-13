@@ -227,7 +227,11 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
     Number.isFinite(Number(place.lat)) && Number.isFinite(lon) && place.lat ? { lat: Number(place.lat), lon } : null;
   const website = httpUrl(place.website);
   const site = useSiteCard(website);
-  const call = place.phone ? contactHref(place.phone) : null;
+  // How to call: tier two's `tel:` when the header types `phone` as `tel` (dlistFields), so
+  // both tiers agree; when it doesn't, this view still knows the field is a phone number and
+  // reads what it can from the value (contactHref). The Call button around it is its own.
+  const phoneDecl = r.governing.fields.find((f) => f.name === FIELDS.phone && f.type === "tel");
+  const call = (phoneDecl ? fieldCell(event, phoneDecl).href : null) ?? contactHref(place.phone);
   const menu = httpUrl(place.menu);
   const reserve = httpUrl(place.reservations);
   // The definition's templates (BTC Map), apart from the website the hints already show.

@@ -222,8 +222,8 @@ const elSapo = {
   ],
 };
 
-function Page({ event }: { event: typeof ilSole }) {
-  const resolved = resolveConcept({ community, communityCoordinate: COMMUNITY, house: houseCopy });
+function Page({ event, house = houseCopy }: { event: typeof ilSole; house?: HeaderEvent }) {
+  const resolved = resolveConcept({ community, communityCoordinate: COMMUNITY, house });
   const view = useResolvedItemView(event, resolved);
   if (!isReady(view)) return <p>not ready</p>;
   return <PlaceView event={event} view={view} />;
@@ -324,6 +324,21 @@ describe("PlaceView", () => {
     expect(within(details).getByTestId("place-country")).toHaveTextContent("Costa Rica");
     expect(within(details).queryByTestId("place-hours")).toBeNull();
     expect(screen.getByTestId("place-map")).toHaveAttribute("data-name", "El Sapo");
+  });
+
+  it("calls with tier two's tel: when the header types the phone, and reads an untyped one its own way", () => {
+    // A three-digit line: tier two calls it once the header says it's a phone; the view's own
+    // reading of an untyped value wants seven digits or more, so it doesn't.
+    const shortLine = { ...ilSole, tags: ilSole.tags.map((t) => (t[0] === "phone" ? ["phone", "311"] : t)) };
+    const typed = header(HOUSE, [...houseCopy.tags.slice(2), ["field-type", "phone", "tel"]]);
+    const { unmount } = renderWithProviders(<Page event={shortLine} house={typed} />);
+    expect(within(screen.getByTestId("place-actions")).getByRole("link", { name: "Call" })).toHaveAttribute(
+      "href",
+      "tel:311",
+    );
+    unmount();
+    renderWithProviders(<Page event={shortLine} />);
+    expect(within(screen.getByTestId("place-actions")).queryByRole("link", { name: "Call" })).toBeNull();
   });
 
   it("applies only when the definition declares a name and the item has one", () => {
