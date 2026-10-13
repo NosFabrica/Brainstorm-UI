@@ -25,7 +25,7 @@ import {
 const ANSWERS_ASKED = 1000;
 /** Pages asked for at most, each from just before the oldest answer of the last. */
 const MAX_PAGES = 5;
-/** Answers read at most: a poll with more is counted from these, and says so ("5000+"). */
+/** Answers read at most from one source: a poll with more is counted from these, and says so ("5000+"). */
 export const POLL_ANSWERS_CAP = ANSWERS_ASKED * MAX_PAGES;
 
 function readRelays(hints: string[]): string[] {
@@ -33,9 +33,20 @@ function readRelays(hints: string[]): string[] {
 }
 
 /**
+ * The most events many relays send for one REQ, whatever limit was asked
+ * (strfry's default, among others): a page this long may be a full one.
+ */
+const RELAY_PAGE_CAP = 500;
+/** A page at least this long may have more behind it. */
+const FULL_PAGE = Math.min(ANSWERS_ASKED, RELAY_PAGE_CAP);
+
+/**
  * Everything matching `filter` from `relays` and the search relay, into the
  * store: from `until` (a poll's close — nothing later counts) back, a page at a
- * time while a source returns a full one, `MAX_PAGES` at most. Never rejects.
+ * time. Each source pages on its own, from just before ITS oldest answer, while
+ * it returns a page that may be full — one source coming back short must not
+ * stop another that has thousands more, nor its oldest skip theirs. `MAX_PAGES`
+ * a source at most. Never rejects.
  */
 async function askEverywhere(
   filter: Record<string, unknown>,
@@ -43,19 +54,26 @@ async function askEverywhere(
   until: number | null = null,
 ): Promise<NostrEvent[]> {
   const byId = new Map<string, NostrEvent>();
-  let cursor = until;
-  for (let i = 0; i < MAX_PAGES; i++) {
-    const paged = cursor === null ? filter : { ...filter, until: cursor };
-    const [fromRelays, fromSearch] = await Promise.all([
-      fetchEventsByFilter(paged, relays).catch(() => [] as NostrEvent[]),
-      fetchFromSearchRelayByFilters([paged], 6000).catch(() => [] as NostrEvent[]),
-    ]);
-    const answers = [...fromRelays, ...fromSearch];
-    for (const ev of answers) byId.set(ev.id, ev);
-    if (fromRelays.length < ANSWERS_ASKED && fromSearch.length < ANSWERS_ASKED) break;
-    const oldest = answers.reduce((min, ev) => Math.min(min, ev.created_at), Infinity);
-    if (!Number.isFinite(oldest)) break;
-    cursor = oldest - 1;
+  const sources: { ask: (f: Record<string, unknown>) => Promise<NostrEvent[]>; cursor: number | null }[] = [
+    { ask: (f) => fetchEventsByFilter(f, relays), cursor: until },
+    { ask: (f) => fetchFromSearchRelayByFilters([f], 6000), cursor: until },
+  ];
+  let paging = sources;
+  for (let i = 0; i < MAX_PAGES && paging.length; i++) {
+    const pages = await Promise.all(
+      paging.map((s) =>
+        s.ask(s.cursor === null ? filter : { ...filter, until: s.cursor }).catch(() => [] as NostrEvent[]),
+      ),
+    );
+    paging = paging.filter((source, j) => {
+      const page = pages[j];
+      for (const ev of page) byId.set(ev.id, ev);
+      if (page.length < FULL_PAGE) return false;
+      const oldest = page.reduce((min, ev) => Math.min(min, ev.created_at), Infinity);
+      if (!Number.isFinite(oldest)) return false;
+      source.cursor = oldest - 1;
+      return true;
+    });
   }
   return [...byId.values()];
 }

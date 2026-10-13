@@ -28,15 +28,34 @@ const page = (filter: Filter, full: boolean): NostrEvent[] => {
     sig: "s",
   }));
 };
+/** A whole source's events, served newest first from `until` back, `limit` (or `cap`) at most. */
+type Source = { events: NostrEvent[]; cap: number } | null;
+let relaySource: Source = null;
+let searchSource: Source = null;
+const serve = (src: NonNullable<Source>, filter: Filter) =>
+  src.events
+    .filter((e) => filter.until === undefined || e.created_at <= filter.until)
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, Math.min(filter.limit ?? Infinity, src.cap));
+const answer = (i: number, from: string): NostrEvent => ({
+  id: from + String(i).padStart(63, "0"),
+  pubkey: AUTHOR,
+  kind: 1018,
+  created_at: i,
+  content: "",
+  tags: [["e", POLL]],
+  sig: "s",
+});
 const publishToRelays = vi.fn(async (..._args: unknown[]) => ({ success: true }));
 vi.mock("@/services/nostr", () => ({
   fetchEventsByFilter: async (filter: Filter) => {
     relayAsks.push(filter);
+    if (relaySource) return serve(relaySource, filter);
     return page(filter, relayAsks.length <= fullPages);
   },
   fetchFromSearchRelayByFilters: async ([filter]: Filter[]) => {
     searchAsks.push(filter);
-    return [];
+    return searchSource ? serve(searchSource, filter) : [];
   },
   publishToRelays: (...args: unknown[]) => publishToRelays(...args),
 }));
@@ -69,6 +88,8 @@ beforeEach(() => {
   relayAsks.length = 0;
   searchAsks.length = 0;
   fullPages = 0;
+  relaySource = null;
+  searchSource = null;
   publishToRelays.mockClear();
   signAs.mockClear();
 });
@@ -87,6 +108,24 @@ describe("fetchPollResponses", () => {
     const limit = relayAsks[0].limit!;
     expect(relayAsks[1].until).toBe(1_900_000_000 - (limit - 1) - 1);
     expect(events.length).toBe(2 * limit + 3);
+  });
+
+  it("pages each source from its own oldest: a sparse one does not stop a full one", async () => {
+    // The search relay holds 3000 answers (t = 1…3000); the relays 50, spread across the same span.
+    searchSource = { events: Array.from({ length: 3000 }, (_, i) => answer(i + 1, "s")), cap: Infinity };
+    relaySource = { events: Array.from({ length: 50 }, (_, i) => answer(i * 59, "r")), cap: Infinity };
+    const events = await fetchPollResponses(POLL, []);
+    expect(events.filter((e) => e.id.startsWith("s"))).toHaveLength(3000);
+    expect(events.filter((e) => e.id.startsWith("r"))).toHaveLength(50);
+    // The relays came back short at once: asked no more.
+    expect(relayAsks).toHaveLength(1);
+  });
+
+  it("pages a relay that caps a page below what was asked (500)", async () => {
+    relaySource = { events: Array.from({ length: 1200 }, (_, i) => answer(i + 1, "r")), cap: 500 };
+    const events = await fetchPollResponses(POLL, []);
+    expect(events).toHaveLength(1200);
+    expect(relayAsks.length).toBeGreaterThanOrEqual(3);
   });
 
   it("stops at its cap however many there are", async () => {
