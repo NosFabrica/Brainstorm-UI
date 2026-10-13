@@ -234,12 +234,19 @@ function EventView({
   // The files a kind with no hero of its own carries (a kind-20 picture post, a
   // comment's imeta), each drawn as what it is. A file its words also link, by
   // a name the text knows as media, is drawn there, once, by the note's text.
+  // A repost's tags are the reposted note's business, not files of its own.
   const mediaItems = useMemo(
     () =>
-      note && !NOTE_KINDS.has(note.kind)
+      note && note.kind !== 6 && note.kind !== 16
         ? mediaItemsOf(note).filter((item) => !(note.content.includes(item.url) && mediaKindOfUrl(item.url)))
         : [],
     [note],
+  );
+  // Under a note card, only the files its text never mentions: the card draws
+  // every linked file itself, extensionless Blossom links included.
+  const imetaOnlyMedia = useMemo(
+    () => (note ? mediaItems.filter((item) => !note.content.includes(item.url)) : []),
+    [note, mediaItems],
   );
   // A picture post's own title (NIP-68 kind 20), above its pictures.
   const mediaTitle = note?.tags.find((t) => t[0] === "title")?.[1]?.trim();
@@ -625,14 +632,22 @@ function EventView({
                 // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
                 <HighlightHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
-                <ShareNoteCard
-                  event={note}
-                  profiles={profiles}
-                  eventsById={eventsById}
-                  addrByCoord={addrByCoord}
-                  forceExpanded
-                  reading
-                />
+                <>
+                  <ShareNoteCard
+                    event={note}
+                    profiles={profiles}
+                    eventsById={eventsById}
+                    addrByCoord={addrByCoord}
+                    forceExpanded
+                    reading
+                  />
+                  {/* A file only its imeta names (a comment's voice clip): the text never draws it. */}
+                  {imetaOnlyMedia.length > 0 && (
+                    <div className="mt-3">
+                      <EventMedia key={note.id} event={note} items={imetaOnlyMedia} />
+                    </div>
+                  )}
+                </>
               ) : mediaItems.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
                 // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />

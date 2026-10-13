@@ -136,6 +136,12 @@ describe("the event page — a file that is a sound", () => {
     expect(document.querySelector(`img[src="${MP3}"]`)).toBeNull();
   });
 
+  it("draws a note's linked file once, by its text, even when imeta also names it", () => {
+    const blob = "https://blossom.example/" + "a".repeat(64);
+    open(eventOf(1, [["imeta", `url ${blob}`, "m image/jpeg"]], `look ${blob}`));
+    expect(screen.queryByTestId("event-media-items")).toBeNull();
+  });
+
   it("a media file (1063) is drawn as what it is, with its mime, size and hash under it", () => {
     const hash = "cbb49d834143aa9047325603dacd4f8142093567973566de3b1e20a89557b728";
     open(
