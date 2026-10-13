@@ -7,11 +7,13 @@
  *
  * Search is literal: each whitespace-separated word must appear in the
  * item's title, summary, `d`, or any value of a field the definition
- * declares, whatever the case. A word is never read as a pattern, so a "(" or
+ * declares, ignoring case and accents as the Dictionary's filter does
+ * (lib/dictionaryItems). A word is never read as a pattern, so a "(" or
  * a "*" finds what it says.
  */
 import type { NostrEvent } from "nostr-tools";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
+import { fold } from "@/lib/dictionaryItems";
 import type { UrlTemplate } from "@/lib/linkTemplates";
 import { checkItemUnder, type ItemCheck, type Problem, type ProblemCode } from "@/lib/listCheck";
 
@@ -144,17 +146,17 @@ export function summarize(def: ConceptDefinition, checked: readonly CheckedItem[
   };
 }
 
-/** What a search reads of an item, lower-cased: what shows, its `d`, and every value of every declared field. */
+/** What a search reads of an item, folded: what shows, its `d`, and every value of every declared field. */
 function searchText(def: ConceptDefinition, c: CheckedItem): string {
   const declared = new Set(def.fields.map((f) => f.name));
   const { title, summary } = c.check.resolved;
   const d = c.item.tags.find((t) => t[0] === "d")?.[1];
   const values = c.item.tags.filter((t) => declared.has(t[0])).map((t) => t[1]);
-  return [title, summary, d, ...values].filter(Boolean).join(" ").toLowerCase();
+  return fold([title, summary, d, ...values].filter(Boolean).join(" "));
 }
 
 export function filterItems(def: ConceptDefinition, checked: readonly CheckedItem[], query: ItemQuery): CheckedItem[] {
-  const words = query.text.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = fold(query.text).split(/\s+/).filter(Boolean);
   return checked.filter((c) => {
     if (query.curator != null && c.item.pubkey !== query.curator) return false;
     if (query.problem != null && !c.check.problems.some((p) => problemKey(p) === query.problem)) return false;

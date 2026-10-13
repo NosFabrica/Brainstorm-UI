@@ -19,7 +19,8 @@ export const ITEM_ORDERS: { key: ItemOrder; label: string }[] = [
   { key: "name", label: "A to Z" },
 ];
 
-const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Lower-cased, accents removed: what a search compares. */
+export const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 const shownText = (item: Item, definition: ConceptDefinition) => {
   const { title, summary } = presentItem(item, definition);

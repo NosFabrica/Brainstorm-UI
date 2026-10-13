@@ -174,6 +174,15 @@ describe("listHealth", () => {
     expect(ids({ text: "   " })).toEqual(["i1", "i2", "i3", "i4"]);
   });
 
+  it("folds accents and case, as the Dictionary's filter does", () => {
+    const cafes = checkList(places, [item("c1", A, 1, [["name", "Café Uno"]])], new Map());
+    const found = (text: string) => filterItems(places, cafes, { ...EMPTY_QUERY, text }).length;
+    expect(found("cafe")).toBe(1);
+    expect(found("CAFÉ")).toBe(1);
+    expect(found("café uno")).toBe(1);
+    expect(found("cafes")).toBe(0);
+  });
+
   it("filters by curator, by problem, and to items with problems", () => {
     expect(ids({ curator: B })).toEqual(["i3", "i4"]);
     expect(ids({ problem: "repeated:g" })).toEqual(["i3"]);
