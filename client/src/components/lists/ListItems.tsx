@@ -182,6 +182,7 @@ export function ListItems({
             <ItemTable
               rows={rows}
               total={items.length}
+              partial={truncated || cutOff}
               singular={def.singular}
               curators={curators}
               query={filter}

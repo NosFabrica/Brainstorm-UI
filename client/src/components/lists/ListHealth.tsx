@@ -20,6 +20,9 @@ const problemLabel = (code: string) => {
   return words.charAt(0).toUpperCase() + words.slice(1);
 };
 
+/** A number as every reader sees it, as the items table writes its counts. */
+const num = (n: number) => n.toLocaleString("en-US");
+
 /** One decimal and a "%", or null when there are no items to take a share of. */
 const share = (count: number, total: number) => (total > 0 ? `${((count / total) * 100).toFixed(1)}%` : null);
 
@@ -58,25 +61,25 @@ export function ListHealth({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           label={truncated || cutOff ? "Items read" : "Items"}
-          value={items.toLocaleString()}
+          value={num(items)}
           tone="brand"
           data-testid="list-health-tile-items"
         />
         <StatTile
           label="Curators"
-          value={summary.curators.toLocaleString()}
+          value={num(summary.curators)}
           tone="neutral"
           data-testid="list-health-tile-curators"
         />
         <StatTile
           label="With a problem"
-          value={summary.withProblems.toLocaleString()}
+          value={num(summary.withProblems)}
           tone={summary.withProblems > 0 ? "warning" : "neutral"}
           data-testid="list-health-tile-problems"
         />
         <StatTile
           label="Would be blocked"
-          value={summary.blocked.toLocaleString()}
+          value={num(summary.blocked)}
           tone={summary.blocked > 0 ? "danger" : "neutral"}
           data-testid="list-health-tile-blocked"
         />
@@ -91,7 +94,7 @@ export function ListHealth({
                 <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
                   <span className="text-slate-900 dark:text-slate-100">{ROLE_LABEL[role]}</span>
                   <span className="tabular-nums text-slate-500 dark:text-slate-400">
-                    {count.toLocaleString()} ({share(count, items)})
+                    {num(count)} ({share(count, items)})
                   </span>
                 </div>
                 <Progress value={(count / items) * 100} className="h-2" aria-label={ROLE_LABEL[role]} />
@@ -149,8 +152,8 @@ export function ListHealth({
                         </Chip>
                       )}
                     </TableCell>
-                    <TableCell className="text-slate-500 dark:text-slate-400">{p.field ?? "none"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{p.items.toLocaleString()}</TableCell>
+                    <TableCell className="text-slate-500 dark:text-slate-400">{p.field ?? "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(p.items)}</TableCell>
                     <TableCell className="text-right tabular-nums">{share(p.items, items)}</TableCell>
                     <TableCell className="text-slate-500 dark:text-slate-400">{p.example}</TableCell>
                   </TableRow>

@@ -267,15 +267,18 @@ describe("ListItems", () => {
     state.truncated = true;
     renderWithProviders(<ListItems header={places} listRef={COORD} />);
     expect(screen.getByTestId("list-items-truncated")).toBeInTheDocument();
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64 read.");
   });
 
   it("says when a relay did not finish answering in time", () => {
     const { rerender } = renderWithProviders(<ListItems header={places} listRef={COORD} />);
     expect(screen.queryByTestId("list-items-cut-off")).toBeNull();
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64.");
     state.cutOff = true;
     rerender(<ListItems header={places} listRef={COORD} />);
     expect(screen.getByTestId("list-items-cut-off")).toBeInTheDocument();
     expect(screen.getByTestId("list-health-tile-items")).toHaveTextContent("Items read");
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64 read.");
   });
 
   it("waits for a definition's URL templates before it checks the items", () => {
@@ -344,8 +347,15 @@ describe("ListItems", () => {
     expect(screen.getAllByTestId("item-table-row")).toHaveLength(1);
     expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 1 of 1 matching");
     expect(screen.getByTestId("list-health-problem-repeated:g")).toHaveAttribute("data-state", "selected");
+    expect(screen.getByTestId("item-table-problem-filter")).toHaveTextContent("Problem: repeated:g");
     // Pressing it again clears it, and the table is still on its first page.
     await userEvent.click(screen.getByTestId("list-health-problem-repeated:g"));
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64.");
+    // The table's own chip takes it off too.
+    await userEvent.click(screen.getByTestId("list-health-problem-repeated:g"));
+    await userEvent.click(screen.getByRole("button", { name: "Remove problem filter" }));
+    expect(screen.queryByTestId("item-table-problem-filter")).toBeNull();
+    expect(screen.getByTestId("list-health-problem-repeated:g")).not.toHaveAttribute("data-state");
     expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64.");
   });
 

@@ -78,6 +78,9 @@ const base = {
   onOpen: () => {},
 };
 
+/** A row's problems chip, found by the words it carries for a screen reader. */
+const problemsChip = (row: HTMLElement) => within(row).getByText(/^problems?\b/).parentElement!;
+
 describe("ItemTable", () => {
   it("shows fifty rows a page and says where it is", async () => {
     const onPage = vi.fn();
@@ -105,6 +108,38 @@ describe("ItemTable", () => {
     expect(onPage).toHaveBeenCalledWith(2);
   });
 
+  it("says matching for a filter every item passes, so pressing it shows", () => {
+    renderWithProviders(
+      <ItemTable {...base} rows={rows} total={120} query={{ ...EMPTY_QUERY, problem: "repeated:g" }} />,
+    );
+    expect(screen.getByTestId("item-table-count")).toHaveTextContent(
+      "Showing 1 to 50 of 120 matching, 120 on the list.",
+    );
+  });
+
+  it("counts the items as read, not as the list, when the read may be short of it", () => {
+    const { rerender } = renderWithProviders(<ItemTable {...base} rows={rows} total={120} partial />);
+    expect(screen.getByTestId("item-table-count").textContent).toBe("Showing 1 to 50 of 120 read.");
+    rerender(<ItemTable {...base} rows={rows} total={7954} query={{ ...EMPTY_QUERY, text: "a" }} page={2} partial />);
+    expect(screen.getByTestId("item-table-count").textContent).toBe("Showing 51 to 100 of 120 matching, 7,954 read.");
+  });
+
+  it("shows the problem it is filtered to, and takes the filter off", async () => {
+    const onQuery = vi.fn();
+    const query = { ...EMPTY_QUERY, text: "cafe", problem: "link-unusable:website" };
+    renderWithProviders(<ItemTable {...base} rows={rows} total={120} query={query} onQuery={onQuery} />);
+    expect(screen.getByTestId("item-table-problem-filter").textContent).toBe("Problem: link-unusable:website");
+    await userEvent.click(screen.getByRole("button", { name: "Remove problem filter" }));
+    expect(onQuery).toHaveBeenCalledTimes(1);
+    expect(onQuery).toHaveBeenCalledWith({ ...query, problem: null });
+  });
+
+  it("shows no problem filter when it is filtered to none", () => {
+    renderWithProviders(<ItemTable {...base} rows={rows} total={120} query={{ ...EMPTY_QUERY, text: "cafe" }} />);
+    expect(screen.queryByTestId("item-table-problem-filter")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove problem filter" })).toBeNull();
+  });
+
   it("names an item with no title by its kind", () => {
     renderWithProviders(<ItemTable {...base} rows={rows.slice(2, 3)} total={1} singular="Place" />);
     expect(screen.getByTestId("item-table-row")).toHaveTextContent("Untitled Place");
@@ -117,8 +152,19 @@ describe("ItemTable", () => {
     expect(one).toHaveTextContent("About place 1");
     expect(one).toHaveTextContent("Other");
     expect(one).toHaveTextContent("Nov 15, 2023");
-    expect(within(one).getByLabelText("1 problem")).toHaveTextContent("1");
-    expect(within(two).getByLabelText("2 problems")).toHaveTextContent("2");
+    expect(problemsChip(one)).toHaveTextContent(/^1\b/);
+    expect(problemsChip(two)).toHaveTextContent(/^2\b/);
+  });
+
+  it("says a row's problem count in words a screen reader gets, and whether any blocks publishing", () => {
+    renderWithProviders(<ItemTable {...base} rows={[rows[1], rows[2]]} total={2} />);
+    const [one, two] = screen.getAllByTestId("item-table-row");
+    expect(problemsChip(one).textContent).toBe("1 problem");
+    expect(problemsChip(two).textContent).toBe("2 problems, blocks publishing");
+    // The words are for a screen reader: what shows is the count.
+    expect(within(one).getByText("problem")).toHaveClass("sr-only");
+    expect(within(two).getByText("problems, blocks publishing")).toHaveClass("sr-only");
+    expect(problemsChip(one)).not.toHaveAttribute("aria-label");
   });
 
   it("shows no problems chip for a clean item, and a short key for a curator it was not told of", () => {
@@ -126,7 +172,7 @@ describe("ItemTable", () => {
       <ItemTable {...base} rows={[{ ...rows[0], item: { ...rows[0].item, pubkey: C } }]} total={1} />,
     );
     const row = screen.getByTestId("item-table-row");
-    expect(within(row).queryByLabelText(/problem/)).toBeNull();
+    expect(within(row).queryByText(/problem/)).toBeNull();
     expect(row).toHaveTextContent(`${C.slice(0, 12)}…`);
   });
 

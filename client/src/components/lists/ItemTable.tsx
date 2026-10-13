@@ -5,8 +5,12 @@
  * filtered and sorted, and the query, sort and page they were made with, and
  * reports each change through a callback; it holds none of that itself. A
  * curator shows by profile name, never a rank, and a row opens its item.
+ *
+ * A problem filter is set a screen away, in the list's health, so the table
+ * shows it as a chip that takes it off; and the count line says "matching"
+ * for any query at all, so a filter every item passes still reads as on.
  */
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
@@ -48,6 +52,7 @@ export function ItemTable({
   page,
   onPage,
   onOpen,
+  partial = false,
 }: {
   /** Already filtered and sorted. */
   rows: CheckedItem[];
@@ -63,13 +68,16 @@ export function ItemTable({
   page: number;
   onPage: (p: number) => void;
   onOpen: (id: string) => void;
+  /** The read may be short of the list, so `total` is the items read. */
+  partial?: boolean;
 }) {
   const names = new Map(curators.map((c) => [c.pubkey, c.name]));
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const current = Math.min(Math.max(page, 1), pages);
   const first = (current - 1) * PAGE_SIZE;
   const shown = rows.slice(first, first + PAGE_SIZE);
-  const filtered = rows.length !== total;
+  const filtered = !sameQuery(query, EMPTY_QUERY);
+  const ofTotal = `${count(total)} ${partial ? "read" : "on the list"}.`;
 
   return (
     <div className="space-y-4" data-testid="item-table">
@@ -122,7 +130,20 @@ export function ItemTable({
             ))}
           </SelectContent>
         </Select>
-        {!sameQuery(query, EMPTY_QUERY) && (
+        {query.problem !== null && (
+          <Chip tone="neutral" className="pr-1" data-testid="item-table-problem-filter">
+            Problem: {query.problem}
+            <button
+              type="button"
+              aria-label="Remove problem filter"
+              onClick={() => onQuery({ ...query, problem: null })}
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent dark:hover:bg-slate-700"
+            >
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          </Chip>
+        )}
+        {filtered && (
           <Button variant="ghost" size="sm" onClick={() => onQuery(EMPTY_QUERY)} data-testid="item-table-clear">
             Clear
           </Button>
@@ -149,6 +170,7 @@ export function ItemTable({
               {shown.map(({ item, check }) => {
                 const title = check.resolved.title?.trim() || null;
                 const problems = check.problems.length;
+                const blocking = check.problems.some((p) => p.blocking);
                 return (
                   // The row takes the click, so the whole row is a target; the button in
                   // its first cell is the keyboard's way in, and its click rises to here.
@@ -181,12 +203,12 @@ export function ItemTable({
                     </TableCell>
                     <TableCell className="text-right">
                       {problems > 0 && (
-                        <Chip
-                          tone={check.problems.some((p) => p.blocking) ? "warning" : "neutral"}
-                          size="sm"
-                          aria-label={`${problems} ${problems === 1 ? "problem" : "problems"}`}
-                        >
+                        // The count is what shows; the words, and what the warning tone means, are for a screen reader.
+                        <Chip tone={blocking ? "warning" : "neutral"} size="sm">
                           {problems}
+                          <span className="sr-only">
+                            {` ${problems === 1 ? "problem" : "problems"}${blocking ? ", blocks publishing" : ""}`}
+                          </span>
                         </Chip>
                       )}
                     </TableCell>
@@ -199,7 +221,11 @@ export function ItemTable({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="item-table-count">
               Showing {count(first + 1)} to {count(first + shown.length)} of{" "}
-              {filtered ? `${count(rows.length)} matching, ${count(total)} on the list.` : `${count(rows.length)}.`}
+              {filtered
+                ? `${count(rows.length)} matching, ${ofTotal}`
+                : partial
+                  ? `${count(rows.length)} read.`
+                  : `${count(rows.length)}.`}
             </p>
             <Pagination className="mx-0 w-auto">
               <PaginationContent>

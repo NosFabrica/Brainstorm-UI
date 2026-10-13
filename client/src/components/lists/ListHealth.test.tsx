@@ -3,7 +3,7 @@
  * recur, each of which filters the items table when pressed.
  */
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import type { ListSummary } from "@/lib/listHealth";
@@ -155,5 +155,55 @@ describe("ListHealth", () => {
     expect(screen.getByRole("button", { name: "Link unusable, website" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Link unusable, image" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Untitled" })).toBeInTheDocument();
+  });
+
+  it("leaves a dash where a problem is about no one field", () => {
+    const fieldless = { ...summary.problems[0], key: "untitled", code: "untitled" as const, field: null };
+    renderWithProviders(
+      <ListHealth
+        summary={{ ...summary, problems: [summary.problems[0], fieldless] }}
+        truncated={false}
+        cutOff={false}
+        activeProblem={null}
+        onProblem={() => {}}
+      />,
+    );
+    const fieldOf = (key: string) => within(screen.getByTestId(`list-health-problem-${key}`)).getAllByRole("cell")[1];
+    expect(fieldOf("link-unusable:website").textContent).toBe("website");
+    expect(fieldOf("untitled").textContent).toBe("—");
+    expect(fieldOf("untitled")).toHaveClass("text-slate-500");
+  });
+
+  it("writes every number the same way wherever it is read", () => {
+    const asked = vi.spyOn(Number.prototype, "toLocaleString");
+    try {
+      renderWithProviders(
+        <ListHealth
+          summary={{
+            ...summary,
+            items: 7954,
+            curators: 1200,
+            withProblems: 3000,
+            blocked: 1500,
+            coverage: [{ role: "title", count: 7000 }],
+            problems: [{ ...summary.problems[0], items: 3000 }],
+          }}
+          truncated={false}
+          cutOff={false}
+          activeProblem={null}
+          onProblem={() => {}}
+        />,
+      );
+      expect(asked.mock.calls).toHaveLength(6);
+      expect(asked.mock.calls.every(([locale]) => locale === "en-US")).toBe(true);
+    } finally {
+      asked.mockRestore();
+    }
+    expect(screen.getByTestId("list-health-tile-items")).toHaveTextContent("7,954");
+    expect(screen.getByTestId("list-health-tile-curators")).toHaveTextContent("1,200");
+    expect(screen.getByTestId("list-health-tile-problems")).toHaveTextContent("3,000");
+    expect(screen.getByTestId("list-health-tile-blocked")).toHaveTextContent("1,500");
+    expect(screen.getByTestId("list-health-coverage-title")).toHaveTextContent("7,000 (88.0%)");
+    expect(screen.getByTestId("list-health-problem-link-unusable:website")).toHaveTextContent("3,000");
   });
 });
