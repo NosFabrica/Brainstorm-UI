@@ -77,6 +77,7 @@ import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS } from "@/lib
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { shareSnippet } from "@/lib/shareSnippet";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -346,7 +347,8 @@ function EventView({
     asDictionaryItem && isReady(itemView) ? itemPageTitle(itemView.shown, itemView.resolved.governing.singular) : null;
   const pageTitle = `${itemTitle ?? authorName} on Brainstorm`;
 
-  const snippet = (note?.content || "").replace(/\s+/g, " ").trim().slice(0, 160);
+  // A kind whose content is no words (a voice message's file, a reaction's "+", a repost's JSON) is said in words.
+  const snippet = note ? shareSnippet(note) : "";
   useShareMeta(
     note
       ? {

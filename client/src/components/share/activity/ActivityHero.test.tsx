@@ -40,7 +40,12 @@ vi.mock("@/services/api", () => ({
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
-vi.mock("@/hooks/useShareMeta", () => ({ useShareMeta: () => {} }));
+const shareMeta = vi.hoisted(() => ({ last: null as { description?: string } | null }));
+vi.mock("@/hooks/useShareMeta", () => ({
+  useShareMeta: (meta: { description?: string } | null) => {
+    if (meta) shareMeta.last = meta;
+  },
+}));
 vi.mock("@/hooks/useNip05", () => ({ useNip05: () => "none" }));
 vi.mock("@/hooks/useBackupNeed", () => ({ useBackupNeed: () => null }));
 vi.mock("@/hooks/useDictionaryConcepts", () => ({ useDictionaryConcepts: () => ({ rendered: [], known: true }) }));
@@ -137,6 +142,11 @@ describe("the activity hero dispatch", () => {
     expect(screen.getByTestId("reaction-hero")).toBeInTheDocument();
     expect(screen.queryByTestId("thread-mounted")).toBeNull();
     expect(screen.queryByTestId("tag-chips-mounted")).toBeNull();
+  });
+
+  it("a shared link's preview says the activity in words, not its raw content", () => {
+    open(ev(7, [["e", "1".repeat(64)]], "+"));
+    expect(shareMeta.last?.description).toBe("Reacted ❤");
   });
 
   it("leaves every other kind to the chain it had", () => {
