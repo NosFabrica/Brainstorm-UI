@@ -18,7 +18,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
 import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
 import { videoShapeOf } from "@/lib/videoFrame";
 import { postedAtOf } from "@/lib/eventDate";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
@@ -71,9 +71,9 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
   const out: TopStory[] = [];
   const seenAuthors = new Set<string>();
   const seenIds = new Set<string>();
-  // The strip draws a picture large with no way to ask first: a video its creator marked
+  // The strip draws a picture large with no way to ask first: a post its creator marked
   // sensitive stays a row, where its thumbnail is a placeholder.
-  const flagged = (e: NostrEvent) => VIDEO_KINDS.has(e.kind) && !!contentWarningOf(e);
+  const flagged = (e: NostrEvent) => !!contentWarningOf(e);
   const eligible = hits.filter(
     (h) => !tagVal(h.event, "title") && !tagVal(h.event, "name") && !!h.event.content && !flagged(h.event),
   );
@@ -261,8 +261,9 @@ function MediaTile({
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(e) ?? null);
   const isVideo = VIDEO_KINDS.has(e.kind) || (!!url && !isImage && isVideoUrl(e, url));
-  // A video its creator marked sensitive: no poster and no frame here, and the full view asks first.
-  const warning = isVideo ? (contentWarningOf(e) ?? undefined) : undefined;
+  // Media its creator marked sensitive: no picture and no frame here. A clip's full view asks
+  // first; a picture's tap opens the post.
+  const warning = contentWarningOf(e) ?? undefined;
   // Every tile in the grid is 4:3 so a row stays one height. Cropped to fill it, an upright
   // video shows its middle third and a square one loses its top and bottom, so those two are
   // fitted in whole on a dark ground. A wide video, or one that gives no size, fills the tile.
@@ -285,7 +286,9 @@ function MediaTile({
     postHref: eventPath(e),
   };
   const openMedia = () => {
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning }], 0, context);
+    // A short goes round again in the full view, as on its own page.
+    const loop = SHORT_VIDEO_KINDS.has(e.kind);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning, loop }], 0, context);
     else if (poster && !warning) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };
@@ -299,7 +302,9 @@ function MediaTile({
       <div
         role="button"
         tabIndex={0}
-        aria-label={warning ? sensitiveVideoLabel(caption) : isVideo ? "Play video" : "View image"}
+        aria-label={
+          warning ? (isVideo ? sensitiveVideoLabel(caption) : "Sensitive image") : isVideo ? "Play video" : "View image"
+        }
         onClick={openMedia}
         onKeyDown={(ev) => {
           if (ev.key === "Enter" || ev.key === " ") {

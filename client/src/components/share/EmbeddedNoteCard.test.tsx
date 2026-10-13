@@ -308,13 +308,16 @@ describe("EmbeddedNoteCard — a video marked sensitive", () => {
     expect(document.activeElement).toBe(clips[0]);
   });
 
-  it("leaves an unflagged video, and a flagged note that is not a video event, as they were", () => {
-    const { unmount } = renderWithProviders(<EmbeddedNoteCard event={clip()} author={{ name: "Maker" }} />);
+  it("leaves an unflagged video as it was", () => {
+    renderWithProviders(<EmbeddedNoteCard event={clip()} author={{ name: "Maker" }} />);
     expect(screen.queryByTestId("sensitive-cover")).toBeNull();
     expect(screen.getByTestId("feed-video-el")).toBeInTheDocument();
-    unmount();
+  });
+
+  // NIP-36 is for any kind: a quoted note its author flagged keeps its clip covered too.
+  it("covers a flagged note's clip the same way", () => {
     renderWithProviders(<EmbeddedNoteCard event={clip([["content-warning"]], 1)} author={{ name: "Maker" }} />);
-    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
-    expect(screen.getByTestId("feed-video-el")).toBeInTheDocument();
+    expect(screen.getByTestId("sensitive-cover")).toBeInTheDocument();
+    expect(screen.queryByTestId("feed-video-el")).toBeNull();
   });
 });

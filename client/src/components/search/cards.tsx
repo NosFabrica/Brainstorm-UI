@@ -68,6 +68,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
+import { EventDateTile } from "@/components/share/EventDateTile";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -218,6 +219,8 @@ export function CardShell({
 }) {
   const footer = openInPlacement === "footer";
   const iconOnly = openInPlacement === "corner-icon";
+  // Every card's link out comes from someone's tags: a web page or a magnet, never `javascript:` or `data:`.
+  const openInHref = openInUrl && /^(?:https?:\/\/|magnet:\?)/i.test(openInUrl.trim()) ? openInUrl.trim() : undefined;
   return (
     <div
       className={`relative w-full rounded-xl border border-slate-100 bg-white/70 transition-all duration-150 hover:border-slate-200 hover:bg-white hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 dark:hover:bg-slate-900 ${fill ? "h-full" : ""}`}
@@ -234,13 +237,13 @@ export function CardShell({
           {corner}
         </span>
       )}
-      {openInUrl && (
+      {openInHref && (
         <span
           className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"}
           data-testid={openInSlotTestId}
         >
           <a
-            href={openInUrl}
+            href={openInHref}
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
@@ -291,7 +294,7 @@ function naddrOf(event: NostrEvent): string | null {
 // The media helpers live in lib/mediaKind (the Media tab's facets read them
 // too); re-exported here for the callers that always found them on the card.
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
-import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
+import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export function MediaCard({
@@ -311,8 +314,14 @@ export function MediaCard({
   const isImage = kind === "photo";
   const isAudio = kind === "audio";
   const isVideo = kind === "video";
-  // A video its creator marked sensitive neither plays nor shows its poster until the reader asks.
-  const warning = isVideo || VIDEO_KINDS.has(event.kind) ? contentWarningOf(event) : null;
+  // Media its creator marked sensitive — a video, a picture post, a note's photo — neither
+  // plays nor shows a picture until the reader asks.
+  const warning = isAudio && !poster ? null : contentWarningOf(event);
+  // A picture post (kind 20) can hold several: the card shows the first and says how many more.
+  const photoCount = useMemo(
+    () => (isImage ? mediaItemsOf(event).filter((i) => i.kind === "photo").length : 0),
+    [event, isImage],
+  );
   const [shown, setShown] = useState(false);
   // A video event says its own size and, as a short, that it loops; a note with a clip says neither.
   // Read once per event: `readVideo` walks every tag, and a card re-renders as its list streams.
@@ -392,6 +401,8 @@ export function MediaCard({
           <SensitiveCover
             reason={warning.reason}
             onShow={() => setShown(true)}
+            subject={isVideo || VIDEO_KINDS.has(event.kind) ? "video" : isImage ? "photo" : "media"}
+            count={Math.max(1, photoCount)}
             className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
           />
         )
@@ -415,14 +426,25 @@ export function MediaCard({
           />
         </div>
       ) : (isImage || poster) && url ? (
-        <MediaImg
-          src={isImage ? url : (poster as string)}
-          preset="media_1280"
-          alt=""
-          loading="lazy"
-          className="mt-2 max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
-          data-testid={`media-thumb-${event.id}`}
-        />
+        <div className="relative">
+          <MediaImg
+            src={isImage ? url : (poster as string)}
+            preset="media_1280"
+            alt=""
+            loading="lazy"
+            className="mt-2 block max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
+            data-testid={`media-thumb-${event.id}`}
+          />
+          {photoCount > 1 && (
+            <span
+              className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white"
+              aria-label={`${photoCount - 1} more ${photoCount - 1 === 1 ? "photo" : "photos"}`}
+              data-testid="media-card-more"
+            >
+              +{photoCount - 1}
+            </span>
+          )}
+        </div>
       ) : (
         <div className="mt-2 flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
           {(() => {
@@ -630,10 +652,14 @@ export function RepoCard({
   state,
   comments,
   forkOf,
+  counts: askCounts = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
+  /** Ask the relay how busy the repo is (two COUNTs and a REQ per card). Off where the card is
+   *  quoted inside a note: the repo's page says it. */
+  counts?: boolean;
   state?: GitState;
   /** Comments on this issue or patch, when the page fetched them. */
   comments?: number;
@@ -667,7 +693,7 @@ export function RepoCard({
     lastAt: number | null;
   }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
-    if (!isRepo || !d) return;
+    if (!askCounts || !isRepo || !d) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
       if (alive)
@@ -681,7 +707,7 @@ export function RepoCard({
     return () => {
       alive = false;
     };
-  }, [isRepo, d, event.pubkey]);
+  }, [askCounts, isRepo, d, event.pubkey]);
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);
@@ -1105,6 +1131,8 @@ export function EventCard({
   score,
   going = 0,
   faces = [],
+  dateTile = false,
+  rsvp = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -1112,6 +1140,10 @@ export function EventCard({
   /** People whose latest RSVP is "accepted", and up to a few of their faces. */
   going?: number;
   faces?: string[];
+  /** Lead with the date tile: where the card stands alone, with no day header above it (a quoted event). */
+  dateTile?: boolean;
+  /** The "I'm going" pill (it asks the relay for the reader's RSVP). Off in a quote: its page has the button. */
+  rsvp?: boolean;
 }) {
   const cal = parseCalendarEvent(event);
   // "Past" means over — an all-day event today or a running conference is not.
@@ -1125,7 +1157,7 @@ export function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    !past && cal.startSec > 0 ? (
+    rsvp && !past && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1145,6 +1177,7 @@ export function EventCard({
       testId={`event-card-${event.id}`}
     >
       <div className="flex items-start gap-3">
+        {dateTile && <EventDateTile startSec={cal.startSec} past={past} testId={`event-date-tile-${event.id}`} />}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             {cal.startSec > 0 && (

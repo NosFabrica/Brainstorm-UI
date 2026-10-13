@@ -34,6 +34,8 @@ import { useHasSession } from "@/hooks/useHasSession";
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
 const TEASER_COUNT = 5;
+/** What threads by NIP-22 scopes: comments (1111) and voice replies (1244). */
+const NIP22_KINDS = [1111, 1244];
 const TRUST_FILTERS = [
   { key: "all", label: "All", min: 0 },
   { key: "trusted", label: `${TIER_LABELS.trusted}+`, min: TIER_THRESHOLDS.medium_high },
@@ -99,17 +101,18 @@ export function EventThread({
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
 
   // kind-1 = NIP-10 replies (notes); kind-1111 = NIP-22 comments (pictures,
-  // videos, articles, …). NIP-22 tags the parent with lowercase `#e`/`#a` and
+  // videos, articles, …); kind-1244 = voice replies (NIP-A0), which thread by
+  // the same NIP-22 tags. NIP-22 tags the parent with lowercase `#e`/`#a` and
   // the root scope with uppercase `#E`/`#A` — query each so every kind of thread
   // fills in. Addressable roots (articles) are referenced by their coordinate.
   const replyFilters = useMemo(() => {
     const filters: Filter[] = [
-      { "#e": [eventId], kinds: [1, 1111], limit: 150 },
-      { "#E": [eventId], kinds: [1111], limit: 150 },
+      { "#e": [eventId], kinds: [1, ...NIP22_KINDS], limit: 150 },
+      { "#E": [eventId], kinds: NIP22_KINDS, limit: 150 },
     ];
     if (addressCoord) {
-      filters.push({ "#A": [addressCoord], kinds: [1111], limit: 150 });
-      filters.push({ "#a": [addressCoord], kinds: [1111], limit: 150 });
+      filters.push({ "#A": [addressCoord], kinds: NIP22_KINDS, limit: 150 });
+      filters.push({ "#a": [addressCoord], kinds: NIP22_KINDS, limit: 150 });
     }
     return filters;
   }, [eventId, addressCoord]);

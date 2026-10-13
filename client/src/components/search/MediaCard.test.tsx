@@ -190,3 +190,44 @@ describe("MediaCard — a video's date", () => {
     expect(card).not.toHaveTextContent("1m ago");
   });
 });
+
+// NIP-36 is for any kind: a picture post its creator flagged is covered in the card too.
+describe("MediaCard — a picture post (kind 20)", () => {
+  const pictures = (count: number, tags: string[][] = []): NostrEvent =>
+    ({
+      id: "2".repeat(64),
+      kind: 20,
+      pubkey: "9".repeat(64),
+      created_at: 1_790_000_000,
+      sig: "s",
+      content: "",
+      tags: [
+        ["title", "Harbour at dawn"],
+        ...Array.from({ length: count }, (_, i) => ["imeta", `url https://cdn.example/p${i}.jpg`, "m image/jpeg"]),
+        ...tags,
+      ],
+    }) as NostrEvent;
+
+  it("marked sensitive, shows the cover in place of its pictures until asked", () => {
+    render(<MediaCard event={pictures(1, [["content-warning", "nudity"]])} author={null} />);
+    expect(screen.getByTestId("sensitive-cover")).toHaveTextContent(
+      "The creator marked this photo as sensitive: nudity",
+    );
+    expect(screen.queryByTestId(`media-thumb-${"2".repeat(64)}`)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show photo" }));
+    expect(screen.getByTestId(`media-thumb-${"2".repeat(64)}`)).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("says how many more pictures the post holds than the one it shows", () => {
+    render(<MediaCard event={pictures(3)} author={null} />);
+    expect(screen.getByTestId("media-card-more")).toHaveTextContent("+2");
+    expect(screen.getByTestId("media-card-more")).toHaveAttribute("aria-label", "2 more photos");
+  });
+
+  it("one picture, no count", () => {
+    render(<MediaCard event={pictures(1)} author={null} />);
+    expect(screen.getByTestId(`media-thumb-${"2".repeat(64)}`)).toBeInTheDocument();
+    expect(screen.queryByTestId("media-card-more")).toBeNull();
+  });
+});

@@ -47,17 +47,20 @@ import { describeThing, THING_KINDS } from "@/lib/thing";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
+import { PollCard } from "@/components/share/PollCard";
+import { POLL_KINDS } from "@/lib/polls";
 import { MediaImg } from "@/components/ui/media-img";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS } from "@/lib/nip71";
 import { postedAtOf } from "@/lib/eventDate";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
 import { parseHighlight } from "@/lib/nip84";
 import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
+import { WEB_BOOKMARK_KIND, webBookmarkOf, type WebBookmark } from "@/lib/webBookmark";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -232,15 +235,18 @@ function RowThumb({
     postHref: eventPath(event),
   };
   const { url, poster, isVideo } = rowThumbMedia(event);
-  // A video its creator marked sensitive: no poster and no frame here, and the full view asks first.
-  const warning = isVideo || VIDEO_KINDS.has(event.kind) ? (contentWarningOf(event) ?? undefined) : undefined;
+  // Media its creator marked sensitive — a video, a picture post, a note's photo: no picture and
+  // no frame here. A clip's tap opens the full view covered; a picture's row opens the post.
+  const warning = contentWarningOf(event) ?? undefined;
   // Google's result thumbnail is a 92px square; a 64px one undersold every picture.
   const cls = "h-[92px] w-[92px] shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   // The thumbnail IS the media: a tap opens it full view (a clip plays), not
   // the post — the rest of the row still opens the post.
   const openMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning }], 0, context);
+    // A short goes round again in the full view, as on its own page.
+    const loop = SHORT_VIDEO_KINDS.has(event.kind);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning, loop }], 0, context);
     else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
   };
   if (warning && (poster || (isVideo && url))) {
@@ -478,10 +484,91 @@ export function SerpRow(props: SerpRowProps) {
   // says what it holds and shows the first few.
   if (props.event.kind === TRUSTED_PEOPLE_KIND || ITEM_LIST_KINDS.has(props.event.kind))
     return <ListCard event={props.event} author={props.author} score={props.score} />;
+  // A web bookmark is one link with its saver's words: the page's row, not a list of nothing.
+  const bookmark = props.event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(props.event) : null;
+  if (bookmark) return <WebBookmarkRow {...props} bookmark={bookmark} />;
   return props.event.kind === 9802 && parseHighlight(props.event) ? (
     <HighlightRow {...props} />
   ) : (
     <NoteRow {...props} />
+  );
+}
+
+/**
+ * A NIP-B0 web bookmark (kind 39701), the way a search engine shows a page:
+ * who saved it, the site, the page's name out to the page, and the saver's
+ * words. The site's own picture joins once the row is near. Title and site
+ * open the page; the rest of the row opens the bookmark.
+ */
+function WebBookmarkRow({
+  event,
+  author,
+  score,
+  query,
+  engagement,
+  showType = true,
+  bookmark,
+}: SerpRowProps & { bookmark: WebBookmark }) {
+  const [, setLocation] = useLocation();
+  const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const meta = useLinkMetadata(bookmark.url, rowRef);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const title = bookmark.title ?? meta?.title ?? bookmark.url.replace(/^https?:\/\//i, "");
+  const description = bookmark.description || meta?.description || "";
+  const thumb = !thumbFailed ? (meta?.image ?? null) : null;
+  const out = {
+    href: bookmark.url,
+    target: "_blank",
+    rel: "noopener",
+    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+  };
+  return (
+    <div {...rowPropsFor(event, open)} ref={rowRef}>
+      <div className="min-w-0 flex-1" data-testid={`web-bookmark-${event.id}`}>
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={postedAtOf(event)}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeOf={event}
+        />
+        <a
+          {...out}
+          className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400"
+          data-testid="web-bookmark-source"
+        >
+          <Favicon host={bookmark.host} className="h-4 w-4 shrink-0 rounded-sm object-contain" />
+          <span className="truncate font-medium text-slate-600 dark:text-slate-300">{bookmark.host}</span>
+        </a>
+        <a
+          {...out}
+          className="mt-1 line-clamp-2 block break-words text-lg font-semibold leading-[1.3] text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100 sm:text-xl"
+          data-testid="web-bookmark-title"
+        >
+          <Headline text={title} query={query} tags={event.tags} />
+        </a>
+        {description && (
+          <div className="mt-1.5 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
+            <Snippet text={description} query={query} lines={2} tags={event.tags} />
+          </div>
+        )}
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+      </div>
+      {thumb && (
+        <a {...out} className="shrink-0" tabIndex={-1}>
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setThumbFailed(true)}
+            className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
+            data-testid="web-bookmark-thumb"
+          />
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -558,6 +645,8 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   // row shows the page the way a search engine does, not a note with a URL.
   // A Primal/Habla/… link names a Nostr thing and resolves natively below, so it is never a page result.
   const feed = isFeedAccount(author);
+  // Marked sensitive (NIP-36): no picture a link brings — the page's own, a preview's — shows in the row.
+  const warned = !!contentWarningOf(event);
   const shared = !title && event.content ? linkResultOf(event.content, { feedAccount: feed }) : null;
   const news = shared && !clientRef(shared.url) ? shared : null;
   // The page's own title, description and picture — asked once the row is near.
@@ -652,6 +741,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
     const siteName =
       linkMeta?.siteName && linkMeta.siteName.toLowerCase() !== news.domain.toLowerCase() ? linkMeta.siteName : null;
     const thumb = news.imageUrl ?? linkMeta?.image ?? null;
+    const thumbCls = "h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800";
     const out = {
       href: news.url,
       target: "_blank",
@@ -700,18 +790,23 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
             <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
           )}
         </div>
-        {thumb && !newsThumbFailed && (
-          <a {...out} className="shrink-0" tabIndex={-1}>
-            <img
-              src={thumb}
-              alt=""
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              onError={() => setNewsThumbFailed(true)}
-              className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
-              data-testid="news-thumb"
-            />
-          </a>
+        {thumb && warned ? (
+          <SensitiveTile className={`shrink-0 ${thumbCls}`} />
+        ) : (
+          thumb &&
+          !newsThumbFailed && (
+            <a {...out} className="shrink-0" tabIndex={-1}>
+              <img
+                src={thumb}
+                alt=""
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setNewsThumbFailed(true)}
+                className={thumbCls}
+                data-testid="news-thumb"
+              />
+            </a>
+          )
         )}
       </div>
     );
@@ -771,6 +866,12 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
             <BallotAnswers detail={thing.detail} testId={`serp-ballot-${event.id}`} />
           </div>
         )}
+        {/* A poll's options, compactly — its tally is on its page. */}
+        {POLL_KINDS.has(event.kind) && (
+          <div className="max-w-md" data-testid={`serp-poll-${event.id}`}>
+            <PollCard event={event} compact />
+          </div>
+        )}
         {linkedArticle && (
           <div onClick={(e) => e.stopPropagation()}>
             <EmbeddedArticleCard event={linkedArticle.event} author={linkedArticle.author} />
@@ -780,7 +881,8 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
           <div onClick={(e) => e.stopPropagation()}>
             <LinkPreviewCard
               url={plainCardLink}
-              showImage={!thumb.url}
+              showImage={!thumb.url && !warned}
+              sensitive={warned}
               context={[title, shown].filter(Boolean).join("\n")}
             />
           </div>

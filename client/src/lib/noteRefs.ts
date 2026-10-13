@@ -83,12 +83,16 @@ export function mentionPubkeysFromContent(content: string): string[] {
   return out;
 }
 
-/** Parse an `a` tag value (`kind:pubkey:dTag`) into an address ref. */
-function parseATag(value: string, relay?: string): AddressRef | null {
+/**
+ * Parse an `a` tag value (`kind:pubkey:dTag`) into an address ref. The key is
+ * lower-cased: relays return it so, and a store keyed by it never matches an
+ * upper-case one.
+ */
+export function parseATag(value: string, relay?: string): AddressRef | null {
   const parts = value.split(":");
   if (parts.length < 3) return null;
   const kind = parseInt(parts[0], 10);
-  const pubkey = parts[1];
+  const pubkey = parts[1].toLowerCase();
   const identifier = parts.slice(2).join(":");
   if (!Number.isFinite(kind) || !/^[0-9a-f]{64}$/i.test(pubkey)) return null;
   return { kind, pubkey, identifier, relays: relay ? [relay] : undefined };
@@ -98,12 +102,52 @@ function parseATag(value: string, relay?: string): AddressRef | null {
  * Whether an event's `e` tags can make it a reply. Not a highlight's (the
  * text it quotes), and not a replaceable or addressable event's: a bookmark
  * set's `e` tags are the notes it holds, an article's what it cites — never a
- * post it answers. Everything else keeps its thread: a note, a comment, a
- * live-chat message, and the post a reaction or zap is about.
+ * post it answers; nor a repost's, which is the post it carries. Everything
+ * else keeps its thread: a note, a comment, a live-chat message, and the post
+ * a reaction or zap is about.
  */
 export function isThreadedKind(kind: number): boolean {
-  if (kind === 9802 || kind === 0 || kind === 3) return false;
+  // A repost's `e` (NIP-18) is the post it carries, drawn inside it — not one it answers.
+  if (kind === 9802 || kind === 0 || kind === 3 || kind === 6 || kind === 16) return false;
   return !((kind >= 10000 && kind < 20000) || (kind >= 30000 && kind < 40000));
+}
+
+/** The relay a tag names beside its id, when it names one. */
+function tagRelayOf(t: string[] | undefined): string | undefined {
+  return t && typeof t[2] === "string" && /^wss?:\/\//i.test(t[2]) ? t[2] : undefined;
+}
+
+const HEX64 = /^[0-9a-f]{64}$/i;
+
+/** NIP-22 comment kind. */
+export const COMMENT_KIND = 1111;
+/** NIP-A0 voice reply: threads by NIP-22 scopes, as a comment does. */
+export const VOICE_REPLY_KIND = 1244;
+/** Kinds that thread by NIP-22 scopes (`E`/`A`/`I` root, `e`/`a`/`i` parent). */
+const NIP22_KINDS: ReadonlySet<number> = new Set([COMMENT_KIND, VOICE_REPLY_KIND]);
+/** NIP-C7 chat message kind: a reply names its parent with a `q` tag. */
+export const CHAT_KIND = 9;
+
+/**
+ * The message a NIP-C7 chat message (kind 9) answers: its first `q` tag. The
+ * spec's own reply also names that parent in its text (`nostr:nevent1…\nyes`),
+ * so a `q` the content quotes is still the parent; `analyzeNote` drops it from
+ * the quotes, as it is drawn above. A later `q` is a quote.
+ */
+export function chatParentOf(ev: MinimalEvent): { id: string; relay?: string; pubkey?: string } | null {
+  if (ev.kind !== CHAT_KIND) return null;
+  const q = (ev.tags || []).find((t) => t[0] === "q" && HEX64.test(t[1] ?? ""));
+  if (!q) return null;
+  return { id: q[1], relay: tagRelayOf(q), pubkey: HEX64.test(q[3] ?? "") ? q[3] : undefined };
+}
+
+/**
+ * Whether a NIP-22 comment names a scope at all: an event, an address or an
+ * external id, as its parent or its root — one naming only its root answers
+ * the root (commentRefs).
+ */
+function hasCommentParent(tags: string[][]): boolean {
+  return tags.some((t) => ["e", "a", "i", "E", "A", "I"].includes(t[0]) && !!t[1]);
 }
 
 export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
@@ -119,9 +163,11 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
     .filter(Boolean);
   /** The relay a tag names beside its id, when it names one. */
   const tagRelay = (t: string[]) => (typeof t[2] === "string" && /^wss?:\/\//i.test(t[2]) ? [t[2]] : []);
-  // Addressable references via `a` tags (NIP-23 article links etc.).
+  // Addressable references via `a` tags (NIP-23 article links etc.). A
+  // comment's `a` is the thing it answers (its NIP-22 scope), drawn above it
+  // as the thread, not again below as a link it carries.
   const tagAddrs = tags
-    .filter((t) => t[0] === "a" && typeof t[1] === "string")
+    .filter((t) => t[0] === "a" && typeof t[1] === "string" && !NIP22_KINDS.has(ev.kind))
     .map((t) => parseATag(t[1], t[2]))
     .filter((a): a is AddressRef => a !== null);
 
@@ -175,9 +221,16 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
     .map((t) => t[1])
     .filter(Boolean);
   // Any non-"mention" e tag means this is a reply (covers marked + legacy positional),
-  // on a kind that threads by them.
-  const isReply = isThreadedKind(ev.kind) && eTags.some((t) => t[3] !== "mention");
-  const quoteIds = Array.from(new Set([...qTags, ...mentionMarkerIds, ...contentQuoteIds]));
+  // on a kind that threads by them. A comment also answers an address or an
+  // external id (NIP-22); a chat message answers the `q` it doesn't quote (NIP-C7).
+  const chatParent = chatParentOf(ev);
+  const isReply =
+    (isThreadedKind(ev.kind) && eTags.some((t) => t[3] !== "mention")) ||
+    (NIP22_KINDS.has(ev.kind) && hasCommentParent(tags)) ||
+    !!chatParent;
+  const quoteIds = Array.from(new Set([...qTags, ...mentionMarkerIds, ...contentQuoteIds])).filter(
+    (id) => id !== chatParent?.id,
+  );
   const quoteRelays = Array.from(
     new Set([
       ...tags.filter((t) => t[0] === "q" || (t[0] === "e" && t[3] === "mention")).flatMap(tagRelay),
@@ -185,9 +238,100 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
     ]),
   );
   const mentionPubkeys = Array.from(new Set([...pTags, ...contentMentionPks]));
-  const replyToPubkeys = isReply ? Array.from(new Set(pTags)) : [];
+  const replyToPubkeys = isReply
+    ? Array.from(new Set([...(chatParent?.pubkey ? [chatParent.pubkey] : []), ...pTags]))
+    : [];
 
   return { isReply, replyToPubkeys, quoteIds, quoteRelays, mentionPubkeys, addrs };
+}
+
+/**
+ * Where a reply sits: the conversation's root and the post it answers. Ids for
+ * notes (NIP-10) and chat (NIP-C7); for a NIP-22 comment the root or parent may
+ * also be an address (an article, a video) or an external id (a web page, a
+ * book — NIP-73), with the kind each scope names (`K`/`k`).
+ */
+export interface ReplyRefs {
+  rootId?: string;
+  parentId?: string;
+  rootAddr?: AddressRef;
+  parentAddr?: AddressRef;
+  rootExternal?: string;
+  parentExternal?: string;
+  rootKind?: string;
+  parentKind?: string;
+  /** Relays the scope tags name, to look for the root and parent on. */
+  hints?: string[];
+}
+
+/** Drop the keys nobody set, so an answer compares by what it says. */
+function defined<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+}
+
+/**
+ * A NIP-22 comment's scopes: the parent from lowercase `e`/`a`/`i` (+ `k`), the
+ * root from uppercase `E`/`A`/`I` (+ `K`). A comment that names no root scope
+ * is read as answering its root directly.
+ */
+export function commentRefs(ev: MinimalEvent): ReplyRefs {
+  const tags = ev.tags || [];
+  const first = (name: string) => tags.find((t) => t[0] === name && typeof t[1] === "string" && t[1] !== "");
+  const scope = (eName: string, aName: string, iName: string, kName: string) => {
+    const e = first(eName);
+    const a = first(aName);
+    const i = first(iName);
+    return {
+      id: e?.[1],
+      addr: a ? (parseATag(a[1], tagRelayOf(a)) ?? undefined) : undefined,
+      external: i?.[1],
+      kind: first(kName)?.[1],
+      hints: [tagRelayOf(e), tagRelayOf(a)].filter((r): r is string => !!r),
+    };
+  };
+  const parent = scope("e", "a", "i", "k");
+  const rootScope = scope("E", "A", "I", "K");
+  const hasRoot = !!(rootScope.id || rootScope.addr || rootScope.external);
+  const hasParent = !!(parent.id || parent.addr || parent.external);
+  if (!hasRoot && !hasParent) return {};
+  const root = hasRoot ? rootScope : parent;
+  const p = hasParent ? parent : rootScope;
+  const hints = Array.from(new Set([...root.hints, ...p.hints]));
+  return defined({
+    rootId: root.id,
+    parentId: p.id,
+    rootAddr: root.addr,
+    parentAddr: p.addr,
+    rootExternal: root.external,
+    parentExternal: p.external,
+    rootKind: root.kind,
+    parentKind: p.kind,
+    hints: hints.length ? hints : undefined,
+  });
+}
+
+/** Whether two thread scopes name the same thing: one id, one address, or one external id. */
+export function sameScope(
+  a: { id?: string; addr?: AddressRef; external?: string },
+  b: { id?: string; addr?: AddressRef; external?: string },
+): boolean {
+  if (a.addr && b.addr) return addrCoord(a.addr) === addrCoord(b.addr);
+  if (a.id && b.id) return a.id === b.id;
+  if (a.external && b.external) return a.external === b.external;
+  return false;
+}
+
+/**
+ * A post's heading, where its kind gives it one: a NIP-7D thread's `title`
+ * (kind 11), a note's NIP-14 `subject` (kind 1). A reply's "Re: …" subject
+ * repeats the post above it and is not a heading.
+ */
+export function noteHeadingOf(ev: { kind: number; tags: string[][] }): string | null {
+  const name = ev.kind === 11 ? "title" : ev.kind === 1 ? "subject" : null;
+  if (!name) return null;
+  const value = (ev.tags || []).find((t) => t[0] === name && typeof t[1] === "string")?.[1]?.trim();
+  if (!value || (name === "subject" && /^re:/i.test(value))) return null;
+  return value;
 }
 
 /**
@@ -197,12 +341,18 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
  * e-tags are ignored. Returns {} when the note isn't a reply. When a note replies
  * straight to the root, parentId === rootId.
  */
-export function replyRefs(ev: MinimalEvent): { rootId?: string; parentId?: string } {
+export function replyRefs(ev: MinimalEvent): ReplyRefs {
   // A list's `e` is an item it holds, a highlight's the text it quotes: not a post either answers.
   if (!isThreadedKind(ev.kind)) return {};
+  // A comment (and a voice reply) threads by its NIP-22 scopes, which may be addresses or external ids.
+  if (NIP22_KINDS.has(ev.kind)) return commentRefs(ev);
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
-  if (threadTags.length === 0) return {};
+  if (threadTags.length === 0) {
+    // A chat reply names its parent with `q` (NIP-C7); chat has no deeper root.
+    const chat = chatParentOf(ev);
+    return chat ? defined({ rootId: chat.id, parentId: chat.id, hints: chat.relay ? [chat.relay] : undefined }) : {};
+  }
   const marked = threadTags.filter((t) => t[3] === "root" || t[3] === "reply");
   if (marked.length > 0) {
     const rootId = threadTags.find((t) => t[3] === "root")?.[1];

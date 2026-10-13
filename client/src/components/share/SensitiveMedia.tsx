@@ -1,11 +1,13 @@
 /**
- * What stands in for a video its creator marked sensitive (a NIP-36
- * `content-warning`, read by `contentWarningOf` in lib/nip36). Where the video
- * would play, a cover says so and asks before showing it; where only a
- * thumbnail would be, a neutral tile says "Sensitive". Neither asks for the
- * poster or a frame of the video. The caller holds the "shown" state, and
- * moves focus to the video once it is shown: the button that had it is gone.
+ * What stands in for media its creator marked sensitive (a NIP-36
+ * `content-warning`, read by `contentWarningOf` in lib/nip36) — a video, a
+ * picture post, or the pictures in a note. Where the media would show, a cover
+ * says so and asks before showing it; where only a thumbnail would be, a
+ * neutral tile says "Sensitive". Neither asks for the picture, the poster or a
+ * frame of the video. The caller holds the "shown" state, and moves focus to
+ * the media once it is shown: the button that had it is gone.
  */
+import type { CSSProperties } from "react";
 import { EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { clip } from "@/lib/resultReaders";
@@ -18,30 +20,51 @@ const REASON_CHARS = 80;
 export const sensitiveVideoLabel = (title?: string | null) =>
   title?.trim() ? `Sensitive video: ${title.trim()}` : "Sensitive video";
 
-/** In place of the player. The caller sizes it (`className`) and swaps it for the video on `onShow`. */
+/** What the cover is covering: one video (the default), pictures, or a post's mixed media. */
+export type SensitiveSubject = "video" | "photo" | "media";
+
+/** "this video" / "Show video"; "these photos" / "Show photos"; "this post's media" / "Show media". */
+function coverWords(subject: SensitiveSubject, count: number): { what: string; action: string } {
+  if (subject === "media") return { what: "this post's media", action: "Show media" };
+  return count > 1
+    ? { what: `these ${subject}s`, action: `Show ${subject}s` }
+    : { what: `this ${subject}`, action: `Show ${subject}` };
+}
+
+/** In place of the player or the picture. The caller sizes it (`className`) and swaps it for the media on `onShow`. */
 export function SensitiveCover({
   reason,
   onShow,
   className,
+  subject = "video",
+  count = 1,
+  style,
 }: {
   reason?: string;
   onShow: () => void;
   className?: string;
+  /** The frame the media will take (an `aspectRatio` from its `dim`), so showing it moves nothing. */
+  style?: CSSProperties;
+  subject?: SensitiveSubject;
+  /** How many of `subject` it covers: "these photos" past one. */
+  count?: number;
 }) {
+  const words = coverWords(subject, count);
   return (
     <div
       className={cn(
         "flex flex-col items-center justify-center gap-3 bg-slate-100 p-4 text-center dark:bg-slate-800",
         className,
       )}
+      style={style}
       data-testid="sensitive-cover"
     >
       <EyeOff className="h-5 w-5 text-slate-400 dark:text-slate-500" aria-hidden="true" />
       <p className="line-clamp-2 max-w-xs text-sm text-slate-600 dark:text-slate-300" data-testid="sensitive-reason">
-        The creator marked this video as sensitive{reason ? `: ${clip(reason, REASON_CHARS)}` : ""}
+        The creator marked {words.what} as sensitive{reason ? `: ${clip(reason, REASON_CHARS)}` : ""}
       </p>
       <Button type="button" variant="outline" size="sm" onClick={onShow} data-testid="sensitive-show">
-        Show video
+        {words.action}
       </Button>
     </div>
   );

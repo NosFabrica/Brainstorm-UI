@@ -64,7 +64,7 @@ editor won't publish it. The codes:
 - **Header:** `unpublishable` (blocking), `dropped-tag`.
 - **Item:**
   - `required-missing` (blocking), `untitled`
-  - `not-a-url`, `not-an-address`
+  - `not-a-url`, `not-a-phone`, `not-an-email`, `not-an-address`
   - `image-unusable`, `link-unusable`, `media-unusable`, `location-unusable`
   - `repeated`, `undeclared`
   - `template-not-given`, `template-invalid`, `template-unfilled`

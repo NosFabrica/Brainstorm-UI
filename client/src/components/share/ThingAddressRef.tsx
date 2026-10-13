@@ -1,21 +1,28 @@
 /**
- * An `naddr` to a kind-38000 prediction market or ballot, drawn as the thing
- * itself inside the note or article that names it — the question, where it
- * stands and what can be picked, or the ballot's answers — the way a quoted
- * note is drawn. While the lookup runs, or when the address names something
- * else (a mint review, junk on the shared kind), it stays a link.
+ * An `naddr` to something with a card of its own — a prediction market or a
+ * ballot, a community, a listing, a stream, a dated event, a people list, a
+ * track, a video (lib/embedShape's ADDRESS_CARD_KINDS) — drawn as that card
+ * inside the note or article that names it, the way a quoted note is drawn.
+ * While the lookup runs, or when the address holds something the card cannot
+ * read (junk on a shared kind), it stays a link.
  */
+import { useMemo } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { addressLabel, addressLink } from "@/components/share/ReadingText";
 import { useFaceProfiles } from "@/components/search/cards";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
-import { describeThing } from "@/lib/thing";
+import { embedShapeOf } from "@/lib/embedShape";
 import { eventStore } from "@/lib/eventStore";
 import type { AddressRef, MinimalEvent } from "@/lib/noteRefs";
 
-/** The address kinds drawn as a card in place of their link. */
+/**
+ * The address kinds a note's own words draw as a card in place of their link
+ * (NoteContent's `embedThings`). The feed card draws every other address it
+ * resolves below the note (EmbeddedArticleCard, which reads the kind), so
+ * only kind 38000 — a market, a ballot, a mint review — is drawn where it is named.
+ */
 export const EMBEDDED_THING_KINDS: ReadonlySet<number> = new Set([38000]);
 
 export function ThingAddressRef({
@@ -35,9 +42,10 @@ export function ThingAddressRef({
   const ev =
     articles[0] ??
     (eventStore.getReplaceable(address.kind, address.pubkey, address.identifier) as MinimalEvent | undefined);
-  const type = ev ? describeThing(ev)?.detail.type : undefined;
+  // Read once per event, not on every render while the profiles land.
+  const shape = useMemo(() => (ev ? embedShapeOf(ev) : null), [ev]);
   const profiles = useFaceProfiles(ev ? [ev.pubkey] : []);
-  if (!ev || (type !== "market" && type !== "ballot"))
+  if (!ev || shape === "note")
     return (
       addressLink(bech32, bech32, url) ?? (
         <button

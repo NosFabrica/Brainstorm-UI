@@ -146,6 +146,10 @@ the team's and technical readers' view, where every card, row and tile says its 
 is a label, not a status, and colour is kept for trust and interaction. Never a link, never on a person.
 A NIP number is never derived or invented.
 
+One exception: a quoted event drawn as words (`EmbeddedNoteCard`) that is not a note, thread or comment
+names its kind in its header, as a slate `Chip` — a quoted zap or reaction says nothing by itself. A
+quote whose kind has a card of its own is drawn as that card instead (`lib/embedShape`).
+
 ```tsx
 <KindPill event={hit.event} />
 <KindPill label="News" />   // where the content's shape is the label

@@ -37,6 +37,19 @@ describe("ItemFieldInputs", () => {
     expect(screen.getByText("address")).toBeInTheDocument();
   });
 
+  it("gives a url, tel or email field that kind of input, and anything else a text one", () => {
+    const typed: FieldDecl[] = ["url", "tel", "email", "text", "address"].map((type) => ({
+      name: type,
+      requirement: "optional",
+      description: null,
+      type,
+    }));
+    render(<ItemFieldInputs fields={typed} values={{}} onChange={() => {}} testId="t" />);
+    expect(
+      ["url", "tel", "email", "text", "address"].map((t) => screen.getByTestId(`t-${t}`).getAttribute("type")),
+    ).toEqual(["url", "tel", "email", "text", "text"]);
+  });
+
   it("spells a pasted naddr out as the coordinate", async () => {
     render(<Form />);
     const naddr = nip19.naddrEncode({ kind: 39998, pubkey: AVI, identifier: "divine-videos" });

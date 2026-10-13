@@ -52,6 +52,7 @@ describe("MediaTiles — a video marked sensitive", () => {
           kind: "video",
           poster: "https://media.divine.video/thumb",
           warning: { reason: "nudity" },
+          loop: true,
         },
       ],
       0,
@@ -78,10 +79,29 @@ describe("MediaTiles — a video marked sensitive", () => {
     expect(within(tile).getByTestId("media-tile-media").getAttribute("aria-label")).toBe("Play video");
     fireEvent.click(within(tile).getByTestId("media-tile-play"));
     expect(openLightboxMock).toHaveBeenLastCalledWith(
-      [{ url: "https://media.divine.video/b0f9", kind: "video", poster: "https://media.divine.video/thumb" }],
+      [
+        {
+          url: "https://media.divine.video/b0f9",
+          kind: "video",
+          poster: "https://media.divine.video/thumb",
+          loop: true,
+        },
+      ],
       0,
       expect.anything(),
     );
+  });
+
+  // A short goes round again in the full view, as on its own page. A full-length video plays once.
+  it("opens a short looping, and a full-length video not", () => {
+    const { unmount } = render(<MediaTiles hits={[hit([imeta])]} />);
+    fireEvent.click(screen.getByTestId("media-tile-play"));
+    expect(openLightboxMock.mock.lastCall![0][0].loop).toBe(true);
+    unmount();
+    const long = hit([imeta]);
+    render(<MediaTiles hits={[{ ...long, event: { ...long.event, kind: 34235 } }]} />);
+    fireEvent.click(screen.getByTestId("media-tile-play"));
+    expect(openLightboxMock.mock.lastCall![0][0].loop).toBe(false);
   });
 });
 // A restored Vine is signed the day it was imported; `published_at` is the day it was posted.

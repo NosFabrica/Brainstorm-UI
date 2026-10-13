@@ -55,13 +55,25 @@ colons.
 ### 2.2 Value type (**Convention**: observed from one client, curate)
 
 ```
-["field-type", <declared field>, "text" | "url" | "address"]
+["field-type", <declared field>, "text" | "url" | "tel" | "email" | "address"]
 ```
 
 - It types a field that is already declared. It never declares one by itself.
 - `text` is the default when there's no tag.
+- A type changes rendering only where it has one obvious rendering, as HTML's input types
+  do (`url`, `tel`, `email`). A renderer never infers a type from a value: a phone number
+  in a `text` field stays text.
 - **`url`** means the field's values are links. Render one as a link only when the value
   parses as an http(s) URL.
+- **`tel`** (**Provisional**, Brainstorm 2026-10-13) means the field's values are phone
+  numbers. Render one as a call link, `tel:` followed by its digits (and a leading `+`)
+  once the separators people write (spaces, dots, dashes, brackets) are removed. If
+  anything else is left, render text. Show the value as written.
+- **`email`** (**Provisional**, Brainstorm 2026-10-13) means the field's values are email
+  addresses. Render one as a mail link, `mailto:` followed by the value, when it is a
+  single address (`name@host.tld`, nothing around it); otherwise text.
+- An item form can use the same names for its inputs: a `tel` field gets a phone keypad,
+  an `email` field an email keyboard. Brainstorm's does.
 - **`address`** (**Provisional**, Brainstorm 2026-10-10) means the field's values are
   Nostr addresses, `kind:pubkey:d`: each names another event, usually the field `a`. It
   says to a renderer "there's something to fetch here". A renderer may look the address
@@ -79,7 +91,9 @@ Tapestry's worksheet item "field-type header tag: in the wild, not in the NIP" (
 Tapestry's `feat/tags` branch; cite it by title, because worksheet numbers differ between
 branches). The **behaviour** (text by default, url links only if http(s), unknown means
 text) is Tapestry's reader (`dlistFields.js`), which Brainstorm follows. The worksheet item
-doesn't define it.
+doesn't define it. `tel` and `email` go beyond Tapestry's reader, which shows them as text
+until it takes them up: unknown types render as text, so a header that uses them reads
+fine everywhere.
 
 ### 2.3 Fields the header doesn't declare
 
@@ -416,9 +430,9 @@ podcastindex.org.
    `decentralized-lists-compat.md` beside `item-kind`, or in a separate draft?
 2. **Element 3 of a field declaration:** a description or a source
    list?
-3. **`field-type`** graduating into the NIP, and whether `url` is the only type that
-   changes rendering. Should `address` (and `event`) become reference types a renderer
-   resolves (§2.2)?
+3. **`field-type`** graduating into the NIP, and which types change rendering. `tel` and
+   `email` are proposed beside `url` (§2.2), on the rule of one obvious rendering per
+   type. Should `address` (and `event`) become reference types a renderer resolves?
 4. **Template on the header vs. on the field's type.** Tapestry's worksheet item "Field
    types as a DList: portable actions, not portable rendering" (`feat/tags`) proposes
    templates on a field **type**. That needs no placeholder mapping but can't express

@@ -16,7 +16,6 @@ import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarE
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
@@ -313,7 +312,8 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
     shape: null,
     image,
     video,
-    sensitive: video || (image && VIDEO_KINDS.has(ev.kind)) ? (contentWarningOf(ev) ?? undefined) : undefined,
+    // Any picture or clip its creator marked sensitive (NIP-36), whatever the kind.
+    sensitive: video || image ? (contentWarningOf(ev) ?? undefined) : undefined,
     facts: [],
     href: eventPath(ev),
     ref: null,

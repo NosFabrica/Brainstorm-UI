@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import type { NostrEvent } from "nostr-tools";
+import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools";
 
 const fetched = vi.hoisted(() => new Map<string, NostrEvent>());
 const fetchIds = vi.hoisted(() => vi.fn());
@@ -195,9 +195,10 @@ describe("AllResults", () => {
   });
 
   it("a zap receipt is the payer's row, not the wallet service's that signed it", async () => {
-    const payer = "c".repeat(64);
+    const sk = generateSecretKey();
+    const payer = getPublicKey(sk);
     liveProfiles.set(payer, { name: "Payer" });
-    const request = JSON.stringify({ pubkey: payer, content: "", tags: [] });
+    const request = JSON.stringify(finalizeEvent({ kind: 9734, created_at: 1, content: "", tags: [["p", B]] }, sk));
     const receipt = ev("z".repeat(64), 9735, [
       ["p", B],
       ["bolt11", "lnbc210n1x"],
@@ -205,5 +206,26 @@ describe("AllResults", () => {
     ]);
     render(<AllResults hits={[hit(receipt)]} settled scoreOf={() => null} query="" />);
     await waitFor(() => expect(screen.getByTestId(`all-row-${receipt.id}`)).toHaveTextContent("Payer"));
+  });
+
+  it("a zap receipt naming a payer its request does not vouch for stays the signer's row", async () => {
+    const victim = "c".repeat(64);
+    liveProfiles.set(victim, { name: "Victim" });
+    const request = JSON.stringify({ kind: 9734, pubkey: victim, content: "", tags: [["p", B]] });
+    const receipt = ev("y".repeat(64), 9735, [
+      ["p", B],
+      ["P", victim],
+      ["bolt11", "lnbc210n1x"],
+      ["description", request],
+    ]);
+    render(<AllResults hits={[hit(receipt)]} settled scoreOf={() => null} query="" />);
+    await waitFor(() => expect(screen.getByTestId(`all-row-${receipt.id}`)).toBeInTheDocument());
+    expect(screen.getByTestId(`all-row-${receipt.id}`)).not.toHaveTextContent("Victim");
+  });
+
+  it("an RSVP whose status is an object's own property name draws as a reply", () => {
+    const rsvp = ev("x".repeat(64), 31925, [["status", "constructor"]]);
+    render(<AllResults hits={[hit(rsvp)]} settled scoreOf={() => null} query="" />);
+    expect(screen.getByTestId(`all-row-${rsvp.id}`)).toHaveTextContent("Replied");
   });
 });

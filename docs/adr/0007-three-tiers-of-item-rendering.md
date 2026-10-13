@@ -1,6 +1,8 @@
 # Three tiers of item rendering
 
 **Status:** accepted, 2026-10-12. Amends [ADR 0004](0004-renderers-read-the-governing-concept.md).
+Amended 2026-10-13: tier two imports nothing from tier three; tier three plugs in from above
+(see "Tier two doesn't know of tier three" below).
 
 ADR 0004 decided that no concept has code of its own: a list item is drawn from its
 governing definition's fields, display hints and URL templates, and a registry of
@@ -34,7 +36,7 @@ A tier-three view is a presentation of the tier-two view, not a way around it.
   item's raw tags. The view knows the community concept's field names, which is what being
   keyed by that concept means; a copy that renames or drops a field the view needs leaves
   the item to tier two. Each view says whether it `applies` (`components/items/itemViews`),
-  and `DListItemHero` falls back when it doesn't.
+  and the item's page draws tier two when it doesn't.
   - _The seeded concept with an empty header_ (2026-10-12): the community `books` header
     declares no fields at all, so reading only through it would leave every book
     untitled. The book view reads a field by the name Open Library's seed gave it
@@ -58,6 +60,19 @@ A tier-three view is a presentation of the tier-two view, not a way around it.
   and list rows stay tier two until a view earns a card of its own; a view may say how
   its items read there (`present`: a book is its cover, title and author), still from the
   item alone.
+- **Tier two doesn't know of tier three.** No tier-two file imports `components/items/`
+  or names a concept; tier three plugs in from above, in two places:
+  - a DList item's own page: `components/items/ItemPage` (used by `EventScreen`) draws a
+    view that applies, else `DListItemHero`;
+  - DList item cards, rows and tiles: tier two's view (`useItemView`) leaves one generic
+    override open (`PresentationOverrideContext`), and `components/items/TierThreeProvider`,
+    at the app's root, fills it with the views' `present`.
+
+  Take tier three out (`components/items/`, the provider at the root, `ItemPage` back to
+  `DListItemHero`) and every DList item reads exactly as it did before, everywhere. Lint holds
+  the line (`eslint.config.js`), and `CODING_STANDARDS.md` says what lint can't. (Until
+  2026-10-13 `DListItemHero` chose the view itself and `useItemView` imported the views'
+  `present`.)
 
 ## Consequences
 

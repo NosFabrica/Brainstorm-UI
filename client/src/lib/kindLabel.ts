@@ -56,10 +56,15 @@ export function kindTypeLabel(kind: number): string {
     case 6969:
       return "Poll";
     case 30023:
-    case 30024:
-    case 30040:
-    case 30041:
       return "Article";
+    // Long-form too, but each is what it says it is: an unpublished draft, a
+    // publication (the index of a book-like work) and one of its sections.
+    case 30024:
+      return "Draft";
+    case 30040:
+      return "Publication";
+    case 30041:
+      return "Section";
     case 30818:
       return "Wiki";
     case 30142:
@@ -119,7 +124,6 @@ export function kindTypeLabel(kind: number): string {
     case 30003:
     case 30015:
     case 30267:
-    case 39701:
       return "List";
     case 39089:
       return "Starter pack";

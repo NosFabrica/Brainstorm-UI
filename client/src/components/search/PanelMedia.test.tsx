@@ -57,11 +57,25 @@ describe("PanelLatestMedia — a video marked sensitive", () => {
           kind: "video",
           poster: "https://media.divine.video/a1.jpg",
           warning: { reason: "nudity" },
+          loop: true,
         },
       ],
       0,
       expect.anything(),
     );
+  });
+
+  // A short goes round again in the full view. A note that carries a clip is not a short.
+  it("plays a short looping, and a note's clip once", () => {
+    const clip = { ...short("c3"), kind: 1, content: "Goal! https://cdn.example/goal.mp4", tags: [] } as NostrEvent;
+    const [looping, once] = latestVideos([short("b2"), clip]);
+    expect(looping.loop).toBe(true);
+    expect(once.loop).toBe(false);
+    render(<PanelLatestMedia person={person} events={[short("b2"), clip]} />);
+    fireEvent.click(within(screen.getByTestId("person-media-item-b2")).getByRole("button"));
+    expect(openLightboxMock.mock.lastCall![0][0].loop).toBe(true);
+    fireEvent.click(within(screen.getByTestId("person-media-item-c3")).getByRole("button"));
+    expect(openLightboxMock.mock.lastCall![0][0].loop).toBe(false);
   });
 });
 // A restored Vine is signed the day it was imported; `published_at` is the day it was posted.
