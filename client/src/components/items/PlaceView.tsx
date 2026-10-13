@@ -10,26 +10,26 @@ import { useState } from "react";
  *   logo beside the name from the site's favicon, else a mark for the kind of
  *   place.
  * - The name; what it is as words ("Fast food · Pizza"); where Google puts
- *   the stars, the trust line: how many people the reader trusts vouch for
- *   it and how many reviews it has; "Open now · until 10:00 PM" or "Closed ·
+ *   the stars, the trust line: the faces and number of people the reader
+ *   trusts who recommend it, how many reviews it has and the price they give; "Open now · until 10:00 PM" or "Closed ·
  *   opens Thu 5:00 PM" in the place's local time estimated from its
  *   longitude (lib/placeLinks) and the reader's clock; an "Accepts Bitcoin"
  *   chip saying how.
  * - The ways out, icon over label, only the ones with data: Directions (the
- *   phone's maps app, by the coordinates), Call, Website, Menu, Reserve, and
- *   the links the definition's templates build (BTC Map).
+ *   phone's maps app, by the coordinates), Call, Website, Menu, Reserve; and
+ *   for a signed-in reader, Review and Recommend (a one-tap vouch: Brainstorm's
+ *   own signal, never a review, counted in no rating).
  * - The map as the visual, since no place in the list has a photo yet; the
  *   photo when one has. Loaded on tap, as the privacy rule has it.
  * - Location & hours, Yelp's block: address, phone, website, price on the
  *   left; the whole week on the right, today first and bold. The country
  *   alone when there's no address. Each thing is said once: Bitcoin is the
  *   chip, the address is the row.
- * - Reviews by people (PlaceReviews), ordered by who the reader trusts, with
- *   a composer for a signed-in reader; their photos become the page's
- *   pictures under the map, and the price and payment they give fill the rows
- *   the list can't.
- * - Who stands behind it (WhoStandsBehindIt), the rest of the list, and the
- *   data attribution the ODbL licence asks for.
+ * - Reviews by people (PlaceReviews), ordered by who the reader trusts,
+ *   written from five empty stars, Google's way; their photos become the
+ *   page's pictures under the map, and the price and payment they give fill
+ *   the rows the list can't.
+ * - The rest of the list, and the data attribution the ODbL licence asks for.
  *
  * Every value is read through the governing definition's fields, the
  * community concept's names for them; a copy that drops the name leaves the
@@ -51,6 +51,9 @@ import {
   Navigation,
   PenLine,
   Phone,
+  ThumbsUp,
+  Loader2,
+  Check,
   Store,
   Tag,
   Utensils,
@@ -68,7 +71,10 @@ import { dictionaryRelays } from "@/config/dictionary";
 import { isReady, useResolvedItemView } from "@/hooks/useItemView";
 import { distanceKm, distanceWords } from "@/lib/placeDistance";
 import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
-import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
+import { useNetworkView, type NetworkView } from "@/components/items/WhoStandsBehindIt";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { PlaceMap } from "@/components/items/PlaceMap";
 import { PlaceReviews, ReviewPhotos, useRankedReviews } from "@/components/items/PlaceReviews";
 import { paymentSummary, priceSummary } from "@/lib/placeReviews";
@@ -211,6 +217,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const isAdmin = me?.isAdmin === true;
   // The map opened up in place, at the reader's ask — never on a stray zoom or drag.
   const [mapOpen, setMapOpen] = useState(false);
+  // The review composer, opened by a star in the prompt or the Review action, with the stars picked.
+  const [writing, setWriting] = useState<{ stars: number | null } | null>(null);
   const network = useNetworkView(event);
   const ranked = useRankedReviews(usePlaceReviews(event));
   const listed = useListItems(event, r);
@@ -243,7 +251,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const lines = addressLines(place) ?? [];
   const photo = shown.image ?? site?.image ?? null;
   const Mark = categoryIcon(place.category);
-  const vouches = network.ranked.filter((e) => e.group !== "other").length;
+  // Who recommends it, of the people the reader trusts: a recommendation is a vouch (kind 7), not a review.
+  const recommenders = network.ranked.filter((e) => e.group !== "other");
   const reviewCount = ranked.reviews.length;
 
   // The admin's fold: declared fields the page doesn't show, and tags outside the definition.
@@ -328,18 +337,28 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               )}
             </p>
           )}
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="place-trust-line">
-            <a href="#place-verdict" className="hover:text-brand-link">
-              {vouches > 0
-                ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
-                : me
-                  ? "No one you trust has vouched for it yet"
-                  : "No vouches yet"}
-            </a>
-            <span className="text-slate-300 dark:text-slate-600"> · </span>
+          <p
+            className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-500 dark:text-slate-400"
+            data-testid="place-trust-line"
+          >
+            {recommenders.length > 0 && (
+              <>
+                <Faces network={network} people={recommenders.map((e) => e.pubkey)} />
+                <span>
+                  Recommended by {recommenders.length} {recommenders.length === 1 ? "person" : "people"} you trust
+                </span>
+                <span className="text-slate-300 dark:text-slate-600">{" · "}</span>
+              </>
+            )}
             <a href="#place-reviews" className="hover:text-brand-link">
               {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
             </a>
+            {price && (
+              <>
+                <span className="text-slate-300 dark:text-slate-600">{" · "}</span>
+                <span>{price.dollars}</span>
+              </>
+            )}
           </p>
           {status && (
             <p className="mt-2">
@@ -402,16 +421,13 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               label="Review"
               onClick={(e) => {
                 e.preventDefault();
-                const box = document.querySelector<HTMLTextAreaElement>(
-                  '[data-testid="place-review-composer"] textarea',
-                );
-                box?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-                box?.focus({ preventScroll: true });
+                setWriting((w) => w ?? { stars: null });
               }}
             >
               <PenLine className="h-5 w-5" />
             </Action>
           )}
+          {network.me && <RecommendAction network={network} />}
         </div>
       )}
 
@@ -485,11 +501,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       </section>
 
       <div id="place-reviews">
-        <PlaceReviews item={event} name={place.name} ranked={ranked} />
-      </div>
-
-      <div id="place-verdict">
-        <WhoStandsBehindIt network={network} noun="place" idPrefix="place" />
+        <PlaceReviews item={event} name={place.name} ranked={ranked} writing={writing} onWrite={setWriting} />
       </div>
 
       {coords && <NearbyPlaces here={{ id: event.id, ...coords }} items={listed.items} resolved={r} />}
@@ -564,6 +576,59 @@ function Action({
       </span>
       <span aria-hidden>{label}</span>
     </a>
+  );
+}
+
+/** Recommend, in one tap: the reader's vouch for the place, said once they've given it. */
+function RecommendAction({ network: n }: { network: NetworkView }) {
+  return (
+    <button
+      type="button"
+      onClick={() => n.endorse.mutate()}
+      disabled={n.mine || n.endorse.isPending}
+      aria-label={n.mine ? "Recommended" : "Recommend"}
+      title={n.mine ? "You recommended this place" : "Public and signed by your account"}
+      className="group flex min-w-0 flex-1 flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 disabled:cursor-default dark:text-slate-300"
+      data-testid="place-recommend"
+    >
+      <span
+        className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+          n.mine
+            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+            : "border border-slate-200 bg-white text-slate-700 group-hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:group-hover:bg-slate-800"
+        }`}
+      >
+        {n.endorse.isPending ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : n.mine ? (
+          <Check className="h-5 w-5" />
+        ) : (
+          <ThumbsUp className="h-5 w-5" />
+        )}
+      </span>
+      <span aria-hidden>{n.mine ? "Recommended" : "Recommend"}</span>
+    </button>
+  );
+}
+
+/** Up to three faces, overlapped, each with its tier ring. */
+function Faces({ network: n, people }: { network: NetworkView; people: string[] }) {
+  const tierRing = useTierRing();
+  return (
+    <span className="flex -space-x-1.5" data-testid="place-recommenders">
+      {people.slice(0, 3).map((pk) => (
+        <Avatar
+          key={pk}
+          data-face={pk}
+          className={`h-5 w-5 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(pk), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
+        >
+          {n.pictureOf(pk) ? <AvatarImage src={n.pictureOf(pk)} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden rounded-full">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+      ))}
+    </span>
   );
 }
 

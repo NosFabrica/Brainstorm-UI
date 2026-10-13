@@ -73,10 +73,13 @@ vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
   useListItems: () => ({ items: list.items, pending: false }),
 }));
-const network = vi.hoisted(() => ({ endorsers: [] as { pubkey: string; at: number }[] }));
+const network = vi.hoisted(() => ({
+  endorsers: [] as { pubkey: string; at: number }[],
+  endorse: { mutate: vi.fn(), isPending: false },
+}));
 vi.mock("@/hooks/useItemEngagement", () => ({
   useItemEngagement: () => ({ endorsers: network.endorsers, claimants: [], pending: false }),
-  useEndorseItem: () => ({ mutate: vi.fn(), isPending: false }),
+  useEndorseItem: () => network.endorse,
 }));
 vi.mock("@/hooks/useWotItems", () => ({
   useWotItems: (items: { pubkey: string }[]) => ({
@@ -236,6 +239,7 @@ function Page({ event, house = houseCopy }: { event: typeof ilSole; house?: Head
 beforeEach(() => {
   viewer.pubkey = null;
   network.endorsers = [];
+  network.endorse.mutate.mockClear();
   reviews.list = [];
   reviews.post.mutate.mockClear();
   reviews.remove.mutate.mockClear();
@@ -252,12 +256,8 @@ describe("PlaceView", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Il Sole Italian Food");
     expect(screen.getByTestId("place-kind")).toHaveTextContent("Restaurant · Italian");
     expect(screen.getByTestId("place-open-status")).toHaveTextContent("Open now · until 11:00 PM");
-    // Where Google puts the stars: the trust line, both halves linking down.
-    // A visitor who isn't signed in has no "you": the line speaks of vouches, not of their trust.
-    expect(screen.getByTestId("place-trust-line")).toHaveTextContent("No vouches yet · No reviews yet");
-    expect(screen.getByTestId("place-trust-line")).not.toHaveTextContent(
-      "No one you trust has vouched for it yet · No reviews yet",
-    );
+    // Where Google puts the stars: the trust line. With nothing to say of anyone, it says so of reviews.
+    expect(screen.getByTestId("place-trust-line")).toHaveTextContent(/^No reviews yet$/);
     // No logo circle beside the name: the kind-of-place glyph marks the kind line, the site's favicon sits by its website.
     expect(screen.queryByTestId("place-logo")).toBeNull();
     expect(screen.getByTestId("place-kind").querySelector("svg")).not.toBeNull();
@@ -298,7 +298,8 @@ describe("PlaceView", () => {
     // The map is shown outright, at the place.
     expect(screen.getByTestId("place-map")).toHaveAttribute("data-lat", "27.2508994");
     expect(screen.getByTestId("place-map")).toHaveAttribute("data-lon", "-82.5343946");
-    expect(screen.getByTestId("place-verdict")).toHaveTextContent("Who stands behind it");
+    // Who recommends it is said beside the name, not in a section of its own.
+    expect(screen.queryByTestId("place-verdict")).toBeNull();
 
     // The week in view, today first and bold, closed days said.
     const week = within(details).getByTestId("place-week");
@@ -368,6 +369,7 @@ describe("PlaceView", () => {
     renderWithProviders(<Page event={ilSole} />);
     const section = screen.getByTestId("place-reviews");
     expect(section).toHaveTextContent("Reviews · 2");
+    expect(section).toHaveTextContent("People you trust first");
     const rows = within(section).getAllByTestId("place-review");
     expect(rows).toHaveLength(2);
     expect(section).toHaveTextContent("Best pizza on the key.");
@@ -382,17 +384,22 @@ describe("PlaceView", () => {
     expect(screen.queryByTestId("place-review-composer")).toBeNull();
   });
 
-  it("a signed-in reader writes a review: stars first, then words, a price, how they paid", async () => {
+  it("a signed-in reader writes a review from five empty stars: the tap opens the composer with them", async () => {
     viewer.pubkey = "d".repeat(64);
     renderWithProviders(<Page event={ilSole} />);
     expect(screen.getByTestId("place-reviews")).toHaveTextContent("No reviews yet");
+    expect(screen.queryByTestId("place-review-composer")).toBeNull();
+    const prompt = screen.getByTestId("place-review-prompt");
+    expect(prompt).toHaveTextContent("Rate and review");
+    await userEvent.click(within(prompt).getByRole("button", { name: "4 stars" }));
     const composer = screen.getByTestId("place-review-composer");
+    expect(within(composer).getByRole("button", { name: "4 stars" })).toHaveAttribute("aria-pressed", "true");
     const post = within(composer).getByRole("button", { name: "Post review" });
-    expect(post).toBeDisabled();
     await userEvent.type(within(composer).getByRole("textbox"), "Best pizza on the key.");
     await userEvent.click(within(composer).getByRole("button", { name: "$$" }));
     await userEvent.click(within(composer).getByRole("button", { name: "Lightning" }));
     // A review of a place gives stars: words alone don't post.
+    await userEvent.click(within(composer).getByRole("button", { name: "4 stars" }));
     expect(post).toBeDisabled();
     await userEvent.click(within(composer).getByRole("button", { name: "4 stars" }));
     expect(post).toBeEnabled();
@@ -437,6 +444,10 @@ describe("PlaceView", () => {
     viewer.pubkey = "d".repeat(64);
     reviews.list = [mine()];
     renderWithProviders(<Page event={ilSole} />);
+    const prompt = screen.getByTestId("place-review-prompt");
+    expect(prompt).toHaveTextContent("Your review");
+    expect(within(prompt).getByRole("img", { name: "3 out of 5 stars" })).toBeInTheDocument();
+    await userEvent.click(within(prompt).getByRole("button", { name: "Edit" }));
     const composer = screen.getByTestId("place-review-composer");
     expect(within(composer).getByRole("textbox")).toHaveValue("Okay.");
     expect(within(composer).getByRole("button", { name: "3 stars" })).toHaveAttribute("aria-pressed", "true");
@@ -532,12 +543,44 @@ describe("PlaceView", () => {
     expect(photo).not.toBeVisible();
   });
 
-  it("the trust line counts the vouches from people the reader trusts and the reviews", () => {
+  it("the trust line: who the reader trusts recommends it, with their faces, then the reviews and the price", () => {
     viewer.pubkey = "d".repeat(64);
     network.endorsers = [{ pubkey: "a".repeat(64), at: 9 }];
-    reviews.list = [{ id: "r1", pubkey: "b".repeat(64), at: 8, text: "Fine.", photos: [], price: null, paid: null }];
+    reviews.list = [{ id: "r1", pubkey: "b".repeat(64), at: 8, text: "Fine.", photos: [], price: 2, paid: null }];
     renderWithProviders(<Page event={ilSole} />);
-    expect(screen.getByTestId("place-trust-line")).toHaveTextContent("Vouched for by 1 person you trust · 1 review");
+    const line = screen.getByTestId("place-trust-line");
+    expect(line).toHaveTextContent("Recommended by 1 person you trust · 1 review · $$");
+    expect(within(line).getByRole("link", { name: "1 review" })).toHaveAttribute("href", "#place-reviews");
+    expect(screen.getByTestId("place-recommenders").querySelectorAll("[data-face]")).toHaveLength(1);
+  });
+
+  it("the trust line with no one to name says only what the reviews say", () => {
+    reviews.list = [
+      { id: "r1", pubkey: "a".repeat(64), at: 9, text: "Good.", photos: [], price: null, paid: null },
+      { id: "r2", pubkey: "b".repeat(64), at: 8, text: "Fine.", photos: [], price: null, paid: null },
+    ];
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-trust-line")).toHaveTextContent(/^2 reviews$/);
+    expect(screen.queryByTestId("place-recommenders")).toBeNull();
+  });
+
+  it("a signed-in reader recommends it from the action row, in one tap", async () => {
+    viewer.pubkey = "d".repeat(64);
+    renderWithProviders(<Page event={ilSole} />);
+    const actions = screen.getByTestId("place-actions");
+    await userEvent.click(within(actions).getByRole("button", { name: "Recommend" }));
+    expect(network.endorse.mutate).toHaveBeenCalled();
+  });
+
+  it("a reader who recommended it sees so, and a visitor has nothing to press", () => {
+    viewer.pubkey = "d".repeat(64);
+    network.endorsers = [{ pubkey: "d".repeat(64), at: 9 }];
+    const { unmount } = renderWithProviders(<Page event={ilSole} />);
+    expect(within(screen.getByTestId("place-actions")).getByRole("button", { name: "Recommended" })).toBeDisabled();
+    unmount();
+    viewer.pubkey = null;
+    renderWithProviders(<Page event={ilSole} />);
+    expect(within(screen.getByTestId("place-actions")).queryByRole("button", { name: /Recommend/ })).toBeNull();
   });
 
   it("the nearest places from the list, by distance, the place itself left out", () => {
@@ -577,9 +620,10 @@ describe("PlaceView", () => {
     expect(nearby).not.toHaveTextContent("Il Sole");
   });
 
-  it("the action row invites a review, and the invitation lands in the composer", async () => {
+  it("the action row invites a review, and the invitation opens the composer", async () => {
     viewer.pubkey = "d".repeat(64);
     renderWithProviders(<Page event={ilSole} />);
+    expect(screen.queryByTestId("place-review-composer")).toBeNull();
     const review = within(screen.getByTestId("place-actions")).getByRole("link", { name: "Review" });
     await userEvent.click(review);
     expect(within(screen.getByTestId("place-review-composer")).getByRole("textbox")).toHaveFocus();
