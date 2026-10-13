@@ -7,6 +7,10 @@
  * way a record names it, then the removals of what came back. Published,
  * and removed, as every user event is (publishTagEvent: the reviewer's
  * write relays and the hub) and to the index as well, where Regulars reads.
+ *
+ * A lens's ranks for the star value (the contract's section 8): the scorer
+ * an observer names in their kind 10040 (services/trustSource), and its
+ * kind 30382 ranks of the reviewers, from its own relay.
  */
 import { requireActiveAccount, signAs } from "@/accounts/signing";
 import { coordinateOf } from "@/lib/dlistFields";
@@ -14,12 +18,15 @@ import { SEARCH_RELAY } from "@/lib/relays";
 import {
   PLACE_REVIEW_KIND,
   placeReviewTemplate,
+  ranksFrom,
   removalTemplate,
   standingReviews,
   type PlaceReview,
   type ReviewDraft,
 } from "@/lib/placeReviews";
 import { readListEvents } from "@/services/listReads";
+import { fetchEventsByFilter } from "@/services/nostr";
+import { resolveTrustSource } from "@/services/trustSource";
 import { publishTagEvent } from "@/services/tags";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
@@ -72,4 +79,29 @@ export async function publishPlaceReview(
 export async function removePlaceReview(review: Pick<PlaceReview, "id" | "pubkey" | "tags">): Promise<void> {
   const signed = await signAs(requireActiveAccount(), removalTemplate(review));
   await publishTagEvent(signed as never, [SEARCH_RELAY]);
+}
+
+/** The most people one request for ranks names, as Regulars asks. */
+const RANK_BATCH = 500;
+
+/**
+ * Each reviewer's rank in `observer`'s lens: by the scorer their kind 10040
+ * names, read from that scorer's relay. Null when the observer names no
+ * scorer — there is no lens, and nobody counts through it.
+ */
+export async function fetchLensRanks(observer: string, pubkeys: string[]): Promise<Map<string, number> | null> {
+  if (pubkeys.length === 0) return new Map();
+  const source = await resolveTrustSource(observer);
+  if (!source) return null;
+  const batches: string[][] = [];
+  for (let i = 0; i < pubkeys.length; i += RANK_BATCH) batches.push(pubkeys.slice(i, i + RANK_BATCH));
+  const events = await Promise.all(
+    batches.map(
+      (d) =>
+        fetchEventsByFilter({ kinds: [30382], authors: [source.taPubkey], "#d": d }, [source.relay]) as Promise<
+          Parameters<typeof ranksFrom>[0]
+        >,
+    ),
+  );
+  return ranksFrom(events.flat(), source.taPubkey);
 }

@@ -5,7 +5,15 @@
  * its section 3 example, and the expected values are worked by hand there.
  */
 import { describe, expect, it } from "vitest";
-import { draftOf, placeReviewTemplate, removalTemplate, standingReviews, weightedStars } from "./placeReviews";
+import {
+  draftOf,
+  placeRating,
+  placeReviewTemplate,
+  ranksFrom,
+  removalTemplate,
+  standingReviews,
+  weightedStars,
+} from "./placeReviews";
 
 const CURATOR = "4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64";
 const PLACE = `39999:${CURATOR}:osm-node-11330857543`;
@@ -281,5 +289,57 @@ describe("a star value for the place (section 8)", () => {
       { pubkey: B, rating: 4 },
     ];
     expect(weightedStars(reviews, (pk) => (pk === A ? 90 : null))).toBeNull();
+  });
+});
+
+describe("a lens's ranks (kind 30382, by the scorer a kind 10040 names)", () => {
+  const SCORER = "e".repeat(64);
+  const rank = (subject: string, value: string, created_at = NOW, pubkey = SCORER) =>
+    ev({
+      kind: 30382,
+      pubkey,
+      created_at,
+      tags: [
+        ["d", subject],
+        ["rank", value],
+      ],
+    });
+
+  it("reads each person's rank from the scorer's newest event about them", () => {
+    const ranks = ranksFrom([rank(A, "40", NOW - 10), rank(A, "98"), rank(B, "12.5")], SCORER);
+    expect(ranks).toEqual(
+      new Map([
+        [A, 98],
+        [B, 12.5],
+      ]),
+    );
+  });
+
+  it("leaves out another scorer's ranks, and a newest event with no rank from 0 to 100", () => {
+    const ranks = ranksFrom([rank(A, "98", NOW, C), rank(B, "40", NOW - 10), rank(B, "120"), rank(C, "x")], SCORER);
+    expect(ranks.size).toBe(0);
+  });
+});
+
+describe("the star value a page shows, and whose lens it is", () => {
+  const reviews = [
+    { pubkey: A, rating: 4 },
+    { pubkey: B, rating: 2 },
+  ];
+
+  it("the reader's own lens first", () => {
+    const you = new Map([[B, 50]]);
+    const curator = new Map([[A, 98]]);
+    expect(placeRating(reviews, { you, curator })).toEqual({ value: 2, counted: 1, lens: "you" });
+  });
+
+  it("the curator's lens when nobody the reader trusts gave stars, or for a visitor", () => {
+    const curator = new Map([[A, 98]]);
+    expect(placeRating(reviews, { you: new Map(), curator })).toEqual({ value: 4, counted: 1, lens: "curator" });
+    expect(placeRating(reviews, { curator })).toEqual({ value: 4, counted: 1, lens: "curator" });
+  });
+
+  it("no value when nobody in either lens gave stars", () => {
+    expect(placeRating(reviews, { you: new Map(), curator: null })).toBeNull();
   });
 });

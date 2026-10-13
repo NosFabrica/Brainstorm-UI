@@ -108,11 +108,13 @@ const reviews = vi.hoisted(() => ({
   }[],
   post: { mutate: vi.fn(), isPending: false },
   remove: { mutate: vi.fn(), isPending: false },
+  rating: null as null | { value: number; counted: number; lens: "you" | "curator" },
 }));
 vi.mock("@/hooks/usePlaceReviews", () => ({
   usePlaceReviews: () => ({ reviews: reviews.list, pending: false }),
   usePostPlaceReview: () => reviews.post,
   useRemovePlaceReview: () => reviews.remove,
+  usePlaceRating: () => reviews.rating,
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.5 }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
@@ -243,6 +245,7 @@ beforeEach(() => {
   reviews.list = [];
   reviews.post.mutate.mockClear();
   reviews.remove.mutate.mockClear();
+  reviews.rating = null;
   site.card = null;
   list.items = [];
   // Thursday 2026-10-15, 23:30 UTC: 18:30 in Sarasota by the longitude estimate (UTC−5), when Il Sole is open.
@@ -554,6 +557,27 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-recommenders").querySelectorAll("[data-face]")).toHaveLength(1);
   });
 
+  it("a star value through the curator's lens leads the trust line and the reviews, and says whose lens it is", () => {
+    reviews.list = [
+      { id: "r1", pubkey: "a".repeat(64), at: 9, text: "Good beer.", photos: [], price: null, paid: null, rating: 4 },
+    ];
+    reviews.rating = { value: 4, counted: 1, lens: "curator" };
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-trust-line")).toHaveTextContent(/^★ 4\.0 · 1 review$/);
+    const summary = screen.getByTestId("place-rating");
+    expect(summary).toHaveTextContent("4.0");
+    expect(within(summary).getByRole("img", { name: "4 out of 5 stars" })).toBeInTheDocument();
+    expect(summary).toHaveTextContent("From 1 person trusted by the list's curator");
+  });
+
+  it("through the reader's own lens, the summary says so", () => {
+    viewer.pubkey = "d".repeat(64);
+    reviews.rating = { value: 4.5, counted: 2, lens: "you" };
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-rating")).toHaveTextContent("4.5");
+    expect(screen.getByTestId("place-rating")).toHaveTextContent("From 2 people you trust");
+  });
+
   it("the trust line with no one to name says only what the reviews say", () => {
     reviews.list = [
       { id: "r1", pubkey: "a".repeat(64), at: 9, text: "Good.", photos: [], price: null, paid: null },
@@ -562,6 +586,8 @@ describe("PlaceView", () => {
     renderWithProviders(<Page event={ilSole} />);
     expect(screen.getByTestId("place-trust-line")).toHaveTextContent(/^2 reviews$/);
     expect(screen.queryByTestId("place-recommenders")).toBeNull();
+    // Nobody inside a lens gave stars: no number, rather than a misleading one.
+    expect(screen.queryByTestId("place-rating")).toBeNull();
   });
 
   it("a signed-in reader recommends it from the action row, in one tap", async () => {

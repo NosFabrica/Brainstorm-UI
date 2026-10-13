@@ -250,3 +250,50 @@ export function weightedStars(
   if (counted === 0) return null;
   return { value: Math.round((sum / weights) * 10) / 10, counted };
 }
+
+/** A rank as a scorer writes it: a plain decimal number, such as "6" or "12.5". */
+const DECIMAL = /^\d+(?:\.\d+)?$/;
+
+/**
+ * Each person's rank in one lens: from `scorer`'s newest kind 30382 about
+ * them (`d` is their public key), when it holds a `rank` from 0 to 100. A
+ * newest event without one leaves the person out — an older, good rank does
+ * not stand in for it. As Regulars reads it (src/trust/houseWeights.ts).
+ */
+export function ranksFrom(events: EventLike[], scorer: string): Map<string, number> {
+  const newest = new Map<string, EventLike>();
+  for (const e of events) {
+    if (e.kind !== 30382 || e.pubkey !== scorer) continue;
+    const subject = tagOf(e.tags, "d");
+    if (!subject) continue;
+    const held = newest.get(subject);
+    if (!held || isNewer(e, held)) newest.set(subject, e);
+  }
+  const ranks = new Map<string, number>();
+  for (const [subject, e] of newest) {
+    const text = tagOf(e.tags, "rank");
+    if (text && DECIMAL.test(text) && Number(text) <= 100) ranks.set(subject, Number(text));
+  }
+  return ranks;
+}
+
+/** Whose lens a star value is through: the reader's own, or the list curator's. */
+export type Lens = "you" | "curator";
+
+/**
+ * The star value a place's page shows, and whose lens it is: the reader's
+ * own when someone they trust gave stars, else the curator's — the lens a
+ * visitor sees, Regulars' "House picks". Null when neither counts anyone.
+ */
+export function placeRating(
+  reviews: { pubkey: string; rating: number | null }[],
+  lenses: { you?: Map<string, number> | null; curator: Map<string, number> | null },
+): { value: number; counted: number; lens: Lens } | null {
+  for (const lens of ["you", "curator"] as const) {
+    const ranks = lenses[lens];
+    if (!ranks) continue;
+    const found = weightedStars(reviews, (pk) => ranks.get(pk) ?? null);
+    if (found) return { ...found, lens };
+  }
+  return null;
+}

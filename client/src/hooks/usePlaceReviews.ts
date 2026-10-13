@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { coordinateOf } from "@/lib/dlistFields";
-import { fetchPlaceReviews, publishPlaceReview, removePlaceReview } from "@/services/placeReviews";
-import type { PlaceReview, ReviewDraft } from "@/lib/placeReviews";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { fetchLensRanks, fetchPlaceReviews, publishPlaceReview, removePlaceReview } from "@/services/placeReviews";
+import { placeRating, type PlaceReview, type ReviewDraft } from "@/lib/placeReviews";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 
@@ -61,4 +62,31 @@ export function useRemovePlaceReview(item: Item) {
       if (description) toast({ title: "Couldn't remove the review", description, variant: "destructive" });
     },
   });
+}
+
+const RANKS_STALE_MS = 5 * 60_000;
+
+/**
+ * The star value of a place, and whose lens it is (lib/placeRating): the
+ * reader's own when they are signed in and someone they trust gave stars,
+ * else the curator's — whoever signed the place. Nothing until the reader's
+ * own lens is read, so the value never flips from one lens to the other.
+ */
+export function usePlaceRating(item: Item, reviews: PlaceReview[]) {
+  const me = useActiveAccountDisplay()?.pubkey ?? null;
+  const people = [...new Set(reviews.filter((r) => r.rating != null).map((r) => r.pubkey))].sort();
+  const you = useQuery({
+    queryKey: ["lens-ranks", me, people],
+    queryFn: () => fetchLensRanks(me!, people),
+    enabled: !!me && people.length > 0,
+    staleTime: RANKS_STALE_MS,
+  });
+  const curator = useQuery({
+    queryKey: ["lens-ranks", item.pubkey, people],
+    queryFn: () => fetchLensRanks(item.pubkey, people),
+    enabled: people.length > 0,
+    staleTime: RANKS_STALE_MS,
+  });
+  if (people.length === 0 || (me && you.isPending)) return null;
+  return placeRating(reviews, { you: me ? (you.data ?? null) : undefined, curator: curator.data ?? null });
 }

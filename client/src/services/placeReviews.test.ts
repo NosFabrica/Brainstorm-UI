@@ -7,13 +7,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const io = vi.hoisted(() => ({ readListEvents: vi.fn(), signAs: vi.fn(), publishTagEvent: vi.fn() }));
+const io = vi.hoisted(() => ({
+  readListEvents: vi.fn(),
+  signAs: vi.fn(),
+  publishTagEvent: vi.fn(),
+  resolveTrustSource: vi.fn(),
+  fetchEventsByFilter: vi.fn(),
+}));
+vi.mock("@/services/trustSource", () => ({ resolveTrustSource: io.resolveTrustSource }));
+vi.mock("@/services/nostr", () => ({ fetchEventsByFilter: io.fetchEventsByFilter }));
 vi.mock("@/services/listReads", () => ({ readListEvents: io.readListEvents }));
 vi.mock("@/accounts/signing", () => ({ requireActiveAccount: () => ({ pubkey: "f".repeat(64) }), signAs: io.signAs }));
 vi.mock("@/services/tags", () => ({ publishTagEvent: io.publishTagEvent }));
 vi.mock("@/lib/relays", () => ({ SEARCH_RELAY: "wss://search.brainstorm.world/" }));
 
-import { fetchPlaceReviews, publishPlaceReview, removePlaceReview } from "./placeReviews";
+import { fetchLensRanks, fetchPlaceReviews, publishPlaceReview, removePlaceReview } from "./placeReviews";
 
 const CURATOR = "4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64";
 const item = { id: "1".repeat(64), kind: 39999, pubkey: CURATOR, tags: [["d", "osm-node-11330857543"]] };
@@ -153,5 +161,39 @@ describe("removePlaceReview", () => {
       },
     );
     expect(io.publishTagEvent).toHaveBeenCalledWith(signed, ["wss://search.brainstorm.world/"]);
+  });
+});
+
+describe("fetchLensRanks", () => {
+  const SCORER = "e".repeat(64);
+
+  it("reads the ranks the observer's chosen scorer gives the reviewers, from the scorer's relay", async () => {
+    io.resolveTrustSource.mockResolvedValue({ taPubkey: SCORER, relay: "wss://scores.brainstorm.world" });
+    io.fetchEventsByFilter.mockResolvedValue([
+      {
+        id: "k",
+        kind: 30382,
+        pubkey: SCORER,
+        created_at: now,
+        content: "",
+        tags: [
+          ["d", A],
+          ["rank", "98"],
+        ],
+      },
+    ]);
+    const ranks = await fetchLensRanks(CURATOR, [A]);
+    expect(ranks).toEqual(new Map([[A, 98]]));
+    expect(io.resolveTrustSource).toHaveBeenCalledWith(CURATOR);
+    expect(io.fetchEventsByFilter).toHaveBeenCalledWith({ kinds: [30382], authors: [SCORER], "#d": [A] }, [
+      "wss://scores.brainstorm.world",
+    ]);
+  });
+
+  it("is null for an observer who names no scorer, and asks nothing for nobody", async () => {
+    io.resolveTrustSource.mockResolvedValue(null);
+    expect(await fetchLensRanks(CURATOR, [A])).toBeNull();
+    expect(await fetchLensRanks(CURATOR, [])).toEqual(new Map());
+    expect(io.fetchEventsByFilter).not.toHaveBeenCalled();
   });
 });

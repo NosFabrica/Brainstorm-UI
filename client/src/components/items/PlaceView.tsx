@@ -78,7 +78,9 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { PlaceMap } from "@/components/items/PlaceMap";
 import { PlaceReviews, ReviewPhotos, useRankedReviews } from "@/components/items/PlaceReviews";
 import { paymentSummary, priceSummary } from "@/lib/placeReviews";
-import { usePlaceReviews } from "@/hooks/usePlaceReviews";
+import { usePlaceRating, usePlaceReviews } from "@/hooks/usePlaceReviews";
+import { useProfileMap } from "@/hooks/useProfileMap";
+import { getDisplayLabel } from "@/lib/profileSearch";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -223,6 +225,10 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const ranked = useRankedReviews(usePlaceReviews(event));
   const listed = useListItems(event, r);
   const price = priceSummary(ranked.reviews);
+  // The star value through a lens (the Regulars contract's section 8): never a plain average.
+  const rating = usePlaceRating(event, ranked.reviews);
+  const curatorProfile = useProfileMap([event.pubkey]).get(event.pubkey);
+  const curatorName = curatorProfile ? getDisplayLabel(curatorProfile) : "the list's curator";
   const payments = paymentSummary(ranked.reviews);
 
   const kind = [categoryWords(place.category), categoryWords(place.cuisine)].filter(Boolean).join(" · ");
@@ -341,6 +347,14 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-500 dark:text-slate-400"
             data-testid="place-trust-line"
           >
+            {rating && (
+              <>
+                <span className="font-semibold text-slate-700 dark:text-slate-200" data-testid="place-trust-stars">
+                  ★ {rating.value.toFixed(1)}
+                </span>
+                <span className="text-slate-300 dark:text-slate-600">{" · "}</span>
+              </>
+            )}
             {recommenders.length > 0 && (
               <>
                 <Faces network={network} people={recommenders.map((e) => e.pubkey)} />
@@ -501,7 +515,15 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       </section>
 
       <div id="place-reviews">
-        <PlaceReviews item={event} name={place.name} ranked={ranked} writing={writing} onWrite={setWriting} />
+        <PlaceReviews
+          item={event}
+          name={place.name}
+          ranked={ranked}
+          rating={rating}
+          curatorName={curatorName}
+          writing={writing}
+          onWrite={setWriting}
+        />
       </div>
 
       {coords && <NearbyPlaces here={{ id: event.id, ...coords }} items={listed.items} resolved={r} />}

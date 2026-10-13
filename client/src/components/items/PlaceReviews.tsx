@@ -28,7 +28,7 @@ import { usePostPlaceReview, useRemovePlaceReview } from "@/hooks/usePlaceReview
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useToast } from "@/hooks/use-toast";
 import { avatarSrc } from "@/lib/avatarSrc";
-import { PAID_LABELS, draftOf, type Paid, type PlaceReview } from "@/lib/placeReviews";
+import { PAID_LABELS, draftOf, type Lens, type Paid, type PlaceReview } from "@/lib/placeReviews";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { relativeTime } from "@/lib/relativeTime";
 import { rankEndorsers } from "@/services/endorsements";
@@ -70,12 +70,18 @@ export function PlaceReviews({
   item,
   name,
   ranked,
+  rating = null,
+  curatorName = "the list's curator",
   writing,
   onWrite,
 }: {
   item: Item;
   name: string;
   ranked: ReturnType<typeof useRankedReviews>;
+  /** The place's star value through a lens, or null to show none. */
+  rating?: { value: number; counted: number; lens: Lens } | null;
+  /** Whose lens "curator" is, by name. */
+  curatorName?: string;
   writing: Writing;
   onWrite: (writing: Writing) => void;
 }) {
@@ -93,6 +99,20 @@ export function PlaceReviews({
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">People you trust first</p>
         )}
       </div>
+      {rating && (
+        <div className="flex items-center gap-3" data-testid="place-rating">
+          <span className="text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            {rating.value.toFixed(1)}
+          </span>
+          <span className="space-y-1">
+            <Stars value={rating.value} size="md" />
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
+              From {rating.counted} {rating.counted === 1 ? "person" : "people"}{" "}
+              {rating.lens === "you" ? "you trust" : `trusted by ${curatorName}`}
+            </span>
+          </span>
+        </div>
+      )}
       {me &&
         (writing ? (
           <Composer
