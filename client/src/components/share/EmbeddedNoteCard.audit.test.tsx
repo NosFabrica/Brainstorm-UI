@@ -50,7 +50,7 @@ describe("a quoted event with no words to read", () => {
     expect(document.querySelector("img[src*='y.png']")).toBeNull();
   });
 
-  it("app data says its alt; an empty contact list or zap says its kind", () => {
+  it("app data says its alt; an empty contact list says its kind; a zap says the zap", () => {
     const { unmount } = quote(
       ev(
         30078,
@@ -63,17 +63,18 @@ describe("a quoted event with no words to read", () => {
     );
     expect(screen.getByTestId("embedded-structural")).toHaveTextContent("Ditto settings");
     unmount();
-    for (const e of [
-      ev(3, [["p", "5".repeat(64)]]),
+    const contacts = quote(ev(3, [["p", "5".repeat(64)]]));
+    expect(screen.getByTestId("embedded-structural").textContent?.trim()).not.toBe("");
+    contacts.unmount();
+    // A zap's empty content is said in words (its amount and people), not as one structural line.
+    quote(
       ev(9735, [
         ["p", PK],
         ["bolt11", "lnbc1"],
       ]),
-    ]) {
-      const r = quote(e);
-      expect(screen.getByTestId("embedded-structural").textContent?.trim()).not.toBe("");
-      r.unmount();
-    }
+    );
+    expect(screen.queryByTestId("embedded-structural")).toBeNull();
+    expect(screen.getByText(/⚡/)).toBeInTheDocument();
   });
 
   it("a repost is the note it reposts, one level down", () => {
