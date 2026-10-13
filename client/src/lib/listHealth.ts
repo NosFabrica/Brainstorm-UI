@@ -9,7 +9,9 @@
  * item's title, summary, `d`, or any value of a field the definition
  * declares, ignoring case and accents as the Dictionary's filter does
  * (lib/dictionaryItems). A word is never read as a pattern, so a "(" or
- * a "*" finds what it says.
+ * a "*" finds what it says. That is wide: a word can sit in an address or a
+ * coordinate, so titleMatchesFirst lifts the items named by the search above
+ * those that only mention it.
  */
 import type { NostrEvent } from "nostr-tools";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -166,6 +168,25 @@ export function filterItems(def: ConceptDefinition, checked: readonly CheckedIte
     const text = searchText(declared, c);
     return words.every((w) => text.includes(w));
   });
+}
+
+/**
+ * The items again, those whose title holds every word of `text` first and the
+ * rest after, each group in the order it came in. A search matches far beyond
+ * titles, and the items named by it should not be lost among the rest. With
+ * no words it is the same order, in a new array.
+ */
+export function titleMatchesFirst(checked: readonly CheckedItem[], text: string): CheckedItem[] {
+  const words = fold(text).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...checked];
+  const named: CheckedItem[] = [];
+  const rest: CheckedItem[] = [];
+  for (const c of checked) {
+    const title = titleOf(c);
+    const folded = title == null ? "" : fold(title);
+    (title != null && words.every((w) => folded.includes(w)) ? named : rest).push(c);
+  }
+  return [...named, ...rest];
 }
 
 /** Titles in the reader's alphabet, case and accents aside. One collator: a sort compares thousands of times. */

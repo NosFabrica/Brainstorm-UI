@@ -14,6 +14,7 @@ import {
   problemKey,
   sortItems,
   summarize,
+  titleMatchesFirst,
   type CheckedItem,
   type ItemQuery,
   type ItemSort,
@@ -238,5 +239,48 @@ describe("listHealth", () => {
     expect(sorted).not.toBe(tied);
     expect(sorted.map((c) => c.item.id)).toEqual(["y", "z"]);
     expect(tied.map((c) => c.item.id)).toEqual(["z", "y"]);
+  });
+
+  describe("titleMatchesFirst", () => {
+    const named = (id: string, name: string | null, address: string) =>
+      item(id, A, 1, [...(name ? [["name", name]] : []), ["address", address]]);
+    const found = checkList(
+      places,
+      [
+        named("t1", "Bar No. 7", "1 High Street"),
+        named("c2", "Cafe Uno", "7 Bar Street"),
+        named("t3", "7 Express Pizza Bar", "2 Low Road"),
+        named("u4", null, "Bar 7"),
+      ],
+      new Map(),
+    );
+    const idsOf = (rows: readonly CheckedItem[]) => rows.map((c) => c.item.id);
+
+    it("puts the items whose title holds every word first, each group in its incoming order", () => {
+      expect(idsOf(titleMatchesFirst(found, "bar 7"))).toEqual(["t1", "t3", "c2", "u4"]);
+    });
+
+    it("ignores case and accents in the title and the words", () => {
+      const accented = checkList(
+        places,
+        [named("a1", "Grand Hotel", "x"), named("a2", "Café Münchner", "y"), named("a3", "Plain", "munchner")],
+        new Map(),
+      );
+      expect(idsOf(titleMatchesFirst(accented, "CAFE munchner"))).toEqual(["a2", "a1", "a3"]);
+    });
+
+    it("leaves the items as they came for empty or blank text", () => {
+      expect(idsOf(titleMatchesFirst(found, ""))).toEqual(["t1", "c2", "t3", "u4"]);
+      expect(idsOf(titleMatchesFirst(found, "  \t "))).toEqual(["t1", "c2", "t3", "u4"]);
+    });
+
+    it("returns a new array and leaves its input as it was", () => {
+      const before = idsOf(found);
+      const out = titleMatchesFirst(found, "bar 7");
+      expect(out).not.toBe(found);
+      expect(idsOf(found)).toEqual(before);
+      expect(idsOf(titleMatchesFirst(found, ""))).toEqual(before);
+      expect(titleMatchesFirst(found, "")).not.toBe(found);
+    });
   });
 });

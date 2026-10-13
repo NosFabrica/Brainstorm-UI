@@ -47,6 +47,7 @@ import {
   filterItems,
   sortItems,
   summarize,
+  titleMatchesFirst,
   type ItemQuery,
   type ItemSort,
 } from "@/lib/listHealth";
@@ -121,8 +122,11 @@ export function ListItems({
         : query,
     [query, summary],
   );
-  const filtered = useMemo(() => filterItems(def, checked, filter), [def, checked, filter]);
-  const rows = useMemo(() => sortItems(filtered, sort), [filtered, sort]);
+  // A search reaches into addresses and coordinates, so the items it names by title lead.
+  const rows = useMemo(
+    () => titleMatchesFirst(sortItems(filterItems(def, checked, filter), sort), filter.text),
+    [def, checked, filter, sort],
+  );
 
   const authors = useMemo(() => [...new Set(items.map((i) => i.pubkey))], [items]);
   const profiles = useLiveProfiles(authors);

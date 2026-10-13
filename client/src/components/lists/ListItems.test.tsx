@@ -416,6 +416,17 @@ describe("ListItems", () => {
     expect(screen.getByTestId("item-table-count")).toHaveTextContent("Showing 1 to 50 of 64.");
   });
 
+  it("puts an item whose title holds the search words above one that only mentions them", async () => {
+    // "bar dos" holds "uno" only in its website, and is newer than "Uno Bar".
+    state.items = [...items, item("ub", A, 5, [["name", "Uno Bar"]])];
+    renderWithProviders(<ListItems header={places} listRef={COORD} />);
+    await userEvent.type(screen.getByTestId("item-table-search"), "bar uno");
+    const rows = screen.getAllByTestId("item-table-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Uno Bar");
+    expect(rows[1]).toHaveTextContent("bar dos");
+  });
+
   it("names a curator by their profile, or by a short npub", () => {
     state.profiles = new Map([[A, { display_name: "Mise", name: "mise" }]]);
     renderWithProviders(<ListItems header={places} listRef={COORD} />);
