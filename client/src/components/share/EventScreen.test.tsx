@@ -263,6 +263,19 @@ describe("the event page — a picture post (kind 20)", () => {
     expect(document.querySelectorAll('img[src^="https://cdn.example/"]')).toHaveLength(2);
     expect(document.activeElement).toBe(screen.getByTestId("event-media-items"));
   });
+
+  // Audit: a picture its words also link was drawn by the text, the rest by the media — two
+  // covers, two lightboxes, and no alt or size for the linked one.
+  it("a picture its words link too is drawn once, with its alt, behind the one cover", () => {
+    open({ ...picture([["content-warning", "nudity"]]), content: "Early start today. https://cdn.example/a.jpg" });
+    expect(screen.getAllByTestId("sensitive-cover")).toHaveLength(1);
+    expect(screen.queryByTestId("sensitive-tile")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show photos" }));
+    const drawn = document.querySelectorAll<HTMLImageElement>('img[src="https://cdn.example/a.jpg"]');
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0].alt).toBe("Boats in fog");
+    expect(screen.getByTestId("event-media")).toHaveTextContent("Early start today.");
+  });
 });
 
 describe("the event page — a note marked sensitive", () => {

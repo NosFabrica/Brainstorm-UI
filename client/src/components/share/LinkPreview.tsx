@@ -129,15 +129,23 @@ export function LinkPreviewCard({
   url,
   showImage = true,
   context,
+  sensitive = false,
 }: {
   url: string;
   showImage?: boolean;
   context?: string;
+  /** The post around it was marked sensitive (NIP-36) and is still covered: the card draws no
+   *  picture or clip of its own — no preview image, no YouTube still, no player — only words. */
+  sensitive?: boolean;
 }) {
   const u = parse(url);
   if (!u) return null;
   const host = u.hostname.replace(/^www\./, "");
   const yt = youtubeId(u);
+  if (sensitive)
+    return yt || wavlakeTrackId(url) || host === "fountain.fm" ? null : (
+      <UnfurledCard url={url} host={host} showImage={false} context={context} still />
+    );
 
   // Audio plays where it is too: Wavlake's catalogue gives the track back as an
   // inline player.
@@ -192,11 +200,14 @@ function UnfurledCard({
   host,
   showImage,
   context,
+  still = false,
 }: {
   url: string;
   host: string;
   showImage: boolean;
   context?: string;
+  /** Words only: a link that is itself a picture or a clip is not drawn. */
+  still?: boolean;
 }) {
   const openLightbox = useLightbox();
   const [fetched, setMeta] = useState<Unfurled | null>(null);
@@ -226,7 +237,7 @@ function UnfurledCard({
   }, [url, near]);
 
   // The link is itself a clip: play it like any video in a note.
-  if (fetched?.kind === "video") {
+  if (fetched?.kind === "video" && !still) {
     return (
       <div className="mt-2" data-testid="link-video">
         <FeedVideo src={url} />
@@ -236,7 +247,7 @@ function UnfurledCard({
 
   // The link is itself a picture: show it. If it fails to load, fall back to
   // the card as if nothing was known.
-  if (fetched?.kind === "image" && fetched.image && !imgFailed) {
+  if (fetched?.kind === "image" && fetched.image && !imgFailed && !still) {
     const src = fetched.image;
     return (
       <button

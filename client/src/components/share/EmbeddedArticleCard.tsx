@@ -20,7 +20,6 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -115,8 +114,8 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const moreKinds = allKinds.length - coveredKinds.length;
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
-  // A video quoted by address is drawn here too. One its creator marked sensitive shows no cover.
-  const sensitive = VIDEO_KINDS.has(event.kind) && !!contentWarningOf(event);
+  // Whatever its kind, one its creator marked sensitive (NIP-36) shows no cover picture: its page asks first.
+  const sensitive = !!contentWarningOf(event);
   // A spec wears the NIP cover, a recipe the recipe cover, the rest the article one.
   const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;

@@ -645,6 +645,8 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   // row shows the page the way a search engine does, not a note with a URL.
   // A Primal/Habla/… link names a Nostr thing and resolves natively below, so it is never a page result.
   const feed = isFeedAccount(author);
+  // Marked sensitive (NIP-36): no picture a link brings — the page's own, a preview's — shows in the row.
+  const warned = !!contentWarningOf(event);
   const shared = !title && event.content ? linkResultOf(event.content, { feedAccount: feed }) : null;
   const news = shared && !clientRef(shared.url) ? shared : null;
   // The page's own title, description and picture — asked once the row is near.
@@ -739,6 +741,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
     const siteName =
       linkMeta?.siteName && linkMeta.siteName.toLowerCase() !== news.domain.toLowerCase() ? linkMeta.siteName : null;
     const thumb = news.imageUrl ?? linkMeta?.image ?? null;
+    const thumbCls = "h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800";
     const out = {
       href: news.url,
       target: "_blank",
@@ -787,18 +790,23 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
             <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
           )}
         </div>
-        {thumb && !newsThumbFailed && (
-          <a {...out} className="shrink-0" tabIndex={-1}>
-            <img
-              src={thumb}
-              alt=""
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              onError={() => setNewsThumbFailed(true)}
-              className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
-              data-testid="news-thumb"
-            />
-          </a>
+        {thumb && warned ? (
+          <SensitiveTile className={`shrink-0 ${thumbCls}`} />
+        ) : (
+          thumb &&
+          !newsThumbFailed && (
+            <a {...out} className="shrink-0" tabIndex={-1}>
+              <img
+                src={thumb}
+                alt=""
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setNewsThumbFailed(true)}
+                className={thumbCls}
+                data-testid="news-thumb"
+              />
+            </a>
+          )
         )}
       </div>
     );
@@ -873,7 +881,8 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
           <div onClick={(e) => e.stopPropagation()}>
             <LinkPreviewCard
               url={plainCardLink}
-              showImage={!thumb.url}
+              showImage={!thumb.url && !warned}
+              sensitive={warned}
               context={[title, shown].filter(Boolean).join("\n")}
             />
           </div>

@@ -53,7 +53,7 @@ import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventMedia } from "@/components/share/EventMedia";
 import { hasAudioHero } from "@/lib/audioEvent";
-import { mediaItemsOf, mediaKindOfUrl } from "@/lib/mediaKind";
+import { mediaItemsOf } from "@/lib/mediaKind";
 import { contentWarningOf } from "@/lib/nip36";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -235,16 +235,12 @@ function EventView({
   // Who signed it, for the links that name the event: never a host or a payer it only names.
   const eventAuthor = note?.pubkey ?? ptr?.author;
   // The files a kind with no hero of its own carries (a kind-20 picture post, a
-  // comment's imeta), each drawn as what it is. A file its words also link, by
-  // a name the text knows as media, is drawn there, once, by the note's text.
+  // comment's imeta), each drawn as what it is — every one of them, its words'
+  // links too, so a sensitive post is one cover and one lightbox, each with its alt.
   // A repost's tags are the reposted note's business, not files of its own.
-  const mediaItems = useMemo(
-    () =>
-      note && note.kind !== 6 && note.kind !== 16
-        ? mediaItemsOf(note).filter((item) => !(note.content.includes(item.url) && mediaKindOfUrl(item.url)))
-        : [],
-    [note],
-  );
+  const mediaItems = useMemo(() => (note && note.kind !== 6 && note.kind !== 16 ? mediaItemsOf(note) : []), [note]);
+  // What the media draws, the words beside it leave out (NoteContent `skipUrls`).
+  const mediaUrls = useMemo(() => new Set(mediaItems.map((item) => item.url)), [mediaItems]);
   // Under a note card, only the files its text never mentions: the card draws
   // every linked file itself, extensionless Blossom links included.
   const imetaOnlyMedia = useMemo(
@@ -679,6 +675,7 @@ function EventView({
                         authorName={profile.display_name || profile.name}
                         embedThings
                         contentWarning={contentWarningOf(note)}
+                        skipUrls={mediaUrls}
                       />
                     </div>
                   )}

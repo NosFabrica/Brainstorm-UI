@@ -78,7 +78,9 @@ export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
   if (shape === "article") return <EmbeddedArticleCard event={props.event} author={props.author} />;
   // A market or ballot keeps its compact drawing in this card (MarketSummary, BallotAnswers).
   if (KIND_CARD_SHAPES.has(shape) && !isInlineThing(props.event))
-    return <EmbeddedKindCard event={props.event} author={props.author} shape={shape as KindCardShape} />;
+    return (
+      <EmbeddedKindCard key={props.event.id} event={props.event} author={props.author} shape={shape as KindCardShape} />
+    );
   return <NoteCardBody {...props} shape={shape} />;
 }
 

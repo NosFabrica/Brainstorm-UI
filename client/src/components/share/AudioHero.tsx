@@ -1,11 +1,14 @@
+import { useEffect, useRef, useState } from "react";
 import { Music as MusicIcon, Mic, Podcast, Play, Pause, Loader2, AlertCircle } from "lucide-react";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
-import { readAudioEvent, type AudioEventShape } from "@/lib/audioEvent";
+import { readAudioEvent, releasedLabel, type AudioEventShape } from "@/lib/audioEvent";
 import audioDefault from "@/assets/audio-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
 import { Chip } from "@/components/ui/chip";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { SensitiveTile } from "@/components/share/SensitiveMedia";
+import { contentWarningOf } from "@/lib/nip36";
 
 const SHAPE_ICON: Record<AudioEventShape, typeof MusicIcon> = {
   track: MusicIcon,
@@ -14,20 +17,6 @@ const SHAPE_ICON: Record<AudioEventShape, typeof MusicIcon> = {
   voice: Mic,
   audio: MusicIcon,
 };
-
-/** "2024-03-01" as a reader says it, on the day the publisher wrote; a year, a month or anything else as published. */
-function releasedLabel(raw: string): string {
-  const day = /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0];
-  if (!day) return raw;
-  const t = Date.parse(day);
-  if (Number.isNaN(t)) return raw;
-  return new Date(t).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 /**
  * The "now playing" hero for a sound on its /e page — a music track (31337,
@@ -38,11 +27,23 @@ function releasedLabel(raw: string): string {
  * season, episode, explicit) and its description or caption. Reuses the
  * shared audio player, so it's the same one-at-a-time playback that pauses on
  * navigation.
+ *
+ * Art its creator marked sensitive (NIP-36) is a placeholder until the reader
+ * asks — and the player bar is not handed it before then.
  */
 export function AudioHero({ event }: { event: MinimalEvent }) {
   const id = event.id;
   const a = readAudioEvent(event);
-  const { title, artist, cover, audio, genres, durationSec, text: description } = a;
+  const { title, artist, audio, genres, durationSec, text: description } = a;
+  const warning = contentWarningOf(event);
+  // Kept per event, so a reveal never carries to the next sound the page shows.
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  const coverHidden = !!warning && !!a.cover && shownFor !== id;
+  const cover = coverHidden ? undefined : a.cover;
+  const coverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (shownFor === id) coverRef.current?.focus();
+  }, [shownFor, id]);
   const Icon = SHAPE_ICON[a.shape];
   const facts = [
     a.album,
@@ -62,16 +63,32 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
     <div data-testid="audio-hero">
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
         {/* Cover */}
-        <div className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-brand-deep/10 dark:border-slate-800 sm:h-44 sm:w-44">
-          <img
-            src={cover || audioDefault}
-            alt=""
-            loading="lazy"
-            onError={(e) => {
-              if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault;
-            }}
-            className="h-full w-full object-cover"
-          />
+        <div
+          ref={coverRef}
+          tabIndex={shownFor === id ? -1 : undefined}
+          className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-brand-deep/10 focus:outline-none dark:border-slate-800 sm:h-44 sm:w-44"
+          data-testid="audio-hero-cover"
+        >
+          {coverHidden ? (
+            <button
+              type="button"
+              onClick={() => setShownFor(id)}
+              className="h-full w-full"
+              aria-label={warning?.reason ? `Show sensitive cover: ${warning.reason}` : "Show sensitive cover"}
+            >
+              <SensitiveTile className="h-full w-full" />
+            </button>
+          ) : (
+            <img
+              src={cover || audioDefault}
+              alt=""
+              loading="lazy"
+              onError={(e) => {
+                if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault;
+              }}
+              className="h-full w-full object-cover"
+            />
+          )}
         </div>
 
         {/* Title, artist, genre, player */}

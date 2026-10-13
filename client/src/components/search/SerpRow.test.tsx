@@ -591,6 +591,38 @@ describe("SerpRow — a picture marked sensitive", () => {
     expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
     expect(document.querySelector('img[src*="scene.jpg"]')).toBeNull();
   });
+
+  // Audit: a flagged note's link card still drew the page's own picture.
+  it("a flagged note's link card says the page's words without its picture", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "The story",
+      description: "What happened.",
+      image: "https://img.test/og-nsfw.jpg",
+      siteName: null,
+    });
+    const flagged = note("My take on this https://news.test/story", [
+      ["title", "My take"],
+      ["content-warning", "gore"],
+    ]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("link-card")).toHaveTextContent("The story");
+    expect(document.querySelector('img[src*="og-nsfw"]')).toBeNull();
+  });
+
+  it("a flagged share's page picture is the placeholder", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "Liverpool F.C.",
+      description: "Club",
+      image: "https://img.test/og-nsfw.jpg",
+      siteName: "Wikipedia",
+    });
+    const flagged = note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.", [["content-warning", "x"]]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("news-headline")).toHaveTextContent("Liverpool F.C.");
+    expect(screen.queryByTestId("news-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="og-nsfw"]')).toBeNull();
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+  });
 });
 
 describe("SerpRow", () => {

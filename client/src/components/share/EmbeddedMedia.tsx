@@ -158,9 +158,11 @@ export function EmbeddedPictures({ event, opensThread = false }: { event: Minima
   );
 }
 
-/** A voice message or an audio file: one player row. */
+/** A voice message or an audio file: one player row — without its art when that is marked sensitive. */
 export function EmbeddedAudio({ event, artist, href }: { event: MinimalEvent; artist?: string; href?: string }) {
   const audio = embedAudioUrl(event);
+  // Art its creator marked sensitive is not drawn here, nor handed to the player bar.
+  const cover = contentWarningOf(event) ? undefined : tagVal(event, "image");
   if (!audio) return null;
   return (
     <div className="mt-1" data-noopen data-testid="embedded-audio">
@@ -168,7 +170,7 @@ export function EmbeddedAudio({ event, artist, href }: { event: MinimalEvent; ar
         id={`embed:${event.id}`}
         title={tagVal(event, "title") ?? kindLabel(event)}
         artist={artist}
-        cover={tagVal(event, "image")}
+        cover={cover}
         audio={audio}
         href={href}
       />

@@ -272,6 +272,82 @@ describe("EmbeddedNoteCard — things, lists and the rest", () => {
   });
 });
 
+describe("EmbeddedNoteCard — what a quoted card may show and link", () => {
+  const imgs = () => Array.from(document.querySelectorAll("img")).map((i) => i.getAttribute("src") ?? "");
+  const flag = ["content-warning", "nsfw"];
+
+  it("a listing, a stream, a track or a thing is one cover until asked, then the card, focused", () => {
+    const cases = [
+      ev(30402, [
+        ["d", "x"],
+        ["title", "Thing"],
+        ["price", "10", "USD"],
+        ["image", "https://img.example/nsfw1.jpg"],
+        flag,
+      ]),
+      ev(30311, [["d", "x"], ["title", "S"], ["image", "https://img.example/nsfw2.jpg"], flag]),
+      ev(31337, [
+        ["d", "x"],
+        ["title", "Song"],
+        ["media", "https://a.example/s.mp3"],
+        ["image", "https://img.example/nsfw3.jpg"],
+        flag,
+      ]),
+      ev(34550, [["d", "x"], ["name", "Club"], ["image", "https://img.example/nsfw4.jpg"], flag]),
+      ev(32267, [["d", "x"], ["name", "App"], ["icon", "https://img.example/nsfw5.jpg"], flag]),
+    ];
+    for (const quoted of cases) {
+      const { unmount } = quote(quoted);
+      const card = screen.getByTestId("embedded-card");
+      expect(within(card).getByTestId("sensitive-cover")).toHaveTextContent("nsfw");
+      expect(imgs().filter((s) => s.includes("nsfw"))).toEqual([]);
+      fireEvent.click(within(card).getByRole("button", { name: "Show media" }));
+      expect(within(card).queryByTestId("sensitive-cover")).toBeNull();
+      expect(document.activeElement).toBe(screen.getByTestId("embedded-card-revealed"));
+      unmount();
+    }
+  });
+
+  // Audit: an app's `url` and a past event's `recording` reached a card's link out unchecked.
+  it("a card's link out is only ever a web address", () => {
+    const hrefs = () => Array.from(document.querySelectorAll("a")).map((a) => a.getAttribute("href") ?? "");
+    // With no `d`, the app has no Zap Store page: its own `url` would be the link.
+    const { unmount } = quote(
+      ev(32267, [
+        ["name", "App"],
+        ["url", "javascript:alert(1)"],
+      ]),
+    );
+    expect(screen.getByTestId("embedded-card")).toHaveTextContent("App");
+    expect(hrefs().filter((h) => /^\s*javascript:/i.test(h))).toEqual([]);
+    unmount();
+    quote(
+      ev(31923, [
+        ["d", "x"],
+        ["title", "T"],
+        ["start", "1600000000"],
+        ["end", "1600003600"],
+        ["recording", "javascript:alert(2)"],
+      ]),
+    );
+    expect(screen.getByTestId("embedded-card")).toHaveTextContent("T");
+    expect(hrefs().filter((h) => /^\s*javascript:/i.test(h))).toEqual([]);
+  });
+
+  it("an article shows no cover picture", () => {
+    quote(ev(30023, [["d", "x"], ["title", "A"], ["image", "https://img.example/nsfw6.jpg"], flag], "body"));
+    expect(screen.getByTestId("embedded-article")).toHaveTextContent("A");
+    expect(imgs().filter((s) => s.includes("nsfw"))).toEqual([]);
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+  });
+
+  it("a voice message plays without its art", () => {
+    quote(ev(1222, [["image", "https://img.example/nsfw7.jpg"], flag], "https://a.example/v.m4a"));
+    expect(screen.getByTestId("embedded-audio")).toBeInTheDocument();
+    expect(imgs().filter((s) => s.includes("nsfw"))).toEqual([]);
+  });
+});
+
 describe("references by address and from an article", () => {
   it("the article card asked to draw a stream draws the stream, never an article with the default cover", () => {
     const live = ev(30311, [
