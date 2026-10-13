@@ -33,6 +33,13 @@ view made by hand for one concept. Lint keeps tier two from importing tier three
   `TierThreeProvider` hands to tier two. When a view needs a seam in tier two, the
   seam is generic: it names no concept and does nothing unless tier three uses it
   (the presentation override, `imageShape`, `DListItemNeighbours`' opt-out props).
+- **Tier three starts from tier two, then improves on it.** Where the header says
+  enough, a view uses what tier two makes of it (`fieldCell`'s href for a `tel` field,
+  `httpUrl`), so the two tiers agree. Where the header falls short, say an untyped
+  phone field, the view may do better on its own: that's what tier three is for. It
+  adds its own presentation either way. Places' Call button is the example: tier two's
+  `tel:` when the header types the field, its own reading of the value
+  (`lib/contactHref`) when it doesn't.
 - **The test: delete it.** With `components/items/` gone, the provider removed and
   `ItemPage` back to `DListItemHero`, tier two must read exactly as it did before.
 - **Tier-two changes stand alone.** A change to how every concept renders (a new

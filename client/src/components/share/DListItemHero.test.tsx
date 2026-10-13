@@ -324,6 +324,21 @@ describe("DListItemHero — facts", () => {
     expect(screen.getByTestId("dlist-item-fields")).not.toHaveTextContent("phone");
   });
 
+  it("a phone fact is text until the definition types it tel; then it calls, on the device, not in a tab", () => {
+    concept = { data: resolveConcept({ community: places, communityCoordinate: COMMUNITY }), isPending: false };
+    const { unmount } = renderWithProviders(<DListItemHero event={place} />);
+    expect(screen.getAllByTestId("dlist-item-fact")[0].querySelector("a")).toBeNull();
+    unmount();
+
+    const typed = header(AVI, [...places.tags.slice(2), ["field-type", "phone", "tel"]]);
+    concept = { data: resolveConcept({ community: typed, communityCoordinate: COMMUNITY }), isPending: false };
+    renderWithProviders(<DListItemHero event={place} />);
+    const call = screen.getAllByTestId("dlist-item-fact")[0].querySelector("a");
+    expect(call).toHaveAttribute("href", "tel:+15403910134");
+    expect(call).toHaveTextContent("+1-540-391-0134");
+    expect(call).not.toHaveAttribute("target");
+  });
+
   it("without fact hints, no facts", () => {
     renderWithProviders(<DListItemHero event={item} />);
     expect(screen.queryByTestId("dlist-item-facts")).toBeNull();

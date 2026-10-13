@@ -53,7 +53,7 @@ The tags:
 
 - ["names", "<Singular>", "<Plural>"] and ["description", "<what the list is>"].
 - One per thing an item records: ["required" | "recommended" | "optional", "<field>", "<description>"]. A field's name is the tag an item carries it in: lowercase, hyphenated, no spaces, and not d, z or b. Its description is a short label ("Website", "ISBN-13"): it labels the field's link. Require only what every item must have.
-- A field's type, when it isn't plain text: ["field-type", "<field>", "url" | "address"]. url: its values are web addresses, shown as links. address: its values name another Nostr list or event as kind:pubkey:d, shown by that event's name.
+- A field's type, when it isn't plain text: ["field-type", "<field>", "url" | "tel" | "email" | "address"]. url: its values are web addresses, shown as links. tel: phone numbers, which call. email: email addresses, which mail. address: its values name another Nostr list or event as kind:pubkey:d, shown by that event's name. A phone number or an email address in a field left as text stays text: type it.
 - How an item reads. Each names one declared field, once per role:
   ["display", "title", "<field>"] — the item's name.
   ["display", "summary", "<field>"] — the line under its name.
