@@ -9,12 +9,17 @@ import { readListEvents } from "@/services/listReads";
 /** Asked again at most every minute: List Management is where lists change. */
 const WINDOW = { minMs: 60_000, stream: false };
 
+/** Slack under the deadline: relay timers and the clock are read in one tick, so a read cut off at 20 s can measure 19,999 ms. */
+const DEADLINE_SLACK_MS = 500;
+
 /**
  * Per ask key, whether its last read ran to its deadline. Kept beside the asks
  * (lib/askOnce) and not in a component: a mount within the window is served
  * the earlier answer without the read running again, and must still know.
  */
 const ranToDeadline = new Map<string, boolean>();
+/** The same, per list: the latest read to settle, for the rows kept on screen while the next is out. */
+const lastRanToDeadline = new Map<string, boolean>();
 
 /**
  * Every item filed under a list — the newest version of each, newest first —
@@ -41,17 +46,26 @@ export function useListItems(header: NostrEvent) {
         dictionaryRelays(),
       );
       // The deadline cuts both relays off at once, so a read that took all of it may have lost part of an answer.
-      if (key) ranToDeadline.set(key, Date.now() - asked >= INSPECT_TIMEOUT_MS);
+      if (key && ref) {
+        const cut = Date.now() - asked >= INSPECT_TIMEOUT_MS - DEADLINE_SLACK_MS;
+        ranToDeadline.set(key, cut);
+        lastRanToDeadline.set(ref, cut);
+      }
       return events;
     },
     WINDOW,
   );
   const items = useMemo(() => filedItems(read.events, filedUnder), [read.events, filedUnder]);
+  // Reading again keeps the earlier rows on screen, so until it settles they keep the earlier read's flag.
+  const cutOff =
+    key !== null &&
+    ref !== null &&
+    (ranToDeadline.get(key) ?? (read.settled ? false : lastRanToDeadline.get(ref))) === true;
   const reload = useCallback(() => setN((i) => i + 1), []);
   return {
     items,
     truncated: read.events.length >= INSPECT_LIMIT,
-    cutOff: key !== null && ranToDeadline.get(key) === true,
+    cutOff,
     // A header with no reference has nothing to ask, so it is settled at once.
     settled: !ref || read.settled,
     reload,

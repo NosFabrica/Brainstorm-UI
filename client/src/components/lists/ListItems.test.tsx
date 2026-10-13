@@ -199,6 +199,24 @@ describe("ListItems", () => {
     );
   });
 
+  it("says a read that was cut off and found nothing may not be an empty list", () => {
+    state.items = [];
+    state.cutOff = true;
+    renderWithProviders(<ListItems header={places} listRef={COORD} />);
+    const notice = screen.getByTestId("list-items-cut-off");
+    expect(notice).toHaveTextContent("A relay didn't finish answering within 20 seconds. This may not be every item.");
+    const empty = screen.getByTestId("list-items-empty");
+    expect(empty).toContainElement(notice);
+    const line = screen.getByText("No items found for this list on the hub or our index.");
+    expect(notice.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says nothing of a deadline when a read that found nothing was not cut off", () => {
+    state.items = [];
+    renderWithProviders(<ListItems header={places} listRef={COORD} />);
+    expect(screen.queryByTestId("list-items-cut-off")).toBeNull();
+  });
+
   it("reads again when asked", async () => {
     renderWithProviders(<ListItems header={places} listRef={COORD} />);
     await userEvent.click(screen.getByTestId("list-items-reload"));

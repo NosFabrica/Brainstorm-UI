@@ -26,6 +26,17 @@ const num = (n: number) => n.toLocaleString("en-US");
 /** One decimal and a "%", or null when there are no items to take a share of. */
 const share = (count: number, total: number) => (total > 0 ? `${((count / total) * 100).toFixed(1)}%` : null);
 
+/** That a relay ran out of time, shown wherever a read's rows may be short of the list. */
+export function CutOffNotice() {
+  return (
+    <Alert variant="warning" data-testid="list-items-cut-off">
+      <AlertDescription>
+        A relay didn't finish answering within 20 seconds. This may not be every item.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 export function ListHealth({
   summary,
   truncated,
@@ -50,13 +61,7 @@ export function ListHealth({
           <AlertDescription>The relay returned its maximum of 10,000 items. This list may hold more.</AlertDescription>
         </Alert>
       )}
-      {cutOff && (
-        <Alert variant="warning" data-testid="list-items-cut-off">
-          <AlertDescription>
-            A relay didn't finish answering within 20 seconds. This may not be every item.
-          </AlertDescription>
-        </Alert>
-      )}
+      {cutOff && <CutOffNotice />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile

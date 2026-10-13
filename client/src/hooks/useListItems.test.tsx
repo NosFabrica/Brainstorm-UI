@@ -181,6 +181,18 @@ describe("useListItems", () => {
     expect(result.current.cutOff).toBe(true);
   });
 
+  it("says so of a read that settled within half a second of the deadline", async () => {
+    vi.useFakeTimers();
+    answerAfter(19_600);
+    const { header } = list("5".repeat(64));
+    const { result } = renderHook(() => useListItems(header));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(19_600);
+    });
+    expect(result.current.settled).toBe(true);
+    expect(result.current.cutOff).toBe(true);
+  });
+
   it("does not say so of a read the relays finished answering", async () => {
     vi.useFakeTimers();
     answerAfter(19_000);
@@ -228,5 +240,44 @@ describe("useListItems", () => {
     });
     expect(result.current.settled).toBe(true);
     expect(result.current.cutOff).toBe(false);
+  });
+
+  it("keeps saying a read was cut off while reading again is out, then follows the new answer", async () => {
+    vi.useFakeTimers();
+    answerAfter(20_000);
+    const { header } = list("6".repeat(64));
+    const { result } = renderHook(() => useListItems(header));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(result.current.cutOff).toBe(true);
+    act(() => result.current.reload());
+    expect(result.current.settled).toBe(false);
+    expect(result.current.cutOff).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(result.current.settled).toBe(false);
+    expect(result.current.cutOff).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(result.current.settled).toBe(true);
+    expect(result.current.cutOff).toBe(true);
+  });
+
+  it("does not carry a cut off read over to a list it was not read of", async () => {
+    vi.useFakeTimers();
+    answerAfter(20_000);
+    const cutOff = list("7".repeat(64)).header;
+    const first = renderHook(() => useListItems(cutOff));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(first.result.current.cutOff).toBe(true);
+    answerAfter(50);
+    const other = renderHook(() => useListItems(list("8".repeat(64)).header));
+    expect(other.result.current.settled).toBe(false);
+    expect(other.result.current.cutOff).toBe(false);
   });
 });

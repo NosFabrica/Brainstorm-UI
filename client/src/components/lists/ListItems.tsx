@@ -32,7 +32,7 @@ import { shortCuratorKey } from "@/components/lists/curatorKey";
 import { SOURCE_LABEL } from "@/components/lists/definitionLabels";
 import { ItemInspector } from "@/components/lists/ItemInspector";
 import { ItemTable } from "@/components/lists/ItemTable";
-import { ListHealth } from "@/components/lists/ListHealth";
+import { CutOffNotice, ListHealth } from "@/components/lists/ListHealth";
 import { listManagerPath } from "@/components/lists/listManagerPath";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { useListDefinitions } from "@/hooks/useListDefinitions";
@@ -197,6 +197,8 @@ export function ListItems({
         </>
       ) : items.length === 0 && settled && definitionsSettled ? (
         <div className="space-y-3" data-testid="list-items-empty">
+          {/* ListHealth is not drawn for no items, and a read cut off short of its answer may be empty only for that. */}
+          {cutOff && <CutOffNotice />}
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No items found for this list on the hub or our index.
           </p>
