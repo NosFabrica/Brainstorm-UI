@@ -8,15 +8,14 @@
  * account can hold: the server answers `unknown_user` for a stranger.
  *
  * So a key is checked against the users table directly, and a name goes
- * through Brainstorm's own profile search first and then every candidate is
+ * through the search relay's profile search first and then every candidate is
  * checked against the users table, so only account holders are ever offered.
  * The candidates that fell out are counted, not hidden — "1 more on Nostr
  * without a Brainstorm account" tells the admin why the person they expected
  * is not in the list.
  */
 import { apiClient } from "@/services/api";
-import { searchByText } from "@/lib/profileSearch";
-import { fetchProfileMap } from "@/services/nostr";
+import { fetchProfileMap, searchNostrProfiles } from "@/services/nostr";
 import { decodeShareId } from "@/lib/shareId";
 
 export type BrainstormUser = { pubkey: string; name?: string; picture?: string };
@@ -67,7 +66,7 @@ export async function searchBrainstormUsers(query: string): Promise<UserSearchOu
   if (looksLikeKey(q)) return { kind: "invalid-key" };
   if (q.length < 2) return { kind: "idle" };
 
-  const { results } = await searchByText(q, "nosfabrica", undefined, MAX_CANDIDATES);
+  const results = await searchNostrProfiles(q, { limit: MAX_CANDIDATES });
   const seen = new Set<string>();
   const candidates: BrainstormUser[] = [];
   for (const r of results) {

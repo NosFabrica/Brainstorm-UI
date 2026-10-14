@@ -198,7 +198,7 @@ _Avoid_: pending queue, drafts
 ### Not to be confused
 
 **Perspective**:
-Whose trust scores the User is looking at — the house's or their own. Orthogonal
+Whose trust scores the User is looking at — the House Observer's or their own. Orthogonal
 to the Active Account: Perspective changes what you see, Active Account changes
 who you are. Each Account keeps its own.
 _Avoid_: POV, view, observer, lens

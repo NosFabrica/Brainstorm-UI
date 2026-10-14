@@ -44,7 +44,7 @@ export function RelayAuditControl({
   });
 
   const resync = useMutation({
-    mutationFn: () => apiClient.resyncObserver(pubkey, "relay"),
+    mutationFn: () => apiClient.resyncObserver(pubkey),
     onSuccess: async () => {
       setResynced(true);
       await queryClient.invalidateQueries({ queryKey: ACTIVITY_KEY });

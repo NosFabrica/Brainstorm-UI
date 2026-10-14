@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { decodeNostrEntity } from "@/lib/noteRefs";
-import { searchByText } from "@/lib/profileSearch";
+import { HOUSE_POV, suggestProfiles } from "@/services/search";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
@@ -43,7 +43,7 @@ function PlainMention({ name }: { name: string }) {
         if (busy) return;
         setBusy(true);
         try {
-          const { results } = await searchByText(name, "nosfabrica", undefined, 5);
+          const results = await suggestProfiles(name, { pov: HOUSE_POV }, { limit: 5 });
           const top = results[0];
           if (top)
             requestNav({

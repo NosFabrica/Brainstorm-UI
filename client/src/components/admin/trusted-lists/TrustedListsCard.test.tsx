@@ -33,7 +33,6 @@ vi.mock("@/services/api", async (importOriginal) => {
 });
 const HOUSE = "be7bf5de" + "0".repeat(56);
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => HOUSE }));
-vi.mock("@/lib/profileSearch", () => ({ searchByText: async () => ({ results: [], total: 0, timeMs: 1 }) }));
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchProfileMap: async () => new Map(),

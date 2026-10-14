@@ -79,15 +79,11 @@ vi.mock("@/services/api", () => ({
   },
 }));
 
-// Brainstorm's own profile search — names live on relays, not in the users table.
-const searchByText = vi.fn(async (_q: string) => ({
-  results: [] as Array<{ pubkey: string; npub: string; name?: string; displayName?: string; picture?: string }>,
-  total: 0,
-  timeMs: 1,
-}));
-vi.mock("@/lib/profileSearch", () => ({
-  searchByText: (q: string, _pov: string, _user?: string, _max?: number) => searchByText(q),
-}));
+// Profile search on the search relay — names live on relays, not in the users table.
+const searchNostrProfiles = vi.fn(
+  async (_q: string, _opts?: { limit?: number }) =>
+    [] as Array<{ pubkey: string; npub: string; name?: string; displayName?: string; picture?: string }>,
+);
 
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
@@ -99,6 +95,7 @@ const fetchProfileMap = vi.fn(
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: (pubkeys: string[]) => fetchProfileMap(pubkeys),
+  searchNostrProfiles: (q: string, opts?: { limit?: number }) => searchNostrProfiles(q, opts),
 }));
 
 const PUBKEY = "a".repeat(64);
@@ -1858,19 +1855,15 @@ describe("resolving a signup that named nobody", () => {
     getAdminBillingDivergence.mockResolvedValue(unresolvedReport());
     // clearAllMocks keeps implementations, so a test's override would outlive it.
     getAdminUsers.mockImplementation(everyKeyIsAnAccount);
-    searchByText.mockResolvedValue({ results: [], total: 0, timeMs: 1 });
+    searchNostrProfiles.mockResolvedValue([]);
   });
 
   it("finds a Brainstorm user by name, offers only account holders, and grants only on confirm", async () => {
     const OTHER = "c".repeat(64);
-    searchByText.mockResolvedValue({
-      results: [
-        { pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), name: "lira", displayName: "Lira Flint" },
-        { pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" },
-      ],
-      total: 2,
-      timeMs: 3,
-    });
+    searchNostrProfiles.mockResolvedValue([
+      { pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), name: "lira", displayName: "Lira Flint" },
+      { pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" },
+    ]);
     // Only Lira has an account; the other is a Nostr profile and nothing more.
     getAdminUsers.mockImplementation(async (params) => ({
       items: params.search?.toLowerCase() === PUBKEY ? [{ pubkey: PUBKEY }] : [],
@@ -1885,9 +1878,10 @@ describe("resolving a signup that named nobody", () => {
 
     await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Lira");
 
-    // Searched by name through Brainstorm's profile search, then checked
+    // Searched by name on the search relay, then checked
     // against the users table: the one with an account is offered.
     const row = await screen.findByTestId(`billing-attribute-result-${PUBKEY.slice(0, 8)}`);
+    expect(searchNostrProfiles).toHaveBeenLastCalledWith("Lira", { limit: 8 });
     expect(row.textContent).toContain("Lira Flint");
     expect(screen.queryByTestId(`billing-attribute-result-${OTHER.slice(0, 8)}`)).toBeNull();
     expect(screen.getByTestId("billing-attribute-dropped").textContent).toMatch(
@@ -1924,11 +1918,9 @@ describe("resolving a signup that named nobody", () => {
 
   it("says when a name matches Nostr profiles but no Brainstorm account", async () => {
     const OTHER = "c".repeat(64);
-    searchByText.mockResolvedValue({
-      results: [{ pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" }],
-      total: 1,
-      timeMs: 2,
-    });
+    searchNostrProfiles.mockResolvedValue([
+      { pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" },
+    ]);
     getAdminUsers.mockResolvedValue({ items: [], total: 0, pages: 0 });
 
     renderCards();
@@ -1943,11 +1935,9 @@ describe("resolving a signup that named nobody", () => {
   });
 
   it("lets the admin change their pick before confirming, disarming the verb again", async () => {
-    searchByText.mockResolvedValue({
-      results: [{ pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), displayName: "Lira Flint" }],
-      total: 1,
-      timeMs: 2,
-    });
+    searchNostrProfiles.mockResolvedValue([
+      { pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), displayName: "Lira Flint" },
+    ]);
 
     renderCards();
     await openUnresolvedAction("attribute");

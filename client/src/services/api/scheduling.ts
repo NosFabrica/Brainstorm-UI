@@ -97,12 +97,8 @@ export const schedulingApi = {
     return adminJson(`/admin/users/${pubkey}/relay-audit`, "Failed to audit the relay", {}, 150_000);
   },
 
-  async resyncObserver(pubkey: string, target: string) {
-    return adminJson(
-      `/admin/users/${pubkey}/resync?target=${encodeURIComponent(target)}`,
-      "Failed to resync observer",
-      { method: "POST" },
-    );
+  async resyncObserver(pubkey: string) {
+    return adminJson(`/admin/users/${pubkey}/resync`, "Failed to resync observer", { method: "POST" });
   },
 
   /**

@@ -240,6 +240,7 @@ export interface SearchSnapshot {
 export type SearchHandle = (() => void) & { more: () => void };
 
 export type SearchPov = "nosfabrica" | "mywot";
+export const HOUSE_POV: SearchPov = "nosfabrica";
 
 /**
  * A page whose sections share one REQ. Not a tab — the Top page is both
