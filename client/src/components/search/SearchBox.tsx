@@ -17,7 +17,6 @@ import { nip19 } from "nostr-tools";
 import {
   ArrowRight,
   CalendarDays,
-  Check,
   Clock,
   Image as ImageIcon,
   ListChecks,
@@ -36,6 +35,7 @@ import { CATEGORY_ICON } from "@/lib/dlists";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { Nip05Handle } from "@/components/Nip05Check";
 import {
   getRecentItems,
   removeRecentItem,
@@ -138,6 +138,9 @@ export interface SearchBoxHandle {
 /** A popup is read in a glance, above a phone keyboard: this many rows of each kind. */
 const MAX_TAG_ROWS = 2;
 const MAX_PEOPLE_ROWS = 6;
+/** A row's handle line: brand-coloured only once its domain confirms it (Nip05Handle), grey while it is just a claim — as on the results page's PersonCard. */
+const HANDLE_CLASS =
+  "flex items-center gap-0.5 truncate text-xs text-slate-500 dark:text-slate-400 data-[nip05-status=verified]:text-brand-primary dark:data-[nip05-status=verified]:text-brand-link";
 /** How many listings the shop row counts up to. */
 const SHOP_ASK = 9;
 
@@ -837,7 +840,6 @@ export function SearchBox({
                 data-testid="list-home-suggestions"
               >
                 {rows.map((s, i) => {
-                  const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                   return (
                     // A div, not a button: the chips inside are links, and the
@@ -874,12 +876,14 @@ export function SearchBox({
                         >
                           {getDisplayLabel(s)}
                         </p>
-                        {handle && (
-                          <p className="flex items-center gap-0.5 truncate text-xs text-brand-primary dark:text-brand-link">
-                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
-                            {handle}
-                          </p>
-                        )}
+                        {/* A handle is only a claim: the check waits on its domain. */}
+                        <Nip05Handle
+                          nip05={s.nip05}
+                          pubkey={s.pubkey}
+                          className={HANDLE_CLASS}
+                          iconClassName="h-2.5 w-2.5 shrink-0 text-brand-primary"
+                          testId={`home-suggestion-nip05-${i}`}
+                        />
                       </div>
                       {/* What they publish, one tap to it. Desktop reveals on
                           hover or the arrowed row; a phone row stays a name. */}
@@ -1004,7 +1008,6 @@ export function SearchBox({
               // Row shapes share the hover container + remove button: a person you
               // opened (avatar → re-open), a person's tab you searched (avatar → re-run
               // scoped) or a text query (clock → re-run).
-              const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
               const removeLabel =
                 item.type === "profile"
                   ? `Remove ${item.label} from recent`
@@ -1047,12 +1050,13 @@ export function SearchBox({
                         <p className="truncate text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
                           {item.label}
                         </p>
-                        {handle && (
-                          <p className="flex items-center gap-0.5 truncate text-xs leading-tight text-brand-primary dark:text-brand-link">
-                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
-                            {handle}
-                          </p>
-                        )}
+                        <Nip05Handle
+                          nip05={item.nip05}
+                          pubkey={item.pubkey}
+                          className={cn(HANDLE_CLASS, "leading-tight")}
+                          iconClassName="h-2.5 w-2.5 shrink-0 text-brand-primary"
+                          testId={`home-recent-nip05-${i}`}
+                        />
                       </div>
                     </button>
                   ) : item.type === "scoped" ? (
