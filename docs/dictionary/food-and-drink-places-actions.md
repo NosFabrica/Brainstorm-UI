@@ -12,7 +12,8 @@ Regulars finds that rating on Brainstorm, and the reverse. Neither app leaves th
 stripped.
 
 This document binds both apps. MUST, SHOULD and MAY are used as in RFC 2119. Section 9 says where each app stands
-today, and section 10 lists what the team still has to confirm.
+today, and section 10 lists what the team still has to confirm. Reviews of anything but a place, books among them, are
+outside it (section 12).
 
 ## 1. What is shared, and what is free
 
@@ -103,7 +104,7 @@ An app shows, counts and scores only the reviews that stand, found in this order
    is ignored altogether: it must not replace the real review it would be newer than.
 4. Of one person's events at one `d`, only the newest stands (NIP-01; on a tie, the lowest id).
 5. Then one per person per place: the newest, for someone who reviewed a place under two `d` values.
-6. A review whose removal the app has seen (section 6) is not shown.
+6. A review taken down by a removal the app has seen is not shown (section 6, "Reading a removal").
 
 "3 reviews", a price most people gave, how people paid, and any rating are worked out over the reviews that stand:
 one person, one voice.
@@ -130,13 +131,28 @@ To ask a relay for a place's reviews:
 - **Writing** a review is signing the record of section 3.
 - **A person has one review of a place.** When they already have one, the composer opens it to be changed. It never
   adds a second.
-- **Editing** is signing the record again at the same `d`, dated now and later than the version it replaces.
-  The app MUST carry over, unchanged and in their order, every tag it does not itself set: the other app's `price`,
-  `paid` and `imeta`, and tags from apps neither knows. Only what the person changed here changes. A record that two
-  apps may replace loses whatever one of them does not copy.
+- **Editing** is signing the record again at the same `d`.
+  - **Its date** is the later of now and one second after the version it replaces (`max(now, previous + 1)`). Section 4
+    lets a record be dated up to a day ahead, so an edit dated plainly "now" can be older than the version it replaces,
+    and lose.
+  - **Every tag the app does not itself set is carried over,** unchanged and in its order: the other app's `price`,
+    `paid` and `imeta`, and tags from apps neither knows. Only what the person changed here changes. A record that two
+    apps may replace loses whatever one of them does not copy.
+  - **Except `client` and `nonce`,** which belong to one signing, not to the review: the app that signed that version
+    (NIP-89) and its proof of work (NIP-13). Carried over, they would credit the new version to the other app, and a
+    signer that adds its own would sign two.
+  - **The photos' addresses stay in the words.** An app that does not draw photos still writes, after the person's
+    words, each address that a carried-over `imeta` names, on a line of its own, as the version it replaces had them.
+    Other clients read photos from the content.
 - **Removing** is a NIP-09 request (kind 5) that names the review by id (`e`) and by address
   (`a`, `34259:<reviewer pubkey>:<d>`), with `k` `34259`, sent wherever the review was sent. Both apps MUST offer it
-  for the person's own review, and MUST stop showing a review once its removal is seen.
+  for the person's own review.
+- **Reading a removal.** A removal counts only when its author is the review's author. It takes down the review whose
+  id an `e` names, even with no `a` beside it (removals written that way exist). Through an `a`, it takes down only
+  the versions dated no later than the removal: a review written after it stands. Both apps MUST stop showing a review
+  once a removal that takes it down is seen. A removal dated more than a day ahead of the reader's clock is ignored, as
+  a review is (section 4): through an `a` it would otherwise take down every review the person writes there until that
+  date.
 
 ## 7. What is not a review
 
@@ -169,51 +185,68 @@ so that one five-star review does not top a list. An app that orders places by r
 
 ### Brainstorm's place view
 
-1. **Reviews are kind 1111 comments** (`client/src/lib/placeReviews.ts`, `client/src/services/placeReviews.ts`), which
-   Regulars does not read, and the view does not read kind 34259. Read and write the record of sections 3 to 5.
-2. **A place review has no stars,** and the `rating` it would write is `1` to `5`, a different scale from the one
-   `starsOf` reads for this kind. Offer stars, and write `rating` as the fraction with `s`.
-3. **A review can be neither changed nor removed.**
-4. **Every comment counts,** so one person's five comments are "5 reviews" and five votes for a price.
-5. **Published to** the reviewer's write relays and the hub. It must also reach the index (section 5).
-6. **A place is linked by event id** (`/e/nevent…`), which the next import makes stale.
+Done, in [#235](https://github.com/NosFabrica/Brainstorm-UI/pull/235): it reads and writes the record of sections 3
+to 5, asks for stars, keeps one review per person and opens it to be changed, removes, carries over the tags it does not
+set, dates an edit after the version it replaces, honours removals as section 6 reads them, shows the star value of
+section 8, and links a place by its address. Checks A to I pass in `client/src/lib/placeReviews.test.ts`. The kind 1111
+reviews written on staging before it are comments now.
 
-The kind 1111 reviews on staging are test data. They are not carried over. After the change they are comments.
+Two small points this version adds, for Brainstorm to take up:
+
+1. **A removal dated more than a day ahead** is ignored (section 6). `standingReviews` honours every removal it is given.
+2. **`nonce` is not carried over** on an edit (section 6). `placeReviewTemplate` carries it; `client` is already
+   replaced by `signAs`.
 
 ### Regulars
 
-1. **An edit drops every tag Regulars does not set** (`src/reviews/write.ts` builds the record from nothing), so a
-   price or a photo given on Brainstorm would be lost.
-2. **It reads no `price`, `paid` or `imeta`,** and does not take photo addresses out of the words.
-3. **It reads no removals from relays.** It relies on relays dropping what was removed, and on what its own tab
-   removed.
-4. **It does not publish to the hub,** and reads the index and its two public relays only.
-5. **The words have no limit of length.** Brainstorm's composer stops at 1,200 characters.
+Done, in [aburra16/regulars@a221e48](https://github.com/aburra16/regulars/commit/a221e48): an edit is
+built on the person's review and carries over every tag Regulars does not set but `client` and `nonce`, with the
+photos' addresses after the words, at the review's own `d`; the words are shown without the photos' addresses; removals
+are read where reviews are and honoured as section 6 reads them; reviews are read from the hub too; the words stop at
+1,200 characters. It already dated an edit after the version it replaces. Checks A to M are in
+`tests/placeContract.test.ts`. It still draws no price, payment or photo, which section 1 leaves to each app.
 
 ## 10. For the team to confirm
 
-1. Kind 34259 as the one review record for a place, and kind 1111 as comments only.
-2. The names and values of the optional tags: `price` (`1` to `4`), `paid`, `imeta`.
-3. Whether a review must give stars (Regulars: always; Brainstorm today: never).
-4. One limit for the words (1,200 characters is proposed).
-5. The relays of section 5, and that the index takes reviews from both apps.
-6. Whether Brainstorm's place view shows the weighted star value of section 8, or none.
+Each as both apps now build it, or will:
+
+1. **Kind 34259** is the one review record for a place; kind 1111 is a comment. Built in Brainstorm.
+2. **The optional tags** are `price` (`1` to `4`), `paid` and `imeta`, as section 3 names them. Built in Brainstorm.
+3. **Stars are required** in both apps' composers. A review without stars from elsewhere is listed, and enters no star
+   value.
+4. **The words stop at 1,200 characters,** in both apps.
+5. **The relays.** Brainstorm publishes to the reviewer's write relays, the hub and the index, and reads the index, the
+   hub, `wss://nos.lol` and `wss://relay.primal.net`. Regulars publishes to the reviewer's write relays, the index,
+   `wss://nos.lol` and `wss://relay.primal.net`, and reads those three and the hub.
+6. **The star value.** Brainstorm shows the reader's own lens when someone they trust gave stars, else the curator's,
+   and says which ("From 1 person trusted by Mise En Place"). Regulars shows the lens the person picks: House picks or
+   My circle.
 
 ## 11. Checks both apps' tests should hold
 
 Each is a record or a set of records, and what both apps must make of it.
 
-| #   | Given                                                                                           | Both apps                                                                               |
-| --- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| A   | The record of section 3 without `price`, `paid`, `imeta` (as Regulars writes it)                | One review, 4 stars, the words.                                                         |
-| B   | The record of section 3 in full (as Brainstorm will write it)                                   | One review, 4 stars, the words without the photo's address.                             |
-| C   | B, then the stars changed to 5 in the other app                                                 | The new record still has `price`, `paid` and `imeta`, unchanged.                        |
-| D   | Two records by one person for one place, a day apart; the older one has the bare address as `d` | One review: the newer.                                                                  |
-| E   | A real record, and one by the same person dated a year ahead                                    | The real one stands. The other is ignored.                                              |
-| F   | A kind 1111 comment on the place, by a third person                                             | Not a review. Counts stay as they were.                                                 |
-| G   | A record, then its removal (kind 5 with `e`, `a`, `k`)                                          | No review.                                                                              |
-| H   | `s` 4 with `rating` 0.800; `rating` 4 alone; `rating` 0.9 alone; `rating` 0; `rating` 7         | 4 stars; 4 stars; 4.5 stars; no stars; no stars.                                        |
-| I   | Three reviewers ranked 80, 30 and 4, giving 5, 3 and 1 stars                                    | The value is 4.5 ((0.8 × 5 + 0.3 × 3) / 1.1 = 4.45). The third is outside, not counted. |
+| #   | Given                                                                                           | Both apps                                                                                |
+| --- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A   | The record of section 3 without `price`, `paid`, `imeta` (as Regulars writes it)                | One review, 4 stars, the words.                                                          |
+| B   | The record of section 3 in full (as Brainstorm will write it)                                   | One review, 4 stars, the words without the photo's address.                              |
+| C   | B, then the stars changed to 5 in the other app                                                 | The new record still has `price`, `paid` and `imeta`, unchanged.                         |
+| D   | Two records by one person for one place, a day apart; the older one has the bare address as `d` | One review: the newer.                                                                   |
+| E   | A real record, and one by the same person dated a year ahead                                    | The real one stands. The other is ignored.                                               |
+| F   | A kind 1111 comment on the place, by a third person                                             | Not a review. Counts stay as they were.                                                  |
+| G   | A record, then its removal (kind 5 with `e`, `a`, `k`)                                          | No review.                                                                               |
+| H   | `s` 4 with `rating` 0.800; `rating` 4 alone; `rating` 0.9 alone; `rating` 0; `rating` 7         | 4 stars; 4 stars; 4.5 stars; no stars; no stars.                                         |
+| I   | Three reviewers ranked 80, 30 and 4, giving 5, 3 and 1 stars                                    | The value is 4.5 ((0.8 × 5 + 0.3 × 3) / 1.1 = 4.45). The third is outside, not counted.  |
+| J   | A record, then a removal by its author that names it by `e` alone                               | No review.                                                                               |
+| K   | A removal through `a`, then a newer record at the same `d`                                      | The newer record stands.                                                                 |
+| L   | A record dated an hour ahead, then an edit made now                                             | The edit is dated a second after it, and replaces it.                                    |
+| M   | B, edited in an app that draws no photos                                                        | The new record's words still end with the photo's address, and its `imeta` is unchanged. |
+
+## 12. Not in this document
+
+- **Reviews of books.** Brainstorm's book view reviews with kind 1111 comments and a `rating` of `1` to `5`. If books
+  move to kind 34259 with `m book`, that wants a section of its own, and Regulars has no part in it.
+- **Following a reviewer** (section 7).
 
 ## Reference
 
@@ -221,6 +254,8 @@ Regulars' side, in [aburra16/regulars](https://github.com/aburra16/regulars):
 
 - `src/reviews/review.ts`: reading a review, `starsOf`, which reviews stand.
 - `src/reviews/write.ts`: the record a person signs, and its removal.
+- `src/reviews/removals.ts`: which removals count, and what they take down.
+- `tests/placeContract.test.ts`: checks A to M of section 11.
 - `src/score/score.ts` and `src/trust/houseWeights.ts`: the star value and the weights.
 - `src/config.ts`: the relays, the line (5) and the ordering prior (1.5 at 3.5).
 
@@ -231,3 +266,7 @@ Brainstorm's side: `client/src/lib/thing.ts` (`starsOf`, kind 34259), `client/sr
 ## Changes
 
 - 2026-10-14: first version.
+- 2026-10-14: after Brainstorm's side was built (#235): how a removal is read, an edit's date, the photos' addresses
+  kept in the words on an edit, section 9 and 10 as built, checks J to M, and books named outside this document.
+- 2026-10-14: after Regulars' side was built: `client` and `nonce` are not carried over on an edit, a removal dated
+  more than a day ahead is ignored, and section 9 and 10 as both apps now stand.
