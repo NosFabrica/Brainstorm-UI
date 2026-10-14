@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { ADDRESS_LINK_KINDS, READER_KINDS, eventPath, nprofileFor } from "./shareId";
+import { ADDRESS_LINK_KINDS, READER_KINDS, eventPath, nprofileFor, shareUrlFor } from "./shareId";
 
 const PK = "a".repeat(64);
 const ID = "e".repeat(64);
@@ -49,6 +49,31 @@ describe("eventPath", () => {
     );
     expect(eventPath({ id: ID, pubkey: PK, kind: 1, tags: [] }).startsWith("/e/nevent1")).toBe(true);
     expect(eventPath({ id: ID, pubkey: PK }).startsWith("/e/nevent1")).toBe(true);
+  });
+
+  // A list's curator signs every item again at each import, so ids change and the address does not
+  // (the Regulars contract: a link to a place is by its address).
+  describe("a list item", () => {
+    const place = { id: ID, pubkey: PK, kind: 39999, tags: [["d", "osm-node-2560046107"]] };
+
+    it("is shared by its address, however the page was reached", () => {
+      const here = "https://brainstorm.world/e/nevent1old";
+      const url = shareUrlFor(place, here, ["wss://dcosl.brainstorm.world"]);
+      expect(url.startsWith("https://brainstorm.world/e/naddr1")).toBe(true);
+      // Anything else is shared as it was reached.
+      expect(shareUrlFor({ id: ID, pubkey: PK, kind: 1, tags: [] }, here)).toBe(here);
+    });
+
+    it("is linked by its address, with the hub as the hint", () => {
+      const path = eventPath(place, ["wss://dcosl.brainstorm.world"]);
+      expect(path.startsWith("/e/naddr1")).toBe(true);
+      expect(nip19.decode(path.slice(3)).data).toMatchObject({
+        kind: 39999,
+        pubkey: PK,
+        identifier: "osm-node-2560046107",
+        relays: ["wss://dcosl.brainstorm.world"],
+      });
+    });
   });
 
   // A creator who republishes an addressable video gives it a new id. A link by address still

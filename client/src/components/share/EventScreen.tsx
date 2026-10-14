@@ -74,7 +74,7 @@ import { EntityMenu } from "@/components/share/EntityMenu";
 import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS, shareUrlFor } from "@/lib/shareId";
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -350,6 +350,9 @@ function EventView({
 
   // A kind whose content is no words (a voice message's file, a reaction's "+", a repost's JSON) is said in words.
   const snippet = note ? shareSnippet(note) : "";
+  // A list item is shared by its address: an id link someone arrived by goes stale at the next import.
+  const pageUrl = typeof window !== "undefined" ? window.location.href : "";
+  const shareUrl = note && pageUrl ? shareUrlFor(note, pageUrl, relayHints) : pageUrl;
   useShareMeta(
     note
       ? {
@@ -358,7 +361,7 @@ function EventView({
             ? (isReady(itemView) && itemView.shown.summary) || `Listed by ${authorName}.`
             : snippet || `A note by ${authorName}.`,
           image: (itemTitle && (isReady(itemView) ? itemView.shown.image : null)) || siteCard?.image || profile.picture,
-          url: typeof window !== "undefined" ? window.location.href : "",
+          url: shareUrl,
         }
       : null,
   );
@@ -452,10 +455,7 @@ function EventView({
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
-      <PublicPageHeader
-        maxWidthClass="max-w-2xl"
-        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={pageTitle} />}
-      />
+      <PublicPageHeader maxWidthClass="max-w-2xl" actions={<ShareButton url={shareUrl} title={pageTitle} />} />
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
         {!ptr ? (

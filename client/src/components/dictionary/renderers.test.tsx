@@ -111,10 +111,10 @@ describe("DListItemCard", () => {
     expect(screen.getByText("Avi Burra")).toBeInTheDocument();
   });
 
-  it("goes to the item's page with a relay hint", () => {
+  it("goes to the item's page by its address, which outlives the next import, with a relay hint", () => {
     renderWithProviders(<DListItemCard event={item} />);
     expect(screen.getByTestId(`dlist-item-card-${item.id}`).querySelector("a")?.getAttribute("href")).toMatch(
-      /^\/e\/nevent1/,
+      /^\/e\/naddr1/,
     );
   });
 
