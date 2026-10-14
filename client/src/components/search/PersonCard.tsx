@@ -46,6 +46,7 @@ export function PersonCard({
   onPrefetchLeave,
   showFollowedBy = false,
   tag,
+  pointedBy,
 }: {
   result: SearchResult;
   idx: number;
@@ -55,6 +56,12 @@ export function PersonCard({
   onPrefetchLeave?: (result: SearchResult) => void;
   /** The "Followed by …" line costs a server call — the top of the page earns it. */
   showFollowedBy?: boolean;
+  /**
+   * The names profiles used when they matched the words but use this
+   * account's handle — why this account is here when its own profile doesn't
+   * carry the words (hooks/useHandlePointers). Said as evidence, not as its name.
+   */
+  pointedBy?: string[];
   /** The tag the words matched, if this person carries it — the pill at the card's right edge. */
   tag?: TagChip;
 }) {
@@ -124,6 +131,15 @@ export function PersonCard({
             >
               {nip05Status === "verified" && <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />}
               {result.nip05.replace(/^_@/, "")}
+            </p>
+          )}
+          {pointedBy && pointedBy.length > 0 && (
+            <p
+              className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400"
+              data-testid="person-handle-pointers"
+              title="Profiles that matched your search use this account's handle, and the handle's server says it belongs to this account"
+            >
+              Profiles named {pointedBy.map((n) => `“${n}”`).join(", ")} use this account's handle
             </p>
           )}
           {/* A copy that kept someone else's handle: said, with a link to whose it is. */}
