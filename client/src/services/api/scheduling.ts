@@ -6,6 +6,19 @@
 import type { AdminUserDetail } from "./admin";
 import { adminJson, jsonBody } from "./core";
 
+/** What the TA relay holds vs. what we recorded as published, for one observer. */
+export interface RelayAudit {
+  observer: string;
+  signer: string;
+  published: number;
+  on_relay: number;
+  /** Published observees with no TA on the relay. */
+  missing: number;
+  /** TAs on the relay for observees we don't record as published. */
+  orphans: number;
+  needs_resync: boolean;
+}
+
 export interface SchedulingItem {
   id: number;
   name: string;
@@ -77,6 +90,11 @@ export const schedulingApi = {
 
   async deleteSchedulingPolicy(id: number): Promise<void> {
     await adminJson(`/admin/scheduling/${id}`, "Failed to delete scheduling policy", { method: "DELETE" });
+  },
+
+  /** Exact, a few seconds per observer; the 15s default timeout is too tight for big ones. */
+  async relayAudit(pubkey: string): Promise<RelayAudit> {
+    return adminJson(`/admin/users/${pubkey}/relay-audit`, "Failed to audit the relay", {}, 150_000);
   },
 
   async resyncObserver(pubkey: string, target: string) {

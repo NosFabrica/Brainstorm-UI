@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Eye, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw } from "lucide-react";
+import { BookOpen, Eye, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, SearchCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RelayAuditControl } from "./RelayAuditControl";
 import { ResyncControl } from "./ResyncControl";
 import { DictionaryConceptsDialog } from "./dictionary/DictionaryConceptsDialog";
 import { useUserDictionary } from "./dictionary/useUserDictionary";
@@ -48,6 +49,7 @@ export function UserActionsMenu({
   testIdSuffix: string | number;
 }) {
   const [resyncOpen, setResyncOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const held = useUserDictionary(pubkey, dictionary?.taPubkey ?? null, !!dictionary && menuOpen);
@@ -101,12 +103,16 @@ export function UserActionsMenu({
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setAuditOpen(true)} data-testid="user-action-relay-audit">
+            <SearchCheck className="mr-2 h-3.5 w-3.5" /> Relay audit…
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setResyncOpen(true)} data-testid="user-action-resync">
             <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync published state…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <RelayAuditControl pubkey={pubkey} open={auditOpen} onOpenChange={setAuditOpen} />
       <ResyncControl pubkey={pubkey} showTrigger={false} open={resyncOpen} onOpenChange={setResyncOpen} />
       {dictionary && (
         <DictionaryConceptsDialog

@@ -45,3 +45,22 @@ describe("apiClient.resyncObserver", () => {
     await expect(apiClient.resyncObserver(PK, "nope")).rejects.toThrow(/invalid resync target/i);
   });
 });
+
+describe("apiClient.relayAudit", () => {
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("GETs the observer's relay audit and unwraps it", async () => {
+    const data = { observer: PK, published: 3, on_relay: 2, missing: 1, orphans: 0, needs_resync: true };
+    const fetchMock = mockFetchOnce({ code: 200, data });
+
+    const result = await apiClient.relayAudit(PK);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`http://test.invalid/admin/users/${PK}/relay-audit`);
+    expect(result).toEqual(data);
+  });
+});
