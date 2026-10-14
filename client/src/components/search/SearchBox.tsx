@@ -35,7 +35,7 @@ import { CATEGORY_ICON } from "@/lib/dlists";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { Nip05Handle } from "@/components/Nip05Check";
+import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import {
   getRecentItems,
   removeRecentItem,
@@ -884,6 +884,7 @@ export function SearchBox({
                           iconClassName="h-2.5 w-2.5 shrink-0 text-brand-primary"
                           testId={`home-suggestion-nip05-${i}`}
                         />
+                        <HandleOwnerWarning nip05={s.nip05} pubkey={s.pubkey} compact linked={false} />
                       </div>
                       {/* What they publish, one tap to it. Desktop reveals on
                           hover or the arrowed row; a phone row stays a name. */}

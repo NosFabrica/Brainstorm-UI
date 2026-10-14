@@ -4,6 +4,7 @@
  * follower pill, npub copy), extracted from landing.tsx so every vertical
  * shares it.
  */
+import { HandleOwnerWarning } from "@/components/Nip05Check";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { PersonTagChips } from "@/components/search/PersonTagChips";
 import type { TagChip } from "@/lib/tagCarrierPeople";
@@ -125,6 +126,8 @@ export function PersonCard({
               {result.nip05.replace(/^_@/, "")}
             </p>
           )}
+          {/* A copy that kept someone else's handle: said, with a link to whose it is. */}
+          <HandleOwnerWarning nip05={result.nip05} pubkey={result.pubkey} compact className="mt-0.5" />
           {result.lud16 && (
             <p
               className="mt-0.5 flex items-center gap-0.5 truncate text-xs text-slate-500 dark:text-slate-400"

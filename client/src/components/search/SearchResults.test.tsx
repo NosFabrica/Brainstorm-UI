@@ -233,6 +233,7 @@ vi.mock("@/lib/nip05", async (orig) => ({
   ...(await orig<typeof import("@/lib/nip05")>()),
   verifyNip05: async () => "unknown",
   resolveNip05: async () => null,
+  handleOwner: async () => null,
 }));
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {

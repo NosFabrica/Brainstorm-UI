@@ -101,6 +101,7 @@ vi.mock("@/lib/nip05", async (orig) => ({
   ...(await orig<typeof import("@/lib/nip05")>()),
   verifyNip05: async () => "unknown",
   resolveNip05: async () => null,
+  handleOwner: async () => null,
 }));
 
 function noteHit(id: string, pubkey: string, name: string, created_at: number, tags: string[][] = []) {

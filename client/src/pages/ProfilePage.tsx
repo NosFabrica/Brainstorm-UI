@@ -109,7 +109,7 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useTierRing } from "@/components/score/VerificationCoin";
-import { Nip05Handle } from "@/components/Nip05Check";
+import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -2839,6 +2839,8 @@ export default function ProfilePage() {
                             </Badge>
                           )}
                         </div>
+                        {/* Someone else's handle on this profile: often a copy of theirs. */}
+                        <HandleOwnerWarning nip05={displayNostrProfile?.nip05} pubkey={hexPubkey} className="mt-1.5" />
                         <div className="mt-1.5 flex items-center gap-1.5">
                           <code
                             className="max-w-[120px] truncate font-mono text-xs text-slate-400 dark:text-slate-500 sm:max-w-[300px]"
