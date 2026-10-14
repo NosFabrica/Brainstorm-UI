@@ -138,6 +138,9 @@ To ask a relay for a place's reviews:
   - **Every tag the app does not itself set is carried over,** unchanged and in its order: the other app's `price`,
     `paid` and `imeta`, and tags from apps neither knows. Only what the person changed here changes. A record that two
     apps may replace loses whatever one of them does not copy.
+  - **Except `client` and `nonce`,** which belong to one signing, not to the review: the app that signed that version
+    (NIP-89) and its proof of work (NIP-13). Carried over, they would credit the new version to the other app, and a
+    signer that adds its own would sign two.
   - **The photos' addresses stay in the words.** An app that does not draw photos still writes, after the person's
     words, each address that a carried-over `imeta` names, on a line of its own, as the version it replaces had them.
     Other clients read photos from the content.
@@ -147,7 +150,9 @@ To ask a relay for a place's reviews:
 - **Reading a removal.** A removal counts only when its author is the review's author. It takes down the review whose
   id an `e` names, even with no `a` beside it (removals written that way exist). Through an `a`, it takes down only
   the versions dated no later than the removal: a review written after it stands. Both apps MUST stop showing a review
-  once a removal that takes it down is seen.
+  once a removal that takes it down is seen. A removal dated more than a day ahead of the reader's clock is ignored, as
+  a review is (section 4): through an `a` it would otherwise take down every review the person writes there until that
+  date.
 
 ## 7. What is not a review
 
@@ -186,16 +191,20 @@ set, dates an edit after the version it replaces, honours removals as section 6 
 section 8, and links a place by its address. Checks A to I pass in `client/src/lib/placeReviews.test.ts`. The kind 1111
 reviews written on staging before it are comments now.
 
+Two small points this version adds, for Brainstorm to take up:
+
+1. **A removal dated more than a day ahead** is ignored (section 6). `standingReviews` honours every removal it is given.
+2. **`nonce` is not carried over** on an edit (section 6). `placeReviewTemplate` carries it; `client` is already
+   replaced by `signAs`.
+
 ### Regulars
 
-1. **An edit drops every tag Regulars does not set** (`src/reviews/write.ts` builds the record from nothing): a price, a
-   payment or a photo given on Brainstorm is lost, and the photos' addresses leave the words. It is dated plainly now.
-2. **The words show the photos' addresses,** as Regulars does not take out what an `imeta` names, and it draws no
-   price, payment or photo.
-3. **It reads no removals from relays.** It relies on relays dropping what was removed, and on what its own tab
-   removed.
-4. **It does not read the hub,** where Brainstorm also publishes. It reads the index and its two public relays.
-5. **The words have no limit of length.**
+Done, in [aburra16/regulars@a221e48](https://github.com/aburra16/regulars/commit/a221e48): an edit is
+built on the person's review and carries over every tag Regulars does not set but `client` and `nonce`, with the
+photos' addresses after the words, at the review's own `d`; the words are shown without the photos' addresses; removals
+are read where reviews are and honoured as section 6 reads them; reviews are read from the hub too; the words stop at
+1,200 characters. It already dated an edit after the version it replaces. Checks A to M are in
+`tests/placeContract.test.ts`. It still draws no price, payment or photo, which section 1 leaves to each app.
 
 ## 10. For the team to confirm
 
@@ -205,10 +214,10 @@ Each as both apps now build it, or will:
 2. **The optional tags** are `price` (`1` to `4`), `paid` and `imeta`, as section 3 names them. Built in Brainstorm.
 3. **Stars are required** in both apps' composers. A review without stars from elsewhere is listed, and enters no star
    value.
-4. **The words stop at 1,200 characters,** in both apps (Regulars to adopt it).
+4. **The words stop at 1,200 characters,** in both apps.
 5. **The relays.** Brainstorm publishes to the reviewer's write relays, the hub and the index, and reads the index, the
    hub, `wss://nos.lol` and `wss://relay.primal.net`. Regulars publishes to the reviewer's write relays, the index,
-   `wss://nos.lol` and `wss://relay.primal.net`, and reads the same three (the hub to be added).
+   `wss://nos.lol` and `wss://relay.primal.net`, and reads those three and the hub.
 6. **The star value.** Brainstorm shows the reader's own lens when someone they trust gave stars, else the curator's,
    and says which ("From 1 person trusted by Mise En Place"). Regulars shows the lens the person picks: House picks or
    My circle.
@@ -245,6 +254,8 @@ Regulars' side, in [aburra16/regulars](https://github.com/aburra16/regulars):
 
 - `src/reviews/review.ts`: reading a review, `starsOf`, which reviews stand.
 - `src/reviews/write.ts`: the record a person signs, and its removal.
+- `src/reviews/removals.ts`: which removals count, and what they take down.
+- `tests/placeContract.test.ts`: checks A to M of section 11.
 - `src/score/score.ts` and `src/trust/houseWeights.ts`: the star value and the weights.
 - `src/config.ts`: the relays, the line (5) and the ordering prior (1.5 at 3.5).
 
@@ -257,3 +268,5 @@ Brainstorm's side: `client/src/lib/thing.ts` (`starsOf`, kind 34259), `client/sr
 - 2026-10-14: first version.
 - 2026-10-14: after Brainstorm's side was built (#235): how a removal is read, an edit's date, the photos' addresses
   kept in the words on an edit, section 9 and 10 as built, checks J to M, and books named outside this document.
+- 2026-10-14: after Regulars' side was built: `client` and `nonce` are not carried over on an edit, a removal dated
+  more than a day ahead is ignored, and section 9 and 10 as both apps now stand.
