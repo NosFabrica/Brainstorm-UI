@@ -66,6 +66,7 @@ import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { clearRecentSearches, pushRecentProfile, pushRecentQuery } from "@/lib/recentSearches";
+import { __resetNip05Cache } from "@/lib/nip05";
 
 const input = () => screen.getByTestId("input-home-search") as HTMLElement & { value: string };
 const signalOf = (call: number) => (suggestMock.mock.calls[call][2] as { signal?: AbortSignal } | undefined)?.signal;
@@ -559,5 +560,72 @@ describe("a query that matches a tag", () => {
     await open("verified human");
     fireEvent.click(screen.getByTestId("home-tag-suggestion"));
     expect(window.location.pathname).toBe(`/tags/${nip19.npubEncode(TAG_AUTHOR)}/verified-human`);
+  });
+});
+
+// A kind-0 `nip05` is a claim anyone can copy: copycats of one person all paste the same
+// handle. The dropdown draws the check only for the key the handle's domain names.
+describe("a suggested person's handle", () => {
+  const REAL = "f".repeat(64);
+  const COPYCAT = "c".repeat(64);
+  const claim = (pubkey: string) => ({
+    pubkey,
+    npub: nip19.npubEncode(pubkey),
+    name: "Sam Means",
+    nip05: "means@wavlake.com",
+  });
+  const settle = async () => {
+    for (let i = 0; i < 5; i++) await act(async () => {});
+  };
+
+  // The domain answers when the test lets it.
+  let answer: () => void;
+  beforeEach(() => {
+    __resetNip05Cache();
+    const answered = new Promise<void>((go) => (answer = go));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        await answered;
+        return new Response(JSON.stringify({ names: { means: REAL } }), { status: 200 });
+      }),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is checked for the owner and dropped for a copycat, never checked on the claim alone", async () => {
+    suggestMock.mockResolvedValue([claim(COPYCAT), claim(REAL)]);
+    render(<HeaderSearchBox />);
+    type("sam means");
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {});
+    // Before the domain answers: the handle is shown, unchecked.
+    expect(screen.getByTestId("home-suggestion-nip05-0").querySelector("svg")).toBeNull();
+    expect(screen.getByTestId("home-suggestion-nip05-1").querySelector("svg")).toBeNull();
+    answer();
+    await settle();
+    expect(screen.queryByTestId("home-suggestion-nip05-0")).toBeNull();
+    expect(screen.getByTestId("home-suggestion-nip05-1")).toHaveAttribute("data-nip05-status", "verified");
+    expect(screen.getByTestId("home-suggestion-nip05-1").querySelector("svg")).not.toBeNull();
+  });
+
+  it("is checked the same way on a recent person", async () => {
+    pushRecentProfile({
+      pubkey: COPYCAT,
+      npub: nip19.npubEncode(COPYCAT),
+      label: "Sam Means",
+      nip05: "means@wavlake.com",
+    });
+    pushRecentProfile({ pubkey: REAL, npub: nip19.npubEncode(REAL), label: "Sam Means", nip05: "means@wavlake.com" });
+    render(<HeaderSearchBox />);
+    fireEvent.pointerDown(input());
+    fireEvent.focus(input());
+    answer();
+    await settle();
+    // Newest first: the owner, then the copycat.
+    expect(screen.getByTestId("home-recent-nip05-0")).toHaveAttribute("data-nip05-status", "verified");
+    expect(screen.queryByTestId("home-recent-nip05-1")).toBeNull();
   });
 });
