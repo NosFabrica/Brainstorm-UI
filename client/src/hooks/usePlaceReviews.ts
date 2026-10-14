@@ -33,7 +33,10 @@ export function usePostPlaceReview(item: Item, name: string) {
   const { toast } = useToast();
   return useMutation({
     mutationFn: ({ draft, previous }: { draft: ReviewDraft; previous?: PlaceReview }) =>
-      publishPlaceReview(item, draft, { name, previous: previous?.tags ? { tags: previous.tags } : undefined }),
+      publishPlaceReview(item, draft, {
+        name,
+        previous: previous?.tags ? { tags: previous.tags, created_at: previous.at } : undefined,
+      }),
     onSuccess: (mine) => {
       if (!mine) return;
       qc.setQueryData<PlaceReview[]>(keyOf(item), (prev) => [

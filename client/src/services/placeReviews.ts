@@ -4,7 +4,9 @@
  *
  * Read where list events are read — our index under its `include:spam` lens
  * and the hub, at once (services/listReads) — by the place's address either
- * way a record names it, then the removals of what came back. Published,
+ * way a record names it, then the removals of what came back — and from
+ * the relays Regulars publishes reviews to as well, since the index can lag
+ * (the contract's section 5). Published,
  * and removed, as every user event is (publishTagEvent: the reviewer's
  * write relays and the hub) and to the index as well, where Regulars reads.
  *
@@ -13,6 +15,7 @@
  * kind 30382 ranks of the reviewers, from its own relay.
  */
 import { requireActiveAccount, signAs } from "@/accounts/signing";
+import { dictionaryRelays } from "@/config/dictionary";
 import { coordinateOf } from "@/lib/dlistFields";
 import { SEARCH_RELAY } from "@/lib/relays";
 import {
@@ -31,6 +34,9 @@ import { publishTagEvent } from "@/services/tags";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 const TIMEOUT_MS = 6000;
+/** Where Regulars publishes reviews beside the index (its src/config.ts). */
+const REGULARS_RELAYS = ["wss://nos.lol", "wss://relay.primal.net"];
+const readRelays = () => [...new Set([...dictionaryRelays(), ...REGULARS_RELAYS])];
 const nowS = () => Math.floor(Date.now() / 1000);
 
 export async function fetchPlaceReviews(item: Item): Promise<PlaceReview[]> {
@@ -42,6 +48,7 @@ export async function fetchPlaceReviews(item: Item): Promise<PlaceReview[]> {
       { kinds: [PLACE_REVIEW_KIND], "#d": [address, `place:${address}`], limit: 500 },
     ],
     TIMEOUT_MS,
+    readRelays(),
   );
   if (records.length === 0) return [];
   const ids = [...new Set(records.map((e) => e.id))];
@@ -54,6 +61,7 @@ export async function fetchPlaceReviews(item: Item): Promise<PlaceReview[]> {
       { kinds: [5], "#a": addresses },
     ],
     TIMEOUT_MS,
+    readRelays(),
   );
   return standingReviews([...records, ...removals], address, nowS());
 }
@@ -66,7 +74,7 @@ export async function fetchPlaceReviews(item: Item): Promise<PlaceReview[]> {
 export async function publishPlaceReview(
   item: Item,
   draft: ReviewDraft,
-  { name, previous }: { name: string; previous?: { tags: string[][] } },
+  { name, previous }: { name: string; previous?: { tags: string[][]; created_at?: number } },
 ): Promise<PlaceReview> {
   const address = coordinateOf(item) ?? "";
   const signed = await signAs(requireActiveAccount(), placeReviewTemplate({ address, name }, draft, previous));

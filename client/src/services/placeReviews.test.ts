@@ -20,6 +20,7 @@ vi.mock("@/services/listReads", () => ({ readListEvents: io.readListEvents }));
 vi.mock("@/accounts/signing", () => ({ requireActiveAccount: () => ({ pubkey: "f".repeat(64) }), signAs: io.signAs }));
 vi.mock("@/services/tags", () => ({ publishTagEvent: io.publishTagEvent }));
 vi.mock("@/lib/relays", () => ({ SEARCH_RELAY: "wss://search.brainstorm.world/" }));
+vi.mock("@/config/dictionary", () => ({ dictionaryRelays: () => ["wss://dcosl.brainstorm.world"] }));
 
 import { fetchLensRanks, fetchPlaceReviews, publishPlaceReview, removePlaceReview } from "./placeReviews";
 
@@ -72,6 +73,8 @@ describe("fetchPlaceReviews", () => {
         { kinds: [34259], "#d": [PLACE, `place:${PLACE}`], limit: 500 },
       ],
       expect.any(Number),
+      // Beside the index: the hub, and the relays Regulars publishes reviews to as well.
+      ["wss://dcosl.brainstorm.world", "wss://nos.lol", "wss://relay.primal.net"],
     );
     expect(io.readListEvents).toHaveBeenNthCalledWith(
       2,
@@ -80,6 +83,7 @@ describe("fetchPlaceReviews", () => {
         { kinds: [5], "#a": [`34259:${A}:place:${PLACE}`, `34259:${ME}:place:${PLACE}`] },
       ],
       expect.any(Number),
+      ["wss://dcosl.brainstorm.world", "wss://nos.lol", "wss://relay.primal.net"],
     );
   });
 

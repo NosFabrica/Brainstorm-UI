@@ -193,6 +193,14 @@ describe("the record a reader signs (section 3)", () => {
     expect(out.tags).toContainEqual(["price", "1"]);
   });
 
+  it("dates an edit later than the version it replaces, though that one's clock ran ahead", () => {
+    const before = regulars({ created_at: NOW + 600 });
+    const [mine] = standingReviews([before], PLACE, NOW);
+    expect(placeReviewTemplate(place, draftOf(mine), before, NOW).created_at).toBe(NOW + 601);
+    const older = regulars({ created_at: NOW - 600 });
+    expect(placeReviewTemplate(place, draftOf(mine), older, NOW).created_at).toBe(NOW);
+  });
+
   it("writes the edit at the same d it replaces, though that d is the bare address", () => {
     const before = ev({
       content: "Old.",

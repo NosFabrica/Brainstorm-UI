@@ -179,12 +179,15 @@ export function draftOf(review: PlaceReview): Required<ReviewDraft> {
  * the change is written at, whose `imeta` for a photo still shown is kept
  * as it was, and whose tags this page doesn't set are carried over,
  * unchanged and in their order — so neither app strips the other's fields.
+ * A change is dated `now` (unix seconds), or a second after `previous` when
+ * that one's clock ran ahead: it must be the newer to replace it.
  */
 export function placeReviewTemplate(
   place: { address: string; name: string },
   draft: ReviewDraft,
-  previous?: { tags: string[][] },
-): { kind: typeof PLACE_REVIEW_KIND; content: string; tags: string[][] } {
+  previous?: { tags: string[][]; created_at?: number },
+  now = Math.floor(Date.now() / 1000),
+): { kind: typeof PLACE_REVIEW_KIND; content: string; tags: string[][]; created_at?: number } {
   const d = (previous && tagOf(previous.tags, "d")) || `place:${place.address}`;
   const stars = draft.rating ?? null;
   const name = place.name.trim() || "a place";
@@ -202,7 +205,8 @@ export function placeReviewTemplate(
   for (const url of draft.photos) tags.push(imetaOf(url) ?? ["imeta", `url ${url}`]);
   for (const t of previous?.tags ?? []) if (!OWN_TAGS.has(t[0])) tags.push(t);
   const content = [draft.text.trim(), ...draft.photos].filter(Boolean).join("\n");
-  return { kind: PLACE_REVIEW_KIND, content, tags };
+  if (!previous) return { kind: PLACE_REVIEW_KIND, content, tags };
+  return { kind: PLACE_REVIEW_KIND, content, tags, created_at: Math.max(now, (previous.created_at ?? 0) + 1) };
 }
 
 /** The removal (NIP-09) a reviewer signs for their review: by id and by address, with the kind. */
