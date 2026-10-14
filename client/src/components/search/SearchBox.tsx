@@ -71,6 +71,7 @@ import { usePersonContent } from "@/hooks/usePersonContent";
 import { useSearchTags } from "@/hooks/useSearchTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
+import { peopleAboveLine } from "@/lib/clientFilters";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { SearchField } from "@/components/search/SearchField";
 import { ShopSuggestionRow } from "@/components/search/ShopSuggestionRow";
@@ -277,8 +278,10 @@ export function SearchBox({
   // The rows are the people whose name or handle matched, in the relay's
   // order. A tag the words match is its own row above them, and the way in to
   // everyone who carries it — the box offers each reading of the words once
-  // and does not guess which was meant (the team, 2026-10-01).
-  const rows = suggestions;
+  // and does not guess which was meant (the team, 2026-10-01). Under the house
+  // lens the box keeps the results page's floor (lib/clientFilters): a person
+  // below the verified line isn't offered here only to vanish there.
+  const rows = effectivePov === "mywot" ? suggestions : peopleAboveLine(suggestions, suggestScoreOf);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<SearchFieldHandle | null>(null);
