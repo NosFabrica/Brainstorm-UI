@@ -45,7 +45,7 @@ Brainstorm already reads (`client/src/lib/thing.ts`), with the mark `place`.
 | Tag      | Value                                               | Rule                                                                        |
 | -------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
 | `d`      | `place:` followed by the place's address            | MUST. One `d` per place, so the person's next review replaces this one.     |
-| `a`      | the place's address                                 | MUST.                                                                       |
+| `a`      | the place's address, then the hub as a relay hint   | MUST. The hint, `wss://dcosl.brainstorm.world`, SHOULD be there (below).    |
 | `m`      | `place`                                             | MUST. Says what sort of thing is rated.                                     |
 | `rating` | the stars out of 5 as a fraction, to three decimals | MUST when stars are given. Two elements only: a third names an aspect.      |
 | `s`      | the whole stars, `1` to `5`                         | MUST when stars are given. Readers read it first.                           |
@@ -56,6 +56,10 @@ Brainstorm already reads (`client/src/lib/thing.ts`), with the mark `place`.
 
 `content` is the person's words, which may be empty, then each photo's address on a line of its own.
 
+The relay hint on `a` is where the place is found, as NIP-01 lets an `a` say. A client that does not know the list,
+and looks for the place by its author's relay list (Amethyst, for one), can then fetch it. Readers read only the
+address: a record without the hint is read the same.
+
 Stars are whole, from 1 to 5. A review MAY give none (words, a price or photos alone): it is listed, and enters no
 rating.
 
@@ -65,7 +69,11 @@ rating.
   "content": "Get the bolo de caco with garlic butter.\nhttps://blossom.example/abc.jpg",
   "tags": [
     ["d", "place:39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11330857543"],
-    ["a", "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11330857543"],
+    [
+      "a",
+      "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11330857543",
+      "wss://dcosl.brainstorm.world"
+    ],
     ["m", "place"],
     ["rating", "0.800"],
     ["s", "4"],
@@ -191,11 +199,12 @@ set, dates an edit after the version it replaces, honours removals as section 6 
 section 8, and links a place by its address. Checks A to I pass in `client/src/lib/placeReviews.test.ts`. The kind 1111
 reviews written on staging before it are comments now.
 
-Two small points this version adds, for Brainstorm to take up:
+Small points added since, for Brainstorm to take up:
 
 1. **A removal dated more than a day ahead** is ignored (section 6). `standingReviews` honours every removal it is given.
 2. **`nonce` is not carried over** on an edit (section 6). `placeReviewTemplate` carries it; `client` is already
    replaced by `signAs`.
+3. **The hub as the hint on `a`** (section 3). `placeReviewTemplate` writes the address alone.
 
 ### Regulars
 
@@ -270,3 +279,5 @@ Brainstorm's side: `client/src/lib/thing.ts` (`starsOf`, kind 34259), `client/sr
   kept in the words on an edit, section 9 and 10 as built, checks J to M, and books named outside this document.
 - 2026-10-14: after Regulars' side was built: `client` and `nonce` are not carried over on an edit, a removal dated
   more than a day ahead is ignored, and section 9 and 10 as both apps now stand.
+- 2026-10-15: the hub as a relay hint on a review's `a`, so a client that looks for a place by its author's relay
+  list can find it. Regulars writes it.
