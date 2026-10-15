@@ -129,7 +129,9 @@ To ask a relay for a place's reviews:
 ## 5. Where a review goes, and where it is read
 
 - **Published to:** the reviewer's own write relays (NIP-65), and the index, `wss://search.brainstorm.world`. Both
-  MUST. An app MAY add more: Regulars adds `wss://nos.lol` and `wss://relay.primal.net`; Brainstorm adds the list hub.
+  MUST. An app MAY add more: Regulars adds `wss://nos.lol` and `wss://relay.primal.net`. Not the list hub,
+  `wss://dcosl.brainstorm.world`: it stores only the list kinds (9998, 9999, 39998, 39999) and reactions (kind 7), and
+  refuses a review.
 - **Read from:** the index, MUST, under the lens that keeps what it takes for spam (`search: "include:spam"`), as each
   app draws its own line over who counts. An app SHOULD also read the other relays reviews are published to, since
   the index can lag or be out.
@@ -205,13 +207,15 @@ Small points added since, for Brainstorm to take up:
 2. **`nonce` is not carried over** on an edit (section 6). `placeReviewTemplate` carries it; `client` is already
    replaced by `signAs`.
 3. **The hub as the hint on `a`** (section 3). `placeReviewTemplate` writes the address alone.
+4. **No reviews to or from the hub** (section 5). It refuses them, so a review sent there is not kept, and a read there
+   finds none.
 
 ### Regulars
 
 Done, in [aburra16/regulars@a221e48](https://github.com/aburra16/regulars/commit/a221e48): an edit is
 built on the person's review and carries over every tag Regulars does not set but `client` and `nonce`, with the
 photos' addresses after the words, at the review's own `d`; the words are shown without the photos' addresses; removals
-are read where reviews are and honoured as section 6 reads them; reviews are read from the hub too; the words stop at
+are read where reviews are and honoured as section 6 reads them; the words stop at
 1,200 characters. It already dated an edit after the version it replaces. Checks A to M are in
 `tests/placeContract.test.ts`. It still draws no price, payment or photo, which section 1 leaves to each app.
 
@@ -224,9 +228,9 @@ Each as both apps now build it, or will:
 3. **Stars are required** in both apps' composers. A review without stars from elsewhere is listed, and enters no star
    value.
 4. **The words stop at 1,200 characters,** in both apps.
-5. **The relays.** Brainstorm publishes to the reviewer's write relays, the hub and the index, and reads the index, the
-   hub, `wss://nos.lol` and `wss://relay.primal.net`. Regulars publishes to the reviewer's write relays, the index,
-   `wss://nos.lol` and `wss://relay.primal.net`, and reads those three and the hub.
+5. **The relays.** Brainstorm publishes to the reviewer's write relays and the index, and reads the index,
+   `wss://nos.lol` and `wss://relay.primal.net` (it also names the hub for both today: section 9). Regulars publishes to
+   the reviewer's write relays, the index, `wss://nos.lol` and `wss://relay.primal.net`, and reads those three.
 6. **The star value.** Brainstorm shows the reader's own lens when someone they trust gave stars, else the curator's,
    and says which ("From 1 person trusted by Mise En Place"). Regulars shows the lens the person picks: House picks or
    My circle.
@@ -281,3 +285,4 @@ Brainstorm's side: `client/src/lib/thing.ts` (`starsOf`, kind 34259), `client/sr
   more than a day ahead is ignored, and section 9 and 10 as both apps now stand.
 - 2026-10-15: the hub as a relay hint on a review's `a`, so a client that looks for a place by its author's relay
   list can find it. Regulars writes it.
+- 2026-10-15: the hub takes no reviews, so neither app sends or reads them there. Regulars has stopped reading it.
