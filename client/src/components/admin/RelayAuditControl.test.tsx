@@ -10,10 +10,13 @@ function audit(overrides: Partial<RelayAudit> = {}): RelayAudit {
   return {
     observer: PK,
     signer: "b".repeat(64),
+    expected: 152663,
     published: 152663,
+    baseline_drift: 0,
     on_relay: 152766,
     missing: 1496,
     orphans: 1599,
+    exact: true,
     needs_resync: true,
     ...overrides,
   };
@@ -50,8 +53,34 @@ describe("RelayAuditControl", () => {
 
     renderWithProviders(<RelayAuditControl pubkey={PK} open onOpenChange={() => {}} />);
 
-    expect(await screen.findByText(/everything we published is on the relay/i)).toBeInTheDocument();
+    expect(await screen.findByText(/every expected ta is on the relay/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /resync relay/i })).not.toBeInTheDocument();
+  });
+
+  it("marks sampled results as estimates", async () => {
+    vi.spyOn(apiClient, "relayAudit").mockResolvedValue(audit({ exact: false }));
+
+    renderWithProviders(<RelayAuditControl pubkey={PK} open onOpenChange={() => {}} />);
+
+    expect(await screen.findByTestId("relay-audit-result")).toHaveTextContent(`≈ ${(1496).toLocaleString()}`);
+    expect(screen.getByTestId("relay-audit-estimate")).toBeInTheDocument();
+  });
+
+  it("shows exact results without the estimate note", async () => {
+    vi.spyOn(apiClient, "relayAudit").mockResolvedValue(audit());
+
+    renderWithProviders(<RelayAuditControl pubkey={PK} open onOpenChange={() => {}} />);
+
+    expect(await screen.findByTestId("relay-audit-result")).not.toHaveTextContent("≈");
+    expect(screen.queryByTestId("relay-audit-estimate")).not.toBeInTheDocument();
+  });
+
+  it("flags last_published drifting from Neo4j", async () => {
+    vi.spyOn(apiClient, "relayAudit").mockResolvedValue(audit({ baseline_drift: 42 }));
+
+    renderWithProviders(<RelayAuditControl pubkey={PK} open onOpenChange={() => {}} />);
+
+    expect(await screen.findByTestId("relay-audit-drift")).toHaveTextContent("42 differ");
   });
 
   it("shows the backend reason when the audit fails", async () => {
