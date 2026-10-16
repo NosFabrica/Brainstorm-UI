@@ -77,3 +77,33 @@ jobs:
           path: build/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: Update staging APK release
+    needs: [apk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Serialised across PRs: the last build to finish is the one on the release.
+    concurrency:
+      group: android-staging-release
+      cancel-in-progress: false
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: brainstorm-staging-apk-${{ github.event.pull_request.number || github.run_number }}
+
+      - name: Update android-staging-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE: ${{ github.event.pull_request.html_url || github.ref_name }}
+        run: |
+          gh release delete android-staging-latest --yes --cleanup-tag || true
+          gh release create android-staging-latest brainstorm-staging.apk \
+            --target "$SHA" \
+            --title "Android staging (latest test build)" \
+            --notes "Test APK against staging, from $SOURCE. Signed with the test key; installs beside the prod app." \
+            --prerelease

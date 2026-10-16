@@ -125,7 +125,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     concurrency:
       group: android
       cancel-in-progress: false
@@ -171,6 +171,19 @@ jobs:
         env:
           PAKSTR_NSEC: ${{ secrets.PAKSTR_NSEC }}
         run: npx --yes pakstr@0.27.0 run
+
+      # Always the newest published APK, at a fixed download URL.
+      - name: Update android-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(sed -nE 's/^  versionName: "([^"]*)".*/\1/p' pakstr.yaml)"
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest build/brainstorm.apk \
+            --target "$GITHUB_SHA" \
+            --title "Android $version" \
+            --notes "Latest prod APK, $version. Also on Zapstore." \
+            --latest
 
       - name: Upload APK
         if: always()
