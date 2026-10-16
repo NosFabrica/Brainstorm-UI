@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - "**"
+    tags:
+      - "v*"
 
 concurrency:
   group: build-${{ github.ref }}
@@ -85,6 +87,9 @@ jobs:
             ${{ steps.img.outputs.name }}
           tags: |
             type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short,prefix=sha-
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
