@@ -1,0 +1,79 @@
+name: Android preview
+
+# A staging APK per PR, for installing and testing. Signed with a test key and
+# only uploaded here; publishing is build.yml on main.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Build staging APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Keep in step with brainstorm-k8s staging-values.yaml.
+      - name: Build web app for staging
+        env:
+          VITE_API_URL: https://brainstormserver-staging.nosfabrica.com
+          VITE_NIP85_RELAY_URL: wss://nip85-staging.nosfabrica.com
+          VITE_SEARCH_RELAY_URL: wss://search.brainstorm.world/
+          VITE_PUBLIC_ORIGIN: https://brainstorm-staging.nosfabrica.com
+          VITE_IMG_PROXY: https://brainstorm-staging.nosfabrica.com/img
+          BUILD_ID: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: npm run build
+
+      - name: Set APK version
+        run: |
+          count="$(git rev-list --count HEAD)"
+          sha="$(git rev-parse --short=7 HEAD)"
+          sed -i -E \
+            -e "s/^(  versionName: ).*/\1\"${count}-${sha}\"/" \
+            -e "s/^(  versionCode: ).*/\1${count}/" \
+            pakstr.staging.yaml
+          grep -E '^  version(Name|Code):' pakstr.staging.yaml
+
+      - name: Check test signing key
+        env:
+          PAKSTR_TEST_NSEC: ${{ secrets.PAKSTR_TEST_NSEC }}
+        run: |
+          if [ -z "$PAKSTR_TEST_NSEC" ]; then
+            echo "::error::PAKSTR_TEST_NSEC secret is not set."
+            exit 1
+          fi
+
+      - name: Build and sign APK
+        env:
+          PAKSTR_NSEC: ${{ secrets.PAKSTR_TEST_NSEC }}
+        run: |
+          npx --yes pakstr@0.27.0 build --config ./pakstr.staging.yaml
+          npx --yes pakstr@0.27.0 sign --config ./pakstr.staging.yaml
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: brainstorm-staging-apk-${{ github.event.pull_request.number || github.run_number }}
+          path: build/*.apk
+          if-no-files-found: error
+          retention-days: 14

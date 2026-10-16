@@ -1,0 +1,15 @@
+# Zap Store publisher whitelist: the relay reads this from the repo to check that
+# the key publishing the APK may publish for it. Write access here is publish authority.
+repository: https://github.com/NosFabrica/Brainstorm-UI
+# TODO: npub of the team's PAKSTR_NSEC.
+pubkey: npub1placeholder
+name: Brainstorm
+summary: Web of Trust for Nostr
+description: |
+  Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr.
+tags:
+  - nostr
+  - web-of-trust
+  - social
+license: MIT
+website: https://brainstorm.world
