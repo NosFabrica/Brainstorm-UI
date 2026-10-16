@@ -15,6 +15,7 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { getActivePreset, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
+import { publicOrigin } from "@/lib/publicOrigin";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 
@@ -185,7 +186,7 @@ export default function HashtagPage() {
   const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], { extraPubkeys: authorPubkeys });
 
   const loading = notes.loading || (scoredAuthors.length > 0 && scoresQuery.isLoading);
-  const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/t/${tag}` : "";
+  const shareUrl = typeof window !== "undefined" ? `${publicOrigin()}/t/${tag}` : "";
 
   return (
     <ShareNavProvider>

@@ -5,7 +5,8 @@ type EnvKey =
   | "VITE_TAG_RELAY_URLS"
   | "VITE_FEATURE_AGENT_SUITE"
   | "VITE_FEATURE_ASSISTANTS_ADMIN"
-  | "VITE_IMG_PROXY";
+  | "VITE_IMG_PROXY"
+  | "VITE_PUBLIC_ORIGIN";
 
 declare global {
   interface Window {
@@ -32,6 +33,8 @@ export const env = {
   VITE_FEATURE_ASSISTANTS_ADMIN: read("VITE_FEATURE_ASSISTANTS_ADMIN") ?? "",
   // Same-origin image proxy prefix (/img). Unset → original image URLs.
   VITE_IMG_PROXY: read("VITE_IMG_PROXY") ?? "",
+  // Origin for links others open and for /link-preview. Unset → this page's origin; the APK sets it.
+  VITE_PUBLIC_ORIGIN: read("VITE_PUBLIC_ORIGIN") ?? "",
 } as const;
 
 export {};

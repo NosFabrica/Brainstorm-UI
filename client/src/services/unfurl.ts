@@ -8,11 +8,14 @@
  * tier from `Sec-Fetch-Site`: same-origin traffic gets a ceiling no real user
  * meets, everything else gets a tight throttle. Asking the API host instead
  * would make our own SPA look like a stranger and land it in the throttle.
+ * The APK (VITE_PUBLIC_ORIGIN set) asks its web origin cross-origin; og trusts its Origin.
  *
  * Per-URL results are memoised for the session, failures included — a page
  * that won't unfurl is asked once. Concurrency is capped so a feed of link
  * notes doesn't open twenty sockets at first paint.
  */
+
+import { env } from "@/lib/runtimeEnv";
 
 export interface Unfurled {
   /** Set when the link is itself media served without a file extension. */
@@ -51,7 +54,8 @@ async function gate<T>(run: () => Promise<T>): Promise<T> {
 
 async function ask(url: string): Promise<Unfurled | null> {
   try {
-    const res = await fetch(`/link-preview?url=${encodeURIComponent(url)}`, {
+    const base = env.VITE_PUBLIC_ORIGIN.replace(/\/+$/, "");
+    const res = await fetch(`${base}/link-preview?url=${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) return null;
