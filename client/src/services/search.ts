@@ -114,8 +114,9 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   communities: [34550, 39000, 40, 41],
   // NIP-75 zap goals and Agora fundraisers.
   fundraisers: [9041, 33863],
-  // Ratings of anything (34259), relay reviews (31987), NIP-87 mint reviews.
-  reviews: [34259, 31987, 38000],
+  // Ratings of anything (34259), relay reviews (31987), NIP-87 mint reviews,
+  // Open Markets product reviews (31555).
+  reviews: [34259, 31987, 38000, 31555],
 };
 
 /**

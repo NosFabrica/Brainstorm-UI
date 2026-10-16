@@ -10,8 +10,15 @@ import type { NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 const profileMapMock = vi.fn((_pks: string[]) => Promise.resolve(new Map<string, Record<string, unknown>>()));
+// Open Markets: what a review, a collection or a listing names by address, and a seller's listings filed under a collection.
+const addressedMock = vi.fn((_coords: { kind: number; pubkey: string; identifier: string }[]) =>
+  Promise.resolve(new Map<string, NostrEvent>()),
+);
+const collectionProductsMock = vi.fn((_pubkey: string, _address: string) => Promise.resolve([] as NostrEvent[]));
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchAddressableEvents: (c: { kind: number; pubkey: string; identifier: string }[]) => addressedMock(c),
+  fetchCollectionProducts: (pk: string, a: string) => collectionProductsMock(pk, a),
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
   refreshProfileEvent: async (pk: string) => {
     const content = (await profileMapMock([pk])).get(pk);
@@ -83,6 +90,8 @@ beforeEach(() => {
   fromSearchMock.mockResolvedValue([]);
   byAddressMock.mockResolvedValue(new Map());
   profileMapMock.mockResolvedValue(new Map());
+  addressedMock.mockResolvedValue(new Map());
+  collectionProductsMock.mockResolvedValue([]);
 });
 
 describe("hasThingPage", () => {
@@ -606,5 +615,104 @@ describe("readablePost", () => {
       text: "look and",
       image: "https://x.test/a.png",
     });
+  });
+});
+
+describe("Open Markets pages", () => {
+  const seller = "c".repeat(64);
+  const product = (d: string, title: string, extra: string[][] = []) =>
+    ev(30402, [["d", d], ["title", title], ["price", "30", "USD"], ...extra], "", seller);
+  const keyed = (...events: NostrEvent[]) =>
+    new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
+
+  it("a product review shows the product it reviews, the thumb, the score, each category, and every review of it", async () => {
+    const plate = product("om-plate-1", "Seed plate");
+    addressedMock.mockResolvedValue(keyed(plate));
+    const review = ev(
+      31555,
+      [
+        ["d", `a:30402:${seller}:om-plate-1`],
+        ["rating", "1", "thumb"],
+        ["rating", "0.8", "value"],
+        ["rating", "0.6", "delivery"],
+      ],
+      "Arrived early, well packed.",
+    );
+    page(review);
+    expect(await screen.findByTestId(`listing-card-${plate.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Review of Seed plate");
+    expect(screen.getByTestId("thing-page-thumb")).toHaveTextContent("Recommends");
+    // (1 × 0.5 + 0.5 × 0.7) × 5
+    expect(screen.getByTestId("thing-page-score")).toHaveTextContent("4.3");
+    expect(screen.getByTestId("thing-page-aspects")).toHaveTextContent("Value");
+    expect(screen.getByTestId("thing-page-aspects")).toHaveTextContent("Delivery");
+    expect(screen.getByTestId("thing-page-description")).toHaveTextContent("Arrived early");
+    await waitFor(() =>
+      expect(fromSearchMock).toHaveBeenCalledWith([{ kinds: [31555], "#d": [`a:30402:${seller}:om-plate-1`] }], {
+        limit: 200,
+      }),
+    );
+  });
+
+  it("a thumbs-down review says so, and a product not found says that instead of a raw address", async () => {
+    const review = ev(31555, [
+      ["d", `a:30402:${seller}:om-gone-1`],
+      ["rating", "0", "thumb"],
+    ]);
+    page(review);
+    expect(screen.getByTestId("thing-page-thumb")).toHaveTextContent("Doesn't recommend");
+    expect(await screen.findByText(/isn't on the relays we asked/)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-page-product")).not.toHaveTextContent(seller);
+  });
+
+  it("a collection lists what is for sale in it: the products it names and the ones filed under it", async () => {
+    const named = product("om-krux-1", "Krux Amigo");
+    const filed = product("om-tzt-1", "TZT Krux", [["a", `30405:${seller}:om-wallets-1`]]);
+    const hidden = product("om-old-1", "Old wallet", [
+      ["a", `30405:${seller}:om-wallets-1`],
+      ["visibility", "hidden"],
+    ]);
+    addressedMock.mockResolvedValue(keyed(named));
+    collectionProductsMock.mockResolvedValue([filed, hidden]);
+    const collection = ev(
+      30405,
+      [
+        ["d", "om-wallets-1"],
+        ["title", "Krux DIY Wallets"],
+        ["summary", "Ready to use"],
+        ["a", `30402:${seller}:om-krux-1`],
+      ],
+      "Open-source firmware on off-the-shelf hardware.",
+      seller,
+    );
+    page(collection);
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Krux DIY Wallets");
+    expect(screen.getByTestId("thing-page-summary")).toHaveTextContent("Ready to use");
+    expect(screen.getByTestId("thing-page-description")).toHaveTextContent("Open-source firmware");
+    const products = screen.getByTestId("thing-page-products");
+    expect(await within(products).findByTestId(`listing-card-${named.id}`)).toBeInTheDocument();
+    expect(await within(products).findByTestId(`listing-card-${filed.id}`)).toBeInTheDocument();
+    expect(within(products).queryByTestId(`listing-card-${hidden.id}`)).toBeNull();
+    expect(collectionProductsMock).toHaveBeenCalledWith(seller, `30405:${seller}:om-wallets-1`);
+  });
+
+  it("a shipping option states its price and delivery facts", () => {
+    page(
+      ev(30406, [
+        ["d", "om-pickup-1"],
+        ["title", "Downtown Store Pickup"],
+        ["price", "0", "USD"],
+        ["country", "US"],
+        ["region", "US-FL"],
+        ["service", "pickup"],
+        ["location", "123 Main St, Downtown, FL"],
+      ]),
+    );
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Downtown Store Pickup");
+    expect(screen.getByTestId("thing-page-price")).toHaveTextContent("Free");
+    const facts = screen.getByTestId("thing-page-shipping-facts");
+    expect(facts).toHaveTextContent("Pickup");
+    expect(facts).toHaveTextContent("US-FL");
+    expect(facts).toHaveTextContent("123 Main St");
   });
 });

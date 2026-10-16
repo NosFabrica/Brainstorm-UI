@@ -22,6 +22,12 @@ import {
   PlaylistSections,
 } from "./CollectionPages";
 import { LearningHero, LearningSections, TorrentHero, TorrentSections } from "./ResourcePages";
+import {
+  ProductCollectionHero,
+  ProductCollectionSections,
+  ProductReviewHero,
+  ShippingOptionHero,
+} from "./MarketplacePages";
 
 export function hasThingPage(event: PageEvent): boolean {
   return describeThing(event) !== null;
@@ -37,6 +43,8 @@ export function ThingHero({ event }: { event: PageEvent }) {
     case "fundraiser":
       return <FundraiserHero event={event} thing={thing} detail={d} />;
     case "review":
+      // An Open Markets product review: the product itself, and its thumb.
+      if (d.subject === "product") return <ProductReviewHero thing={thing} detail={d} />;
       return <ReviewHero event={event} thing={thing} detail={d} />;
     case "market":
       return <MarketHero event={event} thing={thing} detail={d} />;
@@ -44,6 +52,10 @@ export function ThingHero({ event }: { event: PageEvent }) {
       return <BallotHero thing={thing} detail={d} />;
     case "shop":
       return <ShopPlaceHero event={event} thing={thing} detail={d} />;
+    case "productCollection":
+      return <ProductCollectionHero event={event} thing={thing} detail={d} />;
+    case "shippingOption":
+      return <ShippingOptionHero thing={thing} detail={d} />;
     case "app":
       return <AppThingHero event={event} thing={thing} detail={d} />;
     case "calendar":
@@ -78,6 +90,10 @@ export function ThingSections({ event }: { event: PageEvent }) {
       return null;
     case "shop":
       return <ShopPlaceSections event={event} detail={d} />;
+    case "productCollection":
+      return <ProductCollectionSections event={event} detail={d} />;
+    case "shippingOption":
+      return null;
     case "app":
       return <AppThingSections event={event} detail={d} />;
     case "calendar":

@@ -916,6 +916,32 @@ export async function fetchListingFamily(
   return [...byId.values()];
 }
 
+/**
+ * The listings a seller filed under one of their own collections
+ * (`30405:<pubkey>:<d>`): Open Markets products name their collections with
+ * an `a` tag, and the collections published so far name no products of their
+ * own. Only the collection's own seller's listings — anyone may tag a
+ * collection, but only its seller can say what is in it. Asked of the search
+ * relay and the seller's own relays together; never rejects.
+ */
+export async function fetchCollectionProducts(
+  pubkey: string,
+  collectionAddress: string,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const [kind, author] = collectionAddress.split(":");
+  if (kind !== "30405" || author !== pubkey) return [];
+  const filter = { kinds: [30402], authors: [pubkey], "#a": [collectionAddress], limit: 200 };
+  const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
+  const answers = await Promise.all([
+    fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]),
+    fetchEventsByFilter(filter, relays, timeoutMs).catch(() => [] as NostrEvent[]),
+  ]);
+  const byId = new Map<string, NostrEvent>();
+  for (const ev of answers.flat()) byId.set(ev.id, ev);
+  return [...byId.values()];
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
 export function fetchFromSearchRelayByFilters(

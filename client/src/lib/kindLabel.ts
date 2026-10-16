@@ -45,6 +45,13 @@ export function kindTypeLabel(kind: number): string {
       return "Stall";
     case 30019:
       return "Marketplace";
+    // Open Markets around a listing: a seller's collection, a shipping option, a buyer's review.
+    case 30405:
+      return "Collection";
+    case 30406:
+      return "Shipping option";
+    case 31555:
+      return "Product review";
     case 1:
     case 11:
       return "Note";

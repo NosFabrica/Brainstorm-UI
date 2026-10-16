@@ -51,6 +51,8 @@ function reviewFilters(event: PageEvent, subject: Detail<"review">["subject"]): 
     const u = tagOf(event, "u")?.trim();
     return [...(u ? [{ kinds: [38000], "#u": [u] }] : []), ...(d ? [{ kinds: [38000], "#d": [d] }] : [])];
   }
+  // Open Markets product reviews name the product in `d`: every review of it shares that `d`.
+  if (subject === "product") return d ? [{ kinds: [31555], "#d": [d] }] : [];
   return d ? [{ kinds: [34259], "#d": [d] }] : [];
 }
 

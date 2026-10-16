@@ -138,3 +138,15 @@ describe("specKindTags", () => {
     ).toEqual([{ kind: "5905", label: "DVM Job Request" }, { kind: "7000" }]);
   });
 });
+
+describe("Open Markets kinds around a listing", () => {
+  it("names a collection, a shipping option and a product review — not 'Kind N' — in the market family", () => {
+    expect([30405, 30406, 31555].map(kindTypeLabel)).toEqual(["Collection", "Shipping option", "Product review"]);
+    expect([30405, 30406, 31555].map((k) => KIND_NAMES[k])).toEqual([
+      "Collection",
+      "Shipping option",
+      "Product review",
+    ]);
+    expect([30405, 30406, 31555].map(kindFamily)).toEqual(["market", "market", "market"]);
+  });
+});
