@@ -10,7 +10,7 @@ import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { scopedSearchHref } from "@/lib/searchSyntax";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
@@ -229,10 +229,21 @@ import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+const handleOwnerMock = vi.hoisted(() =>
+  vi.fn<(nip05: string, pubkey: string) => Promise<string | null>>(async () => null),
+);
 vi.mock("@/lib/nip05", async (orig) => ({
   ...(await orig<typeof import("@/lib/nip05")>()),
   verifyNip05: async () => "unknown",
   resolveNip05: async () => null,
+  handleOwner: (nip05: string, pubkey: string) => handleOwnerMock(nip05, pubkey),
+  peekHandleOwner: () => undefined,
+}));
+// The accounts a search's handles point at, as the face cache reads them.
+const pillProfilesMock = vi.hoisted(() => vi.fn(async (_pks: string[]) => new Map()));
+vi.mock("@/services/searchFaces", async (orig) => ({
+  ...(await orig<typeof import("@/services/searchFaces")>()),
+  fetchPillProfiles: (pks: string[]) => pillProfilesMock(pks),
 }));
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
@@ -5061,5 +5072,44 @@ describe("SearchResults — the kinds lib/thing reads", () => {
     emit({ hits: [hitOf(track)], eose: true, timeMs: 100 });
 
     expect(await screen.findByTestId("track-card-t36787")).toHaveTextContent("Acapella Random Song");
+  });
+});
+
+// A person whose own profile never carries the words typed, searched by the name copies of
+// their profile use: the copies kept the person's handle, and the handle's server names them.
+describe("a People search answered only by profiles using someone else's handle", () => {
+  const REAL = "f".repeat(64);
+  const copy = (c: string) => ({
+    event: person(`copy-${c}`, c.repeat(64), "Jo Rivers"),
+    author: { ...author(c.repeat(64), "Jo Rivers"), displayName: "Jo Rivers", nip05: "rivers@music.example" },
+    rank: null,
+  });
+
+  beforeEach(() => {
+    setUrlTab("people");
+    window.history.replaceState({}, "", "/?q=jo%20rivers&t=people");
+    handleOwnerMock.mockImplementation(async (nip05, pk) =>
+      nip05 === "rivers@music.example" && pk !== REAL ? REAL : null,
+    );
+    pillProfilesMock.mockImplementation(
+      async (pks) => new Map(pks.filter((pk) => pk === REAL).map((pk) => [pk, author(pk, "rivers")])),
+    );
+    scoreOfMock.mockImplementation((pk) => (pk === REAL ? 0.6 : 0.01));
+  });
+  afterEach(() => {
+    handleOwnerMock.mockImplementation(async () => null);
+    pillProfilesMock.mockImplementation(async () => new Map());
+    scoreOfMock.mockImplementation(() => 0.85);
+  });
+
+  it("leads with the account the handle belongs to, saying why, while the copies stay hidden", async () => {
+    render(<SearchResults query="jo rivers" pov="nosfabrica" />);
+    emit({ hits: [copy("1"), copy("2")], eose: true, timeMs: 100 });
+    const first = await screen.findByTestId("result-profile-0");
+    expect(within(first).getByTestId("text-result-name-0")).toHaveTextContent("rivers");
+    expect(within(first).getByTestId("person-handle-pointers")).toHaveTextContent(
+      "Profiles named “Jo Rivers” use this account's handle",
+    );
+    expect(screen.queryByTestId("result-profile-1")).toBeNull();
   });
 });

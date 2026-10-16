@@ -6,6 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { parseListing } from "@/lib/listing";
@@ -88,11 +89,14 @@ function PersonChip({
   score,
   visited,
   tag,
+  pointedBy,
   onOpen,
 }: {
   person: SearchResult;
   score: number | null;
   visited: boolean;
+  /** The names profiles used that matched the words and use this account's handle (hooks/useHandlePointers). */
+  pointedBy?: string[];
   /** The tag the words matched, if this person carries it. */
   tag?: TagChip;
   onOpen: (p: SearchResult) => void;
@@ -145,6 +149,16 @@ function PersonChip({
         >
           <span className="truncate">{tag.name}</span>
         </Chip>
+      )}
+      {/* Why this face is here though its own profile lacks the words: said as evidence, in full on hover. */}
+      {pointedBy && pointedBy.length > 0 && (
+        <span
+          className="w-full truncate text-center text-[10px] text-slate-500 dark:text-slate-400"
+          title={`Profiles named ${pointedBy.map((n) => `“${n}”`).join(", ")} use this account's handle`}
+          data-testid={`strip-person-pointers-${pk8}`}
+        >
+          Handle used by “{pointedBy[0]}”
+        </span>
       )}
       {visited && (
         <span
@@ -446,6 +460,9 @@ function ComposedResultsBody({
     () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
     [carriers.people, carriers.byPubkey, tagMatches, query],
   );
+  // Who the search is about when their own profile lacks the words: the accounts the matched
+  // profiles' handles belong to (hooks/useHandlePointers), asked of the people before the floor.
+  const pointers = useHandlePointers(people?.hits ?? []);
   const carrierSets = useMemo(() => {
     const sets = new Map<string, Set<string>>();
     for (const [pubkey, tags] of carriers.byPubkey) {
@@ -466,8 +483,9 @@ function ComposedResultsBody({
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
       ...carriers.people.map((c) => c.pubkey),
+      ...pointers.hits.map((h) => h.event.pubkey),
     ],
-    [people, latest, articles, happening, media, music, shop, byKind, carriers.people],
+    [people, latest, articles, happening, media, music, shop, byKind, carriers.people, pointers.hits],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // Their order, taken once when they land and held for the query.
@@ -567,7 +585,13 @@ function ComposedResultsBody({
   const stripRef = useWheelScrollX();
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
-    const merged = leadCarriersByRank(mergeCarrierHits(hits, leadPeople), carrierRank);
+    // The account the handles point at leads — unless the floor would hide it too.
+    const pointed = clientFilterHits(
+      pointers.hits,
+      { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor },
+      { scoreOf, reach },
+    );
+    const merged = leadCarriersByRank(mergeCarrierHits(mergePointedHits(hits, pointed), leadPeople), carrierRank);
     let end = 0;
     while (end < merged.length && merged[end].event.id.startsWith("tag-carrier:")) end++;
     // Transparent on-device personalization: faces you've opened lead the relay's part.
@@ -575,7 +599,8 @@ function ComposedResultsBody({
       .slice(end)
       .sort((a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)));
     return [...merged.slice(0, end), ...tail];
-  }, [peopleF, visited, leadPeople, carrierRank]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peopleF, visited, leadPeople, carrierRank, pointers.hits]);
 
   const articleClusters = useMemo(
     () => (articlesF ? peopleFirst(collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 })) : []),
@@ -719,6 +744,7 @@ function ComposedResultsBody({
                   visited={visited.has(h.event.pubkey)}
                   // A face card wears a tag only when it is the one searched.
                   tag={matchedTagChip(tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches))}
+                  pointedBy={pointers.namesOf.get(h.event.pubkey)}
                   onOpen={(p) => onOpenProfile?.(p)}
                 />
               ))}
