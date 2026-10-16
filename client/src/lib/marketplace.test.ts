@@ -248,7 +248,7 @@ describe("shipping a product — the option's price plus the product's extra cos
       ]),
       (a) => store.get(a),
     );
-    // Standard is the product's own (first mention wins); pickup comes from the collection, +$1.
+    // Standard is the product's own (its own reference wins); pickup comes from the collection, +$1.
     expect(rows.map((r) => [r.title, r.cost, r.via])).toEqual([
       ["Standard", "$5.99", null],
       ["Store pickup", "$1", "Hardware Wallets"],
@@ -278,6 +278,34 @@ describe("shipping a product — the option's price plus the product's extra cos
     expect(shippingCostLabel({ amount: 5, currency: "EUR" }, 2, "USD")).toBe("€5 + $2");
     expect(shippingCostLabel({ amount: 0, currency: "USD" }, null, "USD")).toBe("Free");
     expect(shippingCostLabel(null, null, "USD")).toBeNull();
+  });
+
+  it("sats are one money however spelled: SAT, SATS, sat and sats add up", () => {
+    expect(shippingCostLabel({ amount: 1000, currency: "SAT" }, 500, "SATS")).toBe("1,500 sats");
+    expect(shippingCostLabel({ amount: 1000, currency: "SATS" }, 500, "sat")).toBe("1,500 sats");
+    expect(shippingCostLabel({ amount: 1000, currency: "sats" }, 500, "SAT")).toBe("1,500 sats");
+    expect(shippingCostLabel({ amount: 5, currency: "usd" }, 2, "USD")).toBe("$7");
+  });
+
+  it("a sum carries no float noise: 0.1 + 0.2 BTC is 0.3 BTC, and BTC keeps at most eight decimals", () => {
+    expect(shippingCostLabel({ amount: 0.1, currency: "BTC" }, 0.2, "BTC")).toBe("0.3 BTC");
+    expect(shippingCostLabel({ amount: 0.00012345, currency: "BTC" }, 0.000000001, "BTC")).toBe("0.00012345 BTC");
+    expect(shippingCostLabel({ amount: 5.99, currency: "USD" }, 0.01, "USD")).toBe("$6");
+  });
+
+  it("an option the product names itself wins over the same option through a collection, whatever the tag order", () => {
+    const rows = shippingRows(
+      listing([
+        ["shipping_option", `30405:${M}:wallets`, "1"],
+        ["shipping_option", `30406:${M}:standard`, "3"],
+      ]),
+      (a) => store.get(a),
+    );
+    // Standard is the product's own, at its own extra (+$3), not the collection's (+$1).
+    expect(rows.map((r) => [r.title, r.cost, r.via])).toEqual([
+      ["Standard", "$8.99", null],
+      ["Store pickup", "$1", "Hardware Wallets"],
+    ]);
   });
 
   it("options not found and with no name read as one row, not several alike", () => {

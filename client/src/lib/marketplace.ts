@@ -160,6 +160,19 @@ export function countriesLabel(countries: string[], max = 4): string | null {
   return `${countries.slice(0, max).join(", ")}${countries.length > max ? ` +${countries.length - max}` : ""}`;
 }
 
+/** One spelling per money: "sat", "SAT", "sats" and "SATS" are all sats. */
+function moneyOf(currency: string | null | undefined): string {
+  const c = (currency ?? "").trim().toUpperCase();
+  return c === "SAT" ? "SATS" : c;
+}
+
+/**
+ * Two amounts of one money, added without float noise: 0.1 + 0.2 BTC is
+ * 0.3 BTC, not 0.30000000000000004. Eight decimals is a satoshi's worth of
+ * BTC, finer than any other money is priced in.
+ */
+const addAmounts = (a: number, b: number) => Number((a + b).toFixed(8));
+
 /**
  * What a buyer pays for one option on one product: the option's own price plus
  * the product's extra cost. The extra is in the product's currency; when the
@@ -171,11 +184,11 @@ export function shippingCostLabel(
   extra: number | null,
   productCurrency: string | null | undefined,
 ): string | null {
-  const extraPrice = extra && extra > 0 ? { amount: extra, currency: (productCurrency ?? "").toUpperCase() } : null;
+  const extraPrice = extra && extra > 0 ? { amount: extra, currency: moneyOf(productCurrency) } : null;
   if (!price) return extraPrice ? `+${formatListingPrice(extraPrice)}` : null;
   if (!extraPrice) return formatListingPrice(price);
-  if (!extraPrice.currency || extraPrice.currency === price.currency)
-    return formatListingPrice({ amount: price.amount + extraPrice.amount, currency: price.currency });
+  if (!extraPrice.currency || extraPrice.currency === moneyOf(price.currency))
+    return formatListingPrice({ amount: addAmounts(price.amount, extraPrice.amount), currency: price.currency });
   return `${formatListingPrice(price)} + ${formatListingPrice(extraPrice)}`;
 }
 
@@ -211,8 +224,10 @@ function nameFromD(d: string): string | null {
  * points at (each at its own price plus the product's extra cost), and the
  * options of any collection it points at, the extra applied to each (Open
  * Markets: "the extra cost should be applied to all shipping options from the
- * collection"). Product and collection options are merged, the first mention
- * of an option winning. A reference not (yet) found still says it exists.
+ * collection"). Product and collection options are merged: an option the
+ * product names itself wins over the same option reached through a collection,
+ * whatever the tag order; otherwise the first mention wins. A reference not
+ * (yet) found still says it exists.
  */
 export function shippingRows(
   listing: {
@@ -269,12 +284,16 @@ export function shippingRows(
       resolved: true,
     };
   };
+  // The product's own references first: its configuration is the source of
+  // truth (Open Markets), so an option it names itself keeps its own extra
+  // cost even when a collection it is in names the option too.
   for (const ref of listing.shippingRefs) {
-    if (ref.kind === SHIPPING_OPTION_KIND) {
-      const row = optionRow(ref.address, ref.extra, null);
-      if (row) rows.push(row);
-      continue;
-    }
+    if (ref.kind !== SHIPPING_OPTION_KIND) continue;
+    const row = optionRow(ref.address, ref.extra, null);
+    if (row) rows.push(row);
+  }
+  for (const ref of listing.shippingRefs) {
+    if (ref.kind === SHIPPING_OPTION_KIND) continue;
     const collection = resolve(ref.address);
     const parsed = collection ? parseCollection(collection) : null;
     if (!parsed) {
