@@ -2873,8 +2873,29 @@ describe("fetchEventRsvps", () => {
     subject.next(frame(rsvp("r5", B, "4".repeat(64), "accepted", 140)));
     subject.next(EOSE);
     const byEvent = await pending;
-    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)] });
-    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)] });
+    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)], goers: ["1".repeat(64)] });
+    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)], goers: ["4".repeat(64)] });
+  });
+
+  // Newest wins, so an answer dated ahead would pin itself until that date, as a place review
+  // would (the places contract's rule): one more than a day ahead of the clock is ignored.
+  it("keeps every person going, newest first, and ignores an answer dated more than a day ahead", async () => {
+    const { subject } = controllable();
+    const A = "31923:" + "a".repeat(64) + ":dated";
+    const now = Math.floor(Date.now() / 1000);
+    const pending = fetchEventRsvps([A]);
+    await tick();
+    for (let i = 1; i <= 8; i++)
+      subject.next(frame(rsvp(`g${i}`, A, String(i).repeat(64), "accepted", now - 1000 + i)));
+    // Person 1 said no, dated a year ahead: ignored, their real yes stands.
+    subject.next(frame(rsvp("f1", A, "1".repeat(64), "declined", now + 365 * 86_400)));
+    // Person 9 dated their yes an hour ahead: within a day, it counts.
+    subject.next(frame(rsvp("f9", A, "9".repeat(64), "accepted", now + 3600)));
+    subject.next(EOSE);
+    const got = (await pending).get(A)!;
+    expect(got.going).toBe(9);
+    expect(got.goers).toEqual(["9", "8", "7", "6", "5", "4", "3", "2", "1"].map((c) => c.repeat(64)));
+    expect(got.faces).toEqual(got.goers.slice(0, 6));
   });
 
   it("asks nothing for an empty page", async () => {

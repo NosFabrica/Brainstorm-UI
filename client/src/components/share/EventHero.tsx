@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { useWotItems } from "@/hooks/useWotItems";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { goingThroughLens } from "@/lib/eventGoing";
 import { nip19 } from "nostr-tools";
 import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
 import {
@@ -65,7 +68,22 @@ export function EventHero({ event }: { event: MinimalEvent }) {
 
   // The host and the guests' faces.
   const [rsvps, setRsvps] = useState<EventRsvps | null>(null);
-  const faces = rsvps?.faces.slice(0, 5) ?? [];
+  // Show and Tell (lib/eventGoing): everyone who said yes counts, the ones in
+  // the reader's web of trust are counted apart and shown first, and the
+  // reader's own yes leads.
+  const goers = useMemo(() => (rsvps?.goers ?? rsvps?.faces ?? []).map((pubkey) => ({ pubkey })), [rsvps]);
+  const lens = useWotItems(goers);
+  const me = useActiveAccountDisplay()?.pubkey ?? null;
+  const guests = useMemo(() => {
+    const trusted = new Set(lens.trusted.map((g) => g.pubkey));
+    return goingThroughLens(
+      goers.map((g) => g.pubkey),
+      (pk) => trusted.has(pk),
+      me,
+      5,
+    );
+  }, [goers, lens.trusted, me]);
+  const faces = guests.faces;
   useEffect(() => {
     let alive = true;
     void fetchEventRsvps([address]).then((m) => {
@@ -245,7 +263,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
               </div>
             )}
           </div>
-          {/* Who is going — faces with the count. */}
+          {/* Who is going — faces with the count, the people the reader trusts first. */}
           {rsvps && rsvps.going > 0 && (
             <div className="mt-2.5 flex items-center gap-2" data-testid="event-hero-guests">
               <span className="flex -space-x-1.5">
@@ -266,8 +284,15 @@ export function EventHero({ event }: { event: MinimalEvent }) {
                   );
                 })}
               </span>
-              <span className="text-sm text-slate-600 dark:text-slate-300">
-                <span className="font-medium text-slate-900 dark:text-slate-100">{rsvps.going}</span> going
+              <span className="text-sm text-slate-600 dark:text-slate-300" data-testid="event-hero-going">
+                <span className="font-medium text-slate-900 dark:text-slate-100">{guests.going}</span> going
+                {guests.trusted > 0 && (
+                  <>
+                    {" · "}
+                    <span className="font-medium text-slate-900 dark:text-slate-100">{guests.trusted}</span>{" "}
+                    {lens.observer === "house" ? "verified" : "you trust"}
+                  </>
+                )}
               </span>
             </div>
           )}

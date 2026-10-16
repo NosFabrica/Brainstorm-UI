@@ -10,7 +10,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+// Who is reading, and whose web of trust the page sees them through (services/wotRanks).
+const lensState = vi.hoisted(() => ({
+  viewer: null as { pubkey: string } | null,
+  trusted: new Set<string>(),
+  observer: "house" as string,
+}));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => lensState.viewer }));
+vi.mock("@/hooks/useWotItems", () => ({
+  useWotItems: <T extends { pubkey: string }>(items: T[]) => ({
+    trusted: items.filter((i) => lensState.trusted.has(i.pubkey)),
+    outside: items.filter((i) => !lensState.trusted.has(i.pubkey)),
+    pending: false,
+    source: null,
+    observer: lensState.observer,
+  }),
+}));
 const unfurlMock = vi.fn<
   (url: string) => Promise<{
     title: string | null;
@@ -27,9 +42,9 @@ vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
 }));
-const rsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
-  Promise.resolve(new Map()),
-);
+const rsvpsMock = vi.fn<
+  (addresses: string[]) => Promise<Map<string, { going: number; faces: string[]; goers: string[] }>>
+>(() => Promise.resolve(new Map()));
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchEventRsvps: (addresses: string[]) => rsvpsMock(addresses),
@@ -61,6 +76,9 @@ const v4v = {
 beforeEach(() => {
   stubVisibleIntersectionObserver();
   vi.clearAllMocks();
+  lensState.viewer = null;
+  lensState.trusted = new Set();
+  lensState.observer = "house";
   unfurlMock.mockImplementation(() => Promise.resolve(null));
   profileMapMock.mockResolvedValue(new Map());
   rsvpsMock.mockResolvedValue(new Map());
@@ -135,9 +153,8 @@ describe("EventHero", () => {
         ),
     );
     const addr = `31923:${v4v.pubkey}:v4v`;
-    rsvpsMock.mockResolvedValue(
-      new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]),
-    );
+    const goers = ["1".repeat(64), "2".repeat(64), "3".repeat(64)];
+    rsvpsMock.mockResolvedValue(new Map([[addr, { going: 3, faces: goers, goers }]]));
     const timed = {
       ...v4v,
       tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["start_tzid", "America/Chicago"]],
@@ -346,5 +363,47 @@ describe("EventHero — the map from the event's geohash", () => {
     await screen.findByTestId("event-hero-host");
     expect(screen.getByTestId("event-hero-place").getAttribute("href")).toContain("google.com/maps");
     expect(screen.queryByTestId("event-map-show")).toBeNull();
+  });
+});
+
+// Show and Tell: everyone who said yes is counted; those in the reader's web of trust are counted
+// apart and shown first; the reader's own yes is shown to them first. Signed out, the lens is the
+// house's, and its people read as "verified".
+describe("EventHero — who is going, through the reader's lens", () => {
+  const ADDR = `31923:${v4v.pubkey}:v4v`;
+  // Newest answer first.
+  const goers = ["1", "2", "3", "4"].map((c) => c.repeat(64));
+  const shownFaces = () =>
+    [...screen.getByTestId("event-hero-guests").querySelectorAll('[data-testid^="event-hero-guest-"]')].map((el) =>
+      el.getAttribute("data-testid")!.replace("event-hero-guest-", ""),
+    );
+
+  it("counts everyone, and the verified apart, with their faces first", async () => {
+    rsvpsMock.mockResolvedValue(new Map([[ADDR, { going: 4, faces: goers, goers }]]));
+    lensState.trusted = new Set([goers[2]]);
+    render(<EventHero event={v4v} />);
+    const going = await screen.findByTestId("event-hero-going");
+    expect(going).toHaveTextContent("4 going · 1 verified");
+    expect(shownFaces()).toEqual([goers[2], goers[0], goers[1], goers[3]]);
+  });
+
+  it("under the reader's own lens it says who they trust, and their own yes leads", async () => {
+    const me = goers[3];
+    lensState.viewer = { pubkey: me };
+    lensState.observer = me;
+    lensState.trusted = new Set([goers[1], me]);
+    rsvpsMock.mockResolvedValue(new Map([[ADDR, { going: 4, faces: goers, goers }]]));
+    render(<EventHero event={v4v} />);
+    const going = await screen.findByTestId("event-hero-going");
+    expect(going).toHaveTextContent("4 going · 1 you trust");
+    expect(shownFaces()).toEqual([me, goers[1], goers[0], goers[2]]);
+  });
+
+  it("with nobody trusted, it is the count alone, newest first", async () => {
+    rsvpsMock.mockResolvedValue(new Map([[ADDR, { going: 4, faces: goers, goers }]]));
+    render(<EventHero event={v4v} />);
+    const going = await screen.findByTestId("event-hero-going");
+    expect(going.textContent).toBe("4 going");
+    expect(shownFaces()).toEqual(goers);
   });
 });
