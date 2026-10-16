@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { nip19 } from "nostr-tools";
 import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
@@ -14,6 +13,8 @@ import { RsvpButton } from "@/components/share/RsvpButton";
 import { useLightbox } from "@/components/share/Lightbox";
 import { LinkPreviewCard } from "@/components/share/LinkPreview";
 import { EventDateTile } from "@/components/share/EventDateTile";
+import { EventHosts } from "@/components/share/EventHosts";
+import { hostsOf } from "@/lib/eventHosts";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -68,14 +69,16 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       alive = false;
     };
   }, [address]);
-  const profiles = useLiveProfiles([event.pubkey, ...faces]) as Map<string, Profile>;
-  const scoreOf = useAuthorScores([event.pubkey, ...faces]);
+  // The `p` tags that name a host or an organizer, else the signer (lib/eventHosts).
+  const hosts = useMemo(() => hostsOf(event), [event]);
+  const profiles = useLiveProfiles([...hosts, ...faces]) as Map<string, Profile>;
+  const scoreOf = useAuthorScores([...hosts, ...faces]);
   const tierRing = useTierRing();
-  const host = profiles.get(event.pubkey);
+  const host = profiles.get(hosts[0]);
   const hostName = host?.display_name || host?.name || null;
   let hostNpub = "";
   try {
-    hostNpub = nip19.npubEncode(event.pubkey);
+    hostNpub = nip19.npubEncode(hosts[0]);
   } catch {
     /* malformed pubkey — no link */
   }
@@ -132,7 +135,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
                     name: hostName ?? hostNpub.slice(0, 12),
                     npub: hostNpub,
                     picture: host?.picture ?? null,
-                    score01: scoreOf(event.pubkey) ?? null,
+                    score01: scoreOf(hosts[0]) ?? null,
                   }
                 : null,
               postHref: eventPath(event),
@@ -184,29 +187,12 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           >
             <EmojiText text={e.title} tags={event} />
           </h1>
-          {/* The host, ringed — the one thing no ticketing site can show. */}
-          {hostNpub && (
-            <Link
-              href={`/p/${hostNpub}`}
-              className="mt-1 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
-              data-testid="event-hero-host"
-            >
-              <Avatar
-                className={`h-5 w-5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(scoreOf(event.pubkey) ?? null, false, "sm", true) ?? ""}`}
-              >
-                {host?.picture ? <AvatarImage src={host.picture} alt="" className="object-cover" /> : null}
-                <AvatarFallback className="overflow-hidden">
-                  <DefaultAvatarImg />
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm text-slate-600 dark:text-slate-300">
-                By{" "}
-                <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {hostName ?? `${hostNpub.slice(0, 12)}…`}
-                </span>
-              </span>
-            </Link>
-          )}
+          {/* The hosts, ringed — the one thing no ticketing site can show. */}
+          <EventHosts
+            hosts={hosts}
+            profiles={profiles}
+            ringOf={(pk) => tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}
+          />
           <div className="mt-3 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
             {e.startSec > 0 && (
               <div className="flex items-center gap-2.5" data-testid="event-hero-date">
