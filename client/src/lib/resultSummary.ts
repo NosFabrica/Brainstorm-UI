@@ -13,7 +13,7 @@
  */
 import { contentShape } from "@/lib/contentShape";
 import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarEvent";
-import { formatListingPrice, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingStatus, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
 import { describeDesignation } from "@/lib/nip85Declaration";
@@ -352,7 +352,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
 
   const listing = parseListing(ev);
   if (listing) {
-    const status = listing.hidden ? "Hidden" : listing.status !== "active" ? listing.status : null;
+    const status = listingStatus(listing)?.label ?? null;
     return {
       ...base,
       title: listing.title,
@@ -361,7 +361,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       facts: [
         listing.price ? formatListingPrice(listing.price) : null,
         listing.location ? shortPlace(listing.location) : null,
-        status ? status.charAt(0).toUpperCase() + status.slice(1) : null,
+        status,
       ].filter((f): f is string => !!f),
     };
   }

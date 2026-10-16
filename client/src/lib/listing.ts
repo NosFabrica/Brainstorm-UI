@@ -19,6 +19,32 @@ export interface ListingPrice {
 export type ProductType = "simple" | "variable" | "variation";
 const PRODUCT_TYPES = new Set<string>(["simple", "variable", "variation"]);
 
+/** Open Markets' second `type` element: what is delivered — a file or a parcel. */
+export type ProductFormat = "digital" | "physical";
+
+/** A shipping cost the listing states itself (Shopstr, Barattolo, NIP-15 zones): a name and a price. */
+export interface InlineShipping {
+  name: string;
+  amount: number;
+  /** Upper-cased; empty when the seller priced it in no money of its own (the listing's applies). */
+  currency: string;
+}
+
+/**
+ * An Open Markets `shipping_option`: not a price but a pointer — at a kind-30406
+ * shipping option, or at a kind-30405 collection whose options the product
+ * takes on. `extra` is what this product adds on top of the option's own price,
+ * in the product's currency; null when it adds nothing.
+ */
+export interface ShippingRef {
+  /** `30406:<pubkey>:<d>` or `30405:<pubkey>:<d>`. */
+  address: string;
+  kind: 30405 | 30406;
+  pubkey: string;
+  d: string;
+  extra: number | null;
+}
+
 export interface Listing {
   id: string;
   pubkey: string;
@@ -34,6 +60,12 @@ export interface Listing {
   /** "active" when the seller said so or said nothing; "sold" and others verbatim. */
   status: string;
   hidden: boolean;
+  /** Open Markets' `visibility: pre-order`: for sale now, delivered later. */
+  preOrder: boolean;
+  /** How many the seller has, when they said (Open Markets `stock`). */
+  stock: number | null;
+  /** Digital or physical, when the seller's `type` tag said (Open Markets). */
+  format: ProductFormat | null;
   /**
    * The Open Markets product type: a plain product, a parent that comes in
    * options, or one of a parent's options. Null when the seller's app said
@@ -47,7 +79,10 @@ export interface Listing {
   categories: string[];
   /** The seller's own page for this listing, when the app published one. */
   shopUrl: string | null;
-  shipping: { name: string; amount: number; currency: string }[];
+  /** Shipping the listing prices itself. */
+  shipping: InlineShipping[];
+  /** Shipping the listing points at (Open Markets): resolved from the store where it is shown. */
+  shippingRefs: ShippingRef[];
   createdAt: number;
 }
 
@@ -89,6 +124,52 @@ function numberOf(v: unknown): number | null {
   return null;
 }
 
+const SHIPPING_ADDRESS = /^(30405|30406):([0-9a-f]{64}):(.*)$/i;
+
+/** Shopstr's shipping *types*, written where a zone name would be: "N/A" says there is no shipping to price. */
+const NO_SHIPPING = new Set(["n/a", "na", "none"]);
+
+/**
+ * A listing's shipping tags, in the two shapes that share the tag names:
+ *
+ * - Open Markets: `["shipping_option", "30406:<pubkey>:<d>", "<extra-cost>"]`
+ *   (or `30405:` for a collection's options) — a reference, and the third
+ *   element is an EXTRA cost added on top of the referenced option's price,
+ *   never the price itself. It is optional.
+ * - Shopstr, Barattolo and other NIP-99 apps: `["shipping" | "shipping_option",
+ *   "<name>", "<cost>", "<currency>"]` — the price itself.
+ *
+ * The first element tells them apart: an address is a reference.
+ */
+export function shippingOf(tags: string[][]): { inline: InlineShipping[]; refs: ShippingRef[] } {
+  const inline: InlineShipping[] = [];
+  const refs: ShippingRef[] = [];
+  const seen = new Set<string>();
+  for (const t of tags) {
+    if (t[0] !== "shipping_option" && t[0] !== "shipping") continue;
+    const first = (t[1] ?? "").trim();
+    const ref = SHIPPING_ADDRESS.exec(first);
+    if (ref) {
+      const address = `${ref[1]}:${ref[2].toLowerCase()}:${ref[3]}`;
+      if (seen.has(address)) continue;
+      seen.add(address);
+      const extra = numberOf(t[2]);
+      refs.push({
+        address,
+        kind: Number(ref[1]) as 30405 | 30406,
+        pubkey: ref[2].toLowerCase(),
+        d: ref[3],
+        extra: extra !== null && extra > 0 ? extra : null,
+      });
+      continue;
+    }
+    const amount = Number(t[2]);
+    if (!first || NO_SHIPPING.has(first.toLowerCase()) || !Number.isFinite(amount)) continue;
+    inline.push({ name: first, amount, currency: (t[3] ?? "").trim().toUpperCase() });
+  }
+  return { inline, refs };
+}
+
 /** NIP-15's product (JSON in content) and auction (tags) — sold in the Shop beside NIP-99 listings. */
 export const PRODUCT_KIND = 30018;
 export const AUCTION_KIND = 30020;
@@ -109,8 +190,13 @@ export function parseListing(ev: EventLike): Listing | null {
       : null;
   const images = ev.tags.filter((t) => t[0] === "image" && isHttp(t[1])).map((t) => t[1]);
   const shopUrl = ev.tags.find((t) => (t[0] === "r" || t[0] === "web") && isHttp(t[1]))?.[1] ?? null;
-  const typed = (tag("type") ?? "").toLowerCase();
+  const typeTag = ev.tags.find((t) => t[0] === "type");
+  const typed = (typeTag?.[1] ?? "").trim().toLowerCase();
   const productType = PRODUCT_TYPES.has(typed) ? (typed as ProductType) : null;
+  const formatted = (typeTag?.[2] ?? "").trim().toLowerCase();
+  const visibility = (tag("visibility") || "").toLowerCase();
+  const stock = numberOf(tag("stock"));
+  const shipping = shippingOf(ev.tags);
   return {
     id: ev.id,
     pubkey: ev.pubkey,
@@ -122,7 +208,10 @@ export function parseListing(ev: EventLike): Listing | null {
     images,
     location: tag("location") ?? null,
     status: (tag("status") || "active").toLowerCase(),
-    hidden: (tag("visibility") || "").toLowerCase() === "hidden",
+    hidden: visibility === "hidden",
+    preOrder: visibility === "pre-order",
+    stock: stock !== null && Number.isInteger(stock) && stock >= 0 ? stock : null,
+    format: formatted === "digital" || formatted === "physical" ? formatted : null,
     productType,
     // Only a variation has a parent: any product may reference others, and a
     // collection reference (30405) is not a product at all.
@@ -135,10 +224,8 @@ export function parseListing(ev: EventLike): Listing | null {
       .map((t) => ({ key: t[1].trim(), value: t[2].trim() })),
     categories: categoriesOf(ev),
     shopUrl,
-    shipping: ev.tags
-      .filter((t) => t[0] === "shipping_option" || t[0] === "shipping")
-      .map((t) => ({ name: t[1] ?? "", amount: Number(t[2]), currency: (t[3] ?? "").toUpperCase() }))
-      .filter((s) => s.name && Number.isFinite(s.amount)),
+    shipping: shipping.inline,
+    shippingRefs: shipping.refs,
     createdAt: ev.created_at,
   };
 }
@@ -187,12 +274,16 @@ function parseProduct(ev: EventLike): Listing | null {
     location: null,
     status: quantity !== null && quantity <= 0 ? "sold" : "active",
     hidden: false,
+    preOrder: false,
+    stock: quantity !== null && Number.isInteger(quantity) && quantity >= 0 ? quantity : null,
+    format: null,
     productType: null,
     parent: null,
     specs: [],
     categories: categoriesOf(ev),
     shopUrl: null,
     shipping,
+    shippingRefs: [],
     createdAt: ev.created_at,
   };
 }
@@ -222,12 +313,16 @@ function parseAuction(ev: EventLike): Listing | null {
     location: tag("location") ?? null,
     status: ended ? "ended" : "active",
     hidden: false,
+    preOrder: false,
+    stock: null,
+    format: null,
     productType: null,
     parent: null,
     specs: [],
     categories: categoriesOf(ev),
     shopUrl: null,
     shipping: [],
+    shippingRefs: [],
     createdAt: ev.created_at,
   };
 }
@@ -264,6 +359,23 @@ export function isSellable(l: Listing): boolean {
   );
 }
 
+/**
+ * The word a listing's status chip says, or null when there is nothing to
+ * say — an on-sale listing. `gone` is a listing no longer for sale here
+ * (hidden, sold, ended, inactive); a pre-order is still for sale. A hidden
+ * listing says "Hidden" whatever its `status` tag says: most hidden listings
+ * still carry `status: active`, and a chip that reads "active" over a product
+ * the seller took down says the opposite of the truth.
+ */
+export function listingStatus(l: Listing): { label: string; gone: boolean } | null {
+  if (l.hidden) return { label: "Hidden", gone: true };
+  // A status the Shop still sells under ("available", "pending") is not news; one it stops selling is.
+  if (l.status !== "active" && !isSellable(l))
+    return { label: l.status.charAt(0).toUpperCase() + l.status.slice(1), gone: true };
+  if (l.preOrder) return { label: "Pre-order", gone: false };
+  return null;
+}
+
 const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", BRL: "R$", CHF: "CHF " };
 
 /** "23,550 sats", "$12", "€15", "CHF 14.50", "0.0021 BTC", "8 USDC" — as priced. */
@@ -287,6 +399,10 @@ export function formatListingPrice(p: ListingPrice): string {
  * costs — "Gubbio (PG) · 500 sats shipping", "United States · Free
  * shipping", "Shipping from 500 sats". Shipping priced in no money of its
  * own borrows the listing's. Neither known: the seller's summary, or nothing.
+ *
+ * Only shipping the listing prices itself counts: an Open Markets reference
+ * (`shippingRefs`) costs what the option it names costs, which a card does not
+ * look up — its extra cost alone is not the shipping price.
  */
 export function listingCardLine(l: Listing): string | null {
   const money = (amount: number, currency: string) =>

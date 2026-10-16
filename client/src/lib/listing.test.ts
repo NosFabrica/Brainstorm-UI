@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseListing, isSellable, formatListingPrice, listingCardLine } from "./listing";
+import { parseListing, isSellable, formatListingPrice, listingCardLine, listingStatus, shippingOf } from "./listing";
 
 // NIP-99 as the marketplaces publish it (probed 2026-09-04: Shopstr,
 // Barattolo, bitpopart, Conduit): title, price [amount, currency], images,
@@ -362,5 +362,129 @@ describe("parseListing — a product with options", () => {
       ]),
     );
     expect(simple).toMatchObject({ productType: "simple", parent: null });
+  });
+});
+
+describe("shipping — the two shapes that share the tag names", () => {
+  const MERCHANT = "c".repeat(64);
+
+  it("Open Markets: an address is a reference, and its third element an EXTRA cost, never the price", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Krux DIY wallet"],
+        ["price", "120", "USD"],
+        ["shipping_option", `30406:${MERCHANT}:standard`, "5"],
+        ["shipping_option", `30405:${MERCHANT}:wallets`],
+      ]),
+    );
+    expect(l?.shippingRefs).toEqual([
+      { address: `30406:${MERCHANT}:standard`, kind: 30406, pubkey: MERCHANT, d: "standard", extra: 5 },
+      { address: `30405:${MERCHANT}:wallets`, kind: 30405, pubkey: MERCHANT, d: "wallets", extra: null },
+    ]);
+    // Not a "$5 shipping" option named after its address.
+    expect(l?.shipping).toEqual([]);
+  });
+
+  it("a reference without an extra cost is still a reference — it used to be dropped", () => {
+    const { refs, inline } = shippingOf([["shipping_option", `30406:${MERCHANT}:9ac5a9a3`]]);
+    expect(refs).toHaveLength(1);
+    expect(refs[0].extra).toBeNull();
+    expect(inline).toEqual([]);
+  });
+
+  it("Shopstr's and Barattolo's shape is still a name and a price", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "12", "USD"],
+        ["shipping", "Free", "0", "sat"],
+        ["shipping_option", "Italia", "500", "sats"],
+      ]),
+    );
+    expect(l?.shipping).toEqual([
+      { name: "Free", amount: 0, currency: "SAT" },
+      { name: "Italia", amount: 500, currency: "SATS" },
+    ]);
+    expect(l?.shippingRefs).toEqual([]);
+  });
+
+  it("Shopstr's 'N/A' is no shipping to price, not free shipping", () => {
+    const l = parseListing(
+      ev([
+        ["title", "E-book"],
+        ["price", "5", "USD"],
+        ["shipping", "N/A", "0", "SATS"],
+      ]),
+    );
+    expect(l?.shipping).toEqual([]);
+    expect(listingCardLine(l!)).toBeNull();
+  });
+
+  it("a card prices only the shipping the listing prices itself", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Krux DIY wallet"],
+        ["price", "120", "USD"],
+        ["location", "Lisbon"],
+        ["shipping_option", `30406:${MERCHANT}:standard`, "5"],
+      ]),
+    );
+    expect(listingCardLine(l!)).toBe("Lisbon");
+  });
+});
+
+describe("listingStatus — the chip on a listing's photo", () => {
+  const listing = (tags: string[][]) => parseListing(ev([["title", "Hoodie"], ["price", "40", "USD"], ...tags]))!;
+
+  it("a hidden listing reads Hidden, never the 'active' its status tag still says", () => {
+    expect(
+      listingStatus(
+        listing([
+          ["visibility", "hidden"],
+          ["status", "active"],
+        ]),
+      ),
+    ).toEqual({ label: "Hidden", gone: true });
+  });
+
+  it("sold and other closed statuses, capitalised; an on-sale listing has no chip", () => {
+    expect(listingStatus(listing([["status", "sold"]]))).toEqual({ label: "Sold", gone: true });
+    expect(listingStatus(listing([["status", "inactive"]]))).toEqual({ label: "Inactive", gone: true });
+    expect(listingStatus(listing([["visibility", "on-sale"]]))).toBeNull();
+    expect(listingStatus(listing([]))).toBeNull();
+    // A status the Shop still sells under is not news.
+    expect(listingStatus(listing([["status", "available"]]))).toBeNull();
+  });
+
+  it("a pre-order is still for sale, and says so", () => {
+    const l = listing([["visibility", "pre-order"]]);
+    expect(isSellable(l)).toBe(true);
+    expect(listingStatus(l)).toEqual({ label: "Pre-order", gone: false });
+  });
+});
+
+describe("parseListing — stock and format (Open Markets)", () => {
+  it("reads the stock count and whether it is digital or physical", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Seed plate"],
+        ["price", "30", "USD"],
+        ["type", "simple", "physical"],
+        ["stock", "3"],
+      ]),
+    );
+    expect(l).toMatchObject({ stock: 3, format: "physical", productType: "simple" });
+  });
+
+  it("no stock tag is no count — not zero — and an unknown format is none", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Seed plate"],
+        ["price", "30", "USD"],
+        ["type", "simple", "holographic"],
+        ["stock", ""],
+      ]),
+    );
+    expect(l).toMatchObject({ stock: null, format: null });
   });
 });
