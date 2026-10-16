@@ -13,7 +13,18 @@ export interface CalendarEvent {
   image?: string;
   summary?: string;
   recordingUrl?: string; // a recording/replay link for past events, when present
+  /** Called off: a `status` tag of `cancelled`. */
+  cancelled: boolean;
 }
+
+/**
+ * NIP-52 has no word for a cancelled event yet. The form proposed for it is a
+ * `status` tag, as iCalendar's `STATUS` (`tentative`, `confirmed`,
+ * `cancelled`): the event is republished at the same address, so its RSVPs
+ * and comments keep the event they point at. A title that says "Cancelled" is
+ * left as written.
+ */
+const isCancelled = (status: string | undefined): boolean => (status ?? "").trim().toLowerCase() === "cancelled";
 
 const toSec = (raw?: string): number => {
   if (!raw) return 0;
@@ -47,6 +58,7 @@ export function parseCalendarEvent(ev: MinimalEvent): CalendarEvent {
     image: tag("image"),
     summary: (tag("summary") || ev.content || "").trim() || undefined,
     recordingUrl,
+    cancelled: isCancelled(tag("status")),
   };
 }
 

@@ -52,3 +52,59 @@ describe("parseCalendarEvent — the replay link", () => {
     );
   });
 });
+
+// NIP-52 has no way to say an event is cancelled yet. The form proposed for it is a `status` tag
+// (iCalendar's STATUS): the event is republished at the same address with `cancelled`. A title
+// that says so is the author's words, and is left as written.
+describe("parseCalendarEvent — a cancelled event", () => {
+  const ev = (tags: string[][]) => ({ id: "x", pubkey: "p", kind: 31923, created_at: 0, content: "", tags });
+
+  it("reads a status tag of cancelled, in any case", () => {
+    expect(
+      parseCalendarEvent(
+        ev([
+          ["title", "Pizza night"],
+          ["status", "cancelled"],
+        ]),
+      ),
+    ).toMatchObject({
+      cancelled: true,
+      title: "Pizza night",
+    });
+    expect(
+      parseCalendarEvent(
+        ev([
+          ["title", "Pizza night"],
+          ["status", " Cancelled "],
+        ]),
+      ).cancelled,
+    ).toBe(true);
+  });
+
+  it("is not cancelled for any other status, or none", () => {
+    expect(
+      parseCalendarEvent(
+        ev([
+          ["title", "Pizza night"],
+          ["status", "confirmed"],
+        ]),
+      ).cancelled,
+    ).toBe(false);
+    expect(
+      parseCalendarEvent(
+        ev([
+          ["title", "Pizza night"],
+          ["status", "tentative"],
+        ]),
+      ).cancelled,
+    ).toBe(false);
+    expect(parseCalendarEvent(ev([["title", "Pizza night"]])).cancelled).toBe(false);
+  });
+
+  it("leaves a title that says Cancelled as written, and does not read it as the state", () => {
+    expect(parseCalendarEvent(ev([["title", "Cancelled: Pizza night"]]))).toMatchObject({
+      cancelled: false,
+      title: "Cancelled: Pizza night",
+    });
+  });
+});

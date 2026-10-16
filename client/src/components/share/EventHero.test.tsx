@@ -407,3 +407,51 @@ describe("EventHero — who is going, through the reader's lens", () => {
     expect(shownFaces()).toEqual(goers);
   });
 });
+
+// A cancelled event (a `status` tag of `cancelled`, the form proposed for NIP-52) is a state: the
+// page says so where it says upcoming or past, and offers no RSVP and no calendar file.
+describe("EventHero — a cancelled event", () => {
+  const cancelled = { ...v4v, tags: [...v4v.tags, ["status", "cancelled"]] };
+
+  it("says Cancelled and offers nothing to do", async () => {
+    render(<EventHero event={cancelled} />);
+    await screen.findByTestId("event-hero-host");
+    const status = screen.getByTestId("event-hero-status");
+    expect(status).toHaveTextContent("Cancelled");
+    expect(status).not.toHaveTextContent("Upcoming");
+    expect(screen.queryByTestId("event-hero-timing")).toBeNull();
+    expect(screen.getByTestId("event-hero-title").textContent).toBe("V4V Chicago 2026");
+    expect(screen.queryByTestId("event-rsvp")).toBeNull();
+    expect(screen.queryByTestId("event-hero-add-to-calendar")).toBeNull();
+    // The date and place still say when and where it was to be.
+    expect(screen.getByTestId("event-hero-date")).toBeInTheDocument();
+  });
+
+  it("an event that only says so in its title is drawn as written", async () => {
+    render(
+      <EventHero
+        event={{ ...v4v, tags: [...v4v.tags.filter((t) => t[0] !== "title"), ["title", "Cancelled: V4V Chicago"]] }}
+      />,
+    );
+    await screen.findByTestId("event-hero-host");
+    expect(screen.getByTestId("event-hero-title").textContent).toBe("Cancelled: V4V Chicago");
+    expect(screen.getByTestId("event-hero-status")).toHaveTextContent("Upcoming");
+  });
+});
+
+// A past event keeps who said they would go, and offers no RSVP.
+describe("EventHero — a past event", () => {
+  it("says Past event, keeps its going line, and offers no RSVP", async () => {
+    const goers = ["1", "2"].map((c) => c.repeat(64));
+    const past = {
+      ...v4v,
+      tags: [...v4v.tags.filter((t) => t[0] !== "start"), ["start", String(NOW - 5 * 86_400)]],
+    };
+    rsvpsMock.mockResolvedValue(new Map([[`31923:${v4v.pubkey}:v4v`, { going: 2, faces: goers, goers }]]));
+    render(<EventHero event={past} />);
+    expect(await screen.findByTestId("event-hero-going")).toHaveTextContent("2 going");
+    expect(screen.getByTestId("event-hero-status")).toHaveTextContent("Past event");
+    expect(screen.queryByTestId("event-rsvp")).toBeNull();
+    expect(screen.queryByTestId("event-hero-add-to-calendar")).toBeNull();
+  });
+});

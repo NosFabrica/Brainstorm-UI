@@ -1186,7 +1186,7 @@ export function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    rsvp && !past && cal.startSec > 0 ? (
+    rsvp && !past && !cal.cancelled && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1221,6 +1221,11 @@ export function EventCard({
                   </span>
                 )}
               </p>
+            )}
+            {cal.cancelled && (
+              <Chip tone="rose" size="sm" data-testid={`event-cancelled-${event.id}`}>
+                Cancelled
+              </Chip>
             )}
             <KindPill event={event} mixed={false} />
           </div>

@@ -5,7 +5,7 @@ import { useWotItems } from "@/hooks/useWotItems";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { goingThroughLens } from "@/lib/eventGoing";
 import { nip19 } from "nostr-tools";
-import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
+import { Calendar, CalendarPlus, CalendarX, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
 import {
   parseCalendarEvent,
   formatEventDate,
@@ -188,12 +188,22 @@ export function EventHero({ event }: { event: MinimalEvent }) {
         <div className="mt-3 min-w-0 flex-1 sm:mt-0">
           {/* One line for the state of the event: the chip and the countdown together. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="event-hero-status">
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}
-            >
-              <Calendar className="h-3 w-3" /> {upcoming ? "Upcoming event" : "Past event"}
-            </span>
-            {timing && (
+            {e.cancelled ? (
+              // Called off: the state in place of upcoming or past, and no countdown to it.
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                data-testid="event-hero-cancelled"
+              >
+                <CalendarX className="h-3 w-3" /> Cancelled
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}
+              >
+                <Calendar className="h-3 w-3" /> {upcoming ? "Upcoming event" : "Past event"}
+              </span>
+            )}
+            {timing && !e.cancelled && (
               <span
                 className={`text-xs font-semibold ${upcoming ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`}
                 data-testid="event-hero-timing"
@@ -303,10 +313,10 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             className="mt-3 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap"
             data-testid="event-hero-actions"
           >
-            {upcoming && e.startSec > 0 && (
+            {upcoming && e.startSec > 0 && !e.cancelled && (
               <RsvpButton event={event} size="md" className="w-full justify-center sm:w-auto" />
             )}
-            {upcoming && e.startSec > 0 && <AddToCalendar input={icsInput} onIcs={addToCalendar} />}
+            {upcoming && e.startSec > 0 && !e.cancelled && <AddToCalendar input={icsInput} onIcs={addToCalendar} />}
             {!upcoming && e.recordingUrl && (
               <a
                 href={e.recordingUrl}

@@ -48,6 +48,7 @@ export function EventRow({
           <span
             className={`block truncate text-[11px] font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`}
           >
+            {cal.cancelled && <span className="text-rose-600 dark:text-rose-400">Cancelled · </span>}
             {formatEventTime(cal.startSec, cal.isDateOnly)}
             {place && <span className="font-normal text-slate-500 dark:text-slate-400"> · {place}</span>}
           </span>
