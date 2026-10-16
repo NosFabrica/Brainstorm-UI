@@ -1,4 +1,5 @@
 import { LISTING_KIND, isSellable, parseListing, type Listing, type ListingPrice } from "./listing";
+import { newestPerAddress } from "./newestPerAddress";
 
 /**
  * One product, several listings. A reader wants one card that says "10
@@ -248,11 +249,16 @@ export interface ProductCard<E extends EventLike> {
 /**
  * Raw events → sellable products, newest first, each product's options
  * folded into it. The shape every "things for sale" surface renders from.
+ *
+ * Only the current version of each listing counts (NIP-01: the newest per
+ * `kind:pubkey:d`): callers gather from several relays and the store, and a
+ * lagging relay still serves the on-sale copy of a listing its seller has
+ * since hidden or sold.
  */
 export function productsFromEvents<E extends EventLike>(events: E[]): ProductCard<E>[] {
   const byId = new Map<string, E>();
   const parsed: Listing[] = [];
-  for (const ev of [...events].sort((a, b) => b.created_at - a.created_at)) {
+  for (const ev of newestPerAddress(events)) {
     const l = parseListing({ ...ev, content: ev.content ?? "" });
     if (!l) continue;
     byId.set(ev.id, ev);

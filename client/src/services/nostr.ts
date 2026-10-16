@@ -8,6 +8,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { newestPerAddress } from "@/lib/newestPerAddress";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
@@ -906,14 +907,15 @@ export async function fetchListingFamily(
     { kinds: [Number(kind)], authors: [pubkey], "#d": [d] },
     { kinds: [Number(kind)], authors: [pubkey], "#a": [parentAddress], limit: 200 },
   ];
+  // The search relay needs no routing: it is asked while the outbox is looked up.
+  const searched = fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]);
   const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
   const answers = await Promise.all([
-    fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
+    searched,
     ...filters.map((f) => fetchEventsByFilter(f, relays, timeoutMs).catch(() => [] as NostrEvent[])),
   ]);
-  const byId = new Map<string, NostrEvent>();
-  for (const ev of answers.flat()) byId.set(ev.id, ev);
-  return [...byId.values()];
+  // One version per listing: a lagging relay may still serve an older one.
+  return newestPerAddress(answers.flat());
 }
 
 /**
@@ -932,14 +934,15 @@ export async function fetchCollectionProducts(
   const [kind, author] = collectionAddress.split(":");
   if (kind !== "30405" || author !== pubkey) return [];
   const filter = { kinds: [30402], authors: [pubkey], "#a": [collectionAddress], limit: 200 };
+  // The search relay needs no routing: it is asked while the outbox is looked up.
+  const searched = fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]);
   const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
   const answers = await Promise.all([
-    fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]),
+    searched,
     fetchEventsByFilter(filter, relays, timeoutMs).catch(() => [] as NostrEvent[]),
   ]);
-  const byId = new Map<string, NostrEvent>();
-  for (const ev of answers.flat()) byId.set(ev.id, ev);
-  return [...byId.values()];
+  // One version per listing: a lagging relay may still serve an older one.
+  return newestPerAddress(answers.flat());
 }
 
 /** Any filter against the search relay, with the lens it requires; EOSE or

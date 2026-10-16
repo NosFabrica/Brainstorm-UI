@@ -696,6 +696,32 @@ describe("Open Markets pages", () => {
     expect(collectionProductsMock).toHaveBeenCalledWith(seller, `30405:${seller}:om-wallets-1`);
   });
 
+  it("a listing the seller has since hidden stays hidden, though a lagging relay still serves it on sale", async () => {
+    const inIt = ["a", `30405:${seller}:om-wallets-1`];
+    const kept = product("om-tzt-1", "TZT Krux", [inIt]);
+    const onSale = { ...product("om-jade-1", "Jade", [inIt]), created_at: 1_790_000_000 };
+    const hiddenSince = {
+      ...product("om-jade-1", "Jade", [inIt, ["visibility", "hidden"]]),
+      created_at: 1_790_000_100,
+    };
+    collectionProductsMock.mockResolvedValue([onSale, hiddenSince, kept]);
+    page(
+      ev(
+        30405,
+        [
+          ["d", "om-wallets-1"],
+          ["title", "Krux DIY Wallets"],
+        ],
+        "",
+        seller,
+      ),
+    );
+    const products = screen.getByTestId("thing-page-products");
+    expect(await within(products).findByTestId(`listing-card-${kept.id}`)).toBeInTheDocument();
+    expect(within(products).queryByTestId(`listing-card-${onSale.id}`)).toBeNull();
+    expect(within(products).queryByTestId(`listing-card-${hiddenSince.id}`)).toBeNull();
+  });
+
   it("a shipping option states its price and delivery facts", () => {
     page(
       ev(30406, [

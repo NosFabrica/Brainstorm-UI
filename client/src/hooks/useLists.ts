@@ -3,8 +3,9 @@ import type { NostrEvent } from "nostr-tools";
 import { dictionaryRelays } from "@/config/dictionary";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { B_DEFERRED } from "@/lib/conceptResolution";
-import { coordinateOf, parseCoordinate } from "@/lib/dlistFields";
+import { parseCoordinate } from "@/lib/dlistFields";
 import type { ListRef } from "@/lib/listRef";
+import { newestPerAddress } from "@/lib/newestPerAddress";
 import { readListEvents } from "@/services/listReads";
 
 /** Asked again at most every minute: List Management is where lists change. */
@@ -14,17 +15,6 @@ const READ_MS = 8000;
 /** A list header that's still a list: not one withdrawn as a copy (`b-tag-deferred`). */
 const isLiveList = (ev: NostrEvent) =>
   (ev.kind === 39998 || ev.kind === 9998) && !ev.tags.some((t) => t[0] === "b" && t[1] === B_DEFERRED);
-
-/** The newest version at each address, newest first: a relay may still hold an older one. */
-function newestPerAddress(events: readonly NostrEvent[]): NostrEvent[] {
-  const byAddress = new Map<string, NostrEvent>();
-  for (const ev of events) {
-    const address = coordinateOf(ev) ?? ev.id;
-    const held = byAddress.get(address);
-    if (!held || ev.created_at > held.created_at) byAddress.set(address, ev);
-  }
-  return [...byAddress.values()].sort((a, b) => b.created_at - a.created_at);
-}
 
 /**
  * The lists someone has published — their kind-39998 headers, read from the
