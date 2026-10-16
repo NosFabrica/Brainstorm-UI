@@ -111,6 +111,43 @@ describe("eventPath", () => {
       expect(decoded.data).toMatchObject({ id: ID, author: PK, relays: ["wss://a.example"] });
     });
   });
+
+  // A calendar that mirrors a feed (Event Index) publishes an event again whenever its source
+  // changes, and its calendar (31924) whenever the set of events does. A relay keeps only the
+  // newest version, so a link by id stops opening; a link by address follows the edits.
+  describe("a calendar event, and a calendar", () => {
+    const meetup = { id: ID, pubkey: PK, kind: 31923, tags: [["d", "2c87"]] };
+
+    it("a time-based event is linked by its address, on /e", () => {
+      const path = eventPath(meetup);
+      expect(path.startsWith("/e/naddr1")).toBe(true);
+      expect(nip19.decode(path.slice(3)).data).toMatchObject({ kind: 31923, pubkey: PK, identifier: "2c87" });
+    });
+
+    it("so are a date-based event and a calendar", () => {
+      expect(nip19.decode(eventPath({ ...meetup, kind: 31922 }).slice(3)).data).toMatchObject({ kind: 31922 });
+      expect(nip19.decode(eventPath({ ...meetup, kind: 31924 }).slice(3)).data).toMatchObject({ kind: 31924 });
+    });
+
+    it("carries the relay hint when one is known", () => {
+      const decoded = nip19.decode(eventPath(meetup, ["wss://relay.eventindex.space"]).slice(3));
+      expect(decoded.data).toMatchObject({ identifier: "2c87", relays: ["wss://relay.eventindex.space"] });
+    });
+
+    it("is shared by its address, however the page was reached", () => {
+      const here = "https://brainstorm.world/e/nevent1old";
+      expect(shareUrlFor(meetup, here).startsWith("https://brainstorm.world/e/naddr1")).toBe(true);
+    });
+
+    it("an RSVP keeps its link by id, and an event without a d tag does too", () => {
+      expect(eventPath({ ...meetup, kind: 31925 }).startsWith("/e/nevent1")).toBe(true);
+      expect(eventPath({ ...meetup, tags: [] }).startsWith("/e/nevent1")).toBe(true);
+    });
+
+    it("is not a reader kind: the address opens the event page", () => {
+      expect([31922, 31923, 31924].every((k) => ADDRESS_LINK_KINDS.has(k) && !READER_KINDS.has(k))).toBe(true);
+    });
+  });
 });
 
 // Power users copy an nprofile from the ⋯ menu (team, 2026-09-08). One that
