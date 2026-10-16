@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   parseNoteContent,
@@ -17,6 +17,9 @@ import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
+import { SensitiveCover, SensitiveTile, useSensitiveReveal } from "@/components/share/SensitiveMedia";
+import { withTypedFiles } from "@/lib/mediaKind";
+import type { ContentWarning } from "@/lib/nip36";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
@@ -92,6 +95,8 @@ export function NoteContent({
   embeddedIds,
   embeddedCoords,
   embedThings = false,
+  contentWarning,
+  skipUrls,
 }: {
   content: string;
   compact?: boolean;
@@ -117,11 +122,35 @@ export function NoteContent({
   tags?: string[][];
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
+  /** The event's creator marked it sensitive (lib/nip36), whatever its kind — a note, a
+   *  comment, a chat message, a video: each clip in its words is covered until the reader
+   *  asks for it. Its pictures are too: one cover asks for them all when there is no clip,
+   *  and beside a clip (a video's poster) each is a placeholder the clip's cover reveals. */
+  contentWarning?: ContentWarning | null;
+  /** Files the page draws beside these words (EventMedia, from the event's imeta): left out
+   *  here, so each is drawn — and, when sensitive, covered and asked for — once. */
+  skipUrls?: ReadonlySet<string>;
 }) {
   // On the event's own page, whatever markup the text came in (HTML, a
   // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
   const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
-  const tokens = useMemo(() => parseNoteContent(text), [text]);
+  const tokens = useMemo(() => {
+    // A link its imeta types as a picture, a clip or a sound (an extensionless Blossom file) is that file.
+    const all = withTypedFiles(parseNoteContent(text), tags);
+    return skipUrls?.size
+      ? all.filter(
+          (t) =>
+            !(
+              (t.type === "url" || t.type === "image" || t.type === "video" || t.type === "audio") &&
+              skipUrls.has(t.value)
+            ),
+        )
+      : all;
+  }, [text, skipUrls, tags]);
+  // Of several clips shown at once, the first is where focus goes.
+  const firstClip = tokens.find((t) => t.type === "video")?.value;
+  // A live stream is a clip too: its cover asks for the note's pictures beside it.
+  const hasClip = !!firstClip || tokens.some((t) => t.type === "live");
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
   const audioCover = extractImageUrls(text, tags)[0];
@@ -139,7 +168,72 @@ export function NoteContent({
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
+  // What a cover would hide: a link drawn as a picture of its own (a YouTube still, a song's or
+  // episode's art, a Nostr entity's card), and the primary link's preview picture.
+  const degradable = (url: string) =>
+    !!(wavlakeTrackId(url) || fountainRef(url) || videoEmbedFor(url) || clientRef(url));
+  const showsLinkCard =
+    !!primaryUrl &&
+    linkCard &&
+    primaryIsPlainLink &&
+    !wavlakeTrackId(primaryUrl) &&
+    !videoEmbedFor(primaryUrl) &&
+    !fountainRef(primaryUrl);
+  const drawsCover = imageUrls.length > 0 || hasClip;
+  // A covered note whose only media are embeds or a link's picture: one "Show media" for them.
+  const degradesOnly = !drawsCover && (tokens.some((t) => t.type === "url" && degradable(t.value)) || showsLinkCard);
+  // One reveal for the post: beside its files (EventMedia), the first with something to cover asks.
+  const reveal = useSensitiveReveal(!!contentWarning && (drawsCover || degradesOnly));
+  const sensitiveShown = reveal.shown;
+  const covered = !!contentWarning && !sensitiveShown;
+  // Where the cover stood, focus goes once it is asked for: the button that had it is gone. A clip
+  // focuses itself (FeedVideo); otherwise the first live stream, picture or restored embed.
+  const focusIndex =
+    !!contentWarning && sensitiveShown && reveal.leads && !firstClip
+      ? tokens.findIndex(
+          (t) =>
+            t.type === "live" ||
+            (!hasClip && t.type === "image") ||
+            (degradesOnly && t.type === "url" && degradable(t.value)),
+        )
+      : -1;
+  const revealedRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (focusIndex >= 0) revealedRef.current?.focus();
+  }, [focusIndex]);
+  // A covered note with no clip asks for its pictures on the first one; the rest wait beside it.
+  // Beside a cover drawn elsewhere in the post, each waits as a tile.
+  const imageCover = covered && !hasClip && reveal.leads ? imageUrls[0] : undefined;
+  const clipCover = (key: number | string) =>
+    reveal.leads ? (
+      <SensitiveCover
+        key={key}
+        reason={contentWarning?.reason}
+        onShow={reveal.show}
+        className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
+      />
+    ) : (
+      <SensitiveTile
+        key={key}
+        className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
+      />
+    );
+  /** While covered, a link that would draw a picture (a YouTube still, a song's or episode's art,
+   *  a Nostr entity's card) is only a link. */
+  const plainLink = (url: string, key: number | string) =>
+    reading ? <ReadingLink key={key} url={url} /> : <LinkChip key={key} url={url} />;
   const renderToken = (token: NoteToken, i: number | string): ReactNode => {
+    const node = drawToken(token, i);
+    // The token the cover stood on: where focus lands once the reader asked.
+    return focusIndex >= 0 && token === tokens[focusIndex] ? (
+      <span key={i} ref={revealedRef} tabIndex={-1} className="block focus:outline-none" data-testid="note-revealed">
+        {node}
+      </span>
+    ) : (
+      node
+    );
+  };
+  const drawToken = (token: NoteToken, i: number | string): ReactNode => {
     switch (token.type) {
       case "text":
         return (
@@ -148,6 +242,7 @@ export function NoteContent({
           </span>
         );
       case "url":
+        if (covered && degradable(token.value)) return plainLink(token.value, i);
         if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
         if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
         if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
@@ -160,14 +255,31 @@ export function NoteContent({
               id={`audio:${token.value}`}
               title={audioTitle || audioName(token.value)}
               artist={authorName}
-              cover={audioCover}
+              // A covered note's picture is not the art of its sound, here or in the player bar.
+              cover={covered ? undefined : audioCover}
               audio={token.value}
               sourceLabel={hostLabel(token.value)}
             />
           </div>
         );
-      case "image":
-        return imageOpensThread ? (
+      case "image": {
+        if (covered)
+          return token.value === imageCover ? (
+            <SensitiveCover
+              key={i}
+              reason={contentWarning?.reason}
+              onShow={reveal.show}
+              subject="photo"
+              count={imageUrls.length}
+              className="mt-2 aspect-[16/10] max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800"
+            />
+          ) : (
+            <SensitiveTile
+              key={i}
+              className="mt-2 aspect-[16/10] max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800"
+            />
+          );
+        const picture = imageOpensThread ? (
           // Clickable feed card: a tidy cropped thumbnail; the click bubbles
           // up to the card and opens the thread (full image + zoom live there).
           // A fixed box, so the card is its final height before the
@@ -199,9 +311,19 @@ export function NoteContent({
             className={`mt-2 w-full cursor-zoom-in rounded-xl border border-slate-200 bg-slate-50 object-contain dark:border-slate-800 dark:bg-slate-900 ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
           />
         );
+        return picture;
+      }
       case "video":
-        return <FeedVideo key={i} src={token.value} />;
+        if (covered) return clipCover(i);
+        return (
+          <FeedVideo
+            key={i}
+            src={token.value}
+            autoFocus={!!contentWarning && sensitiveShown && reveal.leads && token.value === firstClip}
+          />
+        );
       case "live":
+        if (covered) return clipCover(i);
         return <NoteLiveVideo key={i} url={token.value} />;
       case "mention": {
         const { pubkey, id, address } = decodeNostrEntity(token.bech32);
@@ -276,17 +398,30 @@ export function NoteContent({
     }
   };
   const linkCardNode =
-    primaryUrl &&
-    linkCard &&
-    primaryIsPlainLink &&
-    !wavlakeTrackId(primaryUrl) &&
-    !videoEmbedFor(primaryUrl) &&
-    !fountainRef(primaryUrl) ? (
+    showsLinkCard && primaryUrl ? (
       <LinkPreviewCard
         url={primaryUrl}
-        showImage={!tokens.some((t) => t.type === "image" || t.type === "video")}
+        showImage={!covered && !tokens.some((t) => t.type === "image" || t.type === "video")}
+        sensitive={covered}
         context={text}
       />
+    ) : null;
+  // The one way to ask for what the cover degraded, when no picture or clip drew a cover.
+  const showMedia =
+    covered && degradesOnly && reveal.leads ? (
+      <SensitiveCover
+        reason={contentWarning?.reason}
+        onShow={reveal.show}
+        subject="media"
+        className="mt-2 w-full whitespace-normal rounded-xl border border-slate-200 dark:border-slate-800"
+      />
+    ) : null;
+  const after =
+    linkCardNode || showMedia ? (
+      <>
+        {linkCardNode}
+        {showMedia}
+      </>
     ) : null;
 
   if (reading) {
@@ -297,7 +432,7 @@ export function NoteContent({
         tags={tags}
         size="post"
         renderToken={renderToken}
-        after={linkCardNode}
+        after={after}
         testId="note-reading"
       />
     );
@@ -306,7 +441,7 @@ export function NoteContent({
   return (
     <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
       {tokens.map((token, i) => renderToken(token, i))}
-      {linkCardNode}
+      {after}
     </div>
   );
 }

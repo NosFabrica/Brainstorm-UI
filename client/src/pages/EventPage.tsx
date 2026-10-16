@@ -25,7 +25,9 @@ export default function EventPage() {
   }, [raw]);
   if (target.type === "address") return <AddressScreen key={raw} naddr={raw} ptr={target.ptr} />;
   if (target.type === "profile") return <Redirect to={`/p/${raw}`} replace />;
-  return <EventScreen ptr={target.ptr} />;
+  // Keyed by the route, as the address page is: /e/A → /e/B is a new page, and
+  // what a reader did on A (a reported post revealed, a list opened) stays there.
+  return <EventScreen key={raw} ptr={target.ptr} />;
 }
 
 /** `/a/<naddr>`, the old address route: the same page now lives on `/e/`.

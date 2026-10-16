@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { useDictionaryReader } from "@/hooks/useDictionaryReader";
 import { dictionaryConceptOf } from "@/services/dictionary";
 import { resolveConceptBatched } from "@/services/conceptBatch";
@@ -11,7 +12,8 @@ import type { ResolvedConcept } from "@/lib/conceptResolution";
  * `data` is null when the concept couldn't be resolved at all.
  */
 export function useItemConcept(item: { kind: number; tags: string[][] }) {
-  const community = dictionaryConceptOf(item);
+  const { rendered } = useDictionaryConcepts();
+  const community = dictionaryConceptOf(item, rendered);
   const { pubkey, taPubkey, settled } = useDictionaryReader();
   return useQuery({
     queryKey: ["item-concept", community, pubkey, taPubkey],

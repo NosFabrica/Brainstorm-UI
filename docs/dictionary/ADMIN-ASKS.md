@@ -33,8 +33,9 @@ Content-Type: application/json
 
 - **Admin only**, like every `/admin/*` route.
 - **`concepts`**: community header coordinates, `39998:<pubkey>:<d>`. Split them at the
-  first two colons only: a `d` may contain colons. The UI sends its configured list
-  (`client/src/config/dictionary.config.json`), so a new concept needs no server deploy.
+  first two colons only: a `d` may contain colons. The UI sends the concepts the
+  Dictionary shows, read from its curated list (`client/src/hooks/useDictionaryConcepts.ts`),
+  so a new concept needs no server deploy, and no UI deploy either.
   Refuse anything that isn't a kind-39998 coordinate.
 - **Signing**: the observer's assistant key, the same one Trusted Lists use
   (`get_or_create_brainstorm_observer_nsec_by_pubkey_on_db`). Please don't mint a key for

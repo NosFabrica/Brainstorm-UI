@@ -1,6 +1,6 @@
 /**
  * A reader's Dictionary, read from the tag hub: for each concept the app
- * shows (config/dictionary), its community header, the copies that point at
+ * shows (hooks/useDictionaryConcepts), its community header, the copies that point at
  * it — the reader's own, their Tapestry Assistant's, the house's — and the
  * items filed under any of them. lib/conceptResolution decides which copy
  * governs; this only gathers the candidates.
@@ -16,7 +16,8 @@
  * A relay that fails or times out reads as empty: no copies, no items. The
  * page says what it found, not that the network is down.
  */
-import { DICTIONARY_CONCEPTS, dictionaryRelays } from "@/config/dictionary";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
 import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
 import { DLIST_ITEM_KINDS, coordinateOf, headerReferenceOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
@@ -50,6 +51,9 @@ export interface DictionaryEntry {
 
 const TIMEOUT_MS = 8000;
 const ITEM_LIMIT = 500;
+/** The most a relay answers to one filter: List Management reads a list's items up to it. */
+export const INSPECT_LIMIT = 10_000;
+export const INSPECT_TIMEOUT_MS = 20_000;
 
 const zValues = (ev: { tags: string[][] }) => ev.tags.filter((t) => t[0] === "z" && t[1]).map((t) => t[1]);
 
@@ -69,8 +73,8 @@ export function itemIdentity(ev: DictionaryItem): string {
 }
 
 /** The newest version of each item, newest first. A tie keeps the original over its copy. */
-export function distinctItems(events: DictionaryItem[]): DictionaryItem[] {
-  const best = new Map<string, DictionaryItem>();
+export function distinctItems<T extends DictionaryItem>(events: T[]): T[] {
+  const best = new Map<string, T>();
   for (const ev of events) {
     const key = itemIdentity(ev);
     const cur = best.get(key);
@@ -95,7 +99,7 @@ function newestPerCoordinate(events: HeaderEvent[]): Map<string, HeaderEvent> {
  * preferring the one sharing its `d` (the convention a copy follows), else
  * the newest.
  */
-function copyBy(author: string | null, community: string, copies: HeaderEvent[]): HeaderEvent | null {
+export function copyBy(author: string | null, community: string, copies: HeaderEvent[]): HeaderEvent | null {
   if (!author) return null;
   const d = parseCoordinate(community)?.d;
   const mine = copies.filter((h) => h.pubkey === author && pointsAt(h, community));
@@ -143,29 +147,37 @@ export interface ListItems {
 const HEX_ID = /^[0-9a-f]{64}$/i;
 
 /**
- * The items filed under these headers. A header is named by its coordinate
- * (39998) or its event id (9998); a 9998's items name it by `z`, or by `e`
- * when they carry no `z` (lib/dlistFields `headerReferenceOf`).
+ * The filters for the items filed under these headers; `limit` when given. A
+ * header is named by its coordinate (39998) or its event id (9998); a 9998's
+ * items name it by `z`, or by `e` when they carry no `z` (lib/dlistFields
+ * `headerReferenceOf`).
  */
-export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
-  if (!headers.length) return { items: [], truncated: false };
+export function itemFilters(headers: string[], limit?: number): Filter[] {
   const ids = headers.filter((h) => HEX_ID.test(h));
-  const events = (await readListEvents(
-    [
-      { kinds: [...DLIST_ITEM_KINDS], "#z": headers, limit: ITEM_LIMIT },
-      ...(ids.length ? [{ kinds: [...DLIST_ITEM_KINDS], "#e": ids, limit: ITEM_LIMIT }] : []),
-    ],
-    TIMEOUT_MS,
-    hubRelays,
-  )) as DictionaryItem[];
+  const cap = limit === undefined ? {} : { limit };
+  return [
+    { kinds: [...DLIST_ITEM_KINDS], "#z": headers, ...cap },
+    ...(ids.length ? [{ kinds: [...DLIST_ITEM_KINDS], "#e": ids, ...cap }] : []),
+  ];
+}
+
+/** Of these events, the list items filed under these headers: newest version of each, newest first. */
+export function filedItems<T extends DictionaryItem>(events: T[], headers: string[]): T[] {
   const filed = new Set(headers);
-  const isFiled = (ev: DictionaryItem) => {
+  const isFiled = (ev: T) => {
     const z = zValues(ev);
     return z.length ? z.some((v) => filed.has(v)) : filed.has(headerReferenceOf(ev) ?? "");
   };
+  return distinctItems(events.filter(isDListItem).filter(isFiled));
+}
+
+/** The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. */
+export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
+  if (!headers.length) return { items: [], truncated: false };
+  const events = (await readListEvents(itemFilters(headers, ITEM_LIMIT), TIMEOUT_MS, hubRelays)) as DictionaryItem[];
   // Index and hub answers arrive merged, so a full answer from either can't be told apart from two
   // partial ones adding up: this errs toward saying more may exist.
-  return { items: distinctItems(events.filter(isDListItem).filter(isFiled)), truncated: events.length >= ITEM_LIMIT };
+  return { items: filedItems(events, headers), truncated: events.length >= ITEM_LIMIT };
 }
 
 /**
@@ -198,7 +210,7 @@ export async function houseCopyAuthors(): Promise<string[]> {
 
 export async function loadDictionary(
   reader: DictionaryReader,
-  concepts: string[] = DICTIONARY_CONCEPTS,
+  concepts: string[],
   hubRelays: string[] = dictionaryRelays(),
   { items: withItems = true }: { items?: boolean } = {},
 ): Promise<DictionaryEntry[]> {
@@ -246,12 +258,16 @@ export async function loadDictionary(
 
 /**
  * The Dictionary concept an item belongs to: the community coordinate its
- * `z` names, when that is a concept the app shows. Synchronous, so a page
- * can choose its renderer before anything loads. An item filed only under
+ * `z` names, when it's one of `concepts` (hooks/useDictionaryConcepts —
+ * `rendered` for drawing an item, `shown` for linking its entry).
+ * Synchronous, so a page can choose its renderer as soon as the set is known. An item filed only under
  * someone's copy (a curation copy) isn't recognised yet — the copy's `b`
  * would have to be fetched first.
  */
-export function dictionaryConceptOf(ev: { kind: number; tags: string[][] }): string | null {
+export function dictionaryConceptOf(
+  ev: { kind: number; tags: string[][] },
+  concepts: readonly string[],
+): string | null {
   if (!isDListItem(ev)) return null;
-  return zValues(ev).find((z) => DICTIONARY_CONCEPTS.includes(z)) ?? null;
+  return zValues(ev).find((z) => concepts.includes(z)) ?? null;
 }

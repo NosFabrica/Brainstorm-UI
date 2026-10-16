@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { SearchBox } from "@/components/search/SearchBox";
+import { TRY_CHIPS } from "@/lib/tryChips";
 import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 import { Card } from "@/components/ui/card";
 import { tone as getTone } from "@/lib/tones";
@@ -149,7 +150,6 @@ const faqs = [
 const ringWidth = ["", "w-1/4", "w-2/4", "w-3/4", "w-full"];
 
 // Example searches that fire the real, trust-ranked search.
-const exampleQueries = ["Authors", "Journalists", "Podcasts"];
 
 // Trust-ring cards visually fade with distance: bold indigo at "You",
 // receding to muted grey at "Strangers", so the section shows its own point.
@@ -225,11 +225,6 @@ export default function WhatIsWotPage() {
   const accentTile = getTone("accent");
 
   // Hand off to the real search on the home page (it reads ?q= from the URL).
-  const runSearch = (q: string) => {
-    const term = q.trim();
-    navigate(term ? `/?q=${encodeURIComponent(term)}` : "/");
-  };
-
   return (
     <InfoPageLayout testId="page-what-is-wot" headerSearch={false}>
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
@@ -284,11 +279,11 @@ export default function WhatIsWotPage() {
             {/* Example queries — one click runs the real search */}
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <span className="text-[13px] text-slate-400 dark:text-slate-500">Try:</span>
-              {exampleQueries.map((q) => (
+              {TRY_CHIPS.map(({ label: q, href }) => (
                 <button
                   key={q}
                   type="button"
-                  onClick={() => runSearch(q)}
+                  onClick={() => navigate(href)}
                   className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-primary dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                   data-testid={`chip-${q.toLowerCase()}`}
                 >

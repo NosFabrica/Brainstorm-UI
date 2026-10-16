@@ -511,11 +511,117 @@ describe("SerpRow — media taps", () => {
     render(<SerpRow event={clip} author={author} score={0.7} query="goal" />);
     fireEvent.click(screen.getByTestId("serp-video-thumb"));
     expect(openLightboxMock).toHaveBeenLastCalledWith(
-      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null }],
+      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null, loop: false }],
       0,
       expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
     );
     expect(window.location.pathname).toBe("/");
+  });
+
+  // A short goes round again in the full view, as on its own page.
+  it("a short's thumbnail plays it looping", () => {
+    const short = {
+      ...note("Goal!", [
+        ["d", "goal"],
+        ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"],
+      ]),
+      kind: 34236,
+    };
+    render(<SerpRow event={short} author={author} score={0.7} query="goal" />);
+    fireEvent.click(screen.getByTestId("serp-video-thumb"));
+    expect(openLightboxMock.mock.lastCall![0]).toEqual([
+      { url: "https://cdn.example/goal.mp4", kind: "video", poster: null, loop: true },
+    ]);
+  });
+
+  // Safe by default: a video its creator marked sensitive shows no poster and no frame in a row.
+  it("a video marked sensitive is a placeholder, and its tap opens the full view covered", () => {
+    const flagged = {
+      ...note("Goal!", [
+        ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4", "image https://cdn.example/goal.jpg"],
+        ["content-warning", "violence"],
+      ]),
+      kind: 34236,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="goal" />);
+    expect(screen.getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+    expect(screen.queryByTestId("serp-video-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="goal.jpg"], video')).toBeNull();
+    fireEvent.click(screen.getByTestId("sensitive-tile"));
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [
+        {
+          url: "https://cdn.example/goal.mp4",
+          kind: "video",
+          poster: "https://cdn.example/goal.jpg",
+          warning: { reason: "violence" },
+          loop: true,
+        },
+      ],
+      0,
+      expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
+    );
+    expect(window.location.pathname).toBe("/");
+  });
+});
+
+// NIP-36 is for any kind: a picture post or a note's photo its creator flagged is a placeholder too.
+describe("SerpRow — a picture marked sensitive", () => {
+  it("a flagged picture post shows the placeholder, not the picture, and its tap opens the post", () => {
+    const flagged = {
+      ...note("Harbour at dawn", [
+        ["imeta", "url https://cdn.example/harbour.jpg", "m image/jpeg"],
+        ["content-warning", "nudity"],
+      ]),
+      kind: 20,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="harbour" />);
+    expect(screen.getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="harbour.jpg"]')).toBeNull();
+    openLightboxMock.mockClear();
+    fireEvent.click(screen.getByTestId("sensitive-tile"));
+    expect(openLightboxMock).not.toHaveBeenCalled();
+  });
+
+  it("a note flagged by its NIP-32 label keeps its photo out of the row", () => {
+    const flagged = note("Look https://cdn.example/scene.jpg", [["l", "spoiler", "content-warning"]]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="look" />);
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+    expect(document.querySelector('img[src*="scene.jpg"]')).toBeNull();
+  });
+
+  // Audit: a flagged note's link card still drew the page's own picture.
+  it("a flagged note's link card says the page's words without its picture", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "The story",
+      description: "What happened.",
+      image: "https://img.test/og-nsfw.jpg",
+      siteName: null,
+    });
+    const flagged = note("My take on this https://news.test/story", [
+      ["title", "My take"],
+      ["content-warning", "gore"],
+    ]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("link-card")).toHaveTextContent("The story");
+    expect(document.querySelector('img[src*="og-nsfw"]')).toBeNull();
+  });
+
+  it("a flagged share's page picture is the placeholder", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "Liverpool F.C.",
+      description: "Club",
+      image: "https://img.test/og-nsfw.jpg",
+      siteName: "Wikipedia",
+    });
+    const flagged = note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.", [["content-warning", "x"]]);
+    render(<SerpRow event={flagged} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("news-headline")).toHaveTextContent("Liverpool F.C.");
+    expect(screen.queryByTestId("news-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="og-nsfw"]')).toBeNull();
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
   });
 });
 
@@ -861,5 +967,104 @@ describe("SerpRow — a NIP-84 highlight", () => {
     await waitFor(() =>
       expect(screen.getByTestId("serp-highlight-source")).toHaveTextContent("From A note worth highlighting from by"),
     );
+  });
+});
+// A restored Vine is signed the day it was imported; `published_at` is the day it was posted.
+const classicVine = (): NostrEvent =>
+  ({
+    id: "7".repeat(64),
+    kind: 34236,
+    pubkey: "9".repeat(64),
+    created_at: Math.floor(Date.now() / 1000) - 60,
+    sig: "s",
+    content: "Vampire Eric",
+    tags: [
+      ["d", "OaXhLEvJxwA"],
+      ["title", "Vampire Eric"],
+      [
+        "imeta",
+        "url https://media.divine.video/9001",
+        "m video/mp4",
+        "image https://media.divine.video/9001.jpg",
+        "dim 480x480",
+      ],
+      ["published_at", "1410674550"],
+      ["platform", "vine"],
+      ["l", "vine-archive", "archive.divine.video"],
+    ],
+  }) as NostrEvent;
+
+describe("SerpRow — a video's date", () => {
+  it("dates a classic Vine by the day it was posted, not the day it was imported", () => {
+    render(<SerpRow event={classicVine()} author={null} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${"7".repeat(64)}`);
+    expect(row).toHaveTextContent("Sep 2014");
+    expect(row).not.toHaveTextContent("1m ago");
+  });
+});
+
+// A NIP-B0 web bookmark was drawn as a list card saying "0 items". It is one
+// link with its saver's words: the page's row, out to the page.
+describe("SerpRow — a web bookmark", () => {
+  it("shows the page it saves — site, name out to the page, the saver's words — not a list of nothing", () => {
+    const bookmark = {
+      ...note("The best explainer of relays I have read.", [
+        ["d", "alice.blog/relays-explained"],
+        ["title", "Relays, explained"],
+        ["t", "nostr"],
+      ]),
+      kind: 39701,
+    } as NostrEvent;
+    render(<SerpRow event={bookmark} author={author} score={0.7} query="relays" />);
+    const row = screen.getByTestId(`web-bookmark-${bookmark.id}`);
+    expect(screen.getByTestId("web-bookmark-source")).toHaveTextContent("alice.blog");
+    const title = screen.getByTestId("web-bookmark-title");
+    expect(title).toHaveTextContent("Relays, explained");
+    expect(title).toHaveAttribute("href", "https://alice.blog/relays-explained");
+    expect(row).toHaveTextContent("The best explainer of relays I have read.");
+    expect(row).not.toHaveTextContent("0 items");
+  });
+});
+
+// Audit: the row drew the page's own picture under a bookmark its saver flagged (NIP-36).
+describe("SerpRow — a web bookmark marked sensitive", () => {
+  it("shows the placeholder in place of the page's picture", async () => {
+    stubVisibleIntersectionObserver();
+    unfurlMock.mockResolvedValueOnce({
+      title: "Page",
+      description: "Words",
+      image: "https://img.example/nsfw.jpg",
+      siteName: null,
+    });
+    const bookmark = {
+      ...note("words", [
+        ["d", "nsfw.example/page"],
+        ["title", "Page"],
+        ["content-warning", "nudity"],
+      ]),
+      kind: 39701,
+    } as NostrEvent;
+    render(<SerpRow event={bookmark} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("sensitive-tile")).toBeInTheDocument();
+    expect(screen.queryByTestId("web-bookmark-thumb")).toBeNull();
+    expect(document.querySelector('img[src*="nsfw.jpg"]')).toBeNull();
+  });
+});
+
+// Audit: the flagged clip's placeholder took a tap but no keyboard.
+describe("SerpRow — a sensitive clip's placeholder", () => {
+  it("is a button a keyboard reaches, named for what it opens", () => {
+    const flagged = {
+      ...note("Goal!", [
+        ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"],
+        ["title", "Goal"],
+        ["content-warning", "violence"],
+      ]),
+      kind: 34236,
+    };
+    render(<SerpRow event={flagged} author={author} score={0.7} query="goal" />);
+    const tile = screen.getByTestId("sensitive-tile");
+    expect(tile.tagName).toBe("BUTTON");
+    expect(tile).toHaveAccessibleName(/^Sensitive video/);
   });
 });

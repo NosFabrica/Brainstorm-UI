@@ -75,6 +75,25 @@ if (hasDom && typeof window.matchMedia === "undefined") {
     }) as unknown as MediaQueryList) as typeof window.matchMedia;
 }
 
+// jsdom has no Web Animations either: `element.animate(…)` is what the home
+// hero replays when the wordmark is pressed. A no-op Animation keeps a click
+// on the wordmark from throwing where the browser would just not animate.
+if (hasDom && typeof Element.prototype.animate === "undefined") {
+  Element.prototype.animate = (() =>
+    ({
+      cancel() {},
+      finish() {},
+      pause() {},
+      play() {},
+      reverse() {},
+      finished: Promise.resolve(),
+      onfinish: null,
+      oncancel: null,
+      addEventListener() {},
+      removeEventListener() {},
+    }) as unknown as Animation) as typeof Element.prototype.animate;
+}
+
 // jsdom has no ResizeObserver, and Radix primitives (Checkbox, Slider, …) call it
 // in a layout effect — without this they throw on mount.
 if (hasDom && typeof globalThis.ResizeObserver === "undefined") {

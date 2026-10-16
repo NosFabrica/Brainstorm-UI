@@ -575,14 +575,17 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         const noun = kindNoun(seg.value);
         const named = noun !== String(seg.value);
         // `spec:` keeps the word it was typed as, and needs no prefix — "specs" is already
-        // the whole of what it says. Anything else reads `kind: articles`, or `kind: 31999`
-        // where the protocol has a number and this app has no word for it.
+        // the whole of what it says. Anything else reads `kind: articles`, `kind: videos` for
+        // `kind:video`, or `kind: 31999` where the protocol has a number and this app has no
+        // word for it.
         span.innerHTML = /^spec:/i.test(seg.raw)
           ? `<span class="${VALUE_CLASS}">${esc(noun)}</span>` + x
           : `<span class="${KEY_CLASS}">kind:</span><span class="${VALUE_CLASS}">${esc(noun)}</span>` + x;
-        span.title = named
-          ? `${seg.raw} — only ${noun} (kind ${seg.value})`
-          : `${seg.raw} — only events of kind ${seg.value}`;
+        span.title = seg.values
+          ? `${seg.raw} — only ${noun} (kinds ${seg.values.join(", ")})`
+          : named
+            ? `${seg.raw} — only ${noun} (kind ${seg.value})`
+            : `${seg.raw} — only events of kind ${seg.value}`;
         return span;
       }
       case "verified":

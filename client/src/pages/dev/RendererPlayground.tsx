@@ -19,12 +19,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DListItemHero } from "@/components/share/DListItemHero";
+import { ItemPage } from "@/components/items/ItemPage";
 import { DListItemCard } from "@/components/dictionary/DListItemCard";
 import { DListSuggestionRow } from "@/components/dictionary/DListSuggestionRow";
 import { dictionaryRelays } from "@/config/dictionary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { dictionaryConceptOf, loadDictionary } from "@/services/dictionary";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { eventPath } from "@/lib/shareId";
 
 const VIEWS = ["single", "card", "popup", "all"] as const;
@@ -82,9 +83,11 @@ export default function RendererPlayground() {
     staleTime: 60_000,
   });
   // Quick picks: the Dictionary's items, so there's always something to try.
+  const { shown } = useDictionaryConcepts();
   const picks = useQuery({
-    queryKey: ["playground-picks"],
-    queryFn: () => loadDictionary({ pubkey: null, taPubkey: null }),
+    queryKey: ["playground-picks", shown],
+    queryFn: () => loadDictionary({ pubkey: null, taPubkey: null }, shown),
+    enabled: shown.length > 0,
     staleTime: 5 * 60_000,
   });
   const pickItems = (picks.data ?? []).flatMap((e) => e.items).slice(0, 12);
@@ -168,7 +171,8 @@ export default function RendererPlayground() {
 }
 
 function Rendered({ event, view, onView }: { event: NostrEvent; view: View; onView: (v: View) => void }) {
-  if (!dictionaryConceptOf(event)) {
+  const { rendered } = useDictionaryConcepts();
+  if (!dictionaryConceptOf(event, rendered)) {
     return (
       <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="playground-not-dlist">
         This is a kind-{event.kind} event, not an item of a Dictionary concept, so none of these renderers apply.{" "}
@@ -183,7 +187,7 @@ function Rendered({ event, view, onView }: { event: NostrEvent; view: View; onVi
   const single = (
     <div className="space-y-2">
       <div className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-        <DListItemHero event={event} />
+        <ItemPage event={event} />
       </div>
       <Link href={page} className="inline-flex items-center gap-1 text-xs text-brand-link hover:underline">
         Open the real page <ExternalLink className="h-3 w-3" />

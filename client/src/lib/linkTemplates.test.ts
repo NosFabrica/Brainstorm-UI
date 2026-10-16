@@ -9,8 +9,11 @@ import {
   itemLinks,
   linkTags,
   parseLinkRefs,
+  rebind,
+  similarTemplates,
   templateOf,
   templatePlaceholders,
+  templateShape,
   type UrlTemplate,
 } from "./linkTemplates";
 
@@ -135,5 +138,50 @@ describe("duplicates", () => {
       bindings: [["username", "github-username"]] as [string, string][],
     };
     expect(itemLinks({ tags: [["github-username", "v"]] }, [ref, ref], new Map([[TEMPLATE_ID, tpl]]))).toHaveLength(1);
+  });
+});
+
+describe("telling a new template from one that exists", () => {
+  const tpl = (id: string, name: string, template: string) => ({ id, pubkey: "p", name, template });
+  const existing = [
+    tpl("btc", "BTC Map place", "https://btcmap.org/merchant/{id}"),
+    tpl("osm", "OpenStreetMap location", "https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=19/{lat}/{lon}"),
+    tpl("gr-isbn", "Goodreads book (ISBN)", "https://www.goodreads.com/book/isbn/{isbn10}"),
+  ];
+
+  it("reads two templates as one when only their placeholder names or host case differ", () => {
+    expect(templateShape("https://BTCMap.org/merchant/{place}")).toBe(
+      templateShape("https://btcmap.org/merchant/{id}"),
+    );
+    expect(templateShape("https://btcmap.org/merchants/{id}")).not.toBe(
+      templateShape("https://btcmap.org/merchant/{id}"),
+    );
+    expect(templateShape("http://btcmap.org/merchant/{id}")).toBeNull();
+  });
+
+  it("finds the existing template of the same shape, and others on the same site", () => {
+    expect(similarTemplates("https://btcmap.org/merchant/{place}", existing)).toEqual({
+      same: existing[0],
+      sameSite: [],
+    });
+    const goodreads = similarTemplates("https://goodreads.com/search?q={title}", existing);
+    expect(goodreads.same).toBeNull();
+    expect(goodreads.sameSite.map((t) => t.id)).toEqual(["gr-isbn"]);
+    expect(similarTemplates("https://openlibrary.org/isbn/{isbn}", existing)).toEqual({ same: null, sameSite: [] });
+  });
+
+  it("carries bindings over by position, repeats included", () => {
+    expect(rebind("https://btcmap.org/merchant/{place}", existing[0].template, [["place", "btcmap-id"]])).toEqual([
+      ["id", "btcmap-id"],
+    ]);
+    expect(
+      rebind("https://www.openstreetmap.org/?mlat={y}&mlon={x}#map=19/{y}/{x}", existing[1].template, [
+        ["y", "latitude"],
+        ["x", "longitude"],
+      ]),
+    ).toEqual([
+      ["lat", "latitude"],
+      ["lon", "longitude"],
+    ]);
   });
 });

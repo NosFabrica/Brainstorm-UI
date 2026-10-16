@@ -63,4 +63,20 @@ describe("FileHero", () => {
     expect(hero).toHaveTextContent("2 KB");
     expect(screen.getByTestId("file-hero-download")).toHaveTextContent("Download");
   });
+
+  // Audit: a file's `url` reached the download link whatever its scheme, and any `x` read as a hash.
+  it("offers only a web address, and says a hash only when it is one", () => {
+    const hostile = {
+      ...apk,
+      tags: [
+        ["m", "application/pdf"],
+        ["x", "not a hash <b>"],
+        ["url", "javascript:alert(1)"],
+      ],
+    } as NostrEvent;
+    render(<FileHero event={hostile} />);
+    expect(screen.queryByTestId("file-hero-download")).toBeNull();
+    expect(screen.queryByTestId("file-hero-hash")).toBeNull();
+    expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
+  });
 });

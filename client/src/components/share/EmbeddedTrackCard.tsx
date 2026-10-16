@@ -1,10 +1,12 @@
-import { type MouseEvent } from "react";
+import { useRef, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { Play, Pause, Loader2, AlertCircle, HeartHandshake } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
 import audioDefault from "@/assets/audio-default.webp";
+import { useNearViewport } from "@/hooks/useNearViewport";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /**
  * The "now playing" equalizer — bars bounce while playing, freeze on pause.
@@ -90,7 +92,12 @@ export function EmbeddedTrackCard({
 }) {
   const [, navigate] = useLocation();
   const player = useTrackPlayer(id);
-  const metaDuration = useTrackDuration(durationSec ? undefined : audio);
+  // With no length given, the file is asked for it — once the row is near the screen, and only on a
+  // connection that can afford it: a list of sounds must not load every file's head on arrival.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(rowRef, "300px");
+  const speed = useConnectionSpeed();
+  const metaDuration = useTrackDuration(durationSec || !near || speed !== "normal" ? undefined : audio);
   const playable = !!audio;
 
   const open = onOpen ?? (href ? () => navigate(href) : undefined);
@@ -118,6 +125,7 @@ export function EmbeddedTrackCard({
 
   return (
     <div
+      ref={rowRef}
       onClick={onRowClick}
       className={
         flat

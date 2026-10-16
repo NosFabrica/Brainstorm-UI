@@ -5,7 +5,7 @@
  * poster or first frame, captions with author and age). Both open the in-app
  * event page; a story's headline goes out to the article.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { noteTitle } from "@/lib/noteTitle";
@@ -16,6 +16,11 @@ import { BookOpen, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
+import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
+import { contentWarningOf } from "@/lib/nip36";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { videoShapeOf } from "@/lib/videoFrame";
+import { postedAtOf } from "@/lib/eventDate";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape } from "@/lib/newsShape";
@@ -31,7 +36,6 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
-const VIDEO_KINDS = new Set([21, 22, 34235, 34236]);
 const MAX_STORIES = 4;
 
 function ago(created_at: number): string {
@@ -67,7 +71,12 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
   const out: TopStory[] = [];
   const seenAuthors = new Set<string>();
   const seenIds = new Set<string>();
-  const eligible = hits.filter((h) => !tagVal(h.event, "title") && !tagVal(h.event, "name") && !!h.event.content);
+  // The strip draws a picture large with no way to ask first: a post its creator marked
+  // sensitive stays a row, where its thumbnail is a placeholder.
+  const flagged = (e: NostrEvent) => !!contentWarningOf(e);
+  const eligible = hits.filter(
+    (h) => !tagVal(h.event, "title") && !tagVal(h.event, "name") && !!h.event.content && !flagged(h.event),
+  );
   const take = (hit: SearchHit, news: StoryShape) => {
     seenAuthors.add(hit.event.pubkey);
     seenIds.add(hit.event.id);
@@ -252,6 +261,15 @@ function MediaTile({
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(e) ?? null);
   const isVideo = VIDEO_KINDS.has(e.kind) || (!!url && !isImage && isVideoUrl(e, url));
+  // Media its creator marked sensitive: no picture and no frame here. A clip's full view asks
+  // first; a picture's tap opens the post.
+  const warning = contentWarningOf(e) ?? undefined;
+  // Every tile in the grid is 4:3 so a row stays one height. Cropped to fill it, an upright
+  // video shows its middle third and a square one loses its top and bottom, so those two are
+  // fitted in whole on a dark ground. A wide video, or one that gives no size, fills the tile.
+  const shape = useMemo(() => (VIDEO_KINDS.has(e.kind) ? videoShapeOf(readVideo(e).dim) : null), [e]);
+  const whole = shape === "portrait" || shape === "square";
+  const fit = whole ? "object-contain" : "object-cover";
   const openPost = () => navigate(eventPath(e));
   // A tap on the picture or the play badge gives the MEDIA — full view,
   // playing — the way X, Instagram and TikTok do. The caption opens the post.
@@ -268,11 +286,14 @@ function MediaTile({
     postHref: eventPath(e),
   };
   const openMedia = () => {
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0, context);
-    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
+    // A short goes round again in the full view, as on its own page.
+    const loop = SHORT_VIDEO_KINDS.has(e.kind);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning, loop }], 0, context);
+    else if (poster && !warning) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };
-  const caption = noteTitle(e.content || tagVal(e, "title") || "", 160);
+  // The title first, as the Media card reads it: a video's words are often only its hashtags.
+  const caption = noteTitle(tagVal(e, "title") || e.content || "", 160);
   return (
     <div
       className="group overflow-hidden rounded-xl border border-slate-100 bg-white/70 transition-all hover:border-slate-200 hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
@@ -281,7 +302,9 @@ function MediaTile({
       <div
         role="button"
         tabIndex={0}
-        aria-label={isVideo ? "Play video" : "View image"}
+        aria-label={
+          warning ? (isVideo ? sensitiveVideoLabel(caption) : "Sensitive image") : isVideo ? "Play video" : "View image"
+        }
         onClick={openMedia}
         onKeyDown={(ev) => {
           if (ev.key === "Enter" || ev.key === " ") {
@@ -289,14 +312,18 @@ function MediaTile({
             openMedia();
           }
         }}
-        className="relative aspect-[4/3] cursor-pointer bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:bg-slate-800"
+        className={`relative aspect-[4/3] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
+          whole && !warning ? "bg-black" : "bg-slate-100 dark:bg-slate-800"
+        }`}
         data-testid="media-tile-media"
       >
         {/* Dead media leaves the grid (Google's rule for a broken image): a
             poster that fails falls back to the video's first frame when there
             is one; when that fails too — or a picture alone fails — the tile
             tells the grid it is gone. */}
-        {poster && !imgFailed ? (
+        {warning ? (
+          <SensitiveTile className="absolute inset-0" />
+        ) : poster && !imgFailed ? (
           <MediaImg
             src={poster}
             preset="media_640"
@@ -306,7 +333,7 @@ function MediaTile({
               setImgFailed(true);
               if (!(url && isVideo)) onGone?.();
             }}
-            className="absolute inset-0 h-full w-full object-cover"
+            className={`absolute inset-0 h-full w-full ${fit}`}
           />
         ) : url && isVideo ? (
           <video
@@ -317,10 +344,10 @@ function MediaTile({
             tabIndex={-1}
             aria-hidden
             onError={() => onGone?.()}
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            className={`pointer-events-none absolute inset-0 h-full w-full ${fit}`}
           />
         ) : null}
-        {isVideo && (
+        {isVideo && !warning && (
           <span className="absolute inset-0 flex items-center justify-center" data-testid="media-tile-play">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-md">
               <Play className="ml-0.5 h-4 w-4 text-brand-deep" />
@@ -346,7 +373,7 @@ function MediaTile({
         )}
         <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
           <span className="min-w-0 truncate">
-            {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}
+            {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(postedAtOf(e))}
           </span>
           {/* The picture says what it is; the pill only when asked for everywhere. */}
           <KindPill event={e} mixed={false} />

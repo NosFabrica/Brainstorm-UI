@@ -1,6 +1,5 @@
 import { authApi } from "./auth";
 import { usersApi } from "./users";
-import { searchApi } from "./search";
 import { shareApi } from "./share";
 import { schedulingApi } from "./scheduling";
 import { billingApi } from "./billing";
@@ -12,7 +11,6 @@ import { adminApi } from "./admin";
 export { isAuthRedirecting, resumeSession, setRouteRequiresSession } from "./core";
 export * from "./auth";
 export * from "./users";
-export * from "./search";
 export * from "./share";
 export * from "./scheduling";
 export * from "./billing";
@@ -27,7 +25,6 @@ export * from "./admin";
 export const apiClient = {
   ...authApi,
   ...usersApi,
-  ...searchApi,
   ...shareApi,
   ...schedulingApi,
   ...billingApi,

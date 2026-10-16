@@ -10,6 +10,7 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
+import { contentWarningOf } from "@/lib/nip36";
 import { TranslateLine } from "@/components/share/TranslateLine";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -19,10 +20,12 @@ import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedListCard } from "@/components/share/ListPreview";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
-import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
+import { analyzeNote, addrCoord, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
+import { POLL_KINDS } from "@/lib/pollKinds";
+import { LazyPollCard } from "@/components/share/LazyPollCard";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -104,6 +107,7 @@ export function ShareNoteCard({
   showAuthor = false,
   authorScore,
   tags,
+  relayHints,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
@@ -125,6 +129,8 @@ export function ShareNoteCard({
    *  fetched here: a page rendering several notes must read them in ONE batched
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
+  /** Where the event was found: a poll asks for its answers there too. */
+  relayHints?: string[];
 }) {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -233,6 +239,7 @@ export function ShareNoteCard({
   const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
+  const heading = noteHeadingOf(event);
   const authorProfile = profiles.get(event.pubkey);
   const authorName =
     authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
@@ -342,8 +349,28 @@ export function ShareNoteCard({
         </p>
       )}
 
+      {/* A thread's title (NIP-7D) or a note's subject (NIP-14): its heading. */}
+      {heading &&
+        (reading ? (
+          <h1
+            className="mb-3 break-words text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="note-heading"
+          >
+            <EmojiText text={heading} tags={event} />
+          </h1>
+        ) : (
+          <p
+            className="mb-1 break-words text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100"
+            data-testid="note-heading"
+          >
+            <EmojiText text={heading} tags={event} />
+          </p>
+        ))}
+
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
         <NoteContent
+          key={event.id}
           content={event.content}
           compact={!reading}
           reading={reading}
@@ -351,6 +378,7 @@ export function ShareNoteCard({
           linkCard
           imageOpensThread={!!href}
           tags={event.tags}
+          contentWarning={contentWarningOf(event)}
           embeddedIds={new Set(quoted.map((q) => q.id))}
           // A linked list is drawn as its card below: the card is its link.
           embeddedCoords={listCoords}
@@ -373,6 +401,9 @@ export function ShareNoteCard({
           {expanded ? "Show less" : "Show more"}
         </button>
       )}
+
+      {/* A poll's options under its question: the tally on its own page, the options in a list. */}
+      {POLL_KINDS.has(event.kind) && <LazyPollCard event={event} compact={!reading} relayHints={relayHints} />}
 
       {quoted.map((qe) => (
         <EmbeddedNoteCard

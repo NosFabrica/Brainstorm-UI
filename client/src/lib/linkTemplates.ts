@@ -14,8 +14,7 @@
  * edits, so a template could be re-pointed under every list that uses it;
  * an id is frozen, like a dependency pinned by hash. Pairs are named, not
  * positional, and may only bind declared fields — the rule `field-type` and
- * the display hints follow. Behind the same `displayHints` flag; every tag
- * name is here, so a rename is one edit.
+ * the display hints follow. Every tag name is here, so a rename is one edit.
  *
  * Templates are RFC 6570 level 1 — `{name}`, nothing else — so values are
  * percent-encoded and can't add a path, query or fragment. And a template
@@ -131,4 +130,60 @@ export function itemLinks(
     if (href && !out.some((l) => l.href === href)) out.push({ label: tpl.name, href, host: new URL(href).host });
   }
   return out;
+}
+
+/**
+ * A template's shape: the address with every placeholder left blank and its
+ * host in lower case. Two templates of one shape build the same links,
+ * whatever their placeholders are called — `https://btcmap.org/merchant/{id}`
+ * and `https://BTCMap.org/merchant/{place}` are one template. Null when the
+ * template isn't well-formed.
+ */
+export function templateShape(template: string): string | null {
+  const t = template.trim();
+  if (!templatePlaceholders(t)) return null;
+  const m = /^https:\/\/([^/?#{}]+)(.*)$/i.exec(t.replace(PLACEHOLDER, "{}"));
+  return m ? `https://${m[1].toLowerCase()}${m[2]}` : null;
+}
+
+/** The site a template builds links on, without `www.`: where to look for templates like it. */
+export function templateSite(template: string): string | null {
+  const m = /^https:\/\/([^/?#{}]+)/i.exec(template.trim());
+  return m ? m[1].toLowerCase().replace(/^www\./, "") : null;
+}
+
+/**
+ * Templates that already do what a new one would: one of the same shape —
+ * the same template, so a new one must not be made — and others on the same
+ * site, which may do it differently.
+ */
+export function similarTemplates(
+  template: string,
+  existing: readonly UrlTemplate[],
+): { same: UrlTemplate | null; sameSite: UrlTemplate[] } {
+  const shape = templateShape(template);
+  const site = templateSite(template);
+  const same = (shape && existing.find((t) => templateShape(t.template) === shape)) || null;
+  const sameSite = site
+    ? existing.filter((t) => t !== same && templateSite(t.template) === site && templateShape(t.template))
+    : [];
+  return { same, sameSite };
+}
+
+/** Each placeholder as it appears, repeats included: what pairs one template's placeholders with another's by position. */
+const occurrences = (template: string) => [...template.matchAll(PLACEHOLDER)].map((m) => m[1]);
+
+/**
+ * Bindings for `to` that fill it as `bindings` filled `from`, placeholder by
+ * placeholder in order — for templates of one shape whose placeholders are
+ * named differently.
+ */
+export function rebind(from: string, to: string, bindings: [string, string][]): [string, string][] {
+  const fieldOf = new Map(bindings);
+  const pairs = new Map<string, string>();
+  const a = occurrences(from);
+  occurrences(to).forEach((name, i) => {
+    if (!pairs.has(name)) pairs.set(name, fieldOf.get(a[i]) ?? "");
+  });
+  return [...pairs];
 }

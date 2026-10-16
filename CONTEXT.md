@@ -113,6 +113,14 @@ _Avoid_: schema, type, category
 A concept other people's headers point at: the shared definition.
 _Avoid_: global concept, canonical concept
 
+**Self-pointer**:
+A header's `["b", <its own coordinate>, "pointer"]`: its author putting it
+forward as a candidate community concept. A deliberate signal, never
+boilerplate: List Management ticks it for a list authored there (submitted as a
+community concept) and keeps a published list's as it was — no edit adds or
+drops it on its own.
+_Avoid_: self-reference, self-b (in prose)
+
 **Local copy**:
 Someone's own header for a community concept, pointing at it with
 `["b", <community coordinate>, "pointer"]`. A User's are authored by their
@@ -120,10 +128,26 @@ Brainstorm Assistant. Today a copy repeats the community's definition; one day
 it may change it.
 _Avoid_: fork, clone, override
 
+**Tier-three view**:
+A page made by hand for one community concept (GitHub Accounts, Food and
+Drink Places, Books), keyed by its
+coordinate, drawn from the same resolved view as the dynamic page and reading
+fields only through the governing definition (ADR 0007). Tier one is the raw
+tags; tier two is the page every concept gets from its definition.
+_Avoid_: custom renderer, hardcoded concept, override
+
 **Dictionary**:
 The concepts a User holds local copies of, shown in Settings › Dictionary.
-Which concepts the app offers is `config/dictionary.config.json`.
+Which concepts the app offers is a list, Demo Dictionary Concepts: the entries
+its **curators** filed (`hooks/useDictionaryConcepts`). Adding a concept is a
+publish, not a deploy.
 _Avoid_: glossary, vocabulary
+
+**Curator**:
+Someone whose entries on the Demo Dictionary Concepts list count: its author,
+or a person the house tagged "Dictionary Concept Curator". Both coordinates are
+in `config/dictionary.config.json`.
+_Avoid_: editor, admin (an admin is a server role; a curator is a tag)
 
 **Governing definition**:
 The definition an item is shown by, chosen by `resolveConcept`: the reader's own
@@ -174,7 +198,7 @@ _Avoid_: pending queue, drafts
 ### Not to be confused
 
 **Perspective**:
-Whose trust scores the User is looking at — the house's or their own. Orthogonal
+Whose trust scores the User is looking at — the House Observer's or their own. Orthogonal
 to the Active Account: Perspective changes what you see, Active Account changes
 who you are. Each Account keeps its own.
 _Avoid_: POV, view, observer, lens

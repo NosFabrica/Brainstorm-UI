@@ -2381,6 +2381,19 @@ describe("SearchResults", () => {
     setTechnicalView(false);
   });
 
+  it("the query as sent says what Classic Vines asks: their kind, by the archive's label", async () => {
+    setTechnicalView(true);
+    setUrlTab("media");
+    render(<SearchResults query="cats #vine-archive #funny" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 90 });
+    const line = await screen.findByTestId("query-as-sent");
+    expect(line).toHaveTextContent("kinds 34236 ·");
+    expect(line).toHaveTextContent("#l vine-archive");
+    expect(line).toHaveTextContent("#t funny");
+    expect(line).not.toHaveTextContent("#t vine-archive");
+    setTechnicalView(false);
+  });
+
   it("off, the query as sent is not shown", async () => {
     setUrlTab("nips");
     render(<SearchResults query="kind:5905" pov="nosfabrica" />);
@@ -3416,6 +3429,101 @@ describe("SearchResults", () => {
     expect(screen.queryByTestId("container-no-results")).toBeNull();
   });
 
+  // A profile's "View all" for videos opens Media scoped to the person and narrowed to the
+  // video kinds. The request was narrowed and the lead group was not, so a creator who also
+  // posts pictures led a page of videos with pictures.
+  describe("the Media tab's lead group under a narrowing", () => {
+    const MAKER = "c".repeat(64);
+    const from = `from:${nip19.npubEncode(MAKER)}`;
+    const VIDEO_KINDS = [21, 22, 34235, 34236];
+    const posted = () => [
+      ev("pic", 20, MAKER, "golden hour", [["imeta", "url https://cdn/sunset.jpg", "m image/jpeg"]]),
+      ev("noteclip", 1, MAKER, "from the road https://cdn/road.mp4", [
+        ["imeta", "url https://cdn/road.mp4", "m video/mp4"],
+      ]),
+      ev("long", 21, MAKER, "the drive", [["imeta", "url https://cdn/drive.mp4", "m video/mp4"]]),
+      ev("short", 34236, MAKER, "", [
+        ["d", "short"],
+        ["imeta", "url https://cdn/short.mp4", "m video/mp4"],
+      ]),
+      ev("vine", 34236, MAKER, "", [
+        ["d", "vine"],
+        ["imeta", "url https://cdn/vine.mp4", "m video/mp4", "dim 480x480"],
+        ["platform", "vine"],
+        ["l", "vine-archive", "archive.divine.video"],
+      ]),
+    ];
+    /** The lead group's cards for `query`, and the kinds the person's media was asked by. */
+    const leadFor = async (query: string) => {
+      suggestMock.mockResolvedValue([
+        { pubkey: MAKER, npub: nip19.npubEncode(MAKER), name: "Maker", wotRank: 0.9, wotFollowers: 10 },
+      ]);
+      // Whatever is asked, everything comes back: what the group shows is the page's to decide.
+      recentByKindsMock.mockImplementation(async (pubkey) => (pubkey === MAKER ? posted() : []));
+      setUrlTab("media");
+      render(<SearchResults query={query} pov="nosfabrica" onQueryRewrite={() => {}} />);
+      emit({ hits: [], eose: true, timeMs: 80 });
+      const group = await screen.findByTestId("media-from-person");
+      const lead = recentByKindsMock.mock.calls.filter(([pk, kinds]) => pk === MAKER && kinds.includes(34236));
+      return {
+        cards: within(group)
+          .getAllByTestId(/^media-card-/)
+          .map((el) => el.getAttribute("data-testid")!.replace("media-card-", ""))
+          .sort(),
+        asked: lead.map(([, kinds]) => kinds),
+      };
+    };
+
+    it("with no narrowing it is everything they posted that can be looked at, as before", async () => {
+      const { cards, asked } = await leadFor(from);
+      expect(cards).toEqual(["long", "noteclip", "pic", "short", "vine"]);
+      expect(asked).toContainEqual([1, 20, 21, 22, 34235, 34236]);
+    });
+
+    it("with `kind:video` it is video events alone, and only those are asked for", async () => {
+      const { cards, asked } = await leadFor(`${from} kind:video`);
+      expect(cards).toEqual(["long", "short", "vine"]);
+      expect(asked).toContainEqual(VIDEO_KINDS);
+      expect(asked).not.toContainEqual([1, 20, 21, 22, 34235, 34236]);
+    });
+
+    it("with the four kinds typed out it is the same", async () => {
+      const { cards, asked } = await leadFor(`${from} kind:21 kind:22 kind:34235 kind:34236`);
+      expect(cards).toEqual(["long", "short", "vine"]);
+      expect(asked).toContainEqual(VIDEO_KINDS);
+    });
+
+    it("with one typed kind it is that kind", async () => {
+      expect((await leadFor(`${from} kind:20`)).cards).toEqual(["pic"]);
+      cleanup();
+      expect((await leadFor(`${from} kind:34236`)).cards).toEqual(["short", "vine"]);
+    });
+
+    it("with Classic Vines it is their restored Vines alone", async () => {
+      const { cards, asked } = await leadFor(`${from} #vine-archive`);
+      expect(cards).toEqual(["vine"]);
+      expect(asked).toContainEqual([34236]);
+    });
+
+    it("narrowed to a kind the group never holds, there is no group and nothing is asked", async () => {
+      suggestMock.mockResolvedValue([
+        { pubkey: MAKER, npub: nip19.npubEncode(MAKER), name: "Maker", wotRank: 0.9, wotFollowers: 10 },
+      ]);
+      recentByKindsMock.mockImplementation(async (pubkey) => (pubkey === MAKER ? posted() : []));
+      setUrlTab("media");
+      render(<SearchResults query={`${from} kind:1063`} pov="nosfabrica" onQueryRewrite={() => {}} />);
+      emit({ hits: [], eose: true, timeMs: 80 });
+      // The companion ask for notes that carry a clip answers too: nothing fits there either.
+      [...allStreams]
+        .reverse()
+        .find((c) => c.params.tab === "notes")!
+        .cb({ hits: [], eose: true, timeMs: 90, error: null });
+      await screen.findByTestId("container-no-results");
+      expect(screen.queryByTestId("media-from-person")).toBeNull();
+      expect(recentByKindsMock.mock.calls.some(([pk, kinds]) => pk === MAKER && kinds.includes(20))).toBe(false);
+    });
+  });
+
   it("a video result IS a playable video, its raw URL hidden behind a host label", async () => {
     setUrlTab("media");
     render(<SearchResults query="clip" pov="nosfabrica" />);
@@ -3453,11 +3561,10 @@ describe("SearchResults", () => {
   });
 
   // Benjamin (2026-09-25): "we don't have images as an option or videos — that gets
-  // filtered into Media". Photos · Videos · Audio narrow the tab, counted, like Shop's
-  // categories; a page of one kind needs no row.
-  it("the Media tab narrows to photos, videos or audio, counted, and shows no row for one kind", async () => {
-    setUrlTab("media");
-    render(<SearchResults query="sunset" pov="nosfabrica" />);
+  // filtered into Media". Photos and Audio sort through the loaded page, counted, like Shop's
+  // categories. Videos and Classic Vines are offered on every Media page and change what is
+  // asked (lib/mediaFacet), so they carry no count of the page.
+  const mixedMedia = () => {
     const pk = "5".repeat(64);
     const photo = ev("p1", 20, pk, "golden hour", [["imeta", "url https://cdn/sunset.jpg", "m image/jpeg"]]);
     const clip1 = ev("v1", 21, pk, "the drive", [["imeta", "url https://cdn/drive.mp4", "m video/mp4"]]);
@@ -3466,29 +3573,42 @@ describe("SearchResults", () => {
       ["imeta", "url https://cdn/short.mp4", "m video/mp4"],
     ]);
     const voice = ev("a1", 1222, pk, "", [["imeta", "url https://cdn/voice.ogg", "m audio/ogg"]]);
-    emit({
+    return {
       hits: [photo, clip1, clip2, voice].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })),
       eose: true,
       timeMs: 120,
-    });
+    };
+  };
+  const VIDEOS = "kind:video";
+
+  it("the Media tab sorts a mixed page by photos or audio, counted", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="sunset" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    emit(mixedMedia());
     await screen.findByTestId("media-card-p1");
     const facets = screen.getByTestId("media-facets");
     expect(within(facets).getByTestId("media-facet-photo")).toHaveTextContent(/Photos\s*1/);
-    expect(within(facets).getByTestId("media-facet-video")).toHaveTextContent(/Videos\s*2/);
     expect(within(facets).getByTestId("media-facet-audio")).toHaveTextContent(/Audio\s*1/);
-    fireEvent.click(within(facets).getByTestId("media-facet-video"));
+    // The two that change the request say nothing of the page's count.
+    expect(within(facets).getByTestId("media-facet-video")).toHaveTextContent(/^Videos$/);
+    expect(within(facets).getByTestId("media-facet-vines")).toHaveTextContent(/^Classic Vines$/);
+    expect(
+      within(facets)
+        .getAllByRole("button")
+        .map((b) => b.textContent?.replace(/\s*\d+$/, "")),
+    ).toEqual(["All", "Photos", "Videos", "Classic Vines", "Audio"]);
+    fireEvent.click(within(facets).getByTestId("media-facet-photo"));
     expect(screen.getAllByTestId(/^media-card-/).map((el) => el.getAttribute("data-testid"))).toEqual([
-      "media-card-v1",
-      "media-card-v2",
+      "media-card-p1",
     ]);
-    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 4 match");
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 4 match");
     fireEvent.click(within(facets).getByTestId("media-facet-all"));
     expect(screen.getAllByTestId(/^media-card-/)).toHaveLength(4);
   });
 
-  it("a Media page of one kind shows no facet row", async () => {
+  it("Videos and Classic Vines are offered on a Media page of one kind, and on one that found nothing", async () => {
     setUrlTab("media");
-    render(<SearchResults query="sunset" pov="nosfabrica" />);
+    render(<SearchResults query="sunset" pov="nosfabrica" onQueryRewrite={() => {}} />);
     const pk = "5".repeat(64);
     emit({
       hits: [
@@ -3499,7 +3619,188 @@ describe("SearchResults", () => {
       timeMs: 120,
     });
     await screen.findByTestId("media-card-p1");
-    expect(screen.queryByTestId("media-facets")).toBeNull();
+    const chips = () =>
+      within(screen.getByTestId("media-facets"))
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+    // A page of photos alone needs no Photos chip.
+    expect(chips()).toEqual(["All", "Videos", "Classic Vines"]);
+    expect(screen.getByTestId("media-facet-all")).toHaveAttribute("aria-pressed", "true");
+
+    cleanup();
+    allStreams = [];
+    render(<SearchResults query={`zzzz ${VIDEOS}`} pov="nosfabrica" onQueryRewrite={() => {}} />);
+    emit({ hits: [], eose: true, timeMs: 80 });
+    await screen.findByTestId("container-no-results");
+    expect(chips()).toEqual(["All", "Videos", "Classic Vines"]);
+    expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("choosing Videos rewrites the query to ask for videos, and All takes them off", async () => {
+    setUrlTab("media");
+    const onQueryRewrite = vi.fn();
+    const view = render(<SearchResults query="sunset sort:rank" pov="nosfabrica" onQueryRewrite={onQueryRewrite} />);
+    emit(mixedMedia());
+    await screen.findByTestId("media-card-p1");
+    fireEvent.click(screen.getByTestId("media-facet-video"));
+    // The words and the panel's own tokens stay as they were.
+    expect(onQueryRewrite).toHaveBeenLastCalledWith(`sunset sort:rank ${VIDEOS}`);
+
+    // The caller resubmits: the page comes back asking for videos alone.
+    allStreams = [];
+    streamMock.mockClear();
+    view.rerender(<SearchResults query={`sunset ${VIDEOS}`} pov="nosfabrica" onQueryRewrite={onQueryRewrite} />);
+    await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    // One request, for the Media tab: no companion ask for notes that carry a clip.
+    expect(mainStreamCalls().map(([q, p]) => [q, (p as { tab: string }).tab])).toEqual([
+      [`sunset ${VIDEOS} sort:recent`, "media"],
+    ]);
+    expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("media-facet-all")).toHaveAttribute("aria-pressed", "false");
+    // Narrowed to videos, the page has no photos or audio to sort by, and no count of a match.
+    emit({ hits: mixedMedia().hits.filter((h) => h.event.id.startsWith("v")), eose: true, timeMs: 90 });
+    await screen.findByTestId("media-card-v1");
+    expect(screen.queryByTestId("media-facet-photo")).toBeNull();
+    expect(screen.queryByTestId("text-search-stats")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("media-facet-all"));
+    expect(onQueryRewrite).toHaveBeenLastCalledWith("sunset");
+    // Pressing the chosen chip again takes it off too.
+    onQueryRewrite.mockClear();
+    fireEvent.click(screen.getByTestId("media-facet-video"));
+    expect(onQueryRewrite).toHaveBeenLastCalledWith("sunset");
+  });
+
+  it("choosing Classic Vines rewrites the query to the archive's hashtag, keeping the words and the person", async () => {
+    setUrlTab("media");
+    const onQueryRewrite = vi.fn();
+    const from = `from:${nip19.npubEncode("5".repeat(64))}`;
+    const view = render(<SearchResults query={`cats ${from}`} pov="nosfabrica" onQueryRewrite={onQueryRewrite} />);
+    emit(mixedMedia());
+    await screen.findByTestId("media-card-p1");
+    fireEvent.click(screen.getByTestId("media-facet-vines"));
+    expect(onQueryRewrite).toHaveBeenLastCalledWith(`cats ${from} #vine-archive`);
+
+    allStreams = [];
+    streamMock.mockClear();
+    view.rerender(
+      <SearchResults query={`cats ${from} #vine-archive`} pov="nosfabrica" onQueryRewrite={onQueryRewrite} />,
+    );
+    await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    // One request, for the Media tab: no companion ask for notes that carry a clip.
+    expect(mainStreamCalls().map(([q, p]) => [q, (p as { tab: string }).tab])).toEqual([
+      [`cats ${from} #vine-archive sort:recent`, "media"],
+    ]);
+    expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "false");
+
+    // From Vines to Videos is one chip for the other.
+    fireEvent.click(screen.getByTestId("media-facet-video"));
+    expect(onQueryRewrite).toHaveBeenLastCalledWith(`cats ${from} ${VIDEOS}`);
+  });
+
+  it("a link carrying a chip opens with it chosen", async () => {
+    window.history.replaceState({}, "", `/?q=${encodeURIComponent(VIDEOS)}&t=media`);
+    render(<SearchResults query={VIDEOS} pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "true");
+    cleanup();
+    window.history.replaceState({}, "", "/?q=cats%20%23vine-archive&t=media");
+    render(<SearchResults query="cats #vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
+    // A hand-typed kind is the reader's own: it narrows the request and presses nothing.
+    cleanup();
+    window.history.replaceState({}, "", "/?q=kind%3A34236&t=media");
+    render(<SearchResults query="kind:34236" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("media-facet-all")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  // `#vine-archive` alone used to leave for /t/vinearchive, a page that asks notes and articles
+  // by `#t` and so showed nothing: restored Vines carry the word as a label.
+  it("`#vine-archive` alone opens on Media with Classic Vines chosen, and the address says so", async () => {
+    window.history.replaceState({}, "", "/?q=%23vine-archive");
+    render(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-media")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("media"));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe("#vine-archive");
+    // It asked the Media tab, and never the Top page's sections.
+    const tabs = streamMock.mock.calls
+      .filter(([q]) => String(q).includes("#vine-archive sort:recent"))
+      .map(([, p]) => (p as { tab: string }).tab);
+    expect(tabs).toEqual(["media"]);
+  });
+
+  it("typed on the Top page, `#vine-archive` alone moves the page to Media; any other tag stays put", async () => {
+    const view = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+    window.history.replaceState({}, "", "/?q=%23bitcoin-art");
+    view.rerender(<SearchResults query="#bitcoin-art" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/?q=%23vine-archive");
+    view.rerender(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-media")).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("media"));
+    // It asked the Media tab alone: the Top page it was on never asked for the tag.
+    const tabs = streamMock.mock.calls
+      .filter(([q]) => String(q).includes("#vine-archive sort:recent"))
+      .map(([, p]) => (p as { tab: string }).tab);
+    expect(tabs).toEqual(["media"]);
+    // With words beside it, it is a search like any other and stays where it was typed.
+    cleanup();
+    window.history.replaceState({}, "", "/?q=cats%20%23vine-archive");
+    render(<SearchResults query="cats #vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("a link that names a tab keeps it, even for `#vine-archive` alone", async () => {
+    window.history.replaceState({}, "", "/?q=%23vine-archive&t=all");
+    render(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "true");
+  });
+
+  // The same rule once the page is up. Back, Forward and an in-app link change the address
+  // and the query under a mounted page; an address that names a tab is not overridden.
+  it("on a page already open, an address that names a tab is not moved to Media", async () => {
+    window.history.replaceState({}, "", "/?q=jack&t=all");
+    const view = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "true");
+    // What Back, or a link to `/?q=%23vine-archive&t=all`, does.
+    window.history.pushState({}, "", "/?q=%23vine-archive&t=all");
+    view.rerender(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "true");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
+    expect(streamMock.mock.calls.some(([q, p]) => String(q).includes("#vine-archive") && p.tab === "media")).toBe(
+      false,
+    );
+  });
+
+  // The address names the tab a reader is on once they have picked one, so the tag typed
+  // there is searched there. Media is one click away, with the chip already chosen.
+  it("typed on a tab the reader picked, `#vine-archive` alone stays on that tab", async () => {
+    setUrlTab("notes");
+    const view = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    window.history.replaceState({}, "", "/?q=%23vine-archive&t=notes");
+    view.rerender(<SearchResults query="#vine-archive" pov="nosfabrica" onQueryRewrite={() => {}} />);
+    expect(screen.getByTestId("search-tab-notes")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByTestId("search-tab-media"));
+    expect(screen.getByTestId("media-facet-vines")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("with nobody to rewrite the query through, Videos sorts through the loaded page", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="sunset" pov="nosfabrica" />);
+    emit(mixedMedia());
+    await screen.findByTestId("media-card-p1");
+    expect(screen.queryByTestId("media-facet-vines")).toBeNull();
+    fireEvent.click(screen.getByTestId("media-facet-video"));
+    expect(screen.getAllByTestId(/^media-card-/).map((el) => el.getAttribute("data-testid"))).toEqual([
+      "media-card-v1",
+      "media-card-v2",
+    ]);
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 4 match");
   });
 
   it("the Media tab shows media — APKs and other file blobs stay out", async () => {

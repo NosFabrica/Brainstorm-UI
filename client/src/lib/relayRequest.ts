@@ -38,7 +38,7 @@ type Filter = Parameters<typeof pool.request>[1];
 const options = (timeoutMs: number) => ({ timeout: timeoutMs, eventStore });
 
 /** NIP-01: newer wins, and on a tie the lexicographically lower id wins. */
-function beats(candidate: NostrEvent, incumbent: NostrEvent | undefined): boolean {
+export function beats(candidate: NostrEvent, incumbent: NostrEvent | undefined): boolean {
   if (!incumbent) return true;
   if (candidate.created_at !== incumbent.created_at) return candidate.created_at > incumbent.created_at;
   return candidate.id < incumbent.id;

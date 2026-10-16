@@ -96,7 +96,7 @@ export function TaggedYouModule() {
   if (!viewerPubkey || fresh.length === 0) return null;
 
   return (
-    <Card className="mb-6 p-4" data-testid="module-tagged-you">
+    <Card className="p-4" data-testid="module-tagged-you">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-accent/10">

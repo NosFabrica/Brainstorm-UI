@@ -1421,7 +1421,14 @@ describe("the person panel's latest media", () => {
 
     fireEvent.click(within(rows[0]).getByRole("button", { name: /play/i }));
     expect(openLightboxMock).toHaveBeenCalledWith(
-      [{ url: "https://blossom.primal.net/ep421.mp4", kind: "video", poster: "https://blossom.primal.net/ep421.jpg" }],
+      [
+        {
+          url: "https://blossom.primal.net/ep421.mp4",
+          kind: "video",
+          poster: "https://blossom.primal.net/ep421.jpg",
+          loop: false,
+        },
+      ],
       0,
       expect.objectContaining({ author: expect.objectContaining({ name: "RABBIT HOLE RECAP" }) }),
     );

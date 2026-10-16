@@ -18,8 +18,10 @@ const viewer = { isAdmin: false };
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ isAdmin: viewer.isAdmin }) }));
 vi.mock("@/config/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
-  DICTIONARY_CONCEPTS: [COMMUNITY],
   dictionaryRelays: () => [],
+}));
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
 vi.mock("@/hooks/useLinkTemplates", () => ({ useLinkTemplates: () => ({ data: new Map() }) }));
 vi.mock("@/components/share/things/shared", () => ({

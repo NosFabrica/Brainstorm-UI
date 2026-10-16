@@ -60,7 +60,7 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
           <Section
             title="Words"
             rows={[
-              { token: "bitcoin mining", what: "Both words, anywhere in the event." },
+              { token: "Austin Texas", what: "Both words, anywhere in the event." },
               { token: '"exact phrase"', what: "Those words, in that order." },
               {
                 token: "-word",
@@ -112,7 +112,12 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
               {
                 token: "#",
                 em: "hashtag",
-                what: "Events tagged with that topic, plus the labels and the comments written on it.",
+                what: (
+                  <>
+                    Events tagged with that topic, plus the labels and the comments written on it. On the Media tab,{" "}
+                    <code className="font-mono text-[12px]">#vine-archive</code> lists classic Vines.
+                  </>
+                ),
               },
               {
                 token: "label:",
@@ -161,6 +166,16 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
                 token: "kind:",
                 em: "30023",
                 what: "Only events of that kind — drawn by name where this app has a word for it.",
+              },
+              {
+                token: "kind:video",
+                what: (
+                  <>
+                    Videos, long and short (kinds 21, 22, 34235 and 34236). The one word{" "}
+                    <code className="font-mono text-[12px]">kind:</code> takes. The Media tab&apos;s <b>Videos</b> chip
+                    writes it.
+                  </>
+                ),
               },
               {
                 token: "spec:",

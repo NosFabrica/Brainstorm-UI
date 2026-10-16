@@ -1,0 +1,65 @@
+// @vitest-environment jsdom
+/**
+ * The reach strip at the top of the Network page: how far a run reached and
+ * how healthy that reach is, from the run's own count_values. It moved here
+ * from the dashboard's "Your Network" card, which is gone.
+ */
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
+
+import { NetworkReachStrip } from "./NetworkReachStrip";
+
+const counts = {
+  high: { "1": 40, "2": 10 },
+  medium_high: { "2": 100 },
+  medium: { "2": 300, "3": 50 },
+  medium_low: { "2": 800 },
+  low: { "2": 900, "3": 84, "4": 6 },
+  low_and_reported_by_2_or_more_trusted_pubkeys: { "2": 3 },
+};
+
+describe("NetworkReachStrip", () => {
+  it("shows the reach within 1–3 hops and the health split in the ladder's colours", () => {
+    render(<NetworkReachStrip counts={counts} loading={false} onDetails={() => {}} />);
+    expect(screen.getByTestId("network-reach-count")).toHaveTextContent("2,287");
+    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("3 hops");
+    // One thumb, how far out to count; a tablet-and-up nicety — a phone gets the number and the bar.
+    const slider = screen.getByTestId("network-reach-slider");
+    expect(slider).toHaveClass("hidden", "sm:flex");
+    expect(within(slider).getAllByRole("slider")).toHaveLength(1);
+    expect(within(slider).getByRole("slider")).toHaveAttribute("aria-valuenow", "3");
+    expect(within(slider).getByRole("slider")).toHaveAttribute("aria-valuemax", "4");
+    const legend = screen.getByTestId("network-health-legend");
+    expect(legend).toHaveTextContent("Verified 57%");
+    expect(legend).toHaveTextContent("Unknown 43%");
+    expect(legend).toHaveTextContent("Flagged 0%");
+    const bar = screen.getByTestId("network-health-bar");
+    const segments = within(bar).getAllByTestId("network-health-segment");
+    expect(segments[0]).toHaveStyle({ backgroundColor: TRUST_TIER_COLORS.trusted });
+    expect(segments[1]).toHaveStyle({ backgroundColor: TRUST_TIER_COLORS.unverified });
+    expect(segments[2]).toHaveStyle({ backgroundColor: TRUST_TIER_COLORS.flagged });
+  });
+
+  it("says nothing invented while there is no run: dashes, not made-up numbers", () => {
+    render(<NetworkReachStrip counts={null} loading={false} onDetails={() => {}} />);
+    expect(screen.getByTestId("network-reach-count")).toHaveTextContent("—");
+    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("— hops");
+    expect(screen.getByTestId("network-health-legend")).toHaveTextContent("Verified —");
+  });
+
+  it("a run that only reached direct follows reads '1 hop', not '1 hops'", () => {
+    render(<NetworkReachStrip counts={{ high: { "1": 6 } }} loading={false} onDetails={() => {}} />);
+    expect(screen.getByTestId("network-reach-count")).toHaveTextContent("6");
+    expect(screen.getByTestId("network-reach-hops")).toHaveTextContent("1 hop");
+    expect(screen.getByTestId("network-reach-hops")).not.toHaveTextContent("hops");
+    expect(screen.getByTestId("network-health-legend")).toHaveTextContent("Verified 100%");
+  });
+
+  it("the Details link opens the explainer the page owns", () => {
+    const onDetails = vi.fn();
+    render(<NetworkReachStrip counts={counts} loading={false} onDetails={onDetails} />);
+    screen.getByTestId("network-health-details").click();
+    expect(onDetails).toHaveBeenCalledTimes(1);
+  });
+});

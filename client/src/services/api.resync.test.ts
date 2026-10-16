@@ -27,21 +27,40 @@ describe("apiClient.resyncObserver", () => {
     vi.unstubAllGlobals();
   });
 
-  it("POSTs a resync with the target query and unwraps the wrapped result", async () => {
+  it("POSTs a relay resync and unwraps the wrapped result", async () => {
     const created = { id: 5, algorithm: "graperank", pubkey: PK };
     const fetchMock = mockFetchOnce({ code: 200, message: "ok", data: created });
 
-    const result = await apiClient.resyncObserver(PK, "both");
+    const result = await apiClient.resyncObserver(PK);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.invalid/admin/users/${PK}/resync?target=both`);
+    expect(url).toBe(`http://test.invalid/admin/users/${PK}/resync`);
     expect(options.method).toBe("POST");
     expect(result).toEqual(created);
   });
 
-  it("surfaces the backend detail on a 422", async () => {
-    mockFetchOnce({ detail: "invalid resync target 'nope'" }, { ok: false, status: 422 });
+  it("surfaces the backend detail on failure", async () => {
+    mockFetchOnce({ detail: "observer not found" }, { ok: false, status: 404 });
 
-    await expect(apiClient.resyncObserver(PK, "nope")).rejects.toThrow(/invalid resync target/i);
+    await expect(apiClient.resyncObserver(PK)).rejects.toThrow(/observer not found/i);
+  });
+});
+
+describe("apiClient.relayAudit", () => {
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("GETs the observer's relay audit and unwraps it", async () => {
+    const data = { observer: PK, published: 3, on_relay: 2, missing: 1, orphans: 0, needs_resync: true };
+    const fetchMock = mockFetchOnce({ code: 200, data });
+
+    const result = await apiClient.relayAudit(PK);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`http://test.invalid/admin/users/${PK}/relay-audit`);
+    expect(result).toEqual(data);
   });
 });

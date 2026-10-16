@@ -6,7 +6,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -57,13 +57,18 @@ import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
 import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
-import { FeedVideo } from "@/components/share/FeedVideo";
+import { FeedVideo, feedVideoFrame } from "@/components/share/FeedVideo";
+import { SensitiveCover } from "@/components/share/SensitiveMedia";
+import { contentWarningOf } from "@/lib/nip36";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { postedAtOf } from "@/lib/eventDate";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
+import { EventDateTile } from "@/components/share/EventDateTile";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -170,6 +175,31 @@ export function CuratorFooter({
   );
 }
 
+/**
+ * Where a card opens when the caller knows better than its id — a quote's `naddr` with relay
+ * hints (EmbeddedKindCard). For the one event named, so a card drawn inside it is not moved.
+ */
+const CardHrefContext = createContext<{ eventId: string; href: string } | null>(null);
+
+export function CardHrefProvider({
+  eventId,
+  href,
+  children,
+}: {
+  eventId: string;
+  href?: string;
+  children: React.ReactNode;
+}) {
+  const value = useMemo(() => (href ? { eventId, href } : null), [eventId, href]);
+  return <CardHrefContext.Provider value={value}>{children}</CardHrefContext.Provider>;
+}
+
+/** The caller's link for this event, else none. */
+function useCardHref(event: { id: string }): string | undefined {
+  const given = useContext(CardHrefContext);
+  return given && given.eventId === event.id ? given.href : undefined;
+}
+
 export function CardShell({
   event,
   children,
@@ -212,15 +242,18 @@ export function CardShell({
   /** Where the card goes, when the event's own page needs more than its id — a relay hint for a list item. */
   href?: string;
 }) {
+  const givenHref = useCardHref(event);
   const footer = openInPlacement === "footer";
   const iconOnly = openInPlacement === "corner-icon";
+  // Every card's link out comes from someone's tags: a web page or a magnet, never `javascript:` or `data:`.
+  const openInHref = openInUrl && /^(?:https?:\/\/|magnet:\?)/i.test(openInUrl.trim()) ? openInUrl.trim() : undefined;
   return (
     <div
       className={`relative w-full rounded-xl border border-slate-100 bg-white/70 transition-all duration-150 hover:border-slate-200 hover:bg-white hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 dark:hover:bg-slate-900 ${fill ? "h-full" : ""}`}
       data-testid={testId}
     >
       <Link
-        href={href ?? eventPath(event)}
+        href={href ?? givenHref ?? eventPath(event)}
         className={`block rounded-xl p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:p-4 ${fill ? "h-full" : ""}`}
       >
         {children}
@@ -230,13 +263,13 @@ export function CardShell({
           {corner}
         </span>
       )}
-      {openInUrl && (
+      {openInHref && (
         <span
           className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"}
           data-testid={openInSlotTestId}
         >
           <a
-            href={openInUrl}
+            href={openInHref}
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
@@ -287,7 +320,7 @@ function naddrOf(event: NostrEvent): string | null {
 // The media helpers live in lib/mediaKind (the Media tab's facets read them
 // too); re-exported here for the callers that always found them on the card.
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
-import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
+import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export function MediaCard({
@@ -300,13 +333,26 @@ export function MediaCard({
   score?: number | null;
 }) {
   const [, navigate] = useLocation();
-  const url = mediaUrlOf(event);
+  // Its files, read once: the first is what the card shows and what its kind says (lib/mediaKind).
+  const items = useMemo(() => mediaItemsOf(event), [event]);
+  const url = items[0]?.url ?? mediaUrlOf(event);
   const poster = mediaPosterOf(event);
   const kind = mediaKindOf(event);
   const mime = mediaMimeOf(event);
   const isImage = kind === "photo";
   const isAudio = kind === "audio";
   const isVideo = kind === "video";
+  // Media its creator marked sensitive — a video, a picture post, a note's photo — neither
+  // plays nor shows a picture until the reader asks.
+  const warning = isAudio && !poster ? null : contentWarningOf(event);
+  // A picture post (kind 20) can hold several: the card shows the first and says how many more.
+  const photoCount = isImage ? items.filter((i) => i.kind === "photo").length : 0;
+  const [shown, setShown] = useState(false);
+  // A video event says its own size and, as a short, that it loops; a note with a clip says neither.
+  // Read once per event: `readVideo` walks every tag, and a card re-renders as its list streams.
+  const dim = useMemo(() => (VIDEO_KINDS.has(event.kind) ? readVideo(event).dim : undefined), [event]);
+  // The cover stands in the frame the player will take, so "Show video" moves nothing under it.
+  const coverFrame = feedVideoFrame(dim);
   // The caption is the words, never the URL — the media itself is the link.
   // nostr: mentions stay IN and render as the person below.
   const caption = (tagVal(event, "title") ?? event.content ?? "")
@@ -346,7 +392,7 @@ export function MediaCard({
       <AuthorRow
         author={author}
         score={score}
-        created_at={event.created_at}
+        created_at={postedAtOf(event)}
         trailing={
           <>
             <KindPill event={event} mixed={false} />
@@ -367,8 +413,32 @@ export function MediaCard({
           )}
         </p>
       )}
-      {isVideo && url ? (
-        <FeedVideo src={url} poster={poster ?? undefined} />
+      {warning && !shown ? (
+        coverFrame ? (
+          <div
+            className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 ${coverFrame.className}`}
+            style={coverFrame.style}
+            data-testid="media-card-cover"
+          >
+            <SensitiveCover reason={warning.reason} onShow={() => setShown(true)} className="h-full w-full" />
+          </div>
+        ) : (
+          <SensitiveCover
+            reason={warning.reason}
+            onShow={() => setShown(true)}
+            subject={isVideo || VIDEO_KINDS.has(event.kind) ? "video" : isImage ? "photo" : "media"}
+            count={Math.max(1, photoCount)}
+            className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
+          />
+        )
+      ) : isVideo && url ? (
+        <FeedVideo
+          src={url}
+          poster={poster ?? undefined}
+          autoFocus={shown}
+          dim={dim}
+          loop={SHORT_VIDEO_KINDS.has(event.kind)}
+        />
       ) : isAudio && url ? (
         <div className="mt-2" data-noopen>
           <EmbeddedTrackCard
@@ -378,17 +448,32 @@ export function MediaCard({
             cover={poster ?? undefined}
             audio={url}
             sourceLabel={brand?.name}
+            // Its imeta's `duration`: the row says it without loading the file to ask.
+            durationSec={items[0]?.durationSec}
           />
         </div>
       ) : (isImage || poster) && url ? (
-        <MediaImg
-          src={isImage ? url : (poster as string)}
-          preset="media_1280"
-          alt=""
-          loading="lazy"
-          className="mt-2 max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
-          data-testid={`media-thumb-${event.id}`}
-        />
+        <div className="relative">
+          <MediaImg
+            src={isImage ? url : (poster as string)}
+            preset="media_1280"
+            alt=""
+            loading="lazy"
+            className="mt-2 block max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
+            data-testid={`media-thumb-${event.id}`}
+          />
+          {photoCount > 1 && (
+            <span
+              className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white"
+              data-testid="media-card-more"
+            >
+              <span aria-hidden="true">+{photoCount - 1}</span>
+              <span className="sr-only">
+                {photoCount - 1} more {photoCount - 1 === 1 ? "photo" : "photos"}
+              </span>
+            </span>
+          )}
+        </div>
       ) : (
         <div className="mt-2 flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
           {(() => {
@@ -596,10 +681,14 @@ export function RepoCard({
   state,
   comments,
   forkOf,
+  counts: askCounts = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
+  /** Ask the relay how busy the repo is (two COUNTs and a REQ per card). Off where the card is
+   *  quoted inside a note: the repo's page says it. */
+  counts?: boolean;
   state?: GitState;
   /** Comments on this issue or patch, when the page fetched them. */
   comments?: number;
@@ -633,7 +722,7 @@ export function RepoCard({
     lastAt: number | null;
   }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
-    if (!isRepo || !d) return;
+    if (!askCounts || !isRepo || !d) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
       if (alive)
@@ -647,7 +736,7 @@ export function RepoCard({
     return () => {
       alive = false;
     };
-  }, [isRepo, d, event.pubkey]);
+  }, [askCounts, isRepo, d, event.pubkey]);
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);
@@ -1071,6 +1160,8 @@ export function EventCard({
   score,
   going = 0,
   faces = [],
+  dateTile = false,
+  rsvp = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -1078,6 +1169,10 @@ export function EventCard({
   /** People whose latest RSVP is "accepted", and up to a few of their faces. */
   going?: number;
   faces?: string[];
+  /** Lead with the date tile: where the card stands alone, with no day header above it (a quoted event). */
+  dateTile?: boolean;
+  /** The "I'm going" pill (it asks the relay for the reader's RSVP). Off in a quote: its page has the button. */
+  rsvp?: boolean;
 }) {
   const cal = parseCalendarEvent(event);
   // "Past" means over — an all-day event today or a running conference is not.
@@ -1091,7 +1186,7 @@ export function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    !past && cal.startSec > 0 ? (
+    rsvp && !past && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1111,6 +1206,7 @@ export function EventCard({
       testId={`event-card-${event.id}`}
     >
       <div className="flex items-start gap-3">
+        {dateTile && <EventDateTile startSec={cal.startSec} past={past} testId={`event-date-tile-${event.id}`} />}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             {cal.startSec > 0 && (
@@ -1481,11 +1577,14 @@ export function TrackCard({
   event,
   author,
   flat,
+  href,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
   flat?: boolean;
+  /** Where the title opens, when the caller knows better than the event's id (a quote's `naddr`). */
+  href?: string;
 }) {
   const track = parseTrack(event);
   if (!track) return null;
@@ -1496,11 +1595,12 @@ export function TrackCard({
         id={track.id}
         title={track.title}
         artist={track.artist ?? author?.displayName ?? author?.name}
-        cover={track.cover}
+        // Art its creator marked sensitive (NIP-36) is not drawn, nor handed to the now-playing bar.
+        cover={contentWarningOf(event) ? undefined : track.cover}
         audio={track.audio}
         genre={track.genre}
         durationSec={track.durationSec}
-        href={eventPath(event)}
+        href={href ?? eventPath(event)}
         artistHref={author ? `/p/${author.npub}` : undefined}
         artistPubkey={event.pubkey}
         flat={flat}

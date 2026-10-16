@@ -85,6 +85,25 @@ export default defineConfig({
     // a rate-limit tier, and a cross-origin dev setup lands the SPA in the
     // tight one.
     proxy: {
+      // GitHub's public API, as nginx proxies it in staging and production
+      // (services/github): the page asks our origin, never api.github.com.
+      "/github": {
+        target: "https://api.github.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/github/, ""),
+        headers: { "User-Agent": "Brainstorm-UI-dev" },
+      },
+      // Open Library, the same way (services/openLibrary): a book's page asks
+      // our origin for the edition, the work and its ratings.
+      "/openlibrary": {
+        target: "https://openlibrary.org",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/openlibrary/, ""),
+        // The ISBN path answers with a redirect to the edition; follow it here, so the
+        // browser never contacts openlibrary.org itself.
+        followRedirects: true,
+        headers: { "User-Agent": "Brainstorm-UI-dev" },
+      },
       "/link-preview": {
         target: `http://${process.env.OG_UPSTREAM ?? "127.0.0.1:8080"}`,
         // One hop, so a local service wanting real per-client keys needs

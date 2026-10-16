@@ -74,6 +74,24 @@ describe("searchNostrProfiles", () => {
     expect((await searchNostrProfiles("jack")).map((r) => r.pubkey)).toEqual(["d".repeat(64)]);
   });
 
+  it("retries without the trust floor when the house Perspective finds nobody", async () => {
+    houseMock.mockResolvedValue(HOUSE);
+    requestAllMock.mockResolvedValueOnce([]).mockResolvedValueOnce([profile("a".repeat(64))]);
+    const results = await searchNostrProfiles("newcomer");
+    expect(requestAllMock.mock.calls.map((c) => c[1].search)).toEqual([
+      `newcomer observer:${HOUSE}`,
+      "newcomer include:spam",
+    ]);
+    expect(results.map((r) => r.pubkey)).toEqual(["a".repeat(64)]);
+  });
+
+  it("does not retry when the house Perspective finds someone", async () => {
+    houseMock.mockResolvedValue(HOUSE);
+    requestAllMock.mockResolvedValue([profile("a".repeat(64))]);
+    await searchNostrProfiles("jack");
+    expect(requestAllMock).toHaveBeenCalledTimes(1);
+  });
+
   it("is empty without a search relay", async () => {
     relay = null;
     expect(await searchNostrProfiles("jack")).toEqual([]);

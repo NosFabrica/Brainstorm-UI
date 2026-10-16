@@ -799,7 +799,14 @@ describe("ComposedResults — media-rich sections", () => {
     expect(window.location.pathname).toBe("/");
     fireEvent.click(video.querySelector('[data-testid="media-tile-play"]')!);
     expect(openLightboxMock).toHaveBeenLastCalledWith(
-      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: "https://cdn.example/goal-poster.jpg" }],
+      [
+        {
+          url: "https://cdn.example/goal.mp4",
+          kind: "video",
+          poster: "https://cdn.example/goal-poster.jpg",
+          loop: false,
+        },
+      ],
       0,
       expect.objectContaining({ author: expect.objectContaining({ name: "AFP" }) }),
     );

@@ -9,7 +9,8 @@
  * ranking tokens the relay's field leaves as bare text (`sort:`,
  * `observer:`, `include:spam`, `filter:rank:gte:`) and the two tokens only
  * this client honours (`trust:verified`, `reach:`), so a hand-typed one is
- * understood and drawn rather than silently passed through.
+ * understood and drawn rather than silently passed through. `kind:`, its
+ * one named value `kind:video` and its word `spec:` are this client's as well.
  *
  * Two kinds of token come out of here:
  *
@@ -77,6 +78,7 @@ const TOKEN = new RegExp(
     `|(?<trust>trust:verified)(?![\\w:-])` +
     `|(?<spec>spec:)(?![\\w:-])` +
     `|kind:(?<kind>\\d{1,6})(?![\\w-])` +
+    `|kind:(?<kindword>video)(?![\\w:-])` +
     `|reach:(?<hops>follows|friends)(?![\\w:-])` +
     `|(?<ext>(?:${SCOPES}):)(?<sid>${SCOPE_VALUE})` +
     `|(?<lbl>label:)(?<lid>${LABEL_VALUE})` +
@@ -232,6 +234,8 @@ export interface KindSeg {
   type: "kind";
   raw: string;
   value: number;
+  /** Every kind the token asks for, when it names more than one (`kind:video`). */
+  values?: readonly number[];
 }
 export interface ReachSeg {
   type: "reach";
@@ -339,6 +343,11 @@ export function tokenize(text: string): Segment[] {
       seg = { type: "kind", raw, value: SPEC_KIND };
     } else if (g.kind !== undefined) {
       seg = { type: "kind", raw, value: Number(g.kind) };
+    } else if (g.kindword) {
+      // The one word `kind:` takes: NIP-71's four kinds, which nobody remembers either. A
+      // value of `kind:` and not a word of its own, because "Video: …" opens a sentence and
+      // `kind:` followed by anything but digits was never a filter.
+      seg = { type: "kind", raw, value: VIDEO_KINDS_ASKED[0], values: VIDEO_KINDS_ASKED };
     } else if (g.trust) {
       seg = { type: "verified", raw };
     } else if (g.hops) {
@@ -444,8 +453,9 @@ export interface ParsedQuery {
   includeSpam: boolean;
   rankFloor: number | null;
   /**
-   * `kind:N`, and `spec:` as the word for the kind a NIP definition is published as. Typed by
-   * agents and power users to narrow whatever tab they are on; `services/search` decides what
+   * `kind:N`, `kind:video` for NIP-71's four, and `spec:` as the word for the kind a NIP
+   * definition is published as. Typed by agents and power users, and written by the Media
+   * tab's Videos chip, to narrow whatever tab they are on; `services/search` decides what
    * narrowing means there, since on the NIPs tab a kind is what a spec COVERS rather than what
    * it is.
    */
@@ -540,7 +550,7 @@ export function parseQuery(text: string): ParsedQuery {
       // These two the relay knows nothing about (it has no hops and no verification), so
       // they come out of `terms`: sent as text they would match nothing.
       case "kind":
-        if (!out.kinds.includes(seg.value)) out.kinds.push(seg.value);
+        for (const kind of seg.values ?? [seg.value]) if (!out.kinds.includes(kind)) out.kinds.push(kind);
         break;
       case "verified":
         out.verifiedOnly = true;
@@ -617,6 +627,13 @@ export function scopeIds(field: string, value: string): string[] {
 export const SPEC_KIND = 30817;
 
 /**
+ * NIP-71's videos, normal and short, and their addressable twins: what `kind:video` asks,
+ * and so what the Media tab's Videos chip asks (lib/mediaFacet). lib/nip71's `VIDEO_KINDS`
+ * as a list; the grammar sits under that module, so the test holds the two equal.
+ */
+export const VIDEO_KINDS_ASKED: readonly number[] = [21, 22, 34235, 34236];
+
+/**
  * What a kind number is, in words. A `kind:` pill says "articles" where it can, the way a
  * `group:` pill says a room's name over its id: a bare 30023 is a fact about the protocol, not
  * an answer to "what did I just filter to".
@@ -633,6 +650,9 @@ export const KIND_NOUNS: Record<number, string> = {
   6: "reposts",
   7: "reactions",
   20: "pictures",
+  // NIP-71, as lib/kindFamily words them: the addressable twins read the same.
+  21: "videos",
+  22: "short videos",
   1063: "files",
   1111: "comments",
   1617: "patches",
@@ -653,6 +673,8 @@ export const KIND_NOUNS: Record<number, string> = {
   31337: "tracks",
   31923: "calendar events",
   32267: "apps",
+  34235: "videos",
+  34236: "short videos",
   39000: "groups",
 };
 

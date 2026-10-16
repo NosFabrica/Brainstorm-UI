@@ -25,6 +25,7 @@ import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
+import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
 import { isSellable, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -34,6 +35,7 @@ import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { readProfileRows } from "@/lib/eventCache";
 import type { FirstPage } from "@/lib/headStart";
+import { zapDescription } from "@/lib/zapRequest";
 
 export type SearchTab =
   | "top"
@@ -76,8 +78,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
   // probing showed it ~90% JSON junk; it still surfaces via All.
-  // Beside them: NIP-89 app handlers, NIP-5A Nostr sites, NIP-5D mini apps.
-  apps: [32267, 31990, 35128, 15128, 35129],
+  // Beside them: NIP-89 app handlers, NIP-5A Nostr sites, NIP-5D mini apps (root 15129 and named 35129).
+  apps: [32267, 31990, 35128, 15128, 35129, 15129],
   // NIP-99 classifieds — the Shop. Sold, hidden and priceless are gated in the UI (lib/listing).
   // NIP-15 beside it: products and auctions sell in the grid; stalls and
   // marketplaces are shops, shown by name.
@@ -238,6 +240,7 @@ export interface SearchSnapshot {
 export type SearchHandle = (() => void) & { more: () => void };
 
 export type SearchPov = "nosfabrica" | "mywot";
+export const HOUSE_POV: SearchPov = "nosfabrica";
 
 /**
  * A page whose sections share one REQ. Not a tab — the Top page is both
@@ -512,7 +515,16 @@ export function searchStream(
     // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
     // it is — `kind:5905` is the specs that define kind 5905. The relay
     // narrows by `#k` (probed 2026-09-23).
-    const tabKinds = params.kinds ?? (params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
+    // On the Media tab itself `#vine-archive` is the Classic Vines chip (lib/mediaFacet): the
+    // Vines Divine restored, which carry that word as a NIP-32 label and never as a `t` (probed
+    // 2026-10-12). Asked as a hashtag it is a `#t` filter that finds none of them and an `#l`
+    // filter at a quarter of the page, over every media kind; asked as the chip it is their
+    // one kind with the label on every filter, a whole page. A preview band is not the tab.
+    // (The Videos chip needs nothing here: it is `kind:video`, a typed kind, narrowed just below.)
+    const vines = params.tab === "media" && !params.band && !params.kinds && mediaFacetOf(query) === "vines";
+    const tabKinds =
+      params.kinds ??
+      (vines ? [CLASSIC_VINE_KIND] : params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
     const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
     const kinds =
       lifted.kinds && !coveredKinds && !params.kinds
@@ -539,7 +551,9 @@ export function searchStream(
     const limit = params.limit ?? DEFAULT_LIMIT;
     // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
     // dropped and the keys ride the base every filter carries.
-    const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
+    // The Classic Vines hashtag leaves the grammar's hands too: it is the label on the base.
+    const asVines = vines ? withoutVineArchiveTag(query) : query;
+    const askedBy = byHost ? asVines.replace(/(^|\s)from:\S+/gi, " ") : asVines;
     const built = searchFilters(askedBy, {
       kinds,
       limit,
@@ -551,10 +565,20 @@ export function searchStream(
         // grammar then asks for in a filter of their own.
         ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
         ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
+        ...(vines ? { "#l": [VINE_ARCHIVE_LABEL] } : {}),
       },
       since: params.since,
     });
-    const filters = params.tab === "reviews" ? askMintReviewsOnly(built) : built;
+    const filters =
+      params.tab === "reviews"
+        ? askMintReviewsOnly(built)
+        : vines
+          ? // Another hashtag beside the chip asks its own `#l` in a side filter, which would
+            // take the archive's label off that filter and let in what is not a Vine. A
+            // `label:` beside it does the same with kind 1985 label events: its filter goes
+            // too, and with nothing else to ask the page is empty.
+            built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
+          : built;
     // A scope asked of a tab that holds no comments has nothing to ask.
     if (filters.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
@@ -1076,7 +1100,7 @@ export function fetchAppReviews(
 export interface ZapReceipt {
   /** The zapper: the receipt's `P` tag, else the embedded zap request's pubkey — only a 64-hex key. */
   pubkey: string | null;
-  /** The receipt's content, else the zap request's message, trimmed. */
+  /** The zap request's message (NIP-57), trimmed — the receipt's own content only when it carries no request. */
   memo: string;
   /**
    * What the invoice was for, in millisats — the amount the payer paid for,
@@ -1101,19 +1125,16 @@ export function bolt11Msats(invoice: string | undefined): number | null {
 }
 
 export function parseZapReceipt(e: NostrEvent): ZapReceipt {
-  let request: { pubkey?: unknown; content?: unknown; tags?: unknown } | null = null;
-  try {
-    const raw = e.tags.find((t) => t[0] === "description")?.[1];
-    if (raw) request = JSON.parse(raw);
-  } catch {
-    request = null;
-  }
+  // Parsed once per receipt (lib/zapRequest), however many readers ask.
+  const request = zapDescription(e);
   const P = e.tags.find((t) => t[0] === "P")?.[1];
-  const candidate = P ?? (typeof request?.pubkey === "string" ? request.pubkey : null);
-  const memo = (e.content.trim() || (typeof request?.content === "string" ? request.content : "")).trim();
+  const candidate = P ?? request?.pubkey ?? null;
+  // NIP-57: the comment is the request's content. A receipt is the wallet's,
+  // and one wrapping someone's real request must not speak in their name; only
+  // a receipt that carries no request has a content of its own to show.
+  const memo = (request ? request.content : e.content).trim();
   const invoice = bolt11Msats(e.tags.find((t) => t[0] === "bolt11")?.[1]);
-  const tags = Array.isArray(request?.tags) ? (request.tags as unknown[]) : [];
-  const asked = Number(tags.find((t): t is string[] => Array.isArray(t) && t[0] === "amount")?.[1]);
+  const asked = Number(request?.tags.find((t) => t[0] === "amount")?.[1]);
   const mismatched = invoice !== null && Number.isFinite(asked) && asked > 0 && asked !== invoice;
   return {
     pubkey: candidate && HEX_KEY.test(candidate) ? candidate.toLowerCase() : null,
@@ -1716,12 +1737,13 @@ export function fetchCommentsByAddress(
     const filters: Record<string, unknown>[] = [
       ...(address
         ? [
-            { kinds: [1111], "#A": [address] },
-            { kinds: [1111], "#a": [address] },
+            { kinds: [1111, 1244], "#A": [address] },
+            { kinds: [1111, 1244], "#a": [address] },
           ]
         : []),
-      { kinds: [1111], "#E": [eventId] },
-      { kinds: [1, 1111], "#e": [eventId] },
+      // Comments (1111) and voice replies (1244, NIP-A0) thread by the same NIP-22 tags.
+      { kinds: [1111, 1244], "#E": [eventId] },
+      { kinds: [1, 1111, 1244], "#e": [eventId] },
     ];
     const byId = new Map<string, NostrEvent>();
     let open = filters.length;

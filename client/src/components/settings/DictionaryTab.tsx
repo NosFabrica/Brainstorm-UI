@@ -19,7 +19,7 @@
  * ranked at the verified line or above, from the active Perspective
  * (services/wotRanks). The rest are a count, shown on request, never mixed in.
  */
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import { ArrowLeft, BookOpen, ChevronRight, Loader2 } from "lucide-react";
@@ -28,9 +28,11 @@ import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { OwnVersionDialog } from "@/components/dictionary/OwnVersionDialog";
+import { ListManager, listManagerPath } from "@/components/lists/ListManager";
 import { DListItemRow } from "@/components/dictionary/DListItemRow";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -45,12 +47,13 @@ import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useNearViewport } from "@/hooks/useNearViewport";
-import { DISPLAY_HINTS_ENABLED, dictionaryRelays, offersOwnVersion } from "@/config/dictionary";
+import { dictionaryRelays } from "@/config/dictionary";
 import { DISPLAY_ROLES, FACT_ROLE, type DisplayHints } from "@/lib/displayHints";
 import type { LinkRef } from "@/lib/linkTemplates";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { parseCoordinate, type FieldDecl } from "@/lib/dlistFields";
+import { filterItems, ITEM_ORDERS, sortItems, type ItemOrder } from "@/lib/dictionaryItems";
 import type { ConceptDefinition, DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
 import type { DictionaryEntry, DictionaryItem } from "@/services/dictionary";
 
@@ -58,9 +61,12 @@ export const dictionaryEntryPath = (coordinate: string) =>
   `/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`;
 
 export function DictionaryTab() {
-  const concept = new URLSearchParams(useSearch()).get("concept");
+  const params = new URLSearchParams(useSearch());
+  const concept = params.get("concept");
   const dictionary = useDictionary();
   const entries = dictionary.data ?? [];
+
+  if (params.get("manage") === "lists") return <ListManager />;
 
   if (concept) {
     const entry = entries.find((e) => e.communityCoordinate === concept);
@@ -84,6 +90,13 @@ export function DictionaryTab() {
         subtitle="The concepts Brainstorm understands for you — what a GitHub account is, which details it has, how it shows up. Your Assistant keeps a copy of each concept your community shares."
       />
       <div className="space-y-6 p-5">
+        <div className="flex justify-end">
+          <Button asChild variant="outline" size="sm">
+            <Link href={listManagerPath()} data-testid="dictionary-list-management">
+              List Management
+            </Link>
+          </Button>
+        </div>
         {dictionary.isPending ? (
           <Pending label="Reading your Dictionary…" />
         ) : (
@@ -265,10 +278,10 @@ function DictionaryEntryView({
                 : "Once you have a Brainstorm Assistant it can add this concept to your Dictionary. Until then, this is the community's definition."}
             </p>
           )}
-          <FieldsSection fields={r.governing.fields} display={DISPLAY_HINTS_ENABLED ? r.governing.display : null} />
-          {DISPLAY_HINTS_ENABLED && r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
+          <FieldsSection fields={r.governing.fields} display={r.governing.display} />
+          {r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
           <ProvenanceSection resolved={r} coordinate={coordinate} />
-          {offersOwnVersion(coordinate) && r.community && (
+          {r.community && (
             <OwnVersionSection
               community={r.community}
               current={r.source === "personal" ? r.governing : null}
@@ -283,7 +296,7 @@ function DictionaryEntryView({
 }
 
 /**
- * "Your own version" (config `ownVersion`) — began as a demo, likely the seed of a list editor: publish a
+ * "Your own version" — offered on every entry; began as a demo, likely the seed of a list editor: publish a
  * personal copy of the concept, change it, withdraw it — and watch the
  * fields and item pages follow, since a personal copy outranks the
  * Assistant's and the community's.
@@ -557,41 +570,92 @@ function ItemsSection({
 }) {
   const noun = resolved.governing;
   const wot = useWotItems(items);
-  const [showOutside, setShowOutside] = useState(false);
+  // Null until the reader chooses: the filter may open the group on its own.
+  const [showOutside, setShowOutside] = useState<boolean | null>(null);
+  const [query, setQuery] = useState("");
+  const [order, setOrder] = useState<ItemOrder>("newest");
   const plural = noun.plural.toLowerCase();
   const pending = loading || wot.pending;
+  const filtering = query.trim().length > 0;
+  // Found by the words a row shows (lib/dictionaryItems), then ordered — both groups alike.
+  const trusted = useMemo(
+    () => sortItems(filterItems(wot.trusted, noun, query), noun, order),
+    [wot.trusted, noun, query, order],
+  );
+  const outside = useMemo(
+    () => sortItems(filterItems(wot.outside, noun, query), noun, order),
+    [wot.outside, noun, query, order],
+  );
+  const count = pending ? "…" : filtering ? `${trusted.length} of ${wot.trusted.length}` : wot.trusted.length;
+  // A filter that only someone outside the web of trust answers shows them, rather than nothing.
+  const outsideOpen = showOutside ?? (filtering && trusted.length === 0 && outside.length > 0);
   return (
     <section className="space-y-3" data-testid="dictionary-items">
-      <SectionHeader kicker={`${noun.plural} · ${pending ? "…" : wot.trusted.length}`} />
+      <SectionHeader kicker={`${noun.plural} · ${count}`} data-testid="dictionary-items-kicker" />
+      {!loading && items.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={`Find a ${noun.singular.toLowerCase()}…`}
+            aria-label={`Find a ${noun.singular.toLowerCase()}`}
+            className="h-9 min-w-0 flex-1 sm:max-w-sm"
+            data-testid="dictionary-items-filter"
+          />
+          <div className="flex items-center gap-0.5" role="group" aria-label="Sort">
+            {ITEM_ORDERS.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setOrder(o.key)}
+                aria-pressed={order === o.key}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                  order === o.key
+                    ? "bg-brand-primary text-white"
+                    : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+                }`}
+                data-testid={`dictionary-items-sort-${o.key}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {loading ? (
         <Pending label={`Reading the ${plural}…`} />
       ) : wot.pending ? (
         <Pending label="Checking who's in your web of trust…" />
-      ) : wot.trusted.length === 0 ? (
+      ) : trusted.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="dictionary-items-none">
-          {items.length === 0 ? `No ${plural} yet.` : `None of these ${plural} are from your web of trust.`}
+          {items.length === 0
+            ? `No ${plural} yet.`
+            : filtering
+              ? `No ${plural} match from your web of trust.`
+              : `None of these ${plural} are from your web of trust.`}
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
-          {wot.trusted.map((item) => (
+          {trusted.map((item) => (
             <DListItemRow key={item.id} item={item} resolved={resolved} />
           ))}
         </ul>
       )}
-      {!wot.pending && wot.outside.length > 0 && (
+      {!wot.pending && outside.length > 0 && (
         <div className="space-y-2">
           <button
             type="button"
-            onClick={() => setShowOutside((v) => !v)}
+            onClick={() => setShowOutside(!outsideOpen)}
             className="text-xs text-slate-500 hover:text-brand-link hover:underline dark:text-slate-400"
-            aria-expanded={showOutside}
+            aria-expanded={outsideOpen}
             data-testid="dictionary-items-outside"
           >
-            {showOutside ? "Hide" : "Show"} {wot.outside.length} more from accounts outside your web of trust
+            {outsideOpen ? "Hide" : "Show"} {outside.length} more from accounts outside your web of trust
           </button>
-          {showOutside && (
+          {outsideOpen && (
             <ul className="divide-y divide-border rounded-xl border border-dashed border-border opacity-70">
-              {wot.outside.map((item) => (
+              {outside.map((item) => (
                 <DListItemRow key={item.id} item={item} resolved={resolved} outside />
               ))}
             </ul>

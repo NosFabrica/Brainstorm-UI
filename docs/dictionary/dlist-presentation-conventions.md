@@ -4,12 +4,12 @@
 **From:** Brainstorm-UI, which implements all of this (PR #151, 2026-10-02).
 **Status:** a working description, not a ratified spec. Each convention below is marked:
 
-| Mark               | Meaning                                                                                                        |
-| ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **NIP**            | In the Decentralized Lists NIP. "Working copy" means only in its unpublished working copy.                     |
-| **Convention**     | Written or read by at least one client (named), not in the NIP.                                                |
-| **Tapestry draft** | In tapestry's `protocols/drafts/`, pre-NIP.                                                                    |
-| **Provisional**    | Brainstorm's, behind a flag; names and shapes are expected to change once settled with the protocol's authors. |
+| Mark               | Meaning                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| **NIP**            | In the Decentralized Lists NIP. "Working copy" means only in its unpublished working copy.          |
+| **Convention**     | Written or read by at least one client (named), not in the NIP.                                     |
+| **Tapestry draft** | In tapestry's `protocols/drafts/`, pre-NIP.                                                         |
+| **Provisional**    | Brainstorm's own; names and shapes are expected to change once settled with the protocol's authors. |
 
 Readers that don't know a tag ignore it. Nothing here changes how a list stores its items;
 it only adds tags to **headers** that say how items should read.
@@ -55,13 +55,35 @@ colons.
 ### 2.2 Value type (**Convention**: observed from one client, curate)
 
 ```
-["field-type", <declared field>, "text" | "url"]
+["field-type", <declared field>, "text" | "url" | "tel" | "email" | "address"]
 ```
 
 - It types a field that is already declared. It never declares one by itself.
 - `text` is the default when there's no tag.
+- A type changes rendering only where it has one obvious rendering, as HTML's input types
+  do (`url`, `tel`, `email`). A renderer never infers a type from a value: a phone number
+  in a `text` field stays text.
 - **`url`** means the field's values are links. Render one as a link only when the value
   parses as an http(s) URL.
+- **`tel`** (**Provisional**, Brainstorm 2026-10-13) means the field's values are phone
+  numbers. Render one as a call link, `tel:` followed by its digits (and a leading `+`)
+  once the separators people write (spaces, dots, dashes, brackets) are removed. If
+  anything else is left, render text. Show the value as written.
+- **`email`** (**Provisional**, Brainstorm 2026-10-13) means the field's values are email
+  addresses. Render one as a mail link, `mailto:` followed by the value, when it is a
+  single address (`name@host.tld`, nothing around it); otherwise text.
+- An item form can use the same names for its inputs: a `tel` field gets a phone keypad,
+  an `email` field an email keyboard. Brainstorm's does.
+- **`address`** (**Provisional**, Brainstorm 2026-10-10) means the field's values are
+  Nostr addresses, `kind:pubkey:d`: each names another event, usually the field `a`. It
+  says to a renderer "there's something to fetch here". A renderer may look the address
+  up and show what it names (its title, a link to its page) in place of the raw string.
+  Brainstorm does (2026-10-11): it reads a coordinate, or an `naddr` spelled out as one,
+  shows the event by its name (a list's plural, an item's `title` or `name`, else its `d`)
+  and links to its page, falling back to the address while it looks. Its item form stores
+  the coordinate even when an `naddr` is pasted. It's an assertion made ahead of a spec, in
+  the hope that one takes it up. `event`, for event ids, would be its sibling, but no list
+  uses one yet.
 - Unknown types render as text.
 
 The **tag** is emitted by the curate client (curate-psi.vercel.app) and tracked by
@@ -69,7 +91,9 @@ Tapestry's worksheet item "field-type header tag: in the wild, not in the NIP" (
 Tapestry's `feat/tags` branch; cite it by title, because worksheet numbers differ between
 branches). The **behaviour** (text by default, url links only if http(s), unknown means
 text) is Tapestry's reader (`dlistFields.js`), which Brainstorm follows. The worksheet item
-doesn't define it.
+doesn't define it. `tel` and `email` go beyond Tapestry's reader, which shows them as text
+until it takes them up: unknown types render as text, so a header that uses them reads
+fine everywhere.
 
 ### 2.3 Fields the header doesn't declare
 
@@ -161,8 +185,10 @@ event often carries once per precision (`["g","6ex01945p"]`, `["g","6ex019"]`, �
   fields would need a role naming two fields. Lists that carry both can still link out by
   coordinates through a URL template (§5.2).
 
-Brainstorm offers the place on the item's page as OpenStreetMap's embedded map, **loaded
-only when the reader asks**, so opening a page contacts no map server. A cell of 6
+Brainstorm's generic item page offers the place as OpenStreetMap's embedded map, **loaded
+only when the reader asks**, so opening a page contacts no map server. A concept's own
+page (a food and drink place's, ADR 0007) shows its map outright: there the map is the
+point of the page. A cell of 6
 characters or more (≈ 1 km and under) is a spot and gets a pin; a coarser one is framed as
 the area it is, with no pin to suggest a precision it doesn't have.
 
@@ -294,6 +320,12 @@ The definition fixes the destination, and the item fills in the blanks:
   template could be re-pointed under every list that uses it. An id is frozen, like a
   dependency pinned by hash. The safer kind for a template is therefore 9999; a 39999
   pinned by id works too. If the template is deleted, there's simply no link.
+- **Brainstorm publishes new templates as 9999s**, from List Management or "Publish my own
+  version": a template drafted with a list is signed and published first, then the header
+  that names its id. A template is the same as an existing one when only its placeholders'
+  names or its host's case differ (`https://btcmap.org/merchant/{id}` and
+  `https://BTCMap.org/merchant/{place}`); a template like that is never published again,
+  and the existing one is used instead.
 - **Pairs are named, not positional.** Each pair may only bind a declared field.
 - **The URL Templates concept is itself a concept like any other.** A reader's own copy of
   it decides which templates they're offered.
@@ -398,8 +430,9 @@ podcastindex.org.
    `decentralized-lists-compat.md` beside `item-kind`, or in a separate draft?
 2. **Element 3 of a field declaration:** a description or a source
    list?
-3. **`field-type`** graduating into the NIP, and whether `url` is the only type that
-   changes rendering.
+3. **`field-type`** graduating into the NIP, and which types change rendering. `tel` and
+   `email` are proposed beside `url` (§2.2), on the rule of one obvious rendering per
+   type. Should `address` (and `event`) become reference types a renderer resolves?
 4. **Template on the header vs. on the field's type.** Tapestry's worksheet item "Field
    types as a DList: portable actions, not portable rendering" (`feat/tags`) proposes
    templates on a field **type**. That needs no placeholder mapping but can't express

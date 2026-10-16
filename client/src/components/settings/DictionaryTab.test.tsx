@@ -69,6 +69,7 @@ vi.mock("@/hooks/useDictionaryReader", () => ({
 vi.mock("@/hooks/useLinkTemplates", () => ({
   useLinkTemplates: () => ({ data: new Map() }),
   useAvailableTemplates: () => ({ data: [], isPending: false }),
+  useDraftTemplateProblems: () => [],
 }));
 
 import { DictionaryTab } from "./DictionaryTab";
@@ -180,6 +181,62 @@ describe("an entry", () => {
     entries = [entryOf(null)];
     renderWithProviders(<DictionaryTab />);
     expect(screen.getByTestId("dictionary-items-none")).toHaveTextContent("None of these github accounts");
+  });
+});
+
+describe("finding an item on an entry", () => {
+  const second = {
+    ...item,
+    id: "7".repeat(64),
+    created_at: 1_790_000_100,
+    tags: [
+      ["d", "abc-2"],
+      ["z", COMMUNITY],
+      ["description", "Alice Burton"],
+      ["github-username", "abc"],
+    ],
+  };
+  const stranger = {
+    ...item,
+    id: "8".repeat(64),
+    pubkey: "f".repeat(64),
+    tags: [
+      ["d", "zed-3"],
+      ["z", COMMUNITY],
+      ["github-username", "zed-beep"],
+    ],
+  };
+  beforeEach(() => {
+    at(`/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`);
+    entries = [{ ...entryOf(null), items: [item, second, stranger] }];
+  });
+
+  it("the filter box narrows the rows to the words typed, and the count says how many of all", async () => {
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-items-kicker")).toHaveTextContent("GitHub Accounts · 2");
+    await userEvent.type(screen.getByTestId("dictionary-items-filter"), "vcav");
+    expect(screen.getAllByTestId("dictionary-item")).toHaveLength(1);
+    expect(screen.getByTestId("dictionary-item")).toHaveTextContent("vcavallo");
+    expect(screen.getByTestId("dictionary-items-kicker")).toHaveTextContent("GitHub Accounts · 1 of 2");
+  });
+
+  it("when only someone outside the web of trust matches, their row is shown rather than nothing", async () => {
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.type(screen.getByTestId("dictionary-items-filter"), "zed");
+    expect(screen.queryAllByTestId("dictionary-item")).toHaveLength(0);
+    expect(screen.getByTestId("dictionary-items-none")).toHaveTextContent("No github accounts match");
+    expect(screen.getByTestId("dictionary-item-outside")).toHaveTextContent("zed-beep");
+  });
+
+  it("sorts newest first by default, and A to Z or oldest on a tap", async () => {
+    renderWithProviders(<DictionaryTab />);
+    const titles = () => screen.getAllByTestId("dictionary-item-title").map((el) => el.textContent);
+    expect(titles()).toEqual(["abc", "vcavallo"]);
+    await userEvent.click(screen.getByTestId("dictionary-items-sort-oldest"));
+    expect(titles()).toEqual(["vcavallo", "abc"]);
+    await userEvent.click(screen.getByTestId("dictionary-items-sort-name"));
+    expect(titles()).toEqual(["abc", "vcavallo"]);
+    expect(screen.getByTestId("dictionary-items-sort-name")).toHaveAttribute("aria-pressed", "true");
   });
 });
 

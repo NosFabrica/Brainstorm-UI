@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DICTIONARY_CONCEPTS } from "@/config/dictionary";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { loadDictionary, type DictionaryEntry } from "@/services/dictionary";
 
 export interface UserDictionarySummary {
@@ -19,14 +19,15 @@ export const userDictionaryKey = (pubkey: string, taPubkey: string | null) =>
  * can't disagree. `enabled` lets a menu ask only once it's opened.
  */
 export function useUserDictionary(pubkey: string, taPubkey: string | null, enabled = true) {
+  const { shown, known } = useDictionaryConcepts();
   return useQuery({
-    queryKey: userDictionaryKey(pubkey, taPubkey),
+    queryKey: [...userDictionaryKey(pubkey, taPubkey), shown],
     queryFn: async (): Promise<UserDictionarySummary> => {
       // Which concepts they hold needs headers and copies, never items.
-      const entries = await loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false });
-      return { entries, held: entries.filter((e) => e.inDictionary).length, total: DICTIONARY_CONCEPTS.length };
+      const entries = await loadDictionary({ pubkey, taPubkey }, shown, undefined, { items: false });
+      return { entries, held: entries.filter((e) => e.inDictionary).length, total: shown.length };
     },
-    enabled,
+    enabled: enabled && known,
     staleTime: 60_000,
     retry: 0,
   });

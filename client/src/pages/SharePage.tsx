@@ -10,7 +10,6 @@ import {
   FileText,
   ArrowRight,
   Wifi,
-  Video as VideoIcon,
   Headphones,
   Radio,
   AlertTriangle,
@@ -66,8 +65,8 @@ import { ProfileBio } from "@/components/share/ProfileBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
-import { useLightbox } from "@/components/share/Lightbox";
-import { VideoTile } from "@/components/share/VideoTile";
+import { videoItemOf, type VideoItem } from "@/components/share/VideoGrid";
+import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
 import { apiClient } from "@/services/api";
 import {
@@ -104,7 +103,7 @@ import {
   TierWordChip,
   useCoinReplacedByRing,
 } from "@/components/score/VerificationCoin";
-import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
+import { extractImageUrls } from "@/lib/noteContent";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
@@ -137,7 +136,6 @@ export default function SharePage() {
   // (it fetches even when hidden) so the page and the customizer can tell.
   const [sellingCount, setSellingCount] = useState(0);
   const npub = pubkey ? safeNpub(pubkey) : "";
-  const openLightbox = useLightbox();
   const loggedIn = useHasSession();
   // The in-page "Join free"; the sticky one steps aside while it is on screen.
   const { shown: stickyJoinShown, inlineRef: inlineJoinRef } = useStickyBarVisible();
@@ -572,19 +570,7 @@ export default function SharePage() {
   );
 
   const videos = useMemo(
-    () =>
-      (videosQuery.events ?? [])
-        .map((ev) => {
-          const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-          return {
-            id: ev.id,
-            title: tag("title") || "",
-            url: extractVideoUrls(ev.content, ev.tags)[0],
-            poster: extractVideoPoster(ev.content, ev.tags),
-            ts: ev.created_at,
-          };
-        })
-        .filter((v) => v.url || v.poster),
+    () => (videosQuery.events ?? []).map(videoItemOf).filter((v): v is VideoItem => v !== null),
     [videosQuery.events],
   );
 
@@ -1499,52 +1485,14 @@ export default function SharePage() {
             </ContentTeaserBlock>
           )}
 
-          {videos.length > 0 && !isHidden("videos") && (
-            <ContentTeaserBlock
-              icon={<VideoIcon className="h-4 w-4" />}
-              title="Videos"
-              onViewAll={() => viewAllIn("media")}
-              testId="share-block-videos"
-              className={orderClass("videos")}
-            >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {videos.map((v) => (
-                  <div
-                    key={v.id}
-                    className="overflow-hidden rounded-xl border border-slate-200 bg-black dark:border-slate-800"
-                  >
-                    {/* Tap plays the video here, full view, with who it's from
-                      and a way to the post — not a jump to the post page. */}
-                    <VideoTile
-                      poster={v.poster}
-                      url={v.url}
-                      title={v.title}
-                      onOpen={() =>
-                        openLightbox(
-                          videos
-                            .filter((x) => x.url)
-                            .map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
-                          Math.max(
-                            0,
-                            videos.filter((x) => x.url).findIndex((x) => x.id === v.id),
-                          ),
-                          {
-                            author: { name: displayName, npub, picture: profile.picture ?? null },
-                            postHref: eventPath({ id: v.id, pubkey }, relayHints),
-                          },
-                        )
-                      }
-                    />
-                    {v.title && (
-                      <p className="truncate bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                        {v.title}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </ContentTeaserBlock>
-          )}
+          <VideosBlock
+            pubkey={pubkey}
+            videos={videos}
+            author={{ name: displayName, npub, picture: profile.picture ?? null }}
+            relayHints={relayHints}
+            hidden={isHidden("videos")}
+            className={orderClass("videos")}
+          />
 
           {audio.native.length + audio.songs.length > 0 && !isHidden("audio") && (
             <ContentTeaserBlock

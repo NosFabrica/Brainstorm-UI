@@ -10,6 +10,10 @@ import { queryWrapper } from "@/test/utils";
 vi.mock("@/hooks/useDictionaryReader", () => ({
   useDictionaryReader: () => ({ pubkey: null, taPubkey: null, settled: true }),
 }));
+const GITHUB = "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts";
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [GITHUB], rendered: [GITHUB], known: true }),
+}));
 const loadDictionary = vi.fn(async (_reader: unknown, ..._rest: unknown[]) => []);
 vi.mock("@/services/dictionary", () => ({
   loadDictionary: (reader: unknown, ...rest: unknown[]) => loadDictionary(reader, ...rest),
@@ -28,5 +32,7 @@ describe("useDictionary with no account", () => {
     renderHook(() => useDictionary(true, { anonymous: true }), { wrapper: queryWrapper() });
     await waitFor(() => expect(loadDictionary).toHaveBeenCalled());
     expect(loadDictionary.mock.calls[0][0]).toEqual({ pubkey: null, taPubkey: null });
+    // Over the concepts the Dictionary shows, from its list (hooks/useDictionaryConcepts).
+    expect(loadDictionary.mock.calls[0][1]).toEqual([GITHUB]);
   });
 });

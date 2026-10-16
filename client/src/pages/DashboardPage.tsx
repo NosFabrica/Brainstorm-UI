@@ -1,20 +1,18 @@
 import { dashboardShortcutFor } from "@/lib/dashboardShortcuts";
+import { scoreAge } from "@/lib/scoreAge";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { SearchBox } from "@/components/search/SearchBox";
+import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 import { PageHeader } from "@/components/PageHeader";
-import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
-import { useTierGranularity } from "@/hooks/useTierGranularity";
-import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { AlertsBanner } from "@/components/dashboard/AlertsBanner";
-import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
-import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
@@ -55,8 +53,7 @@ import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85 } from "@/lib/nip85Consent";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { TIER_LABELS } from "@/services/trustThreshold";
-import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
+import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
 import { dashboardPrompt } from "@/lib/dashboardPrompt";
@@ -110,9 +107,44 @@ export default function DashboardPage() {
   const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [hopRange, setHopRange] = useState([1, 3]);
-  const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [networkViewMode] = useState<"trust" | "activity">("trust");
+  // The page's own search box — the header's is off here so there is one. Once
+  // the hero box has scrolled away, the header's comes in where it lives on every
+  // other page, so search is always in reach deep in the feed; it steps aside
+  // again when the hero is back. One box on screen at a time.
+  const [query, setQuery] = useState("");
+  const heroRef = useRef<HTMLDivElement | null>(null);
+  const [heroAway, setHeroAway] = useState(false);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) setHeroAway(!e.isIntersecting);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  // "/" puts the cursor in whichever box is on screen — unless the reader is
+  // already typing somewhere, where a slash is just a slash.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const boxes = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]'));
+      if (!boxes.length) return;
+      const onScreen = boxes.find((b) => {
+        const r = b.getBoundingClientRect();
+        return r.bottom > 0 && r.top < window.innerHeight;
+      });
+      e.preventDefault();
+      // preventScroll: Chrome scrolls a focused element inside a sticky header to
+      // its *unstuck* position — the top of the page — which would hide the very
+      // box the reader just asked for.
+      (onScreen ?? boxes[0]).focus({ preventScroll: true });
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
@@ -208,7 +240,6 @@ export default function DashboardPage() {
   const overviewQuery = useSelfOverview(user?.pubkey);
   const historyQuery = useSelfHistory(user?.pubkey);
   // Preset-driven server-side; a preset change invalidates this query.
-  const statsQuery = useSelfStats(user?.pubkey);
 
   const grapeRankQuery = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -281,7 +312,6 @@ export default function DashboardPage() {
 
   const overview = overviewQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
-  const stats = statsQuery.data?.data ?? null;
 
   const taPubkey = history?.ta_pubkey;
   const trustServiceProvider = useTrustProviderStatus(user?.pubkey, taPubkey);
@@ -329,9 +359,6 @@ export default function DashboardPage() {
   const reportedByCount = overview?.counts?.reported_by ?? 0;
   const reportingCount = overview?.counts?.reporting ?? 0;
   const influence = overview?.influence ?? 0;
-
-  const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
-  const verifiedFollowingCount = stats?.following?.verified ?? 0;
 
   const queuePosition = grapeRank
     ? typeof grapeRank.how_many_others_with_priority === "number"
@@ -440,171 +467,11 @@ export default function DashboardPage() {
     followingCount,
   ]);
 
-  const formatTimestamp = (date: Date | null): string => {
-    if (!date || isNaN(date.getTime())) return "";
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
+  // How old the scores are, in words; past two weeks the strip says so and
+  // Recalculate becomes the action rather than the reference.
+  const age = scoreAge(grapeRankUpdatedAt || grapeRankCreatedAt);
+  const stale = publishDone && !!age?.stale;
 
-  const TIER_CONFIG = [
-    { key: "high", name: TIER_LABELS.high, color: TRUST_TIER_COLORS.highlyTrusted },
-    { key: "medium_high", name: TIER_LABELS.trusted, color: TRUST_TIER_COLORS.trusted },
-    { key: "medium", name: TIER_LABELS.neutral, color: TRUST_TIER_COLORS.neutral },
-    { key: "medium_low", name: TIER_LABELS.low, color: TRUST_TIER_COLORS.lowTrust },
-    { key: "low", name: TIER_LABELS.unverified, color: TRUST_TIER_COLORS.unverified },
-    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
-  ] as const;
-
-  // Decision 7: the composition chart follows the viewer's ladder. Under Simple
-  // the five tiers fold into Verified (at or above the verified line — the
-  // `medium_low` bucket's lower bound IS that line) and Unknown (`low`); Flagged
-  // stays its own slice.
-  const [granularity] = useTierGranularity();
-
-  const countValues = useMemo(() => {
-    if (!grapeRank) return null;
-    const raw = grapeRank.count_values;
-    if (!raw) return null;
-    try {
-      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-      if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, Record<string, number>>;
-    } catch {
-      /* ignore parse errors */
-    }
-    return null;
-  }, [grapeRank]);
-
-  // Direct flagged count (DISTINCT flagged users across all of your
-  // relationships), from /overview — preserves the legacy /self graph's flagged
-  // semantics and matches NetworkPage. Only consumed by the pre-calc
-  // `pieData` fallback slice (the post-calc pie reads count_values via
-  // aggregateByHopRange).
-  const flaggedCount = overview?.flagged_count ?? 0;
-
-  const maxHopInData = useMemo(() => {
-    if (!countValues) return 5;
-    let maxH = 1;
-    for (const tierKey of Object.keys(countValues)) {
-      const hopMap = countValues[tierKey];
-      if (!hopMap || typeof hopMap !== "object") continue;
-      for (const hopStr of Object.keys(hopMap)) {
-        const h = parseInt(hopStr, 10);
-        if (!isNaN(h) && h < 900 && h > maxH) maxH = h;
-      }
-    }
-    return Math.max(maxH, 5);
-  }, [countValues]);
-
-  const aggregateByHopRange = (tierKey: string, lo: number, hi: number): number => {
-    if (!countValues || !countValues[tierKey]) return 0;
-    const hopMap = countValues[tierKey];
-    let total = 0;
-    for (const hopStr of Object.keys(hopMap)) {
-      const h = parseInt(hopStr, 10);
-      if (isNaN(h)) continue;
-      if (h >= lo && h <= hi) {
-        total += hopMap[hopStr] || 0;
-      }
-    }
-    return total;
-  };
-
-  useEffect(() => {
-    if (countValues) {
-      let total = 0;
-      for (const tier of TIER_CONFIG) {
-        total += aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
-      }
-      setExtendedNetworkCount(total);
-    } else {
-      const base = 500;
-      const count = Math.floor(base * Math.pow(8, hopRange[1]));
-      setExtendedNetworkCount(count > 1000000 ? 1000000 : count);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
-  }, [hopRange, countValues]);
-
-  const enhancedPieData = useMemo(() => {
-    if (countValues) {
-      return TIER_CONFIG.map((tier) => {
-        const value = aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
-        return { name: tier.name, value, color: tier.color };
-      }).filter((d) => d.value > 0 || d.name === "Flagged");
-    }
-    const fallback = [
-      { label: TIER_LABELS.high, count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
-      { label: TIER_LABELS.trusted, count: followingCount, color: TRUST_TIER_COLORS.trusted },
-      { label: TIER_LABELS.neutral, count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
-      { label: TIER_LABELS.low, count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
-      { label: "Unverified", count: Math.max(10, mutedByCount), color: TRUST_TIER_COLORS.unverified },
-      { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
-    ];
-    const currentHops = hopRange[1];
-    return fallback
-      .map((d) => {
-        let multiplier = 1;
-        if (d.label === TIER_LABELS.high) multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
-        else if (d.label === TIER_LABELS.trusted) multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
-        else if (d.label === TIER_LABELS.neutral) multiplier = 1 + (currentHops - 1) * 0.4;
-        else if (d.label === TIER_LABELS.low) multiplier = 1 + (currentHops - 1) * 0.6;
-        else if (d.label === "Flagged") multiplier = 1;
-        else multiplier = 1 + (currentHops - 1) * 0.8;
-        return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
-      })
-      .filter((d) => d.value > 0 || d.name === "Flagged");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
-  }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
-
-  const pieData = useMemo(() => {
-    if (granularity !== "simple") return enhancedPieData;
-    const ladder = ladderFor("simple");
-    const rung = (k: Bucket) => ladder.find((r) => r.key === k)!;
-    const verifiedNames = new Set<string>([
-      TIER_LABELS.high,
-      TIER_LABELS.trusted,
-      TIER_LABELS.neutral,
-      TIER_LABELS.low,
-    ]);
-    const sum = (pick: (name: string) => boolean) =>
-      enhancedPieData.filter((d) => pick(d.name)).reduce((a, d) => a + d.value, 0);
-    return [
-      { name: rung("verified").label, value: sum((n) => verifiedNames.has(n)), color: rung("verified").color },
-      {
-        name: rung("unknown").label,
-        value: sum((n) => n === TIER_LABELS.unverified || n === "Unverified"),
-        color: rung("unknown").color,
-      },
-      { name: rung("flagged").label, value: sum((n) => n === "Flagged"), color: rung("flagged").color },
-    ].filter((d) => d.value > 0 || d.name === "Flagged");
-  }, [enhancedPieData, granularity]);
-
-  const activityBreakdown = [
-    { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
-    { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0ea5e9" },
-    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#7237ff" },
-    {
-      name: "Dormant (1+ year)",
-      value: Math.max(
-        0,
-        extendedNetworkCount -
-          Math.floor(extendedNetworkCount * 0.18) -
-          Math.floor(extendedNetworkCount * 0.32) -
-          Math.floor(extendedNetworkCount * 0.3),
-      ),
-      color: "#d1d5db",
-    },
-  ];
-
-  const currentPieData: Array<{ name: string; value: number; color: string }> =
-    networkViewMode === "trust" ? pieData : activityBreakdown;
-
-  // Stats `tier_counts` field names now match the GR `count_values` keys
-  // used by TIER_CONFIG — pass straight through.
   const handleExport = () => {
     const data = {
       format: "brainstorm-v1",
@@ -669,12 +536,6 @@ export default function DashboardPage() {
     }
   }, [calcDone, user?.pubkey]);
 
-  // Recently-active faces for the Your Network tiles (follows + followers).
-  // MUST stay above the early return below — a hook called after a conditional
-  // return changes hook order between renders and crashes the whole page.
-  const recalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
-  const facesQuery = useNetworkFaces(user?.pubkey ?? "", calcDone || recalculating);
-
   // Also above the early return, for the same reason. Holds whether this is the
   // user's first-ever visit; the value is captured further down, once
   // overviewQuery has actually answered.
@@ -682,7 +543,7 @@ export default function DashboardPage() {
 
   if (!user || isAuthRedirecting()) return null;
 
-  const isRecalculating = recalculating;
+  const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const isCalculationComplete = calcDone || isRecalculating;
 
   // "Welcome back" is a lie to someone who signed up 30 seconds ago, and the
@@ -781,17 +642,20 @@ export default function DashboardPage() {
   return (
     <TooltipProvider>
       <div
-        className="relative flex min-h-page flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
+        className="relative flex min-h-page flex-col overflow-x-clip bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
         data-testid="page-dashboard"
       >
         <PageBackground />
 
-        <AppHeader user={user} onLogout={handleLogout} active="dashboard" />
+        <AppHeader user={user} onLogout={handleLogout} active="dashboard" search={heroAway} />
 
-        <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <DeferredSessionNotice className="mb-6" />
+        {/* One column, one rhythm: every block is a direct child and the column's gap
+            is the only spacing between them — a block that renders nothing leaves no
+            hole, and nothing carries a margin of its own. */}
+        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+          <DeferredSessionNotice />
 
-          <div className="mb-8 flex flex-col gap-6">
+          <div className="flex flex-col gap-4 sm:gap-6">
             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
               {/* Compact: a page someone opens every day. The subtitle only speaks when
                   it has news (first run, no follows) — "active and growing" was a
@@ -836,89 +700,111 @@ export default function DashboardPage() {
                 // is no longer said here — the prompt line below the title says it,
                 // once, with the action beside it.
                 <Card
-                  className="flex flex-wrap items-center gap-x-2.5 gap-y-1 self-start rounded-xl px-3 py-2 text-xs leading-tight transition-all duration-200 md:self-end"
+                  // On a phone: two deliberate rows — the label and the state across the
+                  // top, the two actions across the bottom — instead of a wrapped line
+                  // with a ragged edge. From `md` the groups dissolve into the one line.
+                  className="flex w-full flex-col gap-1.5 self-start rounded-xl px-3 py-2 text-xs leading-tight transition-all duration-200 md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-x-2.5 md:gap-y-1 md:self-end"
                   data-testid="card-overall-trust-score"
                 >
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-                    Trust signals
-                  </span>
-                  {triggerGrapeRankMutation.isPending ? (
-                    <span
-                      className="flex items-center gap-1 font-medium text-brand-primary dark:text-brand-link"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Recalculating…
+                  <div className="flex items-center justify-between gap-2 md:contents">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+                      Trust signals
                     </span>
-                  ) : isErrorState ? (
-                    <span className="font-medium text-red-500" data-testid="text-overall-trust-score-sub">
-                      {isGrapeRankFailed
-                        ? "Calculation failed"
-                        : isPublishFailed
-                          ? "Publishing failed"
-                          : "Action needed"}
-                    </span>
-                  ) : isRecalculation || justFollowed ? (
-                    <span
-                      className="flex items-center gap-1 font-medium text-brand-primary"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {calcDone ? "Publishing…" : "Calculating…"}
-                    </span>
-                  ) : publishDone && nip85Activated ? (
-                    // Published AND other apps can find them: the one green pill.
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                      Active
-                    </span>
-                  ) : publishDone ? (
-                    // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
-                    <span
-                      className="font-semibold text-emerald-600 dark:text-emerald-400"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Scores ready
-                    </span>
-                  ) : (
-                    <span
-                      className="font-medium text-slate-500 dark:text-slate-400"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Awaiting calculation
-                    </span>
-                  )}
-                  {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                    <span className="text-slate-400 dark:text-slate-500" data-testid="text-trust-signals-updated">
-                      · Updated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
-                    </span>
-                  )}
-                  <span className="h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                  <button
-                    type="button"
-                    onClick={() => setRecalcConfirmOpen(true)}
-                    disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                    className="inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
-                    data-testid="button-trigger-graperank"
-                  >
                     {triggerGrapeRankMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span
+                        className="flex items-center gap-1 font-medium text-brand-primary dark:text-brand-link"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Recalculating…
+                      </span>
+                    ) : isErrorState ? (
+                      <span className="font-medium text-red-500" data-testid="text-overall-trust-score-sub">
+                        {isGrapeRankFailed
+                          ? "Calculation failed"
+                          : isPublishFailed
+                            ? "Publishing failed"
+                            : "Action needed"}
+                      </span>
+                    ) : isRecalculation || justFollowed ? (
+                      <span
+                        className="flex items-center gap-1 font-medium text-brand-primary"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {calcDone ? "Publishing…" : "Calculating…"}
+                      </span>
+                    ) : publishDone && nip85Activated ? (
+                      // Published AND other apps can find them: the one green pill.
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                        Active
+                      </span>
+                    ) : stale && age ? (
+                      // Weeks old: the strip's one job is to say whether the scores are current.
+                      <span
+                        className="font-semibold text-amber-600 dark:text-amber-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Scores are {age.old}
+                      </span>
+                    ) : publishDone ? (
+                      // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
+                      <span
+                        className="font-semibold text-emerald-600 dark:text-emerald-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Scores ready
+                      </span>
                     ) : (
-                      <RefreshCw className="h-3 w-3" />
+                      <span
+                        className="font-medium text-slate-500 dark:text-slate-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Awaiting calculation
+                      </span>
                     )}
-                    {triggerGrapeRankMutation.isPending ? "Calculating" : "Recalculate"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/insights")}
-                    className="rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                    data-testid="link-view-insights"
-                  >
-                    View insights →
-                  </button>
+                    {publishDone && age && !stale && (
+                      <span className="text-slate-400 dark:text-slate-500" data-testid="text-trust-signals-updated">
+                        · Updated {age.label}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="hidden h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700 md:block"
+                    aria-hidden="true"
+                  />
+                  <div className="flex items-center justify-between gap-2 md:contents">
+                    <button
+                      type="button"
+                      onClick={() => setRecalcConfirmOpen(true)}
+                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                      className={
+                        stale
+                          ? "inline-flex items-center gap-1 rounded-full bg-brand-primary px-2.5 py-0.5 font-semibold text-white hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40"
+                          : "inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
+                      }
+                      data-testid="button-trigger-graperank"
+                    >
+                      {triggerGrapeRankMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      {triggerGrapeRankMutation.isPending ? "Calculating" : stale ? "Recalculate now" : "Recalculate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/insights")}
+                      className="rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                      data-testid="link-view-insights"
+                    >
+                      View insights →
+                    </button>
+                  </div>
                 </Card>
               )}
             </div>
@@ -928,6 +814,23 @@ export default function DashboardPage() {
                 them as panels: this replaces the Activate panel, the legacy
                 Select-Brainstorm card and the invite card, which could stack
                 three high on a phone. dashboardPrompt picks the most important. */}
+            {/* A search app's signed-in home starts with the search. The box is the one
+                every surface shares; a search here is the usual trip to /?q=. The header's
+                own box is off on this page so there is exactly one. */}
+            <div ref={heroRef} data-testid="dashboard-search">
+              <SearchBox
+                className="w-full"
+                value={query}
+                onChange={setQuery}
+                onClear={() => setQuery("")}
+                placeholder={<span className={SEARCH_PLACEHOLDER_CLASS}>Search people, topics, or handles</span>}
+                ariaLabel="Search Brainstorm"
+                // A returning reader on a desktop can just type. Not on a phone,
+                // where autofocus pops the keyboard over the page they came to read.
+                autoFocus={typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches}
+              />
+            </div>
+
             {prompt && (
               <div
                 className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-sm backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60"
@@ -1137,42 +1040,7 @@ export default function DashboardPage() {
               page said "wait" four or five times over and looked broken. The single
               CalculatingNotice above is the one statement; these appear when they
               have something to show. */}
-          <div className={`flex flex-col gap-4 ${isCalculationComplete ? "mb-6" : ""}`}>
-            {isCalculationComplete && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="flex w-full"
-              >
-                <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
-              </motion.div>
-            )}
-
-            {isCalculationComplete && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="flex w-full"
-              >
-                <YourNetworkCard
-                  isReady={isCalculationComplete}
-                  loading={overviewQuery.isLoading || statsQuery.isLoading}
-                  followers={verifiedFollowersCount}
-                  following={verifiedFollowingCount}
-                  extendedCount={extendedNetworkCount}
-                  hopRange={hopRange}
-                  maxHop={maxHopInData}
-                  onHopChange={setHopRange}
-                  health={currentPieData}
-                  onNavigate={navigate}
-                  followersFaces={facesQuery.data?.followers ?? []}
-                  followingFaces={facesQuery.data?.following ?? []}
-                />
-              </motion.div>
-            )}
-          </div>
+          {isCalculationComplete && <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />}
 
           {/* Someone put a public label on you. Nothing else in the app would
               ever tell you — self-hides when there's nothing new. Under "Your

@@ -23,6 +23,7 @@ import { useWotItems } from "@/hooks/useWotItems";
 import { neighboursOf } from "@/lib/itemNeighbours";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf, type DictionaryItem } from "@/services/dictionary";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
 import { ItemLine } from "./ItemLine";
@@ -33,9 +34,20 @@ const MAX_MORE = 3;
 const MAX_FACES = 3;
 const NO_ITEMS: DictionaryItem[] = [];
 
-export function DListItemNeighbours({ event, resolved }: { event: ItemEvent; resolved: ResolvedConcept }) {
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
-  const coordinate = dictionaryConceptOf(event);
+/**
+ * The item's neighbours for a page: who else in the reader's web of trust
+ * listed the same thing, a few of the list's other things, and the list's
+ * size — one read, shared by this block and any page that names the other
+ * listers itself (a tier-three view's verdict line, ADR 0007).
+ */
+/**
+ * The list's items the reader's web of trust holds (useWotItems), read once
+ * for a page: what the neighbours below draw from, and what a tier-three
+ * page sorts its own way — a place's nearest places, say.
+ */
+export function useListItems(event: ItemEvent, resolved: ResolvedConcept) {
+  const { rendered } = useDictionaryConcepts();
+  const coordinate = dictionaryConceptOf(event, rendered);
   const entry = useMemo(
     () =>
       coordinate ? { communityCoordinate: coordinate, resolved, inDictionary: false, items: NO_ITEMS } : undefined,
@@ -43,10 +55,35 @@ export function DListItemNeighbours({ event, resolved }: { event: ItemEvent; res
   );
   const items = useConceptItems(entry);
   const wot = useWotItems(items.data ?? NO_ITEMS);
-  const { alsoListedBy, more, total } = useMemo(
-    () => neighboursOf(event, wot.trusted, resolved.governing, MAX_MORE),
-    [event, wot.trusted, resolved.governing],
+  return { items: wot.trusted, pending: items.isPending || wot.pending, coordinate };
+}
+
+export function useItemNeighbours(event: ItemEvent, resolved: ResolvedConcept) {
+  const { items, coordinate } = useListItems(event, resolved);
+  const neighbours = useMemo(
+    () => neighboursOf(event, items, resolved.governing, MAX_MORE),
+    [event, items, resolved.governing],
   );
+  return { ...neighbours, coordinate };
+}
+
+export function DListItemNeighbours({
+  event,
+  resolved,
+  alsoListed = true,
+  more: showMore = true,
+}: {
+  event: ItemEvent;
+  resolved: ResolvedConcept;
+  /** False when the page names the other listers itself, so the line isn't said twice. */
+  alsoListed?: boolean;
+  /** False when the page picks the list's other things its own way (a place's nearest places). */
+  more?: boolean;
+}) {
+  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+  const { alsoListedBy: listers, more: others, total, coordinate } = useItemNeighbours(event, resolved);
+  const alsoListedBy = alsoListed ? listers : [];
+  const more = showMore ? others : [];
   const authors = useAuthors(alsoListedBy.slice(0, MAX_FACES));
 
   if (alsoListedBy.length === 0 && more.length === 0) return null;

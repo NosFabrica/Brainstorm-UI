@@ -10,8 +10,13 @@
  * declares fields with `["required" | "recommended" | "optional" | "allowed",
  * <item tag name>, <description?>]` — `allowed` reads as optional — and may
  * type a declared field with `["field-type", <name>, <type>]`, which never
- * adds a field of its own. Only `url` changes rendering (a link when the
- * value is http(s)); every other type, or none, is text.
+ * adds a field of its own. A type changes rendering only where it has one
+ * obvious rendering: `url` is a link when the value is http(s); `tel` and
+ * `email` (provisional) are a call and a mail when the value is a phone
+ * number or an email address; and `address` (provisional) is the event a
+ * `kind:pubkey:d` names, which a renderer looks up
+ * (components/dictionary/AddressRef). Every other type, or none, is text: a
+ * value's look never decides its type.
  *
  * An item is a kind-39999 event (9999 non-addressable) filed under its
  * header by a `z` tag naming the header's coordinate (a 9998 header: its
@@ -20,6 +25,7 @@
  * lib/dlists reads the music lists, whose shapes are fixed; this module
  * reads any list.
  */
+import { nip19 } from "nostr-tools";
 
 export const DLIST_HEADER_KIND = 39998;
 export const DLIST_ITEM_KIND = 39999;
@@ -49,8 +55,13 @@ export interface FieldCell {
   extra: number;
   /** A required field with no value. */
   missing: boolean;
-  /** A link for a `url` field whose value is an http(s) URL. */
+  /**
+   * What the value opens, when its type says and the value is one: a `url`
+   * field's http(s) URL, a `tel` field's `tel:`, an `email` field's `mailto:`.
+   */
   href: string | null;
+  /** For an `address` field (provisional): the `kind:pubkey:d` its value names, when it names one. */
+  address: string | null;
 }
 
 export interface Coordinate {
@@ -89,6 +100,25 @@ export function parseCoordinate(coord: string | null | undefined): Coordinate | 
 }
 
 export const formatCoordinate = ({ kind, pubkey, d }: Coordinate): string => `${kind}:${pubkey}:${d}`;
+
+/**
+ * The address a value names, as `kind:pubkey:d`: the coordinate itself, or an
+ * `naddr` (with or without `nostr:`) spelled out. Null for anything else.
+ */
+export function addressOf(value: string | null | undefined): string | null {
+  const s = typeof value === "string" ? value.trim().replace(/^nostr:/, "") : "";
+  const coordinate = parseCoordinate(s);
+  if (coordinate) return formatCoordinate(coordinate);
+  if (!s.startsWith("naddr1")) return null;
+  try {
+    const d = nip19.decode(s);
+    return d.type === "naddr"
+      ? formatCoordinate({ kind: d.data.kind, pubkey: d.data.pubkey, d: d.data.identifier })
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The coordinate of an addressable event (a 39998 header, a 39999 item), or null without a `d`. */
 export function coordinateOf(ev: EventLike): string | null {
@@ -171,6 +201,30 @@ export function httpUrl(value: string | null | undefined): string | null {
   }
 }
 
+/**
+ * A `tel` field's value as a call (provisional): its digits, and a leading
+ * `+`, once the separators people write — spaces, dots, dashes, brackets —
+ * are gone. Null when anything else is left. The header said it's a phone
+ * number; this only spells it the way a `tel:` link wants.
+ */
+export function telHref(value: string | null | undefined): string | null {
+  const s = (typeof value === "string" ? value : "").trim().replace(/[\s().-]/g, "");
+  return /^\+?\d+$/.test(s) ? `tel:${s}` : null;
+}
+
+/** An `email` field's value as a mail (provisional): one address, name@host.tld, nothing around it. Null otherwise. */
+export function emailHref(value: string | null | undefined): string | null {
+  const s = typeof value === "string" ? value.trim() : "";
+  return /^[^\s@?#:]+@[^\s@?#:]+\.[^\s@?#:]+$/.test(s) ? `mailto:${s}` : null;
+}
+
+/** What a typed field's value opens: one obvious rendering per type, none for any other. */
+const HREF_OF = new Map<string, (value: string) => string | null>([
+  ["url", httpUrl],
+  ["tel", telHref],
+  ["email", emailHref],
+]);
+
 /** One field of one item: its first value, how many more it gives, whether a required one is missing. */
 export function fieldCell(item: TaggedEvent, decl: FieldDecl): FieldCell {
   const hits = tagsOf(item).filter((t) => t[0] === decl.name && t.length > 1 && t[1] != null);
@@ -179,7 +233,8 @@ export function fieldCell(item: TaggedEvent, decl: FieldDecl): FieldCell {
     value,
     extra: Math.max(0, hits.length - 1),
     missing: decl.requirement === "required" && value == null,
-    href: value != null && decl.type === "url" ? httpUrl(value) : null,
+    href: value != null ? (HREF_OF.get(decl.type)?.(value) ?? null) : null,
+    address: value != null && decl.type === "address" ? addressOf(value) : null,
   };
 }
 

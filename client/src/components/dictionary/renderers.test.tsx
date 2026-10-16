@@ -27,13 +27,31 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/components/share/things/shared", () => ({
   useAuthors: (pks: string[]) => new Map(pks.map((pk) => [pk, { pubkey: pk, npub: "npub", name: "Avi Burra" }])),
 }));
-vi.mock("@/config/dictionary", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  DICTIONARY_CONCEPTS: [COMMUNITY],
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
 
+import type { ReactElement } from "react";
+import { PresentationOverrideContext } from "@/hooks/useItemView";
 import { DListItemCard } from "./DListItemCard";
 import { DListSuggestionRow } from "./DListSuggestionRow";
+
+const COVER = "https://covers.openlibrary.org/b/id/10092515-L.jpg";
+/** An override that says the picture is a cover, as a tier-three view may (ADR 0007): a portrait tile, never a circle. */
+const asCover = (ui: ReactElement) =>
+  renderWithProviders(
+    <PresentationOverrideContext.Provider
+      value={(_item, _resolved, shown) => ({
+        ...shown,
+        title: "The storm before the storm",
+        summary: "Michael Duncan",
+        image: COVER,
+        imageShape: "portrait",
+      })}
+    >
+      {ui}
+    </PresentationOverrideContext.Provider>,
+  );
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   id: pubkey.slice(0, 8).padEnd(64, "0"),
@@ -93,11 +111,19 @@ describe("DListItemCard", () => {
     expect(screen.getByText("Avi Burra")).toBeInTheDocument();
   });
 
-  it("goes to the item's page with a relay hint", () => {
+  it("goes to the item's page by its address, which outlives the next import, with a relay hint", () => {
     renderWithProviders(<DListItemCard event={item} />);
     expect(screen.getByTestId(`dlist-item-card-${item.id}`).querySelector("a")?.getAttribute("href")).toMatch(
-      /^\/e\/nevent1/,
+      /^\/e\/naddr1/,
     );
+  });
+
+  it("a cover is a portrait tile, as on a shelf — not the round crop a face gets", () => {
+    asCover(<DListItemCard event={item} />);
+    const img = screen.getByTestId("dlist-item-card-image");
+    expect(img).toHaveAttribute("src", expect.stringContaining("10092515-L.jpg"));
+    expect(img.parentElement).toHaveAttribute("data-shape", "portrait");
+    expect(img.parentElement?.className).not.toMatch(/rounded-full/);
   });
 
   it("says so while the definition loads", () => {
@@ -122,6 +148,14 @@ describe("DListSuggestionRow", () => {
     renderWithProviders(<DListSuggestionRow event={item} />);
     expect(screen.getByTestId("dlist-suggestion-title")).toHaveTextContent("vcavallo");
     expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("GitHub Account · in GitHub Accounts");
+  });
+
+  it("a cover is a portrait tile in the popup row too", () => {
+    asCover(<DListSuggestionRow event={item} />);
+    const tile = screen.getByTestId("dlist-suggestion-tile");
+    expect(tile).toHaveAttribute("data-shape", "portrait");
+    expect(tile.className).not.toMatch(/rounded-full/);
+    expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("Michael Duncan");
   });
 
   it("shows nothing until it can name the item", () => {

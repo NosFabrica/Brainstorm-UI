@@ -1,8 +1,9 @@
 /**
  * A `nostr:` reference in long-form text, rendered as what it names: a
- * person as their mention chip, a note as the quoted note's card, an
- * article as the article's card, a bookmark set as the list's card — the
- * same things a note renders them as.
+ * person as their mention chip, a quoted event as the card its kind has
+ * (EmbeddedNoteCard, by lib/embedShape), an article as the article's card,
+ * a bookmark set as the list's card, a stream or a listing named by address
+ * as its card — the same things a note renders them as.
  * An article that listed notes by their `nostr:nevent…` strings read as
  * raw data (Benjamin, 2026-09-24). While a lookup runs, or when nothing
  * comes back, the reference stays a link to its page here.
@@ -12,13 +13,14 @@ import { nip19 } from "nostr-tools";
 import { MentionChip } from "@/components/share/MentionChip";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
-import { EMBEDDED_THING_KINDS, ThingAddressRef } from "@/components/share/ThingAddressRef";
+import { ThingAddressRef } from "@/components/share/ThingAddressRef";
 import { ListAddressRef } from "@/components/share/ListPreview";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { addressLabel, addressLink } from "@/components/share/ReadingText";
 import { useQuotedNotes } from "@/hooks/useQuotedNotes";
-import { READER_KINDS, useArticlesByRefs } from "@/hooks/useLinkedArticles";
+import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
 import { decodeNostrEntity, type AddressRef } from "@/lib/noteRefs";
+import { ADDRESS_CARD_KINDS, ARTICLE_EMBED_KINDS } from "@/lib/embedShape";
 
 function PageLink({ bech32, children }: { bech32: string; children: string }) {
   const [, navigate] = useLocation();
@@ -48,10 +50,13 @@ function QuotedNoteRef({ id, bech32 }: { id: string; bech32: string }) {
   );
 }
 
-function ArticleRef({ address, bech32 }: { address: AddressRef; bech32: string }) {
-  const { articles } = useArticlesByRefs([address]);
+function ArticleRef({ address, bech32, url }: { address: AddressRef; bech32: string; url?: string }) {
+  // Asked in the page's batch with every other reference in the text.
+  const { articles } = useArticlesByRefs([address], { batched: true });
   const ev = articles[0];
-  if (!ev) return <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;
+  // Not (yet) found: the author's own link around it when they wrote one (a draft's or a
+  // publication's reader elsewhere), else its page here.
+  if (!ev) return addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;
   return <EmbeddedArticleCard event={ev} />;
 }
 
@@ -66,8 +71,10 @@ export function NostrRef({
   if (pubkey) return <MentionChip uri={`nostr:${bech32}`} />;
   if (id) return <QuotedNoteRef id={id} bech32={bech32} />;
   if (address) {
-    if (READER_KINDS.has(address.kind)) return <ArticleRef address={address} bech32={bech32} />;
-    if (EMBEDDED_THING_KINDS.has(address.kind)) return <ThingAddressRef address={address} bech32={bech32} url={url} />;
+    // Long-form — articles, drafts, publications and their sections, wiki pages, specs — as the article's card.
+    if (ARTICLE_EMBED_KINDS.has(address.kind)) return <ArticleRef address={address} bech32={bech32} url={url} />;
+    // Anything with a card of its own (a stream, a listing, a community…) as that card.
+    if (ADDRESS_CARD_KINDS.has(address.kind)) return <ThingAddressRef address={address} bech32={bech32} url={url} />;
     if (ITEM_LIST_KINDS.has(address.kind))
       return (
         <ListAddressRef
@@ -76,8 +83,7 @@ export function NostrRef({
           fallback={addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>}
         />
       );
-    // Only articles, wiki pages and specs have a reader here; any other
-    // address opens where every client can show it.
+    // Any other address opens where every client can show it.
     return addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;
   }
   return <span className="font-medium text-brand-link">{bech32.slice(0, 12)}…</span>;

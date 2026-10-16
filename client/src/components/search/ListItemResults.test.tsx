@@ -19,10 +19,6 @@ let viewer: { pubkey: string; isAdmin: boolean } | null = { pubkey: "1".repeat(6
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => viewer,
 }));
-vi.mock("@/config/dictionary", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  SEARCHABLE_CONCEPTS: [GITHUB],
-}));
 
 const header = (pubkey: string, d: string, names: [string, string], field: string): HeaderEvent => ({
   id: d.padEnd(64, "0"),
@@ -128,9 +124,9 @@ describe("ListItemResults", () => {
     expect(itemsAsked).toHaveBeenCalledWith(undefined, false);
   });
 
-  it("does not search a list the config has not turned on", () => {
-    const { container } = render(<ListItemResults query="books tolkien" onTabChange={() => {}} />);
-    expect(container).toBeEmptyDOMElement();
+  it("can name any list the Dictionary shows: 'books tolkien' reads the Books items", () => {
+    render(<ListItemResults query="books tolkien" onTabChange={() => {}} />);
+    expect(itemsAsked).toHaveBeenCalledWith(BOOKS, true);
   });
 
   it("shows nothing when no item matches", () => {

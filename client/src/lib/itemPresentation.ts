@@ -4,17 +4,16 @@
  * concept gets code of its own (the team, 2026-10-02: "burn the ships"). The
  * page, the card, the popup row and the list row all read it, so they agree.
  *
- * The definition's provisional display hints (lib/displayHints) decide,
- * when on; without them, the first required field is the title and a
+ * The definition's provisional display hints (lib/displayHints) decide;
+ * where it gives none, the first required field is the title and a
  * declared `summary` or `description` is the summary.
  *
  * Chosen per definition, never per item: an item missing its title field
  * reads "Untitled <singular>" rather than borrowing another field, so the
  * same field always fills the same slot down a list (the team, 2026-10-02).
  */
-import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
-import { factLabel, NO_HINTS } from "@/lib/displayHints";
+import { factLabel } from "@/lib/displayHints";
 import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
 import { mediaKindOfUrl } from "@/lib/mediaKind";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -28,6 +27,13 @@ export interface ItemPresentation {
   /** The item's own picture, an http(s) URL. */
   image: string | null;
   imageField: string | null;
+  /**
+   * How the picture is cut where the item is one among many: round, as a
+   * face or a logo, unless the presentation says it's a portrait, as a cover
+   * is. Unset means round; nothing here sets it, a tier-three view may
+   * (useItemView's override, ADR 0007).
+   */
+  imageShape?: "round" | "portrait";
   /** The item's own link — a field holding a whole URL — labelled by its field's description, else its host. */
   link: { label: string; href: string; host: string } | null;
   linkField: string | null;
@@ -38,7 +44,7 @@ export interface ItemPresentation {
   location: (GeohashCell & { geohash: string }) | null;
   locationField: string | null;
   /** The definition's facts this item has a value for, labelled, in the header's order. */
-  facts: { field: string; label: string; value: string; href: string | null; extra: number }[];
+  facts: { field: string; label: string; value: string; href: string | null; address: string | null; extra: number }[];
   /** Every field named as a fact, so a page needn't list it again. */
   factFields: string[];
   /** The list's image, worn by every item. */
@@ -60,12 +66,8 @@ function mostPreciseGeohash(item: { tags: string[][] }, field: string | null) {
   return best;
 }
 
-export function presentItem(
-  item: { tags: string[][] },
-  definition: ConceptDefinition,
-  hintsOn: boolean = DISPLAY_HINTS_ENABLED,
-): ItemPresentation {
-  const hints = hintsOn ? definition.display : NO_HINTS;
+export function presentItem(item: { tags: string[][] }, definition: ConceptDefinition): ItemPresentation {
+  const hints = definition.display;
   const fields = definition.fields;
   const valueOf = (name: string | null) => {
     const decl = name ? fields.find((f) => f.name === name) : undefined;
@@ -89,7 +91,16 @@ export function presentItem(
     const cell = decl ? fieldCell(item, decl) : null;
     return cell?.value == null
       ? []
-      : [{ field: f.field, label: factLabel(f), value: cell.value, href: cell.href, extra: cell.extra }];
+      : [
+          {
+            field: f.field,
+            label: factLabel(f),
+            value: cell.value,
+            href: cell.href,
+            address: cell.address,
+            extra: cell.extra,
+          },
+        ];
   });
 
   return {

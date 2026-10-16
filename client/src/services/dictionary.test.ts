@@ -60,7 +60,7 @@ vi.mock("@/services/trustSource", () => ({
   resolveTrustSource: (pk: string) => trustSourceMock(pk),
 }));
 
-import { distinctItems, itemIdentity, loadConceptItems, loadDictionary, loadListItems } from "./dictionary";
+import { distinctItems, filedItems, itemIdentity, loadConceptItems, loadDictionary, loadListItems } from "./dictionary";
 
 /** Answers each filter the way a relay would, from a fixed corpus. */
 /** One filter, as a relay matches it. */
@@ -356,5 +356,39 @@ describe("loadListItems", () => {
     const { items, truncated } = await loadListItems([COMMUNITY]);
     expect(items).toHaveLength(3);
     expect(truncated).toBe(true);
+  });
+});
+
+describe("the items filed under a list", () => {
+  const COORD = COMMUNITY;
+  const OTHER = TA_COPY;
+  /** A kind-39999 item filed under COORD. */
+  const item = (d: string, created_at: number) =>
+    ev(
+      AVI,
+      39999,
+      [
+        ["d", d],
+        ["z", COORD],
+      ],
+      created_at,
+    );
+
+  it("filedItems keeps the newer version of an item and drops what is filed elsewhere", () => {
+    const older = item("cafe", 10);
+    const newer = item("cafe", 20);
+    const other = {
+      ...item("x", 30),
+      tags: [
+        ["d", "x"],
+        ["z", OTHER],
+      ],
+    };
+    expect(filedItems([older, other, newer], [COORD]).map((e) => e.created_at)).toEqual([20]);
+  });
+
+  it("loadListItems still asks for 500", async () => {
+    await loadListItems([COORD]);
+    expect(sentFilters().at(-1)).toMatchObject({ limit: 500 });
   });
 });

@@ -3,7 +3,10 @@
  * dcosl.brainstorm.world (header and items as published, 2026-09).
  */
 import { describe, expect, it } from "vitest";
+import { nip19 } from "nostr-tools";
 import {
+  addressOf,
+  emailHref,
   coordinateOf,
   fieldCell,
   headerNames,
@@ -13,6 +16,7 @@ import {
   isDListItem,
   parseCoordinate,
   parseFieldDecls,
+  telHref,
   undeclaredFields,
 } from "./dlistFields";
 
@@ -154,7 +158,13 @@ describe("fieldCell", () => {
   const [username] = parseFieldDecls(header);
 
   it("reads the item's value for a declared field", () => {
-    expect(fieldCell(item, username)).toEqual({ value: "vcavallo", extra: 0, missing: false, href: null });
+    expect(fieldCell(item, username)).toEqual({
+      value: "vcavallo",
+      extra: 0,
+      missing: false,
+      href: null,
+      address: null,
+    });
   });
 
   it("flags a missing required field", () => {
@@ -200,5 +210,64 @@ describe("undeclaredFields", () => {
       [],
     );
     expect(extra).toEqual([]);
+  });
+});
+
+describe("address fields (provisional)", () => {
+  const coord = `39998:${AVI}:divine-videos`;
+
+  it("reads a coordinate or an naddr as the address it names, and nothing else", () => {
+    expect(addressOf(` ${coord} `)).toBe(coord);
+    expect(addressOf(nip19.naddrEncode({ kind: 39998, pubkey: AVI, identifier: "divine-videos" }))).toBe(coord);
+    expect(addressOf(`nostr:${nip19.naddrEncode({ kind: 30023, pubkey: AVI, identifier: "a:b" })}`)).toBe(
+      `30023:${AVI}:a:b`,
+    );
+    expect(addressOf("divine-videos")).toBeNull();
+    expect(addressOf("naddr1nonsense")).toBeNull();
+  });
+
+  it("gives an address field's cell the address its value names — and no other type's", () => {
+    const item = { tags: [["list", coord]] };
+    expect(fieldCell(item, { name: "list", requirement: "optional", description: null, type: "address" }).address).toBe(
+      coord,
+    );
+    expect(
+      fieldCell(item, { name: "list", requirement: "optional", description: null, type: "text" }).address,
+    ).toBeNull();
+  });
+});
+
+describe("tel and email fields (provisional)", () => {
+  const field = (type: string) => ({ name: "contact", requirement: "optional" as const, description: null, type });
+  const cell = (type: string, value: string) => fieldCell({ tags: [["contact", value]] }, field(type));
+
+  it("a tel field calls: its digits and a leading +, the separators people write gone", () => {
+    expect(telHref("+1-540-391-0134")).toBe("tel:+15403910134");
+    expect(telHref("(020) 7946.0958")).toBe("tel:02079460958");
+    expect(telHref(" 911 ")).toBe("tel:911");
+    expect(cell("tel", "+1 346 493 2858")).toMatchObject({ value: "+1 346 493 2858", href: "tel:+13464932858" });
+  });
+
+  it("a tel value with anything else in it stays text", () => {
+    expect(telHref("call us")).toBeNull();
+    expect(telHref("555-1234 ext 2")).toBeNull();
+    expect(telHref("1+2")).toBeNull();
+    expect(telHref("")).toBeNull();
+  });
+
+  it("an email field mails one address, and nothing else", () => {
+    expect(emailHref(" hello@ilsolefood.com ")).toBe("mailto:hello@ilsolefood.com");
+    expect(cell("email", "hello@ilsolefood.com").href).toBe("mailto:hello@ilsolefood.com");
+    expect(emailHref("hello at ilsolefood.com")).toBeNull();
+    expect(emailHref("a@b")).toBeNull();
+    expect(emailHref("a@b.com?bcc=c@d.com")).toBeNull();
+    expect(emailHref("mailto:a@b.com")).toBeNull();
+  });
+
+  it("a value's look never types it: a phone or an email in a text field stays text", () => {
+    expect(cell("text", "+1-540-391-0134").href).toBeNull();
+    expect(cell("text", "hello@ilsolefood.com").href).toBeNull();
+    // A type the reader doesn't know is text too, whatever it's called.
+    expect(cell("toString", "+1-540-391-0134").href).toBeNull();
   });
 });

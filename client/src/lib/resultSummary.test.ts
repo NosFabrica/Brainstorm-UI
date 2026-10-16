@@ -251,3 +251,53 @@ describe("audit fixes", () => {
     expect(s.body).toBe(`thanks nostr:${npub} and nostr:${npub}!`);
   });
 });
+
+// Safe by default: the row's picture is decided here, so whether that picture is a video
+// its creator marked sensitive is decided here too, for the event the picture came from.
+describe("summarizeResult — a video marked sensitive", () => {
+  const imeta = [
+    "imeta",
+    "url https://media.divine.video/b0f9",
+    "m video/mp4",
+    "image https://media.divine.video/thumb",
+  ];
+  const short = (tags: string[][] = []) => ev(34236, [["d", "b0f9"], ["title", "Morning at the lake"], imeta, ...tags]);
+
+  it("carries the warning beside the picture it is about", () => {
+    const s = summarizeResult(short([["content-warning", "nudity"]]));
+    expect(s.image).toBe("https://media.divine.video/thumb");
+    expect(s.sensitive).toEqual({ reason: "nudity" });
+    expect(summarizeResult(short([["l", "violence", "content-warning"]])).sensitive).toEqual({ reason: "violence" });
+  });
+
+  it("is not set for an unflagged video, or for flagged words with no video", () => {
+    expect(summarizeResult(short()).sensitive).toBeUndefined();
+    expect(summarizeResult(ev(1, [["content-warning", "spoilers"]], "The butler did it.")).sensitive).toBeUndefined();
+  });
+
+  it("covers a note whose picture is a flagged clip", () => {
+    const note = ev(1, [["content-warning"]], "look https://cdn.example/clip.mp4");
+    expect(summarizeResult(note).video).toBe("https://cdn.example/clip.mp4");
+    expect(summarizeResult(note).sensitive).toEqual({});
+  });
+
+  // The repost's own tags say nothing: the picture and its warning are the reposted video's.
+  it("a repost inherits the warning of the video it carries", () => {
+    const flagged = short([["content-warning", "nudity"]]);
+    for (const kind of [6, 16]) {
+      const s = summarizeResult(
+        ev(
+          kind,
+          [
+            ["e", flagged.id],
+            ["k", "34236"],
+          ],
+          JSON.stringify(flagged),
+        ),
+      );
+      expect(s.image).toBe("https://media.divine.video/thumb");
+      expect(s.sensitive).toEqual({ reason: "nudity" });
+    }
+    expect(summarizeResult(ev(16, [], JSON.stringify(short()))).sensitive).toBeUndefined();
+  });
+});

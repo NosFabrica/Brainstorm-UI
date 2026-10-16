@@ -6,6 +6,26 @@
 import type { AdminUserDetail } from "./admin";
 import { adminJson, jsonBody } from "./core";
 
+/** What the TA relay holds vs. what we recorded as published, for one observer. */
+export interface RelayAudit {
+  observer: string;
+  signer: string;
+  /** Observees at or above the publish cutoff in Neo4j: the TAs that should exist. */
+  expected: number;
+  /** Size of last_published: what the last successful run recorded as sent. */
+  published: number;
+  /** Observees in exactly one of expected / last_published. */
+  baseline_drift: number;
+  on_relay: number;
+  /** Expected observees with no TA on the relay. */
+  missing: number;
+  /** TAs on the relay for observees that aren't expected. */
+  orphans: number;
+  /** False when a second too dense to download was sampled: missing/orphans are estimates. */
+  exact: boolean;
+  needs_resync: boolean;
+}
+
 export interface SchedulingItem {
   id: number;
   name: string;
@@ -79,12 +99,13 @@ export const schedulingApi = {
     await adminJson(`/admin/scheduling/${id}`, "Failed to delete scheduling policy", { method: "DELETE" });
   },
 
-  async resyncObserver(pubkey: string, target: string) {
-    return adminJson(
-      `/admin/users/${pubkey}/resync?target=${encodeURIComponent(target)}`,
-      "Failed to resync observer",
-      { method: "POST" },
-    );
+  /** Exact, a few seconds per observer; the 15s default timeout is too tight for big ones. */
+  async relayAudit(pubkey: string): Promise<RelayAudit> {
+    return adminJson(`/admin/users/${pubkey}/relay-audit`, "Failed to audit the relay", {}, 150_000);
+  },
+
+  async resyncObserver(pubkey: string) {
+    return adminJson(`/admin/users/${pubkey}/resync`, "Failed to resync observer", { method: "POST" });
   },
 
   /**

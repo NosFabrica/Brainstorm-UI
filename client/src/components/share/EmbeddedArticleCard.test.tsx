@@ -10,6 +10,7 @@ import { setTechnicalView } from "@/lib/technicalView";
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { render, screen, within } from "@testing-library/react";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { renderWithProviders } from "@/test/utils";
 import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
@@ -346,5 +347,57 @@ describe("EmbeddedArticleCard", () => {
     const card = screen.getByTestId("embedded-article");
     expect(card).toHaveTextContent("Recipe");
     expect(card).not.toHaveTextContent("Article");
+  });
+});
+
+// A video quoted by address (nostr:naddr…, or an `a` tag) is handed to this card too. It is drawn
+// as a video (EmbeddedNoteCard), never as an article: one with a file plays, behind a cover when
+// its creator marked it sensitive; one with no file keeps its words and its link. An article its
+// creator marked sensitive shows no cover picture either.
+describe("EmbeddedArticleCard — a video, and anything marked sensitive", () => {
+  const video = (kind: number, extra: string[][] = []) =>
+    page(kind, "", [
+      ["d", "b0f9"],
+      ["title", "Morning at the lake"],
+      ["image", "https://media.divine.video/thumb.jpg"],
+      ...extra,
+    ]);
+  const file = ["imeta", "url https://media.divine.video/clip.mp4", "m video/mp4"];
+
+  it("a flagged video is covered: no poster, no file, no default cover", () => {
+    for (const kind of [21, 22, 34235, 34236]) {
+      const { unmount } = renderWithProviders(
+        <EmbeddedArticleCard event={video(kind, [file, ["content-warning", "nudity"]])} />,
+      );
+      expect(screen.queryByTestId("embedded-article")).toBeNull();
+      const card = screen.getByTestId("embedded-note");
+      expect(within(card).getByTestId("sensitive-cover")).toHaveTextContent("nudity");
+      expect(document.querySelector('img[src*="thumb"]')).toBeNull();
+      expect(document.querySelector("video")).toBeNull();
+      expect(card).toHaveTextContent("Morning at the lake");
+      unmount();
+    }
+  });
+
+  it("an unflagged video plays with its poster", () => {
+    renderWithProviders(<EmbeddedArticleCard event={video(34236, [file])} />);
+    expect(screen.queryByTestId("embedded-article")).toBeNull();
+    expect(screen.getByTestId("feed-video-el").getAttribute("poster")).toBe("https://media.divine.video/thumb.jpg");
+  });
+
+  // Audit: one with no file said "Untitled article" under the default cover, and could not be opened.
+  it("a video with no file is no article", () => {
+    renderWithProviders(<EmbeddedArticleCard event={video(34235)} />);
+    expect(screen.queryByTestId("embedded-article")).toBeNull();
+    expect(screen.getByTestId("embedded-note").className).toContain("cursor-pointer");
+  });
+
+  // Audit: the check was for videos alone; an article's flagged cover showed.
+  it("a flagged article shows the placeholder in place of its cover", () => {
+    render(<EmbeddedArticleCard event={video(30023, [["content-warning", "nudity"]])} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(within(card).getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+    expect(card.querySelector('img[src*="thumb"]')).toBeNull();
+    expect(card.querySelector('img[width="1280"]')).toBeNull();
   });
 });
