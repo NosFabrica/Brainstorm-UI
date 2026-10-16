@@ -75,6 +75,7 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { publicOrigin } from "@/lib/publicOrigin";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
@@ -799,7 +800,7 @@ export default function UserPanelPage() {
   };
 
   const handleCopyInviteLink = () => {
-    copyToClipboard(window.location.origin);
+    copyToClipboard(publicOrigin());
     toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
   };
 
@@ -1769,7 +1770,7 @@ export default function UserPanelPage() {
                       className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                       data-testid="text-invite-link"
                     >
-                      {window.location.origin}
+                      {publicOrigin()}
                     </div>
                     <Button
                       size="sm"

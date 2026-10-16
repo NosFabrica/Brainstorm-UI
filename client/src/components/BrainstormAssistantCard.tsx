@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -55,11 +56,11 @@ const DEFAULT_ASSISTANT_PICTURE_PATH = "/assistant-default.webp";
 const DEFAULT_ASSISTANT_BANNER_PATH = "/assistant-banner.webp";
 function getDefaultAssistantPictureUrl(): string {
   if (typeof window === "undefined") return DEFAULT_ASSISTANT_PICTURE_PATH;
-  return `${window.location.origin}${DEFAULT_ASSISTANT_PICTURE_PATH}`;
+  return `${publicOrigin()}${DEFAULT_ASSISTANT_PICTURE_PATH}`;
 }
 function getDefaultAssistantBannerUrl(): string {
   if (typeof window === "undefined") return DEFAULT_ASSISTANT_BANNER_PATH;
-  return `${window.location.origin}${DEFAULT_ASSISTANT_BANNER_PATH}`;
+  return `${publicOrigin()}${DEFAULT_ASSISTANT_BANNER_PATH}`;
 }
 
 function normalizeWebsite(url: string): { href: string; label: string } | null {

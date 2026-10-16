@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { scopedSearchHref } from "@/lib/searchSyntax";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { useMyReport, useTheyFollowMe } from "@/hooks/useRelationship";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
@@ -2775,10 +2776,7 @@ export default function ProfilePage() {
                     stats and actions below all share one left edge (like /p). */}
                   {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
-                    const assistantDefaultPicture =
-                      typeof window !== "undefined"
-                        ? `${window.location.origin}/assistant-default.webp`
-                        : "/assistant-default.webp";
+                    const assistantDefaultPicture = `${publicOrigin()}/assistant-default.webp`;
                     const effectivePicture =
                       displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (

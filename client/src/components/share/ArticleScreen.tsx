@@ -44,6 +44,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
+import { publicPageUrl } from "@/lib/publicOrigin";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -303,10 +304,7 @@ export type ArticleEvent = {
 export function ArticleShell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <PublicPageHeader
-        maxWidthClass="max-w-3xl"
-        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={title} />}
-      />
+      <PublicPageHeader maxWidthClass="max-w-3xl" actions={<ShareButton url={publicPageUrl()} title={title} />} />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
         {children}
         <div className="mt-10 text-center">
@@ -430,7 +428,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           title: `${title} — Brainstorm`,
           description: summary || `A long-form article by ${authorName}.`,
           image,
-          url: typeof window !== "undefined" ? window.location.href : "",
+          url: publicPageUrl(),
         }
       : null,
   );
