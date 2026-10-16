@@ -101,6 +101,20 @@ describe("useListItems", () => {
     expect(result.current.truncated).toBe(false);
   });
 
+  it("counts the items filed under a header it's also handed, as a version's are", async () => {
+    const author = "0".repeat(64);
+    const { header, coordinate } = list(author);
+    const version = `39998:${"0a".repeat(32)}:places`;
+    const onList = item(author, "cafe", coordinate, 20);
+    const onVersion = item(author, "bar", version, 10);
+    const elsewhere = item(author, "pub", `39998:${author}:other`, 30);
+    answerWith([onList, onVersion, elsewhere]);
+    const { result } = renderHook(() => useListItems(header, [version]));
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(readMock.mock.calls[0][0]).toEqual([{ kinds: [39999, 9999], "#z": [coordinate, version], limit: 10_000 }]);
+    expect(result.current.items.map((i) => i.id)).toEqual([onList.id, onVersion.id]);
+  });
+
   it("reads a 9998 list by its id, and leaves out an item filed under another list", async () => {
     const author = "c".repeat(64);
     const header = ev(author, 9998, [["names", "Thing", "Things"]]);

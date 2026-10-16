@@ -39,14 +39,23 @@ const ask = (ref: string, n: number) => `list-items:${ref}:${n}`;
 /**
  * Every item filed under a list — the newest version of each, newest first —
  * read from the tag hub and our index into the EventStore (ADR 0005), up to
- * the relay's cap. `truncated` says the read's answer reached it, so more may
- * exist; `cutOff` says the read ran to its deadline, so a relay may not have
- * finished answering; `reload` asks again, past the window.
+ * the relay's cap. `also` names more headers whose items count as the list's:
+ * a version of it, say. `truncated` says the read's answer reached the cap, so
+ * more may exist; `cutOff` says the read ran to its deadline, so a relay may
+ * not have finished answering; `reload` asks again, past the window.
  */
-export function useListItems(header: NostrEvent) {
-  const ref = headerReference(header);
-  /** The one header the items are filed under, or none: a header with no reference has no items to ask for. */
-  const filedUnder = useMemo(() => (ref ? [ref] : []), [ref]);
+export function useListItems(header: NostrEvent, also: readonly string[] = []) {
+  const own = headerReference(header);
+  const alsoKey = also.join(" ");
+  /** The headers the items are filed under, or none: a header with no reference has no items to ask for. */
+  const filedUnder = useMemo(
+    () => (own ? [...new Set([own, ...also])] : []),
+    // `alsoKey` is `also`, as a value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [own, alsoKey],
+  );
+  /** What the reads of this list are kept by: every header it reads, as one value. */
+  const ref = filedUnder.length ? filedUnder.join(" ") : null;
   const [, rerender] = useReducer((i: number) => i + 1, 0);
   const key = ref ? ask(ref, generation.get(ref) ?? 0) : null;
   const filters = useMemo(() => (filedUnder.length ? itemFilters(filedUnder) : null), [filedUnder]);

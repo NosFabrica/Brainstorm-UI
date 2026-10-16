@@ -8,6 +8,11 @@
  * so a list and its editor have a link. `&view=items` opens a list on its
  * items and `&view=add` on adding one; `&item=<event id>` opens one item
  * there (ListItems), so an item has a link too.
+ *
+ * A version of another list (a local copy, lib/conceptResolution
+ * `versionOf`) has its own definition, but its items are the other list's:
+ * adding one files it there, where everyone else's are, and its items are
+ * that list's, with any filed under the version itself.
  */
 import { useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
@@ -18,14 +23,16 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AddressRef } from "@/components/dictionary/AddressRef";
 import { ItemComposer } from "@/components/lists/ItemComposer";
 import { ListEditor } from "@/components/lists/ListEditor";
 import { ListItems } from "@/components/lists/ListItems";
 import { listManagerPath } from "@/components/lists/listManagerPath";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useListAt, useMyLists } from "@/hooks/useLists";
-import { coordinateOf, headerNames } from "@/lib/dlistFields";
-import { parseListRef } from "@/lib/listRef";
+import { versionOf } from "@/lib/conceptResolution";
+import { coordinateOf, headerNames, headerReference } from "@/lib/dlistFields";
+import { parseListRef, type ListRef } from "@/lib/listRef";
 
 export { listManagerPath } from "./listManagerPath";
 
@@ -127,6 +134,8 @@ function PublishedList({
   // The tab when the address names no view. Definition has no `view` of its own, so
   // choosing it on someone else's list, which opens on adding, is kept here.
   const [unnamed, setUnnamed] = useState<"definition" | "item">(header.pubkey === me ? "definition" : "item");
+  const version = versionOf(header);
+  const versionRef = useMemo(() => (version ? parseListRef(version) : null), [version]);
   const mode: Mode = view === "items" ? "items" : view === "add" ? "item" : unnamed;
   const choose = (next: Mode) => {
     if (next !== "items") setUnnamed(next);
@@ -150,10 +159,64 @@ function PublishedList({
       </Tabs>
       {mode === "definition" ? (
         <ListEditor header={header} me={me} takenDs={takenDs} onPublished={() => {}} />
+      ) : version && versionRef ? (
+        <OnTheListItIsOf version={header} of={version} ofRef={versionRef} mode={mode} listRef={listRef} me={me} />
       ) : mode === "item" ? (
         <ItemComposer header={header} me={me} />
       ) : (
         <ListItems header={header} listRef={listRef} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Adding an item to a version of another list, or reading its items: both
+ * happen on the list it's a version of, where everyone else's items are. Its
+ * items are that list's, with any filed under the version itself (as its
+ * public page and the Dictionary read a version's list).
+ */
+function OnTheListItIsOf({
+  version,
+  of,
+  ofRef,
+  mode,
+  listRef,
+  me,
+}: {
+  version: NostrEvent;
+  /** The address of the list it's a version of. */
+  of: string;
+  ofRef: ListRef;
+  mode: "item" | "items";
+  listRef: string;
+  me: string;
+}) {
+  const found = useListAt(ofRef);
+  const also = useMemo(() => [headerReference(version) ?? version.id], [version]);
+  if (!found.header)
+    return found.settled ? (
+      <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="list-manager-version-of-missing">
+        This is a version of <AddressRef address={of} />, which isn&rsquo;t on the hub or our index, so its items
+        can&rsquo;t be added or read here.
+      </p>
+    ) : (
+      <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <Loader2 className="h-4 w-4 animate-spin" /> Reading the list this is a version of…
+      </p>
+    );
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="list-manager-version-of">
+        A version of <AddressRef address={of} />.{" "}
+        {mode === "item"
+          ? "Items go on that list, where everyone else's are."
+          : "These are that list's items, and any filed under this version."}
+      </p>
+      {mode === "item" ? (
+        <ItemComposer header={found.header} me={me} />
+      ) : (
+        <ListItems header={found.header} listRef={listRef} also={also} />
       )}
     </div>
   );
@@ -212,15 +275,15 @@ function ListIndex({ me, mine, settled }: { me: string; mine: NostrEvent[]; sett
 
 function ListRow({ header, theirs }: { header: NostrEvent; theirs: boolean }) {
   const names = headerNames(header);
-  const coordinate = coordinateOf(header) ?? header.id;
+  // A 9998 is opened by its id: its coordinate, when it carries a `d`, names no list.
+  const reference = headerReference(header) ?? header.id;
   const d = header.tags.find((t) => t[0] === "d")?.[1] ?? "";
   const fields = header.tags.filter((t) => ["required", "recommended", "optional", "allowed"].includes(t[0])).length;
-  // A header pointing at another list is someone's own version of it.
-  const copyOf = header.tags.find((t) => t[0] === "b" && t[1] && t[1] !== coordinate)?.[1];
+  const copyOf = versionOf(header);
   return (
     <li>
       <Link
-        href={listManagerPath(coordinate)}
+        href={listManagerPath(reference)}
         className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-brand-accent/40"
         data-testid="list-manager-list"
       >

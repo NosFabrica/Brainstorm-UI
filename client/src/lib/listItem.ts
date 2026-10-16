@@ -1,7 +1,8 @@
 /**
  * An item on a list, as a form's values and as the event it becomes (List
  * Management's item form). A kind-39999 filed under the list by `z` — the
- * list's own coordinate, whichever definition the author previewed it under —
+ * list's own coordinate (a 9998's id), whichever definition the author
+ * previewed it under —
  * carrying a tag per field that has a value: the fields the list declares
  * first, in its order, then any others the author filled in (for a copy's
  * fields, say), which a reader shows apart from the list's own.
@@ -12,6 +13,7 @@
  */
 import type { EventTemplate } from "@/lib/conceptCopy";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
+import { headerReference } from "@/lib/dlistFields";
 import { slugOf } from "@/lib/listDraft";
 
 export type ItemValues = Record<string, string>;
@@ -46,7 +48,8 @@ export function itemTemplate(list: ConceptDefinition, values: ItemValues, tail: 
   const title = filled(titleFieldOf(list) ?? "");
   const tags: string[][] = [
     ["d", itemD(title, tail)],
-    ["z", list.coordinate],
+    // A 9998 is named by its id even when it carries a `d`: its coordinate names no list.
+    ["z", headerReference(list.event) ?? list.coordinate],
     ...[...declared, ...others].flatMap((name) => (filled(name) ? [[name, filled(name)!]] : [])),
   ];
   if (title) tags.push(["alt", `${list.singular}: ${title}`]);
