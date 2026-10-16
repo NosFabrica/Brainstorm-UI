@@ -7,7 +7,10 @@
  * - ReviewCard      relay reviews, NIP-87 mint reviews, ratings of anything
  * - MarketCard      BAO prediction markets (kind 38000, shared with mint reviews)
  * - BallotCard      ballots cast in an auditable-voting app (kind 38000 too)
+ * - ProductReviewCard  Open Markets product reviews: the thumb, the score, the product
  * - ShopPlaceCard   NIP-15 stalls and marketplaces, shaped like a listing for the Shop grid
+ * - ProductCollectionCard  Open Markets collections, shaped like a listing
+ * - ShippingOptionCard     Open Markets shipping options: what, how fast, where, for how much
  * - AppThingCard    NIP-89 handlers, NIP-5A Nostr sites, NIP-5D mini apps, shaped like an app card
  * - CalendarCard    NIP-52 calendars
  * - BadgeCard       NIP-58 badges
@@ -36,6 +39,7 @@ import {
   HandHeart,
   Hash,
   Image as ImageIcon,
+  Layers,
   MapPin,
   MessagesSquare,
   Music,
@@ -43,12 +47,15 @@ import {
   ScrollText,
   Star,
   Store,
+  ThumbsDown,
+  ThumbsUp,
   TrendingUp,
+  Truck,
   Users,
   Vote,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -76,6 +83,9 @@ import { languageName } from "@/lib/translate";
 import type { GoalProgress } from "@/services/search";
 import type { SearchResult } from "@/lib/profileSearch";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { useAddressedEvents } from "@/hooks/useAddressedEvents";
+import { formatListingPrice, parseListing } from "@/lib/listing";
+import { countriesLabel, durationLabel, serviceLabel } from "@/lib/marketplace";
 
 type Detail<T extends ThingDetail["type"]> = Extract<ThingDetail, { type: T }>;
 
@@ -98,6 +108,7 @@ export function ThingCard({
   score,
   thing: given,
   progress,
+  quoted = false,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -106,6 +117,11 @@ export function ThingCard({
   thing?: Thing | null;
   /** A zap goal's raised total, when the page fetched it. */
   progress?: GoalProgress | null;
+  /**
+   * Drawn inside a quote: what the card looks up beside its event (a review's
+   * product) comes from the store alone. A note of quotes asks no relay per card.
+   */
+  quoted?: boolean;
 }) {
   const thing = given ?? describeThing(event);
   if (!thing) return null;
@@ -117,6 +133,7 @@ export function ThingCard({
     case "fundraiser":
       return <FundraiserCard {...base} detail={d} progress={progress} />;
     case "review":
+      if (d.subject === "product") return <ProductReviewCard {...base} detail={d} quoted={quoted} />;
       return <ReviewCard {...base} detail={d} />;
     case "market":
       return <MarketCard {...base} detail={d} />;
@@ -124,6 +141,10 @@ export function ThingCard({
       return <BallotCard {...base} detail={d} />;
     case "shop":
       return <ShopPlaceCard {...base} detail={d} />;
+    case "productCollection":
+      return <ProductCollectionCard {...base} detail={d} />;
+    case "shippingOption":
+      return <ShippingOptionCard {...base} detail={d} />;
     case "app":
       return <AppThingCard {...base} detail={d} />;
     case "calendar":
@@ -188,9 +209,9 @@ function Picture({
   testId?: string;
 }) {
   // The icon only stands in for a missing picture: under a transparent PNG
-  // (badge art, app icons) it would show through.
-  const [failed, setFailed] = useState<string | null>(null);
-  const showImage = !!src && failed !== src;
+  // (badge art, app icons) it would show through. MediaImg swaps it in once
+  // the resized and the original picture have both failed.
+  const showImage = !!src;
   const box = size === "lg" ? "h-20 w-20" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
   const iconBox = size === "lg" ? "h-7 w-7" : "h-5 w-5";
   return (
@@ -198,12 +219,15 @@ function Picture({
       className={`relative flex ${box} shrink-0 items-center justify-center overflow-hidden bg-slate-100 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10 ${shape === "round" ? "rounded-full" : "rounded-xl"}`}
     >
       {showImage ? (
-        <img
+        // Through the resizer: a 40–80 px tile never needs the original photo,
+        // and a Reviews tab of product photos downloaded every one full size.
+        <MediaImg
           src={src}
+          preset="avatar_lg"
           alt=""
           loading="lazy"
           className={`absolute inset-0 h-full w-full ${fit === "contain" ? "object-contain p-1" : "object-cover"}`}
-          onError={() => setFailed(src)}
+          fallback={<Icon className={`${iconBox} text-slate-400 dark:text-slate-500`} aria-hidden="true" />}
           data-testid={testId}
         />
       ) : (
@@ -595,6 +619,91 @@ export function ReviewCard(props: CardProps<"review">) {
   );
 }
 
+// ——— Product reviews (Open Markets) ———
+
+/**
+ * Thumbs up or down: an Open Markets review's required verdict, 0..1. Colour
+ * says which way it went — the one thing on the card a reader looks for.
+ */
+export function ThumbChip({ thumb, testId }: { thumb: number; testId?: string }) {
+  const up = thumb >= 0.5;
+  return (
+    <Chip size="sm" tone={up ? "success" : "danger"} icon={up ? ThumbsUp : ThumbsDown} data-testid={testId}>
+      {up ? "Recommends" : "Doesn't recommend"}
+    </Chip>
+  );
+}
+
+/**
+ * A review of a product reads like the other reviews — the score, the words,
+ * the categories — led by the thumb, and says which product: its photo, title
+ * and price, looked up by the review's `d` (the card is one link; the product
+ * is a tap away on the review's page). A tab of these cards asks for their
+ * products in one request (useAddressedEvents batches); inside a quote the
+ * card asks for nothing and draws the product only when the store holds it.
+ */
+export function ProductReviewCard(props: CardProps<"review"> & { quoted?: boolean }) {
+  const { event, thing, detail, quoted = false } = props;
+  const address = detail.product?.address ?? "";
+  const addresses = useMemo(() => (address ? [address] : []), [address]);
+  const { get } = useAddressedEvents(addresses, { ask: !quoted });
+  const product = address ? get(address) : undefined;
+  const listing = product ? parseListing(product) : null;
+  return (
+    <CardShell event={event} fill testId={`thing-card-${event.id}`}>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start gap-3">
+          <Picture src={listing?.images[0] ?? null} icon={Package} size="sm" />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start gap-2">
+              <p
+                className="min-w-0 truncate text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100"
+                data-testid={`thing-title-${event.id}`}
+              >
+                {listing ? listing.title : thing.title}
+              </p>
+              <KindPill event={event} mixed={false} />
+            </div>
+            <p
+              className="truncate text-[11px] text-slate-500 dark:text-slate-400"
+              data-testid={`thing-product-${event.id}`}
+            >
+              {listing?.price ? `Product · ${formatListingPrice(listing.price)}` : "Product"}
+            </p>
+          </div>
+          {thing.stars !== null && (
+            <span className="shrink-0 text-lg font-semibold leading-none text-slate-900 dark:text-slate-100">
+              {thing.stars.toFixed(1)}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {detail.product && <ThumbChip thumb={detail.product.thumb} testId={`thing-thumb-${event.id}`} />}
+          {thing.stars !== null && <Stars stars={thing.stars} size="md" testId={`thing-stars-${event.id}`} />}
+        </div>
+        {thing.description && (
+          <blockquote
+            className="mt-2 line-clamp-4 break-words border-l-2 border-slate-200 pl-3 text-[13px] leading-5 text-slate-600 dark:border-slate-700 dark:text-slate-300"
+            data-testid={`thing-description-${event.id}`}
+          >
+            {thing.description}
+          </blockquote>
+        )}
+        {detail.aspects.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`thing-aspects-${event.id}`}>
+            {detail.aspects.slice(0, 4).map((a, i) => (
+              <Chip key={`${a.name}-${i}`} size="sm" tone="slate">
+                {a.name} {(Math.round(a.stars * 2) / 2).toString()}/5
+              </Chip>
+            ))}
+          </div>
+        )}
+        <Footer kicker="Reviewed by" author={props.author} score={props.score} at={event.created_at} />
+      </div>
+    </CardShell>
+  );
+}
+
 // ——— Prediction markets ———
 
 export const MARKET_STATUS_CHIP: Record<MarketStatus, { word: string; tone: Tone }> = {
@@ -931,6 +1040,89 @@ export function ShopPlaceCard(props: CardProps<"shop">) {
           created_at={event.created_at}
           trailing={<KindPill event={event} mixed={false} />}
         />
+      </div>
+    </CardShell>
+  );
+}
+
+/**
+ * An Open Markets collection in a grid of listings, shaped like them: its
+ * picture (or a stack), its name, how many products it names, its summary.
+ */
+export function ProductCollectionCard(props: CardProps<"productCollection">) {
+  const { event, author, score, thing, detail } = props;
+  const n = detail.products.length;
+  return (
+    <CardShell event={event} fill testId={`thing-card-${event.id}`}>
+      <div className="relative -mx-1 -mt-1 aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+        {thing.image ? (
+          <MediaImg
+            src={thing.image}
+            preset="media_640"
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            data-testid={`thing-image-${event.id}`}
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
+            <Layers className="h-8 w-8" aria-hidden="true" />
+          </span>
+        )}
+        <span className="absolute left-2 top-2 rounded-md bg-slate-900/85 px-2 py-0.5 text-[11px] font-semibold text-white">
+          Collection
+        </span>
+      </div>
+      <p
+        className="mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100"
+        data-testid={`thing-title-${event.id}`}
+      >
+        <EmojiText text={thing.title} tags={thing.emoji} />
+      </p>
+      <MetaLine parts={[n > 0 && `${n} ${n === 1 ? "product" : "products"}`, detail.location]} />
+      {thing.description && (
+        <p
+          className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400"
+          data-testid={`thing-description-${event.id}`}
+        >
+          <EmojiText text={thing.description} tags={thing.emoji} />
+        </p>
+      )}
+      <div className="mt-2">
+        <AuthorRow
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          trailing={<KindPill event={event} mixed={false} />}
+        />
+      </div>
+    </CardShell>
+  );
+}
+
+/** An Open Markets shipping option, compact: what it is, its price, how and how fast, and where it goes. */
+export function ShippingOptionCard(props: CardProps<"shippingOption">) {
+  const { event, thing, detail } = props;
+  const o = detail.option;
+  return (
+    <CardShell event={event} testId={`thing-card-${event.id}`}>
+      <div className="flex items-start gap-3">
+        <Picture src={null} icon={Truck} size="sm" />
+        <div className="min-w-0 flex-1">
+          <Title event={event} thing={thing} />
+          <MetaLine parts={[serviceLabel(o.service), durationLabel(o.duration), o.carrier]} />
+          {o.countries.length > 0 && <MetaLine icon={MapPin} parts={[`Ships to ${countriesLabel(o.countries)}`]} />}
+          <Description event={event} text={thing.description} />
+        </div>
+        <span
+          className="shrink-0 text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100"
+          data-testid={`thing-price-${event.id}`}
+        >
+          {o.price ? formatListingPrice(o.price) : null}
+        </span>
+      </div>
+      <div className="pt-3">
+        <CuratorFooter kicker="Offered by" author={props.author} score={props.score} created_at={event.created_at} />
       </div>
     </CardShell>
   );

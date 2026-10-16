@@ -293,6 +293,30 @@ describe("productsFromEvents — what is hidden stays hidden", () => {
     ]);
     expect(products.map((p) => p.group.title)).toEqual(["Mug"]);
   });
+
+  // A lagging relay still serves the on-sale copy after the seller republished
+  // the listing hidden or sold: only the newest version at an address speaks.
+  const version = (id: string, at: number, extra: string[][]) => ({ ...event("lamp", "Lamp", at, extra), id });
+
+  it("a newer hidden version of a listing suppresses the older on-sale one, whatever the order", () => {
+    const onSale = version("a".repeat(64), 5, []);
+    const hidden = version("b".repeat(64), 9, [["visibility", "hidden"]]);
+    expect(productsFromEvents([onSale, hidden])).toEqual([]);
+    expect(productsFromEvents([hidden, onSale])).toEqual([]);
+  });
+
+  it("a newer sold version suppresses the older on-sale one; a newer on-sale one is one card, not two", () => {
+    const old = version("a".repeat(64), 5, []);
+    expect(productsFromEvents([old, version("b".repeat(64), 9, [["status", "sold"]])])).toEqual([]);
+    const products = productsFromEvents([old, version("c".repeat(64), 9, [["price", "25", "USD"]])]);
+    expect(products.map((p) => p.event.id)).toEqual(["c".repeat(64)]);
+  });
+
+  it("two versions published in the same second: the lower id wins (NIP-01)", () => {
+    const hidden = version("1".repeat(64), 9, [["visibility", "hidden"]]);
+    const onSale = version("2".repeat(64), 9, []);
+    expect(productsFromEvents([onSale, hidden])).toEqual([]);
+  });
 });
 
 // Search holds hits, in the relay's order, with things that are not listings

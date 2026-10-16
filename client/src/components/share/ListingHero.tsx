@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Link } from "wouter";
-import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
+import { Download, ExternalLink, MapPin, MessageCircle, Package, ShoppingBag } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { categoriesToShow, formatListingPrice, isSellable, parseListing } from "@/lib/listing";
+import { categoriesToShow, formatListingPrice, isSellable, listingStatus, parseListing } from "@/lib/listing";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -15,6 +15,7 @@ import { FollowedByLine } from "@/components/search/EndorsementLine";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ListingOptions } from "@/components/share/ListingOptions";
+import { ListingShipping } from "@/components/share/ListingShipping";
 import type { NostrEvent } from "nostr-tools";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
@@ -115,8 +116,11 @@ export function ListingHero({
   // Long enough that shipping, categories and the seller's other things are a scroll away.
   const long = text.length > DESCRIPTION_FOLD;
   const sellable = isSellable(l);
-  // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
-  const gone = !sellable && (l.status !== "active" || l.hidden);
+  // Sold, hidden, inactive — or for sale ahead of delivery: a status worth a
+  // chip. Merely priceless is not, and a hidden listing never reads "active".
+  const status = listingStatus(l);
+  // A parent's stock is not a count of anything (its options carry their own).
+  const stock = l.productType === "variable" ? null : l.stock;
   const shopHost = (() => {
     try {
       return l.shopUrl ? new URL(l.shopUrl).hostname.replace(/^www\./, "") : null;
@@ -151,10 +155,10 @@ export function ListingHero({
             <ShoppingBag className="h-10 w-10" />
           </span>
         )}
-        {gone && (
+        {status && (
           <span className="absolute right-3 top-3">
-            <Chip tone="slate" size="sm" data-testid="listing-hero-status">
-              {l.status === "sold" ? "Sold" : l.status}
+            <Chip tone={status.gone ? "slate" : "info"} size="sm" data-testid="listing-hero-status">
+              {status.label}
             </Chip>
           </span>
         )}
@@ -236,6 +240,15 @@ export function ListingHero({
             <MapPin className="h-3.5 w-3.5" /> {l.location}
           </span>
         )}
+        {l.format && (
+          <span className="inline-flex items-center gap-1" data-testid="listing-hero-format">
+            {l.format === "digital" ? <Download className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
+            {l.format === "digital" ? "Digital" : "Physical"}
+          </span>
+        )}
+        {stock !== null && (
+          <span data-testid="listing-hero-stock">{stock === 0 ? "Out of stock" : `${stock} in stock`}</span>
+        )}
       </div>
 
       {/* What it is, then how to get it: one quiet rule between the two. */}
@@ -297,26 +310,7 @@ export function ListingHero({
         Messaging opens your Nostr app. Payment happens with the seller, in their app.
       </p>
 
-      {l.shipping.length > 0 && (
-        <div
-          className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-800"
-          data-testid="listing-hero-shipping"
-        >
-          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            <Truck className="h-3.5 w-3.5" /> Shipping
-          </p>
-          <ul className="space-y-0.5 text-sm text-slate-700 dark:text-slate-200">
-            {l.shipping.map((s, i) => (
-              <li key={s.name + i} className="flex items-center justify-between gap-3">
-                <span className="truncate">{s.name}</span>
-                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
-                  {formatListingPrice({ amount: s.amount, currency: s.currency || l.price?.currency || "" })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ListingShipping listing={l} className="mt-4" />
 
       {text && (
         <div

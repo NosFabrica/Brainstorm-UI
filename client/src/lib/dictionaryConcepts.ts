@@ -15,23 +15,13 @@
  *   (NIP-01; a tie goes to the lower id).
  */
 import { parseCoordinate } from "@/lib/dlistFields";
+import { newestPerAddress } from "@/lib/newestPerAddress";
 
 type Ev = { id: string; pubkey: string; kind: number; created_at: number; tags: string[][] };
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const valueOf = (ev: Ev, name: string) => ev.tags.find((t) => t[0] === name)?.[1];
 const carries = (ev: Ev, name: string, value: string) => ev.tags.some((t) => t[0] === name && t[1] === value);
-
-function newestPerAddress<T extends Ev>(events: readonly T[]): T[] {
-  const byAddress = new Map<string, T>();
-  for (const ev of events) {
-    const address = `${ev.kind}:${ev.pubkey}:${valueOf(ev, "d") ?? ""}`;
-    const held = byAddress.get(address);
-    if (!held || ev.created_at > held.created_at || (ev.created_at === held.created_at && ev.id < held.id))
-      byAddress.set(address, ev);
-  }
-  return [...byAddress.values()];
-}
 
 /** Who curates: the list's author, and everyone the house tagged with the curator tag. */
 export function curatorsOf(

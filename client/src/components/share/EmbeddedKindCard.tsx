@@ -109,7 +109,8 @@ export function EmbeddedKindCard({
   const card = (() => {
     switch (shape) {
       case "thing":
-        return <ThingCard {...typed} thing={thing} />;
+        // What a card looks up beside its event (a review's product) comes from the store: no ask per quote.
+        return <ThingCard {...typed} thing={thing} quoted />;
       case "people-list":
         return <ListCard {...typed} />;
       case "live":

@@ -17,9 +17,11 @@ vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ is
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["house", () => {}] }));
 vi.mock("@/services/trustAnchor", () => ({ triggerScoringAndAnchor: vi.fn() }));
 // Nested cards ask the API for signals, overviews and influence; none of it
-// matters here, so every method answers with nothing.
+// matters here, so every method answers with nothing — the trust-signal batch
+// with an empty map, as the API answers for nobody it knows (a null crashed its
+// flush whenever the batch window closed before the test ended).
 vi.mock("@/services/api", () => ({
-  apiClient: new Proxy({}, { get: () => async () => null }),
+  apiClient: new Proxy({}, { get: (_target, name) => async () => (name === "getTrustSignals" ? new Map() : null) }),
 }));
 const byFilterMock = vi.fn<(f: Record<string, unknown>) => Promise<NostrEvent[]>>(async () => []);
 vi.mock("@/services/nostr", async () => ({
