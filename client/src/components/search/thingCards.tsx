@@ -108,6 +108,7 @@ export function ThingCard({
   score,
   thing: given,
   progress,
+  quoted = false,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -116,6 +117,11 @@ export function ThingCard({
   thing?: Thing | null;
   /** A zap goal's raised total, when the page fetched it. */
   progress?: GoalProgress | null;
+  /**
+   * Drawn inside a quote: what the card looks up beside its event (a review's
+   * product) comes from the store alone. A note of quotes asks no relay per card.
+   */
+  quoted?: boolean;
 }) {
   const thing = given ?? describeThing(event);
   if (!thing) return null;
@@ -127,7 +133,7 @@ export function ThingCard({
     case "fundraiser":
       return <FundraiserCard {...base} detail={d} progress={progress} />;
     case "review":
-      if (d.subject === "product") return <ProductReviewCard {...base} detail={d} />;
+      if (d.subject === "product") return <ProductReviewCard {...base} detail={d} quoted={quoted} />;
       return <ReviewCard {...base} detail={d} />;
     case "market":
       return <MarketCard {...base} detail={d} />;
@@ -629,13 +635,15 @@ export function ThumbChip({ thumb, testId }: { thumb: number; testId?: string })
  * A review of a product reads like the other reviews — the score, the words,
  * the categories — led by the thumb, and says which product: its photo, title
  * and price, looked up by the review's `d` (the card is one link; the product
- * is a tap away on the review's page).
+ * is a tap away on the review's page). A tab of these cards asks for their
+ * products in one request (useAddressedEvents batches); inside a quote the
+ * card asks for nothing and draws the product only when the store holds it.
  */
-export function ProductReviewCard(props: CardProps<"review">) {
-  const { event, thing, detail } = props;
+export function ProductReviewCard(props: CardProps<"review"> & { quoted?: boolean }) {
+  const { event, thing, detail, quoted = false } = props;
   const address = detail.product?.address ?? "";
   const addresses = useMemo(() => (address ? [address] : []), [address]);
-  const { get } = useAddressedEvents(addresses);
+  const { get } = useAddressedEvents(addresses, { ask: !quoted });
   const product = address ? get(address) : undefined;
   const listing = product ? parseListing(product) : null;
   return (

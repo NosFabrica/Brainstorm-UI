@@ -5,6 +5,10 @@
  * and a newer one replaces it. `settled` says the ask is back, so a page can
  * tell "still looking" from "not found" — and an ask keyed on what these
  * events name waits for it (CODING_STANDARDS: settled before dependents).
+ *
+ * Asks made within a short window go out together (`fetchAddressableBatched`):
+ * a grid of cards that each name one address — the Reviews tab's product
+ * reviews, each naming its product — is one request, not one per card.
  */
 import { useMemo } from "react";
 import type { NostrEvent } from "nostr-tools";
@@ -18,7 +22,82 @@ import { addrCoord, parseATag, type AddressRef, type MinimalEvent } from "@/lib/
 const byCoord = (events: MinimalEvent[]) =>
   new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
 
-export function useAddressedEvents(addresses: readonly string[]): {
+// ——— The batching window (as services/trustSignals does for scores) ———
+
+const BATCH_WINDOW_MS = 30;
+/** `fetchAddressableEvents` asks a cross-product of kinds, authors and d-tags: keep it a size relays accept. */
+const MAX_BATCH = 100;
+
+interface Waiter {
+  coords: string[];
+  resolve: (events: NostrEvent[]) => void;
+  reject: (error: unknown) => void;
+}
+
+let queued = new Map<string, AddressRef>();
+let waiters: Waiter[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+function flush(): void {
+  flushTimer = undefined;
+  const batch = [...queued.values()];
+  const waiting = waiters;
+  queued = new Map();
+  waiters = [];
+  const chunks: AddressRef[][] = [];
+  for (let i = 0; i < batch.length; i += MAX_BATCH) chunks.push(batch.slice(i, i + MAX_BATCH));
+  Promise.all(chunks.map((chunk) => fetchAddressableEvents(capHints(chunk), PROFILE_RELAYS))).then(
+    (answers) => {
+      const found = new Map<string, NostrEvent>();
+      for (const answer of answers) for (const [key, event] of answer) found.set(key, event);
+      for (const w of waiting)
+        w.resolve(w.coords.map((c) => found.get(c)).filter((e): e is NostrEvent => e !== undefined));
+    },
+    (error) => waiting.forEach((w) => w.reject(error)),
+  );
+}
+
+/**
+ * The newest event found at each of `addrs`, asked in one request with every
+ * other lookup made within the window. Nothing is kept once a batch lands: the
+ * store holds the events and askOnce decides when a key is asked again.
+ */
+export function fetchAddressableBatched(addrs: readonly AddressRef[]): Promise<NostrEvent[]> {
+  if (!addrs.length) return Promise.resolve([]);
+  const coords: string[] = [];
+  for (const a of addrs) {
+    const key = addrCoord(a);
+    coords.push(key);
+    const held = queued.get(key);
+    // Lookups of one coordinate share its slot, and every relay hint either named.
+    if (!held) queued.set(key, a);
+    else if (a.relays?.length)
+      queued.set(key, { ...held, relays: [...new Set([...(held.relays ?? []), ...a.relays])] });
+  }
+  const answer = new Promise<NostrEvent[]>((resolve, reject) => waiters.push({ coords, resolve, reject }));
+  flushTimer ??= setTimeout(flush, BATCH_WINDOW_MS);
+  return answer;
+}
+
+/** Test seam. */
+export function __resetAddressedBatch(): void {
+  clearTimeout(flushTimer);
+  flushTimer = undefined;
+  queued = new Map();
+  waiters = [];
+}
+
+// ——— The hook ———
+
+/**
+ * `ask: false` reads the store alone and asks no relay — for a card drawn
+ * inside a quote, where a request per card is what the note around it avoids.
+ * Without an ask there is nothing to wait for: `settled` is true.
+ */
+export function useAddressedEvents(
+  addresses: readonly string[],
+  { ask = true }: { ask?: boolean } = {},
+): {
   get: (address: string) => NostrEvent | undefined;
   settled: boolean;
 } {
@@ -29,14 +108,14 @@ export function useAddressedEvents(addresses: readonly string[]): {
     [key],
   );
   const held = useHeldReplaceables(addrs);
-  const asked = useStoreEvents(addrs.length ? `addressed:${key}` : null, null, async () =>
-    Array.from((await fetchAddressableEvents(capHints(addrs), PROFILE_RELAYS)).values()),
+  const asked = useStoreEvents(ask && addrs.length ? `addressed:${key}` : null, null, () =>
+    fetchAddressableBatched(addrs),
   );
   const found = useMemo(
     () => mergeNewest(addrs, held, byCoord(asked.events as MinimalEvent[])),
     [addrs, held, asked.events],
   );
-  const settled = !addrs.length || asked.settled;
+  const settled = !ask || !addrs.length || asked.settled;
   return useMemo(
     () => ({
       get: (address: string) => {

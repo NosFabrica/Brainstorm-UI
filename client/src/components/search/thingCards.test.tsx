@@ -24,6 +24,8 @@ vi.mock("@/lib/eventStore", async () => ({
 }));
 
 import { ThingCard, magnetOf } from "./thingCards";
+import { EmbeddedKindCard } from "@/components/share/EmbeddedKindCard";
+import { __resetAddressedBatch } from "@/hooks/useAddressedEvents";
 import { describeThing } from "@/lib/thing";
 
 const who = "7".repeat(64);
@@ -338,6 +340,51 @@ describe("Open Markets cards", () => {
     expect(screen.getByTestId(`thing-aspects-${e.id}`)).toHaveTextContent("Value 2.5/5");
     expect(await screen.findByText("Seed plate")).toBeInTheDocument();
     expect(screen.getByTestId(`thing-product-${e.id}`)).toHaveTextContent("$30");
+  });
+
+  const productReview = (d: string, author = "d".repeat(64)) =>
+    ({
+      ...ev(31555, [
+        ["d", `a:30402:${seller}:${d}`],
+        ["rating", "1", "thumb"],
+      ]),
+      pubkey: author,
+    }) as NostrEvent;
+
+  it("a tab of product reviews asks for all their products in one request, not one per card", async () => {
+    __resetAddressedBatch();
+    addressedMock.mockClear();
+    const plates = Array.from({ length: 30 }, (_, i) =>
+      ev(30402, [
+        ["d", `plate-${i}`],
+        ["title", `Plate ${i}`],
+        ["price", "30", "USD"],
+      ]),
+    ).map((p) => ({ ...p, pubkey: seller }) as NostrEvent);
+    addressedMock.mockResolvedValueOnce(new Map(plates.map((p, i) => [`30402:${seller}:plate-${i}`, p])));
+    const reviews = plates.map((_, i) => productReview(`plate-${i}`));
+    render(
+      <>
+        {reviews.map((r) => (
+          <ThingCard key={r.id} event={r} author={null} score={null} />
+        ))}
+      </>,
+    );
+    expect(await screen.findByText("Plate 29")).toBeInTheDocument();
+    expect(screen.getByText("Plate 0")).toBeInTheDocument();
+    expect(addressedMock).toHaveBeenCalledTimes(1);
+    const asked = (addressedMock.mock.calls[0][0] as { identifier: string }[]).map((c) => c.identifier);
+    expect(asked.sort()).toEqual(plates.map((_, i) => `plate-${i}`).sort());
+  });
+
+  it("a product review inside a quote asks no relay for its product", async () => {
+    __resetAddressedBatch();
+    addressedMock.mockClear();
+    const e = productReview("quoted-plate");
+    render(<EmbeddedKindCard event={e} shape="thing" trustScore01={0.5} author={{ name: "Reviewer" }} />);
+    expect(screen.getByTestId(`thing-thumb-${e.id}`)).toHaveTextContent("Recommends");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(addressedMock).not.toHaveBeenCalled();
   });
 
   it("a collection is shaped like a listing: picture, name, how many products", () => {
