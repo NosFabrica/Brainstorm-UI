@@ -28,6 +28,28 @@ const BATCH_WINDOW_MS = 30;
 /** `fetchAddressableEvents` asks a cross-product of kinds, authors and d-tags: keep it a size relays accept. */
 const MAX_BATCH = 100;
 
+/**
+ * How many chunks are asked at once. Each chunk is a request to every profile
+ * relay and up to 100 authors' outboxes: a big collection's 50 chunks at once
+ * would sit far past the subscriptions a relay allows one connection, and the
+ * refused ones would come back quietly empty.
+ */
+const CHUNK_LANES = 2;
+
+/** `work` over `items`, at most `lanes` at a time; results in input order. */
+async function inLanes<T, R>(items: T[], lanes: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await work(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(lanes, items.length) }, lane));
+  return out;
+}
+
 interface Waiter {
   coords: string[];
   resolve: (events: NostrEvent[]) => void;
@@ -46,7 +68,7 @@ function flush(): void {
   waiters = [];
   const chunks: AddressRef[][] = [];
   for (let i = 0; i < batch.length; i += MAX_BATCH) chunks.push(batch.slice(i, i + MAX_BATCH));
-  Promise.all(chunks.map((chunk) => fetchAddressableEvents(capHints(chunk), PROFILE_RELAYS))).then(
+  inLanes(chunks, CHUNK_LANES, (chunk) => fetchAddressableEvents(capHints(chunk), PROFILE_RELAYS)).then(
     (answers) => {
       const found = new Map<string, NostrEvent>();
       for (const answer of answers) for (const [key, event] of answer) found.set(key, event);

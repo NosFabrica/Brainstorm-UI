@@ -209,9 +209,9 @@ function Picture({
   testId?: string;
 }) {
   // The icon only stands in for a missing picture: under a transparent PNG
-  // (badge art, app icons) it would show through.
-  const [failed, setFailed] = useState<string | null>(null);
-  const showImage = !!src && failed !== src;
+  // (badge art, app icons) it would show through. MediaImg swaps it in once
+  // the resized and the original picture have both failed.
+  const showImage = !!src;
   const box = size === "lg" ? "h-20 w-20" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
   const iconBox = size === "lg" ? "h-7 w-7" : "h-5 w-5";
   return (
@@ -219,12 +219,15 @@ function Picture({
       className={`relative flex ${box} shrink-0 items-center justify-center overflow-hidden bg-slate-100 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10 ${shape === "round" ? "rounded-full" : "rounded-xl"}`}
     >
       {showImage ? (
-        <img
+        // Through the resizer: a 40–80 px tile never needs the original photo,
+        // and a Reviews tab of product photos downloaded every one full size.
+        <MediaImg
           src={src}
+          preset="avatar_lg"
           alt=""
           loading="lazy"
           className={`absolute inset-0 h-full w-full ${fit === "contain" ? "object-contain p-1" : "object-cover"}`}
-          onError={() => setFailed(src)}
+          fallback={<Icon className={`${iconBox} text-slate-400 dark:text-slate-500`} aria-hidden="true" />}
           data-testid={testId}
         />
       ) : (

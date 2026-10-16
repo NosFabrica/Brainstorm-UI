@@ -19,6 +19,7 @@ import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
+import { kindLabel } from "@/lib/kindLabel";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
 import { eventPath, profilePath } from "@/lib/shareId";
@@ -427,6 +428,9 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         title: thing.title,
         body: thing.description,
         image: isHttp(thing.image) ? thing.image : base.image,
+        // The thing's own short facts — a shipping option's price, a review's
+        // verdict, a collection's product count — less what the row's kind pill says.
+        facts: thing.facts.filter((f) => f.trim() && f.toLowerCase() !== kindLabel(ev).toLowerCase()),
       });
   }
 

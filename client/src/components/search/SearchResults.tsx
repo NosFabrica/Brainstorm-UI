@@ -104,7 +104,7 @@ import {
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { isSellable, parseListing } from "@/lib/listing";
+import { isListed, parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
@@ -187,7 +187,7 @@ function showableUnfiltered(event: NostrEvent): boolean {
   if (SHOP_PLACE_KINDS.has(event.kind) || event.kind === CALENDAR_KIND) return describeThing(event) !== null;
   if (SHOP_KINDS.has(event.kind)) {
     const listing = parseListing(event);
-    return !!listing && isSellable(listing);
+    return !!listing && isListed(listing);
   }
   if (MUSIC_KINDS.has(event.kind)) return parseTrack(event) !== null && !isTestTrack(event);
   return true;
@@ -1076,7 +1076,9 @@ export function SearchResults({
   // Media tab the notes that carry media join the media-kind hits.
   // The Shop as products: one card per product, its sizes and colours folded
   // into it by the family its seller declared (lib/listingVariants, #158).
-  // Same-title copies from two apps fold first, into the one with a page.
+  // Same-title copies from two apps fold first, into the one with a page —
+  // among copies for sale only: a sold copy with a page must not replace the
+  // copy on sale and then be dropped, taking the product with it.
   const shopFold = useMemo(() => {
     if (tab !== "shop") return null;
     const base = snapshot?.hits ?? [];
@@ -1084,15 +1086,31 @@ export function SearchResults({
       collapseDuplicateListings(
         base.filter((h) => {
           if (SHOP_PLACE_KINDS.has(h.event.kind)) return describeThing(h.event) !== null;
-          return parseListing(h.event) !== null;
+          const l = parseListing(h.event);
+          return !!l && isListed(l);
         }),
       ),
     );
   }, [tab, snapshot]);
-  const shopGroupOf = (id: string) => {
-    const group = shopFold?.groups.get(id);
-    return group ? cardGroupOf(group) : undefined;
-  };
+  // Each seller's events on the page, built once per snapshot: filtering every
+  // hit per card was quadratic, and a fresh array per render defeated the card's memo.
+  const hitsBySeller = useMemo(() => {
+    const out = new Map<string, NostrEvent[]>();
+    if (tab !== "shop") return out;
+    for (const h of snapshot?.hits ?? []) {
+      const list = out.get(h.event.pubkey);
+      if (list) list.push(h.event);
+      else out.set(h.event.pubkey, [h.event]);
+    }
+    return out;
+  }, [tab, snapshot]);
+  // One card group object per product per snapshot, so the card's memo holds.
+  const shopCardGroups = useMemo(() => {
+    const out = new Map<string, ReturnType<typeof cardGroupOf>>();
+    for (const [id, group] of shopFold?.groups ?? []) out.set(id, cardGroupOf(group));
+    return out;
+  }, [shopFold]);
+  const shopGroupOf = (id: string) => shopCardGroups.get(id);
   const rawHits = useMemo(() => {
     const base = snapshot?.hits ?? [];
     // A listing is for sale or it is not a result: sold, hidden and priceless
@@ -1632,24 +1650,33 @@ export function SearchResults({
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
     }
+    // The price a Shop card shows, so the band and the sort agree with it: a
+    // product's lowest option ("From $50"), else the listing's own price.
+    const shownPrice = (h: SearchHit) => {
+      const from = shopFold?.groups.get(h.event.id)?.priceFrom;
+      if (from && from.varies && !from.mixed) return from.price;
+      return parseListing(h.event)?.price ?? null;
+    };
     if (tab === "shop" && shopPrice && rates) {
       const band = bands.find((b) => b.key === shopPrice);
       shown = shown.filter((h) => {
-        const price = parseListing(h.event)?.price;
+        const price = shownPrice(h);
         const amount = price ? priceInCurrency(price, rates, viewerFiat) : null;
         return amount !== null && !!band?.holds(amount);
       });
     }
     if (tab === "shop" && priceSort) {
       // Cheapest (or dearest) first; a price we cannot convert goes last either way.
-      const satsOf = (h: SearchHit) => {
-        const price = parseListing(h.event)?.price;
-        return price ? toSats(price, rates) : null;
-      };
+      // Keyed once, not in the comparator: a sort calls it n·log n times.
+      const keys = new Map<string, number | null>();
+      for (const h of shown) {
+        const price = shownPrice(h);
+        keys.set(h.event.id, price ? toSats(price, rates) : null);
+      }
       const dir = priceSort === "asc" ? 1 : -1;
       shown = [...shown].sort((a, b) => {
-        const x = satsOf(a);
-        const y = satsOf(b);
+        const x = keys.get(a.event.id) ?? null;
+        const y = keys.get(b.event.id) ?? null;
         if (x === null && y === null) return 0;
         if (x === null) return 1;
         if (y === null) return -1;
@@ -2672,9 +2699,7 @@ export function SearchResults({
                               {...typed}
                               group={shopGroupOf(event.id)}
                               rates={rates}
-                              sellerListings={(snapshot?.hits ?? [])
-                                .filter((h) => h.event.pubkey === event.pubkey)
-                                .map((h) => h.event)}
+                              sellerListings={hitsBySeller.get(event.pubkey)}
                             />,
                           );
                         if (LIVE_KINDS.has(event.kind)) {

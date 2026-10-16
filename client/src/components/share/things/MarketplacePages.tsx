@@ -4,7 +4,8 @@
  * (30405) with its products, and a shipping option (30406) with its facts.
  * What they name — the product, the products, the shipping options — is read
  * from the store (ADR 0005), and products are drawn with the Shop's own cards,
- * sold, hidden and priceless ones left out as everywhere else.
+ * sold and priceless ones left out as everywhere else. A collection is how an
+ * unlisted (`visibility: hidden`) product is reached, so those show on its page.
  */
 import { useMemo } from "react";
 import { Layers, MapPin, Package, Star, Truck } from "lucide-react";
@@ -22,7 +23,17 @@ import { durationLabel, parseCollection, serviceLabel } from "@/lib/marketplace"
 import type { Thing } from "@/lib/thing";
 import { fetchCollectionProducts } from "@/services/nostr";
 import type { Detail } from "./types";
-import { FactRows, InfoBox, Kicker, PageTitle, SafeImg, Section, SectionNote, type PageEvent } from "./shared";
+import {
+  FactRows,
+  InfoBox,
+  Kicker,
+  PageTitle,
+  SafeImg,
+  Section,
+  SectionNote,
+  useAuthors,
+  type PageEvent,
+} from "./shared";
 
 const dOf = (e: PageEvent) => e.tags.find((t) => t[0] === "d")?.[1] ?? "";
 
@@ -115,8 +126,13 @@ export function ProductCollectionHero({
   detail: Detail<"productCollection">;
 }) {
   const collection = parseCollection(event);
-  // The collection's own options, priced as they are: no product, no extra cost.
-  const shipping = { shipping: [], shippingRefs: collection?.shippingRefs ?? [], price: null };
+  // The collection's own options, priced as they are: no product, so no extra
+  // cost — a collection's extra is added per product, in the product's money.
+  const shipping = {
+    shipping: [],
+    shippingRefs: (collection?.shippingRefs ?? []).map((r) => ({ ...r, extra: null })),
+    price: null,
+  };
   const description =
     collection?.description && collection.description !== thing.description ? collection.description : null;
   return (
@@ -154,10 +170,20 @@ export function ProductCollectionHero({
   );
 }
 
+/** How many named products a collection page looks up: an `a` list has no length limit. */
+const NAMED_PRODUCTS = 200;
+
+/** Whether a listing files itself under this collection with its own `a` tag. */
+const filesUnder = (e: NostrEvent, collection: string) =>
+  e.tags.some((t) => t[0] === "a" && (t[1] ?? "").toLowerCase() === collection.toLowerCase());
+
 /**
  * A collection's products: the ones it names (`a` tags), and its seller's
- * listings that file themselves under it — the collections published so far
- * name none, their products name them. One card per product, for sale only.
+ * listings that file themselves under it. Another seller's product shows only
+ * when both sides say so — the collection names it AND it files itself under
+ * the collection — the way an event market (Conduit's "Chicago V4V Summit")
+ * gathers its vendors; a collection cannot claim a stranger's listing, and a
+ * card from another seller says who sells it. One card per product, for sale.
  */
 export function ProductCollectionSections({
   event,
@@ -167,7 +193,8 @@ export function ProductCollectionSections({
   detail: Detail<"productCollection">;
 }) {
   const address = `${event.kind}:${event.pubkey}:${dOf(event)}`;
-  const named = useAddressedEvents(detail.products);
+  const wanted = useMemo(() => detail.products.slice(0, NAMED_PRODUCTS), [detail.products]);
+  const named = useAddressedEvents(wanted);
   const filters = useMemo(
     () => [{ kinds: [30402], authors: [event.pubkey], "#a": [address] }],
     [event.pubkey, address],
@@ -177,13 +204,19 @@ export function ProductCollectionSections({
   );
   const products = useMemo(() => {
     const byId = new Map<string, NostrEvent>();
-    for (const a of detail.products) {
+    for (const a of wanted) {
       const e = named.get(a);
-      if (e) byId.set(e.id, e);
+      if (e && (e.pubkey === event.pubkey || filesUnder(e, address))) byId.set(e.id, e);
     }
     for (const e of filed.events) byId.set(e.id, e);
-    return productsFromEvents([...byId.values()]);
-  }, [detail.products, named, filed.events]);
+    return productsFromEvents([...byId.values()], { unlisted: true });
+  }, [wanted, named, filed.events, event.pubkey, address]);
+  const sellers = useAuthors(
+    useMemo(
+      () => [...new Set(products.map((p) => p.event.pubkey).filter((pk) => pk !== event.pubkey))],
+      [products, event.pubkey],
+    ),
+  );
   const settled = named.settled && filed.settled;
   return (
     <Section title="Products" count={products.length} testId="thing-page-products">
@@ -194,7 +227,13 @@ export function ProductCollectionSections({
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {products.map(({ event: e, group }) => (
-            <ListingCard key={group.id} event={e} author={null} showAuthor={false} group={cardGroupOf(group)} />
+            <ListingCard
+              key={group.id}
+              event={e}
+              author={sellers.get(e.pubkey) ?? null}
+              showAuthor={e.pubkey !== event.pubkey}
+              group={cardGroupOf(group)}
+            />
           ))}
         </div>
       )}

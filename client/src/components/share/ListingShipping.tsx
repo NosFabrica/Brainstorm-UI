@@ -42,10 +42,12 @@ export function useListingShipping(listing: Pick<Listing, "shipping" | "shipping
   const direct = useAddressedEvents(refs.map((r) => r.address));
   // A collection's options are asked once the collections are back: keyed on
   // events still arriving, the ask would go out again with each one.
-  const viaCollections = useMemo(
-    () => (direct.settled ? collectionShippingAddresses(refs, direct.get) : []),
-    [direct, refs],
-  );
+  // Only what the listing does not already name: those are asked above.
+  const viaCollections = useMemo(() => {
+    if (!direct.settled) return [];
+    const named = new Set(refs.map((r) => r.address));
+    return collectionShippingAddresses(refs, direct.get).filter((a) => !named.has(a));
+  }, [direct, refs]);
   const inherited = useAddressedEvents(viaCollections);
   const rows = shippingRows(listing, (a) => direct.get(a) ?? inherited.get(a));
   return { rows, settled: direct.settled && inherited.settled };

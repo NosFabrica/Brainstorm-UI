@@ -1,12 +1,12 @@
 import { parseTrack } from "@/lib/trackEvent";
-import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingCardLine, listingStatus, parseListing } from "@/lib/listing";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { ProductCardGroup } from "@/lib/listingVariants";
 import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -1706,7 +1706,7 @@ export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: bo
  * their trust ring, which is the one thing no store can show. The corner
  * opens the seller's own page for it when the app published one.
  */
-export function ListingCard({
+export const ListingCard = memo(function ListingCard({
   event,
   author,
   score,
@@ -1728,9 +1728,15 @@ export function ListingCard({
   /** The page's Bitcoin price, when it has one: the buyer's own money goes under the seller's price. */
   rates?: BtcRates | null;
 }) {
-  const l = parseListing(event);
+  // Parsed once per event, not per render: the Shop re-renders on every streamed hit.
+  const l = useMemo(() => parseListing(event), [event]);
   if (!l) return null;
   const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
+  // A card that is reached but no longer for sale (a reviewed product, a quoted
+  // listing, a stall's sold-out item) says so where its price would be.
+  const status = listingStatus(l);
+  const gone = status?.gone ? status.label : null;
+  const line = listingCardLine(l);
   // The verb says where a tap lands: "Buy on Conduit" when we know the
   // marketplace by name, "Visit <host>" on a seller's own link.
   const app = sourceAppFor(event, { sellerListings });
@@ -1768,13 +1774,15 @@ export function ListingCard({
         )}
         <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
           <span data-testid={`listing-price-${event.id}`}>
-            {group?.from
-              ? `From ${formatListingPrice(group.from)}`
-              : l.price
-                ? formatListingPrice(l.price)
-                : "Price on request"}
+            {gone
+              ? gone
+              : group?.from
+                ? `From ${formatListingPrice(group.from)}`
+                : l.price
+                  ? formatListingPrice(l.price)
+                  : "Price on request"}
           </span>
-          {converted && (
+          {converted && !gone && (
             <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>
               {converted}
             </span>
@@ -1802,12 +1810,12 @@ export function ListingCard({
       >
         {group?.title ?? l.title}
       </p>
-      {listingCardLine(l) && (
+      {line && (
         <p
           className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400"
           data-testid={`listing-meta-${event.id}`}
         >
-          {listingCardLine(l)}
+          {line}
         </p>
       )}
       {showAuthor && (
@@ -1827,4 +1835,4 @@ export function ListingCard({
       )}
     </CardShell>
   );
-}
+});

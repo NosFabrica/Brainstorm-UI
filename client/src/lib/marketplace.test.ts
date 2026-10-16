@@ -326,3 +326,68 @@ describe("shipping a product — the option's price plus the product's extra cos
     ]);
   });
 });
+
+describe("audit 2026-10-16 — what a stranger's tags must not do", () => {
+  it("a blank duration bound is unknown, not zero, and a reversed window reads low to high", () => {
+    const base = [
+      ["title", "Std"],
+      ["service", "standard"],
+    ];
+    expect(parseShippingOption(ev(30406, [...base, ["duration", "", "3", "D"]]))?.duration).toEqual({
+      min: 3,
+      max: 3,
+      unit: "D",
+    });
+    expect(parseShippingOption(ev(30406, [...base, ["duration", "5", "2", "D"]]))?.duration).toEqual({
+      min: 2,
+      max: 5,
+      unit: "D",
+    });
+  });
+
+  it("a per-unit rate must be a positive amount, and an empty trailing slot is padding", () => {
+    const limits = (t: string[]) =>
+      parseShippingOption(ev(30406, [["title", "Std"], ["price", "5", "USD"], t]))?.limits.map(([, v]) => v) ?? [];
+    expect(limits(["price-weight", "-1", "USD", "kg"])).toEqual([]);
+    expect(limits(["price-weight", "0", "USD", "kg"])).toEqual([]);
+    expect(limits(["price-weight", "", "USD", "kg"])).toEqual([]);
+    expect(limits(["price-weight", "0.75", "kg", ""])).toEqual(["$0.75 / kg"]);
+  });
+
+  it("an extra in no known currency is shown beside the option's price, not added to it", () => {
+    expect(shippingCostLabel({ amount: 10, currency: "USD" }, 5, null)).toBe("$10 + 5 extra");
+    expect(shippingCostLabel({ amount: 10, currency: "USD" }, 5, "USD")).toBe("$15");
+  });
+
+  it("the first valid thumb counts, as quartz reads it", () => {
+    const r = parseProductReview(
+      ev(31555, [
+        ["d", `a:30402:${M}:x`],
+        ["rating", "x", "thumb"],
+        ["rating", "1", "thumb"],
+      ]),
+    );
+    expect(r?.thumb).toBe(1);
+  });
+
+  it("hex and other non-decimal scores are not scores", () => {
+    expect(
+      parseProductReview(
+        ev(31555, [
+          ["d", `a:30402:${M}:x`],
+          ["rating", "0x1", "thumb"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it("a collection's product addresses keep their d as written and one spelling of the pubkey", () => {
+    const c = parseCollection(
+      ev(30405, [
+        ["title", "C"],
+        ["a", `30402:${M.toUpperCase()}:my  bike `],
+      ]),
+    );
+    expect(c?.products).toEqual([`30402:${M}:my  bike `]);
+  });
+});

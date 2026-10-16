@@ -26,7 +26,7 @@ import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
-import { isSellable, parseListing } from "@/lib/listing";
+import { isListed, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
@@ -2162,7 +2162,7 @@ export function suggestListings(
   if (words.length === 0) return Promise.resolve([]);
   return collectHits(query, { ...params, tab: "shop" }, { limit: 3, ...opts }, (hit) => {
     const l = parseListing(hit.event);
-    if (!l || !isSellable(l)) return null;
+    if (!l || !isListed(l)) return null;
     const title = l.title.toLowerCase();
     // A typed word names a title word from its start: "hon" is "Honey", not "Phone".
     const titleWords = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);

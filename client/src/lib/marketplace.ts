@@ -14,7 +14,7 @@
  * far carry a title, a price and a service — "digital" among them, which the
  * spec does not list — and no `country`, so `country` is not required here.
  */
-import { formatListingPrice, shippingOf, type ListingPrice, type ShippingRef } from "@/lib/listing";
+import { amountOf, formatListingPrice, numberOf, shippingOf, type ListingPrice, type ShippingRef } from "@/lib/listing";
 
 type EventLike = { kind: number; pubkey?: string; tags: string[][]; content: string };
 
@@ -60,9 +60,9 @@ const PER_UNIT: [string, string][] = [
 ];
 
 function priceOf(t: string[] | undefined): ListingPrice | null {
-  const amount = Number(t?.[1]);
+  const amount = amountOf(t?.[1]);
   const currency = t?.[2]?.trim().toUpperCase();
-  return t?.[1]?.trim() && Number.isFinite(amount) && amount >= 0 && currency ? { amount, currency } : null;
+  return amount !== null && currency ? { amount, currency } : null;
 }
 
 /** A kind-30406 shipping option, or null for anything else on the number (Shopstr's escrow records). */
@@ -82,16 +82,14 @@ export function parseShippingOption(ev: EventLike): ShippingOption | null {
   ];
   if (!title || (!price && !service && countries.length === 0)) return null;
   const durationTag = ev.tags.find((t) => t[0] === "duration");
-  const min = Number(durationTag?.[1]);
-  const max = Number(durationTag?.[2]);
+  // A blank bound is unknown, not zero ("" would read "0–3 days"); with one
+  // bound it is both, and a reversed window reads low to high.
+  const lo = amountOf(durationTag?.[1]);
+  const hi = amountOf(durationTag?.[2]);
   const unit = durationTag?.[3]?.trim().toUpperCase();
+  const [min, max] = lo !== null && hi !== null ? [Math.min(lo, hi), Math.max(lo, hi)] : [lo ?? hi, lo ?? hi];
   const duration =
-    durationTag &&
-    Number.isFinite(min) &&
-    Number.isFinite(max) &&
-    min >= 0 &&
-    max >= min &&
-    (unit === "H" || unit === "D" || unit === "W")
+    min !== null && max !== null && (unit === "H" || unit === "D" || unit === "W")
       ? { min, max, unit: unit as "H" | "D" | "W" }
       : null;
   const limits: [string, string][] = [];
@@ -101,11 +99,15 @@ export function parseShippingOption(ev: EventLike): ShippingOption | null {
   }
   for (const [k, label] of PER_UNIT) {
     const t = ev.tags.find((x) => x[0] === k);
-    const amount = Number(t?.[1]);
-    if (!t?.[1]?.trim() || !Number.isFinite(amount)) continue;
+    // A rate is a positive amount: a blank, negative or zero one is no rate ("Free / kg").
+    const amount = amountOf(t?.[1]);
+    if (!t || amount === null || amount === 0) continue;
     // ["price-weight", "0.75", "USD", "kg"] in the spec's example; ["price-weight", "0.75", "kg"] in its table.
-    const currency = t.length > 3 ? t[2]?.trim().toUpperCase() : (price?.currency ?? "");
-    const per = (t.length > 3 ? t[3] : t[2])?.trim();
+    // An empty trailing slot is padding, not a unit: ["price-weight", "0.75", "kg", ""] is the table's shape.
+    const slots = t.slice(2).map((v) => (v ?? "").trim());
+    while (slots.length && !slots[slots.length - 1]) slots.pop();
+    const currency = slots.length > 1 ? slots[0].toUpperCase() : (price?.currency ?? "");
+    const per = slots.length > 1 ? slots[1] : slots[0];
     limits.push([label, `${formatListingPrice({ amount, currency: currency ?? "" })}${per ? ` / ${per}` : ""}`]);
   }
   return {
@@ -187,9 +189,12 @@ export function shippingCostLabel(
   const extraPrice = extra && extra > 0 ? { amount: extra, currency: moneyOf(productCurrency) } : null;
   if (!price) return extraPrice ? `+${formatListingPrice(extraPrice)}` : null;
   if (!extraPrice) return formatListingPrice(price);
-  if (!extraPrice.currency || extraPrice.currency === moneyOf(price.currency))
+  // Added only when both are known to be one money. An extra with no currency
+  // of its own (no product price to borrow from) is not assumed to be the
+  // option's: it is shown beside it.
+  if (extraPrice.currency === moneyOf(price.currency))
     return formatListingPrice({ amount: addAmounts(price.amount, extraPrice.amount), currency: price.currency });
-  return `${formatListingPrice(price)} + ${formatListingPrice(extraPrice)}`;
+  return `${formatListingPrice(price)} + ${extraPrice.currency ? formatListingPrice(extraPrice) : `${extraPrice.amount} extra`}`;
 }
 
 /** One way a product ships, as its page lists it. */
@@ -388,7 +393,13 @@ export function parseCollection(ev: EventLike): ProductCollection | null {
     image,
     products: [
       ...new Set(
-        ev.tags.filter((t) => t[0] === "a" && PRODUCT_ADDRESS.test(t[1]?.trim() ?? "")).map((t) => t[1].trim()),
+        // As written, but one spelling of the pubkey: a `d` keeps its spaces, or it names another product.
+        ev.tags
+          .filter((t) => t[0] === "a" && PRODUCT_ADDRESS.test(t[1] ?? ""))
+          .map((t) => {
+            const [kind, pubkey, ...d] = t[1].split(":");
+            return `${kind}:${pubkey.toLowerCase()}:${d.join(":")}`;
+          }),
       ),
     ],
     shippingRefs: shippingOf(ev.tags).refs,
@@ -426,8 +437,8 @@ export function ratingAspects(ev: Pick<EventLike, "tags">, skip: string[] = []):
   const skipped = new Set(skip.map((s) => s.toLowerCase()));
   return ev.tags
     .filter((t) => t[0] === "rating" && t[1]?.trim() && t[2]?.trim() && !skipped.has(t[2].trim().toLowerCase()))
-    .map((t) => ({ name: t[2].trim(), score: Number(t[1]) }))
-    .filter((a) => Number.isFinite(a.score) && a.score >= 0 && a.score <= 1);
+    .map((t) => ({ name: t[2].trim(), score: numberOf(t[1]) }))
+    .filter((a): a is { name: string; score: number } => a.score !== null && a.score >= 0 && a.score <= 1);
 }
 
 /**
@@ -439,9 +450,14 @@ export function parseProductReview(ev: EventLike): ProductReview | null {
   if (ev.kind !== PRODUCT_REVIEW_KIND) return null;
   const d = tagOf(ev, "d")?.replace(/^a:/i, "") ?? "";
   if (!PRODUCT_ADDRESS.test(d)) return null;
-  const thumbTag = ev.tags.find((t) => t[0] === "rating" && t[2]?.trim().toLowerCase() === "thumb");
-  const thumb = Number(thumbTag?.[1]);
-  if (!thumbTag?.[1]?.trim() || !Number.isFinite(thumb) || thumb < 0 || thumb > 1) return null;
+  // The first thumb that is a score, as quartz reads it: one malformed thumb
+  // tag beside a good one does not void the review.
+  const thumb =
+    ev.tags
+      .filter((t) => t[0] === "rating" && t[2]?.trim().toLowerCase() === "thumb")
+      .map((t) => numberOf(t[1]))
+      .find((n): n is number => n !== null && n >= 0 && n <= 1) ?? null;
+  if (thumb === null) return null;
   const categories = ratingAspects(ev, ["thumb"]);
   const [kind, pubkey, ...rest] = d.split(":");
   return {

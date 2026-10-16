@@ -472,7 +472,7 @@ describe("ListingHero", () => {
 });
 
 describe("ListingHero — Open Markets", () => {
-  it("a hidden listing says Hidden, never the 'active' its status tag still carries", () => {
+  it("a hidden listing says Unlisted, never the 'active' its status tag still carries", () => {
     render(
       <ListingHero
         event={listing([
@@ -481,7 +481,7 @@ describe("ListingHero — Open Markets", () => {
         ])}
       />,
     );
-    expect(screen.getByTestId("listing-hero-status")).toHaveTextContent("Hidden");
+    expect(screen.getByTestId("listing-hero-status")).toHaveTextContent("Unlisted");
     expect(screen.getByTestId("listing-hero-status")).not.toHaveTextContent(/active/i);
   });
 

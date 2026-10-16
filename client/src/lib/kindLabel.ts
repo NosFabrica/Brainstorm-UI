@@ -10,6 +10,7 @@
 import { sourceAppFor } from "@/lib/sourceApp";
 import { kind38000Format } from "@/lib/thing";
 import { KIND_NAMES } from "@/lib/kindFamily";
+import { parseCollection, parseProductReview, parseShippingOption } from "@/lib/marketplace";
 
 /** The structural minimum every caller has — a hit, a share card, a page's event. */
 export type KindEvent = {
@@ -228,6 +229,12 @@ export function kindLabel(event: KindEvent): string {
   if (noun) return noun;
   // 38000 is shared by mint reviews, prediction markets and ballots: the event says which.
   if (event.kind === 38000) return KIND_38000_LABEL[kind38000Format(event) ?? "none"];
+  // Shopstr keeps encrypted carts on 30405 and escrow records on 30406, and a
+  // review is only one when it names a product and a thumb. What the readers
+  // reject is not called what they would have drawn.
+  if (event.kind === 30405 && !parseCollection(event)) return "Kind 30405";
+  if (event.kind === 30406 && !parseShippingOption(event)) return "Kind 30406";
+  if (event.kind === 31555 && !parseProductReview(event)) return "Kind 31555";
   return kindTypeLabel(event.kind);
 }
 

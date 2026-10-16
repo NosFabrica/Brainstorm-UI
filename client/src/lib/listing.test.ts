@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { parseListing, isSellable, formatListingPrice, listingCardLine, listingStatus, shippingOf } from "./listing";
+import {
+  parseListing,
+  isListed,
+  isSellable,
+  formatListingPrice,
+  listingCardLine,
+  listingStatus,
+  shippingOf,
+} from "./listing";
 
 // NIP-99 as the marketplaces publish it (probed 2026-09-04: Shopstr,
 // Barattolo, bitpopart, Conduit): title, price [amount, currency], images,
@@ -92,7 +100,7 @@ describe("parseListing — a marketplace listing for a buyer", () => {
     expect(isSellable(l!)).toBe(true);
   });
 
-  it("sold and hidden listings are not for sale", () => {
+  it("sold listings are not for sale; hidden ones are, but are not listed", () => {
     expect(
       isSellable(
         parseListing(
@@ -114,11 +122,138 @@ describe("parseListing — a marketplace listing for a buyer", () => {
           ]),
         )!,
       ),
+    ).toBe(true);
+    // Unlisted: on its own page and in a collection that names it, never in a catalog.
+    expect(
+      isListed(
+        parseListing(
+          ev([
+            ["title", "Mug"],
+            ["price", "12", "USD"],
+            ["visibility", "hidden"],
+          ]),
+        )!,
+      ),
     ).toBe(false);
+  });
+
+  it("a stock of zero is sold out, except on a parent, whose options carry their own", () => {
+    const zero = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "5", "USD"],
+        ["stock", "0"],
+      ]),
+    )!;
+    expect(isSellable(zero)).toBe(false);
+    expect(listingStatus(zero)).toEqual({ label: "Sold out", gone: true });
+    const parent = parseListing(
+      ev([
+        ["title", "Tee"],
+        ["price", "5", "USD"],
+        ["stock", "0"],
+        ["type", "variable"],
+      ]),
+    )!;
+    expect(isSellable(parent)).toBe(true);
+  });
+
+  it("a blank, negative or non-decimal amount is no price, never Free", () => {
+    for (const amount of ["", "  ", "-5", "0x10", "0b1", "abc"])
+      expect(
+        parseListing(
+          ev([
+            ["title", "Mug"],
+            ["price", amount, "USD"],
+          ]),
+        )!.price,
+      ).toBeNull();
+    expect(
+      parseListing(
+        ev([
+          ["title", "Mug"],
+          ["price", "1e3", "SATS"],
+        ]),
+      )!.price?.amount,
+    ).toBe(1000);
+  });
+
+  it("only a billing period prints after the price", () => {
+    const priced = (slot: string) =>
+      formatListingPrice(
+        parseListing(
+          ev([
+            ["title", "VPS"],
+            ["price", "10", "USD", slot],
+          ]),
+        )!.price!,
+      );
+    expect(priced("month")).toBe("$10 / month");
+    expect(priced("M")).toBe("$10 / month");
+    expect(priced("sats")).toBe("$10");
+    expect(priced("fixed")).toBe("$10");
+    expect(priced(" ")).toBe("$10");
+  });
+
+  it("a blank or negative shipping cost is unknown, not free", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "5", "USD"],
+        ["shipping", "Worldwide", "", "USD"],
+        ["shipping", "Intl", "-5", "USD"],
+      ]),
+    )!;
+    expect(l.shipping).toEqual([]);
+    expect(listingCardLine(l)).toBeNull();
+  });
+
+  it("a shipping reference whose d holds a line break is still a reference, and another kind is no price", () => {
+    const pk = "a".repeat(64);
+    const l = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "5", "USD"],
+        ["shipping_option", `30406:${pk}:a\nb`, "2"],
+        ["shipping_option", `30402:${pk}:x`, "3"],
+      ]),
+    )!;
+    expect(l.shippingRefs.map((r) => r.d)).toEqual(["a\nb"]);
+    expect(l.shipping).toEqual([]);
+  });
+
+  it("a listing's d is kept as written", () => {
+    expect(
+      parseListing(
+        ev([
+          ["d", " shirt"],
+          ["title", "Tee"],
+          ["price", "5", "USD"],
+        ]),
+      )!.d,
+    ).toBe(" shirt");
+  });
+
+  it("a cheapest shipping is only named among one money", () => {
+    const l = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "5", "USD"],
+        ["shipping", "Local", "20", "USD"],
+        ["shipping", "Lightning", "1000", "SATS"],
+      ]),
+    )!;
+    expect(listingCardLine(l)).toBe("2 shipping options");
   });
 });
 
 describe("formatListingPrice — shown exactly as priced, never converted", () => {
+  it("small amounts keep their digits: no rounding to 0, no exponent", () => {
+    expect(formatListingPrice({ amount: 0.002, currency: "ETH" })).toBe("0.002 ETH");
+    expect(formatListingPrice({ amount: 0.0000005, currency: "BTC" })).toBe("0.0000005 BTC");
+    expect(formatListingPrice({ amount: 0.0021, currency: "BTC" })).toBe("0.0021 BTC");
+  });
+
   it("sats read as sats, fiat as its own currency", () => {
     expect(formatListingPrice({ amount: 23550, currency: "SATS" })).toBe("23,550 sats");
     expect(formatListingPrice({ amount: 1, currency: "SAT" })).toBe("1 sat");
@@ -436,7 +571,7 @@ describe("shipping — the two shapes that share the tag names", () => {
 describe("listingStatus — the chip on a listing's photo", () => {
   const listing = (tags: string[][]) => parseListing(ev([["title", "Hoodie"], ["price", "40", "USD"], ...tags]))!;
 
-  it("a hidden listing reads Hidden, never the 'active' its status tag still says", () => {
+  it("a hidden listing reads Unlisted — still for sale, out of the catalog — never the 'active' its status tag says", () => {
     expect(
       listingStatus(
         listing([
@@ -444,7 +579,7 @@ describe("listingStatus — the chip on a listing's photo", () => {
           ["status", "active"],
         ]),
       ),
-    ).toEqual({ label: "Hidden", gone: true });
+    ).toEqual({ label: "Unlisted", gone: false });
   });
 
   it("sold and other closed statuses, capitalised; an on-sale listing has no chip", () => {
