@@ -14,6 +14,8 @@ import { RsvpButton } from "@/components/share/RsvpButton";
 import { useLightbox } from "@/components/share/Lightbox";
 import { LinkPreviewCard } from "@/components/share/LinkPreview";
 import { EventDateTile } from "@/components/share/EventDateTile";
+import { EventMap } from "@/components/share/EventMap";
+import { mostPreciseGeohash, osmPageUrl } from "@/lib/geohash";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -52,9 +54,14 @@ export function EventHero({ event }: { event: MinimalEvent }) {
   const tz = event.tags.find((t) => t[0] === "start_tzid")?.[1];
   const d = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
   const address = `${event.kind}:${event.pubkey}:${d}`;
-  const mapUrl = e.location
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`
-    : null;
+  // Where it is: the finest `g` the event carries, on OpenStreetMap; else a
+  // search for the place's words.
+  const spot = useMemo(() => mostPreciseGeohash(event.tags, "g"), [event.tags]);
+  const mapUrl = spot
+    ? osmPageUrl(spot)
+    : e.location
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`
+      : null;
 
   // The host and the guests' faces.
   const [rsvps, setRsvps] = useState<EventRsvps | null>(null);
@@ -226,8 +233,9 @@ export function EventHero({ event }: { event: MinimalEvent }) {
                   <a
                     href={mapUrl}
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                     className="font-medium text-slate-700 hover:text-brand-link hover:underline dark:text-slate-200"
+                    data-testid="event-hero-place"
                   >
                     {e.location}
                   </a>
@@ -293,6 +301,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           </div>
         </div>
       </div>
+      {spot && <EventMap cell={spot} title={e.title} />}
       {/* The description as a post: paragraphs kept, links as real links with
           their favicon and domain, mentions as names, and the first web link
           unfurled into a metadata card when the proxy knows it. */}

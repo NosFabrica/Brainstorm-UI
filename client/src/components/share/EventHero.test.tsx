@@ -293,3 +293,58 @@ describe("EventHero — Add to calendar follows the device", () => {
     expect(outlook.getAttribute("href")).toContain("outlook.live.com");
   });
 });
+
+// NIP-52's `g` is where the event is. With one, the place opens OpenStreetMap at that spot and
+// the map itself waits for the reader to ask (as on a list item's page): the page contacts no
+// map server until then. Without one, the place stays a text search.
+describe("EventHero — the map from the event's geohash", () => {
+  const atKinn = {
+    ...v4v,
+    tags: [
+      ...v4v.tags.filter((t) => t[0] !== "location"),
+      ["location", "The KINN, 150 Horizon Ave, Venice, CA 90291, USA"],
+      ["g", "9q5c2"],
+      ["g", "9q5c25e1h"],
+    ],
+  };
+
+  it("opens the place on OpenStreetMap at the finest geohash, pinned", async () => {
+    render(<EventHero event={atKinn} />);
+    await screen.findByTestId("event-hero-host");
+    const place = screen.getByTestId("event-hero-place");
+    expect(place).toHaveTextContent("The KINN, 150 Horizon Ave");
+    const href = new URL(place.getAttribute("href")!);
+    expect(href.hostname).toBe("www.openstreetmap.org");
+    expect(Number(href.searchParams.get("mlat"))).toBeCloseTo(33.99, 1);
+    expect(Number(href.searchParams.get("mlon"))).toBeCloseTo(-118.48, 1);
+    expect(place.getAttribute("rel")).toMatch(/noopener/);
+    expect(document.querySelector('a[href*="google.com/maps"]')).toBeNull();
+  });
+
+  it("draws the map only when asked", async () => {
+    render(<EventHero event={atKinn} />);
+    await screen.findByTestId("event-hero-host");
+    expect(document.querySelector("iframe")).toBeNull();
+    fireEvent.click(screen.getByTestId("event-map-show"));
+    const map = screen.getByTestId("event-map");
+    expect(map.getAttribute("src")).toMatch(/^https:\/\/www\.openstreetmap\.org\/export\/embed\.html\?/);
+    expect(map.getAttribute("src")).toContain("marker=");
+    expect(map.getAttribute("referrerpolicy")).toBe("no-referrer");
+  });
+
+  it("a geohash with no words still offers the map", async () => {
+    render(
+      <EventHero event={{ ...v4v, tags: [...v4v.tags.filter((t) => t[0] !== "location"), ["g", "9q5c25e1h"]] }} />,
+    );
+    await screen.findByTestId("event-hero-host");
+    expect(screen.getByTestId("event-map-show")).toBeInTheDocument();
+    expect(screen.queryByTestId("event-hero-place")).toBeNull();
+  });
+
+  it("without a geohash the place is a text search, and there is no map to show", async () => {
+    render(<EventHero event={v4v} />);
+    await screen.findByTestId("event-hero-host");
+    expect(screen.getByTestId("event-hero-place").getAttribute("href")).toContain("google.com/maps");
+    expect(screen.queryByTestId("event-map-show")).toBeNull();
+  });
+});

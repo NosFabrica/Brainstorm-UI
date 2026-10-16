@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeGeohash, isSpot, osmEmbedUrl, osmPageUrl } from "./geohash";
+import { decodeGeohash, isSpot, mostPreciseGeohash, osmEmbedUrl, osmPageUrl } from "./geohash";
 
 describe("decodeGeohash", () => {
   it("decodes to the cell's centre (Wikipedia's examples)", () => {
@@ -56,5 +56,34 @@ describe("the map of a cell", () => {
       [c.west, c.south, c.east, c.north].map((n) => n.toFixed(4)),
     );
     expect(osmPageUrl(c)).not.toContain("mlat");
+  });
+});
+
+// NIP-52 events carry `g` once per precision, coarse to fine in any order; a place is read from
+// the finest one that decodes.
+describe("mostPreciseGeohash", () => {
+  it("takes the longest value of the tag that decodes", () => {
+    const tags = [
+      ["g", "9mud"],
+      ["g", "9mudmbxch"],
+      ["g", "9mudm"],
+      ["g", "9mudmbxchzzzz-not"],
+      ["title", "x"],
+    ];
+    expect(mostPreciseGeohash(tags, "g")?.geohash).toBe("9mudmbxch");
+  });
+
+  it("reads the tag it is given, case and spacing aside, and nothing when none decodes", () => {
+    expect(mostPreciseGeohash([["location", " DR5R7V "]], "location")?.geohash).toBe("dr5r7v");
+    expect(
+      mostPreciseGeohash(
+        [
+          ["g", "aaaa"],
+          ["g", ""],
+        ],
+        "g",
+      ),
+    ).toBeNull();
+    expect(mostPreciseGeohash([], "g")).toBeNull();
   });
 });

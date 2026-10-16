@@ -14,7 +14,7 @@
  */
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
 import { factLabel } from "@/lib/displayHints";
-import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
+import { mostPreciseGeohash, type GeohashCell } from "@/lib/geohash";
 import { mediaKindOfUrl } from "@/lib/mediaKind";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 
@@ -52,19 +52,6 @@ export interface ItemPresentation {
 }
 
 const SUMMARY_NAMES = ["summary", "description"];
-
-/** Of a field's values, the longest that decodes: an event carries `g` once per precision, coarse to fine in any order. */
-function mostPreciseGeohash(item: { tags: string[][] }, field: string | null) {
-  if (!field) return null;
-  let best: (GeohashCell & { geohash: string }) | null = null;
-  for (const t of item.tags) {
-    if (t[0] !== field || !t[1]) continue;
-    const geohash = t[1].trim().toLowerCase();
-    const cell = decodeGeohash(geohash);
-    if (cell && geohash.length > (best?.geohash.length ?? 0)) best = { ...cell, geohash };
-  }
-  return best;
-}
 
 export function presentItem(item: { tags: string[][] }, definition: ConceptDefinition): ItemPresentation {
   const hints = definition.display;
@@ -117,7 +104,7 @@ export function presentItem(item: { tags: string[][] }, definition: ConceptDefin
     linkField: hints.link,
     media: mediaUrl && (mediaKind === "audio" || mediaKind === "video") ? { url: mediaUrl, kind: mediaKind } : null,
     mediaField: hints.media,
-    location: mostPreciseGeohash(item, hints.location),
+    location: hints.location ? mostPreciseGeohash(item.tags, hints.location) : null,
     locationField: hints.location,
     facts,
     factFields: factHints.map((f) => f.field),

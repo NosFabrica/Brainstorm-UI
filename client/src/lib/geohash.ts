@@ -44,6 +44,18 @@ export function decodeGeohash(hash: string): GeohashCell | null {
   return { lat: (south + north) / 2, lon: (west + east) / 2, south, west, north, east };
 }
 
+/** Of a tag's values, the longest that decodes: an event carries `g` once per precision, coarse to fine in any order. */
+export function mostPreciseGeohash(tags: string[][], name: string): (GeohashCell & { geohash: string }) | null {
+  let best: (GeohashCell & { geohash: string }) | null = null;
+  for (const t of tags) {
+    if (t[0] !== name || !t[1]) continue;
+    const geohash = t[1].trim().toLowerCase();
+    const cell = decodeGeohash(geohash);
+    if (cell && geohash.length > (best?.geohash.length ?? 0)) best = { ...cell, geohash };
+  }
+  return best;
+}
+
 /** The narrowest a map frames, in degrees: a 5 m cell still shows its streets. */
 const MIN_SPAN = 0.005;
 /** A cell this small (6 characters and up) is a spot worth a pin; a larger one is an area, framed with none. */
