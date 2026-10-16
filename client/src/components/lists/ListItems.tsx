@@ -1,5 +1,6 @@
 /**
- * A list's Items tab: every item filed under it (useListItems), checked under
+ * A list's Items tab: every item filed under it (useListItems), and under
+ * `also` when it's opened from a version of it (ListManager), checked under
  * a definition of the list (lib/listHealth), as a health summary, a table and,
  * for the one item the address names, a side panel. Read-only: it publishes
  * nothing.
@@ -60,26 +61,31 @@ import { itemIdentity } from "@/services/dictionary";
 /** One map for every render without templates, so the check isn't run again for want of them. */
 const NO_TEMPLATES: ReadonlyMap<string, UrlTemplate> = new Map();
 
+const NONE: readonly string[] = [];
+
 /** What `&item=` names an item by: the same through every version of it. */
 const linkOf = (c: CheckedItem) => itemIdentity(c.item);
 
 export function ListItems({
   header,
   listRef,
+  also = NONE,
 }: {
   header: NostrEvent;
   /** The `list` value of the address this list was opened by: every address built here keeps it. */
   listRef: string;
+  /** More headers whose items count as this list's: the version it was opened from. */
+  also?: readonly string[];
 }) {
   const openId = new URLSearchParams(useSearch()).get("item") || null;
   const [, navigate] = useLocation();
   /** To the Items tab with `item` open, or with none. */
   const show = (item?: string) => navigate(listManagerPath(listRef, { view: "items", item }), { replace: true });
 
-  const { items, truncated, cutOff, settled, reload } = useListItems(header);
+  const { items, truncated, cutOff, settled, reload } = useListItems(header, also);
   // Whether this list's read has settled here once. Until it has, what the store already held is
   // part of the list and not the list; after it, a read in flight keeps what is on screen.
-  const reference = headerReference(header) ?? header.id;
+  const reference = [headerReference(header) ?? header.id, ...also].join(" ");
   const [readOf, setReadOf] = useState<string | null>(null);
   if (settled && readOf !== reference) setReadOf(reference);
   const readOnce = settled || readOf === reference;
