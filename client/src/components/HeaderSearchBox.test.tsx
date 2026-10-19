@@ -601,9 +601,9 @@ describe("a suggested person's handle", () => {
       vi.advanceTimersByTime(400);
     });
     await act(async () => {});
-    // Before the domain answers: the handle is shown, unchecked.
-    expect(screen.getByTestId("home-suggestion-nip05-0").querySelector("svg")).toBeNull();
-    expect(screen.getByTestId("home-suggestion-nip05-1").querySelector("svg")).toBeNull();
+    // Before the domain answers: no handle at all, so none appears only to vanish.
+    expect(screen.queryByTestId("home-suggestion-nip05-0")).toBeNull();
+    expect(screen.queryByTestId("home-suggestion-nip05-1")).toBeNull();
     answer();
     await settle();
     expect(screen.queryByTestId("home-suggestion-nip05-0")).toBeNull();

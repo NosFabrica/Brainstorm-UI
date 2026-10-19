@@ -42,11 +42,12 @@ describe("PersonCard nip05", () => {
     expect(screen.getByTestId("text-nip05-0").querySelector("svg")).not.toBeNull();
   });
 
-  it("drops a copycat's claimed handle — no check, no handle", async () => {
+  it("never shows a copycat's claimed handle — not while it's checked, not after", async () => {
     render(<PersonCard result={person(COPYCAT)} idx={1} pov="nosfabrica" onOpen={() => {}} />);
-    // Unconfirmed at first: shown bare, never with the check.
-    expect(screen.getByTestId("text-nip05-1").querySelector("svg")).toBeNull();
-    await waitFor(() => expect(screen.queryByTestId("text-nip05-1")).toBeNull());
+    // Unconfirmed: nothing, so no handle appears only to vanish.
+    expect(screen.queryByTestId("text-nip05-1")).toBeNull();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("text-nip05-1")).toBeNull();
   });
 
   it("a remounted card paints the cached verdict at once — no unchecked flash", async () => {

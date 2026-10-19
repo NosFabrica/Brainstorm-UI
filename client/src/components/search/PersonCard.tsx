@@ -68,7 +68,7 @@ export function PersonCard({
   const tierRing = useTierRing();
   const quiet = useQuietTrustChrome();
   const coinReplaced = useCoinReplacedByRing();
-  // The kind-0 nip05 is only a claim: check it, and drop it if the domain names someone else.
+  // The kind-0 nip05 is only a claim: shown once its domain confirms it, and not otherwise.
   const nip05Status = useNip05(result.nip05, result.pubkey);
   const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
   return (
@@ -123,13 +123,13 @@ export function PersonCard({
             <TierWordChip score01={result.wotRank} />
             <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
           </div>
-          {result.nip05 && nip05Status !== "invalid" && (
+          {result.nip05 && nip05Status === "verified" && (
             <p
-              className={`mt-0.5 flex items-center gap-0.5 truncate text-xs ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
+              className="mt-0.5 flex items-center gap-0.5 truncate text-xs text-brand-primary dark:text-brand-link"
               data-testid={`text-nip05-${idx}`}
               data-nip05-status={nip05Status}
             >
-              {nip05Status === "verified" && <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />}
+              <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
               {result.nip05.replace(/^_@/, "")}
             </p>
           )}

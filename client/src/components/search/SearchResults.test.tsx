@@ -229,12 +229,16 @@ import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+// Offline by default: no domain confirms a handle unless a test says it does.
+const verifyNip05Mock = vi.hoisted(() =>
+  vi.fn<(nip05: string, pubkey: string) => Promise<"verified" | "invalid" | "unknown">>(async () => "unknown"),
+);
 const handleOwnerMock = vi.hoisted(() =>
   vi.fn<(nip05: string, pubkey: string) => Promise<string | null>>(async () => null),
 );
 vi.mock("@/lib/nip05", async (orig) => ({
   ...(await orig<typeof import("@/lib/nip05")>()),
-  verifyNip05: async () => "unknown",
+  verifyNip05: (nip05: string, pubkey: string) => verifyNip05Mock(nip05, pubkey),
   resolveNip05: async () => null,
   handleOwner: (nip05: string, pubkey: string) => handleOwnerMock(nip05, pubkey),
   peekHandleOwner: () => undefined,
@@ -4761,6 +4765,7 @@ describe("a People search whose words match a tag", () => {
 
   it("shows a person the relay also found once, in the tag's place, with the relay's fuller profile", async () => {
     carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    verifyNip05Mock.mockImplementation(async (nip05) => (nip05 === "avi@nip21.media" ? "verified" : "unknown"));
     render(<SearchResults query="verified human" pov="nosfabrica" />);
     emit({
       hits: [
@@ -5111,5 +5116,38 @@ describe("a People search answered only by profiles using someone else's handle"
       "Profiles named “Jo Rivers” use this account's handle",
     );
     expect(screen.queryByTestId("result-profile-1")).toBeNull();
+  });
+});
+
+// A handle is shown only once its own server confirms it; while it's asked, or when the server
+// can't be reached or doesn't list the name, the card says nothing about one.
+describe("a person's handle on their search card", () => {
+  const card = (nip05: string) => ({
+    event: person("p1", "a".repeat(64), "Ada"),
+    author: { ...author("a".repeat(64), "Ada"), nip05 },
+    rank: null,
+  });
+
+  beforeEach(() => {
+    setUrlTab("people");
+    window.history.replaceState({}, "", "/?q=ada&t=people");
+  });
+  afterEach(() => verifyNip05Mock.mockImplementation(async () => "unknown"));
+
+  it("shows a confirmed handle, with its check", async () => {
+    verifyNip05Mock.mockImplementation(async () => "verified");
+    render(<SearchResults query="ada" pov="nosfabrica" />);
+    emit({ hits: [card("ada@example.com")], eose: true, timeMs: 100 });
+    const handle = await screen.findByTestId("text-nip05-0");
+    expect(handle).toHaveTextContent("ada@example.com");
+    expect(handle).toHaveAttribute("data-nip05-status", "verified");
+  });
+
+  it("shows no handle that its server hasn't confirmed", async () => {
+    render(<SearchResults query="ada" pov="nosfabrica" />);
+    emit({ hits: [card("ada@down.example")], eose: true, timeMs: 100 });
+    await screen.findByTestId("result-profile-0");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("text-nip05-0")).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { nip19 } from "nostr-tools";
 import { __resetNip05Cache } from "@/lib/nip05";
-import { HandleOwnerWarning } from "./Nip05Check";
+import { HandleOwnerWarning, Nip05Handle } from "./Nip05Check";
 
 const OWNER = "1".repeat(64);
 const COPY = "2".repeat(64);
@@ -59,5 +59,43 @@ describe("HandleOwnerWarning", () => {
     render(<HandleOwnerWarning nip05="artist@down.example" pubkey={COPY} />);
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByTestId("handle-owner-warning")).toBeNull();
+  });
+});
+
+// A handle is shown only once its own server confirms it: anything on screen is true. A handle
+// that belongs to someone else gets the warning above; every other outcome shows nothing.
+describe("Nip05Handle", () => {
+  it("shows a confirmed handle, with its check", async () => {
+    serverNames({ artist: OWNER });
+    render(<Nip05Handle nip05="artist@music.example" pubkey={OWNER} testId="handle" />);
+    const handle = await screen.findByTestId("handle");
+    expect(handle).toHaveTextContent("artist@music.example");
+    expect(handle).toHaveAttribute("data-nip05-status", "verified");
+  });
+
+  it("shows nothing while the server is asked, so nothing appears only to vanish", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    render(<Nip05Handle nip05="artist@music.example" pubkey={OWNER} testId="handle" />);
+    expect(screen.queryByTestId("handle")).toBeNull();
+  });
+
+  it("shows nothing when the server can't be reached or doesn't list the name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    const { unmount } = render(<Nip05Handle nip05="artist@down.example" pubkey={OWNER} testId="handle" />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("handle")).toBeNull();
+    unmount();
+    serverNames({ someoneelse: OWNER });
+    render(<Nip05Handle nip05="artist@music.example" pubkey={OWNER} testId="handle" />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("handle")).toBeNull();
   });
 });

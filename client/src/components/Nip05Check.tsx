@@ -22,8 +22,11 @@ export function Nip05Check({
 }
 
 /**
- * A handle line: the check when the domain confirms it, the bare text while
- * unconfirmed, and nothing when the domain names someone else.
+ * A handle line, shown only once the handle's domain confirms it belongs to
+ * this pubkey: anything on screen is true. While it's being asked, when the
+ * domain can't be reached, or when it doesn't list the name, nothing — those
+ * failures are common and say nothing. A handle the domain gives to someone
+ * else is HandleOwnerWarning's to say.
  */
 export function Nip05Handle({
   nip05,
@@ -39,15 +42,10 @@ export function Nip05Handle({
   testId?: string;
 }) {
   const status = useNip05(nip05, pubkey);
-  if (!nip05 || status === "invalid") return null;
+  if (!nip05 || status !== "verified") return null;
   return (
-    <span
-      className={className}
-      data-testid={testId}
-      data-nip05-status={status}
-      title={status === "verified" ? "Verified handle (NIP-05)" : "Handle not verified"}
-    >
-      {status === "verified" && <BadgeCheck className={iconClassName} />}
+    <span className={className} data-testid={testId} data-nip05-status={status} title="Verified handle (NIP-05)">
+      <BadgeCheck className={iconClassName} />
       <span className="truncate">{nip05.replace(/^_@/, "")}</span>
     </span>
   );

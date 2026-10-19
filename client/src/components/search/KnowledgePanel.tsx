@@ -885,7 +885,7 @@ function KnowledgePanelBody({
       title: getDisplayLabel(person),
       line:
         [
-          nip05Status === "invalid" ? undefined : person.nip05?.replace(/^_@/, ""),
+          nip05Status === "verified" ? person.nip05?.replace(/^_@/, "") : undefined,
           followers != null ? `${followers.toLocaleString()} followers` : null,
         ]
           .filter(Boolean)
@@ -946,15 +946,15 @@ function KnowledgePanelBody({
         </div>
         {/* Identity rows first, right under the name — who this is and how to
           pay them — then the social proof. The person card's order. */}
-        {((person.nip05 && nip05Status !== "invalid") || person.lud16) && (
+        {((person.nip05 && nip05Status === "verified") || person.lud16) && (
           <div className="mt-2.5 space-y-1">
-            {person.nip05 && nip05Status !== "invalid" && (
+            {person.nip05 && nip05Status === "verified" && (
               <p
-                className={`flex items-center gap-1 truncate text-xs ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
+                className="flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link"
                 data-testid="person-nip05"
                 data-nip05-status={nip05Status}
               >
-                {nip05Status === "verified" && <Check className="h-3 w-3 shrink-0" />} {person.nip05.replace(/^_@/, "")}
+                <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
               </p>
             )}
             {person.lud16 && (
