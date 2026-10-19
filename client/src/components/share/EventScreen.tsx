@@ -86,6 +86,7 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { Nip05Check } from "@/components/Nip05Check";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { publicPageUrl } from "@/lib/publicOrigin";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -353,7 +354,7 @@ function EventView({
   // A kind whose content is no words (a voice message's file, a reaction's "+", a repost's JSON) is said in words.
   const snippet = note ? shareSnippet(note) : "";
   // A list item is shared by its address: an id link someone arrived by goes stale at the next import.
-  const pageUrl = typeof window !== "undefined" ? window.location.href : "";
+  const pageUrl = publicPageUrl();
   const shareUrl = note && pageUrl ? shareUrlFor(note, pageUrl, relayHints) : pageUrl;
   useShareMeta(
     note

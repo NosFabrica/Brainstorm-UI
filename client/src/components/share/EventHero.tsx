@@ -29,6 +29,7 @@ import {
   preferredCalendar,
 } from "@/lib/calendarLinks";
 import { eventPath } from "@/lib/shareId";
+import { publicOrigin } from "@/lib/publicOrigin";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
@@ -113,7 +114,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       isDateOnly: e.isDateOnly,
       location: e.location,
       description: e.summary,
-      url: typeof window !== "undefined" ? `${window.location.origin}${eventPath(event)}` : undefined,
+      url: typeof window !== "undefined" ? `${publicOrigin()}${eventPath(event)}` : undefined,
     }),
     [address, e.title, e.startSec, e.endSec, e.isDateOnly, e.location, e.summary, event],
   );

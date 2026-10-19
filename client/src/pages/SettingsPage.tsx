@@ -56,6 +56,7 @@ import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
 import {
@@ -2067,13 +2068,13 @@ export default function SettingsPage() {
               <p className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Or point your agent here
               </p>
-              <p className="truncate font-mono text-xs text-slate-600 dark:text-slate-300">{`${typeof window !== "undefined" ? window.location.origin : ""}/developers`}</p>
+              <p className="truncate font-mono text-xs text-slate-600 dark:text-slate-300">{`${publicOrigin()}/developers`}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/developers`;
+                  const url = `${publicOrigin()}/developers`;
                   copyToClipboard(url);
                   toast({ title: "Copied!", description: "Guide link copied to clipboard" });
                 }}

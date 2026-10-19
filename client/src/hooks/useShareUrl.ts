@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { decodeShareId } from "@/lib/shareId";
 import { MAX_SHARE_RELAYS, shortLinkUrl } from "@/lib/shortLink";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { apiClient } from "@/services/api";
 
 interface UseShareUrlOptions {
@@ -27,7 +28,7 @@ interface UseShareUrlOptions {
  * say) and pin the long URL for the rest of the session.
  */
 export function useShareUrl({ npub, relays = [], enabled = true }: UseShareUrlOptions): string {
-  const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
+  const canonicalUrl = typeof window !== "undefined" && npub ? `${publicOrigin()}/p/${npub}` : "";
 
   // The API takes hex; callers hold an npub because that's what they display.
   const pubkey = npub ? (decodeShareId(npub)?.pubkey ?? "") : "";
@@ -35,7 +36,7 @@ export function useShareUrl({ npub, relays = [], enabled = true }: UseShareUrlOp
 
   const { data } = useQuery({
     queryKey: ["share-url", pubkey, hints],
-    queryFn: async () => shortLinkUrl(window.location.origin, await apiClient.createShortUrl(pubkey, hints)),
+    queryFn: async () => shortLinkUrl(publicOrigin(), await apiClient.createShortUrl(pubkey, hints)),
     enabled: enabled && !!pubkey && !!canonicalUrl,
     staleTime: Infinity,
     retry: 1,

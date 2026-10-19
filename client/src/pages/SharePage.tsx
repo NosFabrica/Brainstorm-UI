@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
 import { liveStateOf } from "@/lib/liveStream";
@@ -770,7 +771,7 @@ export default function SharePage() {
     [publishedPrefs.roles],
   );
 
-  const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
+  const canonicalUrl = npub ? `${publicOrigin()}/p/${npub}` : "";
 
   // NOTE on the invite model: clicking a "Join" CTA below carries `?invite=<npub>`,
   // so a new account created from this profile auto-follows its owner (new user →

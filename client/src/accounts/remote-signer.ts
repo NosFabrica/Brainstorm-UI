@@ -37,6 +37,7 @@ import { BehaviorSubject } from "rxjs";
 import type { Deferred } from "applesauce-core/promise";
 
 import { env } from "@/lib/runtimeEnv";
+import { publicOrigin } from "@/lib/publicOrigin";
 import type { AccountMetadata } from "./metadata";
 import { requestSignerApproval } from "./signer-approval";
 
@@ -170,8 +171,7 @@ export const CONNECT_TIMEOUT_MS = 90_000;
  * approval and identifies us by origin and favicon from then on.
  */
 export function appMetadata(): NostrConnectAppMetadata {
-  const origin =
-    typeof window !== "undefined" && window.location?.origin ? window.location.origin : "https://brainstorm.world";
+  const origin = publicOrigin() || "https://brainstorm.world";
   return {
     name: "Brainstorm",
     url: origin,
