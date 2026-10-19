@@ -147,6 +147,40 @@ export async function resolveNip05(handle: string, timeoutMs = FETCH_TIMEOUT_MS)
   return pk && HEX64.test(pk) ? pk : null;
 }
 
+/** The other account a server names for this handle, from its answer: a key that isn't `pk`, or null. */
+function ownerIn(names: Names, name: string, pk: string): string | null {
+  const owner = names ? mappedKey(names, name) : undefined;
+  return owner && HEX64.test(owner) && owner !== pk ? owner : null;
+}
+
+/**
+ * Who a claimed handle belongs to, when it isn't the account claiming it:
+ * the key the handle's own server names instead (lowercase hex). The one
+ * failure worth a warning — a copy of a profile that kept its handle. Null
+ * for the owner itself and for every common failure: a name the server
+ * doesn't list, a domain that can't be reached, a malformed claim.
+ */
+export async function handleOwner(
+  nip05: string | undefined | null,
+  pubkey: string | undefined | null,
+): Promise<string | null> {
+  const c = claim(nip05, pubkey);
+  if (!c) return null;
+  return ownerIn(await entryFor(c.name, c.domain).names, c.name, c.pk);
+}
+
+/** handleOwner's answer already in hand, without waiting; undefined when not yet known. */
+export function peekHandleOwner(
+  nip05: string | undefined | null,
+  pubkey: string | undefined | null,
+): string | null | undefined {
+  const c = claim(nip05, pubkey);
+  if (!c) return null;
+  const hit = cache.get(`${c.name}@${c.domain}`);
+  if (!hit || hit.settled === undefined || Date.now() - hit.at >= hit.ttl) return undefined;
+  return ownerIn(hit.settled, c.name, c.pk);
+}
+
 /**
  * The answer already in hand, without waiting — so a card that remounts
  * (scrolling back, a re-rendered results list) paints its verdict at once

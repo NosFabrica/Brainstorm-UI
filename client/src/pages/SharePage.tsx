@@ -117,7 +117,7 @@ import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults"
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
-import { Nip05Handle } from "@/components/Nip05Check";
+import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
 const NO_RELAYS: string[] = [];
@@ -1065,6 +1065,8 @@ export default function SharePage() {
                 as a button that did nothing). */}
                   {followsYouChip}
                 </div>
+                {/* Someone else's handle on this profile: often a copy of theirs. Said, with a link to whose it is. */}
+                <HandleOwnerWarning nip05={profile.nip05} pubkey={pubkey} className="mt-1.5" />
                 {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
                 {npub && (
                   <div className="mt-1 flex items-center gap-1.5" data-testid="share-npub">

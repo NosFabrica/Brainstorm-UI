@@ -6,7 +6,7 @@
  * results page and the composed page share it.
  */
 import { describe, expect, it } from "vitest";
-import { clientFilterHits, countBelowLine, NO_REACH } from "./clientFilters";
+import { clientFilterHits, countBelowLine, NO_REACH, peopleAboveLine } from "./clientFilters";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -92,5 +92,27 @@ describe("the search floor — accounts below the verified line stay off the pag
   it("counts what the floor hid, for the page to say so", () => {
     expect(countBelowLine(hits, scoreOf)).toBe(2);
     expect(countBelowLine([h("c", REAL), h("d", PENDING)], scoreOf)).toBe(0);
+  });
+});
+
+// The box's people and the results page's People section must agree: a person the page would
+// hide for being below the line doesn't show in the box either, then vanish on the page.
+describe("peopleAboveLine — the search box's people under the same floor", () => {
+  const scores: Record<string, number | null | undefined> = {
+    real: 0.31,
+    copy: 0.0198,
+    loading: undefined,
+    unknown: null,
+  };
+  const scoreOf = (pk: string) => scores[pk];
+  const people = ["real", "copy", "loading", "unknown"].map((pubkey) => ({ pubkey }));
+
+  it("hides a person whose score is known and below the line, keeping the rest in order", () => {
+    expect(peopleAboveLine(people, scoreOf).map((p) => p.pubkey)).toEqual(["real", "loading", "unknown"]);
+  });
+
+  it("agrees with the page: the people it hides are the ones the page counts as hidden", () => {
+    const hits = people.map((p) => ({ event: { pubkey: p.pubkey } })) as never;
+    expect(people.length - peopleAboveLine(people, scoreOf).length).toBe(countBelowLine(hits, scoreOf));
   });
 });

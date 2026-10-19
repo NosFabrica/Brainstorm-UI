@@ -5,6 +5,7 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
@@ -1111,6 +1112,9 @@ export function SearchResults({
     return out;
   }, [shopFold]);
   const shopGroupOf = (id: string) => shopCardGroups.get(id);
+  // Who the search is about when their own profile lacks the words: the accounts the matched
+  // profiles' handles belong to (hooks/useHandlePointers), asked of every People hit before the floor.
+  const pointers = useHandlePointers(tab === "people" ? (snapshot?.hits ?? []) : []);
   const rawHits = useMemo(() => {
     const base = snapshot?.hits ?? [];
     // A listing is for sale or it is not a result: sold, hidden and priceless
@@ -1124,8 +1128,9 @@ export function SearchResults({
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
-    // The people on a matched tag lead the People tab, once each.
-    if (tab === "people") return mergeCarrierHits(base, leadPeople);
+    // The people on a matched tag lead the People tab, once each — after the accounts the
+    // matched profiles' handles belong to.
+    if (tab === "people") return mergeCarrierHits(mergePointedHits(base, pointers.hits), leadPeople);
     if (tab === "top") return base.filter((h) => showableUnfiltered(h.event));
     // Only what lib/thing can name is a result — decided here, like the Shop,
     // so "Nothing found" and the counts agree with the cards — and one card
@@ -1142,7 +1147,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold]);
+  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -2646,6 +2651,7 @@ export function SearchResults({
                               onPrefetchLeave={onPrefetchLeave}
                               showFollowedBy={idx < 3}
                               tag={cardTag}
+                              pointedBy={pointers.namesOf.get(event.pubkey)}
                             />,
                           );
                         }
