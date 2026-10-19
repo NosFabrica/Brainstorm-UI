@@ -1,4 +1,5 @@
-import { LISTING_KIND, isSellable, parseListing, type Listing, type ListingPrice } from "./listing";
+import { LISTING_KIND, isListed, isSellable, parseListing, type Listing, type ListingPrice } from "./listing";
+import { newestPerAddress } from "./newestPerAddress";
 
 /**
  * One product, several listings. A reader wants one card that says "10
@@ -54,7 +55,8 @@ export interface VariantGroup {
   /** What every option is an option of ("Size"), when they all name the same one thing. */
   optionName: string | null;
   /** The lowest price among the options (or the product's own), and whether they differ. */
-  priceFrom: { price: ListingPrice; varies: boolean } | null;
+  /** The lowest option's price; `mixed` when options are priced in different money, so none is lowest. */
+  priceFrom: { price: ListingPrice; varies: boolean; mixed?: boolean } | null;
 }
 
 export function splitVariantTitle(title: string): { prefix: string; option: string | null } {
@@ -115,6 +117,9 @@ function inOptionOrder(members: Listing[], labels: string[]): { members: Listing
 function lowestPrice(listings: Listing[]): VariantGroup["priceFrom"] {
   const priced = listings.map((l) => l.price).filter((p): p is ListingPrice => !!p);
   if (priced.length === 0) return null;
+  // "From" compares like with like: 20 USD is not lower than 1,000 sats.
+  const money = (p: ListingPrice) => (p.currency === "SAT" ? "SATS" : p.currency);
+  if (new Set(priced.map(money)).size > 1) return { price: priced[0], varies: true, mixed: true };
   const lowest = priced.reduce((a, b) => (b.amount < a.amount ? b : a));
   const varies = priced.some(
     (p) => p.amount !== lowest.amount || p.currency !== lowest.currency || p.frequency !== lowest.frequency,
@@ -226,15 +231,20 @@ export function collapseVariants(listings: Listing[]): VariantGroup[] {
 }
 
 /**
- * What is for sale among `listings`: nothing sold, hidden or priceless, and
- * nothing of a product whose parent the seller hid — hiding the product hides
- * its options.
+ * What a surface shows as for sale among `listings`: nothing sold or priceless,
+ * and nothing hidden — nor an option of a product whose parent the seller hid,
+ * since hiding the product hides its options.
+ *
+ * `unlisted` is for a collection's own page: a collection is how a hidden
+ * (unlisted) product is reached, so the products it names show there. A hidden
+ * option still never joins its product's choices.
  */
-export function sellableListings(listings: Listing[]): Listing[] {
+export function sellableListings(listings: Listing[], { unlisted = false }: { unlisted?: boolean } = {}): Listing[] {
+  if (unlisted) return listings.filter((l) => isSellable(l) && !(l.hidden && l.productType === "variation"));
   const hiddenProducts = new Set(
     listings.filter((l) => l.productType === "variable" && l.hidden).map((l) => listingAddress(l)),
   );
-  return listings.filter((l) => isSellable(l) && !(l.parent && hiddenProducts.has(l.parent)));
+  return listings.filter((l) => isListed(l) && !(l.parent && hiddenProducts.has(l.parent)));
 }
 
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; tags: string[][]; content?: string };
@@ -248,17 +258,25 @@ export interface ProductCard<E extends EventLike> {
 /**
  * Raw events → sellable products, newest first, each product's options
  * folded into it. The shape every "things for sale" surface renders from.
+ *
+ * Only the current version of each listing counts (NIP-01: the newest per
+ * `kind:pubkey:d`): callers gather from several relays and the store, and a
+ * lagging relay still serves the on-sale copy of a listing its seller has
+ * since hidden or sold.
  */
-export function productsFromEvents<E extends EventLike>(events: E[]): ProductCard<E>[] {
+export function productsFromEvents<E extends EventLike>(
+  events: E[],
+  opts: { unlisted?: boolean } = {},
+): ProductCard<E>[] {
   const byId = new Map<string, E>();
   const parsed: Listing[] = [];
-  for (const ev of [...events].sort((a, b) => b.created_at - a.created_at)) {
+  for (const ev of newestPerAddress(events)) {
     const l = parseListing({ ...ev, content: ev.content ?? "" });
     if (!l) continue;
     byId.set(ev.id, ev);
     parsed.push(l);
   }
-  return collapseVariants(sellableListings(parsed)).map((group) => ({
+  return collapseVariants(sellableListings(parsed, opts)).map((group) => ({
     event: byId.get(group.primary.id) as E,
     group,
   }));
@@ -320,6 +338,6 @@ export function cardGroupOf(group: VariantGroup): ProductCardGroup {
     title: group.title,
     options: group.complete ? group.options.length : 0,
     moreOptions: !group.complete,
-    from: group.priceFrom?.varies ? group.priceFrom.price : null,
+    from: group.priceFrom?.varies && !group.priceFrom.mixed ? group.priceFrom.price : null,
   };
 }

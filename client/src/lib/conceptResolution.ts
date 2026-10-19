@@ -111,6 +111,16 @@ export function pointsAt(header: { tags: string[][] }, coordinate: string): bool
   return bLinksOf(header).some((b) => b.target === coordinate);
 }
 
+/**
+ * The list a header is a version of: the first list its `b` points at other
+ * than itself. Null for a list of its own, self-pointer or not. A version's
+ * items belong on that list, with everyone else's.
+ */
+export function versionOf(header: HeaderEvent): string | null {
+  const own = coordinateOf(header);
+  return bLinksOf(header).find((b) => b.target !== own)?.target ?? null;
+}
+
 /** A header that points at itself declares itself a shared concept. */
 export function isSelfDeclared(header: HeaderEvent): boolean {
   const own = coordinateOf(header);

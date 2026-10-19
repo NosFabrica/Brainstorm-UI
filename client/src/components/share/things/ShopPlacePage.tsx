@@ -4,14 +4,16 @@
  * merchant published into it), sold in the same priced cards as the Shop. A
  * marketplace shows its banner and the merchants it curates, then their stalls.
  */
+import { useMemo } from "react";
 import { Store, Truck } from "lucide-react";
-import type { NostrEvent } from "nostr-tools";
 import { ListingCard } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
 import { ReadingText } from "@/components/share/ReadingText";
 import { MediaImg } from "@/components/ui/media-img";
 import { fetchFromSearch } from "@/services/search";
-import { parseListing } from "@/lib/listing";
+import { amountOf } from "@/lib/listing";
+import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
+import { describeThing } from "@/lib/thing";
 import type { Thing } from "@/lib/thing";
 import type { Detail } from "./types";
 import {
@@ -50,8 +52,8 @@ function zonesOf(json: Json | null): { name: string; regions: string[]; cost: nu
     const regions = Array.isArray(zone.regions) ? zone.regions.map(str).filter((r): r is string => !!r) : [];
     const name = str(zone.name) ?? str(zone.id) ?? regions[0];
     if (!name) return [];
-    const cost = Number(zone.cost);
-    return [{ name, regions, cost: Number.isFinite(cost) ? cost : null }];
+    // A blank or null cost is unknown, not free: Number("") and Number(null) are 0.
+    return [{ name, regions, cost: amountOf(zone.cost) }];
   });
 }
 
@@ -132,27 +134,34 @@ export function ShopPlaceSections({ event, detail }: { event: PageEvent; detail:
   // A stall's products are its merchant's 30018s that name the stall.
   const products = useFetched(detail.variant === "stall" ? `stall-products:${event.id}` : null, async () => {
     const evs = await fetchFromSearch([{ kinds: [30018], authors: [event.pubkey] }], { limit: 200 });
-    return evs.filter((e) => str(jsonOf(e.content)?.stall_id) === stallId && parseListing(e) !== null);
+    return evs.filter((e) => str(jsonOf(e.content)?.stall_id) === stallId);
   });
+  // For sale only, one card per product: a sold-out (quantity 0) or priceless
+  // product is not stock this shop can sell.
+  const forSale = useMemo(() => (products ? productsFromEvents(products) : undefined), [products]);
   const merchants =
     detail.variant === "marketplace" && Array.isArray(json?.merchants)
       ? [...new Set(json.merchants.filter((m): m is string => typeof m === "string" && /^[0-9a-f]{64}$/i.test(m)))]
       : [];
-  const stalls = useFetched(merchants.length ? `market-stalls:${event.id}` : null, () =>
-    fetchFromSearch([{ kinds: [30017], authors: merchants.slice(0, 100) }], { limit: 60 }),
+  // Only stalls a card can draw: other apps' records share kind 30017, and a
+  // count that includes them promises shops the grid never shows.
+  const stalls = useFetched(merchants.length ? `market-stalls:${event.id}` : null, async () =>
+    (await fetchFromSearch([{ kinds: [30017], authors: merchants.slice(0, 100) }], { limit: 60 })).filter(
+      (s) => describeThing(s) !== null,
+    ),
   );
   const stallAuthors = useAuthors((stalls ?? []).map((s) => s.pubkey));
   if (detail.variant === "stall") {
     return (
-      <Section title="Products" count={products?.length} testId="thing-page-products">
-        {products === undefined ? (
+      <Section title="Products" count={forSale?.length} testId="thing-page-products">
+        {forSale === undefined ? (
           <SectionNote>Opening the shop…</SectionNote>
-        ) : products.length === 0 ? (
-          <SectionNote>This shop hasn&apos;t listed anything the search relay has seen.</SectionNote>
+        ) : forSale.length === 0 ? (
+          <SectionNote>This shop has nothing for sale that the search relay has seen.</SectionNote>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {products.map((p: NostrEvent) => (
-              <ListingCard key={p.id} event={p} author={null} showAuthor={false} />
+            {forSale.map(({ event: p, group }) => (
+              <ListingCard key={group.id} event={p} author={null} showAuthor={false} group={cardGroupOf(group)} />
             ))}
           </div>
         )}

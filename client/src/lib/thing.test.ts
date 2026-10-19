@@ -824,3 +824,84 @@ describe("kind 38000 — audit fixes", () => {
     });
   });
 });
+
+describe("describeThing — Open Markets around a listing", () => {
+  const M = "c".repeat(64);
+
+  it("a product review is a review: stars from its total, its categories as aspects, its product and thumb", () => {
+    const t = describeThing(
+      ev(
+        31555,
+        [
+          ["d", `a:30402:${M}:seed-plate`],
+          ["rating", "1", "thumb"],
+          ["rating", "0.8", "value"],
+          ["rating", "0.6", "delivery"],
+        ],
+        "Arrived early.",
+      ),
+    );
+    expect(t?.detail).toEqual({
+      type: "review",
+      subject: "product",
+      subjectLabel: "Product",
+      aspects: [
+        { name: "Value", stars: 4 },
+        { name: "Delivery", stars: 3 },
+      ],
+      product: { address: `30402:${M}:seed-plate`, thumb: 1 },
+    });
+    // (1 × 0.5 + 0.5 × 0.7) × 5
+    expect(t?.stars).toBeCloseTo(4.25, 6);
+    expect(t?.description).toBe("Arrived early.");
+  });
+
+  it("a product review without its thumb is not drawn as one", () => {
+    expect(
+      describeThing(
+        ev(31555, [
+          ["d", `a:30402:${M}:x`],
+          ["rating", "0.8", "value"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it("a collection names its products; a Shopstr cart on the same kind is nothing", () => {
+    const t = describeThing(
+      ev(30405, [
+        ["d", "wallets"],
+        ["title", "Hardware Wallets"],
+        ["summary", "Various"],
+        ["a", `30402:${M}:krux`],
+        ["shipping_option", `30406:${M}:standard`],
+      ]),
+    );
+    expect(t).toMatchObject({ title: "Hardware Wallets", description: "Various", facts: ["Collection", "1 product"] });
+    expect(t?.detail).toEqual({
+      type: "productCollection",
+      products: [`30402:${M}:krux`],
+      shipping: [`30406:${M}:standard`],
+      location: null,
+    });
+    expect(describeThing(ev(30405, [["d", "cart"]], "AgB3…"))).toBeNull();
+  });
+
+  it("a shipping option says what, how and for how much; a Shopstr escrow record is nothing", () => {
+    const t = describeThing(
+      ev(30406, [
+        ["d", "standard"],
+        ["title", "Worldwide Standard"],
+        ["price", "0", "USD"],
+        ["service", "standard"],
+      ]),
+    );
+    expect(t?.facts).toEqual(["Shipping option", "Standard", "Free"]);
+    expect(t?.detail.type).toBe("shippingOption");
+    expect(describeThing(ev(30406, [["d", "escrow"]], "{}"))).toBeNull();
+  });
+
+  it("all three are things", () => {
+    expect([30405, 30406, 31555].every((k) => THING_KINDS.has(k))).toBe(true);
+  });
+});

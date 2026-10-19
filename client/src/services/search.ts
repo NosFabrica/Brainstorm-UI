@@ -26,7 +26,7 @@ import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
-import { isSellable, parseListing } from "@/lib/listing";
+import { isListed, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
@@ -114,8 +114,9 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   communities: [34550, 39000, 40, 41],
   // NIP-75 zap goals and Agora fundraisers.
   fundraisers: [9041, 33863],
-  // Ratings of anything (34259), relay reviews (31987), NIP-87 mint reviews.
-  reviews: [34259, 31987, 38000],
+  // Ratings of anything (34259), relay reviews (31987), NIP-87 mint reviews,
+  // Open Markets product reviews (31555).
+  reviews: [34259, 31987, 38000, 31555],
 };
 
 /**
@@ -2161,7 +2162,7 @@ export function suggestListings(
   if (words.length === 0) return Promise.resolve([]);
   return collectHits(query, { ...params, tab: "shop" }, { limit: 3, ...opts }, (hit) => {
     const l = parseListing(hit.event);
-    if (!l || !isSellable(l)) return null;
+    if (!l || !isListed(l)) return null;
     const title = l.title.toLowerCase();
     // A typed word names a title word from its start: "hon" is "Honey", not "Phone".
     const titleWords = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);

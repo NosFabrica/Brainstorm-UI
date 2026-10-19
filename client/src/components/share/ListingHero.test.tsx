@@ -9,10 +9,15 @@ import { act, render, screen, within, fireEvent } from "@testing-library/react";
 
 // The seller's other listings, for a listing published outside Conduit whose seller sells on Conduit.
 const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: number) => [] as unknown[]);
+// Open Markets shipping options and collections, by address (`kind:pubkey:d` → event).
+const addressedMock = vi.fn(
+  async (_coords: { kind: number; pubkey: string; identifier: string }[]) => new Map<string, unknown>(),
+);
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit),
   fetchListingFamily: async () => [],
+  fetchAddressableEvents: (coords: { kind: number; pubkey: string; identifier: string }[]) => addressedMock(coords),
 }));
 
 // The "Followed by …" line is the profile's own component, tested where it
@@ -32,6 +37,8 @@ import { ListingHero } from "./ListingHero";
 beforeEach(() => {
   recentMock.mockReset();
   recentMock.mockResolvedValue([]);
+  addressedMock.mockReset();
+  addressedMock.mockResolvedValue(new Map());
 });
 
 const SELLER = "9".repeat(64);
@@ -461,5 +468,102 @@ describe("ListingHero", () => {
       act(() => report(false));
       expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
     });
+  });
+});
+
+describe("ListingHero — Open Markets", () => {
+  it("a hidden listing says Unlisted, never the 'active' its status tag still carries", () => {
+    render(
+      <ListingHero
+        event={listing([
+          ["visibility", "hidden"],
+          ["status", "active"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("listing-hero-status")).toHaveTextContent("Unlisted");
+    expect(screen.getByTestId("listing-hero-status")).not.toHaveTextContent(/active/i);
+  });
+
+  it("a pre-order says so, and is still for sale", () => {
+    render(<ListingHero event={listing([["visibility", "pre-order"]])} />);
+    expect(screen.getByTestId("listing-hero-status")).toHaveTextContent("Pre-order");
+  });
+
+  it("an on-sale listing wears no status chip", () => {
+    render(<ListingHero event={listing([["visibility", "on-sale"]])} />);
+    expect(screen.queryByTestId("listing-hero-status")).toBeNull();
+  });
+
+  it("says how many are left and whether it is digital or physical; a parent's stock is not a count", () => {
+    const { unmount } = render(
+      <ListingHero
+        event={listing([
+          ["type", "simple", "physical"],
+          ["stock", "3"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("listing-hero-format")).toHaveTextContent("Physical");
+    expect(screen.getByTestId("listing-hero-stock")).toHaveTextContent("3 in stock");
+    unmount();
+    render(
+      <ListingHero
+        event={listing([
+          ["type", "variable", "digital"],
+          ["stock", "0"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("listing-hero-format")).toHaveTextContent("Digital");
+    expect(screen.queryByTestId("listing-hero-stock")).toBeNull();
+  });
+
+  it("prices a referenced shipping option at its own price plus the product's extra cost", async () => {
+    const address = `30406:${SELLER}:om-standard-1`;
+    addressedMock.mockResolvedValue(
+      new Map([
+        [
+          address,
+          {
+            id: "5".repeat(64),
+            kind: 30406,
+            pubkey: SELLER,
+            created_at: 1_788_000_000,
+            content: "",
+            sig: "",
+            tags: [
+              ["d", "om-standard-1"],
+              ["title", "Express Italia"],
+              ["price", "1000", "sats"],
+              ["country", "IT"],
+              ["service", "express"],
+            ],
+          },
+        ],
+      ]),
+    );
+    render(<ListingHero event={listing([["shipping_option", address, "500"]])} />);
+    const box = await screen.findByText("Express Italia");
+    const row = box.closest("[data-testid='listing-hero-shipping-row']") as HTMLElement;
+    expect(within(row).getByTestId("listing-hero-shipping-cost")).toHaveTextContent("1,500 sats");
+    expect(row).toHaveTextContent("Express");
+    expect(row).toHaveTextContent("IT");
+    expect(screen.getByTestId("listing-hero-shipping")).not.toHaveTextContent("30406:");
+  });
+
+  it("a referenced option not found still says there is one, with its extra — not its address, not '500 shipping'", async () => {
+    const address = `30406:${SELLER}:9ac5a9a316a647559a7597c2d6fdfb21`;
+    render(<ListingHero event={listing([["shipping_option", address, "500"]])} />);
+    const shipping = screen.getByTestId("listing-hero-shipping");
+    expect(shipping).toHaveTextContent("Shipping option");
+    expect(within(shipping).getByTestId("listing-hero-shipping-cost")).toHaveTextContent("+500 sats");
+    expect(shipping).not.toHaveTextContent(SELLER);
+    expect(await within(shipping).findByText(/details not found/)).toBeInTheDocument();
+  });
+
+  it("a reference with no extra cost is shown too — it used to vanish", () => {
+    render(<ListingHero event={listing([["shipping_option", `30406:${SELLER}:9ac5a9a316a647559a7597c2d6fdfb22`]])} />);
+    expect(screen.getByTestId("listing-hero-shipping")).toHaveTextContent("Shipping option");
   });
 });

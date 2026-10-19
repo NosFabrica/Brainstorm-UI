@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { LISTING_EMBED_KINDS } from "@/lib/embedShape";
+import { parseListing } from "@/lib/listing";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
@@ -377,11 +379,16 @@ function EventView({
   const DEDICATED_KINDS = new Set([
     30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998,
   ]);
+  // Something for sale: a NIP-99 listing, or a NIP-15 product or auction the
+  // Shop draws as one — its own page is the listing page, never the
+  // structural view of its JSON (a NIP-15 product's content is all data).
+  const isListingPage = !!note && LISTING_EMBED_KINDS.has(note.kind) && parseListing(note) !== null;
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
+    !isListingPage &&
     !hasAudioHero(note) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
@@ -622,7 +629,7 @@ function EventView({
               ) : hasAudioHero(note) ? (
                 // A track, a podcast episode or trailer, a voice message, an audio header.
                 <AudioHero event={note} />
-              ) : note.kind === 30402 ? (
+              ) : isListingPage ? (
                 <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
@@ -716,7 +723,7 @@ function EventView({
 
             {/* Under a listing: the seller's other things, then similar things
                 from other sellers — a shop page that leads somewhere. */}
-            {note.kind === 30402 && <ListingRelated event={note} sellerName={authorName} />}
+            {isListingPage && <ListingRelated event={note} sellerName={authorName} />}
 
             {/* Under a thing: what the network holds around it — a community's
                 posts, a fundraiser's supporters, a calendar's events… */}

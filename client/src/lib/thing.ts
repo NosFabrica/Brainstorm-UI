@@ -12,6 +12,16 @@
  * show; anything else returns null, and the tabs leave it out.
  */
 import { formatBytes } from "@/lib/formatBytes";
+import { formatListingPrice } from "@/lib/listing";
+import {
+  countriesLabel,
+  parseCollection,
+  parseProductReview,
+  parseShippingOption,
+  ratingAspects,
+  serviceLabel,
+  type ShippingOption,
+} from "@/lib/marketplace";
 
 type EventLike = { kind: number; tags: string[][]; content: string; created_at?: number };
 
@@ -61,11 +71,13 @@ export type ThingDetail =
     }
   | {
       type: "review";
-      subject: "relay" | "mint" | "entity";
+      subject: "relay" | "mint" | "entity" | "product";
       /** What sort of thing is reviewed, in words: "Relay", "Ecash mint", "Book". */
       subjectLabel: string;
-      /** A relay review's per-aspect scores (speed, uptime…), out of five. */
+      /** A relay review's per-aspect scores (speed, uptime…), a product review's categories, out of five. */
       aspects: { name: string; stars: number }[];
+      /** An Open Markets product review (31555): the product, `30402:<merchant>:<d>`, and its thumb, 0..1. */
+      product?: { address: string; thumb: number };
     }
   | {
       type: "market";
@@ -89,6 +101,15 @@ export type ThingDetail =
       proofHash: string | null;
     }
   | { type: "shop"; variant: "stall" | "marketplace"; currency: string | null; zones: string[]; merchants: number }
+  | {
+      /** An Open Markets product collection (30405): the products it names, by address. */
+      type: "productCollection";
+      products: string[];
+      /** Its shipping options, as 30406 addresses. */
+      shipping: string[];
+      location: string | null;
+    }
+  | { /** An Open Markets shipping option (30406). */ type: "shippingOption"; option: ShippingOption }
   | {
       type: "app";
       variant: "handler" | "site" | "napplet";
@@ -131,8 +152,8 @@ export type ThingDetail =
 
 /** Every kind [describeThing] reads. */
 export const THING_KINDS = new Set([
-  40, 41, 2003, 9041, 15128, 15129, 30009, 30017, 30019, 30030, 30142, 31924, 31987, 31990, 33863, 34139, 34259, 34550,
-  35128, 35129, 38000, 39000,
+  40, 41, 2003, 9041, 15128, 15129, 30009, 30017, 30019, 30030, 30142, 30405, 30406, 31555, 31924, 31987, 31990, 33863,
+  34139, 34259, 34550, 35128, 35129, 38000, 39000,
 ]);
 
 const tag = (ev: EventLike, k: string): string | undefined => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
@@ -557,11 +578,7 @@ function readThing(ev: EventLike): Thing | null {
       const relay = tag(ev, "d") ?? tag(ev, "relay");
       if (!relay) return null;
       const host = hostOfUrl(relay);
-      const aspects = ev.tags
-        .filter((t) => t[0] === "rating" && t[2])
-        .map((t) => ({ name: capitalize(t[2]), fraction: Number(t[1]) }))
-        .filter((a) => Number.isFinite(a.fraction) && a.fraction >= 0 && a.fraction <= 1)
-        .map((a) => ({ name: a.name, stars: a.fraction * 5 }));
+      const aspects = ratingAspects(ev).map((a) => ({ name: capitalize(a.name), stars: a.score * 5 }));
       return thing({
         title: host,
         description: ev.content.trim() || null,
@@ -586,6 +603,65 @@ function readThing(ev: EventLike): Thing | null {
         link: isHttp(mint) ? mint : null,
         facts: ["Ecash mint"],
         detail: { type: "review", subject: "mint", subjectLabel: "Ecash mint", aspects: [] },
+      });
+    }
+    // An Open Markets product review (31555): a thumb up or down on a
+    // product, scores by category, and the words. Its total — the thumb at
+    // half weight, the categories' mean at the other half — is shown as stars,
+    // like every other review.
+    case 31555: {
+      const review = parseProductReview(ev);
+      if (!review) return null;
+      return thing({
+        title: "Review of a product",
+        description: review.text,
+        stars: review.total * 5,
+        facts: ["Product review"],
+        detail: {
+          type: "review",
+          subject: "product",
+          subjectLabel: "Product",
+          aspects: review.categories.map((c) => ({ name: capitalize(c.name), stars: c.score * 5 })),
+          product: { address: review.product, thumb: review.thumb },
+        },
+      });
+    }
+    // An Open Markets product collection (30405). Shopstr's carts share the
+    // number — a `d` and ciphertext — and have no title: not a collection.
+    case 30405: {
+      const collection = parseCollection(ev);
+      if (!collection) return null;
+      const n = collection.products.length;
+      return thing({
+        title: collection.title,
+        description: collection.summary ?? collection.description,
+        image: collection.image,
+        facts: ["Collection", ...(n > 0 ? [plural(n, "product")] : [])],
+        detail: {
+          type: "productCollection",
+          products: collection.products,
+          shipping: collection.shippingRefs.filter((r) => r.kind === 30406).map((r) => r.address),
+          location: collection.location,
+        },
+      });
+    }
+    // An Open Markets shipping option (30406). Shopstr's escrow records share
+    // the number and name no title, service or country: not an option.
+    case 30406: {
+      const option = parseShippingOption(ev);
+      if (!option) return null;
+      return thing({
+        title: option.title,
+        description: option.description,
+        facts: [
+          "Shipping option",
+          ...[
+            serviceLabel(option.service),
+            option.price ? formatListingPrice(option.price) : null,
+            countriesLabel(option.countries, 3),
+          ].filter((f): f is string => !!f),
+        ],
+        detail: { type: "shippingOption", option },
       });
     }
     // NIP-52 calendar: a named collection of events.

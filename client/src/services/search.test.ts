@@ -210,7 +210,7 @@ describe("searchStream", () => {
    * reviews carry `k` — the mint's kind — so 38000 is asked in a filter of its own,
    * narrowed by it, beside the other review kinds.
    */
-  it("on Reviews, asks kind 38000 only for NIP-87 mint reviews, by `#k`, beside the other review kinds", async () => {
+  it("on Reviews, asks kind 38000 only for NIP-87 mint reviews, by `#k`, beside the other review kinds (product reviews among them)", async () => {
     controllable();
 
     searchStream("bitcoin", { tab: "reviews", pov: "nosfabrica" }, () => {});
@@ -218,7 +218,7 @@ describe("searchStream", () => {
 
     const filters = askedFilters() as { kinds?: number[]; "#k"?: string[]; search: string }[];
     expect(filters).toHaveLength(2);
-    expect(filters[0].kinds).toEqual([34259, 31987]);
+    expect(filters[0].kinds).toEqual([34259, 31987, 31555]);
     expect(filters[0]["#k"]).toBeUndefined();
     expect(filters[1]).toMatchObject({ kinds: [38000], "#k": ["38172", "38173"] });
     for (const f of filters) expect(f.search).toMatch(/^bitcoin observer:/);
@@ -1154,7 +1154,7 @@ describe("paging a union", () => {
     await tick();
     const page2 = askedFilters(1);
     expect(page2).toHaveLength(1);
-    expect(page2[0]).toMatchObject({ kinds: [34259, 31987], until: 1000, limit: 2 });
+    expect(page2[0]).toMatchObject({ kinds: [34259, 31987, 31555], until: 1000, limit: 2 });
 
     second.next(frame(rating("r3", 900)));
     second.next(EOSE);

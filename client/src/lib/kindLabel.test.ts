@@ -138,3 +138,49 @@ describe("specKindTags", () => {
     ).toEqual([{ kind: "5905", label: "DVM Job Request" }, { kind: "7000" }]);
   });
 });
+
+describe("Open Markets kinds around a listing", () => {
+  it("names a collection, a shipping option and a product review — not 'Kind N' — in the market family", () => {
+    expect([30405, 30406, 31555].map(kindTypeLabel)).toEqual(["Collection", "Shipping option", "Product review"]);
+    expect([30405, 30406, 31555].map((k) => KIND_NAMES[k])).toEqual([
+      "Collection",
+      "Shipping option",
+      "Product review",
+    ]);
+    expect([30405, 30406, 31555].map(kindFamily)).toEqual(["market", "market", "market"]);
+  });
+});
+
+describe("Shopstr's records on the Open Markets numbers", () => {
+  const ev = (kind: number, tags: string[][], content = "") => ({
+    id: "1".repeat(64),
+    pubkey: "c".repeat(64),
+    kind,
+    tags,
+    content,
+    created_at: 1,
+  });
+  it("an encrypted cart is not a Collection, an escrow record not a Shipping option", () => {
+    expect(kindLabel(ev(30405, [], "AgEncryptedCartCiphertextxxxxxxxxxxxxxxxxxxxxxx"))).toBe("Kind 30405");
+    expect(
+      kindLabel(
+        ev(30406, [
+          ["d", "shopstr:p2pk-escrow:x"],
+          ["type", "p2pk-escrow"],
+        ]),
+      ),
+    ).toBe("Kind 30406");
+    expect(kindLabel(ev(31555, [["d", "nothing"]]))).toBe("Kind 31555");
+  });
+  it("the real ones keep their names", () => {
+    expect(kindLabel(ev(30405, [["title", "Wallets"]]))).toBe("Collection");
+    expect(
+      kindLabel(
+        ev(30406, [
+          ["title", "Std"],
+          ["service", "standard"],
+        ]),
+      ),
+    ).toBe("Shipping option");
+  });
+});

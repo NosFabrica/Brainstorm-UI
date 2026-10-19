@@ -66,7 +66,10 @@ export interface ReaderResult {
 
 export const HEX64 = /^[0-9a-f]{64}$/i;
 /** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
-export const OPAQUE_D = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,})$/i;
+// An app's own record key is a key, not a name: Shopstr writes its escrow
+// records under `shopstr:p2pk-escrow:<uuid>`.
+export const OPAQUE_D =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,}|shopstr:[\s\S]*)$/i;
 
 // Lives in a leaf of its own (lib/nip71 needs it, and this module needs lib/nip71); still
 // exported here, where its callers have always found it.

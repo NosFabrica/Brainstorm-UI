@@ -10,12 +10,19 @@ import { adminJson, jsonBody } from "./core";
 export interface RelayAudit {
   observer: string;
   signer: string;
+  /** Observees at or above the publish cutoff in Neo4j: the TAs that should exist. */
+  expected: number;
+  /** Size of last_published: what the last successful run recorded as sent. */
   published: number;
+  /** Observees in exactly one of expected / last_published. */
+  baseline_drift: number;
   on_relay: number;
-  /** Published observees with no TA on the relay. */
+  /** Expected observees with no TA on the relay. */
   missing: number;
-  /** TAs on the relay for observees we don't record as published. */
+  /** TAs on the relay for observees that aren't expected. */
   orphans: number;
+  /** False when a second too dense to download was sampled: missing/orphans are estimates. */
+  exact: boolean;
   needs_resync: boolean;
 }
 

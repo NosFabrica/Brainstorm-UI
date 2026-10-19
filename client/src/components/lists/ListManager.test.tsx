@@ -42,30 +42,48 @@ const mine = [
   header(ME, "zines", ["Zine", "Zines"], "Small-press magazines"),
 ];
 const avis = header(AVI, "divine-videos", ["Divine Video", "Divine Videos"], "Short looping videos");
+const DIVINE_COORDINATE = `39998:${AVI}:divine-videos`;
+/** One's own version of Avi's list, as the Dictionary publishes one: same d, pointing at it. */
+const myVersion: NostrEvent = {
+  ...header(ME, "divine-videos", ["Divine Video", "Divine Videos"], "Short looping videos"),
+  id: "f".repeat(64),
+  tags: [...avis.tags, ["b", DIVINE_COORDINATE, "pointer"]],
+};
+/** One's own version of a list that can't be found. */
+const strayVersion: NostrEvent = {
+  ...header(ME, "gone", ["Gone", "Gones"], "Of a list no relay has"),
+  id: "e".repeat(64),
+};
+strayVersion.tags = [...strayVersion.tags, ["b", `39998:${AVI}:gone`, "pointer"]];
+const ninesId = "9".repeat(64);
+const nines: NostrEvent = { ...header(AVI, "nines", ["Nine", "Nines"], "A 9998 with a d"), id: ninesId, kind: 9998 };
 vi.mock("@/hooks/useLists", () => ({
-  useMyLists: () => ({ lists: mine, settled: true }),
-  useListAt: (ref: { coordinate?: string } | null) => ({
-    header: ref?.coordinate === `39998:${AVI}:divine-videos` ? avis : null,
+  useMyLists: () => ({ lists: [...mine, myVersion, strayVersion], settled: true }),
+  useListAt: (ref: { coordinate?: string; id?: string } | null) => ({
+    header: ref?.coordinate === DIVINE_COORDINATE ? avis : ref?.id === ninesId ? nines : null,
     settled: true,
   }),
 }));
+/** Who wrote a header, and its d: what the mocked tabs below show of the list they were handed. */
+const named = (h: NostrEvent) => `${h.pubkey}:${h.tags.find((t) => t[0] === "d")?.[1]}`;
 vi.mock("@/components/lists/ListEditor", () => ({
   ListEditor: ({ header }: { header: NostrEvent | null }) => (
-    <div data-testid="editor-for">{header ? header.tags.find((t) => t[0] === "d")?.[1] : "new"}</div>
+    <div data-testid="editor-for">{header ? named(header) : "new"}</div>
   ),
 }));
 
 vi.mock("@/components/lists/ItemComposer", () => ({
-  ItemComposer: ({ header }: { header: NostrEvent }) => (
-    <div data-testid="composer-for">{header.tags.find((t) => t[0] === "d")?.[1]}</div>
-  ),
+  ItemComposer: ({ header }: { header: NostrEvent }) => <div data-testid="composer-for">{named(header)}</div>,
 }));
 vi.mock("@/components/lists/ListItems", () => ({
-  ListItems: ({ header, listRef }: { header: NostrEvent; listRef: string }) => (
-    <div data-testid="items-for" data-list-ref={listRef}>
-      {header.tags.find((t) => t[0] === "d")?.[1]}
+  ListItems: ({ header, listRef, also }: { header: NostrEvent; listRef: string; also?: string[] }) => (
+    <div data-testid="items-for" data-list-ref={listRef} data-also={(also ?? []).join(",")}>
+      {named(header)}
     </div>
   ),
+}));
+vi.mock("@/components/dictionary/AddressRef", () => ({
+  AddressRef: ({ address }: { address: string }) => <span>{address}</span>,
 }));
 
 import { ListManager, listManagerPath } from "./ListManager";
@@ -85,6 +103,8 @@ describe("ListManager", () => {
     expect(screen.getAllByTestId("list-manager-list").map((r) => r.textContent)).toEqual([
       expect.stringContaining("Food Trucks"),
       expect.stringContaining("Zines"),
+      expect.stringContaining("Divine Videos"),
+      expect.stringContaining("Gones"),
     ]);
     await userEvent.type(screen.getByTestId("list-manager-search"), "bitcoin");
     expect(screen.getAllByTestId("list-manager-list")).toHaveLength(1);
@@ -167,6 +187,42 @@ describe("ListManager", () => {
     expect(screen.getByTestId("composer-for")).toHaveTextContent("divine-videos");
     await userEvent.click(screen.getByTestId("list-manager-mode-definition"));
     expect(screen.getByTestId("editor-for")).toHaveTextContent("divine-videos");
+  });
+
+  it("adds an item to a version of a list on the list it's a version of, where everyone else's are", () => {
+    state.search = `tab=dictionary&manage=lists&list=${encodeURIComponent(`39998:${ME}:divine-videos`)}&view=add`;
+    renderWithProviders(<ListManager />);
+    expect(screen.getByTestId("composer-for")).toHaveTextContent(`${AVI}:divine-videos`);
+    expect(screen.getByTestId("list-manager-version-of")).toHaveTextContent(DIVINE_COORDINATE);
+  });
+
+  it("reads a version's items on the list it's a version of, with any filed under the version", () => {
+    const mineRef = `39998:${ME}:divine-videos`;
+    state.search = `tab=dictionary&manage=lists&list=${encodeURIComponent(mineRef)}&view=items`;
+    renderWithProviders(<ListManager />);
+    expect(screen.getByTestId("items-for")).toHaveTextContent(`${AVI}:divine-videos`);
+    expect(screen.getByTestId("items-for")).toHaveAttribute("data-also", `39998:${ME}:divine-videos`);
+    // Its addresses stay on the version it was opened from.
+    expect(screen.getByTestId("items-for")).toHaveAttribute("data-list-ref", mineRef);
+  });
+
+  it("keeps a version's own definition to edit", () => {
+    state.search = `tab=dictionary&manage=lists&list=${encodeURIComponent(`39998:${ME}:divine-videos`)}`;
+    renderWithProviders(<ListManager />);
+    expect(screen.getByTestId("editor-for")).toHaveTextContent(`${ME}:divine-videos`);
+  });
+
+  it("adds nothing to a version whose list can't be found, rather than to the version", () => {
+    state.search = `tab=dictionary&manage=lists&list=${encodeURIComponent(`39998:${ME}:gone`)}&view=add`;
+    renderWithProviders(<ListManager />);
+    expect(screen.queryByTestId("composer-for")).toBeNull();
+    expect(screen.getByTestId("list-manager-version-of-missing")).toHaveTextContent(`39998:${AVI}:gone`);
+  });
+
+  it("links a pasted 9998 by its id, even when it carries a d", async () => {
+    renderWithProviders(<ListManager />);
+    await userEvent.type(screen.getByTestId("list-manager-search"), nip19.neventEncode({ id: ninesId }));
+    expect(screen.getByTestId("list-manager-list")).toHaveAttribute("href", listManagerPath(ninesId));
   });
 
   it("builds a link to a list's items and to one item", () => {
