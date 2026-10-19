@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { sourceAppFor, CONDUIT_REFERRAL } from "./sourceApp";
+import { shopAppFor, sourceAppFor, CONDUIT_REFERRAL } from "./sourceApp";
 
 const MERCHANT = "6".repeat(64);
 const COOK = "9".repeat(64);
@@ -154,19 +154,19 @@ describe("a merchant's listing published elsewhere — the same seller, the same
     );
   });
 
-  it("opens on the seller's Conduit store when they sell on Conduit but not this exact product", () => {
-    const app = sourceAppFor(
-      {
-        ...elsewhere,
-        tags: [
-          ["d", "product_9"],
-          ["title", "Something Only Here"],
-        ],
-      },
-      { sellerListings: [otherConduit] },
+  it("is not Conduit's when the seller sells on Conduit but not this exact product", () => {
+    const onlyHere = {
+      ...elsewhere,
+      tags: [
+        ["d", "product_9"],
+        ["title", "Something Only Here"],
+      ],
+    };
+    expect(sourceAppFor(onlyHere, { sellerListings: [otherConduit] })).toBeNull();
+    // Bought on Conduit all the same — at its own product page, not the seller's store.
+    expect(shopAppFor(onlyHere, { sellerListings: [otherConduit] })?.url).toBe(
+      `https://shop.conduit.market/products/${nip19.naddrEncode({ kind: 30402, pubkey: MERCHANT, identifier: "product_9" })}?${CONDUIT_REFERRAL}`,
     );
-    expect(app?.name).toBe("Conduit");
-    expect(app?.url).toBe(`https://shop.conduit.market/store/${nip19.npubEncode(MERCHANT)}?${CONDUIT_REFERRAL}`);
   });
 
   it("a listing with its own product page keeps it — the seller's Conduit store does not outrank the page the seller wrote", () => {
@@ -186,5 +186,42 @@ describe("a merchant's listing published elsewhere — the same seller, the same
   it("a seller with nothing on Conduit gets no Conduit link", () => {
     expect(sourceAppFor(elsewhere, { sellerListings: [elsewhere] })).toBeNull();
     expect(sourceAppFor(elsewhere)).toBeNull();
+  });
+});
+
+/**
+ * Where a buyer goes: Conduit sells any NIP-99 listing by its address, so every
+ * listing without a page of its own is bought there (Orange Horizon's shoes,
+ * published elsewhere, open on Conduit with a cart — 2026-10-19).
+ */
+describe("where a listing is bought", () => {
+  const plain = listing([["t", "Shoes"]]);
+
+  it("a listing no app claims and no page of its own is bought on Conduit, at its own product page", () => {
+    const app = shopAppFor(plain);
+    expect(app?.name).toBe("Conduit");
+    expect(app?.url).toBe(
+      `https://shop.conduit.market/products/${nip19.naddrEncode({ kind: 30402, pubkey: MERCHANT, identifier: "spartan-beanie-zbkwud" })}?${CONDUIT_REFERRAL}`,
+    );
+    // Provenance is unchanged: Conduit did not publish it.
+    expect(sourceAppFor(plain)).toBeNull();
+  });
+
+  it("the page the seller wrote into the listing wins: no Conduit link to compete with it", () => {
+    expect(shopAppFor(listing([["r", "https://barattolo.app/l/maglia-1"]]))).toBeNull();
+  });
+
+  it("the app that published it is where it is bought", () => {
+    const ev = listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]]);
+    expect(shopAppFor(ev)).toEqual(sourceAppFor(ev));
+  });
+
+  it("only listings: a recipe stays on zap.cooking and an article goes nowhere", () => {
+    expect(shopAppFor(article([["t", "zapcooking"]]))?.name).toBe("Zap.cooking");
+    expect(shopAppFor(article([]))).toBeNull();
+  });
+
+  it("a listing with no identifier has no address to open", () => {
+    expect(shopAppFor({ ...plain, tags: [["title", "Spartan Beanie"]] })).toBeNull();
   });
 });

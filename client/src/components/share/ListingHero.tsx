@@ -5,7 +5,7 @@ import { Download, ExternalLink, MapPin, MessageCircle, Package, ShoppingBag } f
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { categoriesToShow, formatListingPrice, isSellable, listingStatus, parseListing } from "@/lib/listing";
-import { sourceAppFor } from "@/lib/sourceApp";
+import { shopAppFor, sourceAppFor } from "@/lib/sourceApp";
 import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
 import { nostrUriFor } from "@/lib/shareId";
@@ -41,21 +41,17 @@ const CATEGORIES_SHOWN = 5;
  * wrote it, where it is, how it ships, the description with its links live —
  * and two ways to act. "Message seller" opens the seller in the reader's own
  * Nostr app, where their keys and conversations already live; the second
- * button goes to the listing's own page — "Buy on Conduit" when we know which
- * marketplace sold it, or "Visit <host>" on whatever link the seller
- * published. There is no checkout of ours: payment happens where
- * the seller sells.
+ * button goes to the listing's own page — "Visit <host>" on a link the seller
+ * published, else "Buy on Conduit", which sells any listing. There is no
+ * checkout of ours: payment happens with the seller.
  */
 export function ListingHero({
   event,
-  sellerWebsite,
   sellerName,
 }: {
   event: MinimalEvent;
   /** The seller's name, when the page knows it: a category that only repeats it is not shown. */
   sellerName?: string | null;
-  /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?:
-    string | null;
 }) {
   const l = parseListing({
     ...event,
@@ -93,22 +89,13 @@ export function ListingHero({
   const [allCategories, setAllCategories] = useState(false);
   // The app that sold it wins over a stray shop link: that is where the
   // product actually lives and checks out.
-  // A listing published outside Conduit by a seller who sells on Conduit still
-  // opens there: the seller's other listings say whether they do.
+  // A listing published outside Conduit by a seller who also sells it on
+  // Conduit opens at that copy: the seller's other listings say whether they do.
   const sellerListings = useRecentByKinds(sourceAppFor(event) ? null : event.pubkey, [30402], 40)
     .events as MinimalEvent[];
-  const app = sourceAppFor(event, { sellerListings });
+  const app = shopAppFor(event, { sellerListings });
   // The seller's price leads; what it is in the buyer's own money sits under it.
   const rates = useBtcRates();
-  const websiteHost = (() => {
-    try {
-      return sellerWebsite && /^https?:\/\//i.test(sellerWebsite)
-        ? new URL(sellerWebsite).hostname.replace(/^www\./, "")
-        : null;
-    } catch {
-      return null;
-    }
-  })();
   if (!l) return null;
   const categories = categoriesToShow(l.categories, sellerName);
   const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
@@ -130,14 +117,12 @@ export function ListingHero({
   })();
   const current = l.images[Math.min(photo, Math.max(0, l.images.length - 1))];
   // The one way to buy, as the buttons below choose it: the marketplace that
-  // sold it, else the listing's own link, else the seller's website.
+  // sold it, else the listing's own link, else the listing on Conduit.
   const buy = app
     ? { href: app.url, label: `Buy on ${app.name}` }
     : l.shopUrl && shopHost
       ? { href: l.shopUrl, label: `Visit ${shopHost}` }
-      : websiteHost
-        ? { href: sellerWebsite as string, label: `Visit ${websiteHost}` }
-        : null;
+      : null;
 
   return (
     <div data-testid="listing-hero">
@@ -281,20 +266,6 @@ export function ListingHero({
             title={`Opens ${shopHost} in a new tab`}
           >
             <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost}{" "}
-            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-          </a>
-        ) : websiteHost ? (
-          // No shop on the listing and no marketplace we know (The Bitcoin
-          // Shop UK, via Gamma Markets): the seller's own website is the way in.
-          <a
-            href={sellerWebsite!}
-            target="_blank"
-            rel="noopener"
-            className={BUY_BUTTON}
-            data-testid="listing-hero-shop"
-            title={`Opens ${websiteHost} in a new tab`}
-          >
-            <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost}{" "}
             <ExternalLink className="h-3.5 w-3.5 opacity-70" />
           </a>
         ) : null}

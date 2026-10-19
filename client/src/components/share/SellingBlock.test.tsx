@@ -108,7 +108,11 @@ describe("SellingBlock", () => {
     expect(cards[0]).toHaveTextContent("SOUND COFFEE T-SHIRT");
     expect(cards[0]).not.toHaveTextContent("XXL");
     expect(within(cards[0]).getByTestId(/^listing-options-/)).toHaveTextContent("3 options");
-    expect(within(cards[0]).getByRole("link").getAttribute("href")).toMatch(/^\/e\//);
+    // The card opens the product here; its corner icon is the way to buy.
+    const links = within(cards[0])
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    expect(links.some((h) => /^\/e\//.test(h ?? ""))).toBe(true);
     expect(within(cards[1]).queryByTestId(/^listing-options-/)).toBeNull();
     await waitFor(() => expect(onCount).toHaveBeenCalledWith(2));
   });

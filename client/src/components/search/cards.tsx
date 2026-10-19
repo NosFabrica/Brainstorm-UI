@@ -41,7 +41,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { sourceAppFor } from "@/lib/sourceApp";
+import { shopAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
@@ -1737,9 +1737,9 @@ export const ListingCard = memo(function ListingCard({
   const status = listingStatus(l);
   const gone = status?.gone ? status.label : null;
   const line = listingCardLine(l);
-  // The verb says where a tap lands: "Buy on Conduit" when we know the
-  // marketplace by name, "Visit <host>" on a seller's own link.
-  const app = sourceAppFor(event, { sellerListings });
+  // The verb says where a tap lands: "Visit <host>" on a seller's own link,
+  // else "Buy on Conduit", which sells any listing.
+  const app = shopAppFor(event, { sellerListings });
   const host = l.shopUrl ? (hostOf(l.shopUrl) ?? undefined) : undefined;
   const open = app
     ? { url: app.url, label: `Buy on ${app.name}`, host: app.host, icon: app.icon }

@@ -630,7 +630,7 @@ function EventView({
                 // A track, a podcast episode or trailer, a voice message, an audio header.
                 <AudioHero event={note} />
               ) : isListingPage ? (
-                <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
+                <ListingHero event={note} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : hasActivityHero(note) ? (
