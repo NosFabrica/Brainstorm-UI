@@ -23,6 +23,7 @@ import {
   Navigation,
   Phone,
   Store,
+  X,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
@@ -735,10 +736,13 @@ function PlacesPage({ query }: { query: string }) {
   // On a phone the list comes first and the map opens over it, full screen.
   const narrow = useIsMobile(1024);
   const [mapOpen, setMapOpen] = useState(false);
+  // The place whose pin was tapped on a desktop: its card opens over the map.
+  const [picked, setPicked] = useState<string | null>(null);
   // The place pointed at in the list, or tapped on the map: its row and its pin light together.
   const [lit, setLit] = useState<string | null>(null);
   const tapPin = (label: string) => {
     setLit(label);
+    setPicked(shown[Number(label) - 1]?.id ?? null);
     document.getElementById(`place-row-${label}`)?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   };
   const categories = useMemo(() => {
@@ -797,6 +801,8 @@ function PlacesPage({ query }: { query: string }) {
     </button>
   );
   const allPins = [...pins, ...events];
+  // Gone when a filter leaves it out; where it now sits when the order changes.
+  const pickedAt = picked ? shown.findIndex((h) => h.id === picked) : -1;
   const header = (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-2">
@@ -864,7 +870,22 @@ function PlacesPage({ query }: { query: string }) {
         </div>
         {map && !narrow && (
           <div>
-            <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} className="sticky top-20 h-[calc(100dvh-6rem)]" />
+            <div className="sticky top-20 h-[calc(100dvh-6rem)]">
+              <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} className="h-full" />
+              {pickedAt >= 0 && (
+                <PlaceCard
+                  hit={shown[pickedAt]}
+                  n={pickedAt + 1}
+                  line={lines[pickedAt]}
+                  trust={lineOf(shown[pickedAt].id)}
+                  rating={ratingLine(shown[pickedAt])}
+                  lit
+                  testId="place-picked"
+                  className="absolute bottom-4 left-4 z-[500] w-80 max-w-[calc(100%-2rem)]"
+                  onClose={() => setPicked(null)}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -964,43 +985,87 @@ function PlaceCards({
   }, []);
   return (
     <div ref={track} className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-      {hits.map((h, i) => {
-        const label = String(i + 1);
-        const on = lit === label;
-        const rating = ratingLine(h);
-        return (
-          <article
-            key={h.id}
-            id={`place-card-${label}`}
-            data-label={label}
-            data-testid="place-card"
-            data-highlighted={on ? "true" : undefined}
-            className={`w-[80%] max-w-xs shrink-0 snap-center rounded-2xl border bg-white p-3 shadow-md transition-colors dark:bg-slate-900 ${on ? "border-brand-primary" : "border-slate-200 dark:border-slate-800"}`}
-          >
-            <span className="flex items-center gap-2">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
-                {label}
-              </span>
-              <Link
-                href={h.href}
-                className="truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-              >
-                {h.shown.title}
-              </Link>
-            </span>
-            <span className="mt-1 block space-y-0.5">
-              {lines[i] && (
-                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{lines[i]}</span>
-              )}
-              {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
-              {h.place && <OpeningLine place={h.place} />}
-              <TrustLine text={lineOf(h.id)} />
-            </span>
-            {h.place && <PlaceActions place={h.place} />}
-          </article>
-        );
-      })}
+      {hits.map((h, i) => (
+        <PlaceCard
+          key={h.id}
+          hit={h}
+          n={i + 1}
+          line={lines[i]}
+          trust={lineOf(h.id)}
+          rating={ratingLine(h)}
+          lit={lit === String(i + 1)}
+          testId="place-card"
+          className="w-[80%] max-w-xs shrink-0 snap-center"
+        />
+      ))}
     </div>
+  );
+}
+
+/**
+ * One place as a card: its number, name, what and where, rating, hours, who
+ * recommends it and its ways there — on a phone's swipe row, and over a
+ * desktop's map for a tapped pin, with a way to close it there.
+ */
+function PlaceCard({
+  hit: h,
+  n,
+  line,
+  trust,
+  rating,
+  lit,
+  testId,
+  className = "",
+  onClose,
+}: {
+  hit: KindHit;
+  n: number;
+  line: string;
+  trust: string | null;
+  rating: string | null;
+  lit: boolean;
+  testId: string;
+  className?: string;
+  onClose?: () => void;
+}) {
+  const label = String(n);
+  return (
+    <article
+      id={onClose ? undefined : `place-card-${label}`}
+      data-label={onClose ? undefined : label}
+      data-testid={testId}
+      data-highlighted={lit ? "true" : undefined}
+      className={`rounded-2xl border bg-white p-3 shadow-md transition-colors dark:bg-slate-900 ${lit ? "border-brand-primary" : "border-slate-200 dark:border-slate-800"} ${className}`}
+    >
+      <span className="flex items-center gap-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
+          {label}
+        </span>
+        <Link
+          href={h.href}
+          className="min-w-0 flex-1 truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+        >
+          {h.shown.title}
+        </Link>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="-m-1 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        )}
+      </span>
+      <span className="mt-1 block space-y-0.5">
+        {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
+        {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
+        {h.place && <OpeningLine place={h.place} />}
+        <TrustLine text={trust} />
+      </span>
+      {h.place && <PlaceActions place={h.place} />}
+    </article>
   );
 }
 

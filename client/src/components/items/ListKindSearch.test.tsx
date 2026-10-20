@@ -815,4 +815,16 @@ describe("the Places page, a map app's way", () => {
       window.innerWidth = width;
     }
   });
+
+  it("on a desktop: a tapped pin opens its place's card over the map, until it's closed", () => {
+    page("places", "");
+    const third = screen.getAllByTestId("kind-page-item")[2].querySelector("a")!.textContent!;
+    expect(screen.queryByTestId("place-picked")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "pin 3" }));
+    const card = screen.getByTestId("place-picked");
+    expect(card).toHaveTextContent(third);
+    expect(within(card).getByRole("link", { name: "Directions" })).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("place-picked")).toBeNull();
+  });
 });
