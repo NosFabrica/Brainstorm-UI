@@ -43,7 +43,9 @@ A tier-three view is a presentation of the tier-two view, not a way around it.
     **only while the governing definition declares nothing for that name**; the moment a
     definition declares the field, its declaration wins (`lib/books`). This is the one
     allowance, for a concept whose header is empty, and it closes on its own when a copy
-    that declares the fields exists (`docs/dictionary/house-copies.md`).
+    that declares the fields exists (`docs/dictionary/house-copies.md`). Closed
+    2026-10-20: the community header now declares every field the book view reads, so
+    declarations govern and the fallback no longer applies.
 - **Links come from the definition.** A view may shape the links its templates build (a
   Repositories button beside the GitHub profile, say) but adds no destination of its own:
   a definition that names no template still gives no link.
