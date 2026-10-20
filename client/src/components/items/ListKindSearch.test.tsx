@@ -7,7 +7,7 @@
  * shown when the words find something, and only then.
  */
 import { describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
@@ -106,17 +106,31 @@ const itemsOf: Record<string, unknown[]> = {
   ],
   [GITHUB]: [account("riverdev"), account("lakebuilder")],
 };
+const itemsAsked = vi.hoisted(() => vi.fn<(coordinate: string | undefined, enabled: boolean) => void>());
 vi.mock("@/hooks/useConceptItems", () => ({
-  useConceptItems: (e: { communityCoordinate: string } | undefined) => ({
-    data: e ? itemsOf[e.communityCoordinate] : undefined,
-    isPending: false,
-  }),
+  useConceptItems: (e: { communityCoordinate: string } | undefined, enabled = true) => {
+    itemsAsked(e?.communityCoordinate, enabled);
+    return { data: e && enabled ? itemsOf[e.communityCoordinate] : undefined, isPending: false };
+  },
 }));
 // The map draws tiles from the network: its pins are its props here.
 vi.mock("@/components/items/PlacesMap", () => ({
-  PlacesMap: ({ pins }: { pins: { name: string; label?: string }[] }) => (
-    <div data-testid="places-map" data-labels={pins.map((p) => p.label).join(",")}>
+  PlacesMap: ({
+    pins,
+    highlight,
+    onPin,
+  }: {
+    pins: { name: string; label?: string }[];
+    highlight?: string | null;
+    onPin?: (label: string) => void;
+  }) => (
+    <div data-testid="places-map" data-labels={pins.map((p) => p.label).join(",")} data-highlight={highlight ?? ""}>
       {pins.length}
+      {pins.map((p) => (
+        <button key={p.label} type="button" onClick={() => onPin?.(p.label!)}>
+          pin {p.label}
+        </button>
+      ))}
     </div>
   ),
 }));
@@ -421,5 +435,43 @@ describe("where a preview sits on the Top page", () => {
   it("Places follow for a word that only appears in their names", () => {
     preview("places", "owl");
     expect(sitsIn("kind-preview-places")).toBe("follow");
+  });
+});
+
+// A row and its pin are one place: pointing at a row lights its pin, and tapping a pin lights its row.
+describe("the Places page's rows and pins", () => {
+  it("lights a row's pin while the row is pointed at", () => {
+    page("places", "");
+    const rows = screen.getAllByTestId("kind-page-item");
+    fireEvent.mouseEnter(rows[1]);
+    expect(screen.getByTestId("places-map")).toHaveAttribute("data-highlight", "2");
+    fireEvent.mouseLeave(rows[1]);
+    expect(screen.getByTestId("places-map")).toHaveAttribute("data-highlight", "");
+  });
+
+  it("lights a pin's row when the pin is tapped", () => {
+    page("places", "");
+    fireEvent.click(screen.getByRole("button", { name: "pin 3" }));
+    expect(screen.getAllByTestId("kind-page-item")[2]).toHaveAttribute("data-highlighted", "true");
+  });
+});
+
+// The lists are read before anyone searches: once the search page is idle, each kind reads its
+// list, so the first search's previews arrive with People rather than after.
+describe("warming a kind's list", () => {
+  it("reads the list once the page is idle, not before", () => {
+    vi.useFakeTimers();
+    try {
+      itemsAsked.mockClear();
+      const kind = LIST_KINDS.find((k) => k.key === "books")!;
+      renderWithProviders(<kind.Warm />);
+      expect(itemsAsked).not.toHaveBeenCalledWith(BOOKS, true);
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(itemsAsked).toHaveBeenCalledWith(BOOKS, true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

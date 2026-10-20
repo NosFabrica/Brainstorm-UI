@@ -11,7 +11,7 @@
  * (lib/listSearch), over the items the Dictionary reads: a stopgap until the
  * search API returns list items with their definitions (ADR 0004).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { BookOpen, Github, Store } from "lucide-react";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
@@ -226,15 +226,28 @@ function PlaceRow({
   trust,
   testId,
   big = false,
+  highlighted = false,
+  onPoint,
 }: {
   hit: KindHit;
   n: number;
   trust: string | null;
   testId: string;
   big?: boolean;
+  /** Its pin is the one pointed at or tapped. */
+  highlighted?: boolean;
+  /** Pointed at, or no longer: lights its pin. */
+  onPoint?: (on: boolean) => void;
 }) {
   return (
-    <li className={`flex items-start gap-3 ${big ? "py-3" : ""}`} data-testid={testId}>
+    <li
+      id={onPoint ? `place-row-${n}` : undefined}
+      className={`flex items-start gap-3 rounded-lg transition-colors ${big ? "-mx-2 px-2 py-3" : ""} ${highlighted ? "bg-brand-primary/5 dark:bg-brand-primary/10" : ""}`}
+      data-testid={testId}
+      data-highlighted={highlighted ? "true" : undefined}
+      onMouseEnter={onPoint ? () => onPoint(true) : undefined}
+      onMouseLeave={onPoint ? () => onPoint(false) : undefined}
+    >
       <span
         className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white"
         data-testid="kind-row-number"
@@ -335,6 +348,35 @@ function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
       </ul>
     </section>
   );
+}
+
+/* ── Reading a kind's list ahead of a search ──────────────────────────── */
+
+/** How long the page is left to settle before a list is read, when the browser can't say it's idle. */
+const WARM_AFTER_MS = 2000;
+
+/**
+ * Reads a kind's list once the search page is idle, so the first search's
+ * previews come with People rather than after them. Draws nothing.
+ */
+function warmFor(view: ConceptViewKey) {
+  return function Warm() {
+    const [idle, setIdle] = useState(false);
+    useEffect(() => {
+      const ric = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number })
+        .requestIdleCallback;
+      if (ric) {
+        const id = ric(() => setIdle(true), { timeout: WARM_AFTER_MS * 2 });
+        return () => (window as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+      }
+      const t = window.setTimeout(() => setIdle(true), WARM_AFTER_MS);
+      return () => window.clearTimeout(t);
+    }, []);
+    const dictionary = useDictionary(idle, { anonymous: true });
+    const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
+    useConceptItems(entry, idle && !!entry);
+    return null;
+  };
 }
 
 /* ── Each kind's row in the search dropdown ───────────────────────────── */
@@ -443,6 +485,12 @@ function PlacesPage({ query }: { query: string }) {
   const { hits: found, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
   const { ordered: hits, lineOf } = useTrustOrdered(found);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
+  // The place pointed at in the list, or tapped on the map: its row and its pin light together.
+  const [lit, setLit] = useState<string | null>(null);
+  const tapPin = (label: string) => {
+    setLit(label);
+    document.getElementById(`place-row-${label}`)?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  };
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     for (const h of hits) {
@@ -498,14 +546,30 @@ function PlacesPage({ query }: { query: string }) {
         </div>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="kind-page-places">
           {shown.map((h, i) => (
-            <PlaceRow key={h.id} hit={h} n={i + 1} trust={lineOf(h.id)} testId="kind-page-item" big />
+            <PlaceRow
+              key={h.id}
+              hit={h}
+              n={i + 1}
+              trust={lineOf(h.id)}
+              testId="kind-page-item"
+              big
+              highlighted={lit === String(i + 1)}
+              onPoint={(on) => setLit(on ? String(i + 1) : null)}
+            />
           ))}
         </ul>
         {shown.length === 0 && (
           <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No places match these filters.</p>
         )}
       </div>
-      {map && <PlacesMap pins={pins} className="mt-4 h-72 lg:sticky lg:top-24 lg:mt-0 lg:h-[70vh]" />}
+      {map && (
+        <PlacesMap
+          pins={pins}
+          highlight={lit}
+          onPin={tapPin}
+          className="mt-4 h-72 lg:sticky lg:top-24 lg:mt-0 lg:h-[70vh]"
+        />
+      )}
     </div>
   );
 }
@@ -565,6 +629,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     community: views.place,
     Preview: PlacesPreview,
     Page: PlacesPage,
+    Warm: warmFor("place"),
     Suggestion: suggestionFor("places", "place", "Place", Store),
   },
   {
@@ -574,6 +639,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     community: views.book,
     Preview: BooksPreview,
     Page: BooksPage,
+    Warm: warmFor("book"),
     Suggestion: suggestionFor("books", "book", "Book", BookOpen),
   },
   {
@@ -583,6 +649,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     community: views["github-account"],
     Preview: GitHubPreview,
     Page: GitHubPage,
+    Warm: warmFor("github-account"),
     Suggestion: suggestionFor("github", "github-account", "GitHub", Github),
   },
 ];

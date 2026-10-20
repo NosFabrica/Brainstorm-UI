@@ -24,6 +24,8 @@ export interface ListKindSearch {
   Preview: ComponentType<{ query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void }>;
   /** Its own page under the tab strip: what the words find, or the list itself with no words. */
   Page: ComponentType<{ query: string }>;
+  /** Reads its list ahead of a search, once the page is idle; draws nothing. */
+  Warm: ComponentType;
   /** Its row in the search dropdown: the best match for the words being typed, or nothing. */
   Suggestion: ComponentType<{ query: string; onPick?: () => void }>;
 }
