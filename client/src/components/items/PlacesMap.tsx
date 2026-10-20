@@ -4,7 +4,7 @@
  * A pin with a label wears it (its row's number beside the map); the one
  * the reader points at in the list is lit, and a tapped pin says which.
  */
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Maximize2, Minus, Plus } from "lucide-react";
 
 export interface MapPin {
@@ -79,20 +79,29 @@ export function PlacesMap({
   onPinRef.current = onPin;
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
-  const key = pins.map((p) => `${p.lat},${p.lon},${p.label ?? ""}`).join("|");
+  const highlightRef = useRef(highlight);
+  highlightRef.current = highlight;
+  const layer = useRef<import("leaflet").LayerGroup | null>(null);
+  // What the view was last framed on: refit when the places change (a filter), not when a
+  // town's events arrive after them, so a map the reader has moved stays where they left it.
+  const framedOn = useRef<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const key = pins.map((p) => `${p.lat},${p.lon},${p.label ?? ""},${p.id ?? ""}`).join("|");
+  const placesKey = pins
+    .filter((p) => p.kind !== "event")
+    .map((p) => `${p.lat},${p.lon}`)
+    .join("|");
 
+  // The map itself, made once: its tiles and its controls. Pins come and go on a layer over it.
   useEffect(() => {
     let map: import("leaflet").Map | null = null;
     let cancelled = false;
     void (async () => {
       try {
         const [L] = await Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]);
-        if (cancelled || !host.current || pins.length === 0) return;
+        if (cancelled || !host.current) return;
         lib.current = L;
-        markers.current.clear();
         const still = !!onOpen;
-        // A name on hover is a mouse's; a tap opens the pin's card, and a tooltip would cover it.
-        const hover = !window.matchMedia?.("(pointer: coarse)").matches;
         map = L.map(host.current, {
           attributionControl: true,
           zoomControl: false,
@@ -117,45 +126,8 @@ export function PlacesMap({
           updateWhenZooming: false,
           attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors",
         }).addTo(map);
-        for (const p of pins) {
-          if (p.kind === "event") {
-            const id = p.id;
-            const marker = L.marker([p.lat, p.lon], {
-              icon: L.divIcon({ html: EVENT_PIN, className: "cursor-pointer", iconSize: [14, 14], iconAnchor: [7, 7] }),
-              keyboard: false,
-              zIndexOffset: -100,
-            });
-            if (id) marker.on("click", () => onEventRef.current?.(id));
-            (hover ? marker.bindTooltip(tooltipOf(p)) : marker).addTo(map);
-          } else if (p.label) {
-            const label = p.label;
-            const marker = L.marker([p.lat, p.lon], {
-              icon: L.divIcon({ html: pinHtml(label, false), className: "", iconSize: [22, 22], iconAnchor: [11, 11] }),
-              keyboard: false,
-            });
-            marker.on("click", () => onPinRef.current?.(label));
-            (hover ? marker.bindTooltip(tooltipOf(p)) : marker).addTo(map);
-            markers.current.set(label, marker);
-          } else {
-            L.circleMarker([p.lat, p.lon], {
-              radius: 6,
-              color: "#fff",
-              weight: 2,
-              fillColor: "#7237FF",
-              fillOpacity: 1,
-            })
-              .bindTooltip(tooltipOf(p))
-              .addTo(map);
-          }
-        }
-        // Framed on the places: a town's events further out show when the reader pans.
-        const places = pins.filter((p) => p.kind !== "event");
-        const framed = places.length > 0 ? places : pins;
-        home.current = L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number]));
-        map.fitBounds(home.current, {
-          padding: [24, 24],
-          maxZoom: 14,
-        });
+        layer.current = L.layerGroup().addTo(map);
+        setReady(true);
       } catch {
         /* no map: the list stands on its own */
       }
@@ -168,8 +140,69 @@ export function PlacesMap({
       resized?.disconnect();
       map?.remove();
       mapRef.current = null;
+      layer.current = null;
+      framedOn.current = null;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The pins, put on afresh when they change; the map under them stays.
+  useEffect(() => {
+    const L = lib.current;
+    const map = mapRef.current;
+    const group = layer.current;
+    if (!ready || !L || !map || !group) return;
+    group.clearLayers();
+    markers.current.clear();
+    // A name on hover is a mouse's; a tap opens the pin's card, and a tooltip would cover it.
+    const hover = !window.matchMedia?.("(pointer: coarse)").matches;
+    for (const p of pins) {
+      if (p.kind === "event") {
+        const id = p.id;
+        const marker = L.marker([p.lat, p.lon], {
+          icon: L.divIcon({ html: EVENT_PIN, className: "cursor-pointer", iconSize: [14, 14], iconAnchor: [7, 7] }),
+          keyboard: false,
+          zIndexOffset: -100,
+        });
+        if (id) marker.on("click", () => onEventRef.current?.(id));
+        (hover ? marker.bindTooltip(tooltipOf(p)) : marker).addTo(group);
+      } else if (p.label) {
+        const label = p.label;
+        const lit = label === highlightRef.current;
+        const size = lit ? 28 : 22;
+        const marker = L.marker([p.lat, p.lon], {
+          icon: L.divIcon({
+            html: pinHtml(label, lit),
+            className: "",
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+          }),
+          keyboard: false,
+          zIndexOffset: lit ? 1000 : 0,
+        });
+        marker.on("click", () => onPinRef.current?.(label));
+        (hover ? marker.bindTooltip(tooltipOf(p)) : marker).addTo(group);
+        markers.current.set(label, marker);
+      } else {
+        L.circleMarker([p.lat, p.lon], {
+          radius: 6,
+          color: "#fff",
+          weight: 2,
+          fillColor: "#7237FF",
+          fillOpacity: 1,
+        })
+          .bindTooltip(tooltipOf(p))
+          .addTo(group);
+      }
+    }
+    if (pins.length === 0 || framedOn.current === placesKey) return;
+    // Framed on the places: a town's events further out show when the reader pans.
+    const places = pins.filter((p) => p.kind !== "event");
+    const framed = places.length > 0 ? places : pins;
+    home.current = L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number]));
+    // The first framing jumps; a change of places glides there.
+    map.fitBounds(home.current, { padding: [24, 24], maxZoom: 14, animate: framedOn.current !== null });
+    framedOn.current = placesKey;
+  }, [key, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The lit pin wears the larger face and sits on top; the rest go back to theirs.
   useEffect(() => {
@@ -190,9 +223,9 @@ export function PlacesMap({
     }
   }, [highlight]);
 
-  if (pins.length === 0) return null;
   return (
     <div
+      hidden={pins.length === 0}
       className={`relative isolate z-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[9px] dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)] ${className}`}
       data-testid="places-map"
     >
