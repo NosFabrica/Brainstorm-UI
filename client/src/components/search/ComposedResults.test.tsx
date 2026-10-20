@@ -101,6 +101,7 @@ vi.mock("@/services/nostr", async (importOriginal) => ({
     new Map(pks.filter((pk) => knownNames.has(pk)).map((pk) => [pk, knownNames.get(pk)!])),
 }));
 
+import { ListKindsContext } from "@/hooks/useListKinds";
 import { ComposedResults } from "./ComposedResults";
 import { nip19 } from "nostr-tools";
 
@@ -1677,6 +1678,51 @@ describe("ComposedResults — a query that matches a tag", () => {
     });
     await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
     expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
+  });
+
+  // The kinds with a look of their own (Books, Places…) come from the app's root; the Top page draws
+  // each one's preview above People, the one the words name first, and leaves those lists to them.
+  const kinds = [
+    {
+      key: "places",
+      label: "Places",
+      community: "39998:p:places",
+      Preview: ({ query }: { query: string }) => <div data-testid="kind-places">{query}</div>,
+    },
+    {
+      key: "books",
+      label: "Books",
+      community: "39998:b:books",
+      Preview: ({ query }: { query: string }) => <div data-testid="kind-books">{query}</div>,
+    },
+  ];
+
+  it("draws each kind's preview above People, with the reader's words", async () => {
+    render(
+      <ListKindsContext.Provider value={kinds}>
+        <ComposedResults query="dune" pov="nosfabrica" onTabChange={vi.fn()} />
+      </ListKindsContext.Provider>,
+    );
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Vinney" })), "Vinney")],
+      eose: true,
+      timeMs: 100,
+    });
+    const people = await screen.findByTestId("serp-section-people");
+    const [places, books] = [screen.getByTestId("kind-places"), screen.getByTestId("kind-books")];
+    expect(books).toHaveTextContent("dune");
+    expect(places.compareDocumentPosition(books) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(books.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("puts the kind the words name first", () => {
+    render(
+      <ListKindsContext.Provider value={kinds}>
+        <ComposedResults query="books dune" pov="nosfabrica" onTabChange={vi.fn()} />
+      </ListKindsContext.Provider>,
+    );
+    const [places, books] = [screen.getByTestId("kind-places"), screen.getByTestId("kind-books")];
+    expect(books.compareDocumentPosition(places) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("a named list's items sit above People, asked with the reader's words", async () => {

@@ -6,6 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
@@ -583,6 +584,23 @@ function ComposedResultsBody({
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
   const stripRef = useWheelScrollX();
+  // The kinds with their own look in search, the one the words name ("books dune") first.
+  const kinds = useListKinds();
+  const orderedKinds = useMemo(() => {
+    const words = new Set(
+      query
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.replace(/s$/, "")),
+    );
+    const named = (k: ListKindSearch) =>
+      k.label
+        .toLowerCase()
+        .split(/\s+/)
+        .some((w) => words.has(w.replace(/s$/, "")));
+    return [...kinds.filter(named), ...kinds.filter((k) => !named(k))];
+  }, [kinds, query]);
+  const kindCommunities = useMemo(() => kinds.map((k) => k.community), [kinds]);
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
     // The account the handles point at leads — unless the floor would hide it too.
@@ -719,8 +737,13 @@ function ComposedResultsBody({
         </p>
       )}
 
-      {/* A search that names a list — "github vcavallo" — leads with its items, for everyone. */}
-      <ListItemResults query={query} onTabChange={onTabChange} />
+      {/* The kinds with a look of their own — Books, Places, GitHub accounts — each preview what the
+          words find (hooks/useListKinds), the one the words name first. */}
+      {orderedKinds.map((k) => (
+        <k.Preview key={k.key} query={query} />
+      ))}
+      {/* A search that names any other list — "v4v songs …" — leads with its items, for everyone. */}
+      <ListItemResults query={query} onTabChange={onTabChange} except={kindCommunities} />
 
       {peopleOrdered.length === 0 && stillLoading(peopleF) && (
         <SectionSkeleton id="people" kicker="People" shape="people" />

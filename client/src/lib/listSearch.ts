@@ -35,6 +35,16 @@ const FILLER = new Set(["a", "an", "and", "&", "the", "of", "in", "on", "at", "t
 const namesWords = (text: string) => wordsOf(text).filter((w) => !FILLER.has(w) && !/^\d+$/.test(w));
 
 /**
+ * The words of a search to find in one list's items: all of them but the
+ * filler and the words of the list's own name — "books herbert" is
+ * "herbert" among Books. Empty when nothing is left to find.
+ */
+export function wordsToFind(query: string, list: Pick<NamedList, "singular" | "plural">): string[] {
+  const name = new Set([...namesWords(list.singular), ...namesWords(list.plural)]);
+  return wordsOf(query).filter((w) => !FILLER.has(w) && !name.has(w));
+}
+
+/**
  * The list a search names and the words to find in it — the first list, in
  * the order given, with a word of its name among the search's. Null when no
  * list is named, or its name is all there is.

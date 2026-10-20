@@ -88,6 +88,7 @@ import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
 import { contactHref } from "@/lib/contactHref";
 import { DAYS, openingStatus, parseOpeningHours, type Day, type Week } from "@/lib/openingHours";
 import { addressLine, addressLines, categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
+import type { ItemPresentation } from "@/lib/itemPresentation";
 import { proxiedSrc } from "@/lib/imageProxy";
 import { useSiteCard } from "@/hooks/useSiteCard";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -151,6 +152,31 @@ export function placeOf(item: { tags: string[][] }, definition: ConceptDefinitio
   const out = {} as Record<keyof typeof FIELDS, string | null>;
   for (const k of Object.keys(FIELDS) as (keyof typeof FIELDS)[]) out[k] = read(FIELDS[k]);
   return { ...out, name };
+}
+
+/**
+ * How a place reads where it is one among many — a results row, a card, a
+ * tile (ADR 0007): its name, then what it is and where ("Restaurant ·
+ * Italian · Sarasota"), the way a map app lists one. Its picture when it has
+ * one. From the item alone.
+ */
+export function placePresentation(
+  item: { tags: string[][] },
+  definition: ConceptDefinition,
+  shown: ItemPresentation,
+): ItemPresentation {
+  const place = placeOf(item, definition);
+  if (!place) return shown;
+  const kind = categoryWords(place.category);
+  const cuisine = categoryWords(place.cuisine);
+  const line = [kind, cuisine !== kind ? cuisine : null, place.locality].filter(Boolean).join(" · ");
+  return {
+    ...shown,
+    title: place.name,
+    titleField: FIELDS.name,
+    summary: line || shown.summary,
+    image: place.image ?? shown.image,
+  };
 }
 
 const DAY_NAMES: Record<Day, string> = {

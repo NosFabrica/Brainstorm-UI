@@ -27,10 +27,22 @@ import type { SearchTab } from "@/services/search";
 
 const MAX_ITEMS = 3;
 
-export function ListItemResults({ query, onTabChange }: { query: string; onTabChange: (t: SearchTab) => void }) {
+export function ListItemResults({
+  query,
+  onTabChange,
+  except = [],
+}: {
+  query: string;
+  onTabChange: (t: SearchTab) => void;
+  /** Lists that have a look of their own in search (hooks/useListKinds), left to it. */
+  except?: readonly string[];
+}) {
   const dictionary = useDictionary(true, { anonymous: true });
 
-  const searchable = useMemo(() => (dictionary.data ?? []).filter((e) => e.resolved), [dictionary.data]);
+  const searchable = useMemo(
+    () => (dictionary.data ?? []).filter((e) => e.resolved && !except.includes(e.communityCoordinate)),
+    [dictionary.data, except],
+  );
   const asked = useMemo(
     () =>
       listQueryOf(
