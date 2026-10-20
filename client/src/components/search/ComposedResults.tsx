@@ -6,7 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
-import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
+import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
@@ -609,7 +609,7 @@ function ComposedResultsBody({
   );
   // Each kind is offered a place above People and one below: it takes the one above when the words
   // ask for it (they name it, or the kind's own reading — a town, a kind of place), else below.
-  const kindPreviews = (slot: "lead" | "follow") =>
+  const kindPreviews = (slot: PreviewSlot) =>
     orderedKinds.map((k) => (
       <k.Preview
         key={`${k.key}-${slot}`}
@@ -906,6 +906,10 @@ function ComposedResultsBody({
           </div>
         </Section>
       )}
+
+      {/* Low on the page, just above Media: a kind whose things only share a word with the search
+          ("west" in book titles) — found, but out of the way of what the search is most likely for. */}
+      {kindPreviews("late")}
 
       {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>

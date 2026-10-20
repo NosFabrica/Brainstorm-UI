@@ -6,6 +6,13 @@ import { createContext, useContext, type ComponentType } from "react";
  * concept: the kinds are handed down from the app's root
  * (components/items/TierThreeProvider), and search draws whatever it's given.
  */
+/**
+ * Where on the Top page a kind's preview is offered: above People ("lead"), right after them
+ * ("follow"), or low, just above Media ("late") — for words a kind's things only share, like a
+ * common word in book titles. A preview renders in one of them at most.
+ */
+export type PreviewSlot = "lead" | "follow" | "late";
+
 export interface ListKindSearch {
   /** Stable key: "books", "places", "github". */
   key: string;
@@ -21,7 +28,7 @@ export interface ListKindSearch {
    * one above when the words ask for it — they name the kind (`named`), or its own reading of them
    * (Places: a town, a kind of place) — and in the one below otherwise.
    */
-  Preview: ComponentType<{ query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void }>;
+  Preview: ComponentType<{ query: string; slot: PreviewSlot; named: boolean; onSeeAll?: () => void }>;
   /**
    * Its card at the head of the side panel, for words that make it the thing the search is about
    * (Places: a town) — Google's panel. Renders nothing otherwise, and nothing on a phone, where

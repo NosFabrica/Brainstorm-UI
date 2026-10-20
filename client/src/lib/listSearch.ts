@@ -45,6 +45,24 @@ export function wordsToFind(query: string, list: Pick<NamedList, "singular" | "p
 }
 
 /**
+ * Whether the words are most of a title — more than half of its words, filler
+ * aside — and so a search for that very thing: "dune" for Dune, "hornblower
+ * in the west" for Hornblower in the West Indies. A word it only shares
+ * ("west" in West from Home) is not. `typing`: the last word may be a word's
+ * beginning, as it is in the dropdown.
+ */
+export function coversTitle(words: readonly string[], title: string, typing = false): boolean {
+  const titleWords = title
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w && !FILLER.has(w));
+  if (titleWords.length === 0) return false;
+  const last = typing ? words[words.length - 1] : undefined;
+  const matched = titleWords.filter((w) => words.includes(w) || (!!last && w.startsWith(last))).length;
+  return matched * 2 > titleWords.length;
+}
+
+/**
  * The list a search names and the words to find in it — the first list, in
  * the order given, with a word of its name among the search's. Null when no
  * list is named, or its name is all there is.

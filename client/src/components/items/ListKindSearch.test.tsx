@@ -280,6 +280,9 @@ const preview = (key: string, query: string, named = false) => {
       <div data-testid="slot-follow">
         <kind.Preview query={query} slot="follow" named={named} />
       </div>
+      <div data-testid="slot-late">
+        <kind.Preview query={query} slot="late" named={named} />
+      </div>
     </>,
   );
 };
@@ -420,6 +423,19 @@ describe("a kind's row in the search dropdown", () => {
     );
   };
 
+  it("offers no book for a word a title only shares", () => {
+    itemsOf[BOOKS].push(book("Hornblower in the West Indies", "C. S. Forester"));
+    try {
+      suggestion("books", "west");
+      expect(screen.queryByTestId("kind-suggestion-books")).toBeNull();
+      cleanup();
+      suggestion("books", "hornblower in the west");
+      expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("Hornblower in the West Indies");
+    } finally {
+      itemsOf[BOOKS].pop();
+    }
+  });
+
   it("offers the book its title names, saying what it is, opening its page", () => {
     suggestion("books", "dune");
     const row = screen.getByTestId("kind-suggestion-books");
@@ -552,12 +568,14 @@ describe("places, presented cleanly", () => {
 // Above People only when the words ask for it: they name the kind, or — for Places — a kind of
 // place or a town several places are in. Otherwise below People, where a name is most often a person.
 describe("where a preview sits on the Top page", () => {
-  const sitsIn = (testId: string) =>
-    within(screen.getByTestId("slot-lead")).queryByTestId(testId)
-      ? "lead"
-      : within(screen.getByTestId("slot-follow")).queryByTestId(testId)
-        ? "follow"
-        : null;
+  /** The one slot a preview sits in — and never two. */
+  const sitsIn = (testId: string) => {
+    const slots = (["lead", "follow", "late"] as const).filter(
+      (slot) => !!within(screen.getByTestId(`slot-${slot}`)).queryByTestId(testId),
+    );
+    if (slots.length > 1) throw new Error(`${testId} sits in ${slots.join(" and ")}`);
+    return slots[0] ?? null;
+  };
 
   it("Books follow People unless the words name them", () => {
     preview("books", "dune");
@@ -565,6 +583,25 @@ describe("where a preview sits on the Top page", () => {
     cleanup();
     preview("books", "books dune", true);
     expect(sitsIn("kind-preview-books")).toBe("lead");
+  });
+
+  // A word a title only shares isn't a search for the book: "west" means people and news named West
+  // first. Such books sit low on the page, by Media; most of a title's words find it after People.
+  it("Books sit low when the words only share a word with titles, after People when they're most of one", () => {
+    itemsOf[BOOKS].push(book("Hornblower in the West Indies", "C. S. Forester"));
+    try {
+      preview("books", "west");
+      expect(sitsIn("kind-preview-books")).toBe("late");
+      cleanup();
+      preview("books", "hornblower west indies");
+      expect(sitsIn("kind-preview-books")).toBe("follow");
+      cleanup();
+      // Articles don't count: "The Hobbit" is all "hobbit".
+      preview("books", "hobbit");
+      expect(sitsIn("kind-preview-books")).toBe("follow");
+    } finally {
+      itemsOf[BOOKS].pop();
+    }
   });
 
   it(

@@ -32,9 +32,9 @@ import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/d
 import config from "@/config/dictionary.config.json";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useDictionary } from "@/hooks/useDictionary";
-import type { ListKindSearch } from "@/hooks/useListKinds";
+import type { ListKindSearch, PreviewSlot } from "@/hooks/useListKinds";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
-import { matchListItems, wordsToFind } from "@/lib/listSearch";
+import { coversTitle, matchListItems, wordsToFind } from "@/lib/listSearch";
 import { orderByTrust } from "@/lib/itemEngagement";
 import { collapseSameThing, tellApart } from "@/lib/sameThing";
 import { recommendedLine, useTrustedRecommenders } from "@/hooks/useTrustedRecommenders";
@@ -144,10 +144,11 @@ function identityOf(view: ConceptViewKey, item: Item, shown: ItemPresentation): 
   return null;
 }
 
-type PreviewProps = { query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void };
+type PreviewProps = { query: string; slot: PreviewSlot; named: boolean; onSeeAll?: () => void };
 
 /** Whether a preview renders in the slot it's offered: above People when the words ask for it, else below. */
-const inSlot = (slot: PreviewProps["slot"], lead: boolean) => (slot === "lead") === lead;
+/** Above People when the words ask for the kind, else right after them; never the low slot. */
+const inSlot = (slot: PreviewProps["slot"], lead: boolean) => slot === (lead ? "lead" : "follow");
 
 /**
  * Whether the words ask for places on their own: a kind of place two or more
@@ -328,7 +329,19 @@ function BooksPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { hits: found } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
   const { ordered, lineOf } = useTrustOrdered(found);
   const hits = ordered.slice(0, 6);
-  if (hits.length === 0 || !inSlot(slot, named)) return null;
+  // Above People when the words name Books; right after them when they're most of a title; low on
+  // the page, by Media, when they only share a word with titles ("west") — that search is for people
+  // and news named West first.
+  const words = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  const wanted: PreviewSlot = named
+    ? "lead"
+    : found.some((h) => coversTitle(words, h.shown.title ?? ""))
+      ? "follow"
+      : "late";
+  if (hits.length === 0 || slot !== wanted) return null;
   return (
     <section data-testid="kind-preview-books">
       <Heading label="Books" count={found.length} onSeeAll={onSeeAll} />
@@ -818,11 +831,14 @@ function suggestionFor(
     byName = false,
     groups = false,
     owned = false,
+    mostOfTitle = false,
   }: {
     byName?: boolean;
     groups?: boolean;
     /** Its things are people's own accounts: one a person shown owns is left to their row. */
     owned?: boolean;
+    /** Offered only when the words are most of its title (lib/listSearch coversTitle): a word it only shares isn't a search for it. */
+    mostOfTitle?: boolean;
   } = {},
 ) {
   return function KindSuggestion({
@@ -866,6 +882,18 @@ function suggestionFor(
     }
     const h = (byName ? named : all)[0];
     if (!h || slot !== "follow") return null;
+    if (
+      mostOfTitle &&
+      !coversTitle(
+        query
+          .toLowerCase()
+          .split(/[^\p{L}\p{N}]+/u)
+          .filter(Boolean),
+        h.shown.title ?? "",
+        true,
+      )
+    )
+      return null;
     // Their own account is the person, already a row above: one person, one row — on proof only
     // (lib/githubLink); until then, and when it can't be checked, it keeps its own row.
     const e = evidence.get(firstHandle.toLowerCase()) ?? NO_EVIDENCE;
@@ -1558,7 +1586,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     Preview: BooksPreview,
     Page: BooksPage,
     Warm: warmFor("book"),
-    Suggestion: suggestionFor("books", "book", "Book", BookOpen, { byName: true }),
+    Suggestion: suggestionFor("books", "book", "Book", BookOpen, { mostOfTitle: true, byName: true }),
   },
   {
     key: "github",

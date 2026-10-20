@@ -1683,11 +1683,12 @@ describe("ComposedResults — a query that matches a tag", () => {
   // The kinds with a look of their own (Books, Places…) come from the app's root. The Top page offers
   // each a place above People and one below; a kind takes the one above when the words ask for it
   // (they name it, or for Places, a kind of place or a town) and the one below otherwise.
-  type Slot = { query: string; slot: "lead" | "follow"; named: boolean };
+  type Slot = { query: string; slot: "lead" | "follow" | "late"; named: boolean };
   const fake = (key: string, leadsOnItsOwn: (q: string) => boolean) =>
     function FakePreview({ query, slot, named }: Slot) {
       const lead = named || leadsOnItsOwn(query);
-      if ((slot === "lead") !== lead) return null;
+      // One slot at most (hooks/useListKinds PreviewSlot): above People, or right after them.
+      if (slot !== (lead ? "lead" : "follow")) return null;
       return <div data-testid={`kind-${key}`}>{query}</div>;
     };
   const kinds = [
@@ -1713,6 +1714,47 @@ describe("ComposedResults — a query that matches a tag", () => {
     return screen.findByTestId("serp-section-people");
   };
   const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  // Words a kind's things only share ("west" in book titles) put it low: after Latest, just above
+  // Media, out of the way of what the search is most likely for.
+  it("draws a kind's low preview after Latest and just above Media", async () => {
+    const late = [
+      {
+        key: "books",
+        label: "Books",
+        community: "39998:b:books",
+        Preview: ({ query, slot }: { query: string; slot: string }) =>
+          slot === "late" ? <div data-testid="kind-books-late">{query}</div> : null,
+      },
+    ];
+    render(
+      <ListKindsContext.Provider value={late as never}>
+        <ComposedResults query="west" pov="nosfabrica" onTabChange={vi.fn()} />
+      </ListKindsContext.Provider>,
+    );
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("h1", 1, "2".repeat(64), "West of here"), "alice")],
+      eose: true,
+      timeMs: 100,
+    });
+    sectionCall("media").emit({
+      hits: [
+        hitOf(
+          ev("1".repeat(64), 20, "1".repeat(64), "West view", [
+            ["imeta", "url https://cdn.example/west.jpg", "m image/jpeg"],
+          ]),
+          "Views",
+        ),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const latest = await screen.findByTestId("serp-section-latest");
+    const media = await screen.findByTestId("serp-section-media");
+    const books = screen.getByTestId("kind-books-late");
+    expect(before(latest, books)).toBe(true);
+    expect(before(books, media)).toBe(true);
+  });
 
   it("draws a kind's preview below People when the words don't ask for it", async () => {
     const people = await peopleFor("dune");
