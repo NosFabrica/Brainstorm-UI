@@ -263,6 +263,7 @@ function ComposedResultsBody({
   onSectionHits,
   seeds: remembered,
   peopleSeedIsGuess,
+  onOpenKind,
 }: {
   query: string;
   pov: SearchPov;
@@ -280,6 +281,8 @@ function ComposedResultsBody({
   seeds?: Record<string, SearchHit[]>;
   /** The People seed is the typeahead's guess, to be replaced by the answer. */
   peopleSeedIsGuess?: boolean;
+  /** Opens a kind's own page (hooks/useListKinds): a preview's "See all". */
+  onOpenKind?: (key: string) => void;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   // Taking the head start is a one-shot with a side effect — it hands the
@@ -740,7 +743,7 @@ function ComposedResultsBody({
       {/* The kinds with a look of their own — Books, Places, GitHub accounts — each preview what the
           words find (hooks/useListKinds), the one the words name first. */}
       {orderedKinds.map((k) => (
-        <k.Preview key={k.key} query={query} />
+        <k.Preview key={k.key} query={query} onSeeAll={onOpenKind ? () => onOpenKind(k.key) : undefined} />
       ))}
       {/* A search that names any other list — "v4v songs …" — leads with its items, for everyone. */}
       <ListItemResults query={query} onTabChange={onTabChange} except={kindCommunities} />

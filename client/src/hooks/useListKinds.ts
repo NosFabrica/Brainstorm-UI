@@ -13,8 +13,12 @@ export interface ListKindSearch {
   label: string;
   /** The community concept the kind is, so search can leave it to the kind's own look. */
   community: string;
-  /** The Top page's preview of what the words find; renders nothing when they find nothing. */
-  Preview: ComponentType<{ query: string }>;
+  /** The More menu's group it sits in, with its neighbours: "Read & listen". */
+  group: string;
+  /** The Top page's preview of what the words find; renders nothing when they find nothing. "See all" opens the page. */
+  Preview: ComponentType<{ query: string; onSeeAll?: () => void }>;
+  /** Its own page under the tab strip: what the words find, or the list itself with no words. */
+  Page: ComponentType<{ query: string }>;
 }
 
 export const ListKindsContext = createContext<readonly ListKindSearch[]>([]);

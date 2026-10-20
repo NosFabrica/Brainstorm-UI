@@ -1715,6 +1715,27 @@ describe("ComposedResults — a query that matches a tag", () => {
     expect(books.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("a preview's See all opens its kind's page", () => {
+    const onOpenKind = vi.fn();
+    const seeAll = [
+      {
+        ...kinds[1],
+        Preview: ({ onSeeAll }: { onSeeAll?: () => void }) => (
+          <button type="button" onClick={onSeeAll}>
+            See all
+          </button>
+        ),
+      },
+    ];
+    render(
+      <ListKindsContext.Provider value={seeAll as never}>
+        <ComposedResults query="dune" pov="nosfabrica" onTabChange={vi.fn()} onOpenKind={onOpenKind} />
+      </ListKindsContext.Provider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "See all" }));
+    expect(onOpenKind).toHaveBeenCalledWith("books");
+  });
+
   it("puts the kind the words name first", () => {
     render(
       <ListKindsContext.Provider value={kinds}>

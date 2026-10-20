@@ -230,6 +230,7 @@ const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: bo
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
+import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { NowPlayingBar } from "./NowPlayingBar";
 
@@ -583,12 +584,12 @@ describe("SearchResults", () => {
   // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
   // settings list. The menu is grouped by what a person is doing, consumer
   // things first and developer things last.
-  it("groups More by what you're doing: Read & listen, Happening, Build, Community, then Lists", () => {
+  it("groups More by what you're doing: Read & listen, Out & about, Build, Community, then Lists", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     fireEvent.click(screen.getByTestId("search-tab-more"));
     const menu = screen.getByRole("menu");
     const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
-    expect(groups).toEqual(["Read & listen", "Happening", "Build", "Community"]);
+    expect(groups).toEqual(["Read & listen", "Out & about", "Build", "Community"]);
     // Doors only: a "Soon" row names where we're going and opens nothing.
     const items = [
       ...menu.querySelectorAll(
@@ -5154,5 +5155,64 @@ describe("a person's handle on their search card", () => {
     await screen.findByTestId("result-profile-0");
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByTestId("text-nip05-0")).toBeNull();
+  });
+});
+
+// The kinds with a look of their own (Books, Places, GitHub accounts) are handed down from the
+// app's root; each has a page of its own, listed under More with its neighbours.
+describe("a kind's own page", () => {
+  const kinds = [
+    {
+      key: "books",
+      label: "Books",
+      group: "Read & listen",
+      community: "39998:b:books",
+      Preview: () => null,
+      Page: ({ query }: { query: string }) => <div data-testid="kind-page-books">{query}</div>,
+    },
+    {
+      key: "places",
+      label: "Places",
+      group: "Out & about",
+      community: "39998:p:places",
+      Preview: () => null,
+      Page: ({ query }: { query: string }) => <div data-testid="kind-page-places">{query}</div>,
+    },
+  ];
+  const withKinds = (query: string) =>
+    render(
+      <ListKindsContext.Provider value={kinds}>
+        <SearchResults query={query} pov="nosfabrica" />
+      </ListKindsContext.Provider>,
+    );
+
+  it("is listed under More with its neighbours, and opens with the reader's words", () => {
+    setUrlTab(null);
+    withKinds("dune");
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(
+      within(screen.getByRole("group", { name: "Read & listen" })).getByTestId("search-tab-books"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Out & about" })).getByTestId("search-tab-places"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("search-tab-books"));
+    expect(screen.getByTestId("kind-page-books")).toHaveTextContent("dune");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("books");
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Books");
+  });
+
+  it("opens from its link", () => {
+    setUrlTab("places");
+    withKinds("coffee");
+    expect(screen.getByTestId("kind-page-places")).toHaveTextContent("coffee");
+  });
+
+  it("gives way to a main tab", () => {
+    setUrlTab("books");
+    withKinds("dune");
+    fireEvent.click(screen.getByTestId("search-tab-people"));
+    expect(screen.queryByTestId("kind-page-books")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("people");
   });
 });

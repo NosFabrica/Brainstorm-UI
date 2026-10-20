@@ -7,7 +7,7 @@
  * shown when the words find something, and only then.
  */
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
@@ -115,6 +115,11 @@ vi.mock("@/components/items/PlacesMap", () => ({
 
 import { LIST_KINDS } from "./ListKindSearch";
 
+const page = (key: string, query: string) => {
+  const kind = LIST_KINDS.find((k) => k.key === key)!;
+  return renderWithProviders(<kind.Page query={query} />);
+};
+
 const preview = (key: string, query: string) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
   return renderWithProviders(<kind.Preview query={query} />);
@@ -154,5 +159,69 @@ describe("a kind's preview on the Top page", () => {
     expect(container).toBeEmptyDOMElement();
     const again = preview("places", "the");
     expect(again.container).toBeEmptyDOMElement();
+  });
+});
+
+describe("a kind's own page", () => {
+  it("each kind sits with its neighbours under More", () => {
+    expect(Object.fromEntries(LIST_KINDS.map((k) => [k.key, k.group]))).toEqual({
+      places: "Out & about",
+      books: "Read & listen",
+      github: "Build",
+    });
+  });
+
+  it("Books: a shelf of every book the words find, cover, title and author", () => {
+    page("books", "dune");
+    const shelf = screen.getByTestId("kind-page-books");
+    const books = within(shelf).getAllByTestId("kind-page-item");
+    expect(books.map((b) => b.textContent)).toEqual(["DuneFrank Herbert", "Dune MessiahFrank Herbert"]);
+    expect(books[0].querySelector("img")).toHaveAttribute("src", "https://covers.example/Dune.jpg");
+  });
+
+  it("Books with no words to find: the whole shelf", () => {
+    page("books", "books");
+    expect(screen.getAllByTestId("kind-page-item")).toHaveLength(3);
+  });
+
+  it("Places: the places the words find, their pins on a map, and chips that narrow them", () => {
+    page("places", "");
+    const list = screen.getByTestId("kind-page-places");
+    expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(5);
+    expect(screen.getByTestId("places-map")).toHaveTextContent("5");
+    fireEvent.click(screen.getByRole("button", { name: "Restaurant" }));
+    expect(
+      within(list)
+        .getAllByTestId("kind-page-item")
+        .map((r) => r.querySelector("a")?.textContent),
+    ).toEqual(["Il Sole"]);
+    expect(screen.getByRole("button", { name: "Restaurant" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Restaurant" }));
+    expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(5);
+  });
+
+  it("GitHub accounts: a card for each, with its avatar and a way to it", () => {
+    page("github", "");
+    const cards = screen.getAllByTestId("kind-page-item");
+    expect(cards.map((c) => c.querySelector("a")?.textContent)).toEqual(["riverdev", "lakebuilder"]);
+    expect(within(cards[0]).getByRole("link", { name: "View account" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/e\/naddr1/),
+    );
+  });
+
+  it("says so when the words find nothing", () => {
+    page("books", "zzzz");
+    expect(screen.getByTestId("kind-page-empty")).toHaveTextContent("No books match");
+  });
+});
+
+describe("a preview's See all", () => {
+  it("opens the kind's own page", () => {
+    const onSeeAll = vi.fn();
+    const kind = LIST_KINDS.find((k) => k.key === "books")!;
+    renderWithProviders(<kind.Preview query="herbert" onSeeAll={onSeeAll} />);
+    fireEvent.click(screen.getByRole("button", { name: "See all books" }));
+    expect(onSeeAll).toHaveBeenCalled();
   });
 });
