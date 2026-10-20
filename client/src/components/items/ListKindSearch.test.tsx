@@ -113,6 +113,22 @@ vi.mock("@/components/items/PlacesMap", () => ({
   PlacesMap: ({ pins }: { pins: { name: string }[] }) => <div data-testid="places-map">{pins.length}</div>,
 }));
 
+// Who recommends each item (kind-7 "+", read in one batch for what's shown), and who the reader
+// trusts: people they follow, then accounts above the verified line.
+const trust = vi.hoisted(() => ({
+  endorsers: new Map<string, { pubkey: string; at: number }[]>(),
+  follows: new Set<string>(),
+  signedIn: false,
+}));
+vi.mock("@/services/itemEngagement", () => ({
+  fetchItemsReactions: async (items: { id: string }[]) =>
+    new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!])),
+}));
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: trust.follows, ready: true, signedIn: trust.signedIn }),
+}));
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+
 import { LIST_KINDS } from "./ListKindSearch";
 
 const page = (key: string, query: string) => {
@@ -245,5 +261,35 @@ describe("a kind's row in the search dropdown", () => {
   it("offers nothing when the words find nothing", () => {
     const { container } = suggestion("places", "zzzz");
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("trust orders what search shows", () => {
+  const FRIEND1 = "f1".repeat(32);
+  const FRIEND2 = "f2".repeat(32);
+  const STRANGER = "99".repeat(32);
+
+  it("puts what people the reader trusts recommend first, and says so", async () => {
+    const coffeeTwo = (itemsOf[PLACES] as { id: string; tags: string[][] }[]).find((i) =>
+      i.tags.some((t) => t[1] === "Coffee Two"),
+    )!;
+    trust.endorsers = new Map([
+      [
+        coffeeTwo.id,
+        [
+          { pubkey: FRIEND1, at: 2 },
+          { pubkey: FRIEND2, at: 1 },
+          { pubkey: STRANGER, at: 3 },
+        ],
+      ],
+    ]);
+    trust.follows = new Set([FRIEND1, FRIEND2]);
+    trust.signedIn = true;
+    page("places", "");
+    const first = await screen.findByText("Recommended by 2 people you trust");
+    const rows = screen.getAllByTestId("kind-page-item");
+    expect(rows[0]).toHaveTextContent("Coffee Two");
+    expect(rows[0]).toContainElement(first);
+    expect(rows[1]).not.toHaveTextContent("Recommended");
   });
 });

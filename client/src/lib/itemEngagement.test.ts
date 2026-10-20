@@ -4,7 +4,7 @@
  * GitHub handle it names (NIP-39 `i` tags on kind 0).
  */
 import { describe, expect, it } from "vitest";
-import { endorsementTemplate, endorsersOf, githubClaimantsOf } from "./itemEngagement";
+import { endorsementTemplate, endorsersByItem, endorsersOf, githubClaimantsOf, orderByTrust } from "./itemEngagement";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -76,5 +76,50 @@ describe("endorsementTemplate", () => {
         ["k", "39999"],
       ],
     });
+  });
+});
+
+// Search shows many items at once and asks for their reactions in one batch: each reaction counts
+// for the item it names, by id or by address.
+describe("endorsersByItem", () => {
+  const items = [
+    { id: "i1", address: "39999:x:one" },
+    { id: "i2", address: "39999:x:two" },
+  ];
+  const r = (pubkey: string, at: number, tags: string[][], content = "+") => ({
+    pubkey,
+    created_at: at,
+    content,
+    tags,
+  });
+
+  it("gives each item the people who endorsed it, by its id or its address, once each", () => {
+    const out = endorsersByItem(
+      [
+        r(A, 5, [["a", "39999:x:one"]]),
+        r(B, 6, [["e", "i1"]]),
+        r(A, 9, [["e", "i1"]]),
+        r(C, 7, [["a", "39999:x:two"]]),
+        r(B, 8, [["a", "39999:x:two"]], "-"),
+      ],
+      items,
+    );
+    expect(out.get("i1")).toEqual([
+      { pubkey: A, at: 9 },
+      { pubkey: B, at: 6 },
+    ]);
+    expect(out.get("i2")).toEqual([{ pubkey: C, at: 7 }]);
+  });
+});
+
+describe("orderByTrust", () => {
+  it("puts what more trusted people recommend first, keeping the given order otherwise", () => {
+    const hits = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+    const trusted = new Map([
+      ["c", 2],
+      ["b", 1],
+      ["d", 1],
+    ]);
+    expect(orderByTrust(hits, (id) => trusted.get(id) ?? 0).map((h) => h.id)).toEqual(["c", "b", "d", "a"]);
   });
 });

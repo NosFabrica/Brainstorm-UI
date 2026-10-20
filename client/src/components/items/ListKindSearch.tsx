@@ -21,6 +21,9 @@ import { useDictionary } from "@/hooks/useDictionary";
 import type { ListKindSearch } from "@/hooks/useListKinds";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { matchListItems, wordsToFind } from "@/lib/listSearch";
+import { orderByTrust } from "@/lib/itemEngagement";
+import { coordinateOf } from "@/lib/dlistFields";
+import { recommendedLine, useTrustedRecommenders } from "@/hooks/useTrustedRecommenders";
 import { openingStatus, parseOpeningHours } from "@/lib/openingHours";
 import { categoryWords, placeLocalMinutes } from "@/lib/placeLinks";
 import { eventPath } from "@/lib/shareId";
@@ -33,6 +36,8 @@ type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 /** One item as search shows it: how its card reads it, where it opens, and for a place, the place. */
 export interface KindHit {
   id: string;
+  /** Its address, which endorsements name it by. */
+  address: string | null;
   href: string;
   shown: ItemPresentation;
   place: Place | null;
@@ -63,12 +68,34 @@ function useKindHits(
         : (items.data as Item[]).filter((item) => read(item).title).slice(0, max);
     return found.map((item) => ({
       id: item.id,
+      address: coordinateOf(item),
       href: eventPath(item, dictionaryRelays()),
       shown: read(item),
       place: view === "place" ? placeOf(item, definition) : null,
     }));
   }, [resolved, items.data, words, max, view, browse]);
   return { hits, pending: dictionary.isPending || (!!entry && items.isPending) };
+}
+
+/** How many matches a preview orders by trust before it shows its few. */
+const CANDIDATES = 24;
+
+/**
+ * The hits in trust's order — what more people the reader trusts recommend
+ * first (hooks/useTrustedRecommenders) — and the line that says so.
+ */
+function useTrustOrdered(hits: KindHit[]) {
+  const { countOf, who } = useTrustedRecommenders(hits);
+  return { ordered: orderByTrust(hits, countOf), lineOf: (id: string) => recommendedLine(countOf(id), who) };
+}
+
+function TrustLine({ text, className = "" }: { text: string | null; className?: string }) {
+  if (!text) return null;
+  return (
+    <span className={`block truncate text-[11px] font-medium text-brand-deep dark:text-brand-link ${className}`}>
+      {text}
+    </span>
+  );
 }
 
 /** A preview's heading: the kind's name, as a section on the Top page, and the way to its own page. */
@@ -91,7 +118,9 @@ function Heading({ label, onSeeAll }: { label: string; onSeeAll?: () => void }) 
 }
 
 function BooksPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
-  const { hits } = useKindHits("book", query, 6);
+  const { hits: found } = useKindHits("book", query, CANDIDATES);
+  const { ordered, lineOf } = useTrustOrdered(found);
+  const hits = ordered.slice(0, 6);
   if (hits.length === 0) return null;
   return (
     <section data-testid="kind-preview-books">
@@ -119,6 +148,7 @@ function BooksPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => voi
                 {h.shown.summary}
               </span>
             )}
+            <TrustLine text={lineOf(h.id)} />
           </Link>
         ))}
       </div>
@@ -152,7 +182,9 @@ function PlaceFacts({ place }: { place: Place }) {
 }
 
 function PlacesPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
-  const { hits } = useKindHits("place", query, 3);
+  const { hits: found } = useKindHits("place", query, CANDIDATES);
+  const { ordered, lineOf } = useTrustOrdered(found);
+  const hits = ordered.slice(0, 3);
   if (hits.length === 0) return null;
   const pins = hits
     .map((h) => ({ lat: Number(h.place?.lat), lon: Number(h.place?.lon), name: h.shown.title ?? "" }))
@@ -182,6 +214,7 @@ function PlacesPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => vo
                   <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
                 )}
                 {h.place && <PlaceFacts place={h.place} />}
+                <TrustLine text={lineOf(h.id)} />
               </span>
             </li>
           ))}
@@ -193,7 +226,9 @@ function PlacesPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => vo
 }
 
 function GitHubPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
-  const { hits } = useKindHits("github-account", query, 3);
+  const { hits: found } = useKindHits("github-account", query, CANDIDATES);
+  const { ordered, lineOf } = useTrustOrdered(found);
+  const hits = ordered.slice(0, 3);
   if (hits.length === 0) return null;
   return (
     <section data-testid="kind-preview-github">
@@ -216,6 +251,7 @@ function GitHubPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => vo
                 {h.shown.summary && (
                   <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
                 )}
+                <TrustLine text={lineOf(h.id)} />
               </span>
             </Link>
           </li>
@@ -286,7 +322,8 @@ function PageEmpty({ pending, label, query }: { pending: boolean; label: string;
 
 /** Books: a shelf, the way a bookshop shows them — covers first. */
 function BooksPage({ query }: { query: string }) {
-  const { hits, pending } = useKindHits("book", query, PAGE_MAX, { browse: true });
+  const { hits: found, pending } = useKindHits("book", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found);
   if (hits.length === 0) return <PageEmpty pending={pending} label="Books" query={query} />;
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-6 py-4 sm:grid-cols-4 lg:grid-cols-5" data-testid="kind-page-books">
@@ -310,6 +347,7 @@ function BooksPage({ query }: { query: string }) {
           {h.shown.summary && (
             <span className="line-clamp-1 block text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
           )}
+          <TrustLine text={lineOf(h.id)} />
         </Link>
       ))}
     </div>
@@ -327,7 +365,8 @@ const takesBitcoin = (place: Place | null) => !!place?.bitcoin && place.bitcoin.
 
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
 function PlacesPage({ query }: { query: string }) {
-  const { hits, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
+  const { hits: found, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false, bitcoin: false });
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
@@ -396,6 +435,7 @@ function PlacesPage({ query }: { query: string }) {
                   <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
                 )}
                 {h.place && <PlaceFacts place={h.place} />}
+                <TrustLine text={lineOf(h.id)} />
               </span>
             </li>
           ))}
@@ -411,7 +451,8 @@ function PlacesPage({ query }: { query: string }) {
 
 /** GitHub accounts: a card for each — avatar, handle, what they do — and a way to their page. */
 function GitHubPage({ query }: { query: string }) {
-  const { hits, pending } = useKindHits("github-account", query, PAGE_MAX, { browse: true });
+  const { hits: found, pending } = useKindHits("github-account", query, PAGE_MAX, { browse: true });
+  const { ordered: hits, lineOf } = useTrustOrdered(found);
   if (hits.length === 0) return <PageEmpty pending={pending} label="GitHub accounts" query={query} />;
   return (
     <div className="mx-auto max-w-2xl space-y-3 py-4" data-testid="kind-page-github">
@@ -438,6 +479,7 @@ function GitHubPage({ query }: { query: string }) {
             {h.shown.summary && (
               <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{h.shown.summary}</p>
             )}
+            <TrustLine text={lineOf(h.id)} className="mt-0.5" />
           </div>
           <Link
             href={h.href}
