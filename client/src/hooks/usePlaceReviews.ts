@@ -3,8 +3,14 @@ import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { coordinateOf } from "@/lib/dlistFields";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { fetchLensRanks, fetchPlaceReviews, publishPlaceReview, removePlaceReview } from "@/services/placeReviews";
-import { placeRating, type PlaceReview, type ReviewDraft } from "@/lib/placeReviews";
+import {
+  fetchLensRanks,
+  fetchPlaceReviews,
+  fetchReviewsForPlaces,
+  publishPlaceReview,
+  removePlaceReview,
+} from "@/services/placeReviews";
+import { orderingScore, placeRating, weightedStars, type PlaceReview, type ReviewDraft } from "@/lib/placeReviews";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 
@@ -92,4 +98,48 @@ export function usePlaceRating(item: Item, reviews: PlaceReview[]) {
   });
   if (people.length === 0 || (me && you.isPending)) return null;
   return placeRating(reviews, { you: me ? (you.data ?? null) : undefined, curator: curator.data ?? null });
+}
+
+const NO_REVIEWS = new Map<string, PlaceReview[]>();
+
+/**
+ * The ratings of many places at once — a search's places: their reviews in
+ * one batch, weighed through one lens for all of them, the reader's own when
+ * signed in, else the curator's (the contract's section 8). For each place:
+ * the star value to show (null when nobody counted gave stars), how many
+ * reviewed it, and the number places are ordered by (orderingScore).
+ */
+export function usePlacesRatings(addresses: readonly string[], curator: string | null) {
+  const me = useActiveAccountDisplay()?.pubkey ?? null;
+  const reviews = useQuery({
+    queryKey: ["places-reviews", ...addresses],
+    queryFn: () => fetchReviewsForPlaces([...addresses]),
+    enabled: addresses.length > 0,
+    staleTime: 60_000,
+  });
+  const byPlace = reviews.data ?? NO_REVIEWS;
+  const people = [
+    ...new Set(
+      [...byPlace.values()]
+        .flat()
+        .filter((r) => r.rating != null)
+        .map((r) => r.pubkey),
+    ),
+  ].sort();
+  const lensOwner = me ?? curator;
+  const lens = useQuery({
+    queryKey: ["lens-ranks", lensOwner, people],
+    queryFn: () => fetchLensRanks(lensOwner!, people),
+    enabled: !!lensOwner && people.length > 0,
+    staleTime: RANKS_STALE_MS,
+  });
+  const rankOf = (pk: string) => lens.data?.get(pk) ?? null;
+  return (address: string) => {
+    const list = byPlace.get(address) ?? [];
+    return {
+      value: weightedStars(list, rankOf)?.value ?? null,
+      count: list.length,
+      score: orderingScore(list, rankOf),
+    };
+  };
 }

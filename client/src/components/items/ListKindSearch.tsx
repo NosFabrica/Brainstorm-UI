@@ -24,6 +24,7 @@ import { matchListItems, wordsToFind } from "@/lib/listSearch";
 import { orderByTrust } from "@/lib/itemEngagement";
 import { coordinateOf } from "@/lib/dlistFields";
 import { recommendedLine, useTrustedRecommenders } from "@/hooks/useTrustedRecommenders";
+import { usePlacesRatings } from "@/hooks/usePlaceReviews";
 import { openingStatus, parseOpeningHours } from "@/lib/openingHours";
 import { categoryWords, placeLocalMinutes } from "@/lib/placeLinks";
 import { eventPath } from "@/lib/shareId";
@@ -239,6 +240,7 @@ function PlaceRow({
   big = false,
   highlighted = false,
   onPoint,
+  rating = null,
 }: {
   hit: KindHit;
   n: number;
@@ -249,6 +251,8 @@ function PlaceRow({
   highlighted?: boolean;
   /** Pointed at, or no longer: lights its pin. */
   onPoint?: (on: boolean) => void;
+  /** Its rating through the reader's lens: "★ 4.5 · 2 reviews". */
+  rating?: string | null;
 }) {
   return (
     <li
@@ -275,6 +279,11 @@ function PlaceRow({
         {hit.shown.summary && (
           <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{hit.shown.summary}</span>
         )}
+        {rating && (
+          <span className="block text-xs font-medium text-amber-700 dark:text-amber-400" data-testid="place-row-rating">
+            {rating}
+          </span>
+        )}
         {hit.place && <OpeningLine place={hit.place} />}
         <TrustLine text={trust} />
       </span>
@@ -288,6 +297,31 @@ function PlaceRow({
       )}
     </li>
   );
+}
+
+/**
+ * Places in their rating's order — through the reader's lens, damped so one
+ * review doesn't top the list (hooks/usePlacesRatings, the contract's
+ * section 8) — after trust's order among equals; and the line each shows.
+ */
+function useRatedPlaces(hits: KindHit[]) {
+  const { ordered, lineOf } = useTrustOrdered(hits);
+  const addresses = hits.map((h) => h.address).filter((a): a is string => !!a);
+  const curator = addresses[0]?.split(":")[1] ?? null;
+  const ratingOf = usePlacesRatings(addresses, curator);
+  const scoreOf = (h: KindHit) => (h.address ? ratingOf(h.address).score : 0);
+  const rated = ordered
+    .map((h, i) => ({ h, i, score: scoreOf(h) }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((x) => x.h);
+  const ratingLine = (h: KindHit): string | null => {
+    if (!h.address) return null;
+    const r = ratingOf(h.address);
+    if (r.count === 0) return null;
+    const reviews = `${r.count} ${r.count === 1 ? "review" : "reviews"}`;
+    return r.value != null ? `★ ${r.value.toFixed(1)} · ${reviews}` : reviews;
+  };
+  return { rated, lineOf, ratingLine };
 }
 
 /** The places' pins, each wearing its row's number; none for a place with no coordinates. */
@@ -304,8 +338,8 @@ function pinsOf(hits: KindHit[]) {
 
 function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { hits: found } = useKindHits("place", query, CANDIDATES);
-  const { ordered, lineOf } = useTrustOrdered(found);
-  const hits = ordered.slice(0, 3);
+  const { rated, lineOf, ratingLine } = useRatedPlaces(found);
+  const hits = rated.slice(0, 3);
   if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
   // A town the words name is said: "Places in Austin".
   const town = townNamed(
@@ -329,7 +363,14 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
       <div className={`grid gap-3 ${map ? "sm:grid-cols-[minmax(0,1fr)_200px]" : ""}`}>
         <ul className="space-y-3">
           {hits.map((h, i) => (
-            <PlaceRow key={h.id} hit={h} n={i + 1} trust={lineOf(h.id)} testId="kind-preview-row" />
+            <PlaceRow
+              key={h.id}
+              hit={h}
+              n={i + 1}
+              trust={lineOf(h.id)}
+              rating={ratingLine(h)}
+              testId="kind-preview-row"
+            />
           ))}
         </ul>
         {map && <PlacesMap pins={pins} className="hidden h-40 sm:block" />}
@@ -507,7 +548,7 @@ const isOpenNow = (place: Place | null) => {
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
 function PlacesPage({ query }: { query: string }) {
   const { hits: found, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
-  const { ordered: hits, lineOf } = useTrustOrdered(found);
+  const { rated: hits, lineOf, ratingLine } = useRatedPlaces(found);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
   // The place pointed at in the list, or tapped on the map: its row and its pin light together.
   const [lit, setLit] = useState<string | null>(null);
@@ -575,6 +616,7 @@ function PlacesPage({ query }: { query: string }) {
               hit={h}
               n={i + 1}
               trust={lineOf(h.id)}
+              rating={ratingLine(h)}
               testId="kind-page-item"
               big
               highlighted={lit === String(i + 1)}

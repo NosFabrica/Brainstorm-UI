@@ -150,6 +150,32 @@ vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: trust.follows, ready: true, signedIn: trust.signedIn }),
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+// Signed out: places are weighed through the curator's lens.
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+// Reviews of the places shown (kind 34259), read in one batch, and the reviewers' ranks in the
+// curator's lens (signed out): what orders places by rating.
+const ratings = vi.hoisted(() => ({
+  reviews: new Map<string, { pubkey: string; rating: number | null }[]>(),
+  ranks: new Map<string, number>(),
+}));
+vi.mock("@/services/placeReviews", () => ({
+  fetchReviewsForPlaces: async (addresses: string[]) =>
+    new Map(
+      addresses.map((a) => [
+        a,
+        (ratings.reviews.get(a) ?? []).map((r, i) => ({
+          ...r,
+          id: `${a}-${i}`,
+          at: 1,
+          text: "",
+          photos: [],
+          price: null,
+          paid: null,
+        })),
+      ]),
+    ),
+  fetchLensRanks: async () => ratings.ranks,
+}));
 
 import { LIST_KINDS } from "./ListKindSearch";
 
@@ -487,6 +513,42 @@ describe("a town search", () => {
       expect(screen.getByRole("button", { name: "See all 2 places in Sarasota" })).toBeInTheDocument();
     } finally {
       itemsOf[PLACES].pop();
+    }
+  });
+});
+
+// Places come in the order of their rating through the reader's lens — the curator's, signed out —
+// damped so one review doesn't top the list (lib/placeReviews orderingScore), and say it.
+describe("places ordered by rating", () => {
+  it("leads with the best rated, and shows its stars and how many reviewed it", async () => {
+    const coffeeTwo = (itemsOf[PLACES] as { pubkey: string; tags: string[][] }[]).find((i) =>
+      i.tags.some((t) => t[1] === "Coffee Two"),
+    )!;
+    const address = `39999:${coffeeTwo.pubkey}:${coffeeTwo.tags.find((t) => t[0] === "d")![1]}`;
+    const R1 = "e1".repeat(32);
+    const R2 = "e2".repeat(32);
+    ratings.reviews = new Map([
+      [
+        address,
+        [
+          { pubkey: R1, rating: 5 },
+          { pubkey: R2, rating: 4 },
+        ],
+      ],
+    ]);
+    ratings.ranks = new Map([
+      [R1, 80],
+      [R2, 80],
+    ]);
+    try {
+      page("places", "");
+      await screen.findByText("★ 4.5 · 2 reviews");
+      const rows = screen.getAllByTestId("kind-page-item");
+      expect(rows[0]).toHaveTextContent("Coffee Two");
+      expect(rows[0]).toHaveTextContent("★ 4.5 · 2 reviews");
+    } finally {
+      ratings.reviews = new Map();
+      ratings.ranks = new Map();
     }
   });
 });
