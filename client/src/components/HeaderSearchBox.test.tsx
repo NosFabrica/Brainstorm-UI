@@ -5,6 +5,7 @@
  * box, and sends a search to the home results.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import { cleanup, act, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -668,6 +669,30 @@ describe("a kind's row in the dropdown", () => {
     expect(before(screen.getByTestId("kind-suggestion-places"), person)).toBe(true);
     expect(before(person, screen.getByTestId("kind-suggestion-books"))).toBe(true);
     expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("coffee");
+  });
+
+  // A book's title that no person matches still opens the dropdown, on the book's row alone.
+  it("opens for a kind's row when no person matches", async () => {
+    suggestMock.mockResolvedValue([]);
+    const OfferingKind = ({ slot, onOffer }: { slot: string; onOffer?: (on: boolean) => void }) => {
+      useEffect(() => {
+        onOffer?.(slot === "follow");
+      });
+      return slot === "follow" ? <a data-testid="kind-suggestion-books">West from Home</a> : null;
+    };
+    render(
+      <ListKindsContext.Provider value={[{ ...kind("books", "follow"), Suggestion: OfferingKind }] as never}>
+        <HeaderSearchBox />
+      </ListKindsContext.Provider>,
+    );
+    type("west from home");
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {});
+    await act(async () => {});
+    expect(screen.getByTestId("kind-suggestion-books")).toBeVisible();
+    expect(screen.queryByTestId("home-suggestion-0")).toBeNull();
   });
 
   // A kind's thing a person shown owns (their GitHub account) is theirs: the kind's row hears who is

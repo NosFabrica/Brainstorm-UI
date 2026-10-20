@@ -55,6 +55,8 @@ export interface ListKindSearch {
     onPick?: () => void;
     /** The people the dropdown shows: an account one of them owns is theirs, not a row of its own. */
     people?: readonly { pubkey: string; nip05?: string; website?: string }[];
+    /** Whether it has a row for the words: the dropdown opens on one even when no person matches. */
+    onOffer?: (offering: boolean) => void;
   }>;
 }
 

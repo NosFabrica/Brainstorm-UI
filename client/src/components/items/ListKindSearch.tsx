@@ -11,7 +11,7 @@
  * (lib/listSearch), over the items the Dictionary reads: a stopgap until the
  * search API returns list items with their definitions (ADR 0004).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -846,11 +846,13 @@ function suggestionFor(
     slot,
     onPick,
     people = [],
+    onOffer,
   }: {
     query: string;
     slot: "lead" | "follow";
     onPick?: () => void;
     people?: readonly { pubkey: string; nip05?: string; website?: string }[];
+    onOffer?: (offering: boolean) => void;
   }) {
     const { hits: all } = useKindHits(view, query, CANDIDATES, { typing: true });
     const { hits: named } = useKindHits(view, query, 1, { typing: true, titleOnly: true });
@@ -859,81 +861,89 @@ function suggestionFor(
     const evidence = useGitHubEvidence(firstHandle ? [firstHandle] : []);
     const { verified } = useVerifiedPeople(owned ? people : NO_PEOPLE);
     const group = groups ? groupOfPlaces(query, all) : null;
-    // A group leads, above the people; a single thing follows them.
-    if (group && slot !== "lead") return null;
-    if (group) {
-      const count = all.length >= CANDIDATES ? `${all.length}+` : String(all.length);
+    const row = ((): ReactNode => {
+      // A group leads, above the people; a single thing follows them.
+      if (group && slot !== "lead") return null;
+      if (group) {
+        const count = all.length >= CANDIDATES ? `${all.length}+` : String(all.length);
+        return (
+          <Link
+            href={`/?q=${encodeURIComponent(query.trim())}&t=${key}`}
+            onClick={onPick}
+            className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-4"
+            data-testid={`kind-suggestion-${key}-group`}
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center text-brand-primary">
+              <PinIcon className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {group} <span className="font-normal text-slate-500 dark:text-slate-400">· {count}</span>
+            </span>
+            <span className="shrink-0 text-[11px] font-semibold text-brand-link">See all →</span>
+          </Link>
+        );
+      }
+      const h = (byName ? named : all)[0];
+      if (!h || slot !== "follow") return null;
+      if (
+        mostOfTitle &&
+        !coversTitle(
+          query
+            .toLowerCase()
+            .split(/[^\p{L}\p{N}]+/u)
+            .filter(Boolean),
+          h.shown.title ?? "",
+          true,
+        )
+      )
+        return null;
+      // Their own account is the person, already a row above: one person, one row — on proof only
+      // (lib/githubLink); until then, and when it can't be checked, it keeps its own row.
+      const e = evidence.get(firstHandle.toLowerCase()) ?? NO_EVIDENCE;
+      if (firstHandle && people.some((p) => ownsGitHub(e, firstHandle, p, verified.has(p.pubkey)))) return null;
+      const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
       return (
         <Link
-          href={`/?q=${encodeURIComponent(query.trim())}&t=${key}`}
+          href={h.href}
           onClick={onPick}
           className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-4"
-          data-testid={`kind-suggestion-${key}-group`}
+          data-testid={`kind-suggestion-${key}`}
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center text-brand-primary">
-            <PinIcon className="h-5 w-5" />
+          {h.shown.image ? (
+            <img
+              src={h.shown.image}
+              alt=""
+              loading="lazy"
+              className={`shrink-0 object-cover ${portrait ? "h-10 w-7 rounded" : view === "github-account" ? "h-8 w-8 rounded-full" : "h-8 w-8 rounded-lg"}`}
+            />
+          ) : (
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center text-slate-400 dark:text-slate-500"
+              data-testid="kind-suggestion-pin"
+            >
+              <Icon className="h-4 w-4" />
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {h.shown.title}
+            </span>
+            {h.shown.summary && (
+              <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
+            )}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {group} <span className="font-normal text-slate-500 dark:text-slate-400">· {count}</span>
+          <span className="shrink-0 rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            {what}
           </span>
-          <span className="shrink-0 text-[11px] font-semibold text-brand-link">See all →</span>
         </Link>
       );
-    }
-    const h = (byName ? named : all)[0];
-    if (!h || slot !== "follow") return null;
-    if (
-      mostOfTitle &&
-      !coversTitle(
-        query
-          .toLowerCase()
-          .split(/[^\p{L}\p{N}]+/u)
-          .filter(Boolean),
-        h.shown.title ?? "",
-        true,
-      )
-    )
-      return null;
-    // Their own account is the person, already a row above: one person, one row — on proof only
-    // (lib/githubLink); until then, and when it can't be checked, it keeps its own row.
-    const e = evidence.get(firstHandle.toLowerCase()) ?? NO_EVIDENCE;
-    if (firstHandle && people.some((p) => ownsGitHub(e, firstHandle, p, verified.has(p.pubkey)))) return null;
-    const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
-    return (
-      <Link
-        href={h.href}
-        onClick={onPick}
-        className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-4"
-        data-testid={`kind-suggestion-${key}`}
-      >
-        {h.shown.image ? (
-          <img
-            src={h.shown.image}
-            alt=""
-            loading="lazy"
-            className={`shrink-0 object-cover ${portrait ? "h-10 w-7 rounded" : view === "github-account" ? "h-8 w-8 rounded-full" : "h-8 w-8 rounded-lg"}`}
-          />
-        ) : (
-          <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center text-slate-400 dark:text-slate-500"
-            data-testid="kind-suggestion-pin"
-          >
-            <Icon className="h-4 w-4" />
-          </span>
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {h.shown.title}
-          </span>
-          {h.shown.summary && (
-            <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
-          )}
-        </span>
-        <span className="shrink-0 rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          {what}
-        </span>
-      </Link>
-    );
+    })();
+    // Whether there's a row: the box opens on one even when no person matches the words.
+    const offering = row !== null;
+    useEffect(() => {
+      onOffer?.(offering);
+    }, [offering, onOffer]);
+    return row;
   };
 }
 

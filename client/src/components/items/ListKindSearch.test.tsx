@@ -423,6 +423,17 @@ describe("a kind's row in the search dropdown", () => {
     );
   };
 
+  // The dropdown opens for a kind's row alone, so a row says whether it has one to offer.
+  it("says whether it has a row to offer, for the box to open on", () => {
+    const offers: boolean[] = [];
+    const kind = LIST_KINDS.find((k) => k.key === "books")!;
+    renderWithProviders(<kind.Suggestion query="dune" slot="follow" onOffer={(on) => offers.push(on)} />);
+    expect(offers.at(-1)).toBe(true);
+    cleanup();
+    renderWithProviders(<kind.Suggestion query="zzzz" slot="follow" onOffer={(on) => offers.push(on)} />);
+    expect(offers.at(-1)).toBe(false);
+  });
+
   it("offers no book for a word a title only shares", () => {
     itemsOf[BOOKS].push(book("Hornblower in the West Indies", "C. S. Forester"));
     try {

@@ -314,6 +314,19 @@ export function SearchBox({
   // below the verified line isn't offered here only to vanish there.
   const offered = [...pointedPeople, ...suggestions];
   const kinds = useListKinds();
+  // Which kinds have a row for the words (hooks/useListKinds onOffer), by kind and slot: the box opens
+  // on one even when no person matches — a book's full title, a place's name.
+  const [offers, setOffers] = useState<{ query: string; ids: ReadonlySet<string> }>({ query: "", ids: new Set() });
+  const offer = useCallback((id: string, query: string, on: boolean) => {
+    setOffers((prev) => {
+      const same = prev.query === query;
+      if (same && prev.ids.has(id) === on) return prev;
+      const ids = new Set(same ? prev.ids : []);
+      if (on) ids.add(id);
+      else ids.delete(id);
+      return { query, ids };
+    });
+  }, []);
   const rows = effectivePov === "mywot" ? offered : peopleAboveLine(offered, suggestScoreOf);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -619,7 +632,12 @@ export function SearchBox({
       ? // The sheet keeps its list up while there are words: "See all" is never a dead end.
         value.trim().length > 0
       : showSuggestions &&
-        (rows.length > 0 || shop !== null || isSuggesting || topicMatch.isTopic || tagMatches.length > 0));
+        (rows.length > 0 ||
+          shop !== null ||
+          isSuggesting ||
+          topicMatch.isTopic ||
+          tagMatches.length > 0 ||
+          (offers.query === value && offers.ids.size > 0)));
   // "Recent" shows under an empty, focused box — never alongside the suggestions. The sheet
   // was opened to search, so it shows them at once.
   const showRecent = recentsAllowed && value.trim() === "" && !dropdownOpen && (sheet || (engaged && focused));
@@ -798,6 +816,22 @@ export function SearchBox({
 
   const panels = (
     <>
+      {/* Closed, the kinds still read the words — out of sight — so a row of theirs can open the box. */}
+      {!dropdownOpen && showSuggestions && !fieldPicking && !sheet && value.trim().length >= 2 && (
+        <div hidden aria-hidden="true">
+          {kinds.flatMap((k) =>
+            (["lead", "follow"] as const).map((slot) => (
+              <k.Suggestion
+                key={`${k.key}-${slot}`}
+                query={value}
+                slot={slot}
+                people={rows}
+                onOffer={(on) => offer(`${k.key}-${slot}`, value, on)}
+              />
+            )),
+          )}
+        </div>
+      )}
       {dropdownOpen && (
         <div
           id={listId}
@@ -883,6 +917,7 @@ export function SearchBox({
                     slot="lead"
                     people={rows}
                     onPick={() => setShowSuggestions(false)}
+                    onOffer={(on) => offer(`${k.key}-lead`, value, on)}
                   />
                 ))}
                 {rows.map((s, i) => {
@@ -986,6 +1021,7 @@ export function SearchBox({
                     slot="follow"
                     people={rows}
                     onPick={() => setShowSuggestions(false)}
+                    onOffer={(on) => offer(`${k.key}-follow`, value, on)}
                   />
                 ))}
               </div>
