@@ -475,3 +475,18 @@ describe("warming a kind's list", () => {
     }
   });
 });
+
+// A town the words name is said: "Places in Sarasota", and See all says it too.
+describe("a town search", () => {
+  it("names the town in the Places preview", () => {
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      const places = LIST_KINDS.find((k) => k.key === "places")!;
+      renderWithProviders(<places.Preview query="sarasota" slot="lead" named={false} onSeeAll={() => {}} />);
+      expect(screen.getByTestId("kind-preview-places")).toHaveTextContent("Places in Sarasota");
+      expect(screen.getByRole("button", { name: "See all 2 places in Sarasota" })).toBeInTheDocument();
+    } finally {
+      itemsOf[PLACES].pop();
+    }
+  });
+});

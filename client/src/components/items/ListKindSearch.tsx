@@ -139,7 +139,18 @@ function TrustLine({ text, className = "" }: { text: string | null; className?: 
 }
 
 /** A preview's heading: the kind's name, as a section on the Top page, and the way to its own page. */
-function Heading({ label, count, onSeeAll }: { label: string; count: number; onSeeAll?: () => void }) {
+function Heading({
+  label,
+  count,
+  onSeeAll,
+  noun = label.toLowerCase(),
+}: {
+  label: string;
+  count: number;
+  onSeeAll?: () => void;
+  /** What See all says it shows: "places in Austin". */
+  noun?: string;
+}) {
   const many = count >= CANDIDATES ? `${count}+` : String(count);
   return (
     <div className="mb-2 flex items-baseline justify-between gap-3">
@@ -148,7 +159,7 @@ function Heading({ label, count, onSeeAll }: { label: string; count: number; onS
         <button
           type="button"
           onClick={onSeeAll}
-          aria-label={`See all ${many} ${label.toLowerCase()}`}
+          aria-label={`See all ${many} ${noun}`}
           className="text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
         >
           See all {many}
@@ -296,12 +307,25 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { ordered, lineOf } = useTrustOrdered(found);
   const hits = ordered.slice(0, 3);
   if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
+  // A town the words name is said: "Places in Austin".
+  const town = townNamed(
+    query
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+    found.map((h) => ({ locality: h.place?.locality ?? null })),
+  );
   const pins = pinsOf(hits);
   // A map of places a continent apart says nothing: the list stands alone.
   const map = pinsAreLocal(pins);
   return (
     <section data-testid="kind-preview-places">
-      <Heading label="Places" count={found.length} onSeeAll={onSeeAll} />
+      <Heading
+        label={town ? `Places in ${town}` : "Places"}
+        noun={town ? `places in ${town}` : "places"}
+        count={found.length}
+        onSeeAll={onSeeAll}
+      />
       <div className={`grid gap-3 ${map ? "sm:grid-cols-[minmax(0,1fr)_200px]" : ""}`}>
         <ul className="space-y-3">
           {hits.map((h, i) => (
