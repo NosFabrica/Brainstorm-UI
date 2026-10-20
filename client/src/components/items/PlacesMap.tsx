@@ -12,7 +12,13 @@ export interface MapPin {
   name: string;
   /** What the pin wears: its row's number in the list beside the map. */
   label?: string;
+  /** An event's pin wears the event's own face, not a place's. */
+  kind?: "place" | "event";
 }
+
+/** An event's pin: a small cyan diamond, set apart from the places' numbered circles. */
+const EVENT_PIN =
+  '<span style="display:block;height:14px;width:14px;transform:rotate(45deg);border-radius:3px;background:#13D2E5;box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.3)"></span>';
 
 /** A numbered pin's face: brand purple, larger and darker when it's the one pointed at. */
 const pinHtml = (label: string, lit: boolean) =>
@@ -55,7 +61,15 @@ export function PlacesMap({
           attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors",
         }).addTo(map);
         for (const p of pins) {
-          if (p.label) {
+          if (p.kind === "event") {
+            L.marker([p.lat, p.lon], {
+              icon: L.divIcon({ html: EVENT_PIN, className: "", iconSize: [14, 14], iconAnchor: [7, 7] }),
+              keyboard: false,
+              zIndexOffset: -100,
+            })
+              .bindTooltip(p.name)
+              .addTo(map);
+          } else if (p.label) {
             const label = p.label;
             const marker = L.marker([p.lat, p.lon], {
               icon: L.divIcon({ html: pinHtml(label, false), className: "", iconSize: [22, 22], iconAnchor: [11, 11] }),

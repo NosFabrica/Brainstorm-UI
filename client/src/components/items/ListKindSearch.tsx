@@ -32,7 +32,10 @@ import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
 import { pinsAreLocal, townNamed } from "@/lib/placeLocal";
-import { PlacesMap } from "@/components/items/PlacesMap";
+import { PlacesMap, type MapPin } from "@/components/items/PlacesMap";
+import { useQuery } from "@tanstack/react-query";
+import { eventPins } from "@/lib/eventPins";
+import { fetchTownEvents } from "@/services/townEvents";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 
@@ -361,6 +364,24 @@ const linesOf = (hits: KindHit[]) =>
     hits.map((h) => ({ title: h.shown.title ?? "", line: h.shown.summary ?? "", street: h.place?.address ?? null })),
   );
 
+/**
+ * A town's upcoming events that say where they are and sit near its places,
+ * as map pins (lib/eventPins); none when the words name no town.
+ */
+function useTownEventPins(town: string | null, placePins: { lat: number; lon: number }[]): MapPin[] {
+  const events = useQuery({
+    queryKey: ["town-events", town],
+    queryFn: () => fetchTownEvents(town!),
+    enabled: !!town,
+    staleTime: 5 * 60_000,
+  });
+  if (!town || !events.data) return [];
+  return eventPins(events.data, Math.floor(Date.now() / 1000))
+    .filter((e) => pinsAreLocal([...placePins, e]))
+    .slice(0, 10)
+    .map((e) => ({ lat: e.lat, lon: e.lon, name: e.name, kind: "event" as const }));
+}
+
 /** The places' pins, each wearing its row's number; none for a place with no coordinates. */
 function pinsOf(hits: KindHit[]) {
   return hits
@@ -378,7 +399,6 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { rated, lineOf, ratingLine } = useRatedPlaces(found);
   const hits = rated.slice(0, 3);
   const lines = linesOf(hits);
-  if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
   // A town the words name is said: "Places in Austin".
   const town = townNamed(
     query
@@ -390,6 +410,9 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const pins = pinsOf(hits);
   // A map of places a continent apart says nothing: the list stands alone.
   const map = pinsAreLocal(pins);
+  // A town's upcoming events near its places share the map, in their own style (lib/eventPins).
+  const events = useTownEventPins(map ? town : null, pins);
+  if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
   return (
     <section data-testid="kind-preview-places">
       <Heading
@@ -412,7 +435,24 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
             />
           ))}
         </ul>
-        {map && <PlacesMap pins={pins} className="hidden h-40 sm:block" />}
+        {map && (
+          <div className="hidden space-y-1 sm:block">
+            <PlacesMap pins={[...pins, ...events]} className="h-40" />
+            {events.length > 0 && (
+              <p
+                className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400"
+                data-testid="places-map-key"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-brand-primary" /> Places
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rotate-45 rounded-[2px] bg-cyan-400" /> Events
+                </span>
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

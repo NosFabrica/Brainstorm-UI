@@ -46,7 +46,7 @@ vi.mock("@/lib/loaders", () => ({
   loadReplaceable: async () => undefined,
 }));
 
-import { fetchAddressableEvents } from "./nostr";
+import { fetchAddressableEvents, fetchFromSearchRelayByFilters } from "./nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 
 const GITCITADEL = "3e1ad0f3a5d3c12245db7788546c43ade3d97c6e046c594f6017cd6cd4164690";
@@ -166,5 +166,17 @@ describe("fetchAddressableEvents", () => {
     requestAllMock.mockResolvedValueOnce([{ ...isis(), id: "9".repeat(64), created_at: 2, content: "edited" }]);
     const map = await fetchAddressableEvents([ptr]);
     expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toBe("edited");
+  });
+});
+
+// Words in a filter's search are what it asks for; the lens joins them rather than replacing them.
+describe("fetchFromSearchRelayByFilters", () => {
+  it("keeps a filter's search words, adding the include:spam lens", async () => {
+    searchReqMock.mockClear();
+    const pending = fetchFromSearchRelayByFilters([{ kinds: [31923], search: "Austin" }], 1000);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
+    expect((searchReqMock.mock.calls[0][0] as { search: string }).search).toBe("Austin include:spam");
+    searchRelaySubject!.next({ type: "EOSE" });
+    await pending;
   });
 });

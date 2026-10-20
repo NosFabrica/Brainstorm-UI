@@ -7,7 +7,7 @@
  * shown when the words find something, and only then.
  */
 import { describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
@@ -121,11 +121,22 @@ vi.mock("@/components/items/PlacesMap", () => ({
     highlight,
     onPin,
   }: {
-    pins: { name: string; label?: string }[];
+    pins: { name: string; label?: string; kind?: string }[];
     highlight?: string | null;
     onPin?: (label: string) => void;
   }) => (
-    <div data-testid="places-map" data-labels={pins.map((p) => p.label).join(",")} data-highlight={highlight ?? ""}>
+    <div
+      data-testid="places-map"
+      data-labels={pins
+        .filter((p) => p.kind !== "event")
+        .map((p) => p.label)
+        .join(",")}
+      data-events={pins
+        .filter((p) => p.kind === "event")
+        .map((p) => p.name)
+        .join(",")}
+      data-highlight={highlight ?? ""}
+    >
       {pins.length}
       {pins.map((p) => (
         <button key={p.label} type="button" onClick={() => onPin?.(p.label!)}>
@@ -151,6 +162,14 @@ vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: trust.follows, ready: true, signedIn: trust.signedIn }),
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+// A town's events, as the search relay answers for its name (kinds 31922/31923).
+const townEvents = vi.hoisted(() => ({ list: [] as unknown[], asked: [] as string[] }));
+vi.mock("@/services/townEvents", () => ({
+  fetchTownEvents: async (town: string) => {
+    townEvents.asked.push(town);
+    return townEvents.list;
+  },
+}));
 // Signed out: places are weighed through the curator's lens.
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 // Reviews of the places shown (kind 34259), read in one batch, and the reviewers' ranks in the
@@ -600,5 +619,50 @@ describe("copies and branches", () => {
     } finally {
       itemsOf[PLACES] = was;
     }
+  });
+});
+
+// A town search's map shows the town's upcoming events beside its places: the ones with a geohash
+// near the places, in their own style, with a key. Others stay in the side panel's list.
+describe("a town's events on its map", () => {
+  const event = (id: string, title: string, g: string, start: number) => ({
+    id,
+    kind: 31923,
+    pubkey: "e".repeat(64),
+    created_at: 1,
+    content: "",
+    tags: [
+      ["d", id],
+      ["title", title],
+      ["start", String(start)],
+      ["g", g],
+    ],
+  });
+
+  it("pins the town's upcoming events near its places, and keys them", async () => {
+    const soon = Math.floor(Date.now() / 1000) + 3600;
+    townEvents.list = [
+      event("near", "Meetup by the river", "9qbc3gy", soon),
+      event("far", "Austin thing", "9v6kpy7", soon),
+    ];
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      const places = LIST_KINDS.find((k) => k.key === "places")!;
+      renderWithProviders(<places.Preview query="sarasota" slot="lead" named={false} />);
+      await waitFor(() =>
+        expect(screen.getByTestId("places-map")).toHaveAttribute("data-events", "Meetup by the river"),
+      );
+      expect(townEvents.asked).toContain("Sarasota");
+      expect(screen.getByTestId("places-map-key")).toHaveTextContent("Events");
+    } finally {
+      itemsOf[PLACES].pop();
+      townEvents.list = [];
+    }
+  });
+
+  it("asks for no events when the words name no town", () => {
+    townEvents.asked = [];
+    preview("places", "cafe");
+    expect(townEvents.asked).toEqual([]);
   });
 });
