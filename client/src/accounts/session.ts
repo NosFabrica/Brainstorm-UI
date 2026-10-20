@@ -209,14 +209,32 @@ export function createSessions(
  * rejection otherwise, and the login screen says something different for each.
  */
 export class SessionTransportError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
     super(message);
     this.name = "SessionTransportError";
   }
 }
 
+/** The server turned the exchange away for now (429): nothing is wrong with the Account or its Signer. */
+export function isSessionRateLimited(error: unknown): boolean {
+  return error instanceof SessionTransportError && error.status === 429;
+}
+
+/** What the login screen shows for a failed exchange; a 429 reads as a wait, not a status code. */
+export function toSessionTransportError(err: unknown): SessionTransportError {
+  const raw = (err as { status?: unknown })?.status;
+  const status = typeof raw === "number" ? raw : undefined;
+  if (status === 429) {
+    return new SessionTransportError("Too many sign-in attempts. Wait a minute and try again.", status);
+  }
+  return new SessionTransportError(err instanceof Error ? err.message : "Failed to reach server.", status);
+}
+
 function asTransportError(err: unknown): never {
-  throw new SessionTransportError(err instanceof Error ? err.message : "Failed to reach server.");
+  throw toSessionTransportError(err);
 }
 
 /**

@@ -5,11 +5,22 @@
 import type { NostrEvent } from "nostr-tools";
 import { authenticatedFetch, extractApiError, fetch, getBrainstormApi } from "./core";
 
+/** A login endpoint's non-ok answer, with its status so a 429 can be told apart. */
+export class AuthRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "AuthRequestError";
+  }
+}
+
 export const authApi = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
     if (!response.ok) {
-      throw new Error(`Failed to get auth challenge (${response.status})`);
+      throw new AuthRequestError(`Failed to get auth challenge (${response.status})`, response.status);
     }
     const data = await response.json();
     if (!data?.data?.challenge) {
@@ -25,7 +36,7 @@ export const authApi = {
       body: JSON.stringify({ signed_event: signedEvent }),
     });
     if (!response.ok) {
-      throw new Error(`Auth verification failed (${response.status})`);
+      throw new AuthRequestError(`Auth verification failed (${response.status})`, response.status);
     }
     const data = await response.json();
     if (!data?.data?.token) {
