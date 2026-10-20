@@ -90,7 +90,10 @@ export function PlacesMap({
               .addTo(map);
           }
         }
-        map.fitBounds(L.latLngBounds(pins.map((p) => [p.lat, p.lon] as [number, number])), {
+        // Framed on the places: a town's events further out show when the reader pans.
+        const places = pins.filter((p) => p.kind !== "event");
+        const framed = places.length > 0 ? places : pins;
+        map.fitBounds(L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number])), {
           padding: [24, 24],
           maxZoom: 14,
         });
@@ -129,7 +132,12 @@ export function PlacesMap({
       className={`relative isolate z-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[9px] dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)] ${className}`}
       data-testid="places-map"
     >
-      <div ref={host} className="h-full w-full" role="img" aria-label={`Map of ${pins.length} places`} />
+      <div
+        ref={host}
+        className="h-full w-full"
+        role="img"
+        aria-label={`Map of ${pins.filter((p) => p.kind !== "event").length || pins.length} places`}
+      />
     </div>
   );
 }

@@ -55,6 +55,9 @@ const entries = [
         ["optional", "opening-hours"],
         ["optional", "accepts-bitcoin"],
         ["optional", "address"],
+        ["optional", "phone"],
+        ["optional", "website"],
+        ["optional", "price-range"],
       ],
     ),
   ),
@@ -690,5 +693,126 @@ describe("a town's events on its map", () => {
     townEvents.asked = [];
     preview("places", "cafe");
     expect(townEvents.asked).toEqual([]);
+  });
+});
+
+// The Places page reads like a map app's: how many places and how many are open, sortable, each
+// row with its price and the ways to go there, and on a phone the map one tap away.
+describe("the Places page, a map app's way", () => {
+  it("says how many places the words found, in the town they name, and how many are open now", () => {
+    const was = itemsOf[PLACES];
+    vi.useFakeTimers({ now: new Date("2026-10-15T20:00:00Z"), toFake: ["Date"] });
+    try {
+      itemsOf[PLACES] = [
+        place("Il Sole", "restaurant", "Sarasota", [["opening-hours", "Mo-Su 00:00-24:00"]]),
+        place("Il Sole Two", "restaurant", "Sarasota", [["opening-hours", "Mo-Su 08:00-09:00"]]),
+        place("Sun Cafe", "cafe", "Sarasota"),
+      ];
+      page("places", "sarasota");
+      expect(screen.getByTestId("places-summary")).toHaveTextContent("3 places in Sarasota · 1 open now");
+      cleanup();
+      page("places", "cafe");
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/^1 place$/);
+    } finally {
+      itemsOf[PLACES] = was;
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives each row its price, the way the place's page says it", () => {
+    const was = itemsOf[PLACES];
+    try {
+      itemsOf[PLACES] = [
+        place("Il Sole", "restaurant", "Sarasota", [["price-range", "2"]]),
+        place("Sun Cafe", "cafe", "Sarasota"),
+      ];
+      page("places", "");
+      const rows = screen.getAllByTestId("kind-page-item");
+      expect(within(rows[0]).getByTestId("place-row-price")).toHaveTextContent("$$");
+      expect(within(rows[1]).queryByTestId("place-row-price")).toBeNull();
+    } finally {
+      itemsOf[PLACES] = was;
+    }
+  });
+
+  it("offers each row's ways there: directions, a call, its website, when it has them", () => {
+    const was = itemsOf[PLACES];
+    try {
+      itemsOf[PLACES] = [
+        place("Il Sole", "restaurant", "Sarasota", [
+          ["phone", "+1 (941) 555-0100"],
+          ["website", "https://ilsole.example"],
+        ]),
+        place("Sun Cafe", "cafe", "Sarasota"),
+      ];
+      page("places", "");
+      const [full, bare] = screen.getAllByTestId("kind-page-item");
+      expect(within(full).getByRole("link", { name: "Directions" })).toHaveAttribute(
+        "href",
+        expect.stringContaining("38.2%2C-122.6"),
+      );
+      expect(within(full).getByRole("link", { name: "Call" })).toHaveAttribute("href", "tel:+19415550100");
+      expect(within(full).getByRole("link", { name: "Website" })).toHaveAttribute("href", "https://ilsole.example");
+      expect(within(bare).getByRole("link", { name: "Directions" })).toBeInTheDocument();
+      expect(within(bare).queryByRole("link", { name: "Call" })).toBeNull();
+      expect(within(bare).queryByRole("link", { name: "Website" })).toBeNull();
+    } finally {
+      itemsOf[PLACES] = was;
+    }
+  });
+
+  it("sorts by best match, by stars alone, or open places first", async () => {
+    const was = itemsOf[PLACES];
+    vi.useFakeTimers({ now: new Date("2026-10-15T20:00:00Z"), toFake: ["Date"] });
+    const one = place("One Review", "cafe", "Sarasota");
+    const many = place("Many Reviews", "cafe", "Sarasota");
+    const open = place("Open Late", "cafe", "Sarasota", [["opening-hours", "Mo-Su 00:00-24:00"]]);
+    const addressOf = (i: typeof one) => `39999:${i.pubkey}:${i.tags.find((t) => t[0] === "d")![1]}`;
+    const R = ["a1", "a2", "a3", "a4"].map((r) => r.repeat(32));
+    // One five-star review against four that average 4.5: the damped score puts the four first,
+    // the stars alone the one.
+    ratings.reviews = new Map([
+      [addressOf(one), [{ pubkey: R[0], rating: 5 }]],
+      [addressOf(many), R.map((pubkey, i) => ({ pubkey, rating: i < 2 ? 5 : 4 }))],
+    ]);
+    ratings.ranks = new Map(R.map((r) => [r, 80]));
+    const names = () => screen.getAllByTestId("kind-page-item").map((r) => r.querySelector("a")?.textContent);
+    try {
+      itemsOf[PLACES] = [open, one, many];
+      page("places", "");
+      await screen.findByText(/★ 5\.0/);
+      expect(names()).toEqual(["Many Reviews", "One Review", "Open Late"]);
+      fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "rated" } });
+      expect(names()).toEqual(["One Review", "Many Reviews", "Open Late"]);
+      fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "open" } });
+      expect(names()).toEqual(["Open Late", "Many Reviews", "One Review"]);
+    } finally {
+      itemsOf[PLACES] = was;
+      ratings.reviews = new Map();
+      ratings.ranks = new Map();
+      vi.useRealTimers();
+    }
+  });
+
+  it("on a phone: the list, with the map one tap away and a card for each place on it", () => {
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      page("places", "");
+      expect(screen.queryByTestId("places-map")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      const map = screen.getByRole("dialog", { name: "Map of places" });
+      expect(within(map).getByTestId("places-map")).toHaveAttribute("data-labels", "1,2,3,4,5");
+      const cards = within(map).getAllByTestId("place-card");
+      expect(cards).toHaveLength(5);
+      fireEvent.click(within(map).getByRole("button", { name: "pin 3" }));
+      expect(cards[2]).toHaveAttribute("data-highlighted", "true");
+      expect(within(map).getByTestId("places-map")).toHaveAttribute("data-highlight", "3");
+      fireEvent.click(within(map).getByRole("button", { name: "List" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getAllByTestId("kind-page-item")).toHaveLength(5);
+    } finally {
+      window.innerWidth = width;
+    }
   });
 });

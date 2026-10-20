@@ -11,9 +11,20 @@
  * (lib/listSearch), over the items the Dictionary reads: a stopgap until the
  * search API returns list items with their definitions (ADR 0004).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { BookOpen, Github, MapPin as PinIcon, Store } from "lucide-react";
+import {
+  BookOpen,
+  Github,
+  Globe,
+  List,
+  Map as MapIcon,
+  MapPin as PinIcon,
+  Navigation,
+  Phone,
+  Store,
+} from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
 import config from "@/config/dictionary.config.json";
 import { useConceptItems } from "@/hooks/useConceptItems";
@@ -22,12 +33,13 @@ import type { ListKindSearch } from "@/hooks/useListKinds";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { matchListItems, wordsToFind } from "@/lib/listSearch";
 import { orderByTrust } from "@/lib/itemEngagement";
-import { coordinateOf } from "@/lib/dlistFields";
 import { collapseSameThing, tellApart } from "@/lib/sameThing";
 import { recommendedLine, useTrustedRecommenders } from "@/hooks/useTrustedRecommenders";
 import { usePlacesRatings } from "@/hooks/usePlaceReviews";
 import { openingStatus, parseOpeningHours } from "@/lib/openingHours";
-import { categoryWords, placeLocalMinutes } from "@/lib/placeLinks";
+import { categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
+import { contactHref } from "@/lib/contactHref";
+import { coordinateOf, httpUrl } from "@/lib/dlistFields";
 import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
@@ -254,6 +266,34 @@ function OpeningLine({ place }: { place: Place }) {
 }
 
 /**
+ * A place's ways there, as on its own page: directions the way the device
+ * prefers, a call, its website — each only when the place has it.
+ */
+function PlaceActions({ place }: { place: Place }) {
+  const links = [
+    { label: "Directions", href: directionsUrl(place), Icon: Navigation, out: true },
+    { label: "Call", href: contactHref(place.phone), Icon: Phone, out: false },
+    { label: "Website", href: httpUrl(place.website), Icon: Globe, out: true },
+  ].filter((l): l is typeof l & { href: string } => !!l.href);
+  if (links.length === 0) return null;
+  return (
+    <span className="flex flex-wrap gap-1.5 pt-1.5">
+      {links.map(({ label, href, Icon, out }) => (
+        <a
+          key={label}
+          href={href}
+          {...(out ? { target: "_blank", rel: "noreferrer" } : {})}
+          className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <Icon className="h-3 w-3" aria-hidden />
+          {label}
+        </a>
+      ))}
+    </span>
+  );
+}
+
+/**
  * One place in a list: its number, which its pin on the map wears too; its
  * photo when it has one (no stand-in when it hasn't); its name, what and
  * where, open or closed, and who recommends it.
@@ -268,6 +308,7 @@ function PlaceRow({
   onPoint,
   rating = null,
   line = hit.shown.summary ?? "",
+  actions = false,
 }: {
   hit: KindHit;
   n: number;
@@ -282,7 +323,11 @@ function PlaceRow({
   rating?: string | null;
   /** Its line when the list tells it apart from a branch (lib/sameThing tellApart); its own otherwise. */
   line?: string;
+  /** Its ways there under it: Directions, Call, Website (the Places page's rows). */
+  actions?: boolean;
 }) {
+  // Its price as the place's page says it: "$$" for a price range of 2.
+  const price = "$".repeat(Math.min(4, Number(hit.place?.priceRange) || 0)) || null;
   return (
     <li
       id={onPoint ? `place-row-${n}` : undefined}
@@ -306,20 +351,31 @@ function PlaceRow({
           {hit.shown.title}
         </Link>
         {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
-        {rating && (
-          <span className="block text-xs font-medium text-amber-700 dark:text-amber-400" data-testid="place-row-rating">
-            {rating}
+        {(rating || price) && (
+          <span className="block text-xs">
+            {rating && (
+              <span className="font-medium text-amber-700 dark:text-amber-400" data-testid="place-row-rating">
+                {rating}
+              </span>
+            )}
+            {rating && price && <span className="text-slate-400"> · </span>}
+            {price && (
+              <span className="text-slate-500 dark:text-slate-400" data-testid="place-row-price">
+                {price}
+              </span>
+            )}
           </span>
         )}
         {hit.place && <OpeningLine place={hit.place} />}
         <TrustLine text={trust} />
+        {actions && hit.place && <PlaceActions place={hit.place} />}
       </span>
       {hit.shown.image && (
         <img
           src={hit.shown.image}
           alt=""
           loading="lazy"
-          className={`shrink-0 rounded-lg object-cover ${big ? "h-16 w-16" : "h-12 w-12"}`}
+          className={`shrink-0 rounded-lg object-cover ${big ? "h-20 w-20" : "h-12 w-12"}`}
         />
       )}
     </li>
@@ -348,7 +404,9 @@ function useRatedPlaces(hits: KindHit[]) {
     const reviews = `${r.count} ${r.count === 1 ? "review" : "reviews"}`;
     return r.value != null ? `★ ${r.value.toFixed(1)} · ${reviews}` : reviews;
   };
-  return { rated, lineOf, ratingLine };
+  /** Its stars alone, undamped: what "Top rated" sorts by. */
+  const starsOf = (h: KindHit): number => (h.address ? (ratingOf(h.address).value ?? 0) : 0);
+  return { rated, lineOf, ratingLine, starsOf };
 }
 
 /** Each place's line, with its street where two branches would otherwise read the same. */
@@ -654,6 +712,14 @@ function BooksPage({ query }: { query: string }) {
 
 type PlaceFilter = { category: string | null; openNow: boolean };
 
+/** How the Places page orders: rating and trust together (its own order), stars alone, or open first. */
+type PlaceSort = "best" | "rated" | "open";
+const PLACE_SORTS: { value: PlaceSort; label: string }[] = [
+  { value: "best", label: "Best match" },
+  { value: "rated", label: "Top rated" },
+  { value: "open", label: "Open now first" },
+];
+
 const isOpenNow = (place: Place | null) => {
   const week = parseOpeningHours(place?.hours ?? null);
   const lon = Number(place?.lon);
@@ -663,8 +729,12 @@ const isOpenNow = (place: Place | null) => {
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
 function PlacesPage({ query }: { query: string }) {
   const { hits: found, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
-  const { rated: hits, lineOf, ratingLine } = useRatedPlaces(found);
+  const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
+  const [sort, setSort] = useState<PlaceSort>("best");
+  // On a phone the list comes first and the map opens over it, full screen.
+  const narrow = useIsMobile(1024);
+  const [mapOpen, setMapOpen] = useState(false);
   // The place pointed at in the list, or tapped on the map: its row and its pin light together.
   const [lit, setLit] = useState<string | null>(null);
   const tapPin = (label: string) => {
@@ -679,25 +749,42 @@ function PlacesPage({ query }: { query: string }) {
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [hits]);
-  const shown = hits.filter(
+  const narrowed = hits.filter(
     (h) =>
       (!filter.category || categoryWords(h.place?.category ?? null) === filter.category) &&
       (!filter.openNow || isOpenNow(h.place)),
   );
-  if (hits.length === 0) return <PageEmpty pending={pending} label="Places" query={query} />;
+  // A stable sort: places that tie keep the page's own order.
+  const shown =
+    sort === "rated"
+      ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a))
+      : sort === "open"
+        ? [...narrowed].sort((a, b) => Number(isOpenNow(b.place)) - Number(isOpenNow(a.place)))
+        : narrowed;
+  const town = townNamed(
+    query
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+    found.map((h) => ({ locality: h.place?.locality ?? null })),
+  );
+  const openCount = hits.filter((h) => isOpenNow(h.place)).length;
   const lines = linesOf(shown);
   const pins = pinsOf(shown);
   const map = pinsAreLocal(pins);
+  // A town's upcoming events near its places share the map, as on the Top page's preview.
+  const events = useTownEventPins(map ? town : null, pins);
+  if (hits.length === 0) return <PageEmpty pending={pending} label="Places" query={query} />;
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
     <button
       key={label}
       type="button"
       aria-pressed={on}
       onClick={toggle}
-      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
         on
           ? "border-brand-primary bg-brand-primary text-white"
-          : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
       {label}
@@ -709,50 +796,210 @@ function PlacesPage({ query }: { query: string }) {
       )}
     </button>
   );
-  return (
-    <div
-      className={`py-4 ${map ? "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-6" : "mx-auto max-w-2xl"}`}
-    >
-      <div className="min-w-0">
-        <div className="flex flex-wrap gap-1.5 pb-3">
-          {categories.map(([c, n]) =>
-            chip(
-              c,
-              filter.category === c,
-              () => setFilter((f) => ({ ...f, category: f.category === c ? null : c })),
-              n,
-            ),
+  const allPins = [...pins, ...events];
+  const header = (
+    <>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-2">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="places-summary">
+          {hits.length} {hits.length === 1 ? "place" : "places"}
+          {town ? ` in ${town}` : ""}
+          {openCount > 0 && (
+            <span className="font-medium text-emerald-600 dark:text-emerald-400"> · {openCount} open now</span>
           )}
-          {chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })))}
-        </div>
-        <ul className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="kind-page-places">
-          {shown.map((h, i) => (
-            <PlaceRow
-              key={h.id}
-              hit={h}
-              n={i + 1}
-              trust={lineOf(h.id)}
-              rating={ratingLine(h)}
-              line={lines[i]}
-              testId="kind-page-item"
-              big
-              highlighted={lit === String(i + 1)}
-              onPoint={(on) => setLit(on ? String(i + 1) : null)}
-            />
-          ))}
-        </ul>
-        {shown.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No places match these filters.</p>
+        </h2>
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          Sort
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as PlaceSort)}
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          >
+            {PLACE_SORTS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {/* One row that scrolls sideways on a phone, as a map app's chips do. */}
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
+        {chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })))}
+        {categories.map(([c, n]) =>
+          chip(c, filter.category === c, () => setFilter((f) => ({ ...f, category: f.category === c ? null : c })), n),
         )}
       </div>
-      {map && (
-        <PlacesMap
-          pins={pins}
-          highlight={lit}
-          onPin={tapPin}
-          className="mt-4 h-72 lg:sticky lg:top-24 lg:mt-0 lg:h-[70vh]"
-        />
+    </>
+  );
+  return (
+    // Wider than the results column on a desktop: the list beside a map that takes the rest of the screen.
+    <div className={`py-4 ${map && !narrow ? "lg:relative lg:left-1/2 lg:w-[94vw] lg:-translate-x-1/2" : ""}`}>
+      <div
+        className={map && !narrow ? "lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-6" : "mx-auto max-w-2xl"}
+      >
+        <div className="min-w-0">
+          {header}
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="kind-page-places">
+            {shown.map((h, i) => (
+              <PlaceRow
+                key={h.id}
+                hit={h}
+                n={i + 1}
+                trust={lineOf(h.id)}
+                rating={ratingLine(h)}
+                line={lines[i]}
+                testId="kind-page-item"
+                big
+                actions
+                highlighted={lit === String(i + 1)}
+                onPoint={(on) => setLit(on ? String(i + 1) : null)}
+              />
+            ))}
+          </ul>
+          {shown.length === 0 && (
+            <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              No places match these filters.
+            </p>
+          )}
+        </div>
+        {map && !narrow && (
+          <div>
+            <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} className="sticky top-20 h-[calc(100dvh-6rem)]" />
+          </div>
+        )}
+      </div>
+      {map && narrow && !mapOpen && (
+        <button
+          type="button"
+          onClick={() => setMapOpen(true)}
+          className="fixed bottom-[calc(var(--bs-bottom-chrome,0px)+1rem)] left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-slate-900"
+        >
+          <MapIcon className="h-4 w-4" aria-hidden />
+          Map
+        </button>
       )}
+      {map && narrow && mapOpen && (
+        <div
+          role="dialog"
+          aria-label="Map of places"
+          className="fixed inset-x-0 bottom-[var(--bs-bottom-chrome,0px)] top-0 z-50 flex flex-col bg-white dark:bg-slate-950"
+        >
+          <div className="relative min-h-0 flex-1">
+            <PlacesMap
+              pins={allPins}
+              highlight={lit}
+              onPin={(label) => {
+                setLit(label);
+                document
+                  .getElementById(`place-card-${label}`)
+                  ?.scrollIntoView?.({ inline: "center", block: "nearest", behavior: "smooth" });
+              }}
+              className="h-full rounded-none border-0"
+            />
+            <div className="absolute inset-x-0 top-0 z-[500] bg-gradient-to-b from-white via-white/90 to-white/0 px-4 pb-6 pt-4 dark:from-slate-950 dark:via-slate-950/90 dark:to-slate-950/0">
+              {header}
+            </div>
+          </div>
+          <div className="relative z-[500] -mt-48 space-y-2 pb-4">
+            <button
+              type="button"
+              onClick={() => setMapOpen(false)}
+              className="mx-auto flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-slate-900"
+            >
+              <List className="h-4 w-4" aria-hidden />
+              List
+            </button>
+            <PlaceCards hits={shown} lines={lines} lineOf={lineOf} ratingLine={ratingLine} lit={lit} onLit={setLit} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The places as a row of cards to swipe through, over the map on a phone: the
+ * card in the middle lights its pin, and a tapped pin brings its card.
+ */
+function PlaceCards({
+  hits,
+  lines,
+  lineOf,
+  ratingLine,
+  lit,
+  onLit,
+}: {
+  hits: KindHit[];
+  lines: string[];
+  lineOf: (id: string) => string | null;
+  ratingLine: (h: KindHit) => string | null;
+  lit: string | null;
+  onLit: (label: string | null) => void;
+}) {
+  const track = useRef<HTMLDivElement>(null);
+  const onLitRef = useRef(onLit);
+  onLitRef.current = onLit;
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    let settle: number | undefined;
+    const onScroll = () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => {
+        const middle = el.scrollLeft + el.clientWidth / 2;
+        let nearest: string | null = null;
+        let gap = Infinity;
+        for (const card of el.querySelectorAll<HTMLElement>("[data-label]")) {
+          const d = Math.abs(card.offsetLeft + card.offsetWidth / 2 - middle);
+          if (d < gap) [gap, nearest] = [d, card.dataset.label ?? null];
+        }
+        onLitRef.current(nearest);
+      }, 80);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(settle);
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+  return (
+    <div ref={track} className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+      {hits.map((h, i) => {
+        const label = String(i + 1);
+        const on = lit === label;
+        const rating = ratingLine(h);
+        return (
+          <article
+            key={h.id}
+            id={`place-card-${label}`}
+            data-label={label}
+            data-testid="place-card"
+            data-highlighted={on ? "true" : undefined}
+            className={`w-[80%] max-w-xs shrink-0 snap-center rounded-2xl border bg-white p-3 shadow-md transition-colors dark:bg-slate-900 ${on ? "border-brand-primary" : "border-slate-200 dark:border-slate-800"}`}
+          >
+            <span className="flex items-center gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
+                {label}
+              </span>
+              <Link
+                href={h.href}
+                className="truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+              >
+                {h.shown.title}
+              </Link>
+            </span>
+            <span className="mt-1 block space-y-0.5">
+              {lines[i] && (
+                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{lines[i]}</span>
+              )}
+              {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
+              {h.place && <OpeningLine place={h.place} />}
+              <TrustLine text={lineOf(h.id)} />
+            </span>
+            {h.place && <PlaceActions place={h.place} />}
+          </article>
+        );
+      })}
     </div>
   );
 }
