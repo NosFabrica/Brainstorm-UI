@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
+  ArrowRight,
   BookOpen,
   Github,
   Globe,
@@ -443,6 +444,7 @@ function useTownEventPins(town: string | null, placePins: { lat: number; lon: nu
         name: e.name,
         kind: "event" as const,
         id: e.id,
+        startSec: e.startSec,
         note: when,
         when,
         where: location || null,
@@ -455,6 +457,7 @@ function useTownEventPins(town: string | null, placePins: { lat: number; lon: nu
 /** A town's event on its map, with what its card says when its pin is tapped. */
 type TownEventPin = MapPin & {
   id: string;
+  startSec: number;
   when: string;
   where: string | null;
   image: string | null;
@@ -471,51 +474,64 @@ function EventCard({
   onClose,
 }: {
   event: TownEventPin;
+  /** Where it sits — absolute over a map, relative in a column: its Close keys off it. */
   className?: string;
   onClose: () => void;
 }) {
+  const start = new Date(event.startSec * 1000);
   return (
     <article
       data-testid="event-picked"
-      className={`flex gap-3 rounded-2xl border border-cyan-300 bg-white p-3 shadow-md dark:border-cyan-700 dark:bg-slate-900 ${className}`}
+      className={`flex overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900 ${className}`}
     >
-      {event.image && (
-        <img src={event.image} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
-      )}
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <span className="flex items-start gap-2">
-          <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
-              Event
-            </span>
-            <Link
-              href={event.href}
-              className="line-clamp-2 font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-            >
-              {event.name}
-            </Link>
+      {/* Its picture fills the card's height; with none, the day it's on, as a calendar shows it. */}
+      {event.image ? (
+        <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
+      ) : (
+        <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
+          <span className="text-[11px] font-semibold uppercase tracking-wide">
+            {start.toLocaleDateString(undefined, { month: "short" })}
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-m-1 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+          <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
         </span>
-        <span className="block text-xs font-medium text-slate-700 dark:text-slate-200">{event.when}</span>
-        {event.where && (
-          <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{event.where}</span>
-        )}
+      )}
+      <div className="min-w-0 flex-1 space-y-1 p-3 pr-8">
+        <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+          {event.when}
+        </span>
         <Link
           href={event.href}
-          className="mt-1.5 inline-flex items-center rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white hover:bg-brand-primary-hover"
+          className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 hover:text-brand-link dark:text-slate-100"
         >
-          See event
+          {event.name}
         </Link>
+        <span className="flex items-center gap-2 pt-0.5 text-xs">
+          <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">{event.where ?? ""}</span>
+          <Link
+            href={event.href}
+            className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-brand-link hover:underline"
+          >
+            See event
+            <ArrowRight className="h-3 w-3" aria-hidden />
+          </Link>
+        </span>
       </div>
+      <CloseButton onClose={onClose} />
     </article>
+  );
+}
+
+/** A card's Close, in its corner, the same on a place's card and an event's. */
+function CloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="Close"
+      className="absolute right-1.5 top-1.5 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+    >
+      <X className="h-4 w-4" aria-hidden />
+    </button>
   );
 }
 
@@ -1059,7 +1075,7 @@ function PlacesPage({ query }: { query: string }) {
           <div className="relative z-[500] -mt-48 space-y-2 pb-4">
             {eventPicked && (
               <div className="px-4">
-                <EventCard event={eventPicked} onClose={() => setPickedEvent(null)} />
+                <EventCard event={eventPicked} className="relative" onClose={() => setPickedEvent(null)} />
               </div>
             )}
             <button
@@ -1175,28 +1191,25 @@ function PlaceCard({
       data-label={onClose ? undefined : label}
       data-testid={testId}
       data-highlighted={lit ? "true" : undefined}
-      className={`rounded-2xl border bg-white p-3 shadow-md transition-colors dark:bg-slate-900 ${lit ? "border-brand-primary" : "border-slate-200 dark:border-slate-800"} ${className}`}
+      className={`rounded-2xl border bg-white p-3 transition-colors dark:bg-slate-900 ${
+        // Open over the map it's one card, as an event's is; in the swipe row, the lit one stands out.
+        onClose
+          ? "border-slate-200 shadow-lg dark:border-slate-700"
+          : lit
+            ? "border-brand-primary shadow-md"
+            : "border-slate-200 shadow-md dark:border-slate-800"
+      } ${className}`}
     >
-      <span className="flex items-center gap-2">
+      <span className={`flex items-center gap-2 ${onClose ? "pr-6" : ""}`}>
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
           {label}
         </span>
         <Link
           href={h.href}
-          className="min-w-0 flex-1 truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+          className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
         >
           {h.shown.title}
         </Link>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-m-1 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
-        )}
       </span>
       <span className="mt-1 block space-y-0.5">
         {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
@@ -1205,6 +1218,7 @@ function PlaceCard({
         <TrustLine text={trust} />
       </span>
       {h.place && <PlaceActions place={h.place} />}
+      {onClose && <CloseButton onClose={onClose} />}
     </article>
   );
 }

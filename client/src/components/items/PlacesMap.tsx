@@ -91,6 +91,8 @@ export function PlacesMap({
         lib.current = L;
         markers.current.clear();
         const still = !!onOpen;
+        // A name on hover is a mouse's; a tap opens the pin's card, and a tooltip would cover it.
+        const hover = !window.matchMedia?.("(pointer: coarse)").matches;
         map = L.map(host.current, {
           attributionControl: true,
           zoomControl: false,
@@ -124,7 +126,7 @@ export function PlacesMap({
               zIndexOffset: -100,
             });
             if (id) marker.on("click", () => onEventRef.current?.(id));
-            marker.bindTooltip(tooltipOf(p)).addTo(map);
+            (hover ? marker.bindTooltip(tooltipOf(p)) : marker).addTo(map);
           } else if (p.label) {
             const label = p.label;
             const marker = L.marker([p.lat, p.lon], {
@@ -132,7 +134,7 @@ export function PlacesMap({
               keyboard: false,
             });
             marker.on("click", () => onPinRef.current?.(label));
-            marker.bindTooltip(tooltipOf(p)).addTo(map);
+            (hover ? marker.bindTooltip(tooltipOf(p)) : marker).addTo(map);
             markers.current.set(label, marker);
           } else {
             L.circleMarker([p.lat, p.lon], {
