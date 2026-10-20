@@ -119,6 +119,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
+import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
 const NO_RELAYS: string[] = [];
@@ -1060,6 +1061,8 @@ export default function SharePage() {
                     className="inline-flex items-center gap-1 text-sm font-medium text-brand-link"
                     iconClassName="h-4 w-4"
                   />
+                  {/* Their own things the lists hold, beside the handle that proves them: a GitHub account. */}
+                  {pubkey && <PersonMarks pubkey={pubkey} nip05={profile.nip05} />}
                   {/* "Follows you" is a fact about the two of you, not an action — it
                 sits with the identity, beside the handle, where X, Bluesky and
                 Mastodon put it (Benjamin, 2026-09-08: in the button row it read

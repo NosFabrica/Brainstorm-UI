@@ -1,3 +1,4 @@
+import { PersonMarks } from "@/components/PersonMarks";
 import { useListKinds } from "@/hooks/useListKinds";
 import { useHandlePointers } from "@/hooks/useHandlePointers";
 import {
@@ -876,7 +877,13 @@ export function SearchBox({
               >
                 {/* A group the words name ("Coffee places · 60+") leads: it's what they most likely mean. */}
                 {kinds.map((k) => (
-                  <k.Suggestion key={k.key} query={value} slot="lead" onPick={() => setShowSuggestions(false)} />
+                  <k.Suggestion
+                    key={k.key}
+                    query={value}
+                    slot="lead"
+                    people={rows}
+                    onPick={() => setShowSuggestions(false)}
+                  />
                 ))}
                 {rows.map((s, i) => {
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
@@ -910,10 +917,13 @@ export function SearchBox({
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <p
-                          className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
+                          className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100"
                           data-testid={`home-suggestion-name-${i}`}
                         >
-                          {getDisplayLabel(s)}
+                          <span className="truncate">{getDisplayLabel(s)}</span>
+                          {/* Their own things the kinds list (a GitHub account), beside the name:
+                              one person, one row (hooks/useListKinds PersonMark). */}
+                          <PersonMarks pubkey={s.pubkey} nip05={s.nip05} inRow />
                         </p>
                         {/* A handle is only a claim: the check waits on its domain. */}
                         <Nip05Handle
@@ -970,7 +980,13 @@ export function SearchBox({
               {/* A thing the words name — a place, a book, an account — follows the people, two at most. */}
               <div className="[&>*:nth-child(n+3)]:hidden" data-testid="kind-suggestions-follow">
                 {kinds.map((k) => (
-                  <k.Suggestion key={k.key} query={value} slot="follow" onPick={() => setShowSuggestions(false)} />
+                  <k.Suggestion
+                    key={k.key}
+                    query={value}
+                    slot="follow"
+                    people={rows}
+                    onPick={() => setShowSuggestions(false)}
+                  />
                 ))}
               </div>
               <button

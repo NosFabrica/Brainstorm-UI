@@ -28,6 +28,12 @@ export interface ListKindSearch {
    * the panel folds to a strip and the Preview keeps the kind in the results.
    */
   Panel?: ComponentType<{ query: string; onSeeAll?: () => void }>;
+  /**
+   * A mark beside a person's name for their own thing this kind lists (GitHub: their account, by
+   * lib/ownedAccount), linking to it; nothing until their handle is verified, or when they own none.
+   * `inRow`: inside a dropdown row, which the keyboard moves through as one.
+   */
+  PersonMark?: ComponentType<{ pubkey: string; nip05?: string; inRow?: boolean }>;
   /** Its own page under the tab strip: what the words find, or the list itself with no words. */
   Page: ComponentType<{ query: string }>;
   /** Reads its list ahead of a search, once the page is idle; draws nothing. */
@@ -36,7 +42,13 @@ export interface ListKindSearch {
    * Its row in the search dropdown, for the words being typed: a group they name (offered above
    * the people, `slot` "lead"), or the thing they name (below them, "follow"); or nothing.
    */
-  Suggestion: ComponentType<{ query: string; slot: "lead" | "follow"; onPick?: () => void }>;
+  Suggestion: ComponentType<{
+    query: string;
+    slot: "lead" | "follow";
+    onPick?: () => void;
+    /** The people the dropdown shows: an account one of them owns is theirs, not a row of its own. */
+    people?: readonly { pubkey: string; nip05?: string }[];
+  }>;
 }
 
 export const ListKindsContext = createContext<readonly ListKindSearch[]>([]);

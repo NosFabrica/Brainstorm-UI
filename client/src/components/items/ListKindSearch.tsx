@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNip05 } from "@/hooks/useNip05";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
 import config from "@/config/dictionary.config.json";
 import { useConceptItems } from "@/hooks/useConceptItems";
@@ -50,6 +51,7 @@ import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
+import { accountOwnedBy } from "@/lib/ownedAccount";
 import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
 import { fetchAreaEvents, fetchTownEvents } from "@/services/townEvents";
 import { cellsCovering } from "@/lib/geohash";
@@ -269,6 +271,39 @@ function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void
     </section>
   );
 }
+
+/**
+ * A person's own GitHub account, as a mark beside their name (ListKindSearch.PersonMark): the
+ * listed account their root handle owns (lib/ownedAccount), once the handle's domain answers that
+ * it's theirs. It opens the account's page, with who recommends it.
+ */
+function GitHubMark({ pubkey, nip05, inRow = false }: { pubkey: string; nip05?: string; inRow?: boolean }) {
+  const { hits } = useKindHits("github-account", "", OWNED_MAX, { browse: true });
+  const handle = accountOwnedBy(
+    nip05,
+    hits.map((h) => h.shown.title ?? ""),
+  );
+  // Asked only of a handle that would own one: the rest of the rows ask nothing more.
+  const verified = useNip05(handle ? nip05 : null, pubkey) === "verified";
+  const hit = handle ? hits.find((h) => h.shown.title?.toLowerCase() === handle.toLowerCase()) : null;
+  if (!hit || !verified) return null;
+  return (
+    <Link
+      href={hit.href}
+      aria-label={`${handle} on GitHub`}
+      title={`${handle} on GitHub`}
+      tabIndex={inRow ? -1 : undefined}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex shrink-0 items-center text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+      data-testid="person-github"
+    >
+      <Github className={inRow ? "h-3.5 w-3.5" : "h-4 w-4"} aria-hidden />
+    </Link>
+  );
+}
+
+/** Every listed account a person's handle could own: the GitHub list is short. */
+const OWNED_MAX = 500;
 
 function BooksPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   // On the Top page a book is found by its title: a name in a byline is not a search for the book.
@@ -761,16 +796,27 @@ function suggestionFor(
   view: ConceptViewKey,
   what: string,
   Icon: typeof Store,
-  { byName = false, groups = false }: { byName?: boolean; groups?: boolean } = {},
+  {
+    byName = false,
+    groups = false,
+    owned = false,
+  }: {
+    byName?: boolean;
+    groups?: boolean;
+    /** Its things are people's own accounts: one a person shown owns is left to their row. */
+    owned?: boolean;
+  } = {},
 ) {
   return function KindSuggestion({
     query,
     slot,
     onPick,
+    people = [],
   }: {
     query: string;
     slot: "lead" | "follow";
     onPick?: () => void;
+    people?: readonly { pubkey: string; nip05?: string }[];
   }) {
     const { hits: all } = useKindHits(view, query, CANDIDATES, { typing: true });
     const { hits: named } = useKindHits(view, query, 1, { typing: true, titleOnly: true });
@@ -798,6 +844,8 @@ function suggestionFor(
     }
     const h = (byName ? named : all)[0];
     if (!h || slot !== "follow") return null;
+    // Their own account is the person, already a row above: one person, one row (lib/ownedAccount).
+    if (owned && h.shown.title && people.some((p) => accountOwnedBy(p.nip05, [h.shown.title!]))) return null;
     const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
     return (
       <Link
@@ -1496,6 +1544,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     Preview: GitHubPreview,
     Page: GitHubPage,
     Warm: warmFor("github-account"),
-    Suggestion: suggestionFor("github", "github-account", "GitHub", Github),
+    Suggestion: suggestionFor("github", "github-account", "GitHub", Github, { owned: true }),
+    PersonMark: GitHubMark,
   },
 ];

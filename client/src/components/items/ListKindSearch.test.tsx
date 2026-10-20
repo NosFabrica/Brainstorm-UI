@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
+import { __resetNip05Cache } from "@/lib/nip05";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
 const { PLACES, BOOKS, GITHUB } = vi.hoisted(() => ({
@@ -1335,6 +1336,51 @@ describe("the Places map, held steady", () => {
       expect(document.activeElement).toBe(screen.getByRole("button", { name: "Map" }));
     } finally {
       window.innerWidth = width;
+    }
+  });
+});
+
+// A GitHub account whose owner is among the people the dropdown shows is that person, not a row of
+// its own: their root handle on the domain the account is named for says so (lib/ownedAccount).
+describe("one person, one row", () => {
+  const OWNER = "a1".repeat(32);
+  const github = (people?: { pubkey: string; nip05?: string }[]) => {
+    const kind = LIST_KINDS.find((k) => k.key === "github")!;
+    return renderWithProviders(<kind.Suggestion query="riverdev" slot="follow" people={people} />);
+  };
+
+  it("leaves the account to its owner's row when the owner is shown", () => {
+    github([{ pubkey: OWNER, nip05: "_@riverdev.com" }]);
+    expect(screen.queryByTestId("kind-suggestion-github")).toBeNull();
+  });
+
+  it("offers the account when no one shown owns it — a name alike isn't the owner", () => {
+    github([{ pubkey: OWNER, nip05: "riverdev@nostr.example" }]);
+    expect(screen.getByTestId("kind-suggestion-github")).toHaveTextContent("riverdev");
+  });
+
+  // The mark beside the person's name: only once their handle's domain answers that it's theirs —
+  // until then it is a claim, and anyone can claim a domain's root.
+  it("marks the owner with their GitHub account once their handle is verified, and not before", async () => {
+    const Mark = LIST_KINDS.find((k) => k.key === "github")!.PersonMark!;
+    __resetNip05Cache();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ names: { _: OWNER } }), { status: 200 })),
+    );
+    try {
+      renderWithProviders(<Mark pubkey={OWNER} nip05="_@riverdev.com" />);
+      const mark = await screen.findByRole("link", { name: "riverdev on GitHub" });
+      expect(mark).toHaveAttribute("href", expect.stringMatching(/^\/e\/naddr1/));
+      cleanup();
+      // The domain names someone else for its root: no mark.
+      __resetNip05Cache();
+      renderWithProviders(<Mark pubkey={"b2".repeat(32)} nip05="_@riverdev.com" />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByRole("link", { name: "riverdev on GitHub" })).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      __resetNip05Cache();
     }
   });
 });

@@ -669,4 +669,25 @@ describe("a kind's row in the dropdown", () => {
     expect(before(person, screen.getByTestId("kind-suggestion-books"))).toBe(true);
     expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("coffee");
   });
+
+  // A kind's thing a person shown owns (their GitHub account) is theirs: the kind's row hears who is
+  // shown, and the person's row wears the kind's mark beside the name.
+  it("tells the kinds who is shown, and wears a kind's mark beside a person's name", async () => {
+    const seen: unknown[] = [];
+    await open([
+      {
+        ...kind("github", "follow"),
+        Suggestion: ({ people }: { people?: { pubkey: string }[] }) => {
+          seen.push(people?.map((p) => p.pubkey));
+          return null;
+        },
+        PersonMark: ({ pubkey, inRow }: { pubkey: string; inRow?: boolean }) => (
+          <span data-testid="person-mark">{inRow ? `row:${pubkey.slice(0, 2)}` : "page"}</span>
+        ),
+      },
+    ]);
+    expect(seen.at(-1)).toEqual([JOE]);
+    const name = screen.getByTestId("home-suggestion-name-0");
+    expect(within(name).getByTestId("person-mark")).toHaveTextContent("row:ee");
+  });
 });
