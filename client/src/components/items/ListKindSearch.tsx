@@ -48,6 +48,7 @@ import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
+import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
 import { fetchTownEvents } from "@/services/townEvents";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
@@ -420,7 +421,7 @@ const linesOf = (hits: KindHit[]) =>
  * A town's upcoming events that say where they are and sit near its places,
  * as map pins (lib/eventPins); none when the words name no town.
  */
-function useTownEventPins(town: string | null, placePins: { lat: number; lon: number }[]): MapPin[] {
+function useTownEventPins(town: string | null, placePins: { lat: number; lon: number }[]): TownEventPin[] {
   const events = useQuery({
     queryKey: ["town-events", town],
     queryFn: () => fetchTownEvents(town!),
@@ -428,10 +429,94 @@ function useTownEventPins(town: string | null, placePins: { lat: number; lon: nu
     staleTime: 5 * 60_000,
   });
   if (!town || !events.data) return [];
+  const byId = new Map(events.data.map((ev) => [ev.id, ev]));
   return eventPins(events.data, Math.floor(Date.now() / 1000))
     .filter((e) => pinsAreLocal([...placePins, e]))
     .slice(0, 10)
-    .map((e) => ({ lat: e.lat, lon: e.lon, name: e.name, kind: "event" as const }));
+    .map((e) => {
+      const ev = byId.get(e.id)!;
+      const { location, image } = parseCalendarEvent(ev);
+      const when = formatEventDate(e.startSec, e.isDateOnly);
+      return {
+        lat: e.lat,
+        lon: e.lon,
+        name: e.name,
+        kind: "event" as const,
+        id: e.id,
+        note: when,
+        when,
+        where: location || null,
+        image: image || null,
+        href: eventPath(ev),
+      };
+    });
+}
+
+/** A town's event on its map, with what its card says when its pin is tapped. */
+type TownEventPin = MapPin & {
+  id: string;
+  when: string;
+  where: string | null;
+  image: string | null;
+  href: string;
+};
+
+/**
+ * An event tapped on the map: what it is, when and where, its picture when it
+ * has one, and the way to its page — the event's counterpart to PlaceCard.
+ */
+function EventCard({
+  event,
+  className = "",
+  onClose,
+}: {
+  event: TownEventPin;
+  className?: string;
+  onClose: () => void;
+}) {
+  return (
+    <article
+      data-testid="event-picked"
+      className={`flex gap-3 rounded-2xl border border-cyan-300 bg-white p-3 shadow-md dark:border-cyan-700 dark:bg-slate-900 ${className}`}
+    >
+      {event.image && (
+        <img src={event.image} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+      )}
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <span className="flex items-start gap-2">
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+              Event
+            </span>
+            <Link
+              href={event.href}
+              className="line-clamp-2 font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+            >
+              {event.name}
+            </Link>
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="-m-1 shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </span>
+        <span className="block text-xs font-medium text-slate-700 dark:text-slate-200">{event.when}</span>
+        {event.where && (
+          <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{event.where}</span>
+        )}
+        <Link
+          href={event.href}
+          className="mt-1.5 inline-flex items-center rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white hover:bg-brand-primary-hover"
+        >
+          See event
+        </Link>
+      </div>
+    </article>
+  );
 }
 
 /** The places' pins, each wearing its row's number; none for a place with no coordinates. */
@@ -746,11 +831,14 @@ function PlacesPage({ query }: { query: string }) {
   const [mapOpen, setMapOpen] = useState(false);
   // The place whose pin was tapped on a desktop: its card opens over the map.
   const [picked, setPicked] = useState<string | null>(null);
+  // The event whose pin was tapped: its card, in place of a place's — one card at a time.
+  const [pickedEvent, setPickedEvent] = useState<string | null>(null);
   // The place pointed at in the list, or tapped on the map: its row and its pin light together.
   const [lit, setLit] = useState<string | null>(null);
   const tapPin = (label: string) => {
     setLit(label);
     setPicked(shown[Number(label) - 1]?.id ?? null);
+    setPickedEvent(null);
     document.getElementById(`place-row-${label}`)?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   };
   // The kinds of place that split the list: each of several places but not all of them, and
@@ -814,6 +902,11 @@ function PlacesPage({ query }: { query: string }) {
   const allPins = [...pins, ...events];
   // Gone when a filter leaves it out; where it now sits when the order changes.
   const pickedAt = picked ? shown.findIndex((h) => h.id === picked) : -1;
+  const eventPicked = events.find((e) => e.id === pickedEvent) ?? null;
+  const tapEvent = (id: string) => {
+    setPickedEvent(id);
+    setPicked(null);
+  };
   const header = (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-2">
@@ -903,7 +996,14 @@ function PlacesPage({ query }: { query: string }) {
         {map && !narrow && (
           <div>
             <div className="sticky top-20 h-[calc(100dvh-6rem)]">
-              <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} className="h-full" />
+              <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} onEvent={tapEvent} className="h-full" />
+              {eventPicked && (
+                <EventCard
+                  event={eventPicked}
+                  className="absolute bottom-4 left-4 z-[500] w-80 max-w-[calc(100%-2rem)]"
+                  onClose={() => setPickedEvent(null)}
+                />
+              )}
               {pickedAt >= 0 && (
                 <PlaceCard
                   hit={shown[pickedAt]}
@@ -941,8 +1041,10 @@ function PlacesPage({ query }: { query: string }) {
             <PlacesMap
               pins={allPins}
               highlight={lit}
+              onEvent={tapEvent}
               onPin={(label) => {
                 setLit(label);
+                setPickedEvent(null);
                 document
                   .getElementById(`place-card-${label}`)
                   ?.scrollIntoView?.({ inline: "center", block: "nearest", behavior: "smooth" });
@@ -954,6 +1056,11 @@ function PlacesPage({ query }: { query: string }) {
             </div>
           </div>
           <div className="relative z-[500] -mt-48 space-y-2 pb-4">
+            {eventPicked && (
+              <div className="px-4">
+                <EventCard event={eventPicked} onClose={() => setPickedEvent(null)} />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setMapOpen(false)}

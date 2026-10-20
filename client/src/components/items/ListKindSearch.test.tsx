@@ -123,10 +123,12 @@ vi.mock("@/components/items/PlacesMap", () => ({
     pins,
     highlight,
     onPin,
+    onEvent,
   }: {
-    pins: { name: string; label?: string; kind?: string }[];
+    pins: { name: string; label?: string; kind?: string; id?: string }[];
     highlight?: string | null;
     onPin?: (label: string) => void;
+    onEvent?: (id: string) => void;
   }) => (
     <div
       data-testid="places-map"
@@ -141,11 +143,17 @@ vi.mock("@/components/items/PlacesMap", () => ({
       data-highlight={highlight ?? ""}
     >
       {pins.length}
-      {pins.map((p) => (
-        <button key={p.label} type="button" onClick={() => onPin?.(p.label!)}>
-          pin {p.label}
-        </button>
-      ))}
+      {pins.map((p) =>
+        p.kind === "event" ? (
+          <button key={`event-${p.id}`} type="button" onClick={() => onEvent?.(p.id!)}>
+            event {p.name}
+          </button>
+        ) : (
+          <button key={p.label} type="button" onClick={() => onPin?.(p.label!)}>
+            pin {p.label}
+          </button>
+        ),
+      )}
     </div>
   ),
 }));
@@ -959,5 +967,53 @@ describe("the Places page's filters", () => {
         expect(screen.getByTestId("places-summary")).toHaveTextContent(/^60\+ places$/);
       },
     );
+  });
+});
+
+// An event on a town's map is a way into the event: its pin opens a card that says what, when and
+// where, and leads to the event's own page — as a place's pin opens the place's card.
+describe("an event's pin on the Places page", () => {
+  const START = Math.floor(Date.parse("2030-05-04T19:00:00Z") / 1000);
+  const meetup = {
+    id: "a".repeat(64),
+    kind: 31923,
+    pubkey: "e".repeat(64),
+    created_at: 1,
+    content: "",
+    tags: [
+      ["d", "river-meetup"],
+      ["title", "Meetup by the river"],
+      ["start", String(START)],
+      ["g", "9qbc3gy"],
+      ["location", "Riverside Park"],
+    ],
+  };
+
+  it("opens the event's card: what, when, where, and the way to its page", async () => {
+    townEvents.list = [meetup];
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      page("places", "sarasota");
+      fireEvent.click(await screen.findByRole("button", { name: "event Meetup by the river" }));
+      const card = screen.getByTestId("event-picked");
+      expect(card).toHaveTextContent("Meetup by the river");
+      expect(card).toHaveTextContent(/May.*2030/);
+      expect(card).toHaveTextContent("Riverside Park");
+      expect(within(card).getByRole("link", { name: "See event" })).toHaveAttribute(
+        "href",
+        expect.stringMatching(/^\/e\/naddr1/),
+      );
+      // One card at a time: a place's pin takes its place, and Close puts it away.
+      fireEvent.click(screen.getByRole("button", { name: "pin 1" }));
+      expect(screen.queryByTestId("event-picked")).toBeNull();
+      expect(screen.getByTestId("place-picked")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "event Meetup by the river" }));
+      expect(screen.queryByTestId("place-picked")).toBeNull();
+      fireEvent.click(within(screen.getByTestId("event-picked")).getByRole("button", { name: "Close" }));
+      expect(screen.queryByTestId("event-picked")).toBeNull();
+    } finally {
+      itemsOf[PLACES].pop();
+      townEvents.list = [];
+    }
   });
 });

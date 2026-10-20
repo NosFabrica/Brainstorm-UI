@@ -14,6 +14,26 @@ export interface MapPin {
   label?: string;
   /** An event's pin wears the event's own face, not a place's. */
   kind?: "place" | "event";
+  /** An event's id: what a tapped event pin says (onEvent). */
+  id?: string;
+  /** A second line for its tooltip: an event's when. */
+  note?: string;
+}
+
+/**
+ * A tooltip's words as text, never markup: names and titles come from anyone's
+ * lists and events, and Leaflet would read a string as HTML.
+ */
+function tooltipOf(p: MapPin): HTMLElement {
+  const el = document.createElement("span");
+  const name = document.createElement("strong");
+  name.textContent = p.name;
+  el.append(name);
+  if (p.note) {
+    el.append(document.createElement("br"));
+    el.append(document.createTextNode(p.note));
+  }
+  return el;
 }
 
 /** An event's pin: a small cyan diamond, set apart from the places' numbered circles. */
@@ -29,6 +49,7 @@ export function PlacesMap({
   className = "",
   highlight = null,
   onPin,
+  onEvent,
 }: {
   pins: MapPin[];
   className?: string;
@@ -36,12 +57,16 @@ export function PlacesMap({
   highlight?: string | null;
   /** A numbered pin tapped. */
   onPin?: (label: string) => void;
+  /** An event's pin tapped, by the event's id. */
+  onEvent?: (id: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const markers = useRef(new Map<string, import("leaflet").Marker>());
   const lib = useRef<typeof import("leaflet") | null>(null);
   const onPinRef = useRef(onPin);
   onPinRef.current = onPin;
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
   const key = pins.map((p) => `${p.lat},${p.lon},${p.label ?? ""}`).join("|");
 
   useEffect(() => {
@@ -62,13 +87,14 @@ export function PlacesMap({
         }).addTo(map);
         for (const p of pins) {
           if (p.kind === "event") {
-            L.marker([p.lat, p.lon], {
-              icon: L.divIcon({ html: EVENT_PIN, className: "", iconSize: [14, 14], iconAnchor: [7, 7] }),
+            const id = p.id;
+            const marker = L.marker([p.lat, p.lon], {
+              icon: L.divIcon({ html: EVENT_PIN, className: "cursor-pointer", iconSize: [14, 14], iconAnchor: [7, 7] }),
               keyboard: false,
               zIndexOffset: -100,
-            })
-              .bindTooltip(p.name)
-              .addTo(map);
+            });
+            if (id) marker.on("click", () => onEventRef.current?.(id));
+            marker.bindTooltip(tooltipOf(p)).addTo(map);
           } else if (p.label) {
             const label = p.label;
             const marker = L.marker([p.lat, p.lon], {
@@ -76,7 +102,7 @@ export function PlacesMap({
               keyboard: false,
             });
             marker.on("click", () => onPinRef.current?.(label));
-            marker.bindTooltip(p.name).addTo(map);
+            marker.bindTooltip(tooltipOf(p)).addTo(map);
             markers.current.set(label, marker);
           } else {
             L.circleMarker([p.lat, p.lon], {
@@ -86,7 +112,7 @@ export function PlacesMap({
               fillColor: "#7237FF",
               fillOpacity: 1,
             })
-              .bindTooltip(p.name)
+              .bindTooltip(tooltipOf(p))
               .addTo(map);
           }
         }
