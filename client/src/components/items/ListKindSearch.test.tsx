@@ -239,6 +239,20 @@ const page = (key: string, query: string) => {
   return renderWithProviders(<kind.Page query={query} />);
 };
 
+/**
+ * Below a desktop's width — a tablet's, where the preview still draws its little map — the side
+ * panel folds to a strip, so a town's places stay in the results (PlacesPanel takes them on a desktop).
+ */
+const belowDesktop = (run: () => void | Promise<void>) => async () => {
+  const width = window.innerWidth;
+  window.innerWidth = 800;
+  try {
+    await run();
+  } finally {
+    window.innerWidth = width;
+  }
+};
+
 /** A kind's Top preview, offered both places, above People and below, as the Top page offers it. */
 const preview = (key: string, query: string, named = false) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
@@ -537,18 +551,21 @@ describe("where a preview sits on the Top page", () => {
     expect(sitsIn("kind-preview-books")).toBe("lead");
   });
 
-  it("Places lead for a kind of place, or a town several places are in", () => {
-    preview("places", "cafe");
-    expect(sitsIn("kind-preview-places")).toBe("lead");
-    cleanup();
-    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
-    try {
-      preview("places", "sarasota");
+  it(
+    "Places lead for a kind of place, or a town several places are in (below a desktop)",
+    belowDesktop(() => {
+      preview("places", "cafe");
       expect(sitsIn("kind-preview-places")).toBe("lead");
-    } finally {
-      itemsOf[PLACES].pop();
-    }
-  });
+      cleanup();
+      itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+      try {
+        preview("places", "sarasota");
+        expect(sitsIn("kind-preview-places")).toBe("lead");
+      } finally {
+        itemsOf[PLACES].pop();
+      }
+    }),
+  );
 
   it("Places follow for a word that only appears in their names", () => {
     preview("places", "owl");
@@ -596,17 +613,20 @@ describe("warming a kind's list", () => {
 
 // A town the words name is said: "Places in Sarasota", and See all says it too.
 describe("a town search", () => {
-  it("names the town in the Places preview", () => {
-    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
-    try {
-      const places = LIST_KINDS.find((k) => k.key === "places")!;
-      renderWithProviders(<places.Preview query="sarasota" slot="lead" named={false} onSeeAll={() => {}} />);
-      expect(screen.getByTestId("kind-preview-places")).toHaveTextContent("Places in Sarasota");
-      expect(screen.getByRole("button", { name: "See all 2 places in Sarasota" })).toBeInTheDocument();
-    } finally {
-      itemsOf[PLACES].pop();
-    }
-  });
+  it(
+    "names the town in the Places preview (below a desktop)",
+    belowDesktop(() => {
+      itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+      try {
+        const places = LIST_KINDS.find((k) => k.key === "places")!;
+        renderWithProviders(<places.Preview query="sarasota" slot="lead" named={false} onSeeAll={() => {}} />);
+        expect(screen.getByTestId("kind-preview-places")).toHaveTextContent("Places in Sarasota");
+        expect(screen.getByRole("button", { name: "See all 2 places in Sarasota" })).toBeInTheDocument();
+      } finally {
+        itemsOf[PLACES].pop();
+      }
+    }),
+  );
 });
 
 // Places come in the order of their rating through the reader's lens — the curator's, signed out —
@@ -711,26 +731,29 @@ describe("a town's events on its map", () => {
     ],
   });
 
-  it("pins the town's upcoming events near its places, and keys them", async () => {
-    const soon = Math.floor(Date.now() / 1000) + 3600;
-    townEvents.list = [
-      event("near", "Meetup by the river", "9qbc3gy", soon),
-      event("far", "Austin thing", "9v6kpy7", soon),
-    ];
-    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
-    try {
-      const places = LIST_KINDS.find((k) => k.key === "places")!;
-      renderWithProviders(<places.Preview query="sarasota" slot="lead" named={false} />);
-      await waitFor(() =>
-        expect(screen.getByTestId("places-map")).toHaveAttribute("data-events", "Meetup by the river"),
-      );
-      expect(townEvents.asked).toContain("Sarasota");
-      expect(screen.getByTestId("places-map-key")).toHaveTextContent("Events");
-    } finally {
-      itemsOf[PLACES].pop();
-      townEvents.list = [];
-    }
-  });
+  it(
+    "pins the town's upcoming events near its places, and keys them (below a desktop)",
+    belowDesktop(async () => {
+      const soon = Math.floor(Date.now() / 1000) + 3600;
+      townEvents.list = [
+        event("near", "Meetup by the river", "9qbc3gy", soon),
+        event("far", "Austin thing", "9v6kpy7", soon),
+      ];
+      itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+      try {
+        const places = LIST_KINDS.find((k) => k.key === "places")!;
+        renderWithProviders(<places.Preview query="sarasota" slot="lead" named={false} />);
+        await waitFor(() =>
+          expect(screen.getByTestId("places-map")).toHaveAttribute("data-events", "Meetup by the river"),
+        );
+        expect(townEvents.asked).toContain("Sarasota");
+        expect(screen.getByTestId("places-map-key")).toHaveTextContent("Events");
+      } finally {
+        itemsOf[PLACES].pop();
+        townEvents.list = [];
+      }
+    }),
+  );
 
   it("asks for no events when the words name no town", () => {
     townEvents.asked = [];
@@ -1180,6 +1203,73 @@ describe("searching the map's area", () => {
     } finally {
       itemsOf[PLACES] = was;
       window.history.replaceState({}, "", "/");
+    }
+  });
+});
+
+// A town is a thing the search is about, so on a desktop its places lead the side panel, Google's
+// way: a map with the places and events, the top three, and See all. Phones keep them in the
+// results, where the folded panel would hide them, and a kind of place stays in the results too.
+describe("a town's places in the side panel", () => {
+  const panel = (query: string, onSeeAll = () => {}) => {
+    const Panel = LIST_KINDS.find((k) => k.key === "places")!.Panel!;
+    return renderWithProviders(<Panel query={query} onSeeAll={onSeeAll} />);
+  };
+
+  it("leads with a map, the top three places and See all, for a town on a desktop", () => {
+    itemsOf[PLACES].push(
+      place("Il Sole Two", "restaurant", "Sarasota"),
+      place("Il Sole Three", "cafe", "Sarasota"),
+      place("Il Sole Four", "bar", "Sarasota"),
+    );
+    const seeAll = vi.fn();
+    try {
+      panel("sarasota", seeAll);
+      const card = screen.getByTestId("panel-places");
+      expect(card).toHaveTextContent("Places in Sarasota");
+      expect(within(card).getByTestId("places-map")).toBeInTheDocument();
+      expect(within(card).getAllByTestId("kind-preview-row")).toHaveLength(3);
+      fireEvent.click(within(card).getByRole("button", { name: "See all 4 places in Sarasota" }));
+      expect(seeAll).toHaveBeenCalledTimes(1);
+    } finally {
+      itemsOf[PLACES].splice(-3);
+    }
+  });
+
+  it("shows nothing for a kind of place, which leads the results instead, nor on a phone", () => {
+    panel("cafe");
+    expect(screen.queryByTestId("panel-places")).toBeNull();
+    cleanup();
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      panel("sarasota");
+      expect(screen.queryByTestId("panel-places")).toBeNull();
+    } finally {
+      window.innerWidth = width;
+      itemsOf[PLACES].pop();
+    }
+  });
+
+  it("leaves a town's places to the panel on a desktop, and keeps them in the results on a phone", () => {
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    const width = window.innerWidth;
+    try {
+      preview("places", "sarasota");
+      expect(screen.queryByTestId("kind-preview-places")).toBeNull();
+      cleanup();
+      window.innerWidth = 390;
+      preview("places", "sarasota");
+      expect(within(screen.getByTestId("slot-lead")).getByTestId("kind-preview-places")).toBeInTheDocument();
+      cleanup();
+      // A kind of place is a local pack in the results, on a desktop too.
+      window.innerWidth = width;
+      preview("places", "cafe");
+      expect(within(screen.getByTestId("slot-lead")).getByTestId("kind-preview-places")).toBeInTheDocument();
+    } finally {
+      window.innerWidth = width;
+      itemsOf[PLACES].pop();
     }
   });
 });

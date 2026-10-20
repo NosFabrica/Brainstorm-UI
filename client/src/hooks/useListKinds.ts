@@ -22,6 +22,12 @@ export interface ListKindSearch {
    * (Places: a town, a kind of place) — and in the one below otherwise.
    */
   Preview: ComponentType<{ query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void }>;
+  /**
+   * Its card at the head of the side panel, for words that make it the thing the search is about
+   * (Places: a town) — Google's panel. Renders nothing otherwise, and nothing on a phone, where
+   * the panel folds to a strip and the Preview keeps the kind in the results.
+   */
+  Panel?: ComponentType<{ query: string; onSeeAll?: () => void }>;
   /** Its own page under the tab strip: what the words find, or the list itself with no words. */
   Page: ComponentType<{ query: string }>;
   /** Reads its list ahead of a search, once the page is idle; draws nothing. */

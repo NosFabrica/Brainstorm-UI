@@ -223,6 +223,53 @@ function Heading({
   );
 }
 
+/**
+ * A town's places at the head of the side panel on a desktop (ListKindSearch.Panel): a still map
+ * of them and the town's events, which opens the Places page, then the top three and See all.
+ */
+function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
+  const narrow = useIsMobile(1024);
+  const { hits: found } = useKindHits("place", query, CANDIDATES);
+  const { rated, lineOf, ratingLine } = useRatedPlaces(found);
+  const hits = rated.slice(0, 3);
+  const lines = linesOf(hits);
+  const town = townNamed(
+    query
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+    found.map((h) => ({ locality: h.place?.locality ?? null })),
+  );
+  const pins = pinsOf(hits);
+  const map = pinsAreLocal(pins);
+  const events = useTownEventPins(map && !narrow ? town : null, pins);
+  if (narrow || !town || hits.length === 0) return null;
+  return (
+    <section
+      className="overflow-hidden rounded-2xl border border-slate-100 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/80"
+      data-testid="panel-places"
+    >
+      {map && <PlacesMap pins={[...pins, ...events]} className="h-36 rounded-none border-0" onOpen={onSeeAll} />}
+      <div className="p-4 sm:p-5">
+        <Heading label={`Places in ${town}`} noun={`places in ${town}`} count={found.length} onSeeAll={onSeeAll} />
+        <ul className="space-y-3">
+          {hits.map((h, i) => (
+            <PlaceRow
+              key={h.id}
+              hit={h}
+              n={i + 1}
+              trust={lineOf(h.id)}
+              rating={ratingLine(h)}
+              line={lines[i]}
+              testId="kind-preview-row"
+            />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 function BooksPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   // On the Top page a book is found by its title: a name in a byline is not a search for the book.
   const { hits: found } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
@@ -569,6 +616,7 @@ function pinsOf(hits: KindHit[]) {
 }
 
 function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
+  const narrow = useIsMobile(1024);
   const { hits: found } = useKindHits("place", query, CANDIDATES);
   const { rated, lineOf, ratingLine } = useRatedPlaces(found);
   const hits = rated.slice(0, 3);
@@ -586,6 +634,8 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const map = pinsAreLocal(pins);
   // A town's upcoming events near its places share the map, in their own style (lib/eventPins).
   const events = useTownEventPins(map ? town : null, pins);
+  // A town's places lead the side panel on a desktop (PlacesPanel); here they'd say it twice.
+  if (town && !narrow) return null;
   if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
   return (
     <section data-testid="kind-preview-places">
@@ -1401,6 +1451,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     group: "Out & about",
     community: views.place,
     Preview: PlacesPreview,
+    Panel: PlacesPanel,
     Page: PlacesPage,
     Warm: warmFor("place"),
     Suggestion: suggestionFor("places", "place", "Place", PinIcon, { byName: true, groups: true }),

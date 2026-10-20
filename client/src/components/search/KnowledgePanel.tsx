@@ -4,6 +4,7 @@
  * (mobile) — avatar with tier ring, identity rows, and the deep-dive CTA.
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
+import { useListKinds } from "@/hooks/useListKinds";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchLiveStreams } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
@@ -186,6 +187,7 @@ function KnowledgePanelBody({
   onOpen,
   onPerson,
   onTab,
+  onOpenKind,
   className = "",
 }: {
   query: string;
@@ -214,8 +216,22 @@ function KnowledgePanelBody({
   /** The results page's tab switch: a content chip in the panel changes the tab in place. */
   onTab?: (tab: string) => void;
   onOpen?: (person: SearchResult) => void;
+  /** A kind's own page (its card's See all): Places, for a town's places at the head of the panel. */
+  onOpenKind?: (key: string) => void;
   className?: string;
 }) {
+  // Kinds whose card leads the panel when the words make them its subject (ListKindSearch.Panel):
+  // a town's places, map first. Top's alone, like the rails; each draws nothing when it doesn't apply.
+  const kinds = useListKinds();
+  const kindCards =
+    rails && active
+      ? kinds
+          .filter((k) => k.Panel)
+          .map((k) => {
+            const Card = k.Panel!;
+            return <Card key={k.key} query={query} onSeeAll={onOpenKind ? () => onOpenKind(k.key) : undefined} />;
+          })
+      : [];
   const tierRing = useTierRing();
   // Search's quiet chrome: the coin is for screen readers; the word speaks only as the exception.
   const quietChrome = useQuietTrustChrome();
@@ -798,6 +814,29 @@ function KnowledgePanelBody({
           recent notes · <span className="font-semibold text-slate-900 dark:text-slate-100">{voiceCount}</span>{" "}
           {voiceCount === 1 ? "voice" : "voices"}
         </p>
+        {/* What's coming up before who's talking: Google's panel lists events high. */}
+        {topicEvents && topicEvents.length > 0 && (
+          <div className={block} data-testid="topic-events">
+            <CalendarDays className={gutter} aria-label="Upcoming events" />
+            <ul className="min-w-0 flex-1 space-y-0.5">
+              {topicEvents.map((h) => (
+                <li key={h.event.id}>
+                  <EventRow hit={h} showHost={false} testIdPrefix="topic-event" />
+                </li>
+              ))}
+              {/* The rest, as a quiet last row of the same list. */}
+              <li>
+                <Link
+                  href={`/?q=${encodeURIComponent(query)}&t=events`}
+                  className="-mx-1.5 flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
+                  data-testid="topic-events-more"
+                >
+                  More events <ArrowRight className="h-3 w-3" />
+                </Link>
+              </li>
+            </ul>
+          </div>
+        )}
         {voices.length > 0 && (
           <div className={block}>
             <Users className={gutter} aria-label="Voices on it" />
@@ -824,28 +863,6 @@ function KnowledgePanelBody({
                   </Link>
                 </li>
               ))}
-            </ul>
-          </div>
-        )}
-        {topicEvents && topicEvents.length > 0 && (
-          <div className={block} data-testid="topic-events">
-            <CalendarDays className={gutter} aria-label="Upcoming events" />
-            <ul className="min-w-0 flex-1 space-y-0.5">
-              {topicEvents.map((h) => (
-                <li key={h.event.id}>
-                  <EventRow hit={h} showHost={false} testIdPrefix="topic-event" />
-                </li>
-              ))}
-              {/* The rest, as a quiet last row of the same list. */}
-              <li>
-                <Link
-                  href={`/?q=${encodeURIComponent(query)}&t=events`}
-                  className="-mx-1.5 flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
-                  data-testid="topic-events-more"
-                >
-                  More events <ArrowRight className="h-3 w-3" />
-                </Link>
-              </li>
             </ul>
           </div>
         )}
@@ -1067,13 +1084,15 @@ function KnowledgePanelBody({
     </aside>
   );
 
-  if (!main && !apps) return null;
+  if (!main && !apps && kindCards.length === 0) return null;
   // The rail stacks: the entity panel first, matching apps beneath. The zap
   // dialog mounts OUTSIDE the panel so its clicks never bubble into the
   // panel's own click-through (React events cross portals).
   const folded = belowLg && !expanded && !!main && !!strip;
   return (
-    <div className={`w-full space-y-3 ${className}`} hidden={!active}>
+    // empty:hidden — a kind's card that finds nothing to show leaves no empty column behind.
+    <div className={`w-full space-y-3 empty:hidden ${className}`} hidden={!active}>
+      {kindCards}
       {folded ? (
         <button
           type="button"

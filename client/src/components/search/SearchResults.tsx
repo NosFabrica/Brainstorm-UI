@@ -2121,6 +2121,7 @@ export function SearchResults({
             onOpen={onOpenProfile}
             onPerson={setPanelPerson}
             onTab={(next) => changeTab(next as SearchTab)}
+            onOpenKind={openKind}
             // Not pinned: the panel is context for the query, read at the top, and
             // it scrolls away with the page the way Google's does. Pinned, it
             // followed the reader down every page and ducked under the search

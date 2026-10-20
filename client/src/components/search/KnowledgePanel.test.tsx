@@ -9,6 +9,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetConnectionSpeed } from "@/lib/connection";
+import { ListKindsContext, type ListKindSearch } from "@/hooks/useListKinds";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
@@ -1814,5 +1815,104 @@ describe("what the panel's person publishes", () => {
     fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
     expect(onTab).toHaveBeenCalledWith("shop");
     expect(window.location.href).toBe(before);
+  });
+});
+
+// Words that make a kind the thing the search is about (a town, for Places) put that kind's card at
+// the head of the panel on Top, Google's way: map and places first, then the topic below it.
+describe("a kind's card at the head of the panel", () => {
+  const kinds: ListKindSearch[] = [
+    {
+      key: "places",
+      label: "Places",
+      community: "places",
+      group: "Out & about",
+      Preview: () => null,
+      Page: () => null,
+      Warm: () => null,
+      Suggestion: () => null,
+      Panel: ({ query, onSeeAll }) => (
+        <section data-testid="kind-card">
+          Places in {query}
+          <button type="button" onClick={onSeeAll}>
+            See all places
+          </button>
+        </section>
+      ),
+    },
+  ];
+  const withKinds = (ui: React.ReactElement) =>
+    render(<ListKindsContext.Provider value={kinds}>{ui}</ListKindsContext.Provider>);
+
+  it("leads the panel, above the topic, and its See all opens the kind's page", async () => {
+    const openKind = vi.fn();
+    withKinds(<KnowledgePanel query="chicago" pov="nosfabrica" onOpenKind={openKind} />);
+    // Before the topic is known, the card stands on its own.
+    expect(screen.getByTestId("kind-card")).toHaveTextContent("Places in chicago");
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "bot", NOW - 100),
+        noteHit("t2", "2".repeat(64), "w", NOW - 200),
+        noteHit("t3", "3".repeat(64), "m", NOW - 300),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const topic = await screen.findByTestId("search-topic-panel");
+    expect(
+      screen.getByTestId("kind-card").compareDocumentPosition(topic) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "See all places" }));
+    expect(openKind).toHaveBeenCalledWith("places");
+  });
+
+  it("is Top's alone: no card on another tab", () => {
+    withKinds(<KnowledgePanel query="chicago" pov="nosfabrica" rails={false} />);
+    expect(screen.queryByTestId("kind-card")).toBeNull();
+  });
+});
+
+describe("the topic card's order", () => {
+  it("puts what's coming up before who's talking: events, then notes' voices", async () => {
+    render(<KnowledgePanel query="chicago" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
+    const eventsProbe = streamCalls.find((c) => c.params.tab === "events")!;
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "bot", NOW - 100),
+        noteHit("t2", "2".repeat(64), "w", NOW - 200),
+        noteHit("t3", "3".repeat(64), "m", NOW - 300),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("search-topic-panel");
+    eventsProbe.emit({
+      hits: [
+        {
+          event: {
+            id: "ev-soon",
+            kind: 31923,
+            pubkey: "c".repeat(64),
+            created_at: NOW - 1000,
+            content: "",
+            sig: "",
+            tags: [
+              ["d", "ev-soon"],
+              ["title", "Chicago Bitcoin Meetup"],
+              ["start", String(NOW + 2 * 86_400)],
+            ],
+          } as NostrEvent,
+          author: null,
+          rank: null,
+        },
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+    const events = await screen.findByTestId("topic-events");
+    const voice = screen.getByTestId(`topic-voice-${"1".repeat(64)}`);
+    expect(events.compareDocumentPosition(voice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
