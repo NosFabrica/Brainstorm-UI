@@ -40,6 +40,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useGitHubAccount } from "@/hooks/useGitHubAccount";
+import { useGitHubEvidence } from "@/hooks/useGitHubEvidence";
 import { topRepos, type GitHubAccountFacts } from "@/services/github";
 import { compactCount } from "@/lib/compactCount";
 import { relativeTime } from "@/lib/relativeTime";
@@ -187,6 +188,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
       <WhoStandsBehindIt network={network} noun="account" idPrefix="github-account" />
 
       <OnNostr event={event} network={network} />
+      <LinkNudge handle={account.handle} />
 
       <DListItemNeighbours event={event} resolved={r} alsoListed={false} />
 
@@ -229,6 +231,35 @@ function IconButton({
     >
       {children}
     </a>
+  );
+}
+
+/**
+ * An account GitHub has answered for that nothing links to a Nostr profile yet (lib/githubLink):
+ * its owner is asked to link it the one way that needs nothing of us — their npub among their
+ * GitHub profile's Social accounts — after which search shows the two as one person. Not while
+ * GitHub hasn't answered: the account may be linked already.
+ */
+function LinkNudge({ handle }: { handle: string }) {
+  const evidence = useGitHubEvidence([handle]).get(handle.toLowerCase());
+  if (!evidence?.checked || evidence.named.length > 0 || evidence.provenClaimants.length > 0) return null;
+  return (
+    <p
+      className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300"
+      data-testid="github-account-link-nudge"
+    >
+      <span className="font-semibold text-slate-900 dark:text-slate-100">Is this your GitHub?</span> Add your Nostr npub
+      to your GitHub profile's{" "}
+      <a
+        href="https://github.com/settings/profile"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-brand-link hover:underline"
+      >
+        Social accounts
+      </a>
+      , and Brainstorm will show it with your profile.
+    </p>
   );
 }
 

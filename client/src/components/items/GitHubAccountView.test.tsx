@@ -6,7 +6,7 @@
  * the view only decides how they look (ADR 0007).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
@@ -86,6 +86,17 @@ vi.mock("@/hooks/useProfileMap", () => ({
 const github = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
 vi.mock("@/hooks/useGitHubAccount", () => ({
   useGitHubAccount: () => ({ data: github.facts, isPending: github.pending }),
+}));
+
+// Who GitHub says owns the account (hooks/useGitHubEvidence), by handle: unknown unless a test says.
+const owners = vi.hoisted(() => ({
+  of: {} as Record<string, { checked: boolean; named: string[]; blogHost: string | null; provenClaimants: string[] }>,
+}));
+vi.mock("@/hooks/useGitHubEvidence", () => ({
+  useGitHubEvidence: (handles: string[]) =>
+    new Map(
+      handles.filter((h) => owners.of[h.toLowerCase()]).map((h) => [h.toLowerCase(), owners.of[h.toLowerCase()]]),
+    ),
 }));
 
 import { GitHubAccountView, githubAccountOf } from "./GitHubAccountView";
@@ -407,5 +418,32 @@ describe("GitHubAccountView", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const mine = screen.getAllByTestId("github-account-verdict").at(-1)!;
     expect(within(mine).getByTestId("github-account-fact-vouches")).toHaveTextContent("you");
+  });
+});
+
+// An account nothing links to a Nostr profile yet invites its owner to link it, the one way that
+// needs nothing of us: their npub on their GitHub profile. Only once GitHub has answered — an
+// account we couldn't check may be linked already.
+describe("an account not yet linked to its owner", () => {
+  const nudge = () => screen.queryByTestId("github-account-link-nudge");
+
+  it("asks its owner to add their npub to their GitHub profile", () => {
+    owners.of = { "nous-clawds4": { checked: true, named: [], blogHost: null, provenClaimants: [] } };
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(nudge()).toHaveTextContent("Is this your GitHub?");
+    expect(within(nudge()!).getByRole("link", { name: /Social accounts/ })).toHaveAttribute(
+      "href",
+      "https://github.com/settings/profile",
+    );
+  });
+
+  it("asks nothing once it's linked, or while GitHub hasn't answered", () => {
+    owners.of = { "nous-clawds4": { checked: true, named: ["a1".repeat(32)], blogHost: null, provenClaimants: [] } };
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(nudge()).toBeNull();
+    cleanup();
+    owners.of = { "nous-clawds4": { checked: false, named: [], blogHost: null, provenClaimants: [] } };
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(nudge()).toBeNull();
   });
 });

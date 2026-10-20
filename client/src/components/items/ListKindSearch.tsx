@@ -28,7 +28,6 @@ import {
   X,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useNip05 } from "@/hooks/useNip05";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
 import config from "@/config/dictionary.config.json";
 import { useConceptItems } from "@/hooks/useConceptItems";
@@ -51,7 +50,9 @@ import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
-import { accountOwnedBy } from "@/lib/ownedAccount";
+import { ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
+import { useGitHubEvidence } from "@/hooks/useGitHubEvidence";
+import { verifyNip05 } from "@/lib/nip05";
 import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
 import { fetchAreaEvents, fetchTownEvents } from "@/services/townEvents";
 import { cellsCovering } from "@/lib/geohash";
@@ -272,21 +273,40 @@ function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void
   );
 }
 
+/** Which of the people have a handle their domain confirms (lib/nip05): the domain proofs need it. */
+function useVerifiedPeople(people: readonly { pubkey: string; nip05?: string }[]): Set<string> {
+  const key = people.map((p) => `${p.pubkey}|${p.nip05 ?? ""}`).join(",");
+  const [verified, setVerified] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let alive = true;
+    void Promise.all(
+      people.map(async (p) => (p.nip05 && (await verifyNip05(p.nip05, p.pubkey)) === "verified" ? p.pubkey : null)),
+    ).then((ok) => alive && setVerified(new Set(ok.filter((p): p is string => !!p))));
+    return () => {
+      alive = false;
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return verified;
+}
+
 /**
- * A person's own GitHub account, as a mark beside their name (ListKindSearch.PersonMark): the
- * listed account their root handle owns (lib/ownedAccount), once the handle's domain answers that
- * it's theirs. It opens the account's page, with who recommends it.
+ * A person's own GitHub account, as a mark beside their name (ListKindSearch.PersonMark): a listed
+ * account they're proven to own (lib/githubLink) — their npub on its GitHub profile, its website
+ * their verified handle's domain, a gist proving their claim, or their verified root handle on the
+ * domain named for it. It opens the account's page, with who recommends it.
  */
 function GitHubMark({ pubkey, nip05, inRow = false }: { pubkey: string; nip05?: string; inRow?: boolean }) {
   const { hits } = useKindHits("github-account", "", OWNED_MAX, { browse: true });
-  const handle = accountOwnedBy(
-    nip05,
-    hits.map((h) => h.shown.title ?? ""),
-  );
-  // Asked only of a handle that would own one: the rest of the rows ask nothing more.
-  const verified = useNip05(handle ? nip05 : null, pubkey) === "verified";
-  const hit = handle ? hits.find((h) => h.shown.title?.toLowerCase() === handle.toLowerCase()) : null;
-  if (!hit || !verified) return null;
+  const handles = hits.map((h) => h.shown.title ?? "").filter(Boolean);
+  const evidence = useGitHubEvidence(handles);
+  const verified = useVerifiedPeople(useMemo(() => [{ pubkey, nip05 }], [pubkey, nip05])).has(pubkey);
+  const hit = hits.find((h) => {
+    const handle = h.shown.title ?? "";
+    const e = evidence.get(handle.toLowerCase()) ?? NO_EVIDENCE;
+    return handle && ownsGitHub(e, handle, { pubkey, nip05 }, verified);
+  });
+  const handle = hit?.shown.title;
+  if (!hit || !handle) return null;
   return (
     <Link
       href={hit.href}
@@ -301,6 +321,10 @@ function GitHubMark({ pubkey, nip05, inRow = false }: { pubkey: string; nip05?: 
     </Link>
   );
 }
+
+const NO_EVIDENCE: GitHubEvidence = { checked: false, named: [], blogHost: null, provenClaimants: [] };
+
+const NO_PEOPLE: readonly { pubkey: string; nip05?: string }[] = [];
 
 /** Every listed account a person's handle could own: the GitHub list is short. */
 const OWNED_MAX = 500;
@@ -820,6 +844,10 @@ function suggestionFor(
   }) {
     const { hits: all } = useKindHits(view, query, CANDIDATES, { typing: true });
     const { hits: named } = useKindHits(view, query, 1, { typing: true, titleOnly: true });
+    const first = (byName ? named : all)[0];
+    const firstHandle = owned ? (first?.shown.title ?? "") : "";
+    const evidence = useGitHubEvidence(firstHandle ? [firstHandle] : []);
+    const verified = useVerifiedPeople(owned ? people : NO_PEOPLE);
     const group = groups ? groupOfPlaces(query, all) : null;
     // A group leads, above the people; a single thing follows them.
     if (group && slot !== "lead") return null;
@@ -844,8 +872,10 @@ function suggestionFor(
     }
     const h = (byName ? named : all)[0];
     if (!h || slot !== "follow") return null;
-    // Their own account is the person, already a row above: one person, one row (lib/ownedAccount).
-    if (owned && h.shown.title && people.some((p) => accountOwnedBy(p.nip05, [h.shown.title!]))) return null;
+    // Their own account is the person, already a row above: one person, one row — on proof only
+    // (lib/githubLink); until then, and when it can't be checked, it keeps its own row.
+    const e = evidence.get(firstHandle.toLowerCase()) ?? NO_EVIDENCE;
+    if (firstHandle && people.some((p) => ownsGitHub(e, firstHandle, p, verified.has(p.pubkey)))) return null;
     const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
     return (
       <Link
