@@ -5208,6 +5208,13 @@ describe("a kind's own page", () => {
     expect(screen.getByTestId("kind-page-places")).toHaveTextContent("coffee");
   });
 
+  it("takes the page for itself: no side panel asks the relay about the words", () => {
+    setUrlTab("places");
+    streamMock.mockClear();
+    withKinds("coffee");
+    expect(streamMock.mock.calls.filter(([q, prm]) => isPanelProbe(String(q), prm as never))).toEqual([]);
+  });
+
   it("gives way to a main tab", () => {
     setUrlTab("books");
     withKinds("dune");

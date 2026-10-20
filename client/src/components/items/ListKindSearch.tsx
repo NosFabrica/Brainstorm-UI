@@ -225,6 +225,53 @@ function GitHubPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => vo
   );
 }
 
+/* ── Each kind's row in the search dropdown ───────────────────────────── */
+
+/**
+ * The best match for the words being typed, as one row: its picture (a
+ * book's cover as a small portrait), its title, its line, and what it is.
+ */
+function suggestionFor(key: string, view: ConceptViewKey, what: string, Icon: typeof Store) {
+  return function KindSuggestion({ query, onPick }: { query: string; onPick?: () => void }) {
+    const { hits } = useKindHits(view, query, 1);
+    const [h] = hits;
+    if (!h) return null;
+    const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
+    return (
+      <Link
+        href={h.href}
+        onClick={onPick}
+        className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-4"
+        data-testid={`kind-suggestion-${key}`}
+      >
+        {h.shown.image ? (
+          <img
+            src={h.shown.image}
+            alt=""
+            loading="lazy"
+            className={`shrink-0 object-cover ${portrait ? "h-10 w-7 rounded" : view === "github-account" ? "h-8 w-8 rounded-full" : "h-8 w-8 rounded-lg"}`}
+          />
+        ) : (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800">
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {h.shown.title}
+          </span>
+          {h.shown.summary && (
+            <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
+          )}
+        </span>
+        <span className="shrink-0 rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          {what}
+        </span>
+      </Link>
+    );
+  };
+}
+
 /* ── Each kind's own page ─────────────────────────────────────────────── */
 
 const PAGE_MAX = 60;
@@ -415,6 +462,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     community: views.place,
     Preview: PlacesPreview,
     Page: PlacesPage,
+    Suggestion: suggestionFor("places", "place", "Place", Store),
   },
   {
     key: "books",
@@ -423,6 +471,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     community: views.book,
     Preview: BooksPreview,
     Page: BooksPage,
+    Suggestion: suggestionFor("books", "book", "Book", BookOpen),
   },
   {
     key: "github",
@@ -431,5 +480,6 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     community: views["github-account"],
     Preview: GitHubPreview,
     Page: GitHubPage,
+    Suggestion: suggestionFor("github", "github-account", "GitHub", Github),
   },
 ];

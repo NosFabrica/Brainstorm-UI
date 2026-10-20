@@ -62,6 +62,7 @@ vi.mock("@/hooks/useSearchTags", () => ({
   },
 }));
 
+import { ListKindsContext } from "@/hooks/useListKinds";
 import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
 import { scopedSearchHref } from "@/lib/searchSyntax";
@@ -627,5 +628,40 @@ describe("a suggested person's handle", () => {
     // Newest first: the owner, then the copycat.
     expect(screen.getByTestId("home-recent-nip05-0")).toHaveAttribute("data-nip05-status", "verified");
     expect(screen.queryByTestId("home-recent-nip05-1")).toBeNull();
+  });
+});
+
+// The kinds with a look of their own (hooks/useListKinds) each offer their best match as one row
+// under the people, for the words being typed.
+describe("a kind's row in the dropdown", () => {
+  it("each kind offers a row for the words, under the people", async () => {
+    const JOE = "e".repeat(64);
+    suggestMock.mockResolvedValue([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe" }]);
+    const kinds = [
+      {
+        key: "books",
+        label: "Books",
+        group: "Read & listen",
+        community: "39998:b:books",
+        Preview: () => null,
+        Page: () => null,
+        Suggestion: ({ query }: { query: string }) => <a data-testid="kind-suggestion">{query}</a>,
+      },
+    ];
+    render(
+      <ListKindsContext.Provider value={kinds}>
+        <HeaderSearchBox />
+      </ListKindsContext.Provider>,
+    );
+    type("dune");
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {});
+    const row = screen.getByTestId("kind-suggestion");
+    expect(row).toHaveTextContent("dune");
+    expect(
+      screen.getByTestId("home-suggestion-0").compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

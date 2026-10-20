@@ -1,3 +1,4 @@
+import { useListKinds } from "@/hooks/useListKinds";
 import { useHandlePointers } from "@/hooks/useHandlePointers";
 import {
   useCallback,
@@ -311,6 +312,7 @@ export function SearchBox({
   // lens the box keeps the results page's floor (lib/clientFilters): a person
   // below the verified line isn't offered here only to vanish there.
   const offered = [...pointedPeople, ...suggestions];
+  const kinds = useListKinds();
   const rows = effectivePov === "mywot" ? offered : peopleAboveLine(offered, suggestScoreOf);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -961,6 +963,10 @@ export function SearchBox({
                   );
                 })}
               </div>
+              {/* The kinds with a look of their own (hooks/useListKinds): each its best match, one row. */}
+              {kinds.map((k) => (
+                <k.Suggestion key={k.key} query={value} onPick={() => setShowSuggestions(false)} />
+              ))}
               <button
                 type="button"
                 className={`flex w-full shrink-0 items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-[12px] font-medium transition-colors dark:border-slate-800/60 sm:px-4 ${activeSuggestion === -1 ? "bg-slate-50 text-brand-primary dark:bg-slate-800" : "text-slate-500 hover:bg-slate-50 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"}`}

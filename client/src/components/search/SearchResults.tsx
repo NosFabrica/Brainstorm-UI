@@ -2115,7 +2115,8 @@ export function SearchResults({
             rails={tab === "top"}
             // Not on All — the relay's answer, one list, which the rails would repeat —
             // but kept mounted there, hidden and asking nothing, so back on Top it is as it was.
-            active={tab !== "all"}
+            // Nor on a kind's own page: the list and its map take the width.
+            active={tab !== "all" && !activeKind}
             group={composed ? "search-top" : undefined}
             onOpen={onOpenProfile}
             onPerson={setPanelPerson}

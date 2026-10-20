@@ -225,3 +225,25 @@ describe("a preview's See all", () => {
     expect(onSeeAll).toHaveBeenCalled();
   });
 });
+
+describe("a kind's row in the search dropdown", () => {
+  const suggestion = (key: string, query: string) => {
+    const kind = LIST_KINDS.find((k) => k.key === key)!;
+    return renderWithProviders(<kind.Suggestion query={query} />);
+  };
+
+  it("offers the best match, saying what it is, opening its page", () => {
+    suggestion("books", "herbert");
+    const row = screen.getByTestId("kind-suggestion-books");
+    expect(row).toHaveTextContent("Dune");
+    expect(row).toHaveTextContent("Frank Herbert");
+    expect(row).toHaveTextContent("Book");
+    expect(row).not.toHaveTextContent("Dune Messiah");
+    expect(row.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+  });
+
+  it("offers nothing when the words find nothing", () => {
+    const { container } = suggestion("places", "zzzz");
+    expect(container).toBeEmptyDOMElement();
+  });
+});
