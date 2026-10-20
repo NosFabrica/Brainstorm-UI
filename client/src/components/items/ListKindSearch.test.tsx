@@ -301,19 +301,24 @@ describe("a kind's own page", () => {
   });
 
   it("Places: the places the words find, their pins on a map, and chips that narrow them", () => {
-    page("places", "");
-    const list = screen.getByTestId("kind-page-places");
-    expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(5);
-    expect(screen.getByTestId("places-map")).toHaveTextContent("5");
-    fireEvent.click(screen.getByRole("button", { name: /^Restaurant/ }));
-    expect(
-      within(list)
-        .getAllByTestId("kind-page-item")
-        .map((r) => r.querySelector("a")?.textContent),
-    ).toEqual(["Il Sole"]);
-    expect(screen.getByRole("button", { name: /^Restaurant/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: /^Restaurant/ }));
-    expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(5);
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      page("places", "");
+      const list = screen.getByTestId("kind-page-places");
+      expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(6);
+      expect(screen.getByTestId("places-map")).toHaveTextContent("6");
+      fireEvent.click(screen.getByRole("button", { name: /^Restaurant/ }));
+      expect(
+        within(list)
+          .getAllByTestId("kind-page-item")
+          .map((r) => r.querySelector("a")?.textContent),
+      ).toEqual(["Il Sole", "Il Sole Two"]);
+      expect(screen.getByRole("button", { name: /^Restaurant/ })).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByRole("button", { name: /^Restaurant/ }));
+      expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(6);
+    } finally {
+      itemsOf[PLACES].pop();
+    }
   });
 
   it("GitHub accounts: a card for each, with its avatar and a way to it", () => {
@@ -467,8 +472,14 @@ describe("places, presented cleanly", () => {
   });
 
   it("counts on the chips, and on See all", () => {
-    page("places", "");
-    expect(screen.getByRole("button", { name: "Cafe 4" })).toBeInTheDocument();
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      page("places", "");
+      expect(screen.getByRole("button", { name: "Cafe 4" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Restaurant 2" })).toBeInTheDocument();
+    } finally {
+      itemsOf[PLACES].pop();
+    }
     cleanup();
     const places = LIST_KINDS.find((k) => k.key === "places")!;
     renderWithProviders(<places.Preview query="coffee" slot="follow" named={false} onSeeAll={() => {}} />);
@@ -761,7 +772,7 @@ describe("the Places page, a map app's way", () => {
     }
   });
 
-  it("sorts by best match, by stars alone, or open places first", async () => {
+  it("sorts by best match or by stars alone, once places have stars to sort by", async () => {
     const was = itemsOf[PLACES];
     vi.useFakeTimers({ now: new Date("2026-10-15T20:00:00Z"), toFake: ["Date"] });
     const one = place("One Review", "cafe", "Sarasota");
@@ -784,8 +795,15 @@ describe("the Places page, a map app's way", () => {
       expect(names()).toEqual(["Many Reviews", "One Review", "Open Late"]);
       fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "rated" } });
       expect(names()).toEqual(["One Review", "Many Reviews", "Open Late"]);
-      fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "open" } });
-      expect(names()).toEqual(["Open Late", "Many Reviews", "One Review"]);
+      expect(
+        within(screen.getByRole("combobox", { name: "Sort" }))
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["Best match", "Top rated"]);
+      cleanup();
+      ratings.reviews = new Map();
+      page("places", "");
+      expect(screen.queryByRole("combobox", { name: "Sort" })).toBeNull();
     } finally {
       itemsOf[PLACES] = was;
       ratings.reviews = new Map();
@@ -826,5 +844,120 @@ describe("the Places page, a map app's way", () => {
     expect(within(card).getByRole("link", { name: "Directions" })).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: "Close" }));
     expect(screen.queryByTestId("place-picked")).toBeNull();
+  });
+});
+
+// A filter is offered only when it narrows the list: one that empties it, or keeps every place,
+// is a dead end. A filter that's on says how many places it leaves, with a way back.
+describe("the Places page's filters", () => {
+  const at = (when: string) => vi.useFakeTimers({ now: new Date(when), toFake: ["Date"] });
+  const withPlaces = (list: unknown[], run: () => void) => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = list;
+    try {
+      run();
+    } finally {
+      itemsOf[PLACES] = was;
+      vi.useRealTimers();
+    }
+  };
+
+  it("offers Open now, with how many are, only when some places are open and some aren't", () => {
+    at("2026-10-15T20:00:00Z");
+    withPlaces(
+      [
+        place("Always", "cafe", "Sarasota", [["opening-hours", "Mo-Su 00:00-24:00"]]),
+        place("Mornings", "cafe", "Sarasota", [["opening-hours", "Mo-Su 08:00-09:00"]]),
+        place("No Hours", "cafe", "Sarasota"),
+      ],
+      () => {
+        page("places", "");
+        expect(screen.getByRole("button", { name: "Open now 1" })).toBeInTheDocument();
+      },
+    );
+    cleanup();
+    at("2026-10-15T20:00:00Z");
+    withPlaces(
+      [
+        place("Mornings", "cafe", "Sarasota", [["opening-hours", "Mo-Su 08:00-09:00"]]),
+        place("No Hours", "cafe", "Sarasota"),
+      ],
+      () => {
+        page("places", "");
+        expect(screen.queryByRole("button", { name: /^Open now/ })).toBeNull();
+      },
+    );
+  });
+
+  it("offers the kinds of place that split the list — two or more, each of several places — with coffee as cafe", () => {
+    withPlaces(
+      [
+        place("Bean", "cafe", "Sarasota"),
+        place("Brew", "coffee", "Sarasota"),
+        place("Cup", "cafe", "Sarasota"),
+        place("Il Sole", "restaurant", "Sarasota"),
+        place("Il Sole Two", "restaurant", "Sarasota"),
+        place("Tap", "bar", "Sarasota"),
+      ],
+      () => {
+        page("places", "");
+        const chips = screen.getAllByRole("button", { pressed: false }).map((b) => b.textContent);
+        expect(chips).toEqual(["Cafe 3", "Restaurant 2"]);
+      },
+    );
+    cleanup();
+    // Four places of four kinds: a chip for each would leave one place, so none is offered.
+    withPlaces(
+      [
+        place("Sweets", "confectionery", "Austin"),
+        place("Tap", "bar", "Austin"),
+        place("Bean", "cafe", "Austin"),
+        place("Il Sole", "restaurant", "Austin"),
+      ],
+      () => {
+        page("places", "");
+        expect(screen.queryAllByRole("button", { pressed: false })).toEqual([]);
+      },
+    );
+  });
+
+  it("says how many places the filters leave, and clears them — from an empty result too", () => {
+    at("2026-10-15T20:00:00Z");
+    withPlaces(
+      [
+        place("Bean", "cafe", "Sarasota"),
+        place("Brew", "cafe", "Sarasota"),
+        place("Cup", "cafe", "Sarasota"),
+        place("Il Sole", "restaurant", "Sarasota"),
+        place("Il Sole Two", "restaurant", "Sarasota"),
+        place("Tap", "bar", "Sarasota", [["opening-hours", "Mo-Su 00:00-24:00"]]),
+      ],
+      () => {
+        page("places", "");
+        const summary = screen.getByTestId("places-summary");
+        expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Restaurant 2" }));
+        expect(summary).toHaveTextContent(/^2 of 6 places/);
+        fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+        expect(summary).toHaveTextContent(/^6 places/);
+        expect(screen.getByRole("button", { name: "Restaurant 2" })).toHaveAttribute("aria-pressed", "false");
+
+        fireEvent.click(screen.getByRole("button", { name: "Open now 1" }));
+        fireEvent.click(screen.getByRole("button", { name: "Cafe 3" }));
+        expect(screen.getByText("No places match these filters.")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+        expect(screen.getAllByTestId("kind-page-item")).toHaveLength(6);
+      },
+    );
+  });
+
+  it("says 60+ when the page shows only the first sixty places it found", () => {
+    withPlaces(
+      Array.from({ length: 61 }, (_, i) => place(`Cafe ${i}`, "cafe", "Sarasota")),
+      () => {
+        page("places", "");
+        expect(screen.getByTestId("places-summary")).toHaveTextContent(/^60\+ places$/);
+      },
+    );
   });
 });

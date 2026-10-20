@@ -713,13 +713,21 @@ function BooksPage({ query }: { query: string }) {
 
 type PlaceFilter = { category: string | null; openNow: boolean };
 
-/** How the Places page orders: rating and trust together (its own order), stars alone, or open first. */
-type PlaceSort = "best" | "rated" | "open";
+/** How the Places page orders: rating and trust together (its own order), or stars alone. */
+type PlaceSort = "best" | "rated";
 const PLACE_SORTS: { value: PlaceSort; label: string }[] = [
   { value: "best", label: "Best match" },
   { value: "rated", label: "Top rated" },
-  { value: "open", label: "Open now first" },
 ];
+
+/** Categories the lists file the same kind of place under: a chip for each would split one kind in two. */
+const SAME_KIND: Record<string, string> = { coffee: "cafe", coffee_shop: "cafe" };
+
+/** The kind of place a chip offers: its category, with those filed two ways said one way. */
+const kindOfPlace = (place: Place | null): string | null => {
+  const c = place?.category?.trim().toLowerCase();
+  return categoryWords(c ? (SAME_KIND[c] ?? c) : null);
+};
 
 const isOpenNow = (place: Place | null) => {
   const week = parseOpeningHours(place?.hours ?? null);
@@ -745,26 +753,27 @@ function PlacesPage({ query }: { query: string }) {
     setPicked(shown[Number(label) - 1]?.id ?? null);
     document.getElementById(`place-row-${label}`)?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   };
+  // The kinds of place that split the list: each of several places but not all of them, and
+  // at least two such — a chip that leaves one place, or keeps every one, narrows nothing.
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     for (const h of hits) {
-      const c = categoryWords(h.place?.category ?? null);
+      const c = kindOfPlace(h.place);
       if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const splitting = [...counts.entries()]
+      .filter(([, n]) => n >= 2 && n < hits.length)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    return splitting.length >= 2 ? splitting : [];
   }, [hits]);
   const narrowed = hits.filter(
-    (h) =>
-      (!filter.category || categoryWords(h.place?.category ?? null) === filter.category) &&
-      (!filter.openNow || isOpenNow(h.place)),
+    (h) => (!filter.category || kindOfPlace(h.place) === filter.category) && (!filter.openNow || isOpenNow(h.place)),
   );
   // A stable sort: places that tie keep the page's own order.
-  const shown =
-    sort === "rated"
-      ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a))
-      : sort === "open"
-        ? [...narrowed].sort((a, b) => Number(isOpenNow(b.place)) - Number(isOpenNow(a.place)))
-        : narrowed;
+  // Stars alone can only reorder once two places have them.
+  const sortable = hits.filter((h) => starsOf(h) > 0).length >= 2;
+  const shown = sortable && sort === "rated" ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a)) : narrowed;
   const town = townNamed(
     query
       .toLowerCase()
@@ -800,6 +809,8 @@ function PlacesPage({ query }: { query: string }) {
       )}
     </button>
   );
+  const filtering = filter.openNow || filter.category != null;
+  const clearFilters = () => setFilter({ category: null, openNow: false });
   const allPins = [...pins, ...events];
   // Gone when a filter leaves it out; where it now sits when the order changes.
   const pickedAt = picked ? shown.findIndex((h) => h.id === picked) : -1;
@@ -807,32 +818,46 @@ function PlacesPage({ query }: { query: string }) {
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-2">
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="places-summary">
-          {hits.length} {hits.length === 1 ? "place" : "places"}
+          {filtering && `${shown.length} of `}
+          {hits.length >= PAGE_MAX ? `${PAGE_MAX}+` : hits.length} {hits.length === 1 ? "place" : "places"}
           {town ? ` in ${town}` : ""}
-          {openCount > 0 && (
+          {!filtering && openCount > 0 && (
             <span className="font-medium text-emerald-600 dark:text-emerald-400"> · {openCount} open now</span>
           )}
         </h2>
-        <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          Sort
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as PlaceSort)}
-            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-          >
-            {PLACE_SORTS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {sortable && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            Sort
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as PlaceSort)}
+              className="rounded-full border border-slate-200 bg-white py-1 pl-3 pr-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            >
+              {PLACE_SORTS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {/* One row that scrolls sideways on a phone, as a map app's chips do. */}
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
-        {chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })))}
+        {/* Only when it narrows: none open would empty the list, all open would change nothing. */}
+        {(filter.openNow || (openCount > 0 && openCount < hits.length)) &&
+          chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })), openCount)}
         {categories.map(([c, n]) =>
           chip(c, filter.category === c, () => setFilter((f) => ({ ...f, category: f.category === c ? null : c })), n),
+        )}
+        {filtering && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="shrink-0 px-2 py-1 text-xs font-medium text-brand-link hover:underline"
+          >
+            Clear
+          </button>
         )}
       </div>
     </>
@@ -863,9 +888,16 @@ function PlacesPage({ query }: { query: string }) {
             ))}
           </ul>
           {shown.length === 0 && (
-            <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-              No places match these filters.
-            </p>
+            <div className="space-y-2 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              <p>No places match these filters.</p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Clear filters
+              </button>
+            </div>
           )}
         </div>
         {map && !narrow && (
