@@ -257,8 +257,8 @@ Each is a record or a set of records, and what both apps must make of it.
 
 ## 12. Not in this document
 
-- **Reviews of books.** Brainstorm's book view reviews with kind 1111 comments and a `rating` of `1` to `5`. If books
-  move to kind 34259 with `m book`, that wants a section of its own, and Regulars has no part in it.
+- **Reviews of books:** [books-actions.md](books-actions.md), the same record with `m book`, binding Brainstorm and
+  Unbnd. Regulars has no part in it.
 - **Following a reviewer** (section 7).
 
 ## Reference
@@ -286,3 +286,4 @@ Brainstorm's side: `client/src/lib/thing.ts` (`starsOf`, kind 34259), `client/sr
 - 2026-10-15: the hub as a relay hint on a review's `a`, so a client that looks for a place by its author's relay
   list can find it. Regulars writes it.
 - 2026-10-15: the hub takes no reviews, so neither app sends or reads them there. Regulars has stopped reading it.
+- 2026-10-20: books have a contract of their own, books-actions.md.
