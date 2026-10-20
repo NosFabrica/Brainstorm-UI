@@ -1,9 +1,9 @@
 /**
- * The NIP-98 style challenge exchange that mints a session.
+ * The NIP-98 style challenge exchange that mints a session, and revoking them.
  */
 
 import type { NostrEvent } from "nostr-tools";
-import { fetch, getBrainstormApi } from "./core";
+import { authenticatedFetch, extractApiError, fetch, getBrainstormApi } from "./core";
 
 export const authApi = {
   async getAuthChallenge(pubkey: string): Promise<string> {
@@ -32,5 +32,13 @@ export const authApi = {
       throw new Error("No token received from server");
     }
     return data;
+  },
+
+  /** Sign out everywhere: every session token issued so far, this one included, stops working. */
+  async revokeOwnSessions(): Promise<void> {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/sessions/revoke`, { method: "POST" });
+    if (!response.ok) {
+      throw new Error((await extractApiError(response)) || `Failed to sign out everywhere (${response.status})`);
+    }
   },
 };

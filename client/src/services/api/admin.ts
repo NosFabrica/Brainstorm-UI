@@ -250,6 +250,11 @@ export const adminApi = {
     return json?.data ?? json;
   },
 
+  /** Every session token issued to this user so far stops working; Developer API keys are untouched. */
+  async revokeUserSessions(pubkey: string): Promise<void> {
+    await adminJson(`/admin/users/${pubkey}/sessions/revoke`, "Failed to revoke sessions", { method: "POST" });
+  },
+
   async getAdminUserHistory(pubkey: string, params: { page?: number; size?: number } = {}) {
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", params.page.toString());

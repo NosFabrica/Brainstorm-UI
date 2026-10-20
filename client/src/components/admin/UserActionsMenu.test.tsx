@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
+import { apiClient } from "@/services/api";
 import { UserActionsMenu } from "./UserActionsMenu";
 
 // The Dictionary's concepts come from relays (hooks/useDictionaryConcepts): none here, already known.
@@ -10,6 +11,8 @@ vi.mock("@/hooks/useDictionaryConcepts", () => ({
 }));
 
 const PK = "a".repeat(64);
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("UserActionsMenu", () => {
   it("folds the row actions into one menu; trigger and view fire their handlers", async () => {
@@ -67,5 +70,29 @@ describe("UserActionsMenu", () => {
     await userEvent.click(await screen.findByTestId("user-action-trusted-lists"));
 
     expect(onPublishTrustedLists).toHaveBeenCalledTimes(1);
+  });
+
+  it("revokes this user's sessions once confirmed", async () => {
+    const spy = vi.spyOn(apiClient, "revokeUserSessions").mockResolvedValue(undefined);
+    renderWithProviders(<UserActionsMenu pubkey={PK} onTrigger={() => {}} onView={() => {}} testIdSuffix="0" />);
+
+    await userEvent.click(screen.getByTestId("user-actions-0"));
+    await userEvent.click(await screen.findByTestId("user-action-revoke-sessions"));
+    expect(spy).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("button", { name: /confirm revoke/i }));
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(PK));
+  });
+
+  it("shows why a revoke failed and keeps the dialog open", async () => {
+    vi.spyOn(apiClient, "revokeUserSessions").mockRejectedValue(new Error("Unknown user"));
+    renderWithProviders(<UserActionsMenu pubkey={PK} onTrigger={() => {}} onView={() => {}} testIdSuffix="0" />);
+
+    await userEvent.click(screen.getByTestId("user-actions-0"));
+    await userEvent.click(await screen.findByTestId("user-action-revoke-sessions"));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm revoke/i }));
+
+    expect(await screen.findByText("Unknown user")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirm revoke/i })).toBeInTheDocument();
   });
 });
