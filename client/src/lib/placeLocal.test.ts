@@ -4,7 +4,7 @@
  * for a map to say something (a world map of "west" says nothing).
  */
 import { describe, expect, it } from "vitest";
-import { pinsAreLocal, townNamed } from "./placeLocal";
+import { pinsAreLocal, placesGroup, townNamed } from "./placeLocal";
 
 describe("townNamed", () => {
   const places = [
@@ -47,5 +47,32 @@ describe("pinsAreLocal", () => {
       ]),
     ).toBe(false);
     expect(pinsAreLocal([])).toBe(false);
+  });
+});
+
+// When the words name a group of places — a town several are in, or a kind of place two or more
+// are — search offers the group, not one of them: "Places in Austin", "Coffee places".
+describe("placesGroup", () => {
+  const place = (locality: string, ...kinds: string[]) => ({ locality, kinds });
+  const places = [
+    place("Austin", "Cafe", "Coffee shop"),
+    place("Austin", "Bar"),
+    place("Petaluma", "Cafe", "Coffee shop"),
+    place("Lisbon", "Bakery"),
+  ];
+
+  it("is the town, when the words name one several places are in", () => {
+    expect(placesGroup(["austin"], places)).toBe("Places in Austin");
+    expect(placesGroup(["coffee", "austin"], places)).toBe("Places in Austin");
+  });
+
+  it("is the kind of place, when two or more places are it", () => {
+    expect(placesGroup(["coffee"], places)).toBe("Coffee places");
+    expect(placesGroup(["cafe"], places)).toBe("Cafe places");
+  });
+
+  it("is no group for a word only in a name, or a kind only one place is", () => {
+    expect(placesGroup(["medici"], places)).toBeNull();
+    expect(placesGroup(["bakery"], places)).toBeNull();
   });
 });

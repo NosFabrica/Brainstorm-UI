@@ -270,7 +270,7 @@ describe("what the Top page's previews match", () => {
 
   it("the dropdown takes the last word as it is being typed", () => {
     const kind = LIST_KINDS.find((k) => k.key === "books")!;
-    renderWithProviders(<kind.Suggestion query="dune mess" />);
+    renderWithProviders(<kind.Suggestion query="dune mess" slot="follow" />);
     expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("Dune Messiah");
   });
 });
@@ -342,17 +342,43 @@ describe("a preview's See all", () => {
 describe("a kind's row in the search dropdown", () => {
   const suggestion = (key: string, query: string) => {
     const kind = LIST_KINDS.find((k) => k.key === key)!;
-    return renderWithProviders(<kind.Suggestion query={query} />);
+    return renderWithProviders(
+      <>
+        <kind.Suggestion query={query} slot="lead" />
+        <kind.Suggestion query={query} slot="follow" />
+      </>,
+    );
   };
 
-  it("offers the best match, saying what it is, opening its page", () => {
-    suggestion("books", "herbert");
+  it("offers the book its title names, saying what it is, opening its page", () => {
+    suggestion("books", "dune");
     const row = screen.getByTestId("kind-suggestion-books");
     expect(row).toHaveTextContent("Dune");
     expect(row).toHaveTextContent("Frank Herbert");
     expect(row).toHaveTextContent("Book");
     expect(row).not.toHaveTextContent("Dune Messiah");
     expect(row.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+  });
+
+  it("offers no book for a name only in its byline", () => {
+    const { container } = suggestion("books", "herbert");
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers a group of places, when the words name one, opening the Places page for them", () => {
+    suggestion("places", "cafe");
+    const row = screen.getByTestId("kind-suggestion-places-group");
+    expect(row).toHaveTextContent("Cafe places");
+    expect(row).toHaveTextContent("4");
+    expect(row.getAttribute("href")).toBe("/?q=cafe&t=places");
+    expect(screen.queryByTestId("kind-suggestion-places")).toBeNull();
+  });
+
+  it("offers the place its name names, with a small pin when it has no photo", () => {
+    suggestion("places", "pink ow");
+    const row = screen.getByTestId("kind-suggestion-places");
+    expect(row).toHaveTextContent("Pink Owl Coffee");
+    expect(row.querySelector('[data-testid="kind-suggestion-pin"]')).not.toBeNull();
   });
 
   it("offers nothing when the words find nothing", () => {

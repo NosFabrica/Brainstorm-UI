@@ -43,3 +43,24 @@ export function pinsAreLocal(pins: readonly { lat: number; lon: number }[], maxK
     for (let j = i + 1; j < pins.length; j++) if (distanceKm(pins[i], pins[j]) > maxKm) return false;
   return true;
 }
+
+/**
+ * The group of places the words name, as search offers it: the town several
+ * are in ("Places in Austin"), else a kind of place two or more are, taken
+ * from the word typed ("Coffee places"). Null for a word that is only in a
+ * name, or a kind only one place is. `kinds` are each place's kinds as said
+ * ("Cafe", "Coffee shop").
+ */
+export function placesGroup(
+  words: readonly string[],
+  places: readonly { locality: string | null; kinds: readonly string[] }[],
+): string | null {
+  const town = townNamed(words, places);
+  if (town) return `Places in ${town}`;
+  for (const w of words) {
+    const word = w.toLowerCase();
+    const n = places.filter((p) => p.kinds.some((k) => wordsOf(k).includes(word))).length;
+    if (n >= 2) return `${word.charAt(0).toUpperCase()}${word.slice(1)} places`;
+  }
+  return null;
+}

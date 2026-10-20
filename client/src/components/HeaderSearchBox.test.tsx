@@ -631,37 +631,42 @@ describe("a suggested person's handle", () => {
   });
 });
 
-// The kinds with a look of their own (hooks/useListKinds) each offer their best match as one row
-// under the people, for the words being typed.
+// The kinds with a look of their own (hooks/useListKinds) each offer a row for the words being typed:
+// a group of places goes above the people (what "coffee" most likely means); a thing named goes
+// below them; and no more than two rows below.
 describe("a kind's row in the dropdown", () => {
-  it("each kind offers a row for the words, under the people", async () => {
-    const JOE = "e".repeat(64);
+  const JOE = "e".repeat(64);
+  const kind = (key: string, slot: "lead" | "follow") => ({
+    key,
+    label: key,
+    group: "Build",
+    community: `39998:x:${key}`,
+    Preview: () => null,
+    Page: () => null,
+    Warm: () => null,
+    Suggestion: ({ query, slot: offered }: { query: string; slot: "lead" | "follow" }) =>
+      offered === slot ? <a data-testid={`kind-suggestion-${key}`}>{query}</a> : null,
+  });
+  const open = async (kinds: unknown[]) => {
     suggestMock.mockResolvedValue([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe" }]);
-    const kinds = [
-      {
-        key: "books",
-        label: "Books",
-        group: "Read & listen",
-        community: "39998:b:books",
-        Preview: () => null,
-        Page: () => null,
-        Suggestion: ({ query }: { query: string }) => <a data-testid="kind-suggestion">{query}</a>,
-      },
-    ];
     render(
-      <ListKindsContext.Provider value={kinds}>
+      <ListKindsContext.Provider value={kinds as never}>
         <HeaderSearchBox />
       </ListKindsContext.Provider>,
     );
-    type("dune");
+    type("coffee");
     act(() => {
       vi.advanceTimersByTime(400);
     });
     await act(async () => {});
-    const row = screen.getByTestId("kind-suggestion");
-    expect(row).toHaveTextContent("dune");
-    expect(
-      screen.getByTestId("home-suggestion-0").compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+  };
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("a group sits above the people, a thing below them", async () => {
+    await open([kind("places", "lead"), kind("books", "follow")]);
+    const person = screen.getByTestId("home-suggestion-0");
+    expect(before(screen.getByTestId("kind-suggestion-places"), person)).toBe(true);
+    expect(before(person, screen.getByTestId("kind-suggestion-books"))).toBe(true);
+    expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("coffee");
   });
 });

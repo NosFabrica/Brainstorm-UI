@@ -13,7 +13,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { BookOpen, Github, Store } from "lucide-react";
+import { BookOpen, Github, MapPin as PinIcon, Store } from "lucide-react";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
 import config from "@/config/dictionary.config.json";
 import { useConceptItems } from "@/hooks/useConceptItems";
@@ -31,7 +31,7 @@ import { categoryWords, placeLocalMinutes } from "@/lib/placeLinks";
 import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
-import { pinsAreLocal, townNamed } from "@/lib/placeLocal";
+import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
@@ -124,30 +124,23 @@ const inSlot = (slot: PreviewProps["slot"], lead: boolean) => (slot === "lead") 
  * of the places are ("cafe", "bakery"), or a town several are in ("austin").
  * A word only in their names ("owl") is not.
  */
-function placesAsked(query: string, hits: KindHit[]): boolean {
+/** The group of places the words name (lib/placeLocal placesGroup): "Places in Austin", "Coffee places"; or null. */
+function groupOfPlaces(query: string, hits: KindHit[]): string | null {
   const words = query
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
-  if (
-    townNamed(
-      words,
-      hits.map((h) => ({ locality: h.place?.locality ?? null })),
-    )
-  )
-    return true;
-  return words.some(
-    (w) =>
-      hits.filter((h) =>
-        [h.place?.category, h.place?.cuisine].some((c) =>
-          (categoryWords(c ?? null) ?? "")
-            .toLowerCase()
-            .split(/[^\p{L}\p{N}]+/u)
-            .includes(w),
-        ),
-      ).length >= 2,
+  return placesGroup(
+    words,
+    hits.map((h) => ({
+      locality: h.place?.locality ?? null,
+      kinds: [h.place?.category, h.place?.cuisine].map((c) => categoryWords(c ?? null)).filter((k): k is string => !!k),
+    })),
   );
 }
+
+/** Whether the words ask for places on their own: they name a town or a kind of place, not just a word in a name. */
+const placesAsked = (query: string, hits: KindHit[]) => groupOfPlaces(query, hits) != null;
 
 /** How many matches a preview orders by trust before it shows its few. */
 const CANDIDATES = 60;
@@ -526,14 +519,54 @@ function warmFor(view: ConceptViewKey) {
 /* ── Each kind's row in the search dropdown ───────────────────────────── */
 
 /**
- * The best match for the words being typed, as one row: its picture (a
- * book's cover as a small portrait), its title, its line, and what it is.
+ * A kind's row in the search dropdown, for the words being typed. When the
+ * words name a group of places (a town, a kind of place), the group, counted,
+ * opening the Places page for them: "Coffee places · 60+". Otherwise the thing
+ * whose name the words match — a book by its title, never by its author's name
+ * in the byline — or nothing.
  */
-function suggestionFor(key: string, view: ConceptViewKey, what: string, Icon: typeof Store) {
-  return function KindSuggestion({ query, onPick }: { query: string; onPick?: () => void }) {
-    const { hits } = useKindHits(view, query, 1, { typing: true });
-    const [h] = hits;
-    if (!h) return null;
+function suggestionFor(
+  key: string,
+  view: ConceptViewKey,
+  what: string,
+  Icon: typeof Store,
+  { byName = false, groups = false }: { byName?: boolean; groups?: boolean } = {},
+) {
+  return function KindSuggestion({
+    query,
+    slot,
+    onPick,
+  }: {
+    query: string;
+    slot: "lead" | "follow";
+    onPick?: () => void;
+  }) {
+    const { hits: all } = useKindHits(view, query, CANDIDATES, { typing: true });
+    const { hits: named } = useKindHits(view, query, 1, { typing: true, titleOnly: true });
+    const group = groups ? groupOfPlaces(query, all) : null;
+    // A group leads, above the people; a single thing follows them.
+    if (group && slot !== "lead") return null;
+    if (group) {
+      const count = all.length >= CANDIDATES ? `${all.length}+` : String(all.length);
+      return (
+        <Link
+          href={`/?q=${encodeURIComponent(query.trim())}&t=${key}`}
+          onClick={onPick}
+          className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-4"
+          data-testid={`kind-suggestion-${key}-group`}
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center text-brand-primary">
+            <PinIcon className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {group} <span className="font-normal text-slate-500 dark:text-slate-400">· {count}</span>
+          </span>
+          <span className="shrink-0 text-[11px] font-semibold text-brand-link">See all →</span>
+        </Link>
+      );
+    }
+    const h = (byName ? named : all)[0];
+    if (!h || slot !== "follow") return null;
     const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
     return (
       <Link
@@ -550,7 +583,10 @@ function suggestionFor(key: string, view: ConceptViewKey, what: string, Icon: ty
             className={`shrink-0 object-cover ${portrait ? "h-10 w-7 rounded" : view === "github-account" ? "h-8 w-8 rounded-full" : "h-8 w-8 rounded-lg"}`}
           />
         ) : (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800">
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center text-slate-400 dark:text-slate-500"
+            data-testid="kind-suggestion-pin"
+          >
             <Icon className="h-4 w-4" />
           </span>
         )}
@@ -777,7 +813,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     Preview: PlacesPreview,
     Page: PlacesPage,
     Warm: warmFor("place"),
-    Suggestion: suggestionFor("places", "place", "Place", Store),
+    Suggestion: suggestionFor("places", "place", "Place", PinIcon, { byName: true, groups: true }),
   },
   {
     key: "books",
@@ -787,7 +823,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     Preview: BooksPreview,
     Page: BooksPage,
     Warm: warmFor("book"),
-    Suggestion: suggestionFor("books", "book", "Book", BookOpen),
+    Suggestion: suggestionFor("books", "book", "Book", BookOpen, { byName: true }),
   },
   {
     key: "github",

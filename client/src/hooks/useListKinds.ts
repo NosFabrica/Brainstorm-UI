@@ -26,8 +26,11 @@ export interface ListKindSearch {
   Page: ComponentType<{ query: string }>;
   /** Reads its list ahead of a search, once the page is idle; draws nothing. */
   Warm: ComponentType;
-  /** Its row in the search dropdown: the best match for the words being typed, or nothing. */
-  Suggestion: ComponentType<{ query: string; onPick?: () => void }>;
+  /**
+   * Its row in the search dropdown, for the words being typed: a group they name (offered above
+   * the people, `slot` "lead"), or the thing they name (below them, "follow"); or nothing.
+   */
+  Suggestion: ComponentType<{ query: string; slot: "lead" | "follow"; onPick?: () => void }>;
 }
 
 export const ListKindsContext = createContext<readonly ListKindSearch[]>([]);
