@@ -521,10 +521,12 @@ function urlKind(): string | null {
   }
 }
 
+/** A searched map area (`area`) is the Places page's: another page or tab leaves it out of the link. */
 function writeKindToUrl(key: string) {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("t", key);
+    url.searchParams.delete("area");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -536,6 +538,7 @@ function writeTabToUrl(tab: SearchTab) {
     const url = new URL(window.location.href);
     if (tab === "top") url.searchParams.delete("t");
     else url.searchParams.set("t", tab);
+    url.searchParams.delete("area");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -1105,6 +1108,16 @@ export function SearchResults({
     return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
   }, [effectiveQuery, tab, pov, userPubkey, composed, mediaFacet]);
 
+  // Back and Forward say where to be: the page the address names, a kind's or a tab. (A step in
+  // history of its own is pushed by the Places page's area search; tabs replace theirs.)
+  useEffect(() => {
+    const follow = () => {
+      setKindTab(urlKind());
+      setTab(tabFromUrl());
+    };
+    window.addEventListener("popstate", follow);
+    return () => window.removeEventListener("popstate", follow);
+  }, []);
   const changeTab = useCallback((next: SearchTab) => {
     setKindTab(null);
     setTab(next);

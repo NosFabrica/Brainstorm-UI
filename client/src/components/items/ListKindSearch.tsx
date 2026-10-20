@@ -969,7 +969,10 @@ function PlacesPage({ query }: { query: string }) {
     setMoved(null);
   }, [query]);
   useEffect(() => {
-    const back = () => setAreaState(areaFromUrl());
+    const back = () => {
+      setAreaState(areaFromUrl());
+      setMoved(null);
+    };
     window.addEventListener("popstate", back);
     return () => window.removeEventListener("popstate", back);
   }, []);
@@ -991,9 +994,18 @@ function PlacesPage({ query }: { query: string }) {
   const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
   const [sort, setSort] = useState<PlaceSort>("best");
+  // A filter or a sort frames its places afresh: the area the reader had moved to is gone.
+  useEffect(() => setMoved(null), [filter.category, filter.openNow, sort]);
   // On a phone the list comes first and the map opens over it, full screen.
   const narrow = useIsMobile(1024);
   const [mapOpen, setMapOpen] = useState(false);
+  // Closed, the map hands focus back to the button that opened it.
+  const mapButton = useRef<HTMLButtonElement>(null);
+  const mapWasOpen = useRef(false);
+  useEffect(() => {
+    if (!mapOpen && mapWasOpen.current) mapButton.current?.focus();
+    mapWasOpen.current = mapOpen;
+  }, [mapOpen]);
   // The place whose pin was tapped on a desktop: its card opens over the map.
   const [picked, setPicked] = useState<string | null>(null);
   // The event whose pin was tapped: its card, in place of a place's — one card at a time.
@@ -1031,7 +1043,9 @@ function PlacesPage({ query }: { query: string }) {
   const lines = linesOf(shown);
   const pins = pinsOf(shown);
   // An area searched keeps its map, places or none, so the reader can move on from it.
-  const map = !!area || pinsAreLocal(pins);
+  // The search's map, not the filters': one that leaves no place keeps it, so the reader can undo
+  // the filter where they are (and the map isn't rebuilt when they do).
+  const map = !!area || pinsAreLocal(pinsOf(hits));
   // A town's upcoming events near its places share the map, as on the Top page's preview.
   const events = useTownEventPins(map ? town : null, pins, area);
   if (hits.length === 0 && !area) return <PageEmpty pending={pending} label="Places" query={query} />;
@@ -1183,7 +1197,8 @@ function PlacesPage({ query }: { query: string }) {
                 controls
                 className="h-full"
               />
-              {searchHere("top-3")}
+              {/* At the foot of the map: an open card sits at its head. */}
+              {searchHere("bottom-4")}
               {eventPicked && (
                 <EventCard
                   event={eventPicked}
@@ -1210,6 +1225,7 @@ function PlacesPage({ query }: { query: string }) {
       </div>
       {map && narrow && !mapOpen && (
         <button
+          ref={mapButton}
           type="button"
           onClick={() => setMapOpen(true)}
           className="fixed bottom-[calc(var(--bs-bottom-chrome,0px)+1rem)] left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-slate-900"
@@ -1221,7 +1237,11 @@ function PlacesPage({ query }: { query: string }) {
       {map && narrow && mapOpen && (
         <div
           role="dialog"
+          aria-modal="true"
           aria-label="Map of places"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setMapOpen(false);
+          }}
           className="fixed inset-x-0 bottom-[var(--bs-bottom-chrome,0px)] top-0 z-50 flex flex-col bg-white dark:bg-slate-950"
         >
           <div className="relative min-h-0 flex-1">
@@ -1253,6 +1273,8 @@ function PlacesPage({ query }: { query: string }) {
               </div>
             )}
             <button
+              // Focus moves into the map as it opens, onto the way back out.
+              autoFocus
               type="button"
               onClick={() => setMapOpen(false)}
               className="mx-auto flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-slate-900"

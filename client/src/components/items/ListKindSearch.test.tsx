@@ -1273,3 +1273,68 @@ describe("a town's places in the side panel", () => {
     }
   });
 });
+
+// Fixes from the review: the map belongs to the search, not to whatever the filters leave; the
+// offer to search the area goes once the map moves for the reader; the phone's map is a dialog.
+describe("the Places map, held steady", () => {
+  const sarasota = [
+    place("Bean", "cafe", "Sarasota", [["opening-hours", "Mo-Su 08:00-09:00"]], ["27.33", "-82.53"]),
+    place("Brew", "cafe", "Sarasota", [], ["27.34", "-82.54"]),
+    place("Il Sole", "restaurant", "Sarasota", [["opening-hours", "Mo-Su 00:00-24:00"]], ["27.335", "-82.535"]),
+    place("Il Sole Two", "restaurant", "Sarasota", [], ["27.336", "-82.536"]),
+  ];
+
+  it("keeps the map when the filters leave no place on it", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    vi.useFakeTimers({ now: new Date("2026-10-15T20:00:00Z"), toFake: ["Date"] });
+    try {
+      page("places", "sarasota");
+      fireEvent.click(screen.getByRole("button", { name: "Open now 1" }));
+      fireEvent.click(screen.getByRole("button", { name: "Cafe 2" }));
+      expect(screen.getByText("No places match these filters.")).toBeInTheDocument();
+      expect(screen.getByTestId("places-map")).toBeInTheDocument();
+    } finally {
+      itemsOf[PLACES] = was;
+      vi.useRealTimers();
+    }
+  });
+
+  it("withdraws Search this area once the map moves for the reader: a filter, or Back", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    mapMove.view = { south: 27.3, west: -82.56, north: 27.36, east: -82.5 };
+    try {
+      page("places", "sarasota");
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      // A filter frames its places: the area offered is no longer the one shown.
+      fireEvent.click(screen.getByRole("button", { name: "Cafe 2" }));
+      expect(screen.queryByRole("button", { name: "Search this area" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      act(() => {
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      expect(screen.queryByRole("button", { name: "Search this area" })).toBeNull();
+    } finally {
+      itemsOf[PLACES] = was;
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("on a phone, the map is a dialog: it takes focus, Escape closes it, and focus returns to Map", () => {
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      page("places", "");
+      fireEvent.click(screen.getByRole("button", { name: "Map" }));
+      const dialog = screen.getByRole("dialog", { name: "Map of places" });
+      expect(dialog).toHaveAttribute("aria-modal", "true");
+      expect(dialog.contains(document.activeElement)).toBe(true);
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Map" }));
+    } finally {
+      window.innerWidth = width;
+    }
+  });
+});

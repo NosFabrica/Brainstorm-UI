@@ -79,8 +79,11 @@ export function PlacesMap({
   controls?: boolean;
   /** A still map, a glance: tapped, it opens where the map can be worked (the Top page's preview). */
   onOpen?: () => void;
-  /** The reader moved the map — dragged, zoomed, pinched — to show this; never the map framing itself. */
-  onMoved?: (view: MapView) => void;
+  /**
+   * The reader moved the map — dragged, zoomed, pinched, keyed — to show this; null when the map
+   * goes back to framing itself (Show all), so an offer to search where the reader was can go.
+   */
+  onMoved?: (view: MapView | null) => void;
   /** An area to show instead of framing the pins: the one a search of the map's area asked for. */
   view?: MapView | null;
 }) {
@@ -119,7 +122,16 @@ export function PlacesMap({
   useEffect(() => {
     let map: import("leaflet").Map | null = null;
     let cancelled = false;
-    void (async () => {
+    let started = false;
+    // Made once its box has a size: Leaflet measures a hidden box as nothing and, before it has a
+    // view, never measures again — a map made hidden (a phone's portrait, the preview's sm:block)
+    // would stay blank when shown.
+    const start = () => {
+      if (started || cancelled || !host.current || host.current.clientWidth === 0) return;
+      started = true;
+      void make();
+    };
+    const make = async () => {
       try {
         const [L] = await Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]);
         if (cancelled || !host.current) return;
@@ -161,17 +173,22 @@ export function PlacesMap({
         el.addEventListener("wheel", byReader, { passive: true });
         el.addEventListener("dblclick", byReader);
         el.addEventListener("touchstart", (e) => e.touches.length > 1 && byReader(), { passive: true });
+        // The keyboard's pans and zooms, and a shift-drag's box zoom, are the reader's too.
+        el.addEventListener("keydown", (e) => /^(Arrow|[+=-]$)/.test(e.key) && byReader());
+        el.addEventListener("mousedown", (e) => e.shiftKey && byReader());
         setReady(true);
       } catch {
         /* no map: the list stands on its own */
       }
-    })();
+    };
+    start();
     // A box that changes size (a layout switch, a phone turned) keeps its map whole, no reload.
     const resized =
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
-            map?.invalidateSize();
-            if (map && map.getSize().x > 0) pendingFrame.current?.();
+            if (!map) return start();
+            map.invalidateSize();
+            if (map.getSize().x > 0) pendingFrame.current?.();
           })
         : null;
     if (host.current) resized?.observe(host.current);
@@ -282,7 +299,6 @@ export function PlacesMap({
 
   return (
     <div
-      hidden={pins.length === 0 && !view}
       className={`relative isolate z-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[9px] dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)] ${className}`}
       data-testid="places-map"
     >
@@ -324,6 +340,7 @@ export function PlacesMap({
               label="Show all places"
               onClick={() => {
                 readerMoving.current = false;
+                onMovedRef.current?.(null);
                 if (home.current)
                   mapRef.current?.flyToBounds(home.current, { padding: [24, 24], maxZoom: 14, duration: 0.6 });
               }}

@@ -5222,4 +5222,24 @@ describe("a kind's own page", () => {
     expect(screen.queryByTestId("kind-page-books")).toBeNull();
     expect(new URLSearchParams(window.location.search).get("t")).toBe("people");
   });
+
+  // A searched area is the Places page's (a step in history of its own): leaving the page leaves
+  // it out of the link, and Back or Forward put the page the address names on screen.
+  it("leaves a searched area behind, and follows Back to the page the address names", () => {
+    window.history.replaceState({}, "", "/?q=coffee&t=places&area=30.1,-97.9,30.4,-97.5");
+    withKinds("coffee");
+    expect(screen.getByTestId("kind-page-places")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("search-tab-people"));
+    expect(new URLSearchParams(window.location.search).get("area")).toBeNull();
+    act(() => {
+      window.history.replaceState({}, "", "/?q=coffee&t=places");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByTestId("kind-page-places")).toBeInTheDocument();
+    act(() => {
+      window.history.replaceState({}, "", "/?q=coffee&t=people");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.queryByTestId("kind-page-places")).toBeNull();
+  });
 });
