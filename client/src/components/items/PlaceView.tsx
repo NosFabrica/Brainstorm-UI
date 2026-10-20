@@ -197,6 +197,25 @@ const clock = (m: number) => {
   return clockFormat.format(new Date(Date.UTC(2000, 0, 1, Math.floor(t / 60), t % 60)));
 };
 
+/**
+ * Open or closed, said the one way everywhere a place is shown: "Open now ·
+ * until 10:00 PM", "Closed · opens Thu 5:00 PM", in the place's local time
+ * estimated from its longitude. Null when its hours can't be read.
+ */
+export function openingLine(place: Pick<Place, "hours" | "lon">, now: Date): { open: boolean; text: string } | null {
+  const week = parseOpeningHours(place.hours);
+  const lon = Number(place.lon);
+  if (!week || !Number.isFinite(lon)) return null;
+  const local = placeLocalMinutes(lon, now);
+  const status = openingStatus(week, local);
+  if (status.open) return { open: true, text: `Open now · until ${clock(status.until)}` };
+  const when =
+    status.opensAt != null && status.opensDay
+      ? ` · opens ${status.opensDay === local.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
+      : "";
+  return { open: false, text: `Closed${when}` };
+}
+
 /** The mark for a kind of place with no website to borrow a logo from. */
 function categoryIcon(category: string | null): typeof Store {
   const c = (category ?? "").toLowerCase();
@@ -408,11 +427,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                 data-testid="place-open-status"
               >
                 <Clock className="h-3.5 w-3.5" />
-                {status.open
-                  ? `Open now · until ${clock(status.until)}`
-                  : status.opensAt != null && status.opensDay
-                    ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
-                    : "Closed"}
+                {openingLine(place, new Date())?.text}
               </span>
             </p>
           )}

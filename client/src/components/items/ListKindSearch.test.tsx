@@ -7,7 +7,7 @@
  * shown when the words find something, and only then.
  */
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
@@ -52,6 +52,8 @@ const entries = [
         ["optional", "cuisine"],
         ["optional", "lat"],
         ["optional", "lon"],
+        ["optional", "opening-hours"],
+        ["optional", "accepts-bitcoin"],
       ],
     ),
   ),
@@ -71,13 +73,15 @@ const item = (z: string, tags: string[][]) => ({
   sig: "",
   tags: [["d", `item-${n}`], ["z", z], ...tags],
 });
-const place = (name: string, category: string, locality: string) =>
+const place = (name: string, category: string, locality: string, extra: string[][] = [], at = ["38.2", "-122.6"]) =>
   item(PLACES, [
     ["name", name],
     ["category", category],
     ["locality", locality],
-    ["lat", "38.2"],
-    ["lon", "-122.6"],
+    ["lat", at[0]],
+    ["lon", at[1]],
+    ["accepts-bitcoin", "lightning"],
+    ...extra,
   ]);
 const book = (title: string, author: string) =>
   item(BOOKS, [
@@ -110,7 +114,11 @@ vi.mock("@/hooks/useConceptItems", () => ({
 }));
 // The map draws tiles from the network: its pins are its props here.
 vi.mock("@/components/items/PlacesMap", () => ({
-  PlacesMap: ({ pins }: { pins: { name: string }[] }) => <div data-testid="places-map">{pins.length}</div>,
+  PlacesMap: ({ pins }: { pins: { name: string; label?: string }[] }) => (
+    <div data-testid="places-map" data-labels={pins.map((p) => p.label).join(",")}>
+      {pins.length}
+    </div>
+  ),
 }));
 
 // Who recommends each item (kind-7 "+", read in one batch for what's shown), and who the reader
@@ -136,9 +144,19 @@ const page = (key: string, query: string) => {
   return renderWithProviders(<kind.Page query={query} />);
 };
 
-const preview = (key: string, query: string) => {
+/** A kind's Top preview, offered both places, above People and below, as the Top page offers it. */
+const preview = (key: string, query: string, named = false) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
-  return renderWithProviders(<kind.Preview query={query} />);
+  return renderWithProviders(
+    <>
+      <div data-testid="slot-lead">
+        <kind.Preview query={query} slot="lead" named={named} />
+      </div>
+      <div data-testid="slot-follow">
+        <kind.Preview query={query} slot="follow" named={named} />
+      </div>
+    </>,
+  );
 };
 
 describe("a kind's preview on the Top page", () => {
@@ -156,8 +174,8 @@ describe("a kind's preview on the Top page", () => {
     expect(rows[0].querySelector("a")?.getAttribute("href")).toMatch(/^\/e\/naddr1/);
   });
 
-  it("Books: a row of covers with titles and authors, found by title or author", () => {
-    preview("books", "herbert");
+  it("Books: a row of covers with titles and authors, found by title", () => {
+    preview("books", "dune");
     const covers = screen.getAllByTestId("kind-preview-row");
     expect(covers.map((c) => c.textContent)).toEqual(["DuneFrank Herbert", "Dune MessiahFrank Herbert"]);
     expect(covers[0].querySelector("img")).toHaveAttribute("src", "https://covers.example/Dune.jpg");
@@ -171,10 +189,29 @@ describe("a kind's preview on the Top page", () => {
   });
 
   it("shows nothing when the words find nothing, or are only small joining words", () => {
-    const { container } = preview("books", "zzzz");
-    expect(container).toBeEmptyDOMElement();
-    const again = preview("places", "the");
-    expect(again.container).toBeEmptyDOMElement();
+    preview("books", "zzzz");
+    expect(screen.queryByTestId("kind-preview-books")).toBeNull();
+    cleanup();
+    preview("places", "the");
+    expect(screen.queryByTestId("kind-preview-places")).toBeNull();
+  });
+});
+
+describe("what the Top page's previews match", () => {
+  it("Books match by title on the Top page — a name in a byline is not a search for the book", () => {
+    preview("books", "herbert");
+    expect(screen.queryByTestId("kind-preview-books")).toBeNull();
+  });
+
+  it("the Books page still finds them by author", () => {
+    page("books", "herbert");
+    expect(screen.getAllByTestId("kind-page-item")).toHaveLength(2);
+  });
+
+  it("the dropdown takes the last word as it is being typed", () => {
+    const kind = LIST_KINDS.find((k) => k.key === "books")!;
+    renderWithProviders(<kind.Suggestion query="dune mess" />);
+    expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("Dune Messiah");
   });
 });
 
@@ -205,14 +242,14 @@ describe("a kind's own page", () => {
     const list = screen.getByTestId("kind-page-places");
     expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(5);
     expect(screen.getByTestId("places-map")).toHaveTextContent("5");
-    fireEvent.click(screen.getByRole("button", { name: "Restaurant" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Restaurant/ }));
     expect(
       within(list)
         .getAllByTestId("kind-page-item")
         .map((r) => r.querySelector("a")?.textContent),
     ).toEqual(["Il Sole"]);
-    expect(screen.getByRole("button", { name: "Restaurant" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Restaurant" }));
+    expect(screen.getByRole("button", { name: /^Restaurant/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /^Restaurant/ }));
     expect(within(list).getAllByTestId("kind-page-item")).toHaveLength(5);
   });
 
@@ -236,8 +273,8 @@ describe("a preview's See all", () => {
   it("opens the kind's own page", () => {
     const onSeeAll = vi.fn();
     const kind = LIST_KINDS.find((k) => k.key === "books")!;
-    renderWithProviders(<kind.Preview query="herbert" onSeeAll={onSeeAll} />);
-    fireEvent.click(screen.getByRole("button", { name: "See all books" }));
+    renderWithProviders(<kind.Preview query="dune" slot="follow" named={false} onSeeAll={onSeeAll} />);
+    fireEvent.click(screen.getByRole("button", { name: "See all 2 books" }));
     expect(onSeeAll).toHaveBeenCalled();
   });
 });
@@ -291,5 +328,98 @@ describe("trust orders what search shows", () => {
     expect(rows[0]).toHaveTextContent("Coffee Two");
     expect(rows[0]).toContainElement(first);
     expect(rows[1]).not.toHaveTextContent("Recommended");
+  });
+});
+
+// Cleaner places (the team, 2026-10-19): a number ties each row to its pin, no stand-in icon, no
+// Bitcoin badge on a list where every place takes it, a quiet "Closed · opens…", a map only when
+// the places are near enough for it to say something, and counts on the chips and See all.
+describe("places, presented cleanly", () => {
+  it("numbers each row and gives its pin the same number, with no stand-in icon", () => {
+    preview("places", "coffee");
+    const rows = screen.getAllByTestId("kind-preview-row");
+    expect(rows.map((r) => r.querySelector('[data-testid="kind-row-number"]')?.textContent)).toEqual(["1", "2", "3"]);
+    expect(rows[0].querySelector("svg")).toBeNull();
+    expect(screen.getByTestId("places-map")).toHaveAttribute("data-labels", "1,2,3");
+  });
+
+  it("says nothing of Bitcoin on each row, and offers no Bitcoin chip", () => {
+    page("places", "");
+    expect(screen.getByTestId("kind-page-places")).not.toHaveTextContent("Bitcoin");
+    expect(screen.queryByRole("button", { name: /Bitcoin/ })).toBeNull();
+  });
+
+  it("says closed quietly, with when it opens", () => {
+    const was = itemsOf[PLACES];
+    vi.useFakeTimers({ now: new Date("2026-10-15T20:00:00Z"), toFake: ["Date"] });
+    try {
+      itemsOf[PLACES] = [place("Night Owl", "cafe", "Petaluma", [["opening-hours", "Mo-Su 08:00-09:00"]])];
+      page("places", "");
+      const status = screen.getByText(/^Closed · opens/);
+      expect(status.className).not.toMatch(/rose|red/);
+    } finally {
+      itemsOf[PLACES] = was;
+      vi.useRealTimers();
+    }
+  });
+
+  it("draws no map when the places are a continent apart", () => {
+    const was = itemsOf[PLACES];
+    try {
+      itemsOf[PLACES] = [
+        place("West Cafe", "cafe", "Ewa Beach", [], ["21.33", "-158.0"]),
+        place("West Diner", "restaurant", "West Roxbury", [], ["42.28", "-71.13"]),
+      ];
+      page("places", "");
+      expect(screen.queryByTestId("places-map")).toBeNull();
+    } finally {
+      itemsOf[PLACES] = was;
+    }
+  });
+
+  it("counts on the chips, and on See all", () => {
+    page("places", "");
+    expect(screen.getByRole("button", { name: "Cafe 4" })).toBeInTheDocument();
+    cleanup();
+    const places = LIST_KINDS.find((k) => k.key === "places")!;
+    renderWithProviders(<places.Preview query="coffee" slot="follow" named={false} onSeeAll={() => {}} />);
+    expect(screen.getByRole("button", { name: "See all 4 places" })).toBeInTheDocument();
+  });
+});
+
+// Above People only when the words ask for it: they name the kind, or — for Places — a kind of
+// place or a town several places are in. Otherwise below People, where a name is most often a person.
+describe("where a preview sits on the Top page", () => {
+  const sitsIn = (testId: string) =>
+    within(screen.getByTestId("slot-lead")).queryByTestId(testId)
+      ? "lead"
+      : within(screen.getByTestId("slot-follow")).queryByTestId(testId)
+        ? "follow"
+        : null;
+
+  it("Books follow People unless the words name them", () => {
+    preview("books", "dune");
+    expect(sitsIn("kind-preview-books")).toBe("follow");
+    cleanup();
+    preview("books", "books dune", true);
+    expect(sitsIn("kind-preview-books")).toBe("lead");
+  });
+
+  it("Places lead for a kind of place, or a town several places are in", () => {
+    preview("places", "cafe");
+    expect(sitsIn("kind-preview-places")).toBe("lead");
+    cleanup();
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      preview("places", "sarasota");
+      expect(sitsIn("kind-preview-places")).toBe("lead");
+    } finally {
+      itemsOf[PLACES].pop();
+    }
+  });
+
+  it("Places follow for a word that only appears in their names", () => {
+    preview("places", "owl");
+    expect(sitsIn("kind-preview-places")).toBe("follow");
   });
 });

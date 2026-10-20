@@ -1680,27 +1680,29 @@ describe("ComposedResults — a query that matches a tag", () => {
     expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
   });
 
-  // The kinds with a look of their own (Books, Places…) come from the app's root; the Top page draws
-  // each one's preview above People, the one the words name first, and leaves those lists to them.
+  // The kinds with a look of their own (Books, Places…) come from the app's root. The Top page offers
+  // each a place above People and one below; a kind takes the one above when the words ask for it
+  // (they name it, or for Places, a kind of place or a town) and the one below otherwise.
+  type Slot = { query: string; slot: "lead" | "follow"; named: boolean };
+  const fake = (key: string, leadsOnItsOwn: (q: string) => boolean) =>
+    function FakePreview({ query, slot, named }: Slot) {
+      const lead = named || leadsOnItsOwn(query);
+      if ((slot === "lead") !== lead) return null;
+      return <div data-testid={`kind-${key}`}>{query}</div>;
+    };
   const kinds = [
     {
       key: "places",
       label: "Places",
       community: "39998:p:places",
-      Preview: ({ query }: { query: string }) => <div data-testid="kind-places">{query}</div>,
+      Preview: fake("places", (q) => q.includes("austin")),
     },
-    {
-      key: "books",
-      label: "Books",
-      community: "39998:b:books",
-      Preview: ({ query }: { query: string }) => <div data-testid="kind-books">{query}</div>,
-    },
+    { key: "books", label: "Books", community: "39998:b:books", Preview: fake("books", () => false) },
   ];
-
-  it("draws each kind's preview above People, with the reader's words", async () => {
+  const peopleFor = async (query: string) => {
     render(
-      <ListKindsContext.Provider value={kinds}>
-        <ComposedResults query="dune" pov="nosfabrica" onTabChange={vi.fn()} />
+      <ListKindsContext.Provider value={kinds as never}>
+        <ComposedResults query={query} pov="nosfabrica" onTabChange={vi.fn()} />
       </ListKindsContext.Provider>,
     );
     sectionCall("people").emit({
@@ -1708,11 +1710,25 @@ describe("ComposedResults — a query that matches a tag", () => {
       eose: true,
       timeMs: 100,
     });
-    const people = await screen.findByTestId("serp-section-people");
-    const [places, books] = [screen.getByTestId("kind-places"), screen.getByTestId("kind-books")];
-    expect(books).toHaveTextContent("dune");
-    expect(places.compareDocumentPosition(books) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(books.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    return screen.findByTestId("serp-section-people");
+  };
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("draws a kind's preview below People when the words don't ask for it", async () => {
+    const people = await peopleFor("dune");
+    expect(screen.getByTestId("kind-books")).toHaveTextContent("dune");
+    expect(before(people, screen.getByTestId("kind-books"))).toBe(true);
+  });
+
+  it("draws it above People when the words name the kind", async () => {
+    const people = await peopleFor("books dune");
+    expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
+  });
+
+  it("lets a kind lead on its own reading of the words — Places for a town", async () => {
+    const people = await peopleFor("austin");
+    expect(before(screen.getByTestId("kind-places"), people)).toBe(true);
+    expect(before(people, screen.getByTestId("kind-books"))).toBe(true);
   });
 
   it("a preview's See all opens its kind's page", () => {
@@ -1720,11 +1736,12 @@ describe("ComposedResults — a query that matches a tag", () => {
     const seeAll = [
       {
         ...kinds[1],
-        Preview: ({ onSeeAll }: { onSeeAll?: () => void }) => (
-          <button type="button" onClick={onSeeAll}>
-            See all
-          </button>
-        ),
+        Preview: ({ slot, onSeeAll }: Slot & { onSeeAll?: () => void }) =>
+          slot === "follow" ? (
+            <button type="button" onClick={onSeeAll}>
+              See all
+            </button>
+          ) : null,
       },
     ];
     render(
@@ -1734,16 +1751,6 @@ describe("ComposedResults — a query that matches a tag", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "See all" }));
     expect(onOpenKind).toHaveBeenCalledWith("books");
-  });
-
-  it("puts the kind the words name first", () => {
-    render(
-      <ListKindsContext.Provider value={kinds}>
-        <ComposedResults query="books dune" pov="nosfabrica" onTabChange={vi.fn()} />
-      </ListKindsContext.Provider>,
-    );
-    const [places, books] = [screen.getByTestId("kind-places"), screen.getByTestId("kind-books")];
-    expect(books.compareDocumentPosition(places) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("a named list's items sit above People, asked with the reader's words", async () => {

@@ -13,7 +13,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { BookOpen, Github, Store, Zap } from "lucide-react";
+import { BookOpen, Github, Store } from "lucide-react";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
 import config from "@/config/dictionary.config.json";
 import { useConceptItems } from "@/hooks/useConceptItems";
@@ -28,7 +28,8 @@ import { openingStatus, parseOpeningHours } from "@/lib/openingHours";
 import { categoryWords, placeLocalMinutes } from "@/lib/placeLinks";
 import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
-import { placeOf, type Place } from "@/components/items/PlaceView";
+import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
+import { pinsAreLocal, townNamed } from "@/lib/placeLocal";
 import { PlacesMap } from "@/components/items/PlacesMap";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
@@ -51,7 +52,11 @@ function useKindHits(
   view: ConceptViewKey,
   query: string,
   max: number,
-  { browse = false }: { browse?: boolean } = {},
+  {
+    browse = false,
+    typing = false,
+    titleOnly = false,
+  }: { browse?: boolean; typing?: boolean; titleOnly?: boolean } = {},
 ): { hits: KindHit[]; pending: boolean } {
   const dictionary = useDictionary(true, { anonymous: true });
   const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
@@ -64,7 +69,7 @@ function useKindHits(
     const read = (item: { tags: string[][] }) => tierThreePresentation(item, resolved, presentItem(item, definition));
     const found =
       words.length > 0
-        ? matchListItems(items.data as Item[], definition, words, max, read)
+        ? matchListItems(items.data as Item[], definition, words, max, read, { typing, titleOnly })
         : (items.data as Item[]).filter((item) => read(item).title).slice(0, max);
     return found.map((item) => ({
       id: item.id,
@@ -73,12 +78,47 @@ function useKindHits(
       shown: read(item),
       place: view === "place" ? placeOf(item, definition) : null,
     }));
-  }, [resolved, items.data, words, max, view, browse]);
+  }, [resolved, items.data, words, max, view, browse, typing, titleOnly]);
   return { hits, pending: dictionary.isPending || (!!entry && items.isPending) };
 }
 
+type PreviewProps = { query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void };
+
+/** Whether a preview renders in the slot it's offered: above People when the words ask for it, else below. */
+const inSlot = (slot: PreviewProps["slot"], lead: boolean) => (slot === "lead") === lead;
+
+/**
+ * Whether the words ask for places on their own: a kind of place two or more
+ * of the places are ("cafe", "bakery"), or a town several are in ("austin").
+ * A word only in their names ("owl") is not.
+ */
+function placesAsked(query: string, hits: KindHit[]): boolean {
+  const words = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  if (
+    townNamed(
+      words,
+      hits.map((h) => ({ locality: h.place?.locality ?? null })),
+    )
+  )
+    return true;
+  return words.some(
+    (w) =>
+      hits.filter((h) =>
+        [h.place?.category, h.place?.cuisine].some((c) =>
+          (categoryWords(c ?? null) ?? "")
+            .toLowerCase()
+            .split(/[^\p{L}\p{N}]+/u)
+            .includes(w),
+        ),
+      ).length >= 2,
+  );
+}
+
 /** How many matches a preview orders by trust before it shows its few. */
-const CANDIDATES = 24;
+const CANDIDATES = 60;
 
 /**
  * The hits in trust's order — what more people the reader trusts recommend
@@ -99,7 +139,8 @@ function TrustLine({ text, className = "" }: { text: string | null; className?: 
 }
 
 /** A preview's heading: the kind's name, as a section on the Top page, and the way to its own page. */
-function Heading({ label, onSeeAll }: { label: string; onSeeAll?: () => void }) {
+function Heading({ label, count, onSeeAll }: { label: string; count: number; onSeeAll?: () => void }) {
+  const many = count >= CANDIDATES ? `${count}+` : String(count);
   return (
     <div className="mb-2 flex items-baseline justify-between gap-3">
       <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{label}</p>
@@ -107,24 +148,25 @@ function Heading({ label, onSeeAll }: { label: string; onSeeAll?: () => void }) 
         <button
           type="button"
           onClick={onSeeAll}
-          aria-label={`See all ${label.toLowerCase()}`}
+          aria-label={`See all ${many} ${label.toLowerCase()}`}
           className="text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
         >
-          See all
+          See all {many}
         </button>
       )}
     </div>
   );
 }
 
-function BooksPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
-  const { hits: found } = useKindHits("book", query, CANDIDATES);
+function BooksPreview({ query, slot, named, onSeeAll }: PreviewProps) {
+  // On the Top page a book is found by its title: a name in a byline is not a search for the book.
+  const { hits: found } = useKindHits("book", query, CANDIDATES, { titleOnly: true });
   const { ordered, lineOf } = useTrustOrdered(found);
   const hits = ordered.slice(0, 6);
-  if (hits.length === 0) return null;
+  if (hits.length === 0 || !inSlot(slot, named)) return null;
   return (
     <section data-testid="kind-preview-books">
-      <Heading label="Books" onSeeAll={onSeeAll} />
+      <Heading label="Books" count={found.length} onSeeAll={onSeeAll} />
       <div className="flex gap-3 overflow-x-auto pb-1">
         {hits.map((h) => (
           <Link key={h.id} href={h.href} className="group w-24 shrink-0" data-testid="kind-preview-row">
@@ -156,83 +198,117 @@ function BooksPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => voi
   );
 }
 
-/** Open or closed now, in the place's own time, and whether it takes Bitcoin. */
-function PlaceFacts({ place }: { place: Place }) {
-  const week = parseOpeningHours(place.hours);
-  const lon = Number(place.lon);
-  const open = week && Number.isFinite(lon) ? openingStatus(week, placeLocalMinutes(lon, new Date())).open : null;
-  const bitcoin = place.bitcoin && place.bitcoin.trim().toLowerCase() !== "no";
-  if (open == null && !bitcoin) return null;
+/**
+ * Open or closed, in the place's own time, said the way its page says it
+ * (openingLine): open in green, closed quietly with when it opens. Nothing
+ * about Bitcoin — every place on this list takes it.
+ */
+function OpeningLine({ place }: { place: Place }) {
+  const line = openingLine(place, new Date());
+  if (!line) return null;
   return (
-    <span className="flex items-center gap-2 text-xs">
-      {open != null && (
-        <span
-          className={open ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}
-        >
-          {open ? "Open now" : "Closed"}
-        </span>
-      )}
-      {bitcoin && (
-        <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
-          <Zap className="h-3 w-3" /> Bitcoin
-        </span>
-      )}
+    <span
+      className={`block truncate text-xs ${line.open ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}
+    >
+      {line.text}
     </span>
   );
 }
 
-function PlacesPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
+/**
+ * One place in a list: its number, which its pin on the map wears too; its
+ * photo when it has one (no stand-in when it hasn't); its name, what and
+ * where, open or closed, and who recommends it.
+ */
+function PlaceRow({
+  hit,
+  n,
+  trust,
+  testId,
+  big = false,
+}: {
+  hit: KindHit;
+  n: number;
+  trust: string | null;
+  testId: string;
+  big?: boolean;
+}) {
+  return (
+    <li className={`flex items-start gap-3 ${big ? "py-3" : ""}`} data-testid={testId}>
+      <span
+        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white"
+        data-testid="kind-row-number"
+      >
+        {n}
+      </span>
+      <span className="min-w-0 flex-1 space-y-0.5">
+        <Link
+          href={hit.href}
+          className={`block truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100 ${big ? "" : "text-sm"}`}
+        >
+          {hit.shown.title}
+        </Link>
+        {hit.shown.summary && (
+          <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{hit.shown.summary}</span>
+        )}
+        {hit.place && <OpeningLine place={hit.place} />}
+        <TrustLine text={trust} />
+      </span>
+      {hit.shown.image && (
+        <img
+          src={hit.shown.image}
+          alt=""
+          loading="lazy"
+          className={`shrink-0 rounded-lg object-cover ${big ? "h-16 w-16" : "h-12 w-12"}`}
+        />
+      )}
+    </li>
+  );
+}
+
+/** The places' pins, each wearing its row's number; none for a place with no coordinates. */
+function pinsOf(hits: KindHit[]) {
+  return hits
+    .map((h, i) => ({
+      lat: Number(h.place?.lat),
+      lon: Number(h.place?.lon),
+      name: h.shown.title ?? "",
+      label: String(i + 1),
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon) && !(p.lat === 0 && p.lon === 0));
+}
+
+function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { hits: found } = useKindHits("place", query, CANDIDATES);
   const { ordered, lineOf } = useTrustOrdered(found);
   const hits = ordered.slice(0, 3);
-  if (hits.length === 0) return null;
-  const pins = hits
-    .map((h) => ({ lat: Number(h.place?.lat), lon: Number(h.place?.lon), name: h.shown.title ?? "" }))
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon) && !(p.lat === 0 && p.lon === 0));
+  if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
+  const pins = pinsOf(hits);
+  // A map of places a continent apart says nothing: the list stands alone.
+  const map = pinsAreLocal(pins);
   return (
     <section data-testid="kind-preview-places">
-      <Heading label="Places" onSeeAll={onSeeAll} />
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
-        <ul className="space-y-2.5">
-          {hits.map((h) => (
-            <li key={h.id} className="flex gap-3" data-testid="kind-preview-row">
-              {h.shown.image ? (
-                <img src={h.shown.image} alt="" loading="lazy" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
-              ) : (
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800">
-                  <Store className="h-5 w-5" />
-                </span>
-              )}
-              <span className="min-w-0 space-y-0.5">
-                <Link
-                  href={h.href}
-                  className="block truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-                >
-                  {h.shown.title}
-                </Link>
-                {h.shown.summary && (
-                  <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
-                )}
-                {h.place && <PlaceFacts place={h.place} />}
-                <TrustLine text={lineOf(h.id)} />
-              </span>
-            </li>
+      <Heading label="Places" count={found.length} onSeeAll={onSeeAll} />
+      <div className={`grid gap-3 ${map ? "sm:grid-cols-[minmax(0,1fr)_200px]" : ""}`}>
+        <ul className="space-y-3">
+          {hits.map((h, i) => (
+            <PlaceRow key={h.id} hit={h} n={i + 1} trust={lineOf(h.id)} testId="kind-preview-row" />
           ))}
         </ul>
-        <PlacesMap pins={pins} className="hidden h-36 sm:block" />
+        {map && <PlacesMap pins={pins} className="hidden h-40 sm:block" />}
       </div>
     </section>
   );
 }
 
-function GitHubPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => void }) {
+function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { hits: found } = useKindHits("github-account", query, CANDIDATES);
   const { ordered, lineOf } = useTrustOrdered(found);
   const hits = ordered.slice(0, 3);
-  if (hits.length === 0) return null;
+  if (hits.length === 0 || !inSlot(slot, named)) return null;
   return (
     <section data-testid="kind-preview-github">
-      <Heading label="GitHub accounts" onSeeAll={onSeeAll} />
+      <Heading label="GitHub accounts" count={found.length} onSeeAll={onSeeAll} />
       <ul className="space-y-2">
         {hits.map((h) => (
           <li key={h.id} data-testid="kind-preview-row">
@@ -269,7 +345,7 @@ function GitHubPreview({ query, onSeeAll }: { query: string; onSeeAll?: () => vo
  */
 function suggestionFor(key: string, view: ConceptViewKey, what: string, Icon: typeof Store) {
   return function KindSuggestion({ query, onPick }: { query: string; onPick?: () => void }) {
-    const { hits } = useKindHits(view, query, 1);
+    const { hits } = useKindHits(view, query, 1, { typing: true });
     const [h] = hits;
     if (!h) return null;
     const portrait = !!h.shown.image && h.shown.imageShape === "portrait";
@@ -354,42 +430,36 @@ function BooksPage({ query }: { query: string }) {
   );
 }
 
-type PlaceFilter = { category: string | null; openNow: boolean; bitcoin: boolean };
+type PlaceFilter = { category: string | null; openNow: boolean };
 
 const isOpenNow = (place: Place | null) => {
   const week = parseOpeningHours(place?.hours ?? null);
   const lon = Number(place?.lon);
   return week && Number.isFinite(lon) ? openingStatus(week, placeLocalMinutes(lon, new Date())).open : false;
 };
-const takesBitcoin = (place: Place | null) => !!place?.bitcoin && place.bitcoin.trim().toLowerCase() !== "no";
 
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
 function PlacesPage({ query }: { query: string }) {
   const { hits: found, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
   const { ordered: hits, lineOf } = useTrustOrdered(found);
-  const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false, bitcoin: false });
+  const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     for (const h of hits) {
       const c = categoryWords(h.place?.category ?? null);
       if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
     }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([c]) => c);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [hits]);
   const shown = hits.filter(
     (h) =>
       (!filter.category || categoryWords(h.place?.category ?? null) === filter.category) &&
-      (!filter.openNow || isOpenNow(h.place)) &&
-      (!filter.bitcoin || takesBitcoin(h.place)),
+      (!filter.openNow || isOpenNow(h.place)),
   );
   if (hits.length === 0) return <PageEmpty pending={pending} label="Places" query={query} />;
-  const pins = shown
-    .map((h) => ({ lat: Number(h.place?.lat), lon: Number(h.place?.lon), name: h.shown.title ?? "" }))
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon) && !(p.lat === 0 && p.lon === 0));
-  const chip = (label: string, on: boolean, toggle: () => void) => (
+  const pins = pinsOf(shown);
+  const map = pinsAreLocal(pins);
+  const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
     <button
       key={label}
       type="button"
@@ -402,49 +472,40 @@ function PlacesPage({ query }: { query: string }) {
       }`}
     >
       {label}
+      {count != null && (
+        <>
+          {" "}
+          <span className={on ? "text-white/80" : "text-slate-400"}>{count}</span>
+        </>
+      )}
     </button>
   );
   return (
-    <div className="py-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-6">
+    <div
+      className={`py-4 ${map ? "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-6" : "mx-auto max-w-2xl"}`}
+    >
       <div className="min-w-0">
         <div className="flex flex-wrap gap-1.5 pb-3">
-          {categories.map((c) =>
-            chip(c, filter.category === c, () => setFilter((f) => ({ ...f, category: f.category === c ? null : c }))),
+          {categories.map(([c, n]) =>
+            chip(
+              c,
+              filter.category === c,
+              () => setFilter((f) => ({ ...f, category: f.category === c ? null : c })),
+              n,
+            ),
           )}
           {chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })))}
-          {chip("Accepts Bitcoin", filter.bitcoin, () => setFilter((f) => ({ ...f, bitcoin: !f.bitcoin })))}
         </div>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="kind-page-places">
-          {shown.map((h) => (
-            <li key={h.id} className="flex gap-3 py-3" data-testid="kind-page-item">
-              {h.shown.image ? (
-                <img src={h.shown.image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
-              ) : (
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800">
-                  <Store className="h-6 w-6" />
-                </span>
-              )}
-              <span className="min-w-0 space-y-0.5">
-                <Link
-                  href={h.href}
-                  className="block truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-                >
-                  {h.shown.title}
-                </Link>
-                {h.shown.summary && (
-                  <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{h.shown.summary}</span>
-                )}
-                {h.place && <PlaceFacts place={h.place} />}
-                <TrustLine text={lineOf(h.id)} />
-              </span>
-            </li>
+          {shown.map((h, i) => (
+            <PlaceRow key={h.id} hit={h} n={i + 1} trust={lineOf(h.id)} testId="kind-page-item" big />
           ))}
         </ul>
         {shown.length === 0 && (
           <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">No places match these filters.</p>
         )}
       </div>
-      <PlacesMap pins={pins} className="mt-4 h-72 lg:sticky lg:top-24 lg:mt-0 lg:h-[70vh]" />
+      {map && <PlacesMap pins={pins} className="mt-4 h-72 lg:sticky lg:top-24 lg:mt-0 lg:h-[70vh]" />}
     </div>
   );
 }

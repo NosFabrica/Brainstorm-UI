@@ -15,8 +15,13 @@ export interface ListKindSearch {
   community: string;
   /** The More menu's group it sits in, with its neighbours: "Read & listen". */
   group: string;
-  /** The Top page's preview of what the words find; renders nothing when they find nothing. "See all" opens the page. */
-  Preview: ComponentType<{ query: string; onSeeAll?: () => void }>;
+  /**
+   * The Top page's preview of what the words find; renders nothing when they find nothing. "See
+   * all" opens the page. Offered two places, above People and below (`slot`): it renders in the
+   * one above when the words ask for it — they name the kind (`named`), or its own reading of them
+   * (Places: a town, a kind of place) — and in the one below otherwise.
+   */
+  Preview: ComponentType<{ query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void }>;
   /** Its own page under the tab strip: what the words find, or the list itself with no words. */
   Page: ComponentType<{ query: string }>;
   /** Its row in the search dropdown: the best match for the words being typed, or nothing. */

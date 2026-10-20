@@ -60,13 +60,27 @@ export function listQueryOf(query: string, lists: readonly NamedList[]): ListQue
   return null;
 }
 
+/** A text's words, lowercased: letters and digits, whatever the script. */
+const tokensOf = (text: string) =>
+  text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+
 /**
  * The items every word is found in, best first: a title that starts with
- * the words, then a title holding them, then the summary. Ties keep the
- * order given. `read` is how the cards read an item — by default the
- * definition's hints; a view that draws the item its own way (a book's title
- * and author from its own tags) passes its reading, so the words are matched
- * against what the card shows.
+ * the words, then a title holding them, then the rest of what the card
+ * shows. Ties keep the order given.
+ *
+ * A word is a whole word: "west" is West Roxbury, not Westlake. While the
+ * words are still being typed (`typing`), the last may be the start of one.
+ * `titleOnly` matches by what a thing is called alone — the Top page's
+ * reading, where a book is found by its title, not by its author's name.
+ *
+ * `read` is how the cards read an item — by default the definition's hints;
+ * a view that draws the item its own way (a book's title and author from
+ * its own tags) passes its reading, so the words are matched against what
+ * the card shows.
  */
 export function matchListItems<T extends { tags: string[][] }>(
   items: readonly T[],
@@ -74,16 +88,19 @@ export function matchListItems<T extends { tags: string[][] }>(
   words: readonly string[],
   max = 3,
   read: (item: T) => { title?: string | null; summary?: string | null } = (item) => presentItem(item, definition),
+  { typing = false, titleOnly = false }: { typing?: boolean; titleOnly?: boolean } = {},
 ): T[] {
   if (!words.length) return [];
+  const last = words.length - 1;
+  const found = (tokens: string[]) =>
+    words.every((w, i) => tokens.some((t) => (typing && i === last ? t.startsWith(w) : t === w)));
   const ranked: { item: T; rank: number }[] = [];
   for (const item of items) {
     const shown = read(item);
-    const title = (shown.title ?? "").toLowerCase();
-    const both = `${title} ${(shown.summary ?? "").toLowerCase()}`;
-    if (!words.every((w) => both.includes(w))) continue;
-    const inTitle = words.every((w) => title.includes(w));
-    ranked.push({ item, rank: title.startsWith(words.join(" ")) ? 0 : inTitle ? 1 : 2 });
+    const title = shown.title ?? "";
+    const inTitle = found(tokensOf(title));
+    if (!inTitle && (titleOnly || !found(tokensOf(`${title} ${shown.summary ?? ""}`)))) continue;
+    ranked.push({ item, rank: title.toLowerCase().startsWith(words.join(" ")) ? 0 : inTitle ? 1 : 2 });
   }
   return ranked
     .sort((a, b) => a.rank - b.rank)

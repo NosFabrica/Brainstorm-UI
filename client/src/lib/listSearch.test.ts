@@ -131,3 +131,42 @@ describe("matchListItems — through the reading the cards show", () => {
     expect(matchListItems(books, bare, ["tolkien"], 3, reading).map((i) => i.id)).toEqual(["2"]);
   });
 });
+
+// "west" is the word west: West Roxbury, Local Joe West — not Westlake, Westcliffe or Western.
+// While the words are still being typed, the last one may be the start of a word ("coff").
+// The Top page matches by what an item is called; its own page matches everything it shows.
+describe("matchListItems — whole words, and what a thing is called", () => {
+  const read = (it: { tags: string[][] }) => ({
+    title: it.tags.find((t) => t[0] === "name")?.[1] ?? null,
+    summary: it.tags.find((t) => t[0] === "line")?.[1] ?? null,
+  });
+  const thing = (id: string, name: string, line: string) => ({
+    id,
+    tags: [
+      ["name", name],
+      ["line", line],
+    ],
+  });
+  const things = [
+    thing("1", "Local Joe West", "Cafe · Ewa Beach"),
+    thing("2", "Yucatan Tacos", "Restaurant · West Roxbury"),
+    thing("3", "The Pasta Co-Op", "Fast food · Westlake"),
+    thing("4", "The Western Canon", "Harold Bloom"),
+    thing("5", "The Indian Constitution", "Granville Austin"),
+  ];
+  const ids = (found: { id: string }[]) => found.map((t) => t.id);
+
+  it("matches whole words, not the starts of longer ones", () => {
+    expect(ids(matchListItems(things, definition, ["west"], 9, read))).toEqual(["1", "2"]);
+  });
+
+  it("lets the last word being typed be the start of a word", () => {
+    expect(ids(matchListItems(things, definition, ["west"], 9, read, { typing: true }))).toEqual(["1", "4", "2", "3"]);
+    expect(ids(matchListItems(things, definition, ["yucatan", "ta"], 9, read, { typing: true }))).toEqual(["2"]);
+  });
+
+  it("can match by what a thing is called alone", () => {
+    expect(ids(matchListItems(things, definition, ["austin"], 9, read))).toEqual(["5"]);
+    expect(ids(matchListItems(things, definition, ["austin"], 9, read, { titleOnly: true }))).toEqual([]);
+  });
+});
