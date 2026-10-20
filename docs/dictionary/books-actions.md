@@ -172,11 +172,14 @@ The comment reviews already written stay as comments (section 7), as on the plac
 
 ### Unbnd
 
-To build. It stores a rating as a kind 39999 item under `39998:<librarian>:book-ratings`, with `score` 1 to 5, the
-words in `content`, a `["retracted","true"]` replacement in place of a removal, and sends it to its own relay and the
-hub. Under this document: write and read the record of sections 3 to 5, remove with kind 5, read reviews from the
-index, count only ranks from 5, show no number where nothing is counted, and keep Hidden gem and Overhyped within
-section 8. Its 17 earlier ratings (three people, none with words) are moved over by Unbnd, not read as reviews here.
+Built, and live on its staging site. It writes and reads the record of sections 3 to 5: stars required, words
+optional up to 1,200 characters, no photos, and unknown tags carried over on an edit. A removal is a kind 5 with `e`,
+`a` and `k`. A review goes to Unbnd's own relay, the writer's relays from their relay list, the index and two common
+relays, never the hub; Unbnd reads reviews and removals from the index and those two relays. Only ranks from 5 are
+counted, a book
+with nothing counted shows its number of ratings and the reviews with no figure, and Hidden gem and Overhyped compare
+the lens's value with the reviewers of any rank above 0, each counted once (section 8). Its 17 earlier ratings (kind
+39999 items, three people, none with words) are not reviews; the people who wrote them are rating those books again.
 
 ## 10. For the team to confirm
 
@@ -185,8 +188,7 @@ section 8. Its 17 earlier ratings (three people, none with words) are moved over
 3. **Stars without words, and words without stars.** Brainstorm's book view counts ratings (stars alone) and reviews
    (stars and words) apart. Unbnd asks for stars and makes words optional. Should both composers require stars, as
    places do, and allow words to be empty?
-4. **The words stop at 1,200 characters,** as for places and Brainstorm's composer today (Unbnd allows 2,000 now and
-   will lower it).
+4. **The words stop at 1,200 characters,** as for places, Brainstorm's composer and Unbnd's.
 5. **The line is 5,** as for places, for both apps.
 6. **No photos on book reviews** in either composer for now; a record with `imeta` from elsewhere is still read and
    carried over (sections 3 and 6).
@@ -218,9 +220,12 @@ Brainstorm's side: `client/src/lib/thing.ts` (`starsOf`, kind 34259, `m book`), 
 `client/src/services/bookReviews.ts`, `client/src/components/items/BookView.tsx`, `client/src/lib/books.ts`,
 [ADR 0007](../adr/0007-three-tiers-of-item-rendering.md).
 
-Unbnd's side, in [aburra16/unbnd](https://github.com/aburra16/unbnd): `packages/schemas/src/BookRating.ts` (today's
-record), `packages/trust/src/ratings.ts` (the fold and the weights), `apps/api/src/routes/ratings.ts`.
+Unbnd's side, in [aburra16/unbnd](https://github.com/aburra16/unbnd): `packages/schemas/src/BookReview.ts` (building,
+editing and removing the record; `starsOf`), `packages/trust/src/reviews.ts` (which reviews stand),
+`packages/trust/src/ratings.ts` (the weights, the line and the wider network), `apps/api/src/reviews/` (where reviews
+go and are read), `apps/api/src/routes/ratings.ts`.
 
 ## Changes
 
 - 2026-10-20: first version, after the places contract.
+- 2026-10-20: section 9, Unbnd built to this document.
