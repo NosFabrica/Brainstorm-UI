@@ -574,7 +574,7 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
         </ul>
         {map && (
           <div className="hidden space-y-1 sm:block">
-            <PlacesMap pins={[...pins, ...events]} className="h-40" />
+            <PlacesMap pins={[...pins, ...events]} className="h-40" onOpen={onSeeAll} />
             {events.length > 0 && (
               <p
                 className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400"
@@ -996,11 +996,11 @@ function PlacesPage({ query }: { query: string }) {
         {map && !narrow && (
           <div>
             <div className="sticky top-20 h-[calc(100dvh-6rem)]">
-              <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} onEvent={tapEvent} className="h-full" />
+              <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} onEvent={tapEvent} controls className="h-full" />
               {eventPicked && (
                 <EventCard
                   event={eventPicked}
-                  className="absolute bottom-4 left-4 z-[500] w-80 max-w-[calc(100%-2rem)]"
+                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-4.5rem)]"
                   onClose={() => setPickedEvent(null)}
                 />
               )}
@@ -1013,7 +1013,7 @@ function PlacesPage({ query }: { query: string }) {
                   rating={ratingLine(shown[pickedAt])}
                   lit
                   testId="place-picked"
-                  className="absolute bottom-4 left-4 z-[500] w-80 max-w-[calc(100%-2rem)]"
+                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-4.5rem)]"
                   onClose={() => setPicked(null)}
                 />
               )}
@@ -1042,6 +1042,7 @@ function PlacesPage({ query }: { query: string }) {
               pins={allPins}
               highlight={lit}
               onEvent={tapEvent}
+              controls
               onPin={(label) => {
                 setLit(label);
                 setPickedEvent(null);

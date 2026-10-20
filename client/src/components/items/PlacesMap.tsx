@@ -4,7 +4,8 @@
  * A pin with a label wears it (its row's number beside the map); the one
  * the reader points at in the list is lit, and a tapped pin says which.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Maximize2, Minus, Plus } from "lucide-react";
 
 export interface MapPin {
   lat: number;
@@ -50,6 +51,8 @@ export function PlacesMap({
   highlight = null,
   onPin,
   onEvent,
+  controls = false,
+  onOpen,
 }: {
   pins: MapPin[];
   className?: string;
@@ -59,7 +62,16 @@ export function PlacesMap({
   onPin?: (label: string) => void;
   /** An event's pin tapped, by the event's id. */
   onEvent?: (id: string) => void;
+  /**
+   * A map to work: + and − (on a mouse's screen; touch pinches), Show all to
+   * frame the places again, and the wheel zooms — the Places page's map.
+   */
+  controls?: boolean;
+  /** A still map, a glance: tapped, it opens where the map can be worked (the Top page's preview). */
+  onOpen?: () => void;
 }) {
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const home = useRef<import("leaflet").LatLngBounds | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const markers = useRef(new Map<string, import("leaflet").Marker>());
   const lib = useRef<typeof import("leaflet") | null>(null);
@@ -78,11 +90,29 @@ export function PlacesMap({
         if (cancelled || !host.current || pins.length === 0) return;
         lib.current = L;
         markers.current.clear();
-        map = L.map(host.current, { scrollWheelZoom: false, attributionControl: true, zoomControl: false });
+        const still = !!onOpen;
+        map = L.map(host.current, {
+          attributionControl: true,
+          zoomControl: false,
+          // World to street: the tiles stop at 16, and past it the map would be blank.
+          minZoom: 3,
+          maxZoom: 16,
+          scrollWheelZoom: controls,
+          wheelPxPerZoomLevel: 90,
+          dragging: !still,
+          touchZoom: !still,
+          doubleClickZoom: !still,
+          boxZoom: !still,
+          keyboard: !still,
+        });
+        mapRef.current = map;
         map.attributionControl.setPrefix(false);
         const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
         L.tileLayer(`${esri}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
           maxZoom: 16,
+          // A wider ring of tiles kept around the view, and none fetched mid-zoom: smoother panning.
+          keepBuffer: 4,
+          updateWhenZooming: false,
           attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors",
         }).addTo(map);
         for (const p of pins) {
@@ -119,7 +149,8 @@ export function PlacesMap({
         // Framed on the places: a town's events further out show when the reader pans.
         const places = pins.filter((p) => p.kind !== "event");
         const framed = places.length > 0 ? places : pins;
-        map.fitBounds(L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number])), {
+        home.current = L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number]));
+        map.fitBounds(home.current, {
           padding: [24, 24],
           maxZoom: 14,
         });
@@ -127,9 +158,14 @@ export function PlacesMap({
         /* no map: the list stands on its own */
       }
     })();
+    // A box that changes size (a layout switch, a phone turned) keeps its map whole, no reload.
+    const resized = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => map?.invalidateSize()) : null;
+    if (host.current) resized?.observe(host.current);
     return () => {
       cancelled = true;
+      resized?.disconnect();
       map?.remove();
+      mapRef.current = null;
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -158,6 +194,40 @@ export function PlacesMap({
       className={`relative isolate z-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[9px] dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)] ${className}`}
       data-testid="places-map"
     >
+      {onOpen && (
+        // The whole still map is one way in; nothing under it moves.
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label="Open the map"
+          className="absolute inset-0 z-[500] cursor-pointer rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary"
+        />
+      )}
+      {controls && (
+        <div className="absolute right-3 top-1/2 z-[500] flex -translate-y-1/2 flex-col gap-2">
+          {/* Touch pinches: + and − only where there's a mouse. */}
+          <div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-slate-900 [@media(pointer:coarse)]:hidden">
+            <MapButton label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>
+              <Plus className="h-4 w-4" aria-hidden />
+            </MapButton>
+            <span className="h-px bg-slate-200 dark:bg-slate-700" />
+            <MapButton label="Zoom out" onClick={() => mapRef.current?.zoomOut()}>
+              <Minus className="h-4 w-4" aria-hidden />
+            </MapButton>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-slate-900">
+            <MapButton
+              label="Show all places"
+              onClick={() =>
+                home.current &&
+                mapRef.current?.flyToBounds(home.current, { padding: [24, 24], maxZoom: 14, duration: 0.6 })
+              }
+            >
+              <Maximize2 className="h-4 w-4" aria-hidden />
+            </MapButton>
+          </div>
+        </div>
+      )}
       <div
         ref={host}
         className="h-full w-full"
@@ -165,5 +235,19 @@ export function PlacesMap({
         aria-label={`Map of ${pins.filter((p) => p.kind !== "event").length || pins.length} places`}
       />
     </div>
+  );
+}
+
+function MapButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-9 w-9 items-center justify-center text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+    >
+      {children}
+    </button>
   );
 }

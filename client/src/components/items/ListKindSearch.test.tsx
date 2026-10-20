@@ -124,11 +124,13 @@ vi.mock("@/components/items/PlacesMap", () => ({
     highlight,
     onPin,
     onEvent,
+    onOpen,
   }: {
     pins: { name: string; label?: string; kind?: string; id?: string }[];
     highlight?: string | null;
     onPin?: (label: string) => void;
     onEvent?: (id: string) => void;
+    onOpen?: () => void;
   }) => (
     <div
       data-testid="places-map"
@@ -143,6 +145,11 @@ vi.mock("@/components/items/PlacesMap", () => ({
       data-highlight={highlight ?? ""}
     >
       {pins.length}
+      {onOpen && (
+        <button type="button" onClick={onOpen}>
+          Open the map
+        </button>
+      )}
       {pins.map((p) =>
         p.kind === "event" ? (
           <button key={`event-${p.id}`} type="button" onClick={() => onEvent?.(p.id!)}>
@@ -1015,5 +1022,17 @@ describe("an event's pin on the Places page", () => {
       itemsOf[PLACES].pop();
       townEvents.list = [];
     }
+  });
+});
+
+// The Top page's little map is a glance, not a map to work: tapping it opens the Places page,
+// where the map can be moved and zoomed.
+describe("the Places preview's map", () => {
+  it("opens the Places page when tapped", () => {
+    const seeAll = vi.fn();
+    const places = LIST_KINDS.find((k) => k.key === "places")!;
+    renderWithProviders(<places.Preview query="coffee" slot="follow" named={false} onSeeAll={seeAll} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open the map" }));
+    expect(seeAll).toHaveBeenCalledTimes(1);
   });
 });
