@@ -1011,7 +1011,8 @@ function PlacesPage({ query }: { query: string }) {
         </div>
         {map && !narrow && (
           <div>
-            <div className="sticky top-20 h-[calc(100dvh-6rem)]">
+            {/* Sized to the first screen below the site header, so it never slides under it, short list or long. */}
+            <div className="sticky top-20 h-[calc(100dvh-11rem)] min-h-[24rem]">
               <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} onEvent={tapEvent} controls className="h-full" />
               {eventPicked && (
                 <EventCard
