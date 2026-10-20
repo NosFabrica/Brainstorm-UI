@@ -54,6 +54,7 @@ const entries = [
         ["optional", "lon"],
         ["optional", "opening-hours"],
         ["optional", "accepts-bitcoin"],
+        ["optional", "address"],
       ],
     ),
   ),
@@ -549,6 +550,55 @@ describe("places ordered by rating", () => {
     } finally {
       ratings.reviews = new Map();
       ratings.ranks = new Map();
+    }
+  });
+});
+
+// The same account filed by two people is one card, with both copies' endorsements; two branches
+// of a chain in one town are two places, told apart by their street.
+describe("copies and branches", () => {
+  const FRIEND1 = "f1".repeat(32);
+  const FRIEND2 = "f2".repeat(32);
+
+  it("shows an account filed twice once, counting who recommends either copy", async () => {
+    const copy = { ...account("riverdev"), pubkey: "ab".repeat(32) };
+    const original = (itemsOf[GITHUB] as { id: string; tags: string[][] }[]).find((i) =>
+      i.tags.some((t) => t[1] === "riverdev"),
+    )!;
+    const was = itemsOf[GITHUB];
+    itemsOf[GITHUB] = [...was, copy];
+    trust.endorsers = new Map([
+      [original.id, [{ pubkey: FRIEND1, at: 1 }]],
+      [copy.id, [{ pubkey: FRIEND2, at: 2 }]],
+    ]);
+    trust.follows = new Set([FRIEND1, FRIEND2]);
+    trust.signedIn = true;
+    try {
+      page("github", "riverdev");
+      expect(screen.getAllByTestId("kind-page-item")).toHaveLength(1);
+      expect(await screen.findByText("Recommended by 2 people you trust")).toBeInTheDocument();
+    } finally {
+      itemsOf[GITHUB] = was;
+      trust.endorsers = new Map();
+      trust.follows = new Set();
+      trust.signedIn = false;
+    }
+  });
+
+  it("tells two branches in one town apart by their street", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = [
+      place("Pink Owl Coffee", "cafe", "San Rafael", [["address", "1100 Fourth Street"]]),
+      place("Pink Owl Coffee", "cafe", "San Rafael", [["address", "625 Du Bois Street"]]),
+    ];
+    try {
+      page("places", "");
+      const rows = screen.getAllByTestId("kind-page-item");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveTextContent("Cafe · San Rafael · 1100 Fourth Street");
+      expect(rows[1]).toHaveTextContent("Cafe · San Rafael · 625 Du Bois Street");
+    } finally {
+      itemsOf[PLACES] = was;
     }
   });
 });

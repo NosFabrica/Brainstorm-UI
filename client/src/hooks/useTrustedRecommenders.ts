@@ -28,8 +28,11 @@ export function useTrustedRecommenders(items: readonly { id: string; address: st
   const byItem = reactions.data ?? NONE;
   const { follows, signedIn } = useMyFollows();
   const scoreOf = useAuthorScores([...new Set([...byItem.values()].flat().map((e) => e.pubkey))]);
-  const countOf = (id: string) =>
-    rankEndorsers(byItem.get(id) ?? [], { follows, scoreOf }).filter((e) => e.group !== "other").length;
+  // An item and its copies (the same thing filed twice) count as one: everyone who endorsed any of them, once.
+  const countOf = (ids: string | readonly string[]) => {
+    const all = (typeof ids === "string" ? [ids] : ids).flatMap((id) => byItem.get(id) ?? []);
+    return rankEndorsers(all, { follows, scoreOf }).filter((e) => e.group !== "other").length;
+  };
   return { countOf, who: signedIn ? "you trust" : "verified" } as const;
 }
 

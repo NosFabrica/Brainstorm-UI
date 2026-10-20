@@ -23,6 +23,7 @@ import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { matchListItems, wordsToFind } from "@/lib/listSearch";
 import { orderByTrust } from "@/lib/itemEngagement";
 import { coordinateOf } from "@/lib/dlistFields";
+import { collapseSameThing, tellApart } from "@/lib/sameThing";
 import { recommendedLine, useTrustedRecommenders } from "@/hooks/useTrustedRecommenders";
 import { usePlacesRatings } from "@/hooks/usePlaceReviews";
 import { openingStatus, parseOpeningHours } from "@/lib/openingHours";
@@ -40,6 +41,8 @@ export interface KindHit {
   id: string;
   /** Its address, which endorsements name it by. */
   address: string | null;
+  /** It and its copies on the list (the same thing filed twice): their endorsements add up. */
+  copies: { id: string; address: string | null }[];
   href: string;
   shown: ItemPresentation;
   place: Place | null;
@@ -72,15 +75,40 @@ function useKindHits(
       words.length > 0
         ? matchListItems(items.data as Item[], definition, words, max, read, { typing, titleOnly })
         : (items.data as Item[]).filter((item) => read(item).title).slice(0, max);
-    return found.map((item) => ({
-      id: item.id,
-      address: coordinateOf(item),
-      href: eventPath(item, dictionaryRelays()),
-      shown: read(item),
-      place: view === "place" ? placeOf(item, definition) : null,
+    const hits = found.map((item) => {
+      const shown = read(item);
+      return {
+        id: item.id,
+        address: coordinateOf(item),
+        href: eventPath(item, dictionaryRelays()),
+        shown,
+        place: view === "place" ? placeOf(item, definition) : null,
+        key: identityOf(view, item, shown),
+      };
+    });
+    // The same thing filed twice is one result; its copies' endorsements add up (lib/sameThing).
+    const addressOf = new Map(hits.map((h) => [h.id, h.address]));
+    return collapseSameThing(hits, (h) => h.key).map(({ key: _key, copies, ...h }) => ({
+      ...h,
+      copies: copies.map((id) => ({ id, address: addressOf.get(id) ?? null })),
     }));
   }, [resolved, items.data, words, max, view, browse, typing, titleOnly]);
   return { hits, pending: dictionary.isPending || (!!entry && items.isPending) };
+}
+
+/**
+ * What makes two items on a list the same thing: a GitHub account's handle,
+ * a book's ISBN (else its title and author). Never a place: two places with
+ * one name are two branches.
+ */
+function identityOf(view: ConceptViewKey, item: Item, shown: ItemPresentation): string | null {
+  if (view === "github-account") return shown.title ? `gh:${shown.title.toLowerCase()}` : null;
+  if (view === "book") {
+    const isbn = item.tags.find((t) => t[0] === "isbn")?.[1]?.replace(/[^0-9xX]/g, "");
+    if (isbn) return `isbn:${isbn}`;
+    return shown.title ? `book:${shown.title.toLowerCase()}|${(shown.summary ?? "").toLowerCase()}` : null;
+  }
+  return null;
 }
 
 type PreviewProps = { query: string; slot: "lead" | "follow"; named: boolean; onSeeAll?: () => void };
@@ -126,8 +154,10 @@ const CANDIDATES = 60;
  * first (hooks/useTrustedRecommenders) — and the line that says so.
  */
 function useTrustOrdered(hits: KindHit[]) {
-  const { countOf, who } = useTrustedRecommenders(hits);
-  return { ordered: orderByTrust(hits, countOf), lineOf: (id: string) => recommendedLine(countOf(id), who) };
+  const { countOf, who } = useTrustedRecommenders(hits.flatMap((h) => h.copies));
+  const copiesOf = new Map(hits.map((h) => [h.id, h.copies.map((c) => c.id)]));
+  const count = (id: string) => countOf(copiesOf.get(id) ?? [id]);
+  return { ordered: orderByTrust(hits, count), lineOf: (id: string) => recommendedLine(count(id), who) };
 }
 
 function TrustLine({ text, className = "" }: { text: string | null; className?: string }) {
@@ -241,6 +271,7 @@ function PlaceRow({
   highlighted = false,
   onPoint,
   rating = null,
+  line = hit.shown.summary ?? "",
 }: {
   hit: KindHit;
   n: number;
@@ -253,6 +284,8 @@ function PlaceRow({
   onPoint?: (on: boolean) => void;
   /** Its rating through the reader's lens: "★ 4.5 · 2 reviews". */
   rating?: string | null;
+  /** Its line when the list tells it apart from a branch (lib/sameThing tellApart); its own otherwise. */
+  line?: string;
 }) {
   return (
     <li
@@ -276,9 +309,7 @@ function PlaceRow({
         >
           {hit.shown.title}
         </Link>
-        {hit.shown.summary && (
-          <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{hit.shown.summary}</span>
-        )}
+        {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
         {rating && (
           <span className="block text-xs font-medium text-amber-700 dark:text-amber-400" data-testid="place-row-rating">
             {rating}
@@ -324,6 +355,12 @@ function useRatedPlaces(hits: KindHit[]) {
   return { rated, lineOf, ratingLine };
 }
 
+/** Each place's line, with its street where two branches would otherwise read the same. */
+const linesOf = (hits: KindHit[]) =>
+  tellApart(
+    hits.map((h) => ({ title: h.shown.title ?? "", line: h.shown.summary ?? "", street: h.place?.address ?? null })),
+  );
+
 /** The places' pins, each wearing its row's number; none for a place with no coordinates. */
 function pinsOf(hits: KindHit[]) {
   return hits
@@ -340,6 +377,7 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { hits: found } = useKindHits("place", query, CANDIDATES);
   const { rated, lineOf, ratingLine } = useRatedPlaces(found);
   const hits = rated.slice(0, 3);
+  const lines = linesOf(hits);
   if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
   // A town the words name is said: "Places in Austin".
   const town = townNamed(
@@ -369,6 +407,7 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
               n={i + 1}
               trust={lineOf(h.id)}
               rating={ratingLine(h)}
+              line={lines[i]}
               testId="kind-preview-row"
             />
           ))}
@@ -570,6 +609,7 @@ function PlacesPage({ query }: { query: string }) {
       (!filter.openNow || isOpenNow(h.place)),
   );
   if (hits.length === 0) return <PageEmpty pending={pending} label="Places" query={query} />;
+  const lines = linesOf(shown);
   const pins = pinsOf(shown);
   const map = pinsAreLocal(pins);
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
@@ -617,6 +657,7 @@ function PlacesPage({ query }: { query: string }) {
               n={i + 1}
               trust={lineOf(h.id)}
               rating={ratingLine(h)}
+              line={lines[i]}
               testId="kind-page-item"
               big
               highlighted={lit === String(i + 1)}
