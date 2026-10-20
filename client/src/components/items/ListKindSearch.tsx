@@ -52,7 +52,7 @@ import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
 import { ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
 import { useGitHubEvidence } from "@/hooks/useGitHubEvidence";
-import { verifyNip05 } from "@/lib/nip05";
+import { useVerifiedPeople } from "@/hooks/useVerifiedPeople";
 import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
 import { fetchAreaEvents, fetchTownEvents } from "@/services/townEvents";
 import { cellsCovering } from "@/lib/geohash";
@@ -273,37 +273,31 @@ function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void
   );
 }
 
-/** Which of the people have a handle their domain confirms (lib/nip05): the domain proofs need it. */
-function useVerifiedPeople(people: readonly { pubkey: string; nip05?: string }[]): Set<string> {
-  const key = people.map((p) => `${p.pubkey}|${p.nip05 ?? ""}`).join(",");
-  const [verified, setVerified] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    let alive = true;
-    void Promise.all(
-      people.map(async (p) => (p.nip05 && (await verifyNip05(p.nip05, p.pubkey)) === "verified" ? p.pubkey : null)),
-    ).then((ok) => alive && setVerified(new Set(ok.filter((p): p is string => !!p))));
-    return () => {
-      alive = false;
-    };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return verified;
-}
-
 /**
  * A person's own GitHub account, as a mark beside their name (ListKindSearch.PersonMark): a listed
  * account they're proven to own (lib/githubLink) — their npub on its GitHub profile, its website
  * their verified handle's domain, a gist proving their claim, or their verified root handle on the
  * domain named for it. It opens the account's page, with who recommends it.
  */
-function GitHubMark({ pubkey, nip05, inRow = false }: { pubkey: string; nip05?: string; inRow?: boolean }) {
+function GitHubMark({
+  pubkey,
+  nip05,
+  website,
+  inRow = false,
+}: {
+  pubkey: string;
+  nip05?: string;
+  website?: string;
+  inRow?: boolean;
+}) {
   const { hits } = useKindHits("github-account", "", OWNED_MAX, { browse: true });
   const handles = hits.map((h) => h.shown.title ?? "").filter(Boolean);
   const evidence = useGitHubEvidence(handles);
-  const verified = useVerifiedPeople(useMemo(() => [{ pubkey, nip05 }], [pubkey, nip05])).has(pubkey);
+  const verified = useVerifiedPeople(useMemo(() => [{ pubkey, nip05 }], [pubkey, nip05])).verified.has(pubkey);
   const hit = hits.find((h) => {
     const handle = h.shown.title ?? "";
     const e = evidence.get(handle.toLowerCase()) ?? NO_EVIDENCE;
-    return handle && ownsGitHub(e, handle, { pubkey, nip05 }, verified);
+    return handle && ownsGitHub(e, handle, { pubkey, nip05, website }, verified);
   });
   const handle = hit?.shown.title;
   if (!hit || !handle) return null;
@@ -322,9 +316,9 @@ function GitHubMark({ pubkey, nip05, inRow = false }: { pubkey: string; nip05?: 
   );
 }
 
-const NO_EVIDENCE: GitHubEvidence = { checked: false, named: [], blogHost: null, provenClaimants: [] };
+const NO_EVIDENCE: GitHubEvidence = { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
 
-const NO_PEOPLE: readonly { pubkey: string; nip05?: string }[] = [];
+const NO_PEOPLE: readonly { pubkey: string; nip05?: string; website?: string }[] = [];
 
 /** Every listed account a person's handle could own: the GitHub list is short. */
 const OWNED_MAX = 500;
@@ -840,14 +834,14 @@ function suggestionFor(
     query: string;
     slot: "lead" | "follow";
     onPick?: () => void;
-    people?: readonly { pubkey: string; nip05?: string }[];
+    people?: readonly { pubkey: string; nip05?: string; website?: string }[];
   }) {
     const { hits: all } = useKindHits(view, query, CANDIDATES, { typing: true });
     const { hits: named } = useKindHits(view, query, 1, { typing: true, titleOnly: true });
     const first = (byName ? named : all)[0];
     const firstHandle = owned ? (first?.shown.title ?? "") : "";
     const evidence = useGitHubEvidence(firstHandle ? [firstHandle] : []);
-    const verified = useVerifiedPeople(owned ? people : NO_PEOPLE);
+    const { verified } = useVerifiedPeople(owned ? people : NO_PEOPLE);
     const group = groups ? groupOfPlaces(query, all) : null;
     // A group leads, above the people; a single thing follows them.
     if (group && slot !== "lead") return null;

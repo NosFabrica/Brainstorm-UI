@@ -62,12 +62,13 @@ describe("fetchGitHubEvidence", () => {
       checked: true,
       named: [OWNER],
       blogHost: "riverdev-home.com",
+      claimants: [CLAIMER, "d4".repeat(32), "e5".repeat(32)],
       provenClaimants: [CLAIMER],
     });
   });
 
   it("knows nothing when the origin answers its own page instead of GitHub's, and asks once a session", async () => {
-    const none = { checked: false, named: [], blogHost: null, provenClaimants: [] };
+    const none = { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
     expect(await fetchGitHubEvidence("riverdev")).toEqual(none);
     const calls = fetchMock.mock.calls.length;
     await fetchGitHubEvidence("RiverDev");

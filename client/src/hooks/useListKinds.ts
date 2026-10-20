@@ -33,7 +33,7 @@ export interface ListKindSearch {
    * lib/ownedAccount), linking to it; nothing until their handle is verified, or when they own none.
    * `inRow`: inside a dropdown row, which the keyboard moves through as one.
    */
-  PersonMark?: ComponentType<{ pubkey: string; nip05?: string; inRow?: boolean }>;
+  PersonMark?: ComponentType<{ pubkey: string; nip05?: string; website?: string; inRow?: boolean }>;
   /** Its own page under the tab strip: what the words find, or the list itself with no words. */
   Page: ComponentType<{ query: string }>;
   /** Reads its list ahead of a search, once the page is idle; draws nothing. */
@@ -47,7 +47,7 @@ export interface ListKindSearch {
     slot: "lead" | "follow";
     onPick?: () => void;
     /** The people the dropdown shows: an account one of them owns is theirs, not a row of its own. */
-    people?: readonly { pubkey: string; nip05?: string }[];
+    people?: readonly { pubkey: string; nip05?: string; website?: string }[];
   }>;
 }
 

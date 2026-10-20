@@ -923,7 +923,7 @@ export function SearchBox({
                           <span className="truncate">{getDisplayLabel(s)}</span>
                           {/* Their own things the kinds list (a GitHub account), beside the name:
                               one person, one row (hooks/useListKinds PersonMark). */}
-                          <PersonMarks pubkey={s.pubkey} nip05={s.nip05} inRow />
+                          <PersonMarks pubkey={s.pubkey} nip05={s.nip05} website={s.website} inRow />
                         </p>
                         {/* A handle is only a claim: the check waits on its domain. */}
                         <Nip05Handle

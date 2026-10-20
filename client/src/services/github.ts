@@ -158,6 +158,7 @@ async function gatherEvidence(handle: string): Promise<GitHubEvidence> {
     checked: !!user,
     named: user ? pubkeysNamedIn([str(user.blog), str(user.bio), ...links]) : [],
     blogHost: user ? hostOf(str(user.blog)) : null,
+    claimants: claimants.map((c) => c.pubkey),
     provenClaimants: proofs.filter((p): p is string => !!p),
   };
 }

@@ -208,11 +208,18 @@ vi.mock("@/services/townEvents", () => ({
 }));
 // What GitHub says about who owns each listed account (services/github), by handle: none by default.
 const githubEvidence = vi.hoisted(() => ({
-  of: {} as Record<string, { checked?: boolean; named: string[]; blogHost: string | null; provenClaimants: string[] }>,
+  of: {} as Record<
+    string,
+    { checked?: boolean; named: string[]; blogHost: string | null; claimants?: string[]; provenClaimants: string[] }
+  >,
 }));
 vi.mock("@/services/github", () => ({
-  fetchGitHubEvidence: async (handle: string) =>
-    githubEvidence.of[handle.toLowerCase()] ?? { checked: false, named: [], blogHost: null, provenClaimants: [] },
+  fetchGitHubEvidence: async (handle: string) => {
+    const known = githubEvidence.of[handle.toLowerCase()];
+    return known
+      ? { checked: true, claimants: [], ...known }
+      : { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
+  },
 }));
 // Signed out: places are weighed through the curator's lens.
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -1373,10 +1380,19 @@ describe("one person, one row", () => {
     githubEvidence.of = {};
   });
 
-  it("leaves the account to its owner's row when the GitHub profile names their npub", async () => {
+  it("leaves the account to its owner's row when both sides agree: GitHub names their npub, their profile names the account", async () => {
+    githubEvidence.of = { riverdev: { named: [OWNER], blogHost: null, provenClaimants: [] } };
+    github([{ pubkey: OWNER, website: "https://github.com/riverdev" }]);
+    await waitFor(() => expect(screen.queryByTestId("kind-suggestion-github")).toBeNull());
+  });
+
+  // A GitHub profile's owner alone writes it: naming someone's npub doesn't make the account theirs.
+  it("keeps the account's own row when only the GitHub side says so", async () => {
     githubEvidence.of = { riverdev: { named: [OWNER], blogHost: null, provenClaimants: [] } };
     github([{ pubkey: OWNER }]);
-    await waitFor(() => expect(screen.queryByTestId("kind-suggestion-github")).toBeNull());
+    await settle();
+    await settle();
+    expect(screen.getByTestId("kind-suggestion-github")).toBeInTheDocument();
   });
 
   it("leaves it to a verified root handle on the domain named for it", async () => {
@@ -1397,7 +1413,7 @@ describe("one person, one row", () => {
   });
 
   // The mark beside the person's name, on the same proof.
-  it("marks the owner once proven: a verified root handle, or their npub on the GitHub profile", async () => {
+  it("marks the owner once proven: a verified root handle, or GitHub and their profile naming each other", async () => {
     const Mark = LIST_KINDS.find((k) => k.key === "github")!.PersonMark!;
     domainAnswers({ _: OWNER });
     renderWithProviders(<Mark pubkey={OWNER} nip05="_@riverdev.com" />);
@@ -1405,7 +1421,7 @@ describe("one person, one row", () => {
     expect(mark).toHaveAttribute("href", expect.stringMatching(/^\/e\/naddr1/));
     cleanup();
     githubEvidence.of = { lakebuilder: { named: ["b2".repeat(32)], blogHost: null, provenClaimants: [] } };
-    renderWithProviders(<Mark pubkey={"b2".repeat(32)} />);
+    renderWithProviders(<Mark pubkey={"b2".repeat(32)} website="github.com/lakebuilder" />);
     expect(await screen.findByRole("link", { name: "lakebuilder on GitHub" })).toBeInTheDocument();
   });
 

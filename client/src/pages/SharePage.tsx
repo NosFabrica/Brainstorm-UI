@@ -1062,7 +1062,7 @@ export default function SharePage() {
                     iconClassName="h-4 w-4"
                   />
                   {/* Their own things the lists hold, beside the handle that proves them: a GitHub account. */}
-                  {pubkey && <PersonMarks pubkey={pubkey} nip05={profile.nip05} />}
+                  {pubkey && <PersonMarks pubkey={pubkey} nip05={profile.nip05} website={profile.website} />}
                   {/* "Follows you" is a fact about the two of you, not an action — it
                 sits with the identity, beside the handle, where X, Bluesky and
                 Mastodon put it (Benjamin, 2026-09-08: in the button row it read
