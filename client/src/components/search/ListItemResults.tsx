@@ -3,6 +3,9 @@
  * "github vcavallo" — shows the items the rest of the words find, above
  * People, as the cards the list's own definition draws (DListItemCard).
  *
+ * Matched against what the cards show, the tier-three reading included, so a
+ * list whose header declares no fields (Books) is still found by its titles.
+ *
  * For everyone, signed in or not (the team, 2026-10-05): the results are the
  * value, while Settings › Dictionary, the page about the lists, stays
  * admin-only. A signed-out visitor reads Brainstorm's definitions (ADR 0004).
@@ -11,12 +14,14 @@
  * are the ones the Dictionary reads, fetched only once the words name their
  * list.
  */
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { DListItemCard } from "@/components/dictionary/DListItemCard";
 import { Section } from "@/components/search/sections";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useDictionary } from "@/hooks/useDictionary";
+import { PresentationOverrideContext } from "@/hooks/useItemView";
+import { presentItem } from "@/lib/itemPresentation";
 import { listQueryOf, matchListItems } from "@/lib/listSearch";
 import type { SearchTab } from "@/services/search";
 
@@ -42,10 +47,18 @@ export function ListItemResults({ query, onTabChange }: { query: string; onTabCh
   const items = useConceptItems(entry, !!entry);
 
   const definition = entry?.resolved?.governing;
-  const found = useMemo(
-    () => (asked && definition && items.data ? matchListItems(items.data, definition, asked.words, MAX_ITEMS) : []),
-    [asked, definition, items.data],
-  );
+  // Matched against what the cards show: a view that reads an item its own way (a book's title and
+  // author from its own tags) is the override tier two leaves open (hooks/useItemView).
+  const override = useContext(PresentationOverrideContext);
+  const found = useMemo(() => {
+    const resolved = entry?.resolved;
+    if (!asked || !definition || !resolved || !items.data) return [];
+    const read = (item: { tags: string[][] }) => {
+      const shown = presentItem(item, definition);
+      return override ? override(item, resolved, shown) : shown;
+    };
+    return matchListItems(items.data, definition, asked.words, MAX_ITEMS, read);
+  }, [asked, definition, entry, items.data, override]);
 
   if (!definition || found.length === 0) return null;
   return (

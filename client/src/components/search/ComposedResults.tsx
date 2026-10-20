@@ -719,7 +719,7 @@ function ComposedResultsBody({
         </p>
       )}
 
-      {/* A search that names a list — "github vcavallo" — leads with its items. Admins only for now. */}
+      {/* A search that names a list — "github vcavallo" — leads with its items, for everyone. */}
       <ListItemResults query={query} onTabChange={onTabChange} />
 
       {peopleOrdered.length === 0 && stillLoading(peopleF) && (

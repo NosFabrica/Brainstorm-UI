@@ -39,6 +39,7 @@ import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { HighlightQuote } from "@/components/share/HighlightQuote";
 
 const THUMB = "h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800";
+const COVER = "h-20 w-[3.375rem] shrink-0 rounded-md bg-slate-100 object-cover shadow-sm dark:bg-slate-800";
 
 /** The words that name an event: its title, or what it says with its links left out. */
 function wordsOf(target: NostrEvent): string | undefined {
@@ -83,6 +84,8 @@ export const AllResultRow = memo(function AllResultRow({
   query,
   summary = summaryOf(event),
   target = null,
+  kindName,
+  portrait = false,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -96,6 +99,10 @@ export const AllResultRow = memo(function AllResultRow({
   summary?: ResultSummary;
   /** The event `summary.ref` names, once the list has resolved it. */
   target?: NostrEvent | null;
+  /** What the row is, when its list names it ("Book") — in place of the kind's own label. */
+  kindName?: string;
+  /** The picture is a cover: a portrait tile, as on a shelf. */
+  portrait?: boolean;
 }) {
   const tierRing = useTierRing();
   const speed = useConnectionSpeed();
@@ -140,7 +147,7 @@ export const AllResultRow = memo(function AllResultRow({
             title={`kind ${event.kind}`}
             data-testid="all-row-kind"
           >
-            {kindLabel(event)}
+            {kindName ?? kindLabel(event)}
           </Chip>
         </div>
         <div className="mt-1.5 flex items-start gap-3.5">
@@ -218,7 +225,7 @@ export const AllResultRow = memo(function AllResultRow({
               loading="lazy"
               // A dead poster (flare's expired thumbnails) gives way to the clip's own first frame.
               fallback={firstFrame}
-              className={THUMB}
+              className={portrait ? COVER : THUMB}
               data-testid="all-row-thumb"
             />
           ) : (

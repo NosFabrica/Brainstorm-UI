@@ -53,18 +53,22 @@ export function listQueryOf(query: string, lists: readonly NamedList[]): ListQue
 /**
  * The items every word is found in, best first: a title that starts with
  * the words, then a title holding them, then the summary. Ties keep the
- * order given.
+ * order given. `read` is how the cards read an item — by default the
+ * definition's hints; a view that draws the item its own way (a book's title
+ * and author from its own tags) passes its reading, so the words are matched
+ * against what the card shows.
  */
 export function matchListItems<T extends { tags: string[][] }>(
   items: readonly T[],
   definition: ConceptDefinition,
   words: readonly string[],
   max = 3,
+  read: (item: T) => { title?: string | null; summary?: string | null } = (item) => presentItem(item, definition),
 ): T[] {
   if (!words.length) return [];
   const ranked: { item: T; rank: number }[] = [];
   for (const item of items) {
-    const shown = presentItem(item, definition);
+    const shown = read(item);
     const title = (shown.title ?? "").toLowerCase();
     const both = `${title} ${(shown.summary ?? "").toLowerCase()}`;
     if (!words.every((w) => both.includes(w))) continue;

@@ -92,3 +92,42 @@ describe("matchListItems — the items the words find", () => {
     expect(matchListItems(items, definition, ["vcavallo"], 2).map((i) => i.id)).toEqual(["2", "3"]);
   });
 });
+
+// A list whose header declares no fields still has items that read as something: the view that
+// draws them says what they show (a book's title and author from its own tags). Search finds them
+// by that reading — what the card shows is what the words are matched against.
+describe("matchListItems — through the reading the cards show", () => {
+  const bare = definitionOf({
+    ...header,
+    tags: [
+      ["d", "books"],
+      ["names", "Book", "Books"],
+    ],
+  });
+  const book = (id: string, title: string, author: string) => ({
+    id,
+    pubkey: "c".repeat(64),
+    kind: 39999,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["z", BOOKS],
+      ["name", title],
+      ["author", author],
+    ],
+  });
+  const books = [book("1", "Dune", "Frank Herbert"), book("2", "The Hobbit", "J. R. R. Tolkien")];
+  const reading = (it: { tags: string[][] }) => ({
+    title: it.tags.find((t) => t[0] === "name")?.[1] ?? null,
+    summary: it.tags.find((t) => t[0] === "author")?.[1] ?? null,
+  });
+
+  it("finds nothing by the bare header's reading, which shows no title", () => {
+    expect(matchListItems(books, bare, ["dune"])).toEqual([]);
+  });
+
+  it("finds a book by its title or its author when given the cards' reading", () => {
+    expect(matchListItems(books, bare, ["dune"], 3, reading).map((i) => i.id)).toEqual(["1"]);
+    expect(matchListItems(books, bare, ["tolkien"], 3, reading).map((i) => i.id)).toEqual(["2"]);
+  });
+});

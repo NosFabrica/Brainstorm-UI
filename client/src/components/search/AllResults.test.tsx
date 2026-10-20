@@ -51,6 +51,14 @@ vi.mock("@/services/authorProfileQueue", () => ({
   },
 }));
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
+// How a list item reads through its own definition (hooks/useItemView): the concept and its reading,
+// looked up per item — here, a book on the Books list.
+const itemViews = vi.hoisted(() => new Map<string, unknown>());
+vi.mock("@/hooks/useItemView", async (orig) => ({
+  ...(await orig<typeof import("@/hooks/useItemView")>()),
+  useItemView: (item: { id?: string }) =>
+    itemViews.get(item.id ?? "") ?? { resolved: null, shown: null, pending: true },
+}));
 
 import { AllResults } from "./AllResults";
 
@@ -61,6 +69,7 @@ const ev = (id: string, kind: number, tags: string[][] = [], content = "", pubke
 const hit = (event: NostrEvent) => ({ event, author: null, rank: null });
 
 beforeEach(() => {
+  itemViews.clear();
   held.clear();
   liveProfiles.clear();
   askedProfiles.mockClear();
@@ -227,5 +236,39 @@ describe("AllResults", () => {
     const rsvp = ev("x".repeat(64), 31925, [["status", "constructor"]]);
     render(<AllResults hits={[hit(rsvp)]} settled scoreOf={() => null} query="" />);
     expect(screen.getByTestId(`all-row-${rsvp.id}`)).toHaveTextContent("Replied");
+  });
+});
+
+// A list item reads as its list draws it — a book's title, author and cover, named a Book — not
+// as "List item" with whatever short tags it carries.
+describe("a list item on the All tab", () => {
+  const COVER = "https://covers.openlibrary.org/b/id/1-L.jpg";
+  const dune = ev("d".repeat(64), 39999, [
+    ["z", "39998:x:books"],
+    ["name", "Dune"],
+    ["author", "Frank Herbert"],
+    ["isbn", "9780441172719"],
+  ]);
+
+  it("reads as its definition draws it: title, author, cover, and what it is", () => {
+    itemViews.set(dune.id, {
+      resolved: { governing: { singular: "Book" } },
+      shown: { title: "Dune", summary: "Frank Herbert", image: COVER, imageShape: "portrait" },
+      pending: false,
+    });
+    render(<AllResults hits={[hit(dune)]} settled scoreOf={() => null} query="dune" />);
+    const row = screen.getByTestId(`all-row-${dune.id}`);
+    expect(row.querySelector('[data-testid="all-row-title"]')).toHaveTextContent("Dune");
+    expect(row.querySelector('[data-testid="all-row-body"]')).toHaveTextContent("Frank Herbert");
+    expect(row.querySelector('[data-testid="all-row-kind"]')).toHaveTextContent("Book");
+    expect(row.querySelector(`img[src="${COVER}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent("9780441172719");
+  });
+
+  it("reads as its tags say while its definition is looked up", () => {
+    render(<AllResults hits={[hit(dune)]} settled scoreOf={() => null} query="dune" />);
+    expect(screen.getByTestId(`all-row-${dune.id}`).querySelector('[data-testid="all-row-kind"]')).toHaveTextContent(
+      "List item",
+    );
   });
 });

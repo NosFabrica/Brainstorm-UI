@@ -134,6 +134,11 @@ vi.mock("@/hooks/useSearchTags", () => ({
   },
 }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+// Offline: a list item's definition is never looked up, so it reads as its tags say (AllResults).
+vi.mock("@/hooks/useItemView", async (orig) => ({
+  ...(await orig<typeof import("@/hooks/useItemView")>()),
+  useItemView: () => ({ resolved: null, shown: null, pending: true }),
+}));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
 const ratesMock = vi.fn<() => Record<string, number> | null>(() => TEST_RATES);
