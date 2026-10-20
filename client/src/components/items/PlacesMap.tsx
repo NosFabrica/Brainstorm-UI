@@ -7,6 +7,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Maximize2, Minus, Plus } from "lucide-react";
 
+/** What a map shows, edge to edge: the area a search of it asks for. */
+export interface MapView {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export interface MapPin {
   lat: number;
   lon: number;
@@ -53,6 +61,8 @@ export function PlacesMap({
   onEvent,
   controls = false,
   onOpen,
+  onMoved,
+  view = null,
 }: {
   pins: MapPin[];
   className?: string;
@@ -69,7 +79,19 @@ export function PlacesMap({
   controls?: boolean;
   /** A still map, a glance: tapped, it opens where the map can be worked (the Top page's preview). */
   onOpen?: () => void;
+  /** The reader moved the map — dragged, zoomed, pinched — to show this; never the map framing itself. */
+  onMoved?: (view: MapView) => void;
+  /** An area to show instead of framing the pins: the one a search of the map's area asked for. */
+  view?: MapView | null;
 }) {
+  const onMovedRef = useRef(onMoved);
+  onMovedRef.current = onMoved;
+  // Set by the reader's own gestures and spent by the move they make, so the map's framing of
+  // itself (a filter's new places, Show all) never reads as the reader moving it.
+  const readerMoving = useRef(false);
+  const byReader = () => {
+    readerMoving.current = true;
+  };
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const home = useRef<import("leaflet").LatLngBounds | null>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -85,6 +107,7 @@ export function PlacesMap({
   // What the view was last framed on: refit when the places change (a filter), not when a
   // town's events arrive after them, so a map the reader has moved stays where they left it.
   const framedOn = useRef<string | null>(null);
+  const pendingFrame = useRef<(() => void) | null>(null);
   const [ready, setReady] = useState(false);
   const key = pins.map((p) => `${p.lat},${p.lon},${p.label ?? ""},${p.id ?? ""}`).join("|");
   const placesKey = pins
@@ -127,13 +150,30 @@ export function PlacesMap({
           attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors",
         }).addTo(map);
         layer.current = L.layerGroup().addTo(map);
+        map.on("dragstart", byReader);
+        map.on("moveend", () => {
+          if (!readerMoving.current || !map) return;
+          readerMoving.current = false;
+          const b = map.getBounds();
+          onMovedRef.current?.({ south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() });
+        });
+        const el = host.current;
+        el.addEventListener("wheel", byReader, { passive: true });
+        el.addEventListener("dblclick", byReader);
+        el.addEventListener("touchstart", (e) => e.touches.length > 1 && byReader(), { passive: true });
         setReady(true);
       } catch {
         /* no map: the list stands on its own */
       }
     })();
     // A box that changes size (a layout switch, a phone turned) keeps its map whole, no reload.
-    const resized = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => map?.invalidateSize()) : null;
+    const resized =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            map?.invalidateSize();
+            if (map && map.getSize().x > 0) pendingFrame.current?.();
+          })
+        : null;
     if (host.current) resized?.observe(host.current);
     return () => {
       cancelled = true;
@@ -194,15 +234,32 @@ export function PlacesMap({
           .addTo(group);
       }
     }
-    if (pins.length === 0 || framedOn.current === placesKey) return;
+    const frameKey = view ? `view:${view.south},${view.west},${view.north},${view.east}` : placesKey;
+    if (framedOn.current === frameKey || (!view && pins.length === 0)) return;
     // Framed on the places: a town's events further out show when the reader pans.
     const places = pins.filter((p) => p.kind !== "event");
     const framed = places.length > 0 ? places : pins;
-    home.current = L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number]));
-    // The first framing jumps; a change of places glides there.
-    map.fitBounds(home.current, { padding: [24, 24], maxZoom: 14, animate: framedOn.current !== null });
-    framedOn.current = placesKey;
-  }, [key, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (framed.length > 0) home.current = L.latLngBounds(framed.map((p) => [p.lat, p.lon] as [number, number]));
+    // The first framing jumps; a change of places glides there. An area searched is shown as it was.
+    const frame = () => {
+      pendingFrame.current = null;
+      readerMoving.current = false;
+      const animate = framedOn.current !== null;
+      if (view)
+        map.fitBounds(
+          [
+            [view.south, view.west],
+            [view.north, view.east],
+          ],
+          { animate },
+        );
+      else if (home.current) map.fitBounds(home.current, { padding: [24, 24], maxZoom: 14, animate });
+      framedOn.current = frameKey;
+    };
+    // A box with no size yet (hidden, or not laid out) can't be framed: it frames once it has one.
+    if (map.getSize().x === 0) pendingFrame.current = frame;
+    else frame();
+  }, [key, ready, view?.south, view?.west, view?.north, view?.east]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The lit pin wears the larger face and sits on top; the rest go back to theirs.
   useEffect(() => {
@@ -225,7 +282,7 @@ export function PlacesMap({
 
   return (
     <div
-      hidden={pins.length === 0}
+      hidden={pins.length === 0 && !view}
       className={`relative isolate z-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[9px] dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)] ${className}`}
       data-testid="places-map"
     >
@@ -242,21 +299,34 @@ export function PlacesMap({
         <div className="absolute right-3 top-1/2 z-[500] flex -translate-y-1/2 flex-col gap-2">
           {/* Touch pinches: + and − only where there's a mouse. */}
           <div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-slate-900 [@media(pointer:coarse)]:hidden">
-            <MapButton label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>
+            <MapButton
+              label="Zoom in"
+              onClick={() => {
+                byReader();
+                mapRef.current?.zoomIn();
+              }}
+            >
               <Plus className="h-4 w-4" aria-hidden />
             </MapButton>
             <span className="h-px bg-slate-200 dark:bg-slate-700" />
-            <MapButton label="Zoom out" onClick={() => mapRef.current?.zoomOut()}>
+            <MapButton
+              label="Zoom out"
+              onClick={() => {
+                byReader();
+                mapRef.current?.zoomOut();
+              }}
+            >
               <Minus className="h-4 w-4" aria-hidden />
             </MapButton>
           </div>
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md dark:border-slate-700 dark:bg-slate-900">
             <MapButton
               label="Show all places"
-              onClick={() =>
-                home.current &&
-                mapRef.current?.flyToBounds(home.current, { padding: [24, 24], maxZoom: 14, duration: 0.6 })
-              }
+              onClick={() => {
+                readerMoving.current = false;
+                if (home.current)
+                  mapRef.current?.flyToBounds(home.current, { padding: [24, 24], maxZoom: 14, duration: 0.6 });
+              }}
             >
               <Maximize2 className="h-4 w-4" aria-hidden />
             </MapButton>

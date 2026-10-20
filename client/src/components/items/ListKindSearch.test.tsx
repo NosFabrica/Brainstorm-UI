@@ -117,7 +117,9 @@ vi.mock("@/hooks/useConceptItems", () => ({
     return { data: e && enabled ? itemsOf[e.communityCoordinate] : undefined, isPending: false };
   },
 }));
-// The map draws tiles from the network: its pins are its props here.
+// The map draws tiles from the network: its pins are its props here, and "move map" stands in
+// for the reader panning or zooming it to `mapMove.view`.
+const mapMove = vi.hoisted(() => ({ view: { south: 0, west: 0, north: 0, east: 0 } }));
 vi.mock("@/components/items/PlacesMap", () => ({
   PlacesMap: ({
     pins,
@@ -125,12 +127,14 @@ vi.mock("@/components/items/PlacesMap", () => ({
     onPin,
     onEvent,
     onOpen,
+    onMoved,
   }: {
     pins: { name: string; label?: string; kind?: string; id?: string }[];
     highlight?: string | null;
     onPin?: (label: string) => void;
     onEvent?: (id: string) => void;
     onOpen?: () => void;
+    onMoved?: (view: typeof mapMove.view) => void;
   }) => (
     <div
       data-testid="places-map"
@@ -148,6 +152,11 @@ vi.mock("@/components/items/PlacesMap", () => ({
       {onOpen && (
         <button type="button" onClick={onOpen}>
           Open the map
+        </button>
+      )}
+      {onMoved && (
+        <button type="button" onClick={() => onMoved(mapMove.view)}>
+          move map
         </button>
       )}
       {pins.map((p) =>
@@ -181,10 +190,18 @@ vi.mock("@/hooks/useMyFollows", () => ({
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 // A town's events, as the search relay answers for its name (kinds 31922/31923).
-const townEvents = vi.hoisted(() => ({ list: [] as unknown[], asked: [] as string[] }));
+const townEvents = vi.hoisted(() => ({
+  list: [] as unknown[],
+  asked: [] as string[],
+  areaAsked: [] as { cells: string[]; town: string | null }[],
+}));
 vi.mock("@/services/townEvents", () => ({
   fetchTownEvents: async (town: string) => {
     townEvents.asked.push(town);
+    return townEvents.list;
+  },
+  fetchAreaEvents: async (cells: string[], town: string | null) => {
+    townEvents.areaAsked.push({ cells, town });
     return townEvents.list;
   },
 }));
@@ -1034,5 +1051,135 @@ describe("the Places preview's map", () => {
     renderWithProviders(<places.Preview query="coffee" slot="follow" named={false} onSeeAll={seeAll} />);
     fireEvent.click(screen.getByRole("button", { name: "Open the map" }));
     expect(seeAll).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Moving the map offers to search where it now shows: the words' places in that view, the town
+// they named dropped — "cafe sarasota" panned to Lido Key finds Lido Key's cafes too.
+describe("searching the map's area", () => {
+  const sarasota = [
+    place("Bean", "cafe", "Sarasota", [], ["27.33", "-82.53"]),
+    place("Brew", "cafe", "Sarasota", [], ["27.34", "-82.54"]),
+    place("Far Cup", "cafe", "Sarasota", [], ["27.50", "-82.60"]),
+    place("Il Sole", "restaurant", "Sarasota", [], ["27.335", "-82.535"]),
+    place("Lido Cafe", "cafe", "Lido Key", [], ["27.32", "-82.55"]),
+  ];
+  const names = () => screen.getAllByTestId("kind-page-item").map((r) => r.querySelector("a")?.textContent);
+
+  it("offers Search this area once the map moves, and finds the words' places there", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    mapMove.view = { south: 27.3, west: -82.56, north: 27.36, east: -82.5 };
+    try {
+      page("places", "cafe sarasota");
+      expect(names()).toEqual(["Bean", "Brew", "Far Cup"]);
+      expect(screen.queryByRole("button", { name: "Search this area" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      fireEvent.click(screen.getByRole("button", { name: "Search this area" }));
+      expect(names().sort()).toEqual(["Bean", "Brew", "Lido Cafe"]);
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/^3 places in this area/);
+      expect(screen.queryByRole("button", { name: "Search this area" })).toBeNull();
+      // The area is a filter like any other: its chip puts the town's search back.
+      fireEvent.click(screen.getByRole("button", { name: "In this area" }));
+      expect(names()).toEqual(["Bean", "Brew", "Far Cup"]);
+    } finally {
+      itemsOf[PLACES] = was;
+    }
+  });
+
+  it("keeps the area in the link: a shared link opens on it, and Back returns to it", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    const AREA = "area=27.3000,-82.5600,27.3600,-82.5000";
+    window.history.replaceState({}, "", `/?q=cafe+sarasota&t=places&${AREA}`);
+    try {
+      page("places", "cafe sarasota");
+      expect(names().sort()).toEqual(["Bean", "Brew", "Lido Cafe"]);
+      fireEvent.click(screen.getByRole("button", { name: "In this area" }));
+      expect(window.location.search).not.toContain("area=");
+      expect(names()).toEqual(["Bean", "Brew", "Far Cup"]);
+      // Back: the link has the area again, and so does the page.
+      act(() => {
+        window.history.replaceState({}, "", `/?q=cafe+sarasota&t=places&${AREA}`);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      expect(names().sort()).toEqual(["Bean", "Brew", "Lido Cafe"]);
+      // Searching an area writes it to the link.
+      fireEvent.click(screen.getByRole("button", { name: "In this area" }));
+      mapMove.view = { south: 27.31, west: -82.555, north: 27.345, east: -82.52 };
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      fireEvent.click(screen.getByRole("button", { name: "Search this area" }));
+      expect(window.location.search).toContain("area=27.3100,-82.5550,27.3450,-82.5200");
+    } finally {
+      itemsOf[PLACES] = was;
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("pins the events in the area: asked for by its cells and the town, kept to those inside it", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    const soon = Math.floor(Date.now() / 1000) + 3600;
+    const event = (id: string, title: string, g: string[]) => ({
+      id: id.repeat(64),
+      kind: 31923,
+      pubkey: "e".repeat(64),
+      created_at: 1,
+      content: "",
+      tags: [["d", id], ["title", title], ["start", String(soon)], ...g.map((h) => ["g", h])],
+    });
+    // One on the riverwalk inside the area, tagged at three precisions; one up the coast in St. Petersburg.
+    townEvents.list = [
+      event("a", "Riverwalk meetup", ["dhv73zr", "dhv73z", "dhv73"]),
+      event("b", "St. Pete market", ["dhvn5"]),
+    ];
+    mapMove.view = { south: 27.3, west: -82.56, north: 27.36, east: -82.5 };
+    try {
+      page("places", "cafe sarasota");
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      fireEvent.click(screen.getByRole("button", { name: "Search this area" }));
+      await waitFor(() => expect(screen.getByTestId("places-map")).toHaveAttribute("data-events", "Riverwalk meetup"));
+      expect(townEvents.areaAsked.at(-1)).toEqual({ cells: ["dhv73", "dhv76", "dhv79", "dhv7d"], town: "Sarasota" });
+    } finally {
+      itemsOf[PLACES] = was;
+      townEvents.list = [];
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("drops the area when the words change: it belonged to the search before", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    window.history.replaceState({}, "", "/?q=cafe+sarasota&t=places&area=27.3000,-82.5600,27.3600,-82.5000");
+    try {
+      const places = LIST_KINDS.find((k) => k.key === "places")!;
+      const { rerender } = page("places", "cafe sarasota");
+      expect(screen.getByRole("button", { name: "In this area" })).toBeInTheDocument();
+      // A new search writes its own link, with no area in it.
+      window.history.replaceState({}, "", "/?q=restaurant+sarasota&t=places");
+      rerender(<places.Page query="restaurant sarasota" />);
+      expect(screen.queryByRole("button", { name: "In this area" })).toBeNull();
+      expect(names()).toEqual(["Il Sole"]);
+    } finally {
+      itemsOf[PLACES] = was;
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("finds a place in the area wherever it sits in the list, past the first five hundred", () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = [
+      ...Array.from({ length: 501 }, (_, i) => place(`Far ${i}`, "cafe", "Tampa", [], ["27.95", "-82.46"])),
+      place("Bean", "cafe", "Sarasota", [], ["27.33", "-82.53"]),
+    ];
+    // No words left to match ("austin" panned away from is the town, dropped): the area alone decides.
+    window.history.replaceState({}, "", "/?t=places&area=27.3000,-82.5600,27.3600,-82.5000");
+    try {
+      page("places", "");
+      expect(names()).toEqual(["Bean"]);
+    } finally {
+      itemsOf[PLACES] = was;
+      window.history.replaceState({}, "", "/");
+    }
   });
 });

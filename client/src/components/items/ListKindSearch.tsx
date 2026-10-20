@@ -23,6 +23,7 @@ import {
   MapPin as PinIcon,
   Navigation,
   Phone,
+  Search,
   Store,
   X,
 } from "lucide-react";
@@ -46,11 +47,12 @@ import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
 import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
-import { PlacesMap, type MapPin } from "@/components/items/PlacesMap";
+import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
 import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
-import { fetchTownEvents } from "@/services/townEvents";
+import { fetchAreaEvents, fetchTownEvents } from "@/services/townEvents";
+import { cellsCovering } from "@/lib/geohash";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 
@@ -78,7 +80,14 @@ function useKindHits(
     browse = false,
     typing = false,
     titleOnly = false,
-  }: { browse?: boolean; typing?: boolean; titleOnly?: boolean } = {},
+    within = null,
+  }: {
+    browse?: boolean;
+    typing?: boolean;
+    titleOnly?: boolean;
+    /** Places inside this area only, kept before anything is matched or counted (Search this area). */
+    within?: MapView | null;
+  } = {},
 ): { hits: KindHit[]; pending: boolean } {
   const dictionary = useDictionary(true, { anonymous: true });
   const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
@@ -89,10 +98,13 @@ function useKindHits(
     if (!resolved || !items.data || (!browse && words.length === 0)) return [];
     const definition = resolved.governing;
     const read = (item: { tags: string[][] }) => tierThreePresentation(item, resolved, presentItem(item, definition));
+    const pool = within
+      ? (items.data as Item[]).filter((item) => inView(placeOf(item, definition), within))
+      : (items.data as Item[]);
     const found =
       words.length > 0
-        ? matchListItems(items.data as Item[], definition, words, max, read, { typing, titleOnly })
-        : (items.data as Item[]).filter((item) => read(item).title).slice(0, max);
+        ? matchListItems(pool, definition, words, max, read, { typing, titleOnly })
+        : pool.filter((item) => read(item).title).slice(0, max);
     const hits = found.map((item) => {
       const shown = read(item);
       return {
@@ -110,7 +122,7 @@ function useKindHits(
       ...h,
       copies: copies.map((id) => ({ id, address: addressOf.get(id) ?? null })),
     }));
-  }, [resolved, items.data, words, max, view, browse, typing, titleOnly]);
+  }, [resolved, items.data, words, max, view, browse, typing, titleOnly, within]);
   return { hits, pending: dictionary.isPending || (!!entry && items.isPending) };
 }
 
@@ -422,17 +434,26 @@ const linesOf = (hits: KindHit[]) =>
  * A town's upcoming events that say where they are and sit near its places,
  * as map pins (lib/eventPins); none when the words name no town.
  */
-function useTownEventPins(town: string | null, placePins: { lat: number; lon: number }[]): TownEventPin[] {
+function useTownEventPins(
+  town: string | null,
+  placePins: { lat: number; lon: number }[],
+  /** A searched area: its events instead, asked for by its cells and the town (fetchAreaEvents). */
+  area: MapView | null = null,
+): TownEventPin[] {
   const events = useQuery({
-    queryKey: ["town-events", town],
-    queryFn: () => fetchTownEvents(town!),
-    enabled: !!town,
+    queryKey: area ? ["area-events", area, town] : ["town-events", town],
+    queryFn: () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
+    enabled: !!area || !!town,
     staleTime: 5 * 60_000,
   });
-  if (!town || !events.data) return [];
+  if ((!area && !town) || !events.data) return [];
   const byId = new Map(events.data.map((ev) => [ev.id, ev]));
   return eventPins(events.data, Math.floor(Date.now() / 1000))
-    .filter((e) => pinsAreLocal([...placePins, e]))
+    .filter((e) =>
+      area
+        ? e.lat >= area.south && e.lat <= area.north && e.lon >= area.west && e.lon <= area.east
+        : pinsAreLocal([...placePins, e]),
+    )
     .slice(0, 10)
     .map((e) => {
       const ev = byId.get(e.id)!;
@@ -836,9 +857,87 @@ const isOpenNow = (place: Place | null) => {
   return week && Number.isFinite(lon) ? openingStatus(week, placeLocalMinutes(lon, new Date())).open : false;
 };
 
+const inView = (place: Place | null, v: MapView) => {
+  const lat = Number(place?.lat);
+  const lon = Number(place?.lon);
+  return (
+    Number.isFinite(lat) && Number.isFinite(lon) && lat >= v.south && lat <= v.north && lon >= v.west && lon <= v.east
+  );
+};
+
+const sameView = (a: MapView | null, b: MapView | null) =>
+  !!a && !!b && a.south === b.south && a.west === b.west && a.north === b.north && a.east === b.east;
+
+/** The area in the link: `area=south,west,north,east`. */
+function areaFromUrl(): MapView | null {
+  try {
+    const [south, west, north, east] = (new URLSearchParams(window.location.search).get("area") ?? "")
+      .split(",")
+      .map(Number);
+    return [south, west, north, east].every(Number.isFinite) && north > south && east > west
+      ? { south, west, north, east }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A searched area becomes a step in history, so Back returns to the search before it. */
+function writeAreaToUrl(v: MapView | null) {
+  try {
+    const url = new URL(window.location.href);
+    if (v) url.searchParams.set("area", [v.south, v.west, v.north, v.east].map((n) => n.toFixed(4)).join(","));
+    else url.searchParams.delete("area");
+    // Commas stay commas: a link people share reads "area=30.2,-97.8,30.3,-97.7".
+    window.history.pushState({}, "", url.pathname + url.search.replace(/%2C/gi, ","));
+  } catch {
+    /* the link is a convenience, never a blocker */
+  }
+}
+
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
 function PlacesPage({ query }: { query: string }) {
-  const { hits: found, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
+  const words = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  const { hits: townFound, pending } = useKindHits("place", query, PAGE_MAX, { browse: true });
+  const town = townNamed(
+    words,
+    townFound.map((h) => ({ locality: h.place?.locality ?? null })),
+  );
+  // The area of the map searched (Search this area), kept in the link so Back, a refresh and a
+  // shared link come back to it. Its search is the words without the town: the map says where.
+  const [area, setAreaState] = useState<MapView | null>(areaFromUrl);
+  const [moved, setMoved] = useState<MapView | null>(null);
+  // New words are a new search: the area went with the old ones (the link a search writes has none).
+  const firstQuery = useRef(query);
+  useEffect(() => {
+    if (query === firstQuery.current) return;
+    firstQuery.current = query;
+    setAreaState(areaFromUrl());
+    setMoved(null);
+  }, [query]);
+  useEffect(() => {
+    const back = () => setAreaState(areaFromUrl());
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
+  const setArea = (next: MapView | null) => {
+    writeAreaToUrl(next);
+    setAreaState(next);
+    setMoved(null);
+    setPicked(null);
+    setPickedEvent(null);
+  };
+  const townWords = new Set((town ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u));
+  const areaWords = words.filter((w) => !townWords.has(w)).join(" ");
+  // The words' places inside the area, however far down the list they sit.
+  const { hits: areaFound } = useKindHits("place", area ? areaWords : "", area ? PAGE_MAX : 0, {
+    browse: true,
+    within: area,
+  });
+  const found = area ? areaFound : townFound;
   const { rated: hits, lineOf, ratingLine, starsOf } = useRatedPlaces(found);
   const [filter, setFilter] = useState<PlaceFilter>({ category: null, openNow: false });
   const [sort, setSort] = useState<PlaceSort>("best");
@@ -878,20 +977,14 @@ function PlacesPage({ query }: { query: string }) {
   // Stars alone can only reorder once two places have them.
   const sortable = hits.filter((h) => starsOf(h) > 0).length >= 2;
   const shown = sortable && sort === "rated" ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a)) : narrowed;
-  const town = townNamed(
-    query
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter(Boolean),
-    found.map((h) => ({ locality: h.place?.locality ?? null })),
-  );
   const openCount = hits.filter((h) => isOpenNow(h.place)).length;
   const lines = linesOf(shown);
   const pins = pinsOf(shown);
-  const map = pinsAreLocal(pins);
+  // An area searched keeps its map, places or none, so the reader can move on from it.
+  const map = !!area || pinsAreLocal(pins);
   // A town's upcoming events near its places share the map, as on the Top page's preview.
-  const events = useTownEventPins(map ? town : null, pins);
-  if (hits.length === 0) return <PageEmpty pending={pending} label="Places" query={query} />;
+  const events = useTownEventPins(map ? town : null, pins, area);
+  if (hits.length === 0 && !area) return <PageEmpty pending={pending} label="Places" query={query} />;
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
     <button
       key={label}
@@ -914,7 +1007,23 @@ function PlacesPage({ query }: { query: string }) {
     </button>
   );
   const filtering = filter.openNow || filter.category != null;
-  const clearFilters = () => setFilter({ category: null, openNow: false });
+  const clearFilters = () => {
+    setFilter({ category: null, openNow: false });
+    if (area) setArea(null);
+  };
+  // Offered once the reader has moved the map somewhere other than the area it shows.
+  const searchHere = (top: string) =>
+    moved &&
+    !sameView(moved, area) && (
+      <button
+        type="button"
+        onClick={() => setArea(moved)}
+        className={`absolute left-1/2 ${top} z-[600] inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
+      >
+        <Search className="h-4 w-4" aria-hidden />
+        Search this area
+      </button>
+    );
   const allPins = [...pins, ...events];
   // Gone when a filter leaves it out; where it now sits when the order changes.
   const pickedAt = picked ? shown.findIndex((h) => h.id === picked) : -1;
@@ -929,7 +1038,7 @@ function PlacesPage({ query }: { query: string }) {
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="places-summary">
           {filtering && `${shown.length} of `}
           {hits.length >= PAGE_MAX ? `${PAGE_MAX}+` : hits.length} {hits.length === 1 ? "place" : "places"}
-          {town ? ` in ${town}` : ""}
+          {area ? " in this area" : town ? ` in ${town}` : ""}
           {!filtering && openCount > 0 && (
             <span className="font-medium text-emerald-600 dark:text-emerald-400"> · {openCount} open now</span>
           )}
@@ -953,6 +1062,7 @@ function PlacesPage({ query }: { query: string }) {
       </div>
       {/* One row that scrolls sideways on a phone, as a map app's chips do. */}
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
+        {area && chip("In this area", true, () => setArea(null))}
         {/* Only when it narrows: none open would empty the list, all open would change nothing. */}
         {(filter.openNow || (openCount > 0 && openCount < hits.length)) &&
           chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })), openCount)}
@@ -998,7 +1108,7 @@ function PlacesPage({ query }: { query: string }) {
           </ul>
           {shown.length === 0 && (
             <div className="space-y-2 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-              <p>No places match these filters.</p>
+              <p>{area && !filtering ? "No places in this area." : "No places match these filters."}</p>
               <button
                 type="button"
                 onClick={clearFilters}
@@ -1013,7 +1123,17 @@ function PlacesPage({ query }: { query: string }) {
           <div>
             {/* Sized to the first screen below the site header, so it never slides under it, short list or long. */}
             <div className="sticky top-20 h-[calc(100dvh-11rem)] min-h-[24rem]">
-              <PlacesMap pins={allPins} highlight={lit} onPin={tapPin} onEvent={tapEvent} controls className="h-full" />
+              <PlacesMap
+                pins={allPins}
+                highlight={lit}
+                onPin={tapPin}
+                onEvent={tapEvent}
+                onMoved={setMoved}
+                view={area}
+                controls
+                className="h-full"
+              />
+              {searchHere("top-3")}
               {eventPicked && (
                 <EventCard
                   event={eventPicked}
@@ -1059,6 +1179,8 @@ function PlacesPage({ query }: { query: string }) {
               pins={allPins}
               highlight={lit}
               onEvent={tapEvent}
+              onMoved={setMoved}
+              view={area}
               controls
               onPin={(label) => {
                 setLit(label);
@@ -1072,6 +1194,7 @@ function PlacesPage({ query }: { query: string }) {
             <div className="absolute inset-x-0 top-0 z-[500] bg-gradient-to-b from-white via-white/90 to-white/0 px-4 pb-6 pt-4 dark:from-slate-950 dark:via-slate-950/90 dark:to-slate-950/0">
               {header}
             </div>
+            {searchHere("top-28")}
           </div>
           <div className="relative z-[500] -mt-48 space-y-2 pb-4">
             {eventPicked && (
