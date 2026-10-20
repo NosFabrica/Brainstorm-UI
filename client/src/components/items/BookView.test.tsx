@@ -8,7 +8,7 @@
  * community header declares none, by their Open Library names (lib/books).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
@@ -85,7 +85,8 @@ vi.mock("@/hooks/useWotItems", () => ({
 vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set(), ready: true, signedIn: false }) }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
-// Reviews of the book (hooks/useBookReviews — signed comments with stars).
+// Reviews of the book (hooks/useBookReviews — the shared record, kind 34259 marked `book`), and their
+// star value through a lens (useBookRating): none unless a test says so.
 const reviews = vi.hoisted(() => ({
   list: [] as {
     id: string;
@@ -98,10 +99,13 @@ const reviews = vi.hoisted(() => ({
     rating: number | null;
   }[],
   post: { mutate: vi.fn(), isPending: false },
+  rating: null as null | { value: number; counted: number; lens: "you" | "curator" },
 }));
 vi.mock("@/hooks/useBookReviews", () => ({
   useBookReviews: () => ({ reviews: reviews.list, pending: false }),
   usePostBookReview: () => reviews.post,
+  useRemoveBookReview: () => ({ mutate: vi.fn(), isPending: false }),
+  useBookRating: () => reviews.rating,
 }));
 // What our origin knows from Open Library (services/openLibrary); nothing unless a test says so.
 const openLibrary = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
@@ -280,7 +284,9 @@ describe("reviews from people you trust", () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByTestId("book-review-stars")).toHaveAttribute("aria-label", "5 out of 5 stars");
     expect(rows[0]).toHaveTextContent("Gripping from the first page.");
-    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("Rated 4.5 by 2 people · 2 reviews");
+    // The star value is a lens's, and says whose; without one there's no number — never a plain average.
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("2 reviews");
+    expect(screen.getByTestId("book-trust-line")).not.toHaveTextContent("Rated");
     // Not signed in: no composer, a word about signing in.
     expect(screen.queryByTestId("book-review-composer")).toBeNull();
   });
@@ -293,7 +299,7 @@ describe("reviews from people you trust", () => {
     await userEvent.type(within(composer).getByRole("textbox"), "Dense but worth it.");
     await userEvent.click(within(composer).getByRole("button", { name: "Post review" }));
     expect(reviews.post.mutate).toHaveBeenCalledWith(
-      { text: "Dense but worth it.", rating: 4, price: null, paid: null, photos: [] },
+      { draft: { text: "Dense but worth it.", rating: 4 }, previous: undefined },
       expect.anything(),
     );
   });
@@ -335,7 +341,43 @@ describe("a book is recommended, not vouched for", () => {
       },
     ];
     renderWithProviders(<Page event={storm} />);
-    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("Rated 4.0 by 2 people · 1 review");
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("1 review");
+    expect(screen.getByTestId("book-trust-line")).not.toHaveTextContent("Rated");
+  });
+
+  // The books contract's section 8: the value through the reader's own lens when someone they trust
+  // gave stars, else the curator's, and it says whose; a plain average of everyone is never shown.
+  it("shows the star value through a lens and says whose it is", () => {
+    reviews.list = [
+      {
+        id: "1".padEnd(64, "0"),
+        pubkey: "a".repeat(64),
+        at: 1,
+        text: "Gripping.",
+        photos: [],
+        price: null,
+        paid: null,
+        rating: 5,
+      },
+      {
+        id: "2".padEnd(64, "0"),
+        pubkey: "b".repeat(64),
+        at: 2,
+        text: "",
+        photos: [],
+        price: null,
+        paid: null,
+        rating: 4,
+      },
+    ];
+    reviews.rating = { value: 4.5, counted: 2, lens: "you" };
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("Rated 4.5 by 2 people you trust · 1 review");
+    cleanup();
+    reviews.rating = { value: 4.0, counted: 1, lens: "curator" };
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("Rated 4.0 by 1 person the list's curator trusts");
+    reviews.rating = null;
   });
 
   it("the book first, then the people: About and the subjects sit above who recommends it", () => {

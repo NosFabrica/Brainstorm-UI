@@ -110,3 +110,29 @@ describe("which relays a tag publish reaches", () => {
     expect(await pin()).toEqual([HUB]);
   });
 });
+
+// A review (kind 34259) is not a list event: the hub refuses it. It goes to the reviewer's own write
+// relays and the index, where the other apps read reviews (the places and books contracts).
+describe("which relays a review publish reaches", () => {
+  const INDEX = "wss://search.example/";
+  const review = { id: "9".repeat(64), kind: 34259, pubkey: VIEWER, created_at: 1, content: "", tags: [], sig: "s" };
+  const publish = async () => {
+    const { publishToOutbox } = await import("./tags");
+    const { resetRelayRoutingCache } = await import("@/lib/relayRouting");
+    resetRelayRoutingCache();
+    await publishToOutbox(review, [INDEX]);
+    return published.relays[0] ?? [];
+  };
+
+  it("is the author's own write relays and the index, never the hub", async () => {
+    store.held.set(`10002:${VIEWER}`, relayList());
+    const relays = await publish();
+    expect(relays).toContain("wss://mine.example/");
+    expect(relays).toContain(INDEX);
+    expect(relays).not.toContain(HUB);
+  });
+
+  it("is the index alone for an author with no relay list", async () => {
+    expect(await publish()).toEqual([INDEX]);
+  });
+});

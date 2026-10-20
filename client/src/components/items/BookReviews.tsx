@@ -1,6 +1,7 @@
 /**
- * Reviews of a book, by people you'd ask: each a signed comment on the book
- * (lib/commentReviews — a comment with one to five stars), shown with the reviewer's face and tier ring, their stars, their
+ * Reviews of a book, by people you'd ask: each the shared review record
+ * (lib/bookReviews — kind 34259 marked `book`, the one Unbnd reads and
+ * writes too), shown with the reviewer's face and tier ring, their stars, their
  * words — ordered the way every endorsement surface orders people
  * (services/endorsements: people the reader follows, then verified, then
  * everyone else), so the first review a reader sees is from someone they
@@ -8,7 +9,9 @@
  * reviews, and the page says so.
  *
  * A signed-in reader writes one in the composer: the stars, then a few
- * words. It's public and signed, and the composer says so.
+ * words. It's public and signed, and the composer says so. One review per
+ * person: a reader who has one finds it in the composer to change, and can
+ * take it down from the review itself.
  */
 import { useState } from "react";
 import { Link } from "wouter";
@@ -17,7 +20,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { usePostBookReview } from "@/hooks/useBookReviews";
+import { usePostBookReview, useRemoveBookReview } from "@/hooks/useBookReviews";
+import type { BookReview } from "@/lib/bookReviews";
 import { relativeTime } from "@/lib/relativeTime";
 import { LinkedText } from "@/components/LinkedText";
 import { StarPicker, Stars } from "@/components/items/Stars";
@@ -26,10 +30,20 @@ import type { useRankedReviews } from "@/components/items/PlaceReviews";
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 const MAX_LENGTH = 1200;
 
-export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<typeof useRankedReviews> }) {
+export function BookReviews({
+  item,
+  title,
+  ranked,
+}: {
+  item: Item;
+  /** The book's title, which the review's `alt` names. */
+  title: string;
+  ranked: ReturnType<typeof useRankedReviews>;
+}) {
   const me = useActiveAccountDisplay()?.pubkey ?? null;
   const tierRing = useTierRing();
   const { reviews, nameOf, pictureOf, npubOf, scoreOf } = ranked;
+  const own = me ? (reviews as BookReview[]).find((r) => r.pubkey === me) : undefined;
   return (
     <section className="space-y-3" id="book-reviews" data-testid="book-reviews">
       <div>
@@ -40,7 +54,7 @@ export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<t
           From people you trust first, then everyone else — never the loudest stranger.
         </p>
       </div>
-      {me && <Composer item={item} />}
+      {me && <Composer key={own?.id ?? "new"} item={item} title={title} own={own} />}
       {reviews.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           No reviews yet.{me ? " Be the first." : " Sign in to write one."}
@@ -77,6 +91,7 @@ export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<t
                     <LinkedText text={r.text} />
                   </p>
                 )}
+                {r.pubkey === me && <RemoveReview item={item} review={r as BookReview} />}
               </div>
             </li>
           ))}
@@ -86,18 +101,21 @@ export function BookReviews({ item, ranked }: { item: Item; ranked: ReturnType<t
   );
 }
 
-function Composer({ item }: { item: Item }) {
-  const post = usePostBookReview(item);
-  const [rating, setRating] = useState<number | null>(null);
-  const [text, setText] = useState("");
+/** The reader's review: a new one, or their own as they left it, to change (one person, one review). */
+function Composer({ item, title, own }: { item: Item; title: string; own?: BookReview }) {
+  const post = usePostBookReview(item, title);
+  const [rating, setRating] = useState<number | null>(own?.rating == null ? null : Math.round(own.rating));
+  const [text, setText] = useState(own?.text ?? "");
   const words = text.trim();
 
   const submit = () => {
     if (!words && rating == null) return;
     post.mutate(
-      { text: words, rating, price: null, paid: null, photos: [] },
+      { draft: { text: words, rating }, previous: own },
       {
         onSuccess: () => {
+          // A new review clears the box; a changed one stays as it now reads.
+          if (own) return;
           setText("");
           setRating(null);
         },
@@ -111,7 +129,7 @@ function Composer({ item }: { item: Item }) {
       data-testid="book-review-composer"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-slate-500 dark:text-slate-400">Your rating</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">{own ? "Your review" : "Your rating"}</span>
         <StarPicker value={rating} onChange={setRating} />
       </div>
       <textarea
@@ -131,9 +149,39 @@ function Composer({ item }: { item: Item }) {
           className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
         >
           {post.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-          Post review
+          {own ? "Update review" : "Post review"}
         </button>
       </div>
     </div>
+  );
+}
+
+/** The reader's own review can be taken down, once they say so on the review itself. */
+function RemoveReview({ item, review }: { item: Item; review: BookReview }) {
+  const remove = useRemoveBookReview(item);
+  const [asking, setAsking] = useState(false);
+  const quiet = "text-xs font-semibold text-slate-500 hover:text-brand-link dark:text-slate-400";
+  if (!asking)
+    return (
+      <button type="button" className={quiet} onClick={() => setAsking(true)}>
+        Remove
+      </button>
+    );
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+      <span>Remove your review? Apps that read it will stop showing it.</span>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 font-semibold text-red-600 hover:text-red-700 disabled:opacity-60 dark:text-red-400"
+        onClick={() => remove.mutate(review)}
+        disabled={remove.isPending}
+      >
+        {remove.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+        Remove review
+      </button>
+      <button type="button" className={quiet} onClick={() => setAsking(false)}>
+        Keep it
+      </button>
+    </p>
   );
 }
