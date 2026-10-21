@@ -301,3 +301,37 @@ export function placeRating(
   }
   return null;
 }
+
+/** The ordering prior (the contract's section 8, as Regulars sets it): 1.5 of a vote of 3.5 stars. */
+const PRIOR_WEIGHT = 1.5;
+const PRIOR_MEAN = 3.5;
+
+/**
+ * The number a list of places is ordered by — never shown (the contract's
+ * section 8): the reviewers' stars weighted by their rank in a lens, as if
+ * the place also had 1.5 of a vote of 3.5 stars, so one five-star review
+ * doesn't top a list. A place nobody counted has rated scores 3.5.
+ */
+export function orderingScore(
+  reviews: { pubkey: string; rating: number | null }[],
+  rankOf: (pubkey: string) => number | null,
+): number {
+  let sum = PRIOR_WEIGHT * PRIOR_MEAN;
+  let weights = PRIOR_WEIGHT;
+  for (const r of reviews) {
+    const rank = rankOf(r.pubkey);
+    if (r.rating == null || rank == null || rank < MIN_RANK || rank > 100) continue;
+    sum += (rank / 100) * r.rating;
+    weights += rank / 100;
+  }
+  return sum / weights;
+}
+
+/** Each place's reviews that stand, from one batch of records and removals read for many places at once. */
+export function reviewsByPlace(
+  events: EventLike[],
+  addresses: readonly string[],
+  now: number,
+): Map<string, PlaceReview[]> {
+  return new Map(addresses.map((a) => [a, standingReviews(events, a, now)]));
+}

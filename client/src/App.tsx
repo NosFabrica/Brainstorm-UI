@@ -24,6 +24,7 @@ import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import { AdminRoute } from "@/pages/AdminRoute";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { RouteFallback } from "@/components/RouteFallback";
+import { warmRoutes } from "@/lib/warmRoutes";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -306,7 +307,12 @@ function Router() {
   );
 }
 
+/** The pages most reached from search and the header, warmed once the app is idle (lib/warmRoutes). */
+const WARM_PAGES = [EventPage, HashtagPage, LoginPage, DashboardPage];
+
 function App() {
+  // Their code arrives before the reader moves to them: the page, not the loading screen.
+  useEffect(() => warmRoutes(WARM_PAGES), []);
   return (
     <AccountsProvider manager={accountManager}>
       <EventStoreProvider eventStore={eventStore}>

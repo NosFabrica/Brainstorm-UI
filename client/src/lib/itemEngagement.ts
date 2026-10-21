@@ -43,6 +43,36 @@ export function endorsersOf(reactions: Reaction[]): Endorser[] {
   return [...latest.entries()].map(([pubkey, at]) => ({ pubkey, at })).sort((a, b) => b.at - a.at);
 }
 
+/**
+ * Reactions asked for many items at once, given to the item each names — by
+ * its id (`e`) or its address (`a`) — and read per item as endorsersOf does.
+ */
+export function endorsersByItem(
+  reactions: (Reaction & { tags: string[][] })[],
+  items: { id: string; address: string | null }[],
+): Map<string, Endorser[]> {
+  const byId = new Map(items.map((i) => [i.id, i.id]));
+  const byAddress = new Map(items.filter((i) => i.address).map((i) => [i.address!, i.id]));
+  const grouped = new Map<string, Reaction[]>();
+  for (const r of reactions) {
+    const names = new Set<string>();
+    for (const t of r.tags) {
+      const id = t[0] === "e" ? byId.get(t[1]) : t[0] === "a" ? byAddress.get(t[1]) : undefined;
+      if (id) names.add(id);
+    }
+    for (const id of names) grouped.set(id, [...(grouped.get(id) ?? []), r]);
+  }
+  return new Map([...grouped.entries()].map(([id, rs]) => [id, endorsersOf(rs)]));
+}
+
+/** The items more trusted people recommend first; the order given otherwise. */
+export function orderByTrust<T extends { id: string }>(hits: readonly T[], trustedCount: (id: string) => number): T[] {
+  return hits
+    .map((h, i) => ({ h, i, n: trustedCount(h.id) }))
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .map((x) => x.h);
+}
+
 export function githubClaimantsOf(profiles: Profile[], handle: string): GitHubClaimant[] {
   const want = `github:${handle.trim().toLowerCase()}`;
   const newest = new Map<string, Profile>();

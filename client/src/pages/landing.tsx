@@ -1,3 +1,4 @@
+import { useListKinds } from "@/hooks/useListKinds";
 import { HomeFooter } from "@/components/HomeFooter";
 import { useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
@@ -66,6 +67,7 @@ function tabInUrl(): string | null {
 const TAP_SLOP = 10;
 
 export default function Landing() {
+  const kinds = useListKinds();
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState(() => {
     try {
@@ -590,6 +592,10 @@ export default function Landing() {
           data-testid={hasSearched ? "search-band" : "search-hero"}
         >
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+          {/* The kinds' lists (Books, Places…), read once the page is idle, so a first search's previews come on time. */}
+          {kinds.map((k) => (
+            <k.Warm key={k.key} />
+          ))}
 
           {/* The band's paint, on its own layer: the content row is only as
               wide as the results column, so painting the row itself drew a

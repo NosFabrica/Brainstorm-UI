@@ -6,7 +6,7 @@
  * the view only decides how they look (ADR 0007).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
@@ -78,6 +78,7 @@ vi.mock("@/hooks/useProfileMap", () => ({
           pubkey: pk,
           npub: `npub-${pk.slice(0, 1)}`,
           displayName: { a: "Ada", b: "Bob", c: "Cy" }[pk[0]] ?? pk.slice(0, 8),
+          website: profileSites[pk],
         },
       ]),
     ),
@@ -86,6 +87,27 @@ vi.mock("@/hooks/useProfileMap", () => ({
 const github = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
 vi.mock("@/hooks/useGitHubAccount", () => ({
   useGitHubAccount: () => ({ data: github.facts, isPending: github.pending }),
+}));
+
+// The websites profiles give (a profile pointing back at the account), and whose handles verify.
+const profileSites = vi.hoisted(() => ({}) as Record<string, string>);
+vi.mock("@/hooks/useVerifiedPeople", () => ({
+  useVerifiedPeople: () => ({ verified: new Set<string>(), settled: true }),
+}));
+// Who GitHub says owns the account (hooks/useGitHubEvidence), by handle: unknown unless a test says.
+const owners = vi.hoisted(() => ({
+  of: {} as Record<
+    string,
+    { checked: boolean; named: string[]; blogHost: string | null; claimants?: string[]; provenClaimants: string[] }
+  >,
+}));
+vi.mock("@/hooks/useGitHubEvidence", () => ({
+  useGitHubEvidence: (handles: string[]) =>
+    new Map(
+      handles
+        .filter((h) => owners.of[h.toLowerCase()])
+        .map((h) => [h.toLowerCase(), { claimants: [], ...owners.of[h.toLowerCase()] }]),
+    ),
 }));
 
 import { GitHubAccountView, githubAccountOf } from "./GitHubAccountView";
@@ -407,5 +429,46 @@ describe("GitHubAccountView", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const mine = screen.getAllByTestId("github-account-verdict").at(-1)!;
     expect(within(mine).getByTestId("github-account-fact-vouches")).toHaveTextContent("you");
+  });
+});
+
+// An account nothing links to a Nostr profile yet invites its owner to link it both ways: their npub
+// on their GitHub profile, and the account as their Nostr profile's website (lib/githubLink: what a
+// GitHub profile says counts only when the person points back). Only once GitHub has answered — an
+// account we couldn't check may be linked already.
+describe("an account not yet linked to its owner", () => {
+  const nudge = () => screen.queryByTestId("github-account-link-nudge");
+  const OWNER = "a1".repeat(32);
+
+  it("asks its owner to link both ways when nothing names them", () => {
+    owners.of = { "nous-clawds4": { checked: true, named: [], blogHost: null, provenClaimants: [] } };
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(nudge()).toHaveTextContent("Is this your GitHub?");
+    expect(nudge()).toHaveTextContent("github.com/nous-clawds4");
+    expect(within(nudge()!).getByRole("link", { name: /Social accounts/ })).toHaveAttribute(
+      "href",
+      "https://github.com/settings/profile",
+    );
+  });
+
+  it("still asks when GitHub names someone who doesn't point back", () => {
+    owners.of = { "nous-clawds4": { checked: true, named: [OWNER], blogHost: null, provenClaimants: [] } };
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(nudge()).not.toBeNull();
+  });
+
+  it("asks nothing once both sides agree, or while GitHub hasn't answered", () => {
+    owners.of = { "nous-clawds4": { checked: true, named: [OWNER], blogHost: null, provenClaimants: [] } };
+    profileSites[OWNER] = "https://github.com/nous-clawds4";
+    try {
+      renderWithProviders(<Page event={item} copy={houseCopy} />);
+      expect(nudge()).toBeNull();
+    } finally {
+      delete profileSites[OWNER];
+    }
+    cleanup();
+    owners.of = { "nous-clawds4": { checked: false, named: [], blogHost: null, provenClaimants: [] } };
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(nudge()).toBeNull();
   });
 });

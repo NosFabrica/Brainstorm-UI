@@ -5,6 +5,7 @@
  * box, and sends a search to the home results.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import { cleanup, act, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -62,6 +63,7 @@ vi.mock("@/hooks/useSearchTags", () => ({
   },
 }));
 
+import { ListKindsContext } from "@/hooks/useListKinds";
 import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
 import { scopedSearchHref } from "@/lib/searchSyntax";
@@ -627,5 +629,90 @@ describe("a suggested person's handle", () => {
     // Newest first: the owner, then the copycat.
     expect(screen.getByTestId("home-recent-nip05-0")).toHaveAttribute("data-nip05-status", "verified");
     expect(screen.queryByTestId("home-recent-nip05-1")).toBeNull();
+  });
+});
+
+// The kinds with a look of their own (hooks/useListKinds) each offer a row for the words being typed:
+// a group of places goes above the people (what "coffee" most likely means); a thing named goes
+// below them; and no more than two rows below.
+describe("a kind's row in the dropdown", () => {
+  const JOE = "e".repeat(64);
+  const kind = (key: string, slot: "lead" | "follow") => ({
+    key,
+    label: key,
+    group: "Build",
+    community: `39998:x:${key}`,
+    Preview: () => null,
+    Page: () => null,
+    Warm: () => null,
+    Suggestion: ({ query, slot: offered }: { query: string; slot: "lead" | "follow" }) =>
+      offered === slot ? <a data-testid={`kind-suggestion-${key}`}>{query}</a> : null,
+  });
+  const open = async (kinds: unknown[]) => {
+    suggestMock.mockResolvedValue([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe" }]);
+    render(
+      <ListKindsContext.Provider value={kinds as never}>
+        <HeaderSearchBox />
+      </ListKindsContext.Provider>,
+    );
+    type("coffee");
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {});
+  };
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("a group sits above the people, a thing below them", async () => {
+    await open([kind("places", "lead"), kind("books", "follow")]);
+    const person = screen.getByTestId("home-suggestion-0");
+    expect(before(screen.getByTestId("kind-suggestion-places"), person)).toBe(true);
+    expect(before(person, screen.getByTestId("kind-suggestion-books"))).toBe(true);
+    expect(screen.getByTestId("kind-suggestion-books")).toHaveTextContent("coffee");
+  });
+
+  // A book's title that no person matches still opens the dropdown, on the book's row alone.
+  it("opens for a kind's row when no person matches", async () => {
+    suggestMock.mockResolvedValue([]);
+    const OfferingKind = ({ slot, onOffer }: { slot: string; onOffer?: (on: boolean) => void }) => {
+      useEffect(() => {
+        onOffer?.(slot === "follow");
+      });
+      return slot === "follow" ? <a data-testid="kind-suggestion-books">West from Home</a> : null;
+    };
+    render(
+      <ListKindsContext.Provider value={[{ ...kind("books", "follow"), Suggestion: OfferingKind }] as never}>
+        <HeaderSearchBox />
+      </ListKindsContext.Provider>,
+    );
+    type("west from home");
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {});
+    await act(async () => {});
+    expect(screen.getByTestId("kind-suggestion-books")).toBeVisible();
+    expect(screen.queryByTestId("home-suggestion-0")).toBeNull();
+  });
+
+  // A kind's thing a person shown owns (their GitHub account) is theirs: the kind's row hears who is
+  // shown, and the person's row wears the kind's mark beside the name.
+  it("tells the kinds who is shown, and wears a kind's mark beside a person's name", async () => {
+    const seen: unknown[] = [];
+    await open([
+      {
+        ...kind("github", "follow"),
+        Suggestion: ({ people }: { people?: { pubkey: string }[] }) => {
+          seen.push(people?.map((p) => p.pubkey));
+          return null;
+        },
+        PersonMark: ({ pubkey, inRow }: { pubkey: string; inRow?: boolean }) => (
+          <span data-testid="person-mark">{inRow ? `row:${pubkey.slice(0, 2)}` : "page"}</span>
+        ),
+      },
+    ]);
+    expect(seen.at(-1)).toEqual([JOE]);
+    const name = screen.getByTestId("home-suggestion-name-0");
+    expect(within(name).getByTestId("person-mark")).toHaveTextContent("row:ee");
   });
 });

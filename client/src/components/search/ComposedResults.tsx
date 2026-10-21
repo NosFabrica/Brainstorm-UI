@@ -6,6 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
@@ -262,6 +263,7 @@ function ComposedResultsBody({
   onSectionHits,
   seeds: remembered,
   peopleSeedIsGuess,
+  onOpenKind,
 }: {
   query: string;
   pov: SearchPov;
@@ -279,6 +281,8 @@ function ComposedResultsBody({
   seeds?: Record<string, SearchHit[]>;
   /** The People seed is the typeahead's guess, to be replaced by the answer. */
   peopleSeedIsGuess?: boolean;
+  /** Opens a kind's own page (hooks/useListKinds): a preview's "See all". */
+  onOpenKind?: (key: string) => void;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   // Taking the head start is a one-shot with a side effect — it hands the
@@ -583,6 +587,39 @@ function ComposedResultsBody({
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
   const stripRef = useWheelScrollX();
+  // The kinds with their own look in search, the one the words name ("books dune") first.
+  const kinds = useListKinds();
+  const named = useMemo(() => {
+    const words = new Set(
+      query
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.replace(/s$/, "")),
+    );
+    const names = (k: ListKindSearch) =>
+      k.label
+        .toLowerCase()
+        .split(/\s+/)
+        .some((w) => words.has(w.replace(/s$/, "")));
+    return new Set(kinds.filter(names).map((k) => k.key));
+  }, [kinds, query]);
+  const orderedKinds = useMemo(
+    () => [...kinds.filter((k) => named.has(k.key)), ...kinds.filter((k) => !named.has(k.key))],
+    [kinds, named],
+  );
+  // Each kind is offered a place above People and one below: it takes the one above when the words
+  // ask for it (they name it, or the kind's own reading — a town, a kind of place), else below.
+  const kindPreviews = (slot: PreviewSlot) =>
+    orderedKinds.map((k) => (
+      <k.Preview
+        key={`${k.key}-${slot}`}
+        query={query}
+        slot={slot}
+        named={named.has(k.key)}
+        onSeeAll={onOpenKind ? () => onOpenKind(k.key) : undefined}
+      />
+    ));
+  const kindCommunities = useMemo(() => kinds.map((k) => k.community), [kinds]);
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
     // The account the handles point at leads — unless the floor would hide it too.
@@ -719,8 +756,11 @@ function ComposedResultsBody({
         </p>
       )}
 
-      {/* A search that names a list — "github vcavallo" — leads with its items. Admins only for now. */}
-      <ListItemResults query={query} onTabChange={onTabChange} />
+      {/* The kinds with a look of their own — Books, Places, GitHub accounts (hooks/useListKinds) —
+          that the words ask for lead; the rest follow People. */}
+      {kindPreviews("lead")}
+      {/* A search that names any other list — "v4v songs …" — leads with its items, for everyone. */}
+      <ListItemResults query={query} onTabChange={onTabChange} except={kindCommunities} />
 
       {peopleOrdered.length === 0 && stillLoading(peopleF) && (
         <SectionSkeleton id="people" kicker="People" shape="people" />
@@ -752,6 +792,8 @@ function ComposedResultsBody({
           </div>
         </Section>
       )}
+
+      {kindPreviews("follow")}
 
       {(latestF?.hits.length ?? 0) === 0 && stillLoading(latestF) && (
         <SectionSkeleton id="latest" kicker="Latest" shape="rows" />
@@ -864,6 +906,10 @@ function ComposedResultsBody({
           </div>
         </Section>
       )}
+
+      {/* Low on the page, just above Media: a kind whose things only share a word with the search
+          ("west" in book titles) — found, but out of the way of what the search is most likely for. */}
+      {kindPreviews("late")}
 
       {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>

@@ -88,6 +88,7 @@ import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
 import { contactHref } from "@/lib/contactHref";
 import { DAYS, openingStatus, parseOpeningHours, type Day, type Week } from "@/lib/openingHours";
 import { addressLine, addressLines, categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
+import type { ItemPresentation } from "@/lib/itemPresentation";
 import { proxiedSrc } from "@/lib/imageProxy";
 import { useSiteCard } from "@/hooks/useSiteCard";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -153,6 +154,31 @@ export function placeOf(item: { tags: string[][] }, definition: ConceptDefinitio
   return { ...out, name };
 }
 
+/**
+ * How a place reads where it is one among many — a results row, a card, a
+ * tile (ADR 0007): its name, then what it is and where ("Restaurant ·
+ * Italian · Sarasota"), the way a map app lists one. Its picture when it has
+ * one. From the item alone.
+ */
+export function placePresentation(
+  item: { tags: string[][] },
+  definition: ConceptDefinition,
+  shown: ItemPresentation,
+): ItemPresentation {
+  const place = placeOf(item, definition);
+  if (!place) return shown;
+  const kind = categoryWords(place.category);
+  const cuisine = categoryWords(place.cuisine);
+  const line = [kind, cuisine !== kind ? cuisine : null, place.locality].filter(Boolean).join(" · ");
+  return {
+    ...shown,
+    title: place.name,
+    titleField: FIELDS.name,
+    summary: line || shown.summary,
+    image: place.image ?? shown.image,
+  };
+}
+
 const DAY_NAMES: Record<Day, string> = {
   mo: "Monday",
   tu: "Tuesday",
@@ -170,6 +196,25 @@ const clock = (m: number) => {
   const t = ((m % 1440) + 1440) % 1440;
   return clockFormat.format(new Date(Date.UTC(2000, 0, 1, Math.floor(t / 60), t % 60)));
 };
+
+/**
+ * Open or closed, said the one way everywhere a place is shown: "Open now ·
+ * until 10:00 PM", "Closed · opens Thu 5:00 PM", in the place's local time
+ * estimated from its longitude. Null when its hours can't be read.
+ */
+export function openingLine(place: Pick<Place, "hours" | "lon">, now: Date): { open: boolean; text: string } | null {
+  const week = parseOpeningHours(place.hours);
+  const lon = Number(place.lon);
+  if (!week || !Number.isFinite(lon)) return null;
+  const local = placeLocalMinutes(lon, now);
+  const status = openingStatus(week, local);
+  if (status.open) return { open: true, text: `Open now · until ${clock(status.until)}` };
+  const when =
+    status.opensAt != null && status.opensDay
+      ? ` · opens ${status.opensDay === local.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
+      : "";
+  return { open: false, text: `Closed${when}` };
+}
 
 /** The mark for a kind of place with no website to borrow a logo from. */
 function categoryIcon(category: string | null): typeof Store {
@@ -382,11 +427,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                 data-testid="place-open-status"
               >
                 <Clock className="h-3.5 w-3.5" />
-                {status.open
-                  ? `Open now · until ${clock(status.until)}`
-                  : status.opensAt != null && status.opensDay
-                    ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
-                    : "Closed"}
+                {openingLine(place, new Date())?.text}
               </span>
             </p>
           )}

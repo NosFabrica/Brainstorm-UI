@@ -47,10 +47,14 @@ const github = entryOf(
   GITHUB,
   header(AVI, "github-accounts", ["GitHub Account", "GitHub Accounts"], "github-username"),
 );
-const books = entryOf(
-  BOOKS,
-  header("6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b", "books", ["Book", "Books"], "title"),
-);
+// As the live Books header is: it declares no fields, so the hints alone read no title.
+const books = entryOf(BOOKS, {
+  ...header("6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b", "books", ["Book", "Books"], "title"),
+  tags: [
+    ["d", "books"],
+    ["names", "Book", "Books"],
+  ],
+});
 
 const dictionaryAsked = vi.fn();
 vi.mock("@/hooks/useDictionary", () => ({
@@ -72,6 +76,18 @@ const account = (id: string, username: string) => ({
     ["github-username", username],
   ],
 });
+const book = (id: string, title: string) => ({
+  id: id.repeat(64),
+  pubkey: AVI,
+  kind: 39999,
+  created_at: 1,
+  content: "",
+  sig: "",
+  tags: [
+    ["z", BOOKS],
+    ["name", title],
+  ],
+});
 const itemsAsked = vi.fn();
 vi.mock("@/hooks/useConceptItems", () => ({
   useConceptItems: (entry: { communityCoordinate: string } | undefined, enabled = true) => {
@@ -80,16 +96,19 @@ vi.mock("@/hooks/useConceptItems", () => ({
       data:
         enabled && entry?.communityCoordinate === GITHUB
           ? [account("a", "vcavallo"), account("b", "fiatjaf"), account("c", "vcavallo-bot")]
-          : undefined,
+          : enabled && entry?.communityCoordinate === BOOKS
+            ? [book("d", "Dune"), book("e", "The Hobbit")]
+            : undefined,
     };
   },
 }));
 vi.mock("@/components/dictionary/DListItemCard", () => ({
   DListItemCard: ({ event }: { event: { tags: string[][] } }) => (
-    <div data-testid="item-card">{event.tags.find((t) => t[0] === "github-username")?.[1]}</div>
+    <div data-testid="item-card">{event.tags.find((t) => t[0] === "github-username" || t[0] === "name")?.[1]}</div>
   ),
 }));
 
+import { PresentationOverrideContext } from "@/hooks/useItemView";
 import { ListItemResults } from "./ListItemResults";
 
 beforeEach(() => {
@@ -132,5 +151,20 @@ describe("ListItemResults", () => {
   it("shows nothing when no item matches", () => {
     const { container } = render(<ListItemResults query="github nobody-here" onTabChange={() => {}} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("finds a book by what its card shows, though the list's header declares no fields", () => {
+    // What the app's tier-three provider supplies: a book reads its title from its own tags.
+    const reading = (item: { tags: string[][] }, _r: unknown, shown: { title: string | null }) => ({
+      ...shown,
+      title: item.tags.find((t) => t[0] === "name")?.[1] ?? shown.title,
+    });
+    render(
+      <PresentationOverrideContext.Provider value={reading as never}>
+        <ListItemResults query="books dune" onTabChange={() => {}} />
+      </PresentationOverrideContext.Provider>,
+    );
+    expect(screen.getByTestId("serp-section-list-items")).toHaveTextContent("Books");
+    expect(screen.getAllByTestId("item-card").map((c) => c.textContent)).toEqual(["Dune"]);
   });
 });

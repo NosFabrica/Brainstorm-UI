@@ -5,6 +5,7 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
@@ -282,7 +283,7 @@ const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string
     ],
   },
   {
-    title: "Happening",
+    title: "Out & about",
     tabs: [
       { key: "events", label: "Events" },
       { key: "live", label: "Live" },
@@ -326,10 +327,35 @@ const tabClass = (active: boolean) =>
 /** The More ▾ slot: names the folded vertical that is active (so the row
  *  always says where you are), otherwise "More". A plain disclosure, not a
  *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
-function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTab) => void }) {
+function MoreTabs({
+  tab,
+  onChange,
+  kinds = [],
+  kind = null,
+  onKind,
+}: {
+  tab: SearchTab;
+  onChange: (next: SearchTab) => void;
+  /** The kinds with a page of their own (hooks/useListKinds), each in its group. */
+  kinds?: readonly ListKindSearch[];
+  /** The kind whose page is open, if any. */
+  kind?: string | null;
+  onKind?: (key: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const active = MORE_TABS.find((t) => t.key === tab);
+  const activeKind = kinds.find((k) => k.key === kind);
+  const active = activeKind ?? (kind ? undefined : MORE_TABS.find((t) => t.key === tab));
+  // Each kind sits in its group, after the group's own tabs; a group nobody else uses comes before Lists.
+  const groups = useMemo(() => {
+    const out = MORE_GROUPS.map((g) => ({ ...g, kinds: [] as ListKindSearch[] }));
+    for (const k of kinds) {
+      const g = out.find((x) => x.title === k.group);
+      if (g) g.kinds.push(k);
+      else out.splice(out.length - 1, 0, { title: k.group, tabs: [], kinds: [k] });
+    }
+    return out;
+  }, [kinds]);
 
   useEffect(() => {
     if (!open) return;
@@ -368,7 +394,7 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
           aria-label="More result types"
           className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {MORE_GROUPS.map((g, gi) => (
+          {groups.map((g, gi) => (
             <div
               key={g.title ?? "rest"}
               className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
@@ -388,20 +414,41 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
                   key={t.key}
                   type="button"
                   role="menuitem"
-                  aria-current={tab === t.key ? "true" : undefined}
+                  aria-current={!kind && tab === t.key ? "true" : undefined}
                   onClick={() => {
                     setOpen(false);
                     onChange(t.key);
                   }}
                   className={
                     "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (tab === t.key
+                    (!kind && tab === t.key
                       ? "font-semibold text-brand-deep dark:text-brand-link"
                       : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
                   }
                   data-testid={`search-tab-${t.key}`}
                 >
                   {t.label}
+                </button>
+              ))}
+              {g.kinds.map((k) => (
+                <button
+                  key={k.key}
+                  type="button"
+                  role="menuitem"
+                  aria-current={kind === k.key ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onKind?.(k.key);
+                  }}
+                  className={
+                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                    (kind === k.key
+                      ? "font-semibold text-brand-deep dark:text-brand-link"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`search-tab-${k.key}`}
+                >
+                  {k.label}
                 </button>
               ))}
               {g.title === "Build" &&
@@ -464,11 +511,34 @@ function openingTab(query: string): SearchTab {
   return !urlNamesTab() && opensOnMedia(query) ? "media" : tabFromUrl();
 }
 
+/** The `t` the URL names when it isn't one of the tabs: a kind's own page, if the app has that kind. */
+function urlKind(): string | null {
+  try {
+    const t = new URLSearchParams(window.location.search).get("t");
+    return t && !TAB_KEYS.has(t as SearchTab) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A searched map area (`area`) is the Places page's: another page or tab leaves it out of the link. */
+function writeKindToUrl(key: string) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", key);
+    url.searchParams.delete("area");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
 function writeTabToUrl(tab: SearchTab) {
   try {
     const url = new URL(window.location.href);
     if (tab === "top") url.searchParams.delete("t");
     else url.searchParams.set("t", tab);
+    url.searchParams.delete("area");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -835,6 +905,9 @@ export function SearchResults({
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(() => openingTab(query));
+  const kinds = useListKinds();
+  const [kindTab, setKindTab] = useState<string | null>(() => urlKind());
+  const activeKind = kinds.find((k) => k.key === kindTab) ?? null;
   // On a page already open, `#vine-archive` alone moves it to Media under the same rule as
   // opening on it: only when the address names no tab. An address that names one is a link,
   // Back or Forward saying where to be, or the tab the reader picked, and is not overridden.
@@ -1035,9 +1108,27 @@ export function SearchResults({
     return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
   }, [effectiveQuery, tab, pov, userPubkey, composed, mediaFacet]);
 
+  // Back and Forward say where to be: the page the address names, a kind's or a tab. (A step in
+  // history of its own is pushed by the Places page's area search; tabs replace theirs.)
+  useEffect(() => {
+    const follow = () => {
+      setKindTab(urlKind());
+      setTab(tabFromUrl());
+    };
+    window.addEventListener("popstate", follow);
+    return () => window.removeEventListener("popstate", follow);
+  }, []);
   const changeTab = useCallback((next: SearchTab) => {
+    setKindTab(null);
     setTab(next);
     writeTabToUrl(next);
+  }, []);
+  // A kind's own page (hooks/useListKinds): named in the URL like a tab, shown under the strip in
+  // place of the results. The Top page's sections stay unmounted, so nothing is asked of the relay.
+  const openKind = useCallback((key: string) => {
+    setKindTab(key);
+    setTab("top");
+    writeKindToUrl(key);
   }, []);
 
   const openProfile = useCallback(
@@ -1961,9 +2052,9 @@ export function SearchResults({
                 key={t.key}
                 type="button"
                 role="tab"
-                aria-selected={tab === t.key}
+                aria-selected={!activeKind && tab === t.key}
                 onClick={() => changeTab(t.key)}
-                className={tabClass(tab === t.key)}
+                className={tabClass(!activeKind && tab === t.key)}
                 data-testid={`search-tab-${t.key}`}
               >
                 {t.label}
@@ -1971,7 +2062,7 @@ export function SearchResults({
             ))}
           </div>
           <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
-            <MoreTabs tab={tab} onChange={changeTab} />
+            <MoreTabs tab={tab} onChange={changeTab} kinds={kinds} kind={activeKind?.key ?? null} onKind={openKind} />
             {perspective}
             {/* The syntax sheet, before the sorting: what can be typed into the box is the
               question people have first. The mark alone — a labelled button wraps this row
@@ -2037,11 +2128,13 @@ export function SearchResults({
             rails={tab === "top"}
             // Not on All — the relay's answer, one list, which the rails would repeat —
             // but kept mounted there, hidden and asking nothing, so back on Top it is as it was.
-            active={tab !== "all"}
+            // Nor on a kind's own page: the list and its map take the width.
+            active={tab !== "all" && !activeKind}
             group={composed ? "search-top" : undefined}
             onOpen={onOpenProfile}
             onPerson={setPanelPerson}
             onTab={(next) => changeTab(next as SearchTab)}
+            onOpenKind={openKind}
             // Not pinned: the panel is context for the query, read at the top, and
             // it scrolls away with the page the way Google's does. Pinned, it
             // followed the reader down every page and ducked under the search
@@ -2099,12 +2192,15 @@ export function SearchResults({
                 })}
               </FacetRow>
             )}
-            {serverStatus.search === "down" ? (
+            {activeKind ? (
+              <activeKind.Page query={query} />
+            ) : serverStatus.search === "down" ? (
               // The relay is the thing that is down: the results area says so, and
               // the box, the tabs and Filters above stay usable.
               <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
             ) : composed ? (
               <ComposedResults
+                onOpenKind={openKind}
                 query={query}
                 personMedia={personMedia}
                 onSections={setSections}

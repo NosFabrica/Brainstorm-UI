@@ -7,13 +7,15 @@
  * request per row or per arriving hit. Authors the search could not name yet
  * are asked for in one batch the same way, so a row says who, not an npub.
  */
+import { isReady, useItemView } from "@/hooks/useItemView";
+import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
 import { useEffect, useMemo, useState } from "react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { AllResultRow } from "@/components/search/AllResultRow";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { eventStore } from "@/lib/eventStore";
 import { HEX64 } from "@/lib/resultReaders";
-import { summaryOf } from "@/lib/resultSummary";
+import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { wantProfile } from "@/services/authorProfileQueue";
 import { kind0ToSearchResult, type SearchHit } from "@/services/search";
@@ -171,6 +173,20 @@ export function AllResults({
         // A zap receipt is the payer's, not the wallet service's that signed it.
         const from = summary.by ?? event.pubkey;
         const person = profiles.get(from);
+        // A list item reads as its own list draws it (ListItemAllRow).
+        if ((DLIST_ITEM_KINDS as readonly number[]).includes(event.kind))
+          return (
+            <ListItemAllRow
+              key={event.id}
+              event={event}
+              author={author}
+              name={person?.name}
+              picture={person?.picture}
+              score={scoreOf(from)}
+              query={query}
+              summary={summary}
+            />
+          );
         return (
           <AllResultRow
             key={event.id}
@@ -187,5 +203,38 @@ export function AllResults({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * A list item's row: read through its own definition (hooks/useItemView) —
+ * its title, summary and picture as its list draws them, a tier-three view's
+ * reading included (a book's title, author and cover), and named as the list
+ * names its items ("Book"). Its tags' reading while the definition is looked
+ * up, or when there is none.
+ */
+function ListItemAllRow({
+  event,
+  summary,
+  ...row
+}: Omit<Parameters<typeof AllResultRow>[0], "kindName" | "portrait"> & { summary: ResultSummary }) {
+  const view = useItemView(event);
+  if (!isReady(view)) return <AllResultRow event={event} summary={summary} {...row} />;
+  const { shown } = view;
+  const read: ResultSummary = {
+    ...summary,
+    title: shown.title ?? summary.title,
+    body: shown.summary ?? null,
+    image: shown.image ?? shown.listImage ?? summary.image,
+    facts: [],
+  };
+  return (
+    <AllResultRow
+      event={event}
+      summary={read}
+      kindName={view.resolved.governing.singular}
+      portrait={!!shown.image && shown.imageShape === "portrait"}
+      {...row}
+    />
   );
 }

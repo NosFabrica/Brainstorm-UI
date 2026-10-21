@@ -6,6 +6,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 const display = vi.hoisted(() => ({ current: null as { isAdmin?: boolean } | null }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => display.current }));
 vi.mock("@/pages/AdminPage", () => ({ default: () => <p>operator console</p> }));
+// The loading screen draws the app's header, which needs the app's providers; its own test covers it.
+vi.mock("@/components/RouteFallback", () => ({ RouteFallback: () => <p>loading</p> }));
 
 import { AdminRoute } from "./AdminRoute";
 

@@ -23,6 +23,7 @@ import {
   placeReviewTemplate,
   ranksFrom,
   removalTemplate,
+  reviewsByPlace,
   standingReviews,
   type PlaceReview,
   type ReviewDraft,
@@ -112,4 +113,34 @@ export async function fetchLensRanks(observer: string, pubkeys: string[]): Promi
     ),
   );
   return ranksFrom(events.flat(), source.taPubkey);
+}
+
+/**
+ * The reviews that stand for each of many places — a search's places — in
+ * one batch: their records by `a` and by `d`, then the removals of those.
+ */
+export async function fetchReviewsForPlaces(addresses: string[]): Promise<Map<string, PlaceReview[]>> {
+  if (addresses.length === 0) return new Map();
+  const records = await readListEvents(
+    [
+      { kinds: [PLACE_REVIEW_KIND], "#a": addresses, limit: 2000 },
+      { kinds: [PLACE_REVIEW_KIND], "#d": [...addresses, ...addresses.map((a) => `place:${a}`)], limit: 2000 },
+    ],
+    TIMEOUT_MS,
+    readRelays(),
+  );
+  if (records.length === 0) return reviewsByPlace([], addresses, nowS());
+  const ids = [...new Set(records.map((e) => e.id))];
+  const coords = [
+    ...new Set(records.map((e) => `${PLACE_REVIEW_KIND}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)),
+  ];
+  const removals = await readListEvents(
+    [
+      { kinds: [5], "#e": ids },
+      { kinds: [5], "#a": coords },
+    ],
+    TIMEOUT_MS,
+    readRelays(),
+  );
+  return reviewsByPlace([...records, ...removals], addresses, nowS());
 }

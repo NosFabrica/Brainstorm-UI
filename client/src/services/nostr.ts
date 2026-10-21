@@ -964,7 +964,11 @@ export function fetchFromSearchRelayByFilters(
     const timer = setTimeout(finish, timeoutMs);
     try {
       // One filter goes on the wire as one filter: only a batch needs the array.
-      const asked = filters.map((f) => ({ ...f, search: "include:spam" }));
+      // The lens joins a filter's own search words ("Austin") rather than replacing them.
+      const asked = filters.map((f) => ({
+        ...f,
+        search: typeof f.search === "string" && f.search.trim() ? `${f.search.trim()} include:spam` : "include:spam",
+      }));
       sub = relay
         .req((asked.length === 1 ? asked[0] : asked) as Parameters<typeof relay.req>[0])
         .subscribe((msg: { type: string; event?: NostrEvent }) => {
