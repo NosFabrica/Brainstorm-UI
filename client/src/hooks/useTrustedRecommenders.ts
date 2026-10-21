@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useSearchPriority } from "@/hooks/useSearchPriority";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { rankEndorsers } from "@/services/endorsements";
@@ -17,12 +18,14 @@ const NONE = new Map<string, Endorser[]>();
  */
 export function useTrustedRecommenders(items: readonly { id: string; address: string | null }[]) {
   const ids = items.map((i) => i.id);
+  // On the Top page, after the search's own results: this only orders rows (hooks/useSearchPriority).
+  const ready = useSearchPriority();
   // The ids name the items; the addresses are what the ids are of.
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const reactions = useQuery({
     queryKey: ["items-reactions", ...ids],
     queryFn: () => fetchItemsReactions([...items]),
-    enabled: items.length > 0,
+    enabled: ready && items.length > 0,
     staleTime: 60_000,
   });
   const byItem = reactions.data ?? NONE;
