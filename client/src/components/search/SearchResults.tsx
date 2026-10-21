@@ -93,6 +93,8 @@ import {
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
+import { ListNarrowing, ListRibbon } from "@/components/search/ListRibbon";
+import { useListRibbon } from "@/hooks/useListRibbon";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -1006,6 +1008,16 @@ export function SearchResults({
   const effectiveQuery =
     !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
 
+  // On All, the Dictionary's lists the words find items on (hooks/useListRibbon). A pressed one
+  // narrows All to its items, for the words it was pressed on.
+  const onAll = tab === "all" && !activeKind;
+  const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll });
+  const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(null);
+  const narrowedTo =
+    onAll && listPressed?.query === effectiveQuery
+      ? (ribbon.find((l) => l.coordinate === listPressed.coordinate) ?? null)
+      : null;
+
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
   // effect, and a passive cleanup would read zero.
@@ -1249,13 +1261,15 @@ export function SearchResults({
   // joins the score request so the channel row can wear the streamer's ring.
   const allAuthors = useMemo(
     () => [
-      ...new Set(
-        rawHits.flatMap((h) =>
+      ...new Set([
+        ...rawHits.flatMap((h) =>
           LIVE_KINDS.has(h.event.kind) ? [h.event.pubkey, liveHostOf(h.event) ?? h.event.pubkey] : [h.event.pubkey],
         ),
-      ),
+        // A list narrowing All shows its own items, by authors the page's hits may not hold.
+        ...(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []),
+      ]),
     ],
-    [rawHits],
+    [rawHits, narrowedTo],
   );
   const scoreOf = useAuthorScores(allAuthors);
   const scoreOfRef = useRef(scoreOf);
@@ -2192,12 +2206,24 @@ export function SearchResults({
                 })}
               </FacetRow>
             )}
+            {onAll && serverStatus.search !== "down" && (
+              <ListRibbon
+                lists={ribbon}
+                pressed={narrowedTo?.coordinate ?? null}
+                onPress={(coordinate) => setListPressed(coordinate ? { query: effectiveQuery, coordinate } : null)}
+              />
+            )}
             {activeKind ? (
               <activeKind.Page query={query} />
             ) : serverStatus.search === "down" ? (
               // The relay is the thing that is down: the results area says so, and
               // the box, the tabs and Filters above stay usable.
               <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
+            ) : narrowedTo ? (
+              <>
+                <ListNarrowing list={narrowedTo} />
+                <AllResults hits={narrowedTo.hits} settled scoreOf={scoreOf} query={query} />
+              </>
             ) : composed ? (
               <ComposedResults
                 onOpenKind={openKind}
