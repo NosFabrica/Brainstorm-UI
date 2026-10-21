@@ -1,9 +1,7 @@
 {
-  "_comment": "Where the Dictionary's concepts come from (config/dictionary). Since 2026-10-10 they are not listed here: a concept is an entry on the Demo Dictionary Concepts list, filed by a curator, so adding one is a publish, not a deploy. The five this file used to list (GitHub Accounts, Food and Drink Places, Divine Videos, V4V Songs, Books) were filed by scripts/bootstrap-dictionary-concepts.sh; their notes are in this file's git history.",
-  "conceptList": "39998:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:demo-dictionary-concepts",
-  "_conceptList": "Demo Dictionary Concepts, Vinney's list (2026-10-10). An entry: ['a', <concept coordinate>] required, ['name', …] recommended, ['removed', …] takes it out. Only curators' entries count; the latest per entry wins. A bridge: the House's own copies are meant to replace it.",
+  "_comment": "Where the Dictionary's concepts come from (config/dictionary). They are not listed here: since 2026-10-21 a concept is a curator's own kind-39998 header that points at itself, so adding one is a publish, not a deploy. From 2026-10-10 to 2026-10-21 they were entries on a Demo Dictionary Concepts list; before that, this file listed them. Both are in its git history.",
   "curatorTag": "39999:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:dictionary-concept-curator",
-  "_curatorTag": "Dictionary Concept Curator, Vinney's tag (2026-10-10). The curators are the people the house (the server's NIP-05 `_`, discovered, never configured) has tagged with it, plus the list's own author. The house applies it in the Brainstorm UI like any other person tag; polarity -1 disputes it.",
+  "_curatorTag": "Dictionary Concept Curator, Vinney's tag (2026-10-10). The curators are the people the house (the server's NIP-05 `_`, discovered, never configured) has tagged with it — the house too, only if it tagged itself. The house applies it in the Brainstorm UI like any other person tag; polarity -1 disputes it.",
   "roles": {
     "url-templates": "39998:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:url-templates"
   },

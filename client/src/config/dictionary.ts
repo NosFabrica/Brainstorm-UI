@@ -3,11 +3,10 @@
  * the app relies on (URL Templates) — the one place the app reads
  * `dictionary.config.json`.
  *
- * The concepts themselves aren't here (since 2026-10-10): they're entries on
- * the Demo Dictionary Concepts list, filed by curators — the people the house
- * tagged "Dictionary Concept Curator", and the list's own author — so adding
- * one is a publish, not a deploy (lib/dictionaryConcepts,
- * hooks/useDictionaryConcepts). Neither is the house: that's the house
+ * The concepts themselves aren't here: they're the self-pointing headers of
+ * the curators, the people the house tagged "Dictionary Concept Curator", so
+ * adding one is a publish, not a deploy (lib/dictionaryConcepts,
+ * hooks/useDictionaryConcepts). The house isn't here either: that's the house
  * observer, discovered from the server like everywhere else in the app
  * (services/trustSource), never a key written here.
  *
@@ -30,17 +29,10 @@ export type ConceptRole = "url-templates";
 export type ConceptViewKey = "github-account" | "place" | "book";
 
 const config = raw as {
-  conceptList: string;
   curatorTag: string;
   roles: Partial<Record<ConceptRole, string>>;
   views?: Partial<Record<ConceptViewKey, string>>;
 };
-
-/** The Demo Dictionary Concepts list: its entries name the concepts the Dictionary shows. */
-export const CONCEPT_LIST: string = config.conceptList;
-
-/** Its author, who counts as a curator without being tagged. */
-export const CONCEPT_LIST_AUTHOR: string = parseCoordinate(config.conceptList)?.pubkey ?? "";
 
 /** The tag the house applies to make someone a curator, by its address (`#a` on a person tagging). */
 export const CURATOR_TAG: string = config.curatorTag;

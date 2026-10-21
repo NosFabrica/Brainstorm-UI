@@ -32,7 +32,7 @@ describe("useDictionary with no account", () => {
     renderHook(() => useDictionary(true, { anonymous: true }), { wrapper: queryWrapper() });
     await waitFor(() => expect(loadDictionary).toHaveBeenCalled());
     expect(loadDictionary.mock.calls[0][0]).toEqual({ pubkey: null, taPubkey: null });
-    // Over the concepts the Dictionary shows, from its list (hooks/useDictionaryConcepts).
+    // Over the concepts the Dictionary shows, from its curators (hooks/useDictionaryConcepts).
     expect(loadDictionary.mock.calls[0][1]).toEqual([GITHUB]);
   });
 });
