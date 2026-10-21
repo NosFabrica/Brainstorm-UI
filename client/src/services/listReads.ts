@@ -23,15 +23,37 @@ export async function readListEvents(
   filters: Record<string, unknown>[],
   timeoutMs = 8000,
   hubRelays: string[] = dictionaryRelays(),
+  /**
+   * Handed the first relay's answer the moment it lands (when it holds anything): a heavy list —
+   * books, 1–2 MB — shows from the faster relay instead of waiting for the slower one. The merged
+   * answer is still what this resolves to.
+   */
+  onFirst?: (events: NostrEvent[]) => void,
 ): Promise<NostrEvent[]> {
   if (!filters.length) return [];
+  let handed = false;
+  const early = (events: NostrEvent[]) => {
+    const kept = dedupe(events);
+    if (onFirst && !handed && kept.length) {
+      handed = true;
+      onFirst(kept);
+    }
+    return events;
+  };
   const [indexed, hub] = await Promise.all([
-    fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
-    (fetchEventsByFilter(filters as never, hubRelays, timeoutMs) as Promise<NostrEvent[]>).catch(
-      () => [] as NostrEvent[],
-    ),
+    fetchFromSearchRelayByFilters(filters, timeoutMs)
+      .catch(() => [] as NostrEvent[])
+      .then(early),
+    (fetchEventsByFilter(filters as never, hubRelays, timeoutMs) as Promise<NostrEvent[]>)
+      .catch(() => [] as NostrEvent[])
+      .then(early),
   ]);
+  return dedupe([...indexed, ...hub]);
+}
+
+/** Each event once, blank ones (lib/blankEvent) left out. */
+function dedupe(events: NostrEvent[]): NostrEvent[] {
   const byId = new Map<string, NostrEvent>();
-  for (const ev of [...indexed, ...hub]) if (!isBlankEvent(ev)) byId.set(ev.id, ev);
+  for (const ev of events) if (!isBlankEvent(ev)) byId.set(ev.id, ev);
   return [...byId.values()];
 }
