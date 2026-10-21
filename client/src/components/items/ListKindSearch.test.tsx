@@ -471,6 +471,11 @@ describe("a kind's row in the search dropdown", () => {
     expect(screen.queryByTestId("kind-suggestion-places")).toBeNull();
   });
 
+  it("offers no place for a word its name only shares", () => {
+    suggestion("places", "owl");
+    expect(screen.queryByTestId("kind-suggestion-places")).toBeNull();
+  });
+
   it("offers the place its name names, with a small pin when it has no photo", () => {
     suggestion("places", "pink ow");
     const row = screen.getByTestId("kind-suggestion-places");
@@ -571,7 +576,7 @@ describe("places, presented cleanly", () => {
     }
     cleanup();
     const places = LIST_KINDS.find((k) => k.key === "places")!;
-    renderWithProviders(<places.Preview query="coffee" slot="follow" named={false} onSeeAll={() => {}} />);
+    renderWithProviders(<places.Preview query="coffee" slot="late" named={false} onSeeAll={() => {}} />);
     expect(screen.getByRole("button", { name: "See all 4 places" })).toBeInTheDocument();
   });
 });
@@ -631,8 +636,13 @@ describe("where a preview sits on the Top page", () => {
     }),
   );
 
-  it("Places follow for a word that only appears in their names", () => {
+  // As for books: a word a place's name only shares ("west" in Local Joe West) isn't a search for it,
+  // so its places sit low, by Media; most of a name finds them right after People.
+  it("Places sit low for a word only in their names, after People for most of a name", () => {
     preview("places", "owl");
+    expect(sitsIn("kind-preview-places")).toBe("late");
+    cleanup();
+    preview("places", "pink owl coffee");
     expect(sitsIn("kind-preview-places")).toBe("follow");
   });
 });
@@ -1135,7 +1145,7 @@ describe("the Places preview's map", () => {
   it("opens the Places page when tapped", () => {
     const seeAll = vi.fn();
     const places = LIST_KINDS.find((k) => k.key === "places")!;
-    renderWithProviders(<places.Preview query="coffee" slot="follow" named={false} onSeeAll={seeAll} />);
+    renderWithProviders(<places.Preview query="coffee" slot="late" named={false} onSeeAll={seeAll} />);
     fireEvent.click(screen.getByRole("button", { name: "Open the map" }));
     expect(seeAll).toHaveBeenCalledTimes(1);
   });

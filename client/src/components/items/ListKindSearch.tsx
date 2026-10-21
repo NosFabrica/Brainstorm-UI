@@ -702,7 +702,20 @@ function PlacesPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const events = useTownEventPins(map ? town : null, pins);
   // A town's places lead the side panel on a desktop (PlacesPanel); here they'd say it twice.
   if (town && !narrow) return null;
-  if (hits.length === 0 || !inSlot(slot, named || placesAsked(query, found))) return null;
+  // Above People when the words ask for places (they name them, a town, a kind of place); right
+  // after them when they're most of a place's name; low, by Media, when a name only shares a word
+  // ("west" in Local Joe West) — as Books are placed.
+  const words = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  const wanted: PreviewSlot =
+    named || placesAsked(query, found)
+      ? "lead"
+      : found.some((h) => coversTitle(words, h.shown.title ?? ""))
+        ? "follow"
+        : "late";
+  if (hits.length === 0 || slot !== wanted) return null;
   return (
     <section data-testid="kind-preview-places">
       <Heading
@@ -1586,7 +1599,7 @@ export const LIST_KINDS: readonly ListKindSearch[] = [
     Panel: PlacesPanel,
     Page: PlacesPage,
     Warm: warmFor("place"),
-    Suggestion: suggestionFor("places", "place", "Place", PinIcon, { byName: true, groups: true }),
+    Suggestion: suggestionFor("places", "place", "Place", PinIcon, { byName: true, groups: true, mostOfTitle: true }),
   },
   {
     key: "books",
