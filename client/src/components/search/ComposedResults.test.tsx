@@ -324,6 +324,31 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.queryByTestId("composed-loading")).toBeNull();
   });
 
+  // The sections follow the evidence (lib/topOrder): a topic leads with what
+  // the words asked for and the latest, People beneath; a handle leads with People.
+  it("puts People after Latest for a topic, and first for a handle", async () => {
+    const before = (a: HTMLElement, b: HTMLElement) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const person = hitOf(ev("p1", 0, "a".repeat(64), JSON.stringify({ name: "kop" })), "kop");
+    const note = hitOf(ev("n1", 1, "b".repeat(64), "liverpool won again"), "liverpool won again");
+
+    const topic = render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({ hits: [person], eose: true, timeMs: 50 });
+    sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 60 });
+    const people = await screen.findByTestId("serp-section-people");
+    const latest = await screen.findByTestId("serp-section-latest");
+    expect(before(latest, people)).toBe(true);
+    topic.unmount();
+    calls.length = 0;
+
+    render(<ComposedResults query="@kop" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({ hits: [person], eose: true, timeMs: 50 });
+    sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 60 });
+    const people2 = await screen.findByTestId("serp-section-people");
+    const latest2 = await screen.findByTestId("serp-section-latest");
+    expect(before(people2, latest2)).toBe(true);
+  });
+
   it("People, Latest and Articles hold their place while loading, then fill or collapse", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
@@ -1756,10 +1781,10 @@ describe("ComposedResults — a query that matches a tag", () => {
     expect(before(books, media)).toBe(true);
   });
 
-  it("draws a kind's preview below People when the words don't ask for it", async () => {
+  it("draws a kind's preview the words don't name above People still — a title they cover outranks a face", async () => {
     const people = await peopleFor("dune");
     expect(screen.getByTestId("kind-books")).toHaveTextContent("dune");
-    expect(before(people, screen.getByTestId("kind-books"))).toBe(true);
+    expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
   });
 
   it("draws it above People when the words name the kind", async () => {
@@ -1767,10 +1792,10 @@ describe("ComposedResults — a query that matches a tag", () => {
     expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
   });
 
-  it("lets a kind lead on its own reading of the words — Places for a town", async () => {
+  it("lets a kind lead on its own reading of the words — Places for a town, above a kind that only covers a title", async () => {
     const people = await peopleFor("austin");
-    expect(before(screen.getByTestId("kind-places"), people)).toBe(true);
-    expect(before(people, screen.getByTestId("kind-books"))).toBe(true);
+    expect(before(screen.getByTestId("kind-places"), screen.getByTestId("kind-books"))).toBe(true);
+    expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
   });
 
   it("a preview's See all opens its kind's page", () => {
