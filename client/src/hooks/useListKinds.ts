@@ -1,3 +1,4 @@
+import type { SearchTab } from "@/services/search";
 import { createContext, useContext, type ComponentType } from "react";
 
 /**
@@ -41,8 +42,9 @@ export interface ListKindSearch {
    * `inRow`: inside a dropdown row, which the keyboard moves through as one.
    */
   PersonMark?: ComponentType<{ pubkey: string; nip05?: string; website?: string; inRow?: boolean }>;
-  /** Its own page under the tab strip: what the words find, or the list itself with no words. */
-  Page: ComponentType<{ query: string }>;
+  /** Its own page under the tab strip: what the words find, or the list itself with no words.
+   *  `onTabChange`: the search's own tab switch, for a page that sends the reader to another tab. */
+  Page: ComponentType<{ query: string; onTabChange?: (tab: SearchTab) => void }>;
   /** Reads its list ahead of a search, once the page is idle; draws nothing. */
   Warm: ComponentType;
   /**

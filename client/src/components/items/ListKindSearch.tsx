@@ -16,6 +16,7 @@ import { LocationExplainer } from "@/components/search/LocationExplainer";
 import { locate, LocateError, nearestArea, type Position } from "@/lib/nearMe";
 import { distanceKm, distanceWords } from "@/lib/placeDistance";
 import { Link } from "wouter";
+import type { SearchTab } from "@/services/search";
 import {
   ArrowRight,
   BookOpen,
@@ -1075,7 +1076,7 @@ function writeAreaToUrl(v: MapView | null) {
 }
 
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
-function PlacesPage({ query }: { query: string }) {
+function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab: SearchTab) => void }) {
   const words = query
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
@@ -1410,14 +1411,23 @@ function PlacesPage({ query }: { query: string }) {
                     {events.length}
                   </span>
                 </button>
-                {eventsOpen && (
-                  <Link
-                    href={`/?q=${encodeURIComponent(query)}&t=events`}
-                    className="text-xs font-medium text-brand-link hover:underline"
-                  >
-                    See all events
-                  </Link>
-                )}
+                {eventsOpen &&
+                  (onTabChange ? (
+                    <button
+                      type="button"
+                      onClick={() => onTabChange("events")}
+                      className="text-xs font-medium text-brand-link hover:underline"
+                    >
+                      See all events
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/?q=${encodeURIComponent(query)}&t=events`}
+                      className="text-xs font-medium text-brand-link hover:underline"
+                    >
+                      See all events
+                    </Link>
+                  ))}
               </div>
               {eventsOpen && (
                 <ul className="mt-1 space-y-0.5">

@@ -257,9 +257,9 @@ vi.mock("@/services/placeReviews", () => ({
 
 import { LIST_KINDS } from "./ListKindSearch";
 
-const page = (key: string, query: string) => {
+const page = (key: string, query: string, props: { onTabChange?: (tab: string) => void } = {}) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
-  return renderWithProviders(<kind.Page query={query} />);
+  return renderWithProviders(<kind.Page query={query} onTabChange={props.onTabChange as never} />);
 };
 
 /**
@@ -1127,7 +1127,8 @@ describe("an event's pin on the Places page", () => {
     townEvents.list = [meetup];
     itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
     try {
-      page("places", "sarasota");
+      const tabChanged = vi.fn();
+      page("places", "sarasota", { onTabChange: tabChanged });
       const group = await screen.findByTestId("places-events");
       expect(group).toHaveTextContent(/happening near here/i);
       expect(group).toHaveTextContent(/1/);
@@ -1139,10 +1140,9 @@ describe("an event's pin on the Places page", () => {
       for (const item of screen.getAllByTestId("kind-page-item")) expect(item).not.toHaveTextContent("Meetup");
       fireEvent.click(row);
       expect(screen.getByTestId("event-picked")).toHaveTextContent("Meetup by the river");
-      expect(within(group).getByRole("link", { name: /see all events/i })).toHaveAttribute(
-        "href",
-        expect.stringContaining("t=events"),
-      );
+      // "See all events" switches the search to its Events tab, in place, the words kept.
+      fireEvent.click(within(group).getByRole("button", { name: /see all events/i }));
+      expect(tabChanged).toHaveBeenCalledWith("events");
 
       // Folded again, a diamond on the map opens it and lights the row.
       fireEvent.click(within(group).getByRole("button", { name: /happening near here/i }));

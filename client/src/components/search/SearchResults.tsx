@@ -2198,7 +2198,7 @@ export function SearchResults({
                 </FacetRow>
               )}
               {activeKind ? (
-                <activeKind.Page query={query} />
+                <activeKind.Page query={query} onTabChange={changeTab} />
               ) : serverStatus.search === "down" ? (
                 // The relay is the thing that is down: the results area says so, and
                 // the box, the tabs and Filters above stay usable.
