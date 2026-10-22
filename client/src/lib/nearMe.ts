@@ -37,3 +37,25 @@ export function locate(geo: Geolocation | undefined = globalThis.navigator?.geol
     );
   });
 }
+
+/** The steps a "Near me" box widens through, in km, until it holds enough places. */
+export const NEAR_ME_STEPS_KM: readonly number[] = [5, 10, 25, 50, 100];
+
+/**
+ * The box around a position that holds at least `min` of the places — the
+ * first step that does, or the last step when none does. A dense city stops
+ * at a walk; a sparse one widens to a drive rather than showing nothing.
+ */
+export function nearestArea(
+  you: Position,
+  places: readonly Position[],
+  { min = 5, steps = NEAR_ME_STEPS_KM }: { min?: number; steps?: readonly number[] } = {},
+): Area {
+  const within = (box: Area) =>
+    places.filter((p) => p.lat >= box.south && p.lat <= box.north && p.lon >= box.west && p.lon <= box.east).length;
+  for (const km of steps) {
+    const box = areaAround(you, km);
+    if (within(box) >= min) return box;
+  }
+  return areaAround(you, steps[steps.length - 1]);
+}

@@ -13,7 +13,8 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LocationExplainer } from "@/components/search/LocationExplainer";
-import { areaAround, locate, LocateError } from "@/lib/nearMe";
+import { locate, LocateError, nearestArea, type Position } from "@/lib/nearMe";
+import { distanceKm, distanceWords } from "@/lib/placeDistance";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -964,8 +965,8 @@ function suggestionFor(
 
 /* ── Each kind's own page ─────────────────────────────────────────────── */
 
-/** The box "Near me" searches: a walk or a short drive in every direction. */
-const NEAR_ME_KM = 5;
+/** How many places "Near me" widens its box to hold, so a sparse map never shows nothing. */
+const NEAR_ME_MIN_PLACES = 5;
 const PAGE_MAX = 60;
 
 function PageEmpty({ pending, label, query }: { pending: boolean; label: string; query: string }) {
@@ -1089,6 +1090,7 @@ function PlacesPage({ query }: { query: string }) {
   // "Near me" (lib/nearMe): asked of the browser on the tap only; the box around the answer is
   // the area searched, said as "near you"; a refusal is said once. The explainer is a tap away.
   const [nearYou, setNearYou] = useState(false);
+  const [you, setYou] = useState<Position | null>(null);
   const [nearNotice, setNearNotice] = useState<string | null>(null);
   const [explain, setExplain] = useState(false);
   const canLocate = typeof navigator !== "undefined" && !!navigator.geolocation;
@@ -1099,8 +1101,9 @@ function PlacesPage({ query }: { query: string }) {
     setNearNotice(null);
     try {
       const here = await locate();
+      setYou(here);
       setNearYou(true);
-      setArea(areaAround(here, NEAR_ME_KM));
+      setArea(nearestArea(here, pinsOf(hits), { min: NEAR_ME_MIN_PLACES }));
     } catch (e) {
       const reason = e instanceof LocateError ? e.reason : "unavailable";
       setNearNotice(
@@ -1192,7 +1195,24 @@ function PlacesPage({ query }: { query: string }) {
   // A stable sort: places that tie keep the page's own order.
   // Stars alone can only reorder once two places have them.
   const sortable = hits.filter((h) => starsOf(h) > 0).length >= 2;
-  const shown = sortable && sort === "rated" ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a)) : narrowed;
+  // Near you: nearest first, each row saying how far (lib/placeDistance).
+  const distanceOf = (h: KindHit): number => {
+    const lat = Number(h.place?.lat);
+    const lon = Number(h.place?.lon);
+    return you && Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)
+      ? distanceKm(you, { lat, lon })
+      : Number.POSITIVE_INFINITY;
+  };
+  const shown =
+    nearYou && you
+      ? [...narrowed].sort((a, b) => distanceOf(a) - distanceOf(b))
+      : sortable && sort === "rated"
+        ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a))
+        : narrowed;
+  const distanceLine = (h: KindHit, line: string): string => {
+    const d = distanceOf(h);
+    return nearYou && you && Number.isFinite(d) ? `${distanceWords(d)} · ${line}` : line;
+  };
   const openCount = hits.filter((h) => isOpenNow(h.place)).length;
   const lines = linesOf(shown);
   const pins = pinsOf(shown);
@@ -1328,7 +1348,7 @@ function PlacesPage({ query }: { query: string }) {
                 n={i + 1}
                 trust={lineOf(h.id)}
                 rating={ratingLine(h)}
-                line={lines[i]}
+                line={distanceLine(h, lines[i])}
                 testId="kind-page-item"
                 big
                 actions

@@ -1205,10 +1205,15 @@ describe("searching the map's area", () => {
       page("places", "cafe sarasota");
       expect(asked).not.toHaveBeenCalled();
       fireEvent.click(screen.getByRole("button", { name: /near me/i }));
-      await waitFor(() => expect(names().sort()).toEqual(["Bean", "Brew", "Lido Cafe"]));
+      // Nearest first, each with how far — and the box widened past the three cafes a walk
+      // away to take in Far Cup, so there is always something close or not to see.
+      await waitFor(() => expect(names()).toEqual(["Bean", "Brew", "Lido Cafe", "Far Cup"]));
       expect(asked).toHaveBeenCalledTimes(1);
       expect(window.location.search).toContain("area=");
       expect(screen.getByTestId("places-summary")).toHaveTextContent(/near you/i);
+      const rows = screen.getAllByTestId("kind-page-item");
+      expect(rows[0]).toHaveTextContent(/0\.3 mi/);
+      expect(rows[3]).toHaveTextContent(/12 mi/);
       // The explainer is a tap away, and says where each signal comes from.
       fireEvent.click(screen.getByRole("button", { name: /how do we know/i }));
       const sheet = await screen.findByTestId("location-explainer");
