@@ -20,10 +20,12 @@ const api = vi.hoisted(() => ({
 vi.mock("@/services/api", () => ({ apiClient: api, isAuthRedirecting: () => false }));
 vi.mock("@/services/support", () => ({ ADMIN_SUPPORT_QUERY_KEY: ["support"], adminListTickets: async () => [] }));
 vi.mock("@/services/nostr", () => ({ fetchProfile: async () => null, searchNostrProfiles: async () => [] }));
+vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => null }));
+vi.mock("@/services/wotRanks", () => ({ fetchAuthorRanks: async () => ({ ranks: new Map(), source: null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ isAdmin: true, pubkey: "a".repeat(64) }),
 }));
-vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => null }));
+vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => null, use$: () => undefined }));
 vi.mock("@/accounts/session", () => ({ hasSession: () => true }));
 vi.mock("@/accounts/login-flow", () => ({ logout: () => {} }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
@@ -144,7 +146,7 @@ describe("the admin dashboard's time range", () => {
     await waitFor(() => expect(screen.getByTestId("kpi-scored-users")).toHaveTextContent("271 / 271"), {
       timeout: 4000,
     });
-    expect(screen.getByTestId("kpi-sp-adopters")).toHaveTextContent("271 / 271");
+    expect(screen.getByTestId("kpi-assertions-published")).toHaveTextContent("271 / 271");
     expect(screen.getByTestId("kpi-total-calcs")).toHaveTextContent("542");
   });
 
@@ -210,6 +212,31 @@ describe("the admin dashboard's time range", () => {
       expect(api.getAdminActivity).toHaveBeenCalledWith(expect.objectContaining({ days: 365, page: 1 })),
     );
     await waitFor(() => expect(growth).toHaveBeenLastCalledWith(expect.objectContaining({ range: "7d" })));
+  });
+
+  it("lists every failed user when the Failed Count card is clicked, not only the page on screen", async () => {
+    // 271 users; the ten who failed are the last ten, on the directory's eleventh page.
+    const TOTAL = 271;
+    const user = (i: number) => ({
+      pubkey: String(i).padStart(64, "0"),
+      latest_status: i >= TOTAL - 10 ? "failed" : "success",
+      latest_ta_status: "success",
+      times_calculated: 1,
+      last_updated: new Date().toISOString(),
+    });
+    api.getAdminUsers.mockImplementation(async ({ page = 1, size = 25 }: { page?: number; size?: number }) => {
+      const from = (page - 1) * size;
+      const items = Array.from({ length: Math.max(0, Math.min(size, TOTAL - from)) }, (_, i) => user(from + i));
+      return { items, total: TOTAL, pages: Math.ceil(TOTAL / size) };
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("kpi-failed-count")).toHaveTextContent("10"), { timeout: 4000 });
+
+    fireEvent.click(screen.getByTestId("kpi-failed-count"));
+
+    const panel = await screen.findByTestId("panel-users");
+    await waitFor(() => expect(within(panel).getAllByTestId(/^row-user-\d+$/)).toHaveLength(10));
+    expect(within(panel).queryByText(/no users match/i)).toBeNull();
   });
 
   it("takes a custom 'last N days' from the header", async () => {

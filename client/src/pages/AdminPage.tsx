@@ -2946,10 +2946,15 @@ export default function AdminPage() {
   const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
+  const allUsers = allUsersQuery.data?.items ?? NONE;
+  const allUsersTotal = allUsersQuery.data?.total ?? 0;
+  // A KPI card's filter or a name search narrows every user (allUsersQuery,
+  // loaded whole), paged here; otherwise the directory is the backend's page.
+  const clientFilteredUsers = activeNameSearch || !!kpiFilter;
   const filteredUsersList = useMemo(() => {
     const trimmed = userSearch.trim();
     const nameSearch = trimmed && isNameSearch(trimmed);
-    let list = nameSearch ? overviewAllUsers : adminUsersList;
+    let list = nameSearch || kpiFilter ? allUsers : adminUsersList;
     if (nameSearch) {
       const query = trimmed.toLowerCase();
       list = list.filter((u) => {
@@ -2969,7 +2974,7 @@ export default function AdminPage() {
       });
     }
     return list;
-  }, [adminUsersList, overviewAllUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
+  }, [adminUsersList, allUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
 
   const computePipelineMetrics = (
     users: AdminUsersPage["items"],
@@ -3045,8 +3050,6 @@ export default function AdminPage() {
     [overviewAllUsers, overviewAllActivity, overviewTotalUsers],
   );
   // Everyone, now: the header cards.
-  const allUsers = allUsersQuery.data?.items ?? NONE;
-  const allUsersTotal = allUsersQuery.data?.total ?? 0;
   const nowMetrics = useMemo(
     () => computePipelineMetrics(allUsers, overviewLoadedActivity, allUsersTotal),
     [allUsers, overviewLoadedActivity, allUsersTotal],
@@ -3180,7 +3183,7 @@ export default function AdminPage() {
     [toast, queryClient, triggerRefreshBoost],
   );
 
-  const totalPages = activeNameSearch
+  const totalPages = clientFilteredUsers
     ? Math.max(1, Math.ceil(filteredUsersList.length / pageSize))
     : adminUsersTotalPages;
 
@@ -3584,8 +3587,10 @@ export default function AdminPage() {
                     : "0"
               }
               icon={UserCheck}
-              subtitle={nowMetrics ? `${nowMetrics.successRate}% of all users scored` : "Completed GrapeRank"}
-              tooltip="Click to view scored users"
+              subtitle={
+                nowMetrics ? `${nowMetrics.successRate}% have a GrapeRank score` : "Users with a GrapeRank score"
+              }
+              tooltip="Users whose last GrapeRank run succeeded — click to list them"
               scope={nowMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => {
                 setKpiFilter("scored");
@@ -3598,7 +3603,7 @@ export default function AdminPage() {
               sparklineValueLabel="successes"
             />
             <KpiCard
-              label="SP Adopters"
+              label="Assertions Published"
               value={
                 nowMetrics
                   ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
@@ -3607,8 +3612,12 @@ export default function AdminPage() {
                     : "0"
               }
               icon={Shield}
-              subtitle={nowMetrics ? `${nowMetrics.taAdoptionRate}% TA adoption` : "Published NIP-85 TA"}
-              tooltip="Click to view SP adopters"
+              subtitle={
+                nowMetrics
+                  ? `${nowMetrics.taAdoptionRate}% publish trusted assertions`
+                  : "Users publishing trusted assertions"
+              }
+              tooltip="Users whose scores are published to relays as NIP-85 trusted assertions — click to list them"
               scope={nowMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => {
                 setKpiFilter("sp_adopters");
@@ -4731,7 +4740,7 @@ export default function AdminPage() {
                     </h3>
                     <div className="mt-1 flex items-center gap-3">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users
+                        {(clientFilteredUsers ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users
                         {activeNameSearch && userSearch.trim() ? " (filtered)" : ""}
                       </span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
@@ -5227,10 +5236,10 @@ export default function AdminPage() {
                         const liveFailed = bulkRunning
                           ? Array.from(bulkStatuses.values()).filter((s) => s === "failed").length
                           : 0;
-                        const clientFiltered = activeNameSearch || !!kpiFilter;
+                        const clientFiltered = clientFilteredUsers;
                         const matchingTotal = clientFiltered ? filteredUsersList.length : adminUsersTotal;
                         const visibleCount = (
-                          activeNameSearch
+                          clientFilteredUsers
                             ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                             : filteredUsersList
                         ).length;
@@ -5455,7 +5464,7 @@ export default function AdminPage() {
                         <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/80">
                           <th className="sticky left-0 z-20 w-8 border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle dark:border-slate-800 dark:bg-slate-900">
                             {(() => {
-                              const visible = activeNameSearch
+                              const visible = clientFilteredUsers
                                 ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                                 : filteredUsersList;
                               const visiblePks = visible.map((u) => u.pubkey);
@@ -5599,7 +5608,7 @@ export default function AdminPage() {
                             </td>
                           </tr>
                         ) : (
-                          (activeNameSearch
+                          (clientFilteredUsers
                             ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                             : filteredUsersList
                           ).map((u, i) => {
