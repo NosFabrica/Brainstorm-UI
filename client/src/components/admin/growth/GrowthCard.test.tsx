@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 
@@ -173,6 +174,35 @@ describe("GrowthCard", () => {
     renderCard();
     const list = await screen.findByTestId("growth-list");
     fireEvent.click(await within(list).findByText("Riverdev"));
+    expect(opened).toHaveBeenCalledWith(A);
+  });
+
+  it("says how long a dormant person has been quiet, and whether they ever came back", async () => {
+    renderCard("7d"); // Dormant: D, one run 30 days ago, nothing since
+    fireEvent.click(await screen.findByTestId("growth-segment-dormant"));
+    const row = await screen.findByTestId(`growth-runs-${D}`);
+    expect(row.closest("tr")).toHaveTextContent(/quiet 30d/i);
+    expect(row.closest("tr")).toHaveTextContent(/never came back/i);
+    expect(screen.getByTestId("growth-meaning")).toHaveTextContent(/not since/i);
+  });
+
+  it("offers each person a menu: copy, open, and the outreach that's coming", async () => {
+    renderCard();
+    const list = await screen.findByTestId("growth-list");
+    await userEvent.click(within(list).getByTestId(`growth-menu-${A}`));
+    expect(opened).not.toHaveBeenCalled();
+
+    const menu = await screen.findByRole("menu");
+    for (const soon of ["Support DM", "Product update", "Priority offer", "Win-back"]) {
+      const item = within(menu).getByText(soon).closest("[role=menuitem]")!;
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      expect(item).toHaveTextContent(/soon/i);
+    }
+    await userEvent.click(within(menu).getByTestId("growth-action-copy"));
+    await waitFor(() => expect(copied).toHaveBeenLastCalledWith(nip19.npubEncode(A), expect.anything()));
+
+    await userEvent.click(within(list).getByTestId(`growth-menu-${A}`));
+    await userEvent.click(await screen.findByTestId("growth-action-open"));
     expect(opened).toHaveBeenCalledWith(A);
   });
 });

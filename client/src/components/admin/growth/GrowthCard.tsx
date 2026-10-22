@@ -9,7 +9,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Copy, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Copy, ExternalLink, MoreHorizontal, Search } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -36,8 +44,27 @@ const SEGMENTS: { key: Segment; label: string; meaning: string }[] = [
     label: "Scheduled only",
     meaning: "ran in this range, but only by the scheduler — engaged by default, not by choice",
   },
-  { key: "dormant", label: "Dormant", meaning: "ran before this range and not since — the ones to win back" },
+  {
+    key: "dormant",
+    label: "Dormant",
+    meaning:
+      'ran before this range and not since. "Never came back" is one run ever (sign-up or seeding); "came back N×" is someone who used it and stopped — the ones to win back',
+  },
 ];
+
+/**
+ * The outreach the segments are built for. None of it sends yet — these
+ * are the campaigns the team is deciding on, named so an admin knows why
+ * each segment exists.
+ */
+const OUTREACH: { label: string; why: string }[] = [
+  { label: "Support DM", why: "a Nostr DM from the support key" },
+  { label: "Product update", why: "what's new, to everyone active" },
+  { label: "Priority offer", why: "self-triggered on Free" },
+  { label: "Win-back", why: "dormant, scored" },
+];
+
+const DAY_MS = 86_400_000;
 
 const SELECT_CLASS =
   "rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200";
@@ -244,6 +271,7 @@ export function GrowthCard({
                   testId="score"
                 />
               </th>
+              <th className="w-10 px-2 py-2" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -274,6 +302,12 @@ export function GrowthCard({
                         <span className="block font-mono text-[10px] text-slate-400">
                           {npub.slice(0, 16)}…{tiers.get(p.pubkey) ? ` · ${tiers.get(p.pubkey)}` : ""}
                         </span>
+                        {segment === "dormant" && (
+                          <span className="block text-[10px] text-amber-700 dark:text-amber-400">
+                            Quiet {Math.max(1, Math.floor((Date.now() - p.lastRunMs) / DAY_MS))}d ·{" "}
+                            {p.runs <= 1 ? "never came back" : `came back ${p.runs - 1}×`}
+                          </span>
+                        )}
                       </span>
                     </div>
                   </td>
@@ -296,6 +330,16 @@ export function GrowthCard({
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums sm:px-5" data-testid={`growth-score-${p.pubkey}`}>
                     {rank === undefined ? "—" : rank}
+                  </td>
+                  <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                    <PersonMenu
+                      pubkey={p.pubkey}
+                      onCopy={async () => {
+                        const ok = await copyToClipboard(npub, {});
+                        toast({ title: ok ? "Copied npub" : "Couldn't copy" });
+                      }}
+                      onOpen={() => onOpenPerson(p.pubkey)}
+                    />
                   </td>
                 </tr>
               );
@@ -331,5 +375,44 @@ function SortHeader({
       {label}
       <Icon className={`h-3 w-3 ${active ? "" : "opacity-40"}`} />
     </button>
+  );
+}
+
+/** A person's menu: what works today, and the outreach that's coming. */
+function PersonMenu({ pubkey, onCopy, onOpen }: { pubkey: string; onCopy: () => void; onOpen: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          aria-label="Person actions"
+          data-testid={`growth-menu-${pubkey}`}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onSelect={onOpen} data-testid="growth-action-open">
+          <ExternalLink className="mr-2 h-3.5 w-3.5" /> Open in Users
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onCopy} data-testid="growth-action-copy">
+          <Copy className="mr-2 h-3.5 w-3.5" /> Copy npub
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          Outreach · coming soon
+        </DropdownMenuLabel>
+        {OUTREACH.map((o) => (
+          <DropdownMenuItem key={o.label} disabled className="flex-col items-start gap-0">
+            <span className="flex w-full items-center justify-between">
+              {o.label}
+              <span className="text-[10px] text-slate-400">Soon</span>
+            </span>
+            <span className="text-[10px] text-slate-400">{o.why}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
