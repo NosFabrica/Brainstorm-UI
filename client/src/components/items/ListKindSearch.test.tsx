@@ -323,6 +323,17 @@ describe("a kind's preview on the Top page", () => {
     expect(row.querySelector("img")?.getAttribute("src")).toMatch(/^https:\/\/github\.com\/riverdev\.png/);
   });
 
+  // An account the words don't name is a band on a topic page that isn't about it: it waits
+  // at the end, with the other matches that only share a word, unless a shown person owns it.
+  it("GitHub accounts the words don't name wait at the end of the page; named, they lead", () => {
+    preview("github", "riverdev");
+    expect(within(screen.getByTestId("slot-late")).getByTestId("kind-preview-row")).toHaveTextContent("riverdev");
+    expect(within(screen.getByTestId("slot-follow")).queryByTestId("kind-preview-row")).toBeNull();
+    cleanup();
+    preview("github", "github riverdev", true);
+    expect(within(screen.getByTestId("slot-lead")).getByTestId("kind-preview-row")).toHaveTextContent("riverdev");
+  });
+
   it("shows nothing when the words find nothing, or are only small joining words", () => {
     preview("books", "zzzz");
     expect(screen.queryByTestId("kind-preview-books")).toBeNull();
