@@ -4,7 +4,7 @@
  * changes what every tab asks the backend for; no tab keeps a range of its own.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const api = vi.hoisted(() => ({
@@ -366,6 +366,34 @@ describe("the admin dashboard's time range", () => {
           .slice(0, 300)}`,
       ).toBe(0);
     }
+  });
+
+  it("gives the Growth tab each person's tier, and opens a person in the Users tab", async () => {
+    const PK = "9".repeat(64);
+    api.getAdminUsers.mockResolvedValue({
+      items: [
+        {
+          pubkey: PK,
+          latest_status: "success",
+          times_calculated: 3,
+          scheduling_name: "Priority",
+          last_updated: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+      pages: 1,
+    });
+    window.history.replaceState({}, "", "/admin?tab=growth");
+    renderPage();
+    await screen.findByTestId("panel-growth");
+    await waitFor(() =>
+      expect(growth).toHaveBeenLastCalledWith(expect.objectContaining({ tiers: new Map([[PK, "Priority"]]) })),
+    );
+
+    const props = growth.mock.lastCall![0] as { onOpenPerson: (pk: string) => void };
+    act(() => props.onOpenPerson(PK));
+    await screen.findByTestId("panel-users");
+    await waitFor(() => expect(screen.getByTestId(`row-user-detail-${PK.slice(0, 8)}`)).toBeInTheDocument());
   });
 
   it("takes a custom 'last N days' from the header", async () => {

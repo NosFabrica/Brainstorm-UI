@@ -2934,6 +2934,12 @@ export default function AdminPage() {
 
   const allUsers = allUsersQuery.data?.items ?? NONE;
   const allUsersTotal = allUsersQuery.data?.total ?? 0;
+  // pubkey → scheduling tier, for the Growth tab's rows and its tier filter.
+  const tiersByPubkey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of allUsers) if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
+    return m;
+  }, [allUsers]);
   // A KPI card's filter or a name search narrows every user (allUsersQuery,
   // loaded whole), paged here; otherwise the directory is the backend's page.
   const clientFilteredUsers = activeNameSearch || !!kpiFilter;
@@ -5848,6 +5854,17 @@ export default function AdminPage() {
                 range={range}
                 isLoading={yearActivityQuery.isLoading}
                 profiles={userProfiles}
+                tiers={tiersByPubkey}
+                onOpenPerson={(pk) => {
+                  setUserSearch(pk);
+                  setDebouncedSearch(pk);
+                  setActiveTab("users");
+                  setKpiFilter(null);
+                  setUserPage(0);
+                  setExpandedRows(new Set([pk]));
+                  setHighlightedPubkey(pk);
+                  setTimeout(() => setHighlightedPubkey(null), 2500);
+                }}
               />
             </div>
           )}

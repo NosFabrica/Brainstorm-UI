@@ -18,7 +18,13 @@ const copied = vi.hoisted(() => vi.fn(async () => true));
 vi.mock("@/lib/clipboard", () => ({ copyToClipboard: copied }));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => OBSERVER }));
 vi.mock("@/services/wotRanks", () => ({
-  fetchAuthorRanks: async () => ({ ranks: new Map([[A, 42]]), source: "house" }),
+  fetchAuthorRanks: async () => ({
+    ranks: new Map([
+      [A, 42],
+      [C, 10],
+    ]),
+    source: "house",
+  }),
 }));
 
 import { GrowthCard } from "./GrowthCard";
@@ -44,16 +50,39 @@ const records = [
   run(OBSERVER, NOW - HOUR, "periodic"),
 ];
 
-function renderCard() {
+const opened = vi.fn();
+function renderCard(range: "24h" | "7d" = "24h") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <GrowthCard records={records} range="24h" isLoading={false} profiles={new Map([[A, { name: "Riverdev" }]])} />
+      <GrowthCard
+        records={records}
+        range={range}
+        isLoading={false}
+        profiles={
+          new Map([
+            [A, { name: "Riverdev" }],
+            [C, { name: "Lakebuilder" }],
+          ])
+        }
+        tiers={
+          new Map([
+            [A, "Free"],
+            [B, "Priority"],
+            [C, "Free"],
+            [D, "Priority"],
+          ])
+        }
+        onOpenPerson={opened}
+      />
     </QueryClientProvider>,
   );
 }
 
-beforeEach(() => copied.mockClear());
+beforeEach(() => {
+  copied.mockClear();
+  opened.mockClear();
+});
 
 describe("GrowthCard", () => {
   it("counts the segments, the system observer aside, without icons", async () => {
@@ -87,5 +116,63 @@ describe("GrowthCard", () => {
     await waitFor(() => expect(within(list).getByTestId(`growth-runs-${D}`)).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("button-copy-npubs"));
     await waitFor(() => expect(copied).toHaveBeenLastCalledWith(nip19.npubEncode(D), expect.anything()));
+  });
+
+  it("narrows the shown segment by name or npub, and copies what's left", async () => {
+    renderCard("7d"); // New: A and C
+    const list = await screen.findByTestId("growth-list");
+    await waitFor(() => expect(within(list).getAllByTestId(/^growth-runs-/)).toHaveLength(2));
+
+    fireEvent.change(screen.getByTestId("input-growth-search"), { target: { value: "lake" } });
+    await waitFor(() => expect(within(list).getAllByTestId(/^growth-runs-/)).toHaveLength(1));
+    expect(within(list).getByText("Lakebuilder")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-copy-npubs"));
+    await waitFor(() => expect(copied).toHaveBeenLastCalledWith(nip19.npubEncode(C), expect.anything()));
+
+    fireEvent.change(screen.getByTestId("input-growth-search"), {
+      target: { value: nip19.npubEncode(A).slice(0, 20) },
+    });
+    await waitFor(() => expect(within(list).getByText("Riverdev")).toBeInTheDocument());
+  });
+
+  it("crosses a segment with tier and with Brainstorm's score", async () => {
+    renderCard("7d"); // New: A (Free, 42) and C (Free, 10); Dormant: D (Priority, unscored)
+    const rows = () => within(screen.getByTestId("growth-list")).queryAllByTestId(/^growth-runs-/);
+    await waitFor(() => expect(screen.getByTestId(`growth-score-${A}`)).toHaveTextContent("42"));
+
+    fireEvent.change(screen.getByTestId("select-growth-tier"), { target: { value: "Priority" } });
+    await waitFor(() => expect(rows()).toHaveLength(0));
+    fireEvent.click(screen.getByTestId("growth-segment-dormant"));
+    await waitFor(() => expect(screen.getByTestId(`growth-runs-${D}`)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId("select-growth-tier"), { target: { value: "" } });
+    fireEvent.change(screen.getByTestId("select-growth-scored"), { target: { value: "unscored" } });
+    await waitFor(() => expect(screen.getByTestId(`growth-runs-${D}`)).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("growth-segment-fresh"));
+    await waitFor(() => expect(rows()).toHaveLength(0));
+  });
+
+  it("sorts by a column on click, newest last run by default", async () => {
+    renderCard("7d"); // New: C ran 4h ago, A 2h ago
+    const list = await screen.findByTestId("growth-list");
+    const order = () =>
+      within(list)
+        .getAllByTestId(/^growth-runs-/)
+        .map((el) => el.getAttribute("data-testid"));
+    await waitFor(() => expect(order()).toEqual([`growth-runs-${A}`, `growth-runs-${C}`]));
+
+    fireEvent.click(screen.getByTestId("sort-growth-score"));
+    await waitFor(() => expect(order()).toEqual([`growth-runs-${A}`, `growth-runs-${C}`]));
+    fireEvent.click(screen.getByTestId("sort-growth-score"));
+    await waitFor(() => expect(order()).toEqual([`growth-runs-${C}`, `growth-runs-${A}`]));
+    fireEvent.click(screen.getByTestId("sort-growth-first-run"));
+    await waitFor(() => expect(order()).toEqual([`growth-runs-${A}`, `growth-runs-${C}`]));
+  });
+
+  it("opens a person on click", async () => {
+    renderCard();
+    const list = await screen.findByTestId("growth-list");
+    fireEvent.click(await within(list).findByText("Riverdev"));
+    expect(opened).toHaveBeenCalledWith(A);
   });
 });
