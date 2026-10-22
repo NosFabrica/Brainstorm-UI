@@ -789,7 +789,6 @@ function KpiCard({
   subtitle,
   unsupported,
   tooltip,
-  scope,
   onClick,
   sparklineData,
   sparklineTimestamps,
@@ -805,7 +804,6 @@ function KpiCard({
   subtitle?: string;
   unsupported?: boolean;
   tooltip?: string;
-  scope?: "system" | "graph";
   onClick?: () => void;
   sparklineData?: number[];
   sparklineTimestamps?: number[];
@@ -832,16 +830,7 @@ function KpiCard({
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-accent/15 bg-gradient-to-br from-brand-accent/10 to-brand-deep/10">
             <Icon className="h-4 w-4 text-brand-deep" />
           </div>
-          {scope && (
-            <Chip
-              tone={scope === "system" ? "brand" : "slate"}
-              size="sm"
-              className="font-bold uppercase tracking-wider"
-            >
-              {scope === "system" ? "System" : "Your graph"}
-            </Chip>
-          )}
-          {trend && !scope && (
+          {trend && (
             <span
               className={`flex items-center gap-0.5 text-[10px] font-semibold ${trend.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}
             >
@@ -893,9 +882,11 @@ function KpiCard({
             {deltaSlot}
           </div>
         )}
-        <div className="relative mt-auto pt-1.5">
-          {unsupported ? <StatusBadge status="disconnected" /> : <StatusBadge status="connected" />}
-        </div>
+        {unsupported && (
+          <div className="relative mt-auto pt-1.5">
+            <StatusBadge status="disconnected" />
+          </div>
+        )}
       </div>
       {hasSparkline && (
         <SparklineDetailsDialog
@@ -3163,6 +3154,30 @@ export default function AdminPage() {
 
   const algoDistinct = pipelineMetrics ? Object.keys(pipelineMetrics.algoCounts).length : 0;
 
+  // The header's six figures — the system now — drawn once for the cards and
+  // for the one-line strip the other tabs show.
+  const headerFigures = {
+    scored: nowMetrics
+      ? `${formatNumber(nowMetrics.successCount)} / ${formatNumber(nowMetrics.total)}`
+      : hasSystemData
+        ? formatNumber(adminStats!.scoredUsers)
+        : "0",
+    published: nowMetrics
+      ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
+      : hasSystemData
+        ? formatNumber(adminStats!.spAdopters)
+        : "0",
+    queue:
+      computedQueueDepth !== null
+        ? formatNumber(computedQueueDepth)
+        : hasSystemData
+          ? formatNumber(adminStats!.queueDepth)
+          : "0",
+    calcs: nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "0",
+    rate: nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—",
+    failed: nowMetrics ? formatNumber(nowMetrics.failedCount) : formatNumber(trends.cmp.curFailed),
+  };
+
   const handleTriggerGraperank = useCallback(
     async (pubkey: string) => {
       setTriggeringPubkeys((prev) => new Set(prev).add(pubkey));
@@ -3578,132 +3593,131 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-          <div
-            className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
-            data-testid="section-kpi-strip"
-          >
-            <KpiCard
-              label="Scored Users"
-              value={
-                nowMetrics
-                  ? `${formatNumber(nowMetrics.successCount)} / ${formatNumber(nowMetrics.total)}`
-                  : hasSystemData
-                    ? formatNumber(adminStats!.scoredUsers)
-                    : "0"
-              }
-              icon={UserCheck}
-              subtitle={
-                nowMetrics ? `${nowMetrics.successRate}% have a GrapeRank score` : "Users with a GrapeRank score"
-              }
-              tooltip="Users whose last GrapeRank run succeeded — click to list them"
-              scope={nowMetrics || hasSystemData ? "system" : "graph"}
-              onClick={() => {
-                setKpiFilter("scored");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-              sparklineData={trends.successSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
-              sparklineColor="#10b981"
-              sparklineValueLabel="successes"
-            />
-            <KpiCard
-              label="Assertions Published"
-              value={
-                nowMetrics
-                  ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
-                  : hasSystemData
-                    ? formatNumber(adminStats!.spAdopters)
-                    : "0"
-              }
-              icon={Shield}
-              subtitle={
-                nowMetrics
-                  ? `${nowMetrics.taAdoptionRate}% publish trusted assertions`
-                  : "Users publishing trusted assertions"
-              }
-              tooltip="Users whose scores are published to relays as NIP-85 trusted assertions — click to list them"
-              scope={nowMetrics || hasSystemData ? "system" : "graph"}
-              onClick={() => {
-                setKpiFilter("sp_adopters");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-            />
-            <KpiCard
-              label="Queue Depth"
-              value={
-                computedQueueDepth !== null
-                  ? formatNumber(computedQueueDepth)
-                  : hasSystemData
-                    ? formatNumber(adminStats!.queueDepth)
-                    : queuePosition !== null
-                      ? queuePosition.toString()
-                      : "—"
-              }
-              icon={Clock}
-              subtitle={
-                computedQueueDepth !== null
-                  ? "Users awaiting calculation"
-                  : hasSystemData
+          {activeTab === "overview" && (
+            <div
+              className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+              data-testid="section-kpi-strip"
+            >
+              <KpiCard
+                label="Scored Users"
+                value={headerFigures.scored}
+                icon={UserCheck}
+                subtitle={
+                  nowMetrics ? `${nowMetrics.successRate}% have a GrapeRank score` : "Users with a GrapeRank score"
+                }
+                tooltip="Users whose last GrapeRank run succeeded — click to list them"
+                onClick={() => {
+                  setKpiFilter("scored");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+                sparklineData={trends.successSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#10b981"
+                sparklineValueLabel="successes"
+              />
+              <KpiCard
+                label="Assertions Published"
+                value={headerFigures.published}
+                icon={Shield}
+                subtitle={
+                  nowMetrics
+                    ? `${nowMetrics.taAdoptionRate}% publish trusted assertions`
+                    : "Users publishing trusted assertions"
+                }
+                tooltip="Users whose scores are published to relays as NIP-85 trusted assertions — click to list them"
+                onClick={() => {
+                  setKpiFilter("sp_adopters");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+              />
+              <KpiCard
+                label="Queue Depth"
+                value={headerFigures.queue}
+                icon={Clock}
+                subtitle={
+                  computedQueueDepth !== null
                     ? "Users awaiting calculation"
-                    : queuePosition !== null
-                      ? "Position in queue"
-                      : "Via graperankResult"
-              }
-              tooltip="Click to view queued users"
-              scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
-              onClick={() => {
-                setKpiFilter("queue");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-            />
-            <KpiCard
-              label="Total Calcs"
-              value={nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "0"}
-              icon={Activity}
-              subtitle="Cumulative attempts, all users"
-              tooltip="Cumulative calculation attempts across all users"
-              scope="system"
-              sparklineData={trends.totalSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
-              sparklineColor="#13d2e5"
-              sparklineValueLabel="calcs / hr"
-            />
-            <KpiCard
-              label="Success Rate"
-              value={
-                nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—"
-              }
-              icon={CheckCircle2}
-              subtitle="Cumulative success rate"
-              tooltip="Successful calculations as % of attempted"
-              scope="system"
-              sparklineData={trends.rateSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
-              sparklineColor="#10b981"
-              sparklineValueLabel="success rate"
-              sparklineValueSuffix="%"
-            />
-            <KpiCard
-              label="Failed Count"
-              value={nowMetrics ? formatNumber(nowMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
-              icon={AlertTriangle}
-              subtitle="Users with a failed run"
-              tooltip="Click to view users with failures"
-              scope="system"
-              onClick={() => {
-                setKpiFilter("failed");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-              sparklineData={trends.failedSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
-              sparklineColor="#f87171"
-              sparklineValueLabel="failures"
-            />
-          </div>
+                    : hasSystemData
+                      ? "Users awaiting calculation"
+                      : queuePosition !== null
+                        ? "Position in queue"
+                        : "Via graperankResult"
+                }
+                tooltip="Click to view queued users"
+                onClick={() => {
+                  setKpiFilter("queue");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+              />
+              <KpiCard
+                label="Total Calcs"
+                value={headerFigures.calcs}
+                icon={Activity}
+                subtitle="Cumulative attempts, all users"
+                tooltip="Cumulative calculation attempts across all users"
+                sparklineData={trends.totalSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#13d2e5"
+                sparklineValueLabel="calcs / hr"
+              />
+              <KpiCard
+                label="Success Rate"
+                value={headerFigures.rate}
+                icon={CheckCircle2}
+                subtitle="Cumulative success rate"
+                tooltip="Successful calculations as % of attempted"
+                sparklineData={trends.rateSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#10b981"
+                sparklineValueLabel="success rate"
+                sparklineValueSuffix="%"
+              />
+              <KpiCard
+                label="Failed Count"
+                value={headerFigures.failed}
+                icon={AlertTriangle}
+                subtitle="Users with a failed run"
+                tooltip="Click to view users with failures"
+                onClick={() => {
+                  setKpiFilter("failed");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+                sparklineData={trends.failedSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#f87171"
+                sparklineValueLabel="failures"
+              />
+            </div>
+          )}
+          {activeTab !== "overview" && (
+            <p
+              className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300"
+              data-testid="kpi-compact"
+            >
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.scored}</b> scored
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.published}</b> published
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.queue}</b> queued
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.calcs}</b> calcs
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.rate}</b> success
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.failed}</b> failed
+              </span>
+            </p>
+          )}
 
           <div className="scrollbar-hide -mx-4 hidden overflow-x-auto px-4 sm:mx-0 sm:block sm:px-0">
             <div

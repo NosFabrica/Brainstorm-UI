@@ -254,6 +254,31 @@ describe("the admin dashboard's time range", () => {
     await waitFor(() => expect(screen.queryByTestId("range-selector")).toBeNull());
   });
 
+  it("keeps the header cards for the Overview and folds them to one line elsewhere, badges gone", async () => {
+    api.getAdminUsers.mockImplementation(async ({ days }: { days?: number }) => {
+      if (days !== 9999) return { items: [], total: 0, pages: 1 };
+      const items = Array.from({ length: 3 }, (_, i) => ({
+        pubkey: String(i).padStart(64, "0"),
+        latest_status: i === 2 ? "failed" : "success",
+        latest_ta_status: "success",
+        times_calculated: 5,
+        last_updated: new Date().toISOString(),
+      }));
+      return { items, total: 3, pages: 1 };
+    });
+    renderPage();
+    const strip = await screen.findByTestId("section-kpi-strip");
+    await waitFor(() => expect(within(strip).getByTestId("kpi-scored-users")).toHaveTextContent("2 / 3"));
+    expect(within(strip).queryByText(/^system$/i)).toBeNull();
+    expect(within(strip).queryByText(/^connected$/i)).toBeNull();
+
+    fireEvent.click(screen.getByTestId("tab-billing"));
+    await waitFor(() => expect(screen.queryByTestId("kpi-scored-users")).toBeNull());
+    const line = screen.getByTestId("kpi-compact");
+    expect(line).toHaveTextContent(/2 \/ 3 scored/i);
+    expect(line).toHaveTextContent(/1 failed/i);
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());
