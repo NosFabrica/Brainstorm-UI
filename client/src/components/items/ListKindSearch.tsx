@@ -1249,14 +1249,16 @@ function PlacesPage({ query }: { query: string }) {
     setFilter({ category: null, openNow: false });
     if (area) setArea(null);
   };
-  // Offered once the reader has moved the map somewhere other than the area it shows.
-  const searchHere = (top: string) =>
+  // Offered once the reader has moved the map somewhere other than the area it shows — at the
+  // top of the map, where a map app puts it; on a phone, in the header's own flow under the
+  // chips, where nothing covers it and no screen cuts it off.
+  const searchHere = (place: "float" | "inline") =>
     moved &&
     !sameView(moved, area) && (
       <button
         type="button"
         onClick={() => setArea(moved)}
-        className={`absolute left-1/2 ${top} z-[600] inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
+        className={`${place === "float" ? "absolute left-1/2 top-4 z-[600] -translate-x-1/2" : "mt-1"} inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
       >
         <Search className="h-4 w-4" aria-hidden />
         Search this area
@@ -1385,7 +1387,7 @@ function PlacesPage({ query }: { query: string }) {
                 className="h-full"
               />
               {/* At the foot of the map: an open card sits at its head. */}
-              {searchHere("bottom-4")}
+              {searchHere("float")}
               {eventPicked && (
                 <EventCard
                   event={eventPicked}
@@ -1450,8 +1452,8 @@ function PlacesPage({ query }: { query: string }) {
             />
             <div className="absolute inset-x-0 top-0 z-[500] bg-gradient-to-b from-white via-white/90 to-white/0 px-4 pb-6 pt-4 dark:from-slate-950 dark:via-slate-950/90 dark:to-slate-950/0">
               {header}
+              {searchHere("inline")}
             </div>
-            {searchHere("top-28")}
           </div>
           <div className="relative z-[500] -mt-48 space-y-2 pb-4">
             {eventPicked && (
