@@ -318,6 +318,40 @@ describe("the admin dashboard's time range", () => {
     expect(card.querySelectorAll("div").length).toBeLessThan(6);
   });
 
+  it("keeps the Users directory to six named columns", async () => {
+    api.getAdminUsers.mockResolvedValue({
+      items: [
+        {
+          pubkey: "e".repeat(64),
+          ta_pubkey: "f".repeat(64),
+          latest_status: "success",
+          latest_ta_status: "success",
+          latest_algorithm: "graperank",
+          times_calculated: 7,
+          last_triggered: new Date().toISOString(),
+          last_updated: new Date().toISOString(),
+          scheduling_name: "Free",
+        },
+      ],
+      total: 1,
+      pages: 1,
+    });
+    renderPage();
+    fireEvent.click(await screen.findByTestId("tab-users"));
+    const panel = await screen.findByTestId("panel-users");
+    await waitFor(() => expect(within(panel).getByTestId("row-user-0")).toBeInTheDocument());
+
+    const labels = within(panel)
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent?.trim())
+      .filter(Boolean);
+    expect(labels).toEqual(["Person", "Status", "Tier", "Runs", "Last run", "Actions"]);
+    // The run and the publication read as one status; the algorithm and TA key live in the expanded row.
+    const row = within(panel).getByTestId("row-user-0");
+    expect(row).toHaveTextContent(/scored · published/i);
+    expect(row).not.toHaveTextContent(/graperank/);
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());

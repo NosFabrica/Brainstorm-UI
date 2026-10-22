@@ -1218,7 +1218,7 @@ function UserHistoryRow({
       className="bg-gradient-to-r from-slate-50/80 to-brand-primary/10 dark:bg-slate-900/40 dark:bg-none"
       data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}
     >
-      <td colSpan={12} className="px-5 py-4">
+      <td colSpan={8} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
             <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -5079,15 +5079,7 @@ export default function AdminPage() {
                           <th className="sticky left-8 z-20 w-12 border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle dark:border-slate-800 dark:bg-slate-900"></th>
                           <th className="sticky left-20 z-20 whitespace-nowrap border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)] dark:border-slate-800 dark:bg-slate-900">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Profile
-                            </span>
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} />
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              TA Pubkey
+                              Person
                             </span>
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
@@ -5097,17 +5089,12 @@ export default function AdminPage() {
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              TA Status
-                            </span>
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Algorithm
+                              Tier
                             </span>
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
                             <SortHeader
-                              label="# Calcs"
+                              label="Runs"
                               sortKey="times_calculated"
                               currentSort={userSort}
                               onSort={handleSort}
@@ -5115,24 +5102,11 @@ export default function AdminPage() {
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
                             <SortHeader
-                              label="Last Triggered"
+                              label="Last run"
                               sortKey="last_triggered"
                               currentSort={userSort}
                               onSort={handleSort}
                             />
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <SortHeader
-                              label="Last Updated"
-                              sortKey="last_updated"
-                              currentSort={userSort}
-                              onSort={handleSort}
-                            />
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Tier
-                            </span>
                           </th>
                           <th className="sticky right-0 z-20 whitespace-nowrap bg-slate-50 px-2 py-2.5 text-center align-middle shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)] dark:bg-slate-900">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -5293,116 +5267,77 @@ export default function AdminPage() {
                                           )}
                                         </AvatarFallback>
                                       </Avatar>
-                                      <span className="block max-w-[90px] truncate text-[9px] font-medium text-slate-700 dark:text-slate-200">
-                                        {prof?.name || npub.slice(0, 12) + "..."}
+                                      <span className="min-w-0">
+                                        <span className="block max-w-[140px] truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                                          {prof?.name || npub.slice(0, 12) + "…"}
+                                        </span>
+                                        <span className="flex items-center gap-1 font-mono text-[9px] text-slate-400 dark:text-slate-500">
+                                          {npub.slice(0, 12)}…{npub.slice(-4)}
+                                          <CopyButton text={npub} />
+                                        </span>
                                       </span>
                                     </div>
-                                  </td>
-                                  <td className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60">
-                                    <div className="space-y-0.5">
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[8px] text-brand-primary/80">
-                                          {npub.slice(0, 12)}...{npub.slice(-4)}
-                                        </span>
-                                        <CopyButton text={npub} />
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[7px] text-slate-400 dark:text-slate-500">
-                                          {u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}
-                                        </span>
-                                        <CopyButton text={u.pubkey} />
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-ta-pubkey-${i}`}
-                                  >
-                                    {u.ta_pubkey ? (
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[8px] text-emerald-600 dark:text-emerald-400">
-                                          {u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}
-                                        </span>
-                                        <CopyButton text={u.ta_pubkey} />
-                                      </div>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-300 dark:text-slate-600">none</span>
-                                    )}
                                   </td>
                                   <td
                                     className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
                                     data-testid={`cell-status-${i}`}
                                   >
-                                    {u.latest_status ? (
-                                      <div className="flex items-center gap-1">
+                                    {(() => {
+                                      const run = u.latest_status?.toLowerCase();
+                                      const pub = u.latest_ta_status?.toLowerCase();
+                                      const runFailed = isFailedStatus(u.latest_status);
+                                      const pubFailed = isFailedStatus(u.latest_ta_status);
+                                      const chip = (tone: "emerald" | "red" | "slate", text: string) => (
                                         <span
-                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-semibold ${
-                                            u.latest_status.toLowerCase() === "success"
+                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                                            tone === "emerald"
                                               ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-                                              : isFailedStatus(u.latest_status)
+                                              : tone === "red"
                                                 ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                                 : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                                           }`}
                                         >
-                                          {u.latest_status}
+                                          {text}
                                         </span>
-                                        {isFailedStatus(u.latest_status) && (
-                                          <span
-                                            title="Calculation failed — click row to view error"
-                                            data-testid={`icon-status-failed-${i}`}
-                                          >
-                                            <AlertTriangle className="h-3 w-3 text-red-500" />
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-400 dark:text-slate-500">
-                                        Pending
-                                      </span>
-                                    )}
+                                      );
+                                      if (runFailed || pubFailed)
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            {chip("red", runFailed ? "calculation failed" : "publishing failed")}
+                                            <span
+                                              title="Failed — click the row to see the error"
+                                              data-testid={
+                                                runFailed ? `icon-status-failed-${i}` : `icon-ta-status-failed-${i}`
+                                              }
+                                            >
+                                              <AlertTriangle className="h-3 w-3 text-red-500" />
+                                            </span>
+                                          </div>
+                                        );
+                                      if (run === "success" && pub === "success")
+                                        return chip("emerald", "scored · published");
+                                      if (run === "success") return chip("emerald", "scored");
+                                      if (!run) return chip("slate", "pending");
+                                      return chip("slate", u.latest_status ?? "pending");
+                                    })()}
                                   </td>
                                   <td
                                     className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-ta-status-${i}`}
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    {u.latest_ta_status ? (
-                                      <div className="flex items-center gap-1">
-                                        <span
-                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-semibold ${
-                                            u.latest_ta_status.toLowerCase() === "success"
-                                              ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-                                              : isFailedStatus(u.latest_ta_status)
-                                                ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
-                                                : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                                          }`}
-                                        >
-                                          {u.latest_ta_status}
-                                        </span>
-                                        {isFailedStatus(u.latest_ta_status) && (
-                                          <span
-                                            title="Trust Attestation failed — click row to view error"
-                                            data-testid={`icon-ta-status-failed-${i}`}
-                                          >
-                                            <AlertTriangle className="h-3 w-3 text-red-500" />
-                                          </span>
-                                        )}
-                                      </div>
+                                    {schedulingPolicies.length > 0 ? (
+                                      <UserTierPicker
+                                        pubkey={u.pubkey}
+                                        schedulingId={u.scheduling_id}
+                                        schedulingName={u.scheduling_name}
+                                        policies={schedulingPolicies}
+                                        displayName={prof?.name}
+                                        picture={prof?.picture}
+                                      />
                                     ) : (
-                                      <span className="text-[8px] italic text-slate-400 dark:text-slate-500">
-                                        Pending
+                                      <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                                        {u.scheduling_name}
                                       </span>
-                                    )}
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-algorithm-${i}`}
-                                  >
-                                    {u.latest_algorithm ? (
-                                      <span className="font-mono text-[9px] text-slate-600 dark:text-slate-300">
-                                        {u.latest_algorithm}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-400 dark:text-slate-500">N/A</span>
                                     )}
                                   </td>
                                   <td
@@ -5427,40 +5362,6 @@ export default function AdminPage() {
                                         </span>
                                       )}
                                     </div>
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-last-updated-${i}`}
-                                  >
-                                    <div>
-                                      <span className="block text-[9px] text-slate-600 dark:text-slate-300">
-                                        {formatTimestamp(u.last_updated)}
-                                      </span>
-                                      {timeAgo(u.last_updated) && (
-                                        <span className="text-[8px] text-slate-400 dark:text-slate-500">
-                                          {timeAgo(u.last_updated)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {schedulingPolicies.length > 0 ? (
-                                      <UserTierPicker
-                                        pubkey={u.pubkey}
-                                        schedulingId={u.scheduling_id}
-                                        schedulingName={u.scheduling_name}
-                                        policies={schedulingPolicies}
-                                        displayName={prof?.name}
-                                        picture={prof?.picture}
-                                      />
-                                    ) : (
-                                      <span className="text-[9px] text-slate-500 dark:text-slate-400">
-                                        {u.scheduling_name}
-                                      </span>
-                                    )}
                                   </td>
                                   <td className="sticky right-0 z-10 bg-white px-2 py-2.5 text-center shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-900">
                                     <UserActionsMenu
@@ -5491,7 +5392,7 @@ export default function AdminPage() {
                                       className="border-b border-red-100 bg-red-50/40 dark:border-red-500/25 dark:bg-red-500/10"
                                       data-testid={`row-failure-summary-${i}`}
                                     >
-                                      <td colSpan={13} className="px-3 py-1.5">
+                                      <td colSpan={8} className="px-3 py-1.5">
                                         <div className="flex flex-wrap items-center gap-2">
                                           <AlertTriangle className="h-3 w-3 shrink-0 text-red-500" />
                                           <span className="text-[10px] font-medium text-red-800 dark:text-red-300">
