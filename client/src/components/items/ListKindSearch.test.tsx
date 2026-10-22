@@ -558,7 +558,9 @@ describe("places, presented cleanly", () => {
     }
   });
 
-  it("draws no map when the places are a continent apart", () => {
+  // A map app never hides the map: places a continent apart get one fitted to all of them,
+  // the summary says how far they spread, and Near me or Search this area narrows it.
+  it("draws the map fitted to all the places, even a continent apart, and says how many towns", () => {
     const was = itemsOf[PLACES];
     try {
       itemsOf[PLACES] = [
@@ -566,7 +568,8 @@ describe("places, presented cleanly", () => {
         place("West Diner", "restaurant", "West Roxbury", [], ["42.28", "-71.13"]),
       ];
       page("places", "");
-      expect(screen.queryByTestId("places-map")).toBeNull();
+      expect(screen.getByTestId("places-map")).toHaveAttribute("data-labels", "1,2");
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/2 places in 2 towns/);
     } finally {
       itemsOf[PLACES] = was;
     }

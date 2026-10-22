@@ -1216,12 +1216,18 @@ function PlacesPage({ query }: { query: string }) {
   const openCount = hits.filter((h) => isOpenNow(h.place)).length;
   const lines = linesOf(shown);
   const pins = pinsOf(shown);
-  // An area searched keeps its map, places or none, so the reader can move on from it.
-  // The search's map, not the filters': one that leaves no place keeps it, so the reader can undo
-  // the filter where they are (and the map isn't rebuilt when they do).
-  const map = !!area || pinsAreLocal(pinsOf(hits));
-  // A town's upcoming events near its places share the map, as on the Top page's preview.
-  const events = useTownEventPins(map ? town : null, pins, area);
+  // The map is always there, as a map app's is: fitted to every place, a continent apart or one
+  // town, so the reader can narrow it — Near me, or Search this area. An area searched keeps it,
+  // places or none. The search's map, not the filters': one that leaves no place keeps it, so the
+  // reader can undo the filter where they are (and the map isn't rebuilt when they do).
+  const allPinsOfSearch = pinsOf(hits);
+  const map = !!area || allPinsOfSearch.length > 0;
+  // A town's upcoming events near its places share the map, as on the Top page's preview —
+  // only when the places are one town's, not a continent's.
+  const local = pinsAreLocal(allPinsOfSearch);
+  const events = useTownEventPins(map && local ? town : null, pins, area);
+  // Spread out, the summary says how far: the towns the places are in.
+  const towns = new Set(hits.map((h) => h.place?.locality).filter(Boolean)).size;
   if (hits.length === 0 && !area) return <PageEmpty pending={pending} label="Places" query={query} />;
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
     <button
@@ -1278,7 +1284,15 @@ function PlacesPage({ query }: { query: string }) {
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="places-summary">
           {filtering && `${shown.length} of `}
           {hits.length >= PAGE_MAX ? `${PAGE_MAX}+` : hits.length} {hits.length === 1 ? "place" : "places"}
-          {area ? (nearYou ? " near you" : " in this area") : town ? ` in ${town}` : ""}
+          {area
+            ? nearYou
+              ? " near you"
+              : " in this area"
+            : town
+              ? ` in ${town}`
+              : !local && towns > 1
+                ? ` in ${towns} towns`
+                : ""}
           {!filtering && openCount > 0 && (
             <span className="font-medium text-emerald-600 dark:text-emerald-400"> · {openCount} open now</span>
           )}
