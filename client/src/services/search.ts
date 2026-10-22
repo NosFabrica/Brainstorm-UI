@@ -24,7 +24,7 @@ import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { liftQuery, queryWords, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
+import { liftQuery, parseSearch, queryWords, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
 import { isListed, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
@@ -2089,6 +2089,8 @@ export function fetchFromSearch(
 export interface ListAsk {
   key: string;
   headers: string[];
+  /** Its items whatever the words: the search is the list's own name ("books"). */
+  whole?: boolean;
 }
 
 /** One list's answer: the items the relay matched, and whether it stopped at the cap, so more may match. */
@@ -2102,7 +2104,9 @@ export interface ListAnswer {
  * search's lens: one filter per list in one REQ, so each list has a cap of its own and one
  * list's many matches don't crowd out another's few (the relay keeps each filter's limit under
  * NIP-50, probed 2026-10-21). The relay's matching is loose — "fork & coin" finds "Bitcoin for
- * Beginners" — so a caller keeps the whole-word matches (lib/listSearch).
+ * Beginners" — so a caller keeps the whole-word matches (lib/listSearch). A list asked for
+ * `whole` is asked through the lens alone, without the words: the relay answers that with
+ * the list's items (probed 2026-10-22).
  *
  * Words only: a query with a hashtag, a mention or a kind other than list items asks nothing;
  * `from:` and dates narrow every list. Resolves at EOSE or the timeout with what arrived;
@@ -2136,6 +2140,11 @@ export async function searchListItems(
     ...(lifted.since != null ? { since: lifted.since } : {}),
     ...(lifted.until != null ? { until: lifted.until } : {}),
   };
+  const parsed = parseSearch(query);
+  const lens = withObserver(
+    parsed.includeSpam ? "include:spam" : parsed.observer ? `observer:${parsed.observer}` : "",
+    observer,
+  );
   const listsOf = new Map<string, string[]>();
   for (const l of lists) for (const h of l.headers) listsOf.set(h, [...(listsOf.get(h) ?? []), l.key]);
 
@@ -2151,19 +2160,21 @@ export async function searchListItems(
       resolve(answers);
     };
     const timer = setTimeout(finish, timeoutMs);
-    sub = relay.req(lists.map((l) => ({ ...base, "#z": l.headers, limit }))).subscribe({
-      next: (msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event) {
-          const event = msg.event;
-          const keys = new Set(event.tags.filter((t) => t[0] === "z").flatMap((t) => listsOf.get(t[1]) ?? []));
-          for (const key of keys) {
-            const answer = answers.get(key)!;
-            if (!answer.events.some((e) => e.id === event.id)) answer.events.push(event);
-          }
-        } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
-      },
-      error: finish,
-    });
+    sub = relay
+      .req(lists.map((l) => ({ ...base, ...(l.whole ? { search: lens } : {}), "#z": l.headers, limit })))
+      .subscribe({
+        next: (msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) {
+            const event = msg.event;
+            const keys = new Set(event.tags.filter((t) => t[0] === "z").flatMap((t) => listsOf.get(t[1]) ?? []));
+            for (const key of keys) {
+              const answer = answers.get(key)!;
+              if (!answer.events.some((e) => e.id === event.id)) answer.events.push(event);
+            }
+          } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+        },
+        error: finish,
+      });
     if (done) sub.unsubscribe();
   });
 }

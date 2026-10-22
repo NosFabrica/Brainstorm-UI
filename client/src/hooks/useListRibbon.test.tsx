@@ -78,11 +78,29 @@ describe("useListRibbon", () => {
     expect(asked).toHaveBeenCalledWith(
       "fork & coin",
       [
-        { key: PLACES, headers: [PLACES] },
-        { key: VIDEOS, headers: [VIDEOS] },
+        { key: PLACES, headers: [PLACES], whole: false },
+        { key: VIDEOS, headers: [VIDEOS], whole: false },
       ],
       expect.objectContaining({ pov: "mywot", userPubkey: "1".repeat(64) }),
     );
+  });
+
+  it("puts a list the search only names first, with its items whatever their words", async () => {
+    const skyline = item(VIDEOS, "title", "Austin skyline");
+    answers = new Map([
+      [PLACES, { events: [item(PLACES, "name", "Divine Diner"), item(PLACES, "name", "Videos & Vinyl")], full: false }],
+      [VIDEOS, { events: [skyline], full: false }],
+    ]);
+    const { result } = renderHook(() => useListRibbon("videos", { pov: "nosfabrica", enabled: true, page: [] }));
+    await waitFor(() => expect(result.current).toHaveLength(2));
+    expect(asked.mock.calls[0][1]).toEqual([
+      { key: PLACES, headers: [PLACES], whole: false },
+      { key: VIDEOS, headers: [VIDEOS], whole: true },
+    ]);
+    expect(result.current.map((l) => [l.coordinate, l.hits.length])).toEqual([
+      [VIDEOS, 1],
+      [PLACES, 1],
+    ]);
   });
 
   it("keeps a list's whole-word matches only — the relay's loose ones don't make a list", async () => {

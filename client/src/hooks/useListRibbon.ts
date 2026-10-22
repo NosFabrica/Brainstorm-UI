@@ -4,7 +4,7 @@ import { dictionaryRelays } from "@/config/dictionary";
 import { useDictionary } from "@/hooks/useDictionary";
 import { PresentationOverrideContext } from "@/hooks/useItemView";
 import { presentItem } from "@/lib/itemPresentation";
-import { matchListItems, wordsToFind } from "@/lib/listSearch";
+import { matchListItems, namesListOnly, wordsToFind } from "@/lib/listSearch";
 import { queryWords } from "@/lib/searchSyntax";
 import { eventPath } from "@/lib/shareId";
 import { filedItems, itemIdentity, listHeaders, type DictionaryItem } from "@/services/dictionary";
@@ -37,7 +37,8 @@ const LIMIT = 50;
  * A list item on All's own page (`page`, the rows it shows) counts too, however
  * loosely the relay matched it: an item the reader can see has its list on the
  * ribbon. So a count is of what was found so far, not of all that matches.
- * Most first.
+ * A search that is a list's name alone ("books") has that list, with its
+ * items whatever their words, first; then the most found first.
  *
  * For everyone, signed in or not, as the Top page's list results are: a
  * reader with no copy reads Brainstorm's definitions (ADR 0004).
@@ -53,14 +54,24 @@ export function useListRibbon(
 ): RibbonList[] {
   const dictionary = useDictionary(enabled, { anonymous: true });
   const lists = useMemo(() => (dictionary.data ?? []).filter((e) => e.resolved), [dictionary.data]);
-  const asks = useMemo(
-    () => lists.map((e) => ({ key: e.communityCoordinate, headers: listHeaders(e.communityCoordinate, e.resolved) })),
-    [lists],
-  );
   const words = queryWords(query).trim();
+  const asks = useMemo(
+    () =>
+      lists.map((e) => ({
+        key: e.communityCoordinate,
+        headers: listHeaders(e.communityCoordinate, e.resolved),
+        whole: namesListOnly(words, e.resolved!.governing),
+      })),
+    [lists, words],
+  );
   const ask =
     enabled && words && asks.length
-      ? [pov, userPubkey ?? "", query, ...asks.map((a) => `${a.key}=${a.headers.join(",")}`)].join("\n")
+      ? [
+          pov,
+          userPubkey ?? "",
+          query,
+          ...asks.map((a) => `${a.key}${a.whole ? " whole" : ""}=${a.headers.join(",")}`),
+        ].join("\n")
       : null;
 
   const [answered, setAnswered] = useState<{ ask: string; answers: Map<string, ListAnswer> } | null>(null);
@@ -83,6 +94,7 @@ export function useListRibbon(
     if (!enabled) return [];
     const answers = ask && answered?.ask === ask ? answered.answers : null;
     const found: RibbonList[] = [];
+    const named = new Set<string>();
     for (const entry of lists) {
       const resolved = entry.resolved!;
       const definition = resolved.governing;
@@ -93,10 +105,10 @@ export function useListRibbon(
         const shown = presentItem(item, definition);
         return override ? override(item, resolved, shown) : shown;
       };
-      const matched =
-        answer?.events.length && toFind.length
-          ? matchListItems(filedItems(answer.events as DictionaryItem[], headers), definition, toFind, Infinity, read)
-          : [];
+      const whole = namesListOnly(words, definition);
+      if (whole) named.add(entry.communityCoordinate);
+      const filed = answer ? filedItems(answer.events as DictionaryItem[], headers) : [];
+      const matched = whole ? filed : toFind.length ? matchListItems(filed, definition, toFind, Infinity, read) : [];
       const held = new Set(matched.map(itemIdentity));
       const items = [...matched, ...filedItems(onPage, headers).filter((item) => !held.has(itemIdentity(item)))];
       if (!items.length) continue;
@@ -110,7 +122,10 @@ export function useListRibbon(
       });
     }
     return found.sort(
-      (a, b) => b.hits.length - a.hits.length || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+      (a, b) =>
+        Number(named.has(b.coordinate)) - Number(named.has(a.coordinate)) ||
+        b.hits.length - a.hits.length ||
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
   }, [enabled, ask, answered, lists, words, override, onPage]);
 }

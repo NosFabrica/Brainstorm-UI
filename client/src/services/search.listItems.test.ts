@@ -60,6 +60,22 @@ describe("searchListItems", () => {
     await pending;
   });
 
+  it("asks a list named alone for its items through the lens, without the words", async () => {
+    const pending = searchListItems(
+      "books sort:recent",
+      [
+        { key: PLACES, headers: [PLACES] },
+        { key: EVENTS, headers: [EVENTS], whole: true },
+      ],
+      { pov: "nosfabrica" },
+    );
+    await tick();
+    const filters = reqMock.mock.calls[0][0] as { search: string }[];
+    expect(filters.map((f) => f.search)).toEqual([`books sort:recent observer:${HOUSE}`, `observer:${HOUSE}`]);
+    relay.next({ type: "EOSE" });
+    await pending;
+  });
+
   it("sorts what comes back to its lists by `z`, and says which list the cap stopped", async () => {
     const pending = searchListItems(
       "austin",
