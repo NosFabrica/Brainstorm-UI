@@ -47,7 +47,15 @@ vi.mock("@/lib/searchRelay", () => ({
     req: (...args: unknown[]) => reqMock(...args),
     count: (...args: unknown[]) => countMock(...args),
   }),
+  // The tab counts' own socket: a fake whose COUNTs a test answers, and which says when it closed.
+  openSideSearchRelay: () => sideRelay,
 }));
+const sideCountMock = vi.fn();
+const sideCloseMock = vi.fn();
+const sideRelay = {
+  count: (...args: unknown[]) => sideCountMock(...args),
+  close: () => sideCloseMock(),
+};
 const houseMock = vi.fn(() => Promise.resolve<string | null>("f".repeat(64)));
 vi.mock("@/services/trustSource", () => ({
   resolveHouseObserver: () => houseMock(),
@@ -99,6 +107,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   searchStream,
+  countTabs,
   suggestProfiles,
   suggestListings,
   kindsForTab,
@@ -3106,5 +3115,104 @@ describe("authors this device already knows", () => {
       deviceProfiles.clear();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("countTabs", () => {
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it("asks one COUNT per tab of the tab's own filters, without a page size, on a socket of its own, and closes it once all are in", async () => {
+    const answers = new Map<string, Subject<{ count?: number }>>();
+    sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) => {
+      const s = new Subject<{ count?: number }>();
+      answers.set(String(filters[0].kinds), s);
+      return s;
+    });
+    const got: [string, number | null][] = [];
+    countTabs("bars in funchal", ["people", "events"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(sideCountMock).toHaveBeenCalledTimes(2);
+    const [peopleAsk] = sideCountMock.mock.calls[0] as [Record<string, unknown>[]];
+    // Newest first whatever the page asks: best match matches fewer for the same words.
+    expect(peopleAsk).toEqual([{ kinds: [0], search: `bars in funchal sort:recent observer:${"f".repeat(64)}` }]);
+    expect(peopleAsk[0]).not.toHaveProperty("limit");
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(countMock).not.toHaveBeenCalled();
+    answers.get("0")!.next({ count: 0 });
+    answers.get("0")!.complete();
+    expect(sideCloseMock).not.toHaveBeenCalled();
+    answers.get(String(TAB_KINDS.events))!.next({ count: 3 });
+    expect(got).toEqual([
+      ["people", 0],
+      ["events", 3],
+    ]);
+    expect(sideCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a tab with nothing to ask holds nothing, and is not asked", async () => {
+    sideCountMock.mockImplementation(() => of({ count: 9 }));
+    const got: [string, number | null][] = [];
+    // A typed kind none of People's kinds fit.
+    countTabs("kind:30023 bitcoin", ["people", "articles"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(sideCountMock).toHaveBeenCalledTimes(1);
+    expect(got).toEqual([
+      ["people", 0],
+      ["articles", 9],
+    ]);
+  });
+
+  it("a typed sort gives way to newest-first: it changes the order, not what matches", async () => {
+    sideCountMock.mockImplementation(() => of({ count: 1 }));
+    countTabs("jack sort:zaps", ["notes"], { pov: "nosfabrica" }, () => {});
+    await settle();
+    const [asked] = sideCountMock.mock.calls[0] as [{ search: string }[]];
+    expect(asked[0].search).toBe(`jack sort:recent observer:${"f".repeat(64)}`);
+  });
+
+  it("cancelling while counts are out stops their answers and closes the socket", async () => {
+    const pending = new Subject<{ count?: number }>();
+    sideCountMock.mockImplementation(() => pending);
+    const got: [string, number | null][] = [];
+    const cancel = countTabs("jack", ["notes", "shop"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(sideCountMock).toHaveBeenCalledTimes(2);
+    cancel();
+    expect(sideCloseMock).toHaveBeenCalledTimes(1);
+    pending.next({ count: 4 });
+    expect(got).toEqual([]);
+  });
+
+  it("a count that fails or never comes is unknown, never zero, and the socket closes once all have settled", async () => {
+    vi.useFakeTimers();
+    try {
+      sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) =>
+        filters[0].kinds?.includes(0) ? throwError(() => new Error("closed")) : new Subject(),
+      );
+      const got: [string, number | null][] = [];
+      const cancel = countTabs("jack", ["people", "notes", "shop"], { pov: "nosfabrica" }, (tab, n) =>
+        got.push([tab, n]),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(got).toEqual([["people", null]]);
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(got).toEqual([
+        ["people", null],
+        ["notes", null],
+        ["shop", null],
+      ]);
+      expect(sideCloseMock).toHaveBeenCalledTimes(1);
+      cancel();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads through the viewer's own lens when they asked for it", async () => {
+    sideCountMock.mockImplementation(() => of({ count: 1 }));
+    countTabs("jack", ["notes"], { pov: "mywot", userPubkey: "a".repeat(64) }, () => {});
+    await settle();
+    const [asked] = sideCountMock.mock.calls[0] as [{ search: string }[]];
+    expect(asked[0].search).toBe(`jack sort:recent observer:${"a".repeat(64)}`);
   });
 });
