@@ -298,6 +298,26 @@ describe("the admin dashboard's time range", () => {
     expect(card.querySelectorAll("div").length).toBeLessThan(6);
   });
 
+  it("keeps the Overview to three cards, each with its own job", async () => {
+    renderPage();
+    const panel = await screen.findByTestId("panel-overview");
+    await waitFor(() => expect(within(panel).getByTestId("card-activity-summary")).toBeInTheDocument());
+    expect(within(panel).getByTestId("card-trend-strip")).toBeInTheDocument();
+    expect(within(panel).getByTestId("card-recent-failures")).toBeInTheDocument();
+    expect(within(panel).queryByTestId("card-pipeline-health")).toBeNull();
+    expect(within(panel).queryByTestId("card-ta-adoption")).toBeNull();
+    expect(within(panel).queryByTestId("card-quick-stats")).toBeNull();
+  });
+
+  it("folds Recent Failures to a line when the range has none", async () => {
+    window.history.replaceState({}, "", "/admin?range=24h");
+    renderPage();
+    const card = await screen.findByTestId("card-recent-failures");
+    await waitFor(() => expect(card).toHaveTextContent(/no failures/i));
+    expect(within(card).queryByText(/all recent requests succeeded/i)).toBeNull();
+    expect(card.querySelectorAll("div").length).toBeLessThan(6);
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());

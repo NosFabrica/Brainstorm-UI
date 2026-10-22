@@ -77,18 +77,7 @@ import {
 } from "./adminRange";
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import { GrowthCard } from "@/components/admin/growth/GrowthCard";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip as RcTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
 import { fetchProfile, searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -2941,7 +2930,6 @@ export default function AdminPage() {
     overviewActivityQuery.data,
     overviewActivityQuery.isFetching,
   ]);
-  const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
   const allUsers = allUsersQuery.data?.items ?? NONE;
@@ -3042,11 +3030,6 @@ export default function AdminPage() {
       neverCalc,
     };
   };
-  // The range's users and records: the Overview's panels.
-  const pipelineMetrics = useMemo(
-    () => computePipelineMetrics(overviewAllUsers, overviewAllActivity, overviewTotalUsers),
-    [overviewAllUsers, overviewAllActivity, overviewTotalUsers],
-  );
   // Everyone, now: the header cards.
   const nowMetrics = useMemo(
     () => computePipelineMetrics(allUsers, overviewLoadedActivity, allUsersTotal),
@@ -3155,8 +3138,6 @@ export default function AdminPage() {
       dataCoversPriorWindow,
     };
   }, [overviewAllActivity, overviewLoadedActivity, range]);
-
-  const algoDistinct = pipelineMetrics ? Object.keys(pipelineMetrics.algoCounts).length : 0;
 
   // The header's six figures — the system now — drawn once for the cards and
   // for the one-line strip the other tabs show.
@@ -3968,9 +3949,17 @@ export default function AdminPage() {
                     >
                       {trends.cfg.longLabel}
                     </h3>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                      Calculation volume with failure-rate band{" "}
-                      {!trends.dataCoversWindow && trends.hasAnyActivity ? "· data may be partial" : ""}
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>
+                        {trends.cmp.curTotal.toLocaleString()} calc{trends.cmp.curTotal === 1 ? "" : "s"}
+                        {trends.cmp.curSR !== null ? `, ${trends.cmp.curSR}% succeeded` : ""}
+                        {!trends.dataCoversWindow && trends.hasAnyActivity ? " · data may be partial" : ""}
+                      </span>
+                      <DeltaIndicator
+                        delta={trends.hasPriorWindow ? trends.cmp.curTotal - trends.cmp.prevTotal : null}
+                        insufficient={!trends.hasPriorWindow}
+                        label={trends.cfg.priorLabel}
+                      />
                     </p>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
@@ -4077,380 +4066,6 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div
-                  className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                  data-testid="card-pipeline-health"
-                >
-                  <div className="border-b border-brand-accent/10 px-5 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3
-                          className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                          style={{ fontFamily: "var(--font-display)" }}
-                        >
-                          Pipeline Health
-                        </h3>
-                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                          Platform-wide GrapeRank calculation health
-                        </p>
-                      </div>
-                      <LiveBadge
-                        updatedAt={overviewUsersQuery.dataUpdatedAt}
-                        boosting={isBoostActive}
-                        isFetching={overviewUsersQuery.isFetching || overviewActivityQuery.isFetching}
-                      />
-                    </div>
-                  </div>
-                  {overviewLoading && !pipelineMetrics ? (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  ) : pipelineMetrics ? (
-                    <div className="space-y-5 p-5">
-                      <div>
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Success Rate
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {trends.hasAnyActivity && (
-                              <MiniSparkline
-                                data={trends.rateSeries}
-                                timestamps={trends.bucketTimestamps}
-                                color="#10b981"
-                                height={20}
-                                width={64}
-                                valueLabel="success rate"
-                                valueSuffix="%"
-                              />
-                            )}
-                            <span
-                              className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}
-                            >
-                              {pipelineMetrics.successRate}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mb-1 flex justify-end">
-                          <DeltaIndicator
-                            delta={
-                              trends.cmp.curSR !== null && trends.cmp.prevSR !== null
-                                ? trends.cmp.curSR - trends.cmp.prevSR
-                                : null
-                            }
-                            insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
-                            suffix=" pts"
-                            label={trends.cfg.priorLabel}
-                          />
-                        </div>
-                        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full bg-emerald-500 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.successCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                          <div
-                            className="h-full bg-red-400 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.failedCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                          <div
-                            className="h-full bg-slate-300 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.pendingCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-4">
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            {pipelineMetrics.successCount} success
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
-                            {pipelineMetrics.failedCount} failed
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" />
-                            {pipelineMetrics.pendingCount} pending
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800/60">
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Total Users
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatNumber(pipelineMetrics.total)}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Total Calculations
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatNumber(pipelineMetrics.totalCalcs)}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Avg Calcs / User
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {pipelineMetrics.avgCalcs}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Never Calculated
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatNumber(pipelineMetrics.neverCalc)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-4 dark:border-slate-800/60">
-                        <div className="mb-2 flex items-center justify-between">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Throughput · {trends.cfg.windowPhrase}
-                          </p>
-                          <DeltaIndicator
-                            delta={trends.hasPriorWindow ? trends.cmp.curTotal - trends.cmp.prevTotal : null}
-                            insufficient={!trends.hasPriorWindow}
-                            label={trends.cfg.priorLabel}
-                          />
-                        </div>
-                        <div
-                          className="rounded-xl border border-slate-100 bg-white/60 px-2 pb-1 pt-2 dark:border-slate-800/60 dark:bg-slate-900/60"
-                          style={{ height: 110 }}
-                          data-testid="chart-pipeline-throughput"
-                        >
-                          {!trends.hasAnyActivity ? (
-                            <div className="flex h-full items-center justify-center text-[11px] text-slate-400 dark:text-slate-500">
-                              No activity in {trends.cfg.windowPhrase}
-                            </div>
-                          ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={trends.buckets.map((b) => ({
-                                  bucket: trends.cfg.bucketLabelFn(b.t),
-                                  ts: b.t,
-                                  success: b.success,
-                                  failed: b.failed,
-                                }))}
-                                margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
-                              >
-                                <XAxis
-                                  dataKey="bucket"
-                                  tick={{ fontSize: 9, fill: "#94a3b8" }}
-                                  interval={trends.cfg.xAxisInterval}
-                                  axisLine={false}
-                                  tickLine={false}
-                                />
-                                <YAxis
-                                  tick={{ fontSize: 9, fill: "#94a3b8" }}
-                                  axisLine={false}
-                                  tickLine={false}
-                                  width={24}
-                                  allowDecimals={false}
-                                />
-                                <RcTooltip
-                                  contentStyle={{
-                                    fontSize: 11,
-                                    borderRadius: 8,
-                                    border: "1px solid #e2e8f0",
-                                    padding: "6px 8px",
-                                  }}
-                                  labelFormatter={(_, items) => {
-                                    const ts = items?.[0]?.payload?.ts as number | undefined;
-                                    return ts ? trends.cfg.bucketTooltipFn(ts) : "";
-                                  }}
-                                />
-                                <Bar
-                                  dataKey="success"
-                                  stackId="t"
-                                  name="Success"
-                                  fill="#10b981"
-                                  radius={[2, 2, 0, 0]}
-                                />
-                                <Bar dataKey="failed" stackId="t" name="Failed" fill="#f87171" radius={[2, 2, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          )}
-                        </div>
-                      </div>
-
-                      {pipelineMetrics.lastPlatformActivity && (
-                        <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800/60">
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">Last platform activity</span>
-                          <span className="text-xs text-slate-600 dark:text-slate-300">
-                            {new Date(
-                              pipelineMetrics.lastPlatformActivity.endsWith("Z")
-                                ? pipelineMetrics.lastPlatformActivity
-                                : pipelineMetrics.lastPlatformActivity + "Z",
-                            ).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : overviewUsersQuery.isError ? (
-                    <div className="p-8 text-center text-xs text-red-400">Failed to load pipeline data</div>
-                  ) : (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  )}
-                </div>
-
-                <div
-                  className="self-start overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                  data-testid="card-ta-adoption"
-                >
-                  <div className="border-b border-brand-accent/10 px-5 py-4">
-                    <h3
-                      className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      Trust Attestation & Throughput
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      TA adoption and recent calculation activity
-                    </p>
-                  </div>
-                  {overviewLoading && !pipelineMetrics ? (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  ) : pipelineMetrics ? (
-                    <div className="space-y-5 p-5">
-                      <div>
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            TA Success Rate
-                          </span>
-                          <span
-                            className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}
-                          >
-                            {pipelineMetrics.taAdoptionRate}%
-                          </span>
-                        </div>
-                        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full bg-brand-primary transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taSuccessCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                          <div
-                            className="h-full bg-red-400 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taFailedCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-4">
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-primary" />
-                            {pipelineMetrics.taSuccessCount} published
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
-                            {pipelineMetrics.taFailedCount} failed
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-700" />
-                            {pipelineMetrics.withTaPubkey} with TA key
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-4 dark:border-slate-800/60">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          Throughput · {trends.cfg.windowPhrase}
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                              Successful
-                            </p>
-                            <p className="mt-0.5 text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
-                              {trends.cmp.curSuccess}
-                            </p>
-                          </div>
-                          <div className="rounded-xl border border-red-100 bg-red-50/60 p-2.5 dark:border-red-500/25 dark:bg-red-500/10">
-                            <p className="text-[10px] font-semibold text-red-600 dark:text-red-400">Failed</p>
-                            <p className="mt-0.5 text-lg font-bold tabular-nums text-red-700 dark:text-red-300">
-                              {trends.cmp.curFailed}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {algoDistinct === 1 ? (
-                        (() => {
-                          const [algo, count] = Object.entries(pipelineMetrics.algoCounts)[0];
-                          return (
-                            <div
-                              className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800/60"
-                              data-testid="row-algo-single"
-                            >
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                Algorithm
-                              </span>
-                              <span className="text-xs text-slate-700 dark:text-slate-200">
-                                <span className="font-mono">{algo}</span>{" "}
-                                <span className="text-slate-400 dark:text-slate-500">
-                                  · {count} user{count !== 1 ? "s" : ""}
-                                </span>
-                              </span>
-                            </div>
-                          );
-                        })()
-                      ) : algoDistinct > 1 ? (
-                        <div
-                          className="border-t border-slate-100 pt-4 dark:border-slate-800/60"
-                          data-testid="section-algo-distribution"
-                        >
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Algorithm Distribution
-                          </p>
-                          <div className="space-y-1.5">
-                            {Object.entries(pipelineMetrics.algoCounts)
-                              .sort((a, b) => b[1] - a[1])
-                              .map(([algo, count]) => (
-                                <div key={algo} className="flex items-center justify-between">
-                                  <span className="max-w-[180px] truncate font-mono text-xs text-slate-600 dark:text-slate-300">
-                                    {algo}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                                      <div
-                                        className="h-full rounded-full bg-brand-primary"
-                                        style={{ width: `${(count / pipelineMetrics.total) * 100}%` }}
-                                      />
-                                    </div>
-                                    <span className="w-8 text-right text-[10px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
-                                      {count}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  )}
-                </div>
-
                 {(() => {
                   const failureWindowMs = trends.cfg.windowMs;
                   const failureNow = Date.now();
@@ -4500,19 +4115,25 @@ export default function AdminPage() {
                   const dataUnavailable =
                     overviewActivityQuery.isError ||
                     (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
+                  // Nothing to act on: one line, not a block of empty space.
+                  const quiet = !dataUnavailable && !overviewLoading && totalFailures === 0;
                   return (
                     <div
-                      className="overflow-hidden rounded-2xl border border-red-200/70 bg-card text-card-foreground shadow-sm dark:border-red-500/25 dark:shadow-none lg:col-span-2"
+                      className={`overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm dark:shadow-none lg:col-span-2 ${quiet ? "border-border" : "border-red-200/70 dark:border-red-500/25"}`}
                       data-testid="card-recent-failures"
                     >
-                      <div className="border-b border-red-100 px-5 py-4 dark:border-red-500/20">
+                      <div className={quiet ? "px-5 py-3" : "border-b border-red-100 px-5 py-4 dark:border-red-500/20"}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3
                               className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                               style={{ fontFamily: "var(--font-display)" }}
                             >
-                              <AlertTriangle className="h-4 w-4 text-red-500" />
+                              {quiet ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                              )}
                               Recent Failures
                             </h3>
                             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -4530,143 +4151,145 @@ export default function AdminPage() {
                           </Chip>
                         </div>
                       </div>
-                      <div className="p-5">
-                        {overviewActivityQuery.isError ? (
-                          <div
-                            className="flex flex-col items-center justify-center py-6 text-center"
-                            data-testid="failures-error-state"
-                          >
-                            <XCircle className="mb-2 h-8 w-8 text-red-400" />
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              Couldn't load failure data
-                            </p>
-                            <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
-                              {overviewActivityQuery.error instanceof Error
-                                ? overviewActivityQuery.error.message
-                                : "The /admin/activity endpoint did not respond. Failure status is unknown."}
-                            </p>
-                          </div>
-                        ) : overviewLoading && totalFailures === 0 ? (
-                          <div className="flex items-center justify-center py-6">
-                            <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                          </div>
-                        ) : dataUnavailable ? (
-                          <div
-                            className="flex flex-col items-center justify-center py-6 text-center"
-                            data-testid="failures-unknown-state"
-                          >
-                            <AlertTriangle className="mb-2 h-8 w-8 text-amber-400" />
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              Failure status unavailable
-                            </p>
-                            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                              Activity data has not loaded yet.
-                            </p>
-                          </div>
-                        ) : totalFailures === 0 ? (
-                          <div
-                            className="flex flex-col items-center justify-center py-6 text-center"
-                            data-testid="failures-empty-state"
-                          >
-                            <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              All recent requests succeeded
-                            </p>
-                            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                              No errors found in the latest activity feed.
-                            </p>
-                          </div>
-                        ) : (
-                          <ul className="space-y-2.5" data-testid="list-recent-failures">
-                            {sortedGroups.map((g, idx) => {
-                              const stage = getFailureStage(g.latest) ?? "Pipeline";
-                              const errMsg = extractErrorMessage(g.latest);
-                              const userCount = g.pubkeys.size;
-                              return (
-                                <li
-                                  key={idx}
-                                  className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
-                                  data-testid={`failure-group-${idx}`}
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                                    <div className="min-w-0 flex-1">
-                                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
-                                          {stage}
-                                        </span>
-                                        {g.count > 1 && (
-                                          <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
-                                            {g.count}× occurrences
+                      {quiet ? null : (
+                        <div className="p-5">
+                          {overviewActivityQuery.isError ? (
+                            <div
+                              className="flex flex-col items-center justify-center py-6 text-center"
+                              data-testid="failures-error-state"
+                            >
+                              <XCircle className="mb-2 h-8 w-8 text-red-400" />
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                Couldn't load failure data
+                              </p>
+                              <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
+                                {overviewActivityQuery.error instanceof Error
+                                  ? overviewActivityQuery.error.message
+                                  : "The /admin/activity endpoint did not respond. Failure status is unknown."}
+                              </p>
+                            </div>
+                          ) : overviewLoading && totalFailures === 0 ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
+                            </div>
+                          ) : dataUnavailable ? (
+                            <div
+                              className="flex flex-col items-center justify-center py-6 text-center"
+                              data-testid="failures-unknown-state"
+                            >
+                              <AlertTriangle className="mb-2 h-8 w-8 text-amber-400" />
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                Failure status unavailable
+                              </p>
+                              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                                Activity data has not loaded yet.
+                              </p>
+                            </div>
+                          ) : totalFailures === 0 ? (
+                            <div
+                              className="flex flex-col items-center justify-center py-6 text-center"
+                              data-testid="failures-empty-state"
+                            >
+                              <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                All recent requests succeeded
+                              </p>
+                              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                                No errors found in the latest activity feed.
+                              </p>
+                            </div>
+                          ) : (
+                            <ul className="space-y-2.5" data-testid="list-recent-failures">
+                              {sortedGroups.map((g, idx) => {
+                                const stage = getFailureStage(g.latest) ?? "Pipeline";
+                                const errMsg = extractErrorMessage(g.latest);
+                                const userCount = g.pubkeys.size;
+                                return (
+                                  <li
+                                    key={idx}
+                                    className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
+                                    data-testid={`failure-group-${idx}`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
+                                            {stage}
                                           </span>
-                                        )}
-                                        {userCount > 0 && (
-                                          <span className="text-[9px] text-slate-500 dark:text-slate-400">
-                                            {userCount} user{userCount === 1 ? "" : "s"} affected
+                                          {g.count > 1 && (
+                                            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
+                                              {g.count}× occurrences
+                                            </span>
+                                          )}
+                                          {userCount > 0 && (
+                                            <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                                              {userCount} user{userCount === 1 ? "" : "s"} affected
+                                            </span>
+                                          )}
+                                          <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
+                                            {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
                                           </span>
-                                        )}
-                                        <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
-                                          {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
-                                        </span>
-                                      </div>
-                                      <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
-                                        {truncateError(errMsg, 220)}
-                                      </p>
-                                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                                        {g.latest.pubkey && (
-                                          <button
-                                            onClick={() => {
-                                              const pk = g.latest.pubkey!;
-                                              setUserSearch(pk);
-                                              setDebouncedSearch(pk);
-                                              setActiveTab("users");
-                                              setKpiFilter(null);
-                                              setUserPage(0);
-                                              setExpandedRows(new Set([pk]));
-                                              setHighlightedPubkey(pk);
-                                              setTimeout(() => setHighlightedPubkey(null), 2500);
-                                            }}
-                                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:text-brand-accent"
-                                            data-testid={`failure-group-view-user-${idx}`}
-                                          >
-                                            <Eye className="h-3 w-3" /> View latest affected user
-                                          </button>
-                                        )}
-                                        {g.latest.pubkey && (
-                                          <ConfirmRetriggerButton
-                                            pubkey={g.latest.pubkey}
-                                            testId={`failure-group-retrigger-${idx}`}
-                                            onConfirm={async (pk) => {
-                                              try {
-                                                await apiClient.triggerUserGraperank(pk);
-                                                toast({
-                                                  title: "Request Queued",
-                                                  description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
-                                                });
-                                                queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-                                                queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                                                triggerRefreshBoost();
-                                              } catch (err: unknown) {
-                                                const msg = err instanceof Error ? err.message : "Unknown error";
-                                                toast({
-                                                  title: "Re-trigger Failed",
-                                                  description: msg,
-                                                  variant: "destructive",
-                                                });
-                                                throw err;
-                                              }
-                                            }}
-                                          />
-                                        )}
+                                        </div>
+                                        <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
+                                          {truncateError(errMsg, 220)}
+                                        </p>
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                          {g.latest.pubkey && (
+                                            <button
+                                              onClick={() => {
+                                                const pk = g.latest.pubkey!;
+                                                setUserSearch(pk);
+                                                setDebouncedSearch(pk);
+                                                setActiveTab("users");
+                                                setKpiFilter(null);
+                                                setUserPage(0);
+                                                setExpandedRows(new Set([pk]));
+                                                setHighlightedPubkey(pk);
+                                                setTimeout(() => setHighlightedPubkey(null), 2500);
+                                              }}
+                                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:text-brand-accent"
+                                              data-testid={`failure-group-view-user-${idx}`}
+                                            >
+                                              <Eye className="h-3 w-3" /> View latest affected user
+                                            </button>
+                                          )}
+                                          {g.latest.pubkey && (
+                                            <ConfirmRetriggerButton
+                                              pubkey={g.latest.pubkey}
+                                              testId={`failure-group-retrigger-${idx}`}
+                                              onConfirm={async (pk) => {
+                                                try {
+                                                  await apiClient.triggerUserGraperank(pk);
+                                                  toast({
+                                                    title: "Request Queued",
+                                                    description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
+                                                  });
+                                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+                                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                                                  triggerRefreshBoost();
+                                                } catch (err: unknown) {
+                                                  const msg = err instanceof Error ? err.message : "Unknown error";
+                                                  toast({
+                                                    title: "Re-trigger Failed",
+                                                    description: msg,
+                                                    variant: "destructive",
+                                                  });
+                                                  throw err;
+                                                }
+                                              }}
+                                            />
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
