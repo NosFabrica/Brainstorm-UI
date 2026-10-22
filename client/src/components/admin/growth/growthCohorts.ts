@@ -10,9 +10,10 @@ export type RunRecord = {
   created_at: string;
   updated_at?: string;
   status?: string | null;
-  /** `manual` is the person's own click (and, until the server stamps them
-   *  `admin`, an admin's "Trigger recalculation"); `scheduled`/`periodic`
-   *  are the cron jobs; `admin` is a resync. */
+  /** `manual` is a click — the person's own, or an admin's "Trigger
+   *  recalculation", or the auto-run when an account is created; the server
+   *  stamps them alike. `scheduled`/`periodic` are the cron jobs; `admin` is
+   *  a resync. */
   trigger_source?: string | null;
 };
 
@@ -22,18 +23,24 @@ export type GrowthPerson = {
   lastRunMs: number;
   /** Runs in the loaded year. */
   runs: number;
-  /** Runs in the range the person triggered themselves. */
+  /** Runs in the range the person triggered themselves — their first run
+   *  aside, which is sign-up or seeding and stamped `manual` either way. */
   selfRuns: number;
+  /** Runs in the range by the scheduler. */
+  scheduledRuns: number;
 };
 
 export type GrowthCohorts = {
-  /** Earliest run ever falls in the range. */
-  firstTime: GrowthPerson[];
-  /** Triggered a run themselves in the range. */
-  selfCalculated: GrowthPerson[];
+  /** First run ever falls in the range. */
+  fresh: GrowthPerson[];
+  /** Clicked Calculate themselves in the range, after their first run. */
+  selfTriggered: GrowthPerson[];
+  /** Ran in the range, but only by the scheduler. */
+  scheduledOnly: GrowthPerson[];
+  /** Ran before the range, not since. */
+  dormant: GrowthPerson[];
   /** Any run in the range. */
   active: GrowthPerson[];
-  activeCount: number;
 };
 
 const runMs = (r: RunRecord): number => {
@@ -41,6 +48,7 @@ const runMs = (r: RunRecord): number => {
   const t = new Date(s.endsWith("Z") ? s : s + "Z").getTime();
   return Number.isNaN(t) ? 0 : t;
 };
+const isScheduled = (source: string | null | undefined) => source === "scheduled" || source === "periodic";
 
 export function growthCohorts(
   records: RunRecord[],
@@ -48,28 +56,37 @@ export function growthCohorts(
 ): GrowthCohorts {
   const { sinceMs } = rangeQuery(range, now);
   const skip = new Set(exclude);
-  const people = new Map<string, GrowthPerson>();
-  const inRange = new Set<string>();
+  const runsOf = new Map<string, { t: number; source: string | null | undefined }[]>();
   for (const r of records) {
     const pubkey = r.pubkey;
     const t = runMs(r);
     if (!pubkey || !t || t > now || skip.has(pubkey)) continue;
-    const p = people.get(pubkey) ?? { pubkey, firstRunMs: t, lastRunMs: t, runs: 0, selfRuns: 0 };
-    p.firstRunMs = Math.min(p.firstRunMs, t);
-    p.lastRunMs = Math.max(p.lastRunMs, t);
-    p.runs += 1;
-    if (t >= sinceMs) {
-      inRange.add(pubkey);
-      if ((r.trigger_source ?? "manual") === "manual") p.selfRuns += 1;
-    }
-    people.set(pubkey, p);
+    const list = runsOf.get(pubkey) ?? [];
+    list.push({ t, source: r.trigger_source });
+    runsOf.set(pubkey, list);
+  }
+  const people: GrowthPerson[] = [];
+  for (const [pubkey, runs] of runsOf) {
+    runs.sort((a, b) => a.t - b.t);
+    const first = runs[0];
+    const inRange = runs.filter((r) => r.t >= sinceMs);
+    people.push({
+      pubkey,
+      firstRunMs: first.t,
+      lastRunMs: runs[runs.length - 1].t,
+      runs: runs.length,
+      selfRuns: inRange.filter((r) => r !== first && (r.source ?? "manual") === "manual").length,
+      scheduledRuns: inRange.filter((r) => isScheduled(r.source)).length,
+    });
   }
   const newestFirst = (a: GrowthPerson, b: GrowthPerson) => b.lastRunMs - a.lastRunMs;
-  const active = [...people.values()].filter((p) => inRange.has(p.pubkey)).sort(newestFirst);
+  people.sort(newestFirst);
+  const active = people.filter((p) => p.lastRunMs >= sinceMs);
   return {
-    firstTime: active.filter((p) => p.firstRunMs >= sinceMs),
-    selfCalculated: active.filter((p) => p.selfRuns > 0),
+    fresh: active.filter((p) => p.firstRunMs >= sinceMs),
+    selfTriggered: active.filter((p) => p.selfRuns > 0),
+    scheduledOnly: active.filter((p) => p.selfRuns === 0 && p.scheduledRuns > 0),
+    dormant: people.filter((p) => p.lastRunMs < sinceMs),
     active,
-    activeCount: active.length,
   };
 }

@@ -11,6 +11,8 @@ import { nip19 } from "nostr-tools";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
+const C = "c".repeat(64);
+const D = "d".repeat(64);
 const OBSERVER = "0".repeat(64);
 const copied = vi.hoisted(() => vi.fn(async () => true));
 vi.mock("@/lib/clipboard", () => ({ copyToClipboard: copied }));
@@ -33,9 +35,12 @@ const run = (pubkey: string, ms: number, trigger_source = "manual") => ({
   trigger_source,
 });
 const records = [
-  run(A, NOW - 2 * HOUR),
+  run(A, NOW - 2 * HOUR), // new today
   run(B, NOW - 40 * DAY),
-  run(B, NOW - 3 * HOUR, "scheduled"),
+  run(B, NOW - 3 * HOUR, "scheduled"), // scheduled only
+  run(C, NOW - 5 * DAY),
+  run(C, NOW - 4 * HOUR), // self-triggered today
+  run(D, NOW - 30 * DAY), // dormant
   run(OBSERVER, NOW - HOUR, "periodic"),
 ];
 
@@ -51,21 +56,36 @@ function renderCard() {
 beforeEach(() => copied.mockClear());
 
 describe("GrowthCard", () => {
-  it("counts first-timers, self-calculators and the active, the system observer aside", async () => {
+  it("counts the segments, the system observer aside, without icons", async () => {
     renderCard();
-    await waitFor(() => expect(screen.getByTestId("growth-first-time")).toHaveTextContent("1"));
-    expect(screen.getByTestId("growth-self-calculated")).toHaveTextContent("1");
-    expect(screen.getByTestId("growth-active")).toHaveTextContent("2");
+    await waitFor(() => expect(screen.getByTestId("growth-segment-fresh")).toHaveTextContent("1"));
+    expect(screen.getByTestId("growth-segment-selfTriggered")).toHaveTextContent("1");
+    expect(screen.getByTestId("growth-segment-scheduledOnly")).toHaveTextContent("1");
+    expect(screen.getByTestId("growth-segment-dormant")).toHaveTextContent("1");
+    expect(screen.getByTestId("growth-segments").querySelector("svg")).toBeNull();
     expect(screen.queryByText(nip19.npubEncode(OBSERVER).slice(0, 12), { exact: false })).toBeNull();
   });
 
-  it("names each person with their house score and lets the list be copied as npubs", async () => {
+  it("opens on the new people, named with their house score, and copies them as npubs", async () => {
     renderCard();
-    const list = await screen.findByTestId("growth-list-first-time");
+    const list = await screen.findByTestId("growth-list");
     await waitFor(() => expect(within(list).getByText("Riverdev")).toBeInTheDocument());
     await waitFor(() => expect(within(list).getByTestId(`growth-score-${A}`)).toHaveTextContent("42"));
 
-    fireEvent.click(within(list).getByTestId("button-copy-npubs"));
+    fireEvent.click(screen.getByTestId("button-copy-npubs"));
     await waitFor(() => expect(copied).toHaveBeenCalledWith(nip19.npubEncode(A), expect.anything()));
+  });
+
+  it("switches segments, telling self and scheduled runs apart", async () => {
+    renderCard();
+    fireEvent.click(await screen.findByTestId("growth-segment-scheduledOnly"));
+    const list = screen.getByTestId("growth-list");
+    await waitFor(() => expect(within(list).getByTestId(`growth-runs-${B}`)).toHaveTextContent(/0 self/));
+    expect(within(list).getByTestId(`growth-runs-${B}`)).toHaveTextContent(/1 sched/);
+
+    fireEvent.click(screen.getByTestId("growth-segment-dormant"));
+    await waitFor(() => expect(within(list).getByTestId(`growth-runs-${D}`)).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("button-copy-npubs"));
+    await waitFor(() => expect(copied).toHaveBeenLastCalledWith(nip19.npubEncode(D), expect.anything()));
   });
 });
