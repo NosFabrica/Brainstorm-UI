@@ -433,6 +433,24 @@ describe("ComposedResults — media-rich sections", () => {
     expect(card).not.toHaveTextContent("nostr:npub");
   });
 
+  it("captions a Top story with its site, not the person who posted it", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("notes").emit({
+      // Three or nothing — the strip needs company.
+      hits: [
+        hitOf(ev("s1", 1, "a".repeat(64), NEWS(1)), "Liverpool"),
+        hitOf(ev("s2", 1, "2".repeat(64), NEWS(2)), "Echo"),
+        hitOf(ev("s3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
+      ],
+      eose: true,
+      timeMs: 50,
+    });
+    const tile = await screen.findByTestId("top-story-s1");
+    expect(tile).toHaveTextContent("liverpoolecho.co.uk");
+    expect(tile).not.toHaveTextContent("Unknown");
+    expect(screen.queryByTestId("story-poster")).toBeNull();
+  });
+
   it("leads Latest with a Top stories strip of news-shaped notes, the rest as rows", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({

@@ -711,6 +711,7 @@ function ComposedResultsBody({
       : [];
     return (opts.peopleFirst ? peopleFirst(clusters) : clusters).map((c) => (
       <ClusterRows
+        contentFirst
         key={c.primary.event.id}
         cluster={c}
         scoreOf={scoreOf}
@@ -841,7 +842,7 @@ function ComposedResultsBody({
                 {/* The section says "Articles" for the rows, so an essay needs no
                   label — a spec (30817) rides here too and must not pass for one. */}
                 {articleRows.map((c) => (
-                  <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
+                  <ClusterRows contentFirst key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
                 ))}
               </div>
             )}
@@ -920,6 +921,7 @@ function ComposedResultsBody({
             <div className="space-y-1">
               {happeningClusters.map((c) => (
                 <ClusterRows
+                  contentFirst
                   key={c.primary.event.id}
                   cluster={c}
                   scoreOf={scoreOf}
