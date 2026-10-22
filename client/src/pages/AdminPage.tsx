@@ -48,7 +48,6 @@ import {
   Copy,
   Globe,
   RefreshCw,
-  Hash,
   Eye,
   Play,
   Loader2,
@@ -67,7 +66,15 @@ import {
   ListChecks,
 } from "lucide-react";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
-import { ADMIN_RANGES, parseAdminRange, rangeQuery, withinRange, type AdminRange } from "./adminRange";
+import {
+  ADMIN_RANGES,
+  BACKEND_MAX_DAYS,
+  customDays,
+  parseAdminRange,
+  rangeQuery,
+  withinRange,
+  type AdminRange,
+} from "./adminRange";
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import {
   Area,
@@ -112,8 +119,31 @@ function formatTimestamp(dateStr?: string): string {
 }
 
 const POLL_OVERVIEW_MS = 15_000;
-/** The backend pages activity at 100 rows; the Overview reads this many pages of a range. */
-const OVERVIEW_ACTIVITY_PAGES = 10;
+/** The backend pages lists at 100 rows; the Overview reads a list's pages this many at a time. */
+const PAGE_BATCH = 10;
+
+/**
+ * Every page of a backend list: the first, then the rest a batch at a time,
+ * `onBatch` handed the items so far as each batch lands.
+ */
+async function readEveryPage<T extends { items?: unknown[]; pages?: number }>(
+  fetchPage: (page: number) => Promise<T>,
+  onBatch?: (sofar: T) => void,
+): Promise<T> {
+  const first = await fetchPage(1);
+  const pages = first?.pages ?? 1;
+  let items = [...(first?.items ?? [])];
+  for (let from = 2; from <= pages; from += PAGE_BATCH) {
+    const batch = await Promise.all(
+      Array.from({ length: Math.min(PAGE_BATCH, pages - from + 1) }, (_, i) => fetchPage(from + i)),
+    );
+    items = items.concat(batch.flatMap((pg) => pg?.items ?? []));
+    onBatch?.({ ...first, items });
+  }
+  return { ...first, items };
+}
+/** The users directory lists everyone: the backend's `days` has no ceiling, and this covers the data. */
+const ALL_USERS_DAYS = 9999;
 const POLL_USERS_MS = 10_000;
 const POLL_ACTIVITY_MS = 10_000;
 const POLL_STATS_MS = 30_000;
@@ -376,6 +406,21 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 3,
         bucketUnitLabel: "calcs / hr",
       };
+    case "72h":
+      return {
+        windowMs: 3 * DAY,
+        bucketCount: 36,
+        bucketSizeMs: 2 * HOUR,
+        shortLabel: "72h",
+        windowPhrase: "the last 72h",
+        longLabel: "Last 72 hours",
+        priorLabel: "vs prior 72h",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleString([], { weekday: "short", hour: "2-digit" }),
+        bucketTooltipFn: (ts) =>
+          new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
+        xAxisInterval: 5,
+        bucketUnitLabel: "calcs / 2h",
+      };
     case "7d":
       return {
         windowMs: 7 * DAY,
@@ -421,6 +466,24 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 2,
         bucketUnitLabel: "calcs",
       };
+    default: {
+      // A custom "last N days": a bucket a day.
+      const days = customDays(w) ?? 1;
+      return {
+        windowMs: days * DAY,
+        bucketCount: days,
+        bucketSizeMs: DAY,
+        shortLabel: `${days}d`,
+        windowPhrase: `the last ${days} days`,
+        longLabel: `Last ${days} days`,
+        priorLabel: `vs prior ${days}d`,
+        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
+        bucketTooltipFn: (ts) =>
+          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+        xAxisInterval: Math.max(0, Math.ceil(days / 8) - 1),
+        bucketUnitLabel: "calcs / day",
+      };
+    }
   }
 }
 
@@ -2329,6 +2392,8 @@ export default function AdminPage() {
     window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
   }, []);
   const rangeDays = rangeQuery(range, Date.now()).days;
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customDraft, setCustomDraft] = useState(() => String(customDays(range) ?? 14));
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
@@ -2468,13 +2533,13 @@ export default function AdminPage() {
   const activeNameSearch = isNameSearch(userSearch.trim());
 
   const adminUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, rangeDays, userPage, pageSize],
+    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, userPage, pageSize],
     queryFn: () =>
       apiClient.getAdminUsers({
         search: debouncedSearch || undefined,
         sort: userSort.key,
         order: userSort.dir,
-        days: rangeDays,
+        days: ALL_USERS_DAYS,
         page: userPage + 1,
         size: pageSize,
       }),
@@ -2512,7 +2577,18 @@ export default function AdminPage() {
 
   const overviewUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/overview", rangeDays],
-    queryFn: () => apiClient.getAdminUsers({ days: rangeDays, page: 1, size: 100 }),
+    queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: rangeDays, page, size: 100 })),
+    enabled: !!user?.isAdmin,
+    staleTime: 60_000,
+    retry: 1,
+    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
+    refetchOnWindowFocus: "always",
+  });
+
+  // Every user, whatever the range: the header cards show the system's state now.
+  const allUsersQuery = useQuery<AdminUsersPage>({
+    queryKey: ["/api/admin/users/all"],
+    queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: ALL_USERS_DAYS, page, size: 100 })),
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
@@ -2523,16 +2599,14 @@ export default function AdminPage() {
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity/overview", rangeDays],
     // Twice the range, so the deltas have a prior window to compare with.
-    // Backend caps `size` at 100 (more 422s); the rest comes page by page.
-    queryFn: async () => {
-      const days = Math.min(rangeDays * 2, 365);
-      const first = await apiClient.getAdminActivity({ page: 1, size: 100, days });
-      const pages = Math.min(first?.pages ?? 1, OVERVIEW_ACTIVITY_PAGES);
-      if (pages <= 1) return first;
-      const rest = await Promise.all(
-        Array.from({ length: pages - 1 }, (_, i) => apiClient.getAdminActivity({ page: i + 2, size: 100, days })),
+    // Backend caps `size` at 100 (more 422s), so the range comes page by
+    // page, a batch at a time, each batch shown as it lands.
+    queryFn: () => {
+      const days = Math.min(rangeDays * 2, BACKEND_MAX_DAYS);
+      return readEveryPage(
+        (page) => apiClient.getAdminActivity({ page, size: 100, days }),
+        (sofar) => queryClient.setQueryData(["/api/admin/activity/overview", rangeDays], sofar),
       );
-      return { ...first, items: [...(first.items ?? []), ...rest.flatMap((p) => p?.items ?? [])] };
     },
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
@@ -2720,7 +2794,7 @@ export default function AdminPage() {
   useEffect(() => {
     setSelectedUserPubkeys(new Set());
     setBulkLastResult((prev) => (prev?.source === "users" ? null : prev));
-  }, [userSearch, debouncedSearch, range, kpiFilter]);
+  }, [userSearch, debouncedSearch, kpiFilter]);
 
   useEffect(() => {
     setSelectedActivityRows(new Map());
@@ -2846,10 +2920,17 @@ export default function AdminPage() {
     return {
       count: overviewAllActivity.length,
       total: overviewActivityQuery.data?.total ?? overviewLoadedActivity.length,
-      capped: (overviewActivityQuery.data?.pages ?? 1) > OVERVIEW_ACTIVITY_PAGES,
+      loaded: overviewLoadedActivity.length,
+      loading:
+        overviewActivityQuery.isFetching && overviewLoadedActivity.length < (overviewActivityQuery.data?.total ?? 0),
       oldest: times.length ? Math.min(...times) : null,
     };
-  }, [overviewAllActivity, overviewLoadedActivity.length, overviewActivityQuery.data]);
+  }, [
+    overviewAllActivity,
+    overviewLoadedActivity.length,
+    overviewActivityQuery.data,
+    overviewActivityQuery.isFetching,
+  ]);
   const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
@@ -2878,9 +2959,11 @@ export default function AdminPage() {
     return list;
   }, [adminUsersList, overviewAllUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
 
-  const pipelineMetrics = useMemo(() => {
-    const users = overviewAllUsers;
-    const activity = overviewAllActivity;
+  const computePipelineMetrics = (
+    users: AdminUsersPage["items"],
+    activity: AdminUserHistoryPage["items"],
+    totalUsers: number,
+  ) => {
     const total = users.length;
     if (total === 0) return null;
 
@@ -2926,7 +3009,7 @@ export default function AdminPage() {
     const neverCalc = users.filter((u) => !u.times_calculated || u.times_calculated === 0).length;
 
     return {
-      total: overviewTotalUsers,
+      total: totalUsers,
       successCount,
       failedCount,
       pendingCount,
@@ -2943,15 +3026,27 @@ export default function AdminPage() {
       lastPlatformActivity,
       neverCalc,
     };
-  }, [overviewAllUsers, overviewAllActivity, overviewTotalUsers]);
+  };
+  // The range's users and records: the Overview's panels.
+  const pipelineMetrics = useMemo(
+    () => computePipelineMetrics(overviewAllUsers, overviewAllActivity, overviewTotalUsers),
+    [overviewAllUsers, overviewAllActivity, overviewTotalUsers],
+  );
+  // Everyone, now: the header cards.
+  const allUsers = allUsersQuery.data?.items ?? NONE;
+  const allUsersTotal = allUsersQuery.data?.total ?? 0;
+  const nowMetrics = useMemo(
+    () => computePipelineMetrics(allUsers, overviewLoadedActivity, allUsersTotal),
+    [allUsers, overviewLoadedActivity, allUsersTotal],
+  );
 
   const computedQueueDepth = useMemo(() => {
-    if (overviewAllUsers.length === 0) return null;
-    return overviewAllUsers.filter((u) => {
+    if (allUsers.length === 0) return null;
+    return allUsers.filter((u) => {
       const s = u.latest_status?.toLowerCase();
       return s === "waiting" || s === "ongoing" || s === "queued" || s === "pending";
     }).length;
-  }, [overviewAllUsers]);
+  }, [allUsers]);
 
   // Assign a live "queue position" to every in-flight request so the
   // Platform Activity table's Queue column reflects real ordering instead
@@ -3374,27 +3469,92 @@ export default function AdminPage() {
               className="basis-full text-[9px] text-slate-400 dark:text-slate-500 sm:basis-auto"
               data-testid="system-state-note"
             >
-              <span className="hidden sm:inline">· </span>every figure, chart and list reads the range on the right
+              <span className="hidden sm:inline">· </span>values are now · sparklines and everything below:{" "}
+              {trends.cfg.longLabel.toLowerCase()}
             </span>
-            <div
-              className="inline-flex gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900 sm:ml-auto"
-              role="tablist"
-              aria-label="Time range"
-              data-testid="range-selector"
-            >
-              {ADMIN_RANGES.map((r) => (
+            <div className="flex basis-full items-center gap-2 sm:ml-auto sm:basis-auto">
+              <div
+                className="hidden gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900 sm:inline-flex"
+                role="tablist"
+                aria-label="Time range"
+                data-testid="range-selector"
+              >
+                {ADMIN_RANGES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    role="tab"
+                    aria-selected={range === r}
+                    onClick={() => setRange(r)}
+                    className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${range === r ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                    data-testid={`button-range-${r}`}
+                  >
+                    {r === "all" ? "All" : r}
+                  </button>
+                ))}
                 <button
-                  key={r}
                   type="button"
                   role="tab"
-                  aria-selected={range === r}
-                  onClick={() => setRange(r)}
-                  className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${range === r ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
-                  data-testid={`button-range-${r}`}
+                  aria-selected={customDays(range) !== null}
+                  onClick={() => setCustomOpen((o) => !o)}
+                  className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${customDays(range) !== null ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                  data-testid="button-range-custom"
                 >
-                  {r === "all" ? "All" : r}
+                  {customDays(range) !== null ? `${customDays(range)}d` : "Custom"}
                 </button>
-              ))}
+              </div>
+              <select
+                value={customDays(range) !== null ? "custom" : range}
+                onChange={(e) =>
+                  e.target.value === "custom" ? setCustomOpen(true) : setRange(e.target.value as AdminRange)
+                }
+                className="rounded-lg border border-brand-accent/30 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200 sm:hidden"
+                aria-label="Time range"
+                data-testid="select-range"
+              >
+                {ADMIN_RANGES.map((r) => (
+                  <option key={r} value={r}>
+                    {getWindowConfig(r).longLabel}
+                  </option>
+                ))}
+                <option value="custom">
+                  {customDays(range) !== null ? `Last ${customDays(range)} days` : "Custom…"}
+                </option>
+              </select>
+              {(customOpen || customDays(range) !== null) && (
+                <form
+                  className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"
+                  data-testid="form-range-days"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const n = Math.floor(Number(customDraft));
+                    if (n >= 1 && n <= BACKEND_MAX_DAYS) {
+                      setRange(`${n}d`);
+                      setCustomOpen(false);
+                    }
+                  }}
+                >
+                  last
+                  <input
+                    type="number"
+                    min={1}
+                    max={BACKEND_MAX_DAYS}
+                    value={customDraft}
+                    onChange={(e) => setCustomDraft(e.target.value)}
+                    className="w-14 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    aria-label="Days"
+                    data-testid="input-range-days"
+                  />
+                  days
+                  <button
+                    type="submit"
+                    className="rounded-md bg-brand-primary px-2 py-0.5 text-[11px] font-bold text-white"
+                    data-testid="button-range-days-apply"
+                  >
+                    Go
+                  </button>
+                </form>
+              )}
             </div>
           </div>
           <div
@@ -3404,16 +3564,16 @@ export default function AdminPage() {
             <KpiCard
               label="Scored Users"
               value={
-                pipelineMetrics
-                  ? `${formatNumber(pipelineMetrics.successCount)} / ${formatNumber(pipelineMetrics.total)}`
+                nowMetrics
+                  ? `${formatNumber(nowMetrics.successCount)} / ${formatNumber(nowMetrics.total)}`
                   : hasSystemData
                     ? formatNumber(adminStats!.scoredUsers)
                     : "0"
               }
               icon={UserCheck}
-              subtitle={pipelineMetrics ? `${pipelineMetrics.successRate}% of all users scored` : "Completed GrapeRank"}
+              subtitle={nowMetrics ? `${nowMetrics.successRate}% of all users scored` : "Completed GrapeRank"}
               tooltip="Click to view scored users"
-              scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
+              scope={nowMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => {
                 setKpiFilter("scored");
                 setActiveTab("users");
@@ -3427,16 +3587,16 @@ export default function AdminPage() {
             <KpiCard
               label="SP Adopters"
               value={
-                pipelineMetrics
-                  ? `${formatNumber(pipelineMetrics.taSuccessCount)} / ${formatNumber(pipelineMetrics.total)}`
+                nowMetrics
+                  ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
                   : hasSystemData
                     ? formatNumber(adminStats!.spAdopters)
                     : "0"
               }
               icon={Shield}
-              subtitle={pipelineMetrics ? `${pipelineMetrics.taAdoptionRate}% TA adoption` : "Published NIP-85 TA"}
+              subtitle={nowMetrics ? `${nowMetrics.taAdoptionRate}% TA adoption` : "Published NIP-85 TA"}
               tooltip="Click to view SP adopters"
-              scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
+              scope={nowMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => {
                 setKpiFilter("sp_adopters");
                 setActiveTab("users");
@@ -3474,7 +3634,7 @@ export default function AdminPage() {
             />
             <KpiCard
               label="Total Calcs"
-              value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
+              value={nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "0"}
               icon={Activity}
               subtitle="Cumulative attempts, all users"
               tooltip="Cumulative calculation attempts across all users"
@@ -3487,11 +3647,7 @@ export default function AdminPage() {
             <KpiCard
               label="Success Rate"
               value={
-                pipelineMetrics
-                  ? `${pipelineMetrics.successRate}%`
-                  : trends.cmp.curSR !== null
-                    ? `${trends.cmp.curSR}%`
-                    : "—"
+                nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—"
               }
               icon={CheckCircle2}
               subtitle="Cumulative success rate"
@@ -3505,7 +3661,7 @@ export default function AdminPage() {
             />
             <KpiCard
               label="Failed Count"
-              value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
+              value={nowMetrics ? formatNumber(nowMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
               icon={AlertTriangle}
               subtitle="Users with a failed run"
               tooltip="Click to view users with failures"
@@ -3629,10 +3785,130 @@ export default function AdminPage() {
                 </span>
                 {activityCoverage.count > 0 && ` · ${activityCoverage.count} records`}
                 {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
-                {activityCoverage.capped
-                  ? ` · the newest ${OVERVIEW_ACTIVITY_PAGES * 100} of ${activityCoverage.total} loaded`
+                {activityCoverage.loading
+                  ? ` · loading ${activityCoverage.loaded.toLocaleString()} of ${activityCoverage.total.toLocaleString()}…`
                   : ""}
               </p>
+
+              {(() => {
+                const actSummaryActivity = overviewAllActivity;
+                const actSummaryUsers = overviewAllUsers;
+                const actSummaryLoading = overviewLoading;
+                // Already cut to the dashboard's range.
+                const filteredItems = actSummaryActivity;
+                const rangeLong = trends.cfg.longLabel;
+                const rangeShort = trends.cfg.shortLabel;
+                const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
+                const filteredFailed = filteredItems.filter((a) => isFailedStatus(a.status)).length;
+                const filteredTotal = filteredItems.length;
+                const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
+                  const ta = new Date(a.last_updated || "").getTime() || 0;
+                  const tb = new Date(b.last_updated || "").getTime() || 0;
+                  return tb - ta;
+                });
+                const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
+                const uniquePubkeys = new Set(filteredItems.map((a) => a.pubkey).filter(Boolean)).size;
+
+                return (
+                  <div
+                    className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
+                    data-testid="card-activity-summary"
+                  >
+                    <div className="border-b border-brand-accent/10 px-4 py-4 sm:px-5">
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div>
+                            <h3
+                              className="text-sm font-bold text-slate-900 dark:text-slate-100"
+                              style={{ fontFamily: "var(--font-display)" }}
+                            >
+                              Activity Summary
+                            </h3>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              Platform-wide throughput —{" "}
+                              <span className="font-semibold text-brand-deep">{rangeLong}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge
+                            status={
+                              overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess
+                                ? "connected"
+                                : overviewActivityQuery.isError || overviewUsersQuery.isError
+                                  ? "disconnected"
+                                  : "degraded"
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 sm:p-5">
+                      {actSummaryLoading ? (
+                        <div className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                          {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-total"
+                          >
+                            <Activity className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                              {filteredTotal.toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-success"
+                          >
+                            <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                              {filteredSuccess.toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-failed"
+                          >
+                            <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
+                            <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-unique-users"
+                          >
+                            <Users className="mx-auto mb-1 h-4 w-4 text-blue-500" />
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                              {uniquePubkeys.toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
+                          </div>
+                        </div>
+                      )}
+                      {lastActivityTs && !actSummaryLoading && (
+                        <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
+                          Last platform activity:{" "}
+                          {(() => {
+                            try {
+                              const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
+                              return d.toLocaleString();
+                            } catch {
+                              return lastActivityTs;
+                            }
+                          })()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div
                 className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
@@ -4945,7 +5221,7 @@ export default function AdminPage() {
                             ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                             : filteredUsersList
                         ).length;
-                        const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || range !== "24h";
+                        const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter;
                         const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
                         const matchingLabelSuffix = kpiFilter && !activeNameSearch ? " in cache" : "";
                         const handleSelectAllMatching = async () => {
@@ -4960,7 +5236,7 @@ export default function AdminPage() {
                               search: debouncedSearch || undefined,
                               sort: userSort.key,
                               order: userSort.dir,
-                              days: rangeDays,
+                              days: ALL_USERS_DAYS,
                               page: 1,
                               size: cap,
                             });
@@ -6262,163 +6538,6 @@ export default function AdminPage() {
 
           {activeTab === "activity" && (
             <div className="space-y-6" data-testid="panel-activity">
-              {(() => {
-                const actSummaryActivity = overviewAllActivity;
-                const actSummaryUsers = overviewAllUsers;
-                const actSummaryLoading = overviewLoading;
-                // Already cut to the dashboard's range.
-                const filteredItems = actSummaryActivity;
-                const rangeLong = trends.cfg.longLabel;
-                const rangeShort = trends.cfg.shortLabel;
-                const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
-                const filteredFailed = filteredItems.filter((a) => isFailedStatus(a.status)).length;
-                const filteredTotal = filteredItems.length;
-                const totalCalcsAll = actSummaryUsers.reduce((s, u) => s + (u.times_calculated || 0), 0);
-                const failedUsers = actSummaryUsers.filter(
-                  (u) => isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status),
-                ).length;
-                const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
-                  const ta = new Date(a.last_updated || "").getTime() || 0;
-                  const tb = new Date(b.last_updated || "").getTime() || 0;
-                  return tb - ta;
-                });
-                const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
-                const uniquePubkeys = new Set(filteredItems.map((a) => a.pubkey).filter(Boolean)).size;
-
-                return (
-                  <div
-                    className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                    data-testid="card-activity-summary"
-                  >
-                    <div className="border-b border-brand-accent/10 px-4 py-4 sm:px-5">
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <div>
-                            <h3
-                              className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                              style={{ fontFamily: "var(--font-display)" }}
-                            >
-                              Activity Summary
-                            </h3>
-                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                              Platform-wide throughput —{" "}
-                              <span className="font-semibold text-brand-deep">{rangeLong}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge
-                            status={
-                              overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess
-                                ? "connected"
-                                : overviewActivityQuery.isError || overviewUsersQuery.isError
-                                  ? "disconnected"
-                                  : "degraded"
-                            }
-                          />
-                        </div>
-                      </div>
-                      {activityCoverage.capped && (
-                        <p className="mt-2 text-[9px] italic text-slate-400 dark:text-slate-500">
-                          Figures read the newest {OVERVIEW_ACTIVITY_PAGES * 100} of {activityCoverage.total} records in
-                          this range.
-                        </p>
-                      )}
-                    </div>
-                    <div className="p-4 sm:p-5">
-                      {actSummaryLoading ? (
-                        <div className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                          {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-total"
-                          >
-                            <Activity className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {filteredTotal.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-success"
-                          >
-                            <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
-                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                              {filteredSuccess.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-failed"
-                          >
-                            <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
-                            <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-unique-users"
-                          >
-                            <Users className="mx-auto mb-1 h-4 w-4 text-blue-500" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {uniquePubkeys.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-total-calcs"
-                          >
-                            <Hash className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {totalCalcsAll.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Total Calculations</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setKpiFilter("failed");
-                              setActiveTab("users");
-                              setUserPage(0);
-                            }}
-                            className="h-full w-full cursor-pointer rounded-xl border border-slate-100 bg-white/50 p-3 text-center transition-colors hover:border-red-200 hover:bg-red-50 dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-failed-users"
-                            title="Click to view users with failures"
-                          >
-                            <AlertTriangle className="mx-auto mb-1 h-4 w-4 text-amber-500" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {failedUsers.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Users w/ Failures</p>
-                          </button>
-                        </div>
-                      )}
-                      {lastActivityTs && !actSummaryLoading && (
-                        <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
-                          Last platform activity:{" "}
-                          {(() => {
-                            try {
-                              const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
-                              return d.toLocaleString();
-                            } catch {
-                              return lastActivityTs;
-                            }
-                          })()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
               <FailureBreakdownCard
                 items={overviewAllActivity}
                 isLoading={overviewLoading}
@@ -6452,7 +6571,12 @@ export default function AdminPage() {
                         Platform Activity
                       </h3>
                       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        All GrapeRank calculation records from /admin/activity
+                        Every GrapeRank calculation record,{" "}
+                        {rangeDays === 1
+                          ? "last 24 hours"
+                          : rangeDays === BACKEND_MAX_DAYS
+                            ? "all time"
+                            : `last ${rangeDays} days`}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

@@ -9,7 +9,15 @@ const DAY = 24 * HOUR;
 // asks the backend for (`days`, 1–365) and where the client cuts within it.
 describe("parseAdminRange", () => {
   it("opens the range the URL names", () => {
-    for (const r of ["1h", "24h", "7d", "30d", "all"] as const) expect(parseAdminRange(r)).toBe(r);
+    for (const r of ["1h", "24h", "72h", "7d", "30d", "all"] as const) expect(parseAdminRange(r)).toBe(r);
+  });
+
+  it("opens a custom 'last N days' within the backend's year", () => {
+    expect(parseAdminRange("14d")).toBe("14d");
+    expect(parseAdminRange("365d")).toBe("365d");
+    expect(parseAdminRange("0d")).toBe("24h");
+    expect(parseAdminRange("400d")).toBe("24h");
+    expect(parseAdminRange("1.5d")).toBe("24h");
   });
 
   it("falls back to the last 24 hours for anything else", () => {
@@ -22,6 +30,8 @@ describe("rangeQuery", () => {
   it("asks the backend for whole days and cuts the hour client-side", () => {
     expect(rangeQuery("1h", NOW)).toEqual({ days: 1, sinceMs: NOW - HOUR });
     expect(rangeQuery("24h", NOW)).toEqual({ days: 1, sinceMs: NOW - DAY });
+    expect(rangeQuery("72h", NOW)).toEqual({ days: 3, sinceMs: NOW - 3 * DAY });
+    expect(rangeQuery("14d", NOW)).toEqual({ days: 14, sinceMs: NOW - 14 * DAY });
     expect(rangeQuery("7d", NOW)).toEqual({ days: 7, sinceMs: NOW - 7 * DAY });
     expect(rangeQuery("30d", NOW)).toEqual({ days: 30, sinceMs: NOW - 30 * DAY });
   });

@@ -67,17 +67,18 @@ describe("the admin dashboard's time range", () => {
     expect(new URLSearchParams(window.location.search).get("range")).toBe("7d");
   });
 
-  it("gives the Activity tab the same range, and no range of its own", async () => {
+  it("keeps the Activity tab to the log, bounded by the range, with no summary or range of its own", async () => {
     window.history.replaceState({}, "", "/admin?range=7d");
     renderPage();
     fireEvent.click(screen.getByTestId("tab-activity"));
 
     const panel = await screen.findByTestId("panel-activity");
-    expect(within(panel).getByText(/last 7 days/i)).toBeInTheDocument();
+    expect(within(panel).getByTestId("card-platform-activity")).toHaveTextContent(/last 7 days/i);
+    expect(within(panel).queryByTestId("card-activity-summary")).toBeNull();
     expect(within(panel).queryByTestId("time-range-selector")).toBeNull();
   });
 
-  it("counts every record of the range in the Activity Summary, not only the newest backend page", async () => {
+  it("counts every record of the range in the Overview's summary, however many backend pages", async () => {
     const stamp = (i: number) => new Date(Date.now() - i * 60_000).toISOString();
     const record = (i: number) => ({
       private_id: i,
@@ -86,31 +87,75 @@ describe("the admin dashboard's time range", () => {
       created_at: stamp(i),
       updated_at: stamp(i),
     });
-    // The backend pages at 100 rows: 250 records in the last 7 days span three pages.
+    // The backend pages at 100 rows: 4,856 records in the last 7 days span 49 pages.
+    const TOTAL = 4856;
     api.getAdminActivity.mockImplementation(async ({ page = 1 }: { page?: number }) => {
       const from = (page - 1) * 100;
-      return {
-        items: Array.from({ length: Math.min(100, 250 - from) }, (_, i) => record(from + i)),
-        total: 250,
-        pages: 3,
-      };
+      const items = Array.from({ length: Math.max(0, Math.min(100, TOTAL - from)) }, (_, i) => record(from + i));
+      return { items, total: TOTAL, pages: 49 };
     });
     window.history.replaceState({}, "", "/admin?range=7d");
     renderPage();
-    fireEvent.click(screen.getByTestId("tab-activity"));
 
-    const panel = await screen.findByTestId("panel-activity");
-    await waitFor(() => expect(within(panel).getByTestId("summary-total")).toHaveTextContent("250"));
-    expect(within(panel).getByTestId("summary-success")).toHaveTextContent("250");
+    const panel = await screen.findByTestId("panel-overview");
+    const summary = within(panel).getByTestId("card-activity-summary");
+    await waitFor(() => expect(within(summary).getByTestId("summary-total")).toHaveTextContent("4,856"), {
+      timeout: 4000,
+    });
+    expect(within(summary).getByTestId("summary-success")).toHaveTextContent("4,856");
   });
 
-  it("gives the Users tab the same range, and no range of its own", async () => {
-    window.history.replaceState({}, "", "/admin?range=30d");
+  it("keeps the Users directory whole whatever the range, with no range of its own", async () => {
+    window.history.replaceState({}, "", "/admin?range=1h");
     renderPage();
     fireEvent.click(screen.getByTestId("tab-users"));
 
     await screen.findByTestId("panel-users");
-    await waitFor(() => expect(api.getAdminUsers).toHaveBeenLastCalledWith(expect.objectContaining({ days: 30 })));
+    // The Overview's user figures follow the range; the directory lists everyone.
+    await waitFor(() =>
+      expect(api.getAdminUsers).toHaveBeenCalledWith(expect.objectContaining({ days: 1, size: 100 })),
+    );
+    await waitFor(() =>
+      expect(api.getAdminUsers).toHaveBeenCalledWith(expect.objectContaining({ days: 9999, size: 25 })),
+    );
     expect(screen.queryByTestId("select-days-filter")).toBeNull();
+  });
+
+  it("shows the header cards' state now, from every user, whatever the range", async () => {
+    // 271 users, all scored, over three backend pages; the range is one hour.
+    const TOTAL = 271;
+    api.getAdminUsers.mockImplementation(async ({ page = 1, days }: { page?: number; days?: number }) => {
+      if (days !== 9999) return { items: [], total: 0, pages: 1 };
+      const from = (page - 1) * 100;
+      const items = Array.from({ length: Math.max(0, Math.min(100, TOTAL - from)) }, (_, i) => ({
+        pubkey: String(from + i).padStart(64, "0"),
+        latest_status: "success",
+        latest_ta_status: "success",
+        times_calculated: 2,
+        last_updated: new Date().toISOString(),
+      }));
+      return { items, total: TOTAL, pages: 3 };
+    });
+    window.history.replaceState({}, "", "/admin?range=1h");
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("kpi-scored-users")).toHaveTextContent("271 / 271"), {
+      timeout: 4000,
+    });
+    expect(screen.getByTestId("kpi-sp-adopters")).toHaveTextContent("271 / 271");
+    expect(screen.getByTestId("kpi-total-calcs")).toHaveTextContent("542");
+  });
+
+  it("takes a custom 'last N days' from the header", async () => {
+    renderPage();
+    await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("button-range-custom"));
+    fireEvent.change(screen.getByTestId("input-range-days"), { target: { value: "14" } });
+    fireEvent.submit(screen.getByTestId("form-range-days"));
+
+    await waitFor(() => expect(api.getAdminUsers).toHaveBeenLastCalledWith(expect.objectContaining({ days: 14 })));
+    expect(new URLSearchParams(window.location.search).get("range")).toBe("14d");
+    expect(screen.getByTestId("system-state-note")).toHaveTextContent(/last 14 days/i);
   });
 });
