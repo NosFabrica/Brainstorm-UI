@@ -1076,7 +1076,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
   // it." The roster wears the User Database's anatomy: a header with the count,
   // the page and the source beside the search and filters, over a bordered
   // grid with a shaded header row and column rules.
-  it("reads like the user database: count, page and source in the header beside the controls, over a bordered grid", async () => {
+  it("reads like the user database: count and page in the header beside the controls, over a bordered grid", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({
       total: 2,
       pages: 1,
@@ -1089,7 +1089,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const header = await screen.findByTestId("billing-roster-header");
     expect(header).toHaveTextContent("2 subscribers");
     expect(header).toHaveTextContent("Page 1 of 1");
-    expect(header).toHaveTextContent("Source: /admin/billing/subscriptions");
+    expect(header).not.toHaveTextContent("/admin/");
     expect(within(header).getByTestId("input-billing-search")).toBeInTheDocument();
     expect(within(header).getByTestId("select-billing-status")).toBeInTheDocument();
     const table = screen.getByTestId("table-billing-subscribers");

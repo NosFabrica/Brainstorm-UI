@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "rea
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
-import { env } from "@/lib/runtimeEnv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
@@ -1056,22 +1055,31 @@ function FailureBreakdownCard({
     setRetrying(null);
   }
 
+  // Nothing to act on: the card is one line, not a block of empty space.
+  const quiet = !isError && !isLoading && totalFailures === 0;
   return (
     <div
-      className="overflow-hidden rounded-2xl border border-red-200/70 bg-card text-card-foreground shadow-sm dark:border-red-500/25 dark:shadow-none"
+      className={`overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm dark:shadow-none ${quiet ? "border-border" : "border-red-200/70 dark:border-red-500/25"}`}
       data-testid="card-failure-breakdown"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-red-100 px-5 py-4 dark:border-red-500/20">
+      <div
+        className={`flex items-start justify-between gap-3 px-5 ${quiet ? "py-3" : "border-b border-red-100 py-4 dark:border-red-500/20"}`}
+      >
         <div>
           <h3
             className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            <AlertTriangle className="h-4 w-4 text-red-500" /> Failure Breakdown
+            {quiet ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            )}{" "}
+            Failure Breakdown
           </h3>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
             {totalFailures === 0
-              ? "No failures in the current activity feed."
+              ? "No failures in this range."
               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} across ${groups.length} pattern${groups.length === 1 ? "" : "s"} — expand one to see who's affected and re-run them.`}
           </p>
         </div>
@@ -1079,126 +1087,122 @@ function FailureBreakdownCard({
           {totalFailures}
         </Chip>
       </div>
-      <div className="p-5">
-        {isError ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <XCircle className="mb-2 h-8 w-8 text-red-400" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
-            <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
-              {errorMessage || "The /admin/activity endpoint did not respond."}
-            </p>
-          </div>
-        ) : isLoading && totalFailures === 0 ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-          </div>
-        ) : totalFailures === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No failures right now</p>
-            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Every recent request has succeeded.</p>
-          </div>
-        ) : (
-          <ul className="space-y-2.5" data-testid="list-failure-breakdown">
-            {groups.map((g) => {
-              const errMsg = extractErrorMessage(g.latest);
-              const users = Array.from(g.users.entries())
-                .sort((a, b) => b[1] - a[1])
-                .map(([pk]) => pk);
-              const isOpen = expanded === g.key;
-              const isRetrying = retrying === g.key;
-              return (
-                <li
-                  key={g.key}
-                  className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
-                  data-testid="failure-breakdown-group"
-                >
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
-                          {g.stage}
-                        </span>
-                        <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
-                          {g.count}×
-                        </span>
-                        <span className="text-[9px] text-slate-500 dark:text-slate-400">
-                          {users.length} user{users.length === 1 ? "" : "s"} affected
-                        </span>
-                        <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
-                          {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
-                        </span>
-                      </div>
-                      <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
-                        {truncateError(errMsg, 220)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {users.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setExpanded(isOpen ? null : g.key)}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-                            data-testid="failure-breakdown-toggle-users"
-                          >
-                            <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />{" "}
-                            {isOpen ? "Hide" : "Show"} affected users
-                          </button>
-                        )}
-                        {users.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 gap-1 border-red-200 text-[10px] text-red-700 hover:bg-red-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
-                            disabled={isRetrying}
-                            onClick={() => retryGroup(g.key, users)}
-                            data-testid="failure-breakdown-retry-all"
-                          >
-                            {isRetrying ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3 w-3" />
-                            )}{" "}
-                            Retry all {users.length}
-                          </Button>
-                        )}
-                      </div>
-                      {isOpen && (
-                        <ul className="mt-2 max-h-52 space-y-1 overflow-auto rounded-lg border border-slate-100 bg-white p-2 dark:border-slate-800/60 dark:bg-slate-900">
-                          {users.slice(0, 100).map((pk) => (
-                            <li key={pk} className="flex items-center justify-between gap-2">
-                              <button
-                                type="button"
-                                onClick={() => onViewUser(pk)}
-                                className="truncate font-mono text-[10px] text-brand-deep hover:text-brand-accent"
-                                title={pk}
-                              >
-                                {pk.slice(0, 16)}…{pk.slice(-6)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onViewUser(pk)}
-                                className="inline-flex shrink-0 items-center gap-1 text-[9px] text-slate-400 hover:text-brand-deep dark:text-slate-500"
-                              >
-                                <Eye className="h-3 w-3" /> view
-                              </button>
-                            </li>
-                          ))}
-                          {users.length > 100 && (
-                            <li className="px-1 text-[9px] text-slate-400 dark:text-slate-500">
-                              + {users.length - 100} more
-                            </li>
+      {quiet ? null : (
+        <div className="p-5">
+          {isError ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <XCircle className="mb-2 h-8 w-8 text-red-400" />
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
+              <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
+                {errorMessage || "The activity feed did not respond."}
+              </p>
+            </div>
+          ) : isLoading && totalFailures === 0 ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
+            </div>
+          ) : (
+            <ul className="space-y-2.5" data-testid="list-failure-breakdown">
+              {groups.map((g) => {
+                const errMsg = extractErrorMessage(g.latest);
+                const users = Array.from(g.users.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([pk]) => pk);
+                const isOpen = expanded === g.key;
+                const isRetrying = retrying === g.key;
+                return (
+                  <li
+                    key={g.key}
+                    className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
+                    data-testid="failure-breakdown-group"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
+                            {g.stage}
+                          </span>
+                          <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
+                            {g.count}×
+                          </span>
+                          <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                            {users.length} user{users.length === 1 ? "" : "s"} affected
+                          </span>
+                          <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
+                            {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
+                          </span>
+                        </div>
+                        <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
+                          {truncateError(errMsg, 220)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {users.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpanded(isOpen ? null : g.key)}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+                              data-testid="failure-breakdown-toggle-users"
+                            >
+                              <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />{" "}
+                              {isOpen ? "Hide" : "Show"} affected users
+                            </button>
                           )}
-                        </ul>
-                      )}
+                          {users.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 gap-1 border-red-200 text-[10px] text-red-700 hover:bg-red-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
+                              disabled={isRetrying}
+                              onClick={() => retryGroup(g.key, users)}
+                              data-testid="failure-breakdown-retry-all"
+                            >
+                              {isRetrying ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}{" "}
+                              Retry all {users.length}
+                            </Button>
+                          )}
+                        </div>
+                        {isOpen && (
+                          <ul className="mt-2 max-h-52 space-y-1 overflow-auto rounded-lg border border-slate-100 bg-white p-2 dark:border-slate-800/60 dark:bg-slate-900">
+                            {users.slice(0, 100).map((pk) => (
+                              <li key={pk} className="flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onViewUser(pk)}
+                                  className="truncate font-mono text-[10px] text-brand-deep hover:text-brand-accent"
+                                  title={pk}
+                                >
+                                  {pk.slice(0, 16)}…{pk.slice(-6)}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onViewUser(pk)}
+                                  className="inline-flex shrink-0 items-center gap-1 text-[9px] text-slate-400 hover:text-brand-deep dark:text-slate-500"
+                                >
+                                  <Eye className="h-3 w-3" /> view
+                                </button>
+                              </li>
+                            ))}
+                            {users.length > 100 && (
+                              <li className="px-1 text-[9px] text-slate-400 dark:text-slate-500">
+                                + {users.length - 100} more
+                              </li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -4087,7 +4091,7 @@ export default function AdminPage() {
                           Pipeline Health
                         </h3>
                         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                          Platform-wide GrapeRank calculation health from /admin/users
+                          Platform-wide GrapeRank calculation health
                         </p>
                       </div>
                       <LiveBadge
@@ -4666,79 +4670,6 @@ export default function AdminPage() {
                     </div>
                   );
                 })()}
-
-                <div
-                  className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none lg:col-span-2"
-                  data-testid="card-quick-stats"
-                >
-                  <div className="border-b border-brand-accent/10 px-5 py-4">
-                    <h3
-                      className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      System Endpoints
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">API connectivity</p>
-                  </div>
-                  <div className="p-5">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {(() => {
-                        const baseUrl = env.VITE_API_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-                        return [
-                          // TODO: replace with a meaningful health probe (dedicated endpoint?)
-                          // { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
-                          {
-                            endpoint: "/user/graperankResult",
-                            label: "GrapeRank Result",
-                            status: grapeRankQuery.isSuccess
-                              ? ("connected" as const)
-                              : grapeRankQuery.isError
-                                ? ("disconnected" as const)
-                                : ("degraded" as const),
-                          },
-                          {
-                            endpoint: "/admin/users",
-                            label: "Admin Users",
-                            status: adminUsersQuery.isSuccess
-                              ? ("connected" as const)
-                              : adminUsersQuery.isError
-                                ? ("disconnected" as const)
-                                : ("degraded" as const),
-                          },
-                          {
-                            endpoint: "/admin/activity",
-                            label: "Admin Activity",
-                            status: adminActivityQuery.isSuccess
-                              ? ("connected" as const)
-                              : adminActivityQuery.isError
-                                ? ("disconnected" as const)
-                                : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError
-                                  ? ("connected" as const)
-                                  : ("degraded" as const),
-                          },
-                        ].map((ep) => (
-                          <div
-                            key={ep.endpoint}
-                            className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white/50 p-3 dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{ep.label}</p>
-                              <p
-                                className="truncate font-mono text-[10px] text-slate-400 dark:text-slate-500"
-                                title={`${baseUrl}${ep.endpoint}`}
-                              >
-                                {baseUrl}
-                                {ep.endpoint}
-                              </p>
-                            </div>
-                            <StatusBadge status={ep.status} />
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -4765,10 +4696,6 @@ export default function AdminPage() {
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">
                         Page {userPage + 1} of {totalPages}
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-                      <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                        Source: /admin/users
                       </span>
                     </div>
                   </div>
@@ -6157,10 +6084,6 @@ export default function AdminPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-3 dark:border-slate-800/60 sm:gap-3 sm:px-5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="text-[9px] text-slate-500 dark:text-slate-400">Data from /admin/users</span>
-                  </div>
                   {adminUsersQuery.isFetching && (
                     <div className="ml-auto flex items-center gap-1.5">
                       <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />

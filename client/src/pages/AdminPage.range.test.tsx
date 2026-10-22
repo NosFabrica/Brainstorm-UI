@@ -279,6 +279,25 @@ describe("the admin dashboard's time range", () => {
     expect(line).toHaveTextContent(/1 failed/i);
   });
 
+  it("names no endpoints on screen", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByTestId("tab-users"));
+    await screen.findByTestId("panel-users");
+    expect(screen.queryByText(/\/admin\//)).toBeNull();
+    fireEvent.click(screen.getByTestId("tab-overview"));
+    await screen.findByTestId("panel-overview");
+    expect(screen.queryByText(/\/admin\//)).toBeNull();
+  });
+
+  it("folds the Failure Breakdown to a line when the range has no failures", async () => {
+    window.history.replaceState({}, "", "/admin?range=24h&tab=activity");
+    renderPage();
+    const card = await screen.findByTestId("card-failure-breakdown");
+    await waitFor(() => expect(card).toHaveTextContent(/no failures/i));
+    expect(within(card).queryByText(/every recent request has succeeded/i)).toBeNull();
+    expect(card.querySelectorAll("div").length).toBeLessThan(6);
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());
