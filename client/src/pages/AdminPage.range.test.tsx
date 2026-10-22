@@ -352,6 +352,22 @@ describe("the admin dashboard's time range", () => {
     expect(row).not.toHaveTextContent(/graperank/);
   });
 
+  it("sets no text smaller than 10px, on any tab", async () => {
+    renderPage();
+    for (const tab of ["overview", "activity", "users", "growth", "health"]) {
+      fireEvent.click(await screen.findByTestId(`tab-${tab}`));
+      await screen.findByTestId(`panel-${tab}`);
+      const tiny = document.querySelectorAll('[class*="text-[7px]"], [class*="text-[8px]"], [class*="text-[9px]"]');
+      expect(
+        tiny.length,
+        `${tab}: ${[...tiny]
+          .map((e) => e.className)
+          .join(" | ")
+          .slice(0, 300)}`,
+      ).toBe(0);
+    }
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());

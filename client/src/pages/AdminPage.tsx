@@ -168,7 +168,7 @@ function LiveBadge({
   const label = formatRelativeAge(updatedAt, now);
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
         boosting
           ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
           : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
@@ -571,7 +571,7 @@ function MiniSparkline({
   if (!data || data.length < 2) {
     return (
       <div
-        className={`inline-flex items-center justify-center text-[8px] text-slate-300 dark:text-slate-600 ${className ?? ""}`}
+        className={`inline-flex items-center justify-center text-[10px] text-slate-300 dark:text-slate-600 ${className ?? ""}`}
         style={{ height, width }}
         title="No trend data available yet"
         data-testid="mini-sparkline-empty"
@@ -864,7 +864,7 @@ function KpiCard({
           )}
         </div>
         <p className="relative mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{label}</p>
-        {subtitle && <p className="relative mt-0.5 text-[9px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="relative mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
         {deltaSlot && (
           <div className="relative mt-1" data-testid={`kpi-delta-${label.toLowerCase().replace(/\s+/g, "-")}`}>
             {deltaSlot}
@@ -1082,7 +1082,7 @@ function FailureBreakdownCard({
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <XCircle className="mb-2 h-8 w-8 text-red-400" />
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
-              <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
+              <p className="mt-1 max-w-md text-[11px] text-slate-500 dark:text-slate-400">
                 {errorMessage || "The activity feed did not respond."}
               </p>
             </div>
@@ -1112,13 +1112,13 @@ function FailureBreakdownCard({
                           <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
                             {g.stage}
                           </span>
-                          <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
+                          <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
                             {g.count}×
                           </span>
-                          <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
                             {users.length} user{users.length === 1 ? "" : "s"} affected
                           </span>
-                          <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
+                          <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
                             {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
                           </span>
                         </div>
@@ -1170,14 +1170,14 @@ function FailureBreakdownCard({
                                 <button
                                   type="button"
                                   onClick={() => onViewUser(pk)}
-                                  className="inline-flex shrink-0 items-center gap-1 text-[9px] text-slate-400 hover:text-brand-deep dark:text-slate-500"
+                                  className="inline-flex shrink-0 items-center gap-1 text-[10px] text-slate-400 hover:text-brand-deep dark:text-slate-500"
                                 >
                                   <Eye className="h-3 w-3" /> view
                                 </button>
                               </li>
                             ))}
                             {users.length > 100 && (
-                              <li className="px-1 text-[9px] text-slate-400 dark:text-slate-500">
+                              <li className="px-1 text-[10px] text-slate-400 dark:text-slate-500">
                                 + {users.length - 100} more
                               </li>
                             )}
@@ -1221,29 +1221,29 @@ function UserHistoryRow({
       <td colSpan={8} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
-            <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Identity
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                <p className="mb-0.5 text-[8px] uppercase text-slate-400 dark:text-slate-500">Full Pubkey</p>
+                <p className="mb-0.5 text-[11px] uppercase text-slate-400 dark:text-slate-500">Full Pubkey</p>
                 <div className="flex min-w-0 items-center gap-1">
-                  <p className="truncate font-mono text-[9px] text-slate-700 dark:text-slate-200">{pubkey}</p>
+                  <p className="truncate font-mono text-[11px] text-slate-700 dark:text-slate-200">{pubkey}</p>
                   <CopyButton text={pubkey} />
                 </div>
               </div>
               <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                <p className="mb-0.5 text-[8px] uppercase text-slate-400 dark:text-slate-500">Nostr npub</p>
+                <p className="mb-0.5 text-[11px] uppercase text-slate-400 dark:text-slate-500">Nostr npub</p>
                 <div className="flex min-w-0 items-center gap-1">
-                  <p className="truncate font-mono text-[9px] text-brand-primary dark:text-brand-link">{npub}</p>
+                  <p className="truncate font-mono text-[11px] text-brand-primary dark:text-brand-link">{npub}</p>
                   <CopyButton text={npub} />
                 </div>
               </div>
               {taPubkey && (
                 <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                  <p className="mb-0.5 text-[8px] uppercase text-slate-400 dark:text-slate-500">TA Pubkey</p>
+                  <p className="mb-0.5 text-[11px] uppercase text-slate-400 dark:text-slate-500">TA Pubkey</p>
                   <div className="flex min-w-0 items-center gap-1">
-                    <p className="truncate font-mono text-[9px] text-emerald-600 dark:text-emerald-400">{taPubkey}</p>
+                    <p className="truncate font-mono text-[11px] text-emerald-600 dark:text-emerald-400">{taPubkey}</p>
                     <CopyButton text={taPubkey} />
                   </div>
                 </div>
@@ -1356,7 +1356,7 @@ function UserHistoryRow({
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span
-                                        className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
+                                        className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                         data-testid={`tooltip-history-error-status-${rowKey}`}
                                       >
                                         {item.status}
@@ -1372,7 +1372,7 @@ function UserHistoryRow({
                                   </Tooltip>
                                 ) : (
                                   <span
-                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                       statusLower === "success"
                                         ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                         : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
@@ -1393,7 +1393,7 @@ function UserHistoryRow({
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span
-                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
+                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                           data-testid={`tooltip-history-error-ta-${rowKey}`}
                                         >
                                           {item.ta_status}
@@ -1409,7 +1409,7 @@ function UserHistoryRow({
                                     </Tooltip>
                                   ) : (
                                     <span
-                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                         taLower === "success"
                                           ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                           : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
@@ -1428,7 +1428,7 @@ function UserHistoryRow({
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span
-                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
+                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                           data-testid={`tooltip-history-error-pub-${rowKey}`}
                                         >
                                           {item.internal_publication_status}
@@ -1444,7 +1444,7 @@ function UserHistoryRow({
                                     </Tooltip>
                                   ) : (
                                     <span
-                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                         pubLower === "success" || pubLower === "published"
                                           ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                           : pubLower === "pending" || pubLower === "in_progress"
@@ -1488,7 +1488,7 @@ function UserHistoryRow({
                                               {errorText}
                                             </span>
                                           ) : (
-                                            <span className="block text-[11px] italic text-red-600/80 dark:text-red-400/80">
+                                            <span className="block text-[11px] text-red-600/80 dark:text-red-400/80">
                                               No error details captured — check server logs.
                                             </span>
                                           )}
@@ -2099,7 +2099,7 @@ function ActivityRow({
                       {profile?.picture ? (
                         <AvatarImage src={profile.picture} alt={displayName || "User"} className="object-cover" />
                       ) : null}
-                      <AvatarFallback className="border border-slate-200 bg-slate-100 text-[8px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+                      <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
                         {displayName?.charAt(0)?.toUpperCase() || (
                           <Users className="h-2.5 w-2.5 text-slate-300 dark:text-slate-600" />
                         )}
@@ -2110,7 +2110,7 @@ function ActivityRow({
                         {displayName || npubShort}
                       </span>
                       {displayName && (
-                        <span className="hidden max-w-[120px] truncate font-mono text-[8px] text-slate-400 dark:text-slate-500 sm:inline">
+                        <span className="hidden max-w-[120px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:inline">
                           {npubShort}
                         </span>
                       )}
@@ -2130,7 +2130,7 @@ function ActivityRow({
           <TriggerSourceBadge value={item.trigger_source} />
           {schedulingName && (
             <div
-              className="mt-0.5 text-[8px] font-medium text-brand-primary dark:text-brand-link"
+              className="mt-0.5 text-[10px] font-medium text-brand-primary dark:text-brand-link"
               title="This user's current scheduling tier"
             >
               {schedulingName}
@@ -2171,7 +2171,7 @@ function ActivityRow({
             <span className="font-mono text-slate-400 dark:text-slate-500">{item.private_id}</span>
             {isInPipeline && style.label && (
               <span
-                className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${style.labelClass}`}
+                className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style.labelClass}`}
               >
                 {style.label}
               </span>
@@ -2253,7 +2253,7 @@ function ActivityRow({
                 <span className="break-words font-mono text-[10px] text-red-800 dark:text-red-300">
                   {truncateError(extractErrorMessage(item), 160)}
                 </span>
-                <span className="ml-2 text-[9px] italic text-red-500/70">Click for details</span>
+                <span className="ml-2 text-[10px] text-red-500/70">Click for details</span>
               </div>
             </div>
           </td>
@@ -2282,7 +2282,7 @@ function ActivityRow({
                       <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
                         Full Pubkey
                       </span>
-                      <p className="mt-0.5 break-all font-mono text-[9px] text-slate-700 dark:text-slate-200">
+                      <p className="mt-0.5 break-all font-mono text-[11px] text-slate-700 dark:text-slate-200">
                         {item.pubkey}
                       </p>
                     </div>
@@ -3477,7 +3477,7 @@ export default function AdminPage() {
             <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Current system state
             </span>
-            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] text-emerald-600 dark:text-emerald-400">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -3485,7 +3485,7 @@ export default function AdminPage() {
               live now
             </span>
             <span
-              className="basis-full text-[9px] text-slate-400 dark:text-slate-500 sm:basis-auto"
+              className="basis-full text-[10px] text-slate-400 dark:text-slate-500 sm:basis-auto"
               data-testid="system-state-note"
             >
               <span className="hidden sm:inline">· </span>values are now
@@ -3805,7 +3805,7 @@ export default function AdminPage() {
 
           {activeTab === "overview" && (
             <div className="space-y-6" data-testid="panel-overview">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500" data-testid="trend-window-caption">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="trend-window-caption">
                 <span className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   {trends.cfg.longLabel}
                 </span>
@@ -3886,7 +3886,7 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
                               {filteredTotal.toLocaleString()}
                             </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
@@ -3896,7 +3896,7 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                               {filteredSuccess.toLocaleString()}
                             </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
@@ -3904,7 +3904,7 @@ export default function AdminPage() {
                           >
                             <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
                             <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
@@ -3914,12 +3914,12 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
                               {uniquePubkeys.toLocaleString()}
                             </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
                           </div>
                         </div>
                       )}
                       {lastActivityTs && !actSummaryLoading && (
-                        <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
+                        <p className="mt-3 text-[11px] text-slate-400 dark:text-slate-500">
                           Last platform activity:{" "}
                           {(() => {
                             try {
@@ -4162,7 +4162,7 @@ export default function AdminPage() {
                               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                                 Couldn't load failure data
                               </p>
-                              <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
+                              <p className="mt-1 max-w-md text-[11px] text-slate-500 dark:text-slate-400">
                                 {overviewActivityQuery.error instanceof Error
                                   ? overviewActivityQuery.error.message
                                   : "The /admin/activity endpoint did not respond. Failure status is unknown."}
@@ -4181,7 +4181,7 @@ export default function AdminPage() {
                               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                                 Failure status unavailable
                               </p>
-                              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                                 Activity data has not loaded yet.
                               </p>
                             </div>
@@ -4194,7 +4194,7 @@ export default function AdminPage() {
                               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                                 All recent requests succeeded
                               </p>
-                              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                                 No errors found in the latest activity feed.
                               </p>
                             </div>
@@ -4218,16 +4218,16 @@ export default function AdminPage() {
                                             {stage}
                                           </span>
                                           {g.count > 1 && (
-                                            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
+                                            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
                                               {g.count}× occurrences
                                             </span>
                                           )}
                                           {userCount > 0 && (
-                                            <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
                                               {userCount} user{userCount === 1 ? "" : "s"} affected
                                             </span>
                                           )}
-                                          <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
+                                          <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
                                             {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
                                           </span>
                                         </div>
@@ -4488,7 +4488,7 @@ export default function AdminPage() {
 
                           {lookupNameResults.length > 0 && (
                             <div className="space-y-1" data-testid="lookup-name-results">
-                              <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                 {lookupNameResults.length} user{lookupNameResults.length !== 1 ? "s" : ""} found
                               </p>
                               <div className="-mx-1 max-h-[200px] space-y-1 overflow-y-auto px-1">
@@ -4516,7 +4516,7 @@ export default function AdminPage() {
                                         <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
                                           {u.name || "Unknown"}
                                         </p>
-                                        <p className="truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                                        <p className="truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
                                           {npub.slice(0, 20)}...{npub.slice(-6)}
                                         </p>
                                       </div>
@@ -4561,7 +4561,7 @@ export default function AdminPage() {
                               {onboardSearching ? "..." : "Search"}
                             </Button>
                           </div>
-                          <p className="-mt-1 flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500">
+                          <p className="-mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
                             <Globe className="h-2.5 w-2.5 shrink-0" />
                             Powered by Brainstorm WoT search
                           </p>
@@ -4607,7 +4607,7 @@ export default function AdminPage() {
                                       <p className="truncate text-[11px] font-semibold text-slate-900 dark:text-slate-100">
                                         {displayName}
                                       </p>
-                                      <p className="truncate font-mono text-[9px] text-slate-400 dark:text-slate-500">
+                                      <p className="truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
                                         {profile.npub.slice(0, 16)}...{profile.npub.slice(-4)}
                                       </p>
                                     </div>
@@ -4661,7 +4661,7 @@ export default function AdminPage() {
                               data-testid="onboard-error"
                             >
                               <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                              <p className="text-[10px] text-red-700 dark:text-red-300">{onboardError}</p>
+                              <p className="text-[11px] text-red-700 dark:text-red-300">{onboardError}</p>
                             </div>
                           )}
 
@@ -4745,7 +4745,7 @@ export default function AdminPage() {
                                       style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }}
                                     />
                                   </div>
-                                  <p className="text-center text-[10px] text-slate-500 dark:text-slate-400">
+                                  <p className="text-center text-[11px] text-slate-500 dark:text-slate-400">
                                     {onboardProgress.done} of {onboardProgress.total} processed
                                   </p>
                                 </div>
@@ -5261,7 +5261,7 @@ export default function AdminPage() {
                                             className="object-cover"
                                           />
                                         ) : null}
-                                        <AvatarFallback className="border border-slate-200 bg-slate-100 text-[9px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+                                        <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
                                           {prof?.name?.charAt(0)?.toUpperCase() || (
                                             <Users className="h-3 w-3 text-slate-300 dark:text-slate-600" />
                                           )}
@@ -5271,7 +5271,7 @@ export default function AdminPage() {
                                         <span className="block max-w-[140px] truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">
                                           {prof?.name || npub.slice(0, 12) + "…"}
                                         </span>
-                                        <span className="flex items-center gap-1 font-mono text-[9px] text-slate-400 dark:text-slate-500">
+                                        <span className="flex items-center gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500">
                                           {npub.slice(0, 12)}…{npub.slice(-4)}
                                           <CopyButton text={npub} />
                                         </span>
@@ -5289,7 +5289,7 @@ export default function AdminPage() {
                                       const pubFailed = isFailedStatus(u.latest_ta_status);
                                       const chip = (tone: "emerald" | "red" | "slate", text: string) => (
                                         <span
-                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                                             tone === "emerald"
                                               ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                               : tone === "red"
@@ -5335,7 +5335,7 @@ export default function AdminPage() {
                                         picture={prof?.picture}
                                       />
                                     ) : (
-                                      <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
                                         {u.scheduling_name}
                                       </span>
                                     )}
@@ -5353,11 +5353,11 @@ export default function AdminPage() {
                                     data-testid={`cell-last-triggered-${i}`}
                                   >
                                     <div>
-                                      <span className="block text-[9px] text-slate-600 dark:text-slate-300">
+                                      <span className="block text-[10px] text-slate-600 dark:text-slate-300">
                                         {formatTimestamp(u.last_triggered)}
                                       </span>
                                       {timeAgo(u.last_triggered) && (
-                                        <span className="text-[8px] text-slate-400 dark:text-slate-500">
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
                                           {timeAgo(u.last_triggered)}
                                         </span>
                                       )}
@@ -5402,7 +5402,7 @@ export default function AdminPage() {
                                                 ? "GrapeRank calculation failed on the most recent run."
                                                 : "TA Attestation failed on the most recent run."}
                                           </span>
-                                          <span className="text-[9px] text-red-600/80 dark:text-red-400/80">
+                                          <span className="text-[10px] text-red-600/80 dark:text-red-400/80">
                                             Open the error history to see the full message.
                                           </span>
                                           <button
@@ -5559,22 +5559,22 @@ export default function AdminPage() {
                           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                             {u.latest_status && (
                               <span
-                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
+                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
                               >
                                 {u.latest_status}
                               </span>
                             )}
                             {u.latest_ta_status && (
                               <span
-                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_ta_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
+                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_ta_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
                               >
                                 TA {u.latest_ta_status}
                               </span>
                             )}
-                            <span className="text-[9px] tabular-nums text-slate-400 dark:text-slate-500">
+                            <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
                               {u.times_calculated} calcs
                             </span>
-                            <span className="text-[9px] text-slate-400 dark:text-slate-500">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
                               · Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}
                             </span>
                           </div>
@@ -5611,7 +5611,7 @@ export default function AdminPage() {
                   {adminUsersQuery.isFetching && (
                     <div className="ml-auto flex items-center gap-1.5">
                       <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />
-                      <span className="text-[9px] text-slate-400 dark:text-slate-500">Refreshing...</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">Refreshing...</span>
                     </div>
                   )}
                 </div>
@@ -5671,7 +5671,7 @@ export default function AdminPage() {
                   {triggerConfirmPubkey && (
                     <div className="space-y-4 pt-2">
                       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-500/25 dark:bg-amber-500/10">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                           What happens when you confirm
                         </p>
                         <ul className="list-inside list-disc space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
@@ -5694,7 +5694,7 @@ export default function AdminPage() {
                         </ul>
                       </div>
                       <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 dark:border-blue-500/25 dark:bg-blue-500/10">
-                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
                           Good to know
                         </p>
                         <p className="text-xs text-blue-800 dark:text-blue-300">
@@ -5703,7 +5703,7 @@ export default function AdminPage() {
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-                        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                           Target Pubkey
                         </p>
                         <p
@@ -5912,7 +5912,7 @@ export default function AdminPage() {
                           <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
                             {ep.name}
                           </span>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500">{ep.description}</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500">{ep.description}</p>
                         </div>
                       </div>
                       <span
@@ -5990,7 +5990,7 @@ export default function AdminPage() {
                             <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               {relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}
                             </p>
-                            <p className="max-w-[200px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:max-w-none">
+                            <p className="max-w-[200px] truncate font-mono text-[11px] text-slate-400 dark:text-slate-500 sm:max-w-none">
                               {relay}
                             </p>
                           </div>
@@ -6021,7 +6021,7 @@ export default function AdminPage() {
                     );
                   })}
                   {relayLatencies.length > 0 && (
-                    <p className="pt-2 text-[10px] text-slate-400 dark:text-slate-500">
+                    <p className="pt-2 text-[11px] text-slate-400 dark:text-slate-500">
                       Last checked: {relayLatencies[0].checkedAt.toLocaleTimeString()} · Avg latency:{" "}
                       {Math.round(
                         relayLatencies.filter((r) => r.latencyMs !== null).reduce((s, r) => s + (r.latencyMs ?? 0), 0) /
@@ -6114,7 +6114,7 @@ export default function AdminPage() {
                       <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
                         Failed to load activity
                       </p>
-                      <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                         {adminActivityQuery.error instanceof Error ? adminActivityQuery.error.message : "Unknown error"}
                       </p>
                     </div>
@@ -6122,7 +6122,7 @@ export default function AdminPage() {
                     <div className="py-8 text-center">
                       <Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
                       <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No activity records</p>
-                      <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                         No GrapeRank calculations have been recorded yet.
                       </p>
                     </div>
@@ -6453,7 +6453,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="mt-2 text-[10px] italic text-slate-400 dark:text-slate-500">
+                      <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
                         Click any row to expand details. Use the re-trigger button to re-run GrapeRank for that user.
                       </p>
                     </>
@@ -6575,13 +6575,13 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-total"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Total Assistants
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                               {(stats?.totalAssistants ?? 0).toLocaleString()}
                             </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                               Distinct owner pubkeys
                             </p>
                           </div>
@@ -6589,13 +6589,13 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-publishes"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Total Publishes
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                               {(stats?.totalPublishes ?? 0).toLocaleString()}
                             </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                               Successful kind 0 events
                             </p>
                           </div>
@@ -6603,7 +6603,7 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-24h"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Last 24h
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
@@ -6614,7 +6614,7 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-7d"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Last 7 days
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
@@ -6625,7 +6625,7 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-last"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Last Publish
                             </p>
                             <p className="mt-2 text-sm font-semibold leading-tight text-slate-900 dark:text-slate-100">
@@ -6752,7 +6752,7 @@ export default function AdminPage() {
                                             {npub.slice(0, 18)}…{npub.slice(-6)}
                                           </span>
                                           <span
-                                            className="max-w-[220px] truncate font-mono text-[9px] text-slate-400 dark:text-slate-500"
+                                            className="max-w-[220px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500"
                                             title={it.owner_pubkey}
                                           >
                                             {it.owner_pubkey.slice(0, 12)}…
@@ -6799,7 +6799,7 @@ export default function AdminPage() {
                                             </div>
                                           ) : (
                                             <div className="space-y-1">
-                                              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                 Recent publishes
                                               </p>
                                               <ul className="max-h-60 space-y-1 overflow-auto">
@@ -6819,7 +6819,7 @@ export default function AdminPage() {
                                                       {h.event_id.slice(0, 24)}…
                                                     </span>
                                                     {h.status && (
-                                                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                         {h.status}
                                                       </span>
                                                     )}
@@ -6914,7 +6914,7 @@ export default function AdminPage() {
               return (
                 <div className="space-y-4 pt-2">
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-500/25 dark:bg-amber-500/10">
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                       What happens when you confirm
                     </p>
                     <ul className="list-inside list-disc space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
@@ -6928,7 +6928,7 @@ export default function AdminPage() {
                     </ul>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Targets
                     </p>
                     <p className="text-xs text-slate-800 dark:text-slate-200" data-testid="text-bulk-confirm-count">
@@ -6941,7 +6941,7 @@ export default function AdminPage() {
                       className="rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-500/25 dark:bg-orange-500/10"
                       data-testid="text-bulk-confirm-inflight"
                     >
-                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300">
+                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300">
                         Heads up
                       </p>
                       <p className="text-xs text-orange-900 dark:text-orange-200">
