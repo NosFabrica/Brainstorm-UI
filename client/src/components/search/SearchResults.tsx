@@ -1008,15 +1008,10 @@ export function SearchResults({
   const effectiveQuery =
     !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
 
-  // On All, the Dictionary's lists the words find items on (hooks/useListRibbon). A pressed one
-  // narrows All to its items, for the words it was pressed on.
+  // On All, a pressed list (hooks/useListRibbon, below) narrows All to its items, for the words
+  // it was pressed on.
   const onAll = tab === "all" && !activeKind;
-  const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll });
   const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(null);
-  const narrowedTo =
-    onAll && listPressed?.query === effectiveQuery
-      ? (ribbon.find((l) => l.coordinate === listPressed.coordinate) ?? null)
-      : null;
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -1261,15 +1256,13 @@ export function SearchResults({
   // joins the score request so the channel row can wear the streamer's ring.
   const allAuthors = useMemo(
     () => [
-      ...new Set([
-        ...rawHits.flatMap((h) =>
+      ...new Set(
+        rawHits.flatMap((h) =>
           LIVE_KINDS.has(h.event.kind) ? [h.event.pubkey, liveHostOf(h.event) ?? h.event.pubkey] : [h.event.pubkey],
         ),
-        // A list narrowing All shows its own items, by authors the page's hits may not hold.
-        ...(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []),
-      ]),
+      ),
     ],
-    [rawHits, narrowedTo],
+    [rawHits],
   );
   const scoreOf = useAuthorScores(allAuthors);
   const scoreOfRef = useRef(scoreOf);
@@ -1304,6 +1297,14 @@ export function SearchResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
+  // The Dictionary's lists the words find items on, and those with items among All's rows.
+  const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll, page: hits });
+  const narrowedTo =
+    onAll && listPressed?.query === effectiveQuery
+      ? (ribbon.find((l) => l.coordinate === listPressed.coordinate) ?? null)
+      : null;
+  // A list narrowing All shows its own items, by authors the page's hits may not hold.
+  useAuthorScores(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
   // What the floor held back, said once and quietly — Google's "some results
   // were removed" — with the one tap that lifts it. Rendered under the list,

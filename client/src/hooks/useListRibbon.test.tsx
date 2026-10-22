@@ -71,7 +71,9 @@ beforeEach(() => {
 
 describe("useListRibbon", () => {
   it("asks every list the Dictionary shows, by the headers its items are filed under, through the lens", async () => {
-    renderHook(() => useListRibbon("fork & coin", { pov: "mywot", userPubkey: "1".repeat(64), enabled: true }));
+    renderHook(() =>
+      useListRibbon("fork & coin", { pov: "mywot", userPubkey: "1".repeat(64), enabled: true, page: [] }),
+    );
     await waitFor(() => expect(asked).toHaveBeenCalledTimes(1));
     expect(asked).toHaveBeenCalledWith(
       "fork & coin",
@@ -89,7 +91,7 @@ describe("useListRibbon", () => {
       [PLACES, { events: [item(PLACES, "name", "Forklift Coins"), forkAndCoin], full: false }],
       [VIDEOS, { events: [item(VIDEOS, "title", "Bitcoin for Beginners")], full: false }],
     ]);
-    const { result } = renderHook(() => useListRibbon("fork & coin", { pov: "nosfabrica", enabled: true }));
+    const { result } = renderHook(() => useListRibbon("fork & coin", { pov: "nosfabrica", enabled: true, page: [] }));
     await waitFor(() => expect(result.current).toHaveLength(1));
     expect(result.current[0]).toMatchObject({
       coordinate: PLACES,
@@ -101,6 +103,25 @@ describe("useListRibbon", () => {
     expect(result.current[0].href).toMatch(/^\/e\//);
   });
 
+  it("counts a list's items on All's page too, however loosely they match, once each", async () => {
+    const forkAndCoin = item(PLACES, "name", "Fork & Coin");
+    const bitcoin = item(VIDEOS, "title", "Bitcoin for Beginners");
+    const note = { ...item("", "title", "a note"), kind: 1, tags: [] };
+    answers = new Map([
+      [PLACES, { events: [forkAndCoin], full: false }],
+      [VIDEOS, { events: [bitcoin], full: false }],
+    ]);
+    const page = [forkAndCoin, bitcoin, note].map((event) => ({ event, author: null, rank: null }));
+    const { result } = renderHook(() => useListRibbon("fork & coin", { pov: "nosfabrica", enabled: true, page }));
+    await waitFor(() => expect(asked).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(result.current.map((l) => [l.coordinate, l.hits.map((h) => h.event.id)])).toEqual([
+        [VIDEOS, [bitcoin.id]],
+        [PLACES, [forkAndCoin.id]],
+      ]),
+    );
+  });
+
   it("puts the list with the most matches first, and says when the cap stopped one", async () => {
     answers = new Map([
       [PLACES, { events: [item(PLACES, "name", "Austin Diner")], full: false }],
@@ -109,7 +130,7 @@ describe("useListRibbon", () => {
         { events: [item(VIDEOS, "title", "Austin at night"), item(VIDEOS, "title", "Austin skyline")], full: true },
       ],
     ]);
-    const { result } = renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: true }));
+    const { result } = renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: true, page: [] }));
     await waitFor(() => expect(result.current).toHaveLength(2));
     expect(result.current.map((l) => [l.coordinate, l.hits.length, l.more])).toEqual([
       [VIDEOS, 2, true],
@@ -118,8 +139,8 @@ describe("useListRibbon", () => {
   });
 
   it("asks nothing off the All tab, or with no words to find", async () => {
-    renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: false }));
-    renderHook(() => useListRibbon("sort:recent", { pov: "nosfabrica", enabled: true }));
+    renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: false, page: [] }));
+    renderHook(() => useListRibbon("sort:recent", { pov: "nosfabrica", enabled: true, page: [] }));
     await new Promise((r) => setTimeout(r, 0));
     expect(asked).not.toHaveBeenCalled();
   });

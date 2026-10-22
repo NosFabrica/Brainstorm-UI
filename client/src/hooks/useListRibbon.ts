@@ -7,16 +7,16 @@ import { presentItem } from "@/lib/itemPresentation";
 import { matchListItems, wordsToFind } from "@/lib/listSearch";
 import { queryWords } from "@/lib/searchSyntax";
 import { eventPath } from "@/lib/shareId";
-import { filedItems, listHeaders, type DictionaryItem } from "@/services/dictionary";
+import { filedItems, itemIdentity, listHeaders, type DictionaryItem } from "@/services/dictionary";
 import { searchListItems, type ListAnswer, type SearchHit, type SearchPov } from "@/services/search";
 
-/** One list on the ribbon: a Dictionary list the words find items on. */
+/** One list on the ribbon: a Dictionary list the words find items on, or with items on All's page. */
 export interface RibbonList {
   /** Its community coordinate: a kind with a page of its own (hooks/useListKinds) is matched by it. */
   coordinate: string;
   name: string;
   image: string | null;
-  /** Its items the words find, best first, as the All tab's rows take them. */
+  /** Its items the words find, best first, then its others on All's page, as the All tab's rows take them. */
   hits: SearchHit[];
   /** The relay stopped at its cap for this list: more than these may match. */
   more: boolean;
@@ -34,14 +34,22 @@ const LIMIT = 50;
  * search relay of the lists alone, through the search's lens
  * (services/search `searchListItems`), and keeps the whole-word matches of
  * what each list's cards show (lib/listSearch), a view's own reading included.
- * Most matches first.
+ * A list item on All's own page (`page`, the rows it shows) counts too, however
+ * loosely the relay matched it: an item the reader can see has its list on the
+ * ribbon. So a count is of what was found so far, not of all that matches.
+ * Most first.
  *
  * For everyone, signed in or not, as the Top page's list results are: a
  * reader with no copy reads Brainstorm's definitions (ADR 0004).
  */
 export function useListRibbon(
   query: string,
-  { pov, userPubkey, enabled }: { pov: SearchPov; userPubkey?: string; enabled: boolean },
+  {
+    pov,
+    userPubkey,
+    enabled,
+    page,
+  }: { pov: SearchPov; userPubkey?: string; enabled: boolean; page: readonly SearchHit[] },
 ): RibbonList[] {
   const dictionary = useDictionary(enabled, { anonymous: true });
   const lists = useMemo(() => (dictionary.data ?? []).filter((e) => e.resolved), [dictionary.data]);
@@ -70,33 +78,39 @@ export function useListRibbon(
   }, [ask]);
 
   const override = useContext(PresentationOverrideContext);
+  const onPage = useMemo(() => page.map((h) => h.event) as DictionaryItem[], [page]);
   return useMemo(() => {
-    if (!ask || answered?.ask !== ask) return [];
+    if (!enabled) return [];
+    const answers = ask && answered?.ask === ask ? answered.answers : null;
     const found: RibbonList[] = [];
     for (const entry of lists) {
       const resolved = entry.resolved!;
       const definition = resolved.governing;
-      const events = answered.answers.get(entry.communityCoordinate)?.events ?? [];
+      const headers = listHeaders(entry.communityCoordinate, resolved);
+      const answer = answers?.get(entry.communityCoordinate);
       const toFind = wordsToFind(words, definition);
-      if (!events.length || !toFind.length) continue;
       const read = (item: { tags: string[][] }) => {
         const shown = presentItem(item, definition);
         return override ? override(item, resolved, shown) : shown;
       };
-      const items = filedItems(events as DictionaryItem[], listHeaders(entry.communityCoordinate, resolved));
-      const matched = matchListItems(items, definition, toFind, Infinity, read);
-      if (!matched.length) continue;
+      const matched =
+        answer?.events.length && toFind.length
+          ? matchListItems(filedItems(answer.events as DictionaryItem[], headers), definition, toFind, Infinity, read)
+          : [];
+      const held = new Set(matched.map(itemIdentity));
+      const items = [...matched, ...filedItems(onPage, headers).filter((item) => !held.has(itemIdentity(item)))];
+      if (!items.length) continue;
       found.push({
         coordinate: entry.communityCoordinate,
         name: definition.plural,
         image: definition.display.listImage,
-        hits: matched.map((item) => ({ event: item as NostrEvent, author: null, rank: null })),
-        more: answered.answers.get(entry.communityCoordinate)!.full,
+        hits: items.map((item) => ({ event: item as NostrEvent, author: null, rank: null })),
+        more: answer?.full ?? false,
         href: eventPath(resolved.community?.event ?? definition.event, dictionaryRelays()),
       });
     }
     return found.sort(
       (a, b) => b.hits.length - a.hits.length || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
-  }, [ask, answered, lists, words, override]);
+  }, [enabled, ask, answered, lists, words, override, onPage]);
 }
