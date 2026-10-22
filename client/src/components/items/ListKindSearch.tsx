@@ -12,7 +12,11 @@
  * search API returns list items with their definitions (ADR 0004).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { LocationExplainer } from "@/components/search/LocationExplainer";
+import { locate, LocateError, nearestArea, type Position } from "@/lib/nearMe";
+import { distanceKm, distanceWords } from "@/lib/placeDistance";
 import { Link } from "wouter";
+import type { SearchTab } from "@/services/search";
 import {
   ArrowRight,
   BookOpen,
@@ -26,6 +30,7 @@ import {
   Search,
   Store,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
@@ -963,6 +968,8 @@ function suggestionFor(
 
 /* ── Each kind's own page ─────────────────────────────────────────────── */
 
+/** How many places "Near me" widens its box to hold, so a sparse map never shows nothing. */
+const NEAR_ME_MIN_PLACES = 5;
 const PAGE_MAX = 60;
 
 function PageEmpty({ pending, label, query }: { pending: boolean; label: string; query: string }) {
@@ -1070,7 +1077,7 @@ function writeAreaToUrl(v: MapView | null) {
 }
 
 /** Places: the list beside a map of their pins, with chips that narrow them — a map app's way. */
-function PlacesPage({ query }: { query: string }) {
+function PlacesPage({ query, onTabChange }: { query: string; onTabChange?: (tab: SearchTab) => void }) {
   const words = query
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
@@ -1083,6 +1090,37 @@ function PlacesPage({ query }: { query: string }) {
   // The area of the map searched (Search this area), kept in the link so Back, a refresh and a
   // shared link come back to it. Its search is the words without the town: the map says where.
   const [area, setAreaState] = useState<MapView | null>(areaFromUrl);
+  // "Near me" (lib/nearMe): asked of the browser on the tap only; the box around the answer is
+  // the area searched, said as "near you"; a refusal is said once. The explainer is a tap away.
+  const [nearYou, setNearYou] = useState(false);
+  // The events under the places: folded to a count until tapped, or until a diamond is.
+  const [eventsOpen, setEventsOpen] = useState(false);
+  const [you, setYou] = useState<Position | null>(null);
+  const [nearNotice, setNearNotice] = useState<string | null>(null);
+  const [explain, setExplain] = useState(false);
+  const canLocate = typeof navigator !== "undefined" && !!navigator.geolocation;
+  useEffect(() => {
+    if (!area) setNearYou(false);
+  }, [area]);
+  const nearMe = async () => {
+    setNearNotice(null);
+    try {
+      const here = await locate();
+      setYou(here);
+      setNearYou(true);
+      setArea(nearestArea(here, pinsOf(hits), { min: NEAR_ME_MIN_PLACES }));
+    } catch (e) {
+      const reason = e instanceof LocateError ? e.reason : "unavailable";
+      setNearNotice(
+        reason === "declined"
+          ? "Location declined — the results stay as they were. You can allow it in your browser any time."
+          : reason === "unsupported"
+            ? "This browser can't share a location."
+            : "Couldn't get a position just now.",
+      );
+    }
+  };
+
   const [moved, setMoved] = useState<MapView | null>(null);
   // New words are a new search: the area went with the old ones (the link a search writes has none).
   const firstQuery = useRef(query);
@@ -1162,16 +1200,38 @@ function PlacesPage({ query }: { query: string }) {
   // A stable sort: places that tie keep the page's own order.
   // Stars alone can only reorder once two places have them.
   const sortable = hits.filter((h) => starsOf(h) > 0).length >= 2;
-  const shown = sortable && sort === "rated" ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a)) : narrowed;
+  // Near you: nearest first, each row saying how far (lib/placeDistance).
+  const distanceOf = (h: KindHit): number => {
+    const lat = Number(h.place?.lat);
+    const lon = Number(h.place?.lon);
+    return you && Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)
+      ? distanceKm(you, { lat, lon })
+      : Number.POSITIVE_INFINITY;
+  };
+  const shown = you
+    ? [...narrowed].sort((a, b) => distanceOf(a) - distanceOf(b))
+    : sortable && sort === "rated"
+      ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a))
+      : narrowed;
+  const distanceLine = (h: KindHit, line: string): string => {
+    const d = distanceOf(h);
+    return you && Number.isFinite(d) ? `${distanceWords(d)} · ${line}` : line;
+  };
   const openCount = hits.filter((h) => isOpenNow(h.place)).length;
   const lines = linesOf(shown);
   const pins = pinsOf(shown);
-  // An area searched keeps its map, places or none, so the reader can move on from it.
-  // The search's map, not the filters': one that leaves no place keeps it, so the reader can undo
-  // the filter where they are (and the map isn't rebuilt when they do).
-  const map = !!area || pinsAreLocal(pinsOf(hits));
-  // A town's upcoming events near its places share the map, as on the Top page's preview.
-  const events = useTownEventPins(map ? town : null, pins, area);
+  // The map is always there, as a map app's is: fitted to every place, a continent apart or one
+  // town, so the reader can narrow it — Near me, or Search this area. An area searched keeps it,
+  // places or none. The search's map, not the filters': one that leaves no place keeps it, so the
+  // reader can undo the filter where they are (and the map isn't rebuilt when they do).
+  const allPinsOfSearch = pinsOf(hits);
+  const map = !!area || allPinsOfSearch.length > 0;
+  // A town's upcoming events near its places share the map, as on the Top page's preview —
+  // only when the places are one town's, not a continent's.
+  const local = pinsAreLocal(allPinsOfSearch);
+  const events = useTownEventPins(map && local ? town : null, pins, area);
+  // Spread out, the summary says how far: the towns the places are in.
+  const towns = new Set(hits.map((h) => h.place?.locality).filter(Boolean)).size;
   if (hits.length === 0 && !area) return <PageEmpty pending={pending} label="Places" query={query} />;
   const chip = (label: string, on: boolean, toggle: () => void, count?: number) => (
     <button
@@ -1199,14 +1259,20 @@ function PlacesPage({ query }: { query: string }) {
     setFilter({ category: null, openNow: false });
     if (area) setArea(null);
   };
-  // Offered once the reader has moved the map somewhere other than the area it shows.
-  const searchHere = (top: string) =>
+  // Offered once the reader has moved the map somewhere other than the area it shows — at the
+  // top right of the map, clear of a picked place's or event's card at the top left and of the
+  // zoom controls lower down; on a phone, in the header's own flow under the chips, where
+  // nothing covers it and no screen cuts it off.
+  const searchHere = (place: "float" | "inline") =>
     moved &&
     !sameView(moved, area) && (
       <button
         type="button"
-        onClick={() => setArea(moved)}
-        className={`absolute left-1/2 ${top} z-[600] inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
+        onClick={() => {
+          setNearYou(false);
+          setArea(moved);
+        }}
+        className={`${place === "float" ? "absolute right-3 top-3 z-[600]" : "mt-1"} inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
       >
         <Search className="h-4 w-4" aria-hidden />
         Search this area
@@ -1219,6 +1285,7 @@ function PlacesPage({ query }: { query: string }) {
   const tapEvent = (id: string) => {
     setPickedEvent(id);
     setPicked(null);
+    setEventsOpen(true);
   };
   const header = (
     <>
@@ -1226,7 +1293,15 @@ function PlacesPage({ query }: { query: string }) {
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="places-summary">
           {filtering && `${shown.length} of `}
           {hits.length >= PAGE_MAX ? `${PAGE_MAX}+` : hits.length} {hits.length === 1 ? "place" : "places"}
-          {area ? " in this area" : town ? ` in ${town}` : ""}
+          {area
+            ? nearYou
+              ? " near you"
+              : " in this area"
+            : town
+              ? ` in ${town}`
+              : !local && towns > 1
+                ? ` in ${towns} towns`
+                : ""}
           {!filtering && openCount > 0 && (
             <span className="font-medium text-emerald-600 dark:text-emerald-400"> · {openCount} open now</span>
           )}
@@ -1250,7 +1325,8 @@ function PlacesPage({ query }: { query: string }) {
       </div>
       {/* One row that scrolls sideways on a phone, as a map app's chips do. */}
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
-        {area && chip("In this area", true, () => setArea(null))}
+        {canLocate && !(area && nearYou) && chip("Near me", false, () => void nearMe())}
+        {area && chip(nearYou ? "Near you" : "In this area", true, () => setArea(null))}
         {/* Only when it narrows: none open would empty the list, all open would change nothing. */}
         {(filter.openNow || (openCount > 0 && openCount < hits.length)) &&
           chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })), openCount)}
@@ -1267,6 +1343,18 @@ function PlacesPage({ query }: { query: string }) {
           </button>
         )}
       </div>
+      {nearNotice && (
+        <p className="-mt-1 pb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="near-me-notice">
+          {nearNotice}
+        </p>
+      )}
+      <p className="-mt-1 pb-2 text-[11px] text-slate-400 dark:text-slate-500">
+        Near me · asked once, used for this search, not stored ·{" "}
+        <button type="button" onClick={() => setExplain(true)} className="text-brand-link hover:underline">
+          How do we know where you are?
+        </button>
+      </p>
+      <LocationExplainer open={explain} onOpenChange={setExplain} />
     </>
   );
   return (
@@ -1285,7 +1373,7 @@ function PlacesPage({ query }: { query: string }) {
                 n={i + 1}
                 trust={lineOf(h.id)}
                 rating={ratingLine(h)}
-                line={lines[i]}
+                line={distanceLine(h, lines[i])}
                 testId="kind-page-item"
                 big
                 actions
@@ -1306,6 +1394,64 @@ function PlacesPage({ query }: { query: string }) {
               </button>
             </div>
           )}
+          {events.length > 0 && (
+            <section className="mt-4 border-t border-slate-100 pt-2 dark:border-slate-800" data-testid="places-events">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEventsOpen((o) => !o)}
+                  aria-expanded={eventsOpen}
+                  className="inline-flex items-center gap-1.5 rounded-md py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${eventsOpen ? "" : "-rotate-90"}`}
+                    aria-hidden
+                  />
+                  Happening near here
+                  <span className="rounded-full bg-brand-accent/15 px-1.5 py-px text-[10px] font-semibold normal-case tracking-normal text-brand-deep dark:text-brand-link">
+                    {events.length}
+                  </span>
+                </button>
+                {eventsOpen &&
+                  (onTabChange ? (
+                    <button
+                      type="button"
+                      onClick={() => onTabChange("events")}
+                      className="text-xs font-medium text-brand-link hover:underline"
+                    >
+                      See all events
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/?q=${encodeURIComponent(query)}&t=events`}
+                      className="text-xs font-medium text-brand-link hover:underline"
+                    >
+                      See all events
+                    </Link>
+                  ))}
+              </div>
+              {eventsOpen && (
+                <ul className="mt-1 space-y-0.5">
+                  {events.slice(0, 3).map((e) => (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        onClick={() => tapEvent(e.id)}
+                        aria-current={pickedEvent === e.id ? "true" : undefined}
+                        className={`flex w-full items-baseline gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60 ${pickedEvent === e.id ? "bg-slate-50 dark:bg-slate-800/60" : ""}`}
+                      >
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-brand-accent" aria-hidden />
+                        <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                          {e.when}
+                        </span>
+                        <span className="min-w-0 truncate text-slate-800 dark:text-slate-100">{e.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
         </div>
         {map && !narrow && (
           <div>
@@ -1322,11 +1468,11 @@ function PlacesPage({ query }: { query: string }) {
                 className="h-full"
               />
               {/* At the foot of the map: an open card sits at its head. */}
-              {searchHere("bottom-4")}
+              {searchHere("float")}
               {eventPicked && (
                 <EventCard
                   event={eventPicked}
-                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-4.5rem)]"
+                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-11.5rem)]"
                   onClose={() => setPickedEvent(null)}
                 />
               )}
@@ -1339,7 +1485,7 @@ function PlacesPage({ query }: { query: string }) {
                   rating={ratingLine(shown[pickedAt])}
                   lit
                   testId="place-picked"
-                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-4.5rem)]"
+                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-11.5rem)]"
                   onClose={() => setPicked(null)}
                 />
               )}
@@ -1387,8 +1533,8 @@ function PlacesPage({ query }: { query: string }) {
             />
             <div className="absolute inset-x-0 top-0 z-[500] bg-gradient-to-b from-white via-white/90 to-white/0 px-4 pb-6 pt-4 dark:from-slate-950 dark:via-slate-950/90 dark:to-slate-950/0">
               {header}
+              {searchHere("inline")}
             </div>
-            {searchHere("top-28")}
           </div>
           <div className="relative z-[500] -mt-48 space-y-2 pb-4">
             {eventPicked && (
