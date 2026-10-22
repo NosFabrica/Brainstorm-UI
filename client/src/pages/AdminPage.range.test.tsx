@@ -239,6 +239,21 @@ describe("the admin dashboard's time range", () => {
     expect(within(panel).queryByText(/no users match/i)).toBeNull();
   });
 
+  it("shows the range only on the tabs it drives", async () => {
+    window.history.replaceState({}, "", "/admin?tab=billing");
+    renderPage();
+    await screen.findByTestId("tab-billing");
+    expect(screen.queryByTestId("range-selector")).toBeNull();
+    expect(screen.queryByTestId("select-range")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("tab-overview"));
+    expect(await screen.findByTestId("range-selector")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-growth"));
+    expect(screen.getByTestId("range-selector")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-users"));
+    await waitFor(() => expect(screen.queryByTestId("range-selector")).toBeNull());
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());
