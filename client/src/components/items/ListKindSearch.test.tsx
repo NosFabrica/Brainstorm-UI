@@ -1120,24 +1120,37 @@ describe("an event's pin on the Places page", () => {
     ],
   };
 
-  // The map's diamonds have a quiet counterpart in the list: a small "Happening near here"
-  // group under the places — never numbered with them — and a row opens the same card.
-  it("lists the town's events quietly under the places, and a row opens the event's card", async () => {
+  // The map's diamonds have a quiet counterpart in the list: a "Happening near here" line under
+  // the places, collapsed to a count, that opens to its rows — never numbered with the places —
+  // and a row opens the same card the diamond does. A diamond tapped on the map opens the group.
+  it("folds the town's events to one line under the places, and opens them on a tap or a diamond", async () => {
     townEvents.list = [meetup];
     itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
     try {
       page("places", "sarasota");
       const group = await screen.findByTestId("places-events");
       expect(group).toHaveTextContent(/happening near here/i);
+      expect(group).toHaveTextContent(/1/);
+      expect(within(group).queryByRole("button", { name: /Meetup by the river/ })).toBeNull();
+
+      fireEvent.click(within(group).getByRole("button", { name: /happening near here/i }));
       const row = within(group).getByRole("button", { name: /Meetup by the river/ });
       expect(row).toHaveTextContent(/May/);
-      // The places keep their numbers; an event takes none.
       for (const item of screen.getAllByTestId("kind-page-item")) expect(item).not.toHaveTextContent("Meetup");
       fireEvent.click(row);
       expect(screen.getByTestId("event-picked")).toHaveTextContent("Meetup by the river");
       expect(within(group).getByRole("link", { name: /see all events/i })).toHaveAttribute(
         "href",
         expect.stringContaining("t=events"),
+      );
+
+      // Folded again, a diamond on the map opens it and lights the row.
+      fireEvent.click(within(group).getByRole("button", { name: /happening near here/i }));
+      expect(within(group).queryByRole("button", { name: /Meetup by the river/ })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "event Meetup by the river" }));
+      expect(within(group).getByRole("button", { name: /Meetup by the river/ })).toHaveAttribute(
+        "aria-current",
+        "true",
       );
     } finally {
       itemsOf[PLACES].pop();

@@ -29,6 +29,7 @@ import {
   Search,
   Store,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
@@ -1090,6 +1091,8 @@ function PlacesPage({ query }: { query: string }) {
   // "Near me" (lib/nearMe): asked of the browser on the tap only; the box around the answer is
   // the area searched, said as "near you"; a refusal is said once. The explainer is a tap away.
   const [nearYou, setNearYou] = useState(false);
+  // The events under the places: folded to a count until tapped, or until a diamond is.
+  const [eventsOpen, setEventsOpen] = useState(false);
   const [you, setYou] = useState<Position | null>(null);
   const [nearNotice, setNearNotice] = useState<string | null>(null);
   const [explain, setExplain] = useState(false);
@@ -1280,6 +1283,7 @@ function PlacesPage({ query }: { query: string }) {
   const tapEvent = (id: string) => {
     setPickedEvent(id);
     setPicked(null);
+    setEventsOpen(true);
   };
   const header = (
     <>
@@ -1389,33 +1393,52 @@ function PlacesPage({ query }: { query: string }) {
             </div>
           )}
           {events.length > 0 && (
-            <section className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800" data-testid="places-events">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Happening near here
-                </p>
-                <Link
-                  href={`/?q=${encodeURIComponent(query)}&t=events`}
-                  className="text-xs font-medium text-brand-link hover:underline"
+            <section className="mt-4 border-t border-slate-100 pt-2 dark:border-slate-800" data-testid="places-events">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEventsOpen((o) => !o)}
+                  aria-expanded={eventsOpen}
+                  className="inline-flex items-center gap-1.5 rounded-md py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                 >
-                  See all events
-                </Link>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${eventsOpen ? "" : "-rotate-90"}`}
+                    aria-hidden
+                  />
+                  Happening near here
+                  <span className="rounded-full bg-brand-accent/15 px-1.5 py-px text-[10px] font-semibold normal-case tracking-normal text-brand-deep dark:text-brand-link">
+                    {events.length}
+                  </span>
+                </button>
+                {eventsOpen && (
+                  <Link
+                    href={`/?q=${encodeURIComponent(query)}&t=events`}
+                    className="text-xs font-medium text-brand-link hover:underline"
+                  >
+                    See all events
+                  </Link>
+                )}
               </div>
-              <ul className="mt-1.5 space-y-0.5">
-                {events.slice(0, 3).map((e) => (
-                  <li key={e.id}>
-                    <button
-                      type="button"
-                      onClick={() => tapEvent(e.id)}
-                      className={`flex w-full items-baseline gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60 ${pickedEvent === e.id ? "bg-slate-50 dark:bg-slate-800/60" : ""}`}
-                    >
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-brand-accent" aria-hidden />
-                      <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">{e.when}</span>
-                      <span className="min-w-0 truncate text-slate-800 dark:text-slate-100">{e.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {eventsOpen && (
+                <ul className="mt-1 space-y-0.5">
+                  {events.slice(0, 3).map((e) => (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        onClick={() => tapEvent(e.id)}
+                        aria-current={pickedEvent === e.id ? "true" : undefined}
+                        className={`flex w-full items-baseline gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60 ${pickedEvent === e.id ? "bg-slate-50 dark:bg-slate-800/60" : ""}`}
+                      >
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-brand-accent" aria-hidden />
+                        <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                          {e.when}
+                        </span>
+                        <span className="min-w-0 truncate text-slate-800 dark:text-slate-100">{e.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
         </div>
