@@ -12,6 +12,8 @@
  * search API returns list items with their definitions (ADR 0004).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { LocationExplainer } from "@/components/search/LocationExplainer";
+import { areaAround, locate, LocateError } from "@/lib/nearMe";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -962,6 +964,8 @@ function suggestionFor(
 
 /* ── Each kind's own page ─────────────────────────────────────────────── */
 
+/** The box "Near me" searches: a walk or a short drive in every direction. */
+const NEAR_ME_KM = 5;
 const PAGE_MAX = 60;
 
 function PageEmpty({ pending, label, query }: { pending: boolean; label: string; query: string }) {
@@ -1082,6 +1086,33 @@ function PlacesPage({ query }: { query: string }) {
   // The area of the map searched (Search this area), kept in the link so Back, a refresh and a
   // shared link come back to it. Its search is the words without the town: the map says where.
   const [area, setAreaState] = useState<MapView | null>(areaFromUrl);
+  // "Near me" (lib/nearMe): asked of the browser on the tap only; the box around the answer is
+  // the area searched, said as "near you"; a refusal is said once. The explainer is a tap away.
+  const [nearYou, setNearYou] = useState(false);
+  const [nearNotice, setNearNotice] = useState<string | null>(null);
+  const [explain, setExplain] = useState(false);
+  const canLocate = typeof navigator !== "undefined" && !!navigator.geolocation;
+  useEffect(() => {
+    if (!area) setNearYou(false);
+  }, [area]);
+  const nearMe = async () => {
+    setNearNotice(null);
+    try {
+      const here = await locate();
+      setNearYou(true);
+      setArea(areaAround(here, NEAR_ME_KM));
+    } catch (e) {
+      const reason = e instanceof LocateError ? e.reason : "unavailable";
+      setNearNotice(
+        reason === "declined"
+          ? "Location declined — the results stay as they were. You can allow it in your browser any time."
+          : reason === "unsupported"
+            ? "This browser can't share a location."
+            : "Couldn't get a position just now.",
+      );
+    }
+  };
+
   const [moved, setMoved] = useState<MapView | null>(null);
   // New words are a new search: the area went with the old ones (the link a search writes has none).
   const firstQuery = useRef(query);
@@ -1225,7 +1256,7 @@ function PlacesPage({ query }: { query: string }) {
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="places-summary">
           {filtering && `${shown.length} of `}
           {hits.length >= PAGE_MAX ? `${PAGE_MAX}+` : hits.length} {hits.length === 1 ? "place" : "places"}
-          {area ? " in this area" : town ? ` in ${town}` : ""}
+          {area ? (nearYou ? " near you" : " in this area") : town ? ` in ${town}` : ""}
           {!filtering && openCount > 0 && (
             <span className="font-medium text-emerald-600 dark:text-emerald-400"> · {openCount} open now</span>
           )}
@@ -1249,7 +1280,8 @@ function PlacesPage({ query }: { query: string }) {
       </div>
       {/* One row that scrolls sideways on a phone, as a map app's chips do. */}
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
-        {area && chip("In this area", true, () => setArea(null))}
+        {canLocate && !(area && nearYou) && chip("Near me", false, () => void nearMe())}
+        {area && chip(nearYou ? "Near you" : "In this area", true, () => setArea(null))}
         {/* Only when it narrows: none open would empty the list, all open would change nothing. */}
         {(filter.openNow || (openCount > 0 && openCount < hits.length)) &&
           chip("Open now", filter.openNow, () => setFilter((f) => ({ ...f, openNow: !f.openNow })), openCount)}
@@ -1266,6 +1298,18 @@ function PlacesPage({ query }: { query: string }) {
           </button>
         )}
       </div>
+      {nearNotice && (
+        <p className="-mt-1 pb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="near-me-notice">
+          {nearNotice}
+        </p>
+      )}
+      <p className="-mt-1 pb-2 text-[11px] text-slate-400 dark:text-slate-500">
+        Near me · asked once, used for this search, not stored ·{" "}
+        <button type="button" onClick={() => setExplain(true)} className="text-brand-link hover:underline">
+          How do we know where you are?
+        </button>
+      </p>
+      <LocationExplainer open={explain} onOpenChange={setExplain} />
     </>
   );
   return (

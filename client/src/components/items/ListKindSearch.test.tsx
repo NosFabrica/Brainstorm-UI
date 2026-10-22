@@ -1191,6 +1191,57 @@ describe("searching the map's area", () => {
     }
   });
 
+  // "Near me": the browser is asked only on the tap, the box around the answer is the area
+  // searched (and in the link, like any area), and a refusal is said once, quietly.
+  it("Near me asks the browser on the tap, searches the box around the answer, and says so", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    const asked = vi.fn((ok: (p: { coords: { latitude: number; longitude: number } }) => void) =>
+      ok({ coords: { latitude: 27.33, longitude: -82.535 } }),
+    );
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: asked }, configurable: true });
+    window.history.replaceState({}, "", "/?q=cafe+sarasota&t=places");
+    try {
+      page("places", "cafe sarasota");
+      expect(asked).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: /near me/i }));
+      await waitFor(() => expect(names().sort()).toEqual(["Bean", "Brew", "Lido Cafe"]));
+      expect(asked).toHaveBeenCalledTimes(1);
+      expect(window.location.search).toContain("area=");
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/near you/i);
+      // The explainer is a tap away, and says where each signal comes from.
+      fireEvent.click(screen.getByRole("button", { name: /how do we know/i }));
+      const sheet = await screen.findByTestId("location-explainer");
+      expect(sheet).toHaveTextContent(/words you typed/i);
+      expect(sheet).toHaveTextContent(/only when you tap/i);
+      expect(sheet).toHaveTextContent(/not stored/i);
+    } finally {
+      itemsOf[PLACES] = was;
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("Near me says once when the browser says no, and the page is as it was", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    Object.defineProperty(navigator, "geolocation", {
+      value: { getCurrentPosition: (_ok: unknown, fail: (e: { code: number }) => void) => fail({ code: 1 }) },
+      configurable: true,
+    });
+    window.history.replaceState({}, "", "/?q=cafe+sarasota&t=places");
+    try {
+      page("places", "cafe sarasota");
+      fireEvent.click(screen.getByRole("button", { name: /near me/i }));
+      expect(await screen.findByTestId("near-me-notice")).toHaveTextContent(/declined/i);
+      expect(names()).toEqual(["Bean", "Brew", "Far Cup"]);
+      expect(window.location.search).not.toContain("area=");
+    } finally {
+      itemsOf[PLACES] = was;
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    }
+  });
+
   it("keeps the area in the link: a shared link opens on it, and Back returns to it", () => {
     const was = itemsOf[PLACES];
     itemsOf[PLACES] = sarasota;
