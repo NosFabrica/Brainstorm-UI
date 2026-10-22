@@ -64,6 +64,7 @@ import {
   LifeBuoy,
   Receipt,
   ListChecks,
+  TrendingUp,
 } from "lucide-react";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
 import {
@@ -76,6 +77,7 @@ import {
   type AdminRange,
 } from "./adminRange";
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
+import { GrowthCard } from "@/components/admin/growth/GrowthCard";
 import {
   Area,
   AreaChart,
@@ -2615,6 +2617,16 @@ export default function AdminPage() {
     refetchOnWindowFocus: "always",
   });
 
+  // The year's runs, whole, for the Growth tab: a person's first run is their
+  // earliest record here, whatever the dashboard's range.
+  const yearActivityQuery = useQuery<AdminUserHistoryPage>({
+    queryKey: ["/api/admin/activity/year"],
+    queryFn: () => readEveryPage((page) => apiClient.getAdminActivity({ page, size: 100, days: BACKEND_MAX_DAYS })),
+    enabled: !!user?.isAdmin && activeTab === "growth",
+    staleTime: 300_000,
+    retry: 1,
+  });
+
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity", rangeDays, activityPage, activityPageSize],
     queryFn: () =>
@@ -3414,6 +3426,7 @@ export default function AdminPage() {
     { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
     { key: "users", label: "Users", icon: Users },
     { key: "trusted-lists", label: "Trusted Lists", icon: ListChecks },
+    { key: "growth", label: "Growth", icon: TrendingUp },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
   ];
@@ -6349,6 +6362,17 @@ export default function AdminPage() {
               <TrustedListsCard
                 key={trustedListsObserver ?? "picker"}
                 initialObserver={trustedListsObserver ?? undefined}
+              />
+            </div>
+          )}
+
+          {activeTab === "growth" && (
+            <div data-testid="panel-growth">
+              <GrowthCard
+                records={yearActivityQuery.data?.items ?? NONE}
+                range={range}
+                isLoading={yearActivityQuery.isLoading}
+                profiles={userProfiles}
               />
             </div>
           )}

@@ -37,6 +37,8 @@ vi.mock("@/components/admin/billing/PlanMappingsCard", () => ({ PlanMappingsCard
 vi.mock("@/components/admin/scheduling/SchedulingCard", () => ({ SchedulingCard: () => null }));
 vi.mock("@/components/admin/scheduling/SchedulingStatsPanel", () => ({ SchedulingStatsPanel: () => null }));
 vi.mock("@/components/admin/trusted-lists/TrustedListsCard", () => ({ TrustedListsCard: () => null }));
+const growth = vi.hoisted(() => vi.fn((_props: unknown) => null));
+vi.mock("@/components/admin/growth/GrowthCard", () => ({ GrowthCard: (props: unknown) => growth(props) }));
 
 import AdminPage from "./AdminPage";
 
@@ -196,6 +198,18 @@ describe("the admin dashboard's time range", () => {
       .getAllByText("vs prior 24h")
       .map((label) => label.parentElement?.textContent?.replace(/\s+/g, " ").trim());
     expect(deltas).toContain("+2 vs prior 24h");
+  });
+
+  it("gives the Growth tab the year's runs and the dashboard's range", async () => {
+    window.history.replaceState({}, "", "/admin?range=7d");
+    renderPage();
+    fireEvent.click(screen.getByTestId("tab-growth"));
+
+    await screen.findByTestId("panel-growth");
+    await waitFor(() =>
+      expect(api.getAdminActivity).toHaveBeenCalledWith(expect.objectContaining({ days: 365, page: 1 })),
+    );
+    await waitFor(() => expect(growth).toHaveBeenLastCalledWith(expect.objectContaining({ range: "7d" })));
   });
 
   it("takes a custom 'last N days' from the header", async () => {
