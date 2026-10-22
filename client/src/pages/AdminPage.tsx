@@ -53,7 +53,6 @@ import {
   Play,
   Loader2,
   UserPlus,
-  Calendar,
   ArrowRight,
   User,
   Square,
@@ -68,6 +67,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
+import { ADMIN_RANGES, parseAdminRange, rangeQuery, withinRange, type AdminRange } from "./adminRange";
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import {
   Area,
@@ -95,7 +95,6 @@ import { useToast } from "@/hooks/use-toast";
 
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
-type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
 
 function formatTimestamp(dateStr?: string): string {
   if (!dateStr) return "";
@@ -113,6 +112,8 @@ function formatTimestamp(dateStr?: string): string {
 }
 
 const POLL_OVERVIEW_MS = 15_000;
+/** The backend pages activity at 100 rows; the Overview reads this many pages of a range. */
+const OVERVIEW_ACTIVITY_PAGES = 10;
 const POLL_USERS_MS = 10_000;
 const POLL_ACTIVITY_MS = 10_000;
 const POLL_STATS_MS = 30_000;
@@ -325,7 +326,7 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
 
 type HourlyBucket = { t: number; success: number; failed: number; total: number };
 
-type TrendWindow = "1h" | "24h" | "7d" | "all";
+type TrendWindow = AdminRange;
 
 type WindowConfig = {
   windowMs: number;
@@ -390,14 +391,29 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 0,
         bucketUnitLabel: "calcs / day",
       };
+    case "30d":
+      return {
+        windowMs: 30 * DAY,
+        bucketCount: 30,
+        bucketSizeMs: DAY,
+        shortLabel: "30d",
+        windowPhrase: "the last 30d",
+        longLabel: "Last 30 days",
+        priorLabel: "vs prior 30d",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
+        bucketTooltipFn: (ts) =>
+          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+        xAxisInterval: 4,
+        bucketUnitLabel: "calcs / day",
+      };
     case "all":
       return {
         windowMs: Number.POSITIVE_INFINITY,
         bucketCount: 12,
         bucketSizeMs: DAY, // overridden dynamically from the loaded-data span
         shortLabel: "All",
-        windowPhrase: "all loaded",
-        longLabel: "All loaded activity",
+        windowPhrase: "all time",
+        longLabel: "All time",
         priorLabel: "vs prior period",
         bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
         bucketTooltipFn: (ts) =>
@@ -2295,22 +2311,24 @@ export default function AdminPage() {
   const [trustedListsObserver, setTrustedListsObserver] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [daysFilter, setDaysFilter] = useState(30);
   const [userSort, setUserSort] = useState<SortState>({ key: "last_triggered", dir: "desc" });
   const [userPage, setUserPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
   const [activityPage, setActivityPage] = useState(0);
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
-  const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | "failed" | null>(null);
-  const [trendWindow, setTrendWindow] = useState<TrendWindow>("24h");
-  useEffect(() => {
-    try {
-      localStorage.removeItem("admin_trend_window");
-    } catch {
-      /* ignore */
-    }
+  // The dashboard's one time range (adminRange): every tab's queries, figures
+  // and charts read it, and `?range=` keeps it across tabs and reloads.
+  const [range, setRangeState] = useState<AdminRange>(() =>
+    parseAdminRange(new URLSearchParams(window.location.search).get("range")),
+  );
+  const setRange = useCallback((next: AdminRange) => {
+    setRangeState(next);
+    const params = new URLSearchParams(window.location.search);
+    params.set("range", next);
+    window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
   }, []);
+  const rangeDays = rangeQuery(range, Date.now()).days;
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
@@ -2415,7 +2433,9 @@ export default function AdminPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("tab") || params.has("highlight")) {
-      window.history.replaceState({}, "", window.location.pathname);
+      const kept = new URLSearchParams();
+      if (params.has("range")) kept.set("range", params.get("range")!);
+      window.history.replaceState({}, "", `${window.location.pathname}${kept.toString() ? `?${kept}` : ""}`);
       if (params.get("highlight")) {
         setTimeout(() => setHighlightedPubkey(null), 2500);
       }
@@ -2448,13 +2468,13 @@ export default function AdminPage() {
   const activeNameSearch = isNameSearch(userSearch.trim());
 
   const adminUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize],
+    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, rangeDays, userPage, pageSize],
     queryFn: () =>
       apiClient.getAdminUsers({
         search: debouncedSearch || undefined,
         sort: userSort.key,
         order: userSort.dir,
-        days: daysFilter,
+        days: rangeDays,
         page: userPage + 1,
         size: pageSize,
       }),
@@ -2491,8 +2511,8 @@ export default function AdminPage() {
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
 
   const overviewUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users/overview", daysFilter],
-    queryFn: () => apiClient.getAdminUsers({ days: daysFilter, page: 1, size: 100 }),
+    queryKey: ["/api/admin/users/overview", rangeDays],
+    queryFn: () => apiClient.getAdminUsers({ days: rangeDays, page: 1, size: 100 }),
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
@@ -2501,9 +2521,19 @@ export default function AdminPage() {
   });
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/activity/overview"],
-    // Backend caps `size` at 100; requesting more 422s.
-    queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
+    queryKey: ["/api/admin/activity/overview", rangeDays],
+    // Twice the range, so the deltas have a prior window to compare with.
+    // Backend caps `size` at 100 (more 422s); the rest comes page by page.
+    queryFn: async () => {
+      const days = Math.min(rangeDays * 2, 365);
+      const first = await apiClient.getAdminActivity({ page: 1, size: 100, days });
+      const pages = Math.min(first?.pages ?? 1, OVERVIEW_ACTIVITY_PAGES);
+      if (pages <= 1) return first;
+      const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, i) => apiClient.getAdminActivity({ page: i + 2, size: 100, days })),
+      );
+      return { ...first, items: [...(first.items ?? []), ...rest.flatMap((p) => p?.items ?? [])] };
+    },
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
@@ -2512,11 +2542,12 @@ export default function AdminPage() {
   });
 
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/activity", activityPage, activityPageSize],
+    queryKey: ["/api/admin/activity", rangeDays, activityPage, activityPageSize],
     queryFn: () =>
       apiClient.getAdminActivity({
         page: activityPage + 1,
         size: activityPageSize,
+        days: rangeDays,
       }),
     enabled: !!user && activeTab === "activity",
     staleTime: 30_000,
@@ -2689,12 +2720,12 @@ export default function AdminPage() {
   useEffect(() => {
     setSelectedUserPubkeys(new Set());
     setBulkLastResult((prev) => (prev?.source === "users" ? null : prev));
-  }, [userSearch, debouncedSearch, daysFilter, kpiFilter]);
+  }, [userSearch, debouncedSearch, range, kpiFilter]);
 
   useEffect(() => {
     setSelectedActivityRows(new Map());
     setBulkLastResult((prev) => (prev?.source === "activity" ? null : prev));
-  }, [activityTimeRange]);
+  }, [range]);
 
   const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
 
@@ -2801,13 +2832,24 @@ export default function AdminPage() {
     }
     return m;
   }, [overviewAllUsers]);
-  const overviewAllActivity = overviewActivityQuery.data?.items ?? NONE;
+  // What the Overview loaded (the range and the one before it, for deltas)
+  // and the part inside the range, which every figure and chart reads.
+  const overviewLoadedActivity = overviewActivityQuery.data?.items ?? NONE;
+  const overviewAllActivity = useMemo(() => {
+    const now = Date.now();
+    return overviewLoadedActivity.filter((a) => withinRange(parseActivityTs(a.updated_at), range, now));
+  }, [overviewLoadedActivity, range]);
   // Coverage of the loaded activity feed — surfaced so admins know how far the
   // trend windows actually reach (7d/30d may exceed the loaded records).
   const activityCoverage = useMemo(() => {
     const times = overviewAllActivity.map((a) => parseActivityTs(a.updated_at)).filter((t): t is number => !!t);
-    return { count: overviewAllActivity.length, oldest: times.length ? Math.min(...times) : null };
-  }, [overviewAllActivity]);
+    return {
+      count: overviewAllActivity.length,
+      total: overviewActivityQuery.data?.total ?? overviewLoadedActivity.length,
+      capped: (overviewActivityQuery.data?.pages ?? 1) > OVERVIEW_ACTIVITY_PAGES,
+      oldest: times.length ? Math.min(...times) : null,
+    };
+  }, [overviewAllActivity, overviewLoadedActivity.length, overviewActivityQuery.data]);
   const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
@@ -2959,46 +3001,27 @@ export default function AdminPage() {
     return map;
   }, [overviewAllActivity, activityItems]);
 
-  // Fixed 24h glance-trend for the top KPI-card sparklines — independent of the
-  // Overview trend-window filter (the header cards show "right now" state).
-  const fixedTrends24h = useMemo(() => {
-    const now = Date.now();
-    const cfg = getWindowConfig("24h");
-    const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
-    return {
-      bucketTimestamps: buckets.map((b) => b.t),
-      totalSeries: buckets.map((b) => b.total),
-      successSeries: buckets.map((b) => b.success),
-      failedSeries: buckets.map((b) => b.failed),
-      rateSeries: buckets.map((b) => {
-        const d = b.success + b.failed;
-        return d === 0 ? 0 : Math.round((b.success / d) * 100);
-      }),
-    };
-  }, [overviewAllActivity]);
-
   const trends = useMemo(() => {
     const now = Date.now();
     const HOUR = 3600000;
-    const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
+    const oldestActivityTs = overviewLoadedActivity.reduce((min, a) => {
       const t = parseActivityTs(a.updated_at);
       if (!t) return min;
       return min === 0 ? t : Math.min(min, t);
     }, 0);
     const dataAgeMs = oldestActivityTs > 0 ? now - oldestActivityTs : 0;
-    let cfg = getWindowConfig(trendWindow);
-    if (trendWindow === "all") {
+    let cfg = getWindowConfig(range);
+    if (range === "all") {
       // Bucket the whole loaded span so "All" reads well no matter the range.
       const spanMs = Math.max(dataAgeMs, HOUR);
       const bucketCount = 12;
       cfg = { ...cfg, bucketCount, bucketSizeMs: Math.ceil(spanMs / bucketCount) };
     }
-    const dataCoversWindow = trendWindow === "all" ? true : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
-    const dataCoversPriorWindow =
-      trendWindow === "all" ? false : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
+    const dataCoversWindow = range === "all" ? true : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
+    const dataCoversPriorWindow = range === "all" ? false : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
     const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
-    const cmp = compareActivityWindows(overviewAllActivity, cfg.windowMs, now);
-    const cmp1h = compareActivityWindows(overviewAllActivity, HOUR, now);
+    const cmp = compareActivityWindows(overviewLoadedActivity, cfg.windowMs, now);
+    const cmp1h = compareActivityWindows(overviewLoadedActivity, HOUR, now);
     const totalSeries = buckets.map((b) => b.total);
     const successSeries = buckets.map((b) => b.success);
     const failedSeries = buckets.map((b) => b.failed);
@@ -3023,7 +3046,7 @@ export default function AdminPage() {
       dataCoversWindow,
       dataCoversPriorWindow,
     };
-  }, [overviewAllActivity, trendWindow]);
+  }, [overviewAllActivity, overviewLoadedActivity, range]);
 
   const algoDistinct = pipelineMetrics ? Object.keys(pipelineMetrics.algoCounts).length : 0;
 
@@ -3351,9 +3374,28 @@ export default function AdminPage() {
               className="basis-full text-[9px] text-slate-400 dark:text-slate-500 sm:basis-auto"
               data-testid="system-state-note"
             >
-              <span className="hidden sm:inline">· </span>mini-charts show the last 24h · window filters affect the
-              charts below, not these
+              <span className="hidden sm:inline">· </span>every figure, chart and list reads the range on the right
             </span>
+            <div
+              className="inline-flex gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900 sm:ml-auto"
+              role="tablist"
+              aria-label="Time range"
+              data-testid="range-selector"
+            >
+              {ADMIN_RANGES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="tab"
+                  aria-selected={range === r}
+                  onClick={() => setRange(r)}
+                  className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${range === r ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                  data-testid={`button-range-${r}`}
+                >
+                  {r === "all" ? "All" : r}
+                </button>
+              ))}
+            </div>
           </div>
           <div
             className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
@@ -3377,8 +3419,8 @@ export default function AdminPage() {
                 setActiveTab("users");
                 setUserPage(0);
               }}
-              sparklineData={fixedTrends24h.successSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
+              sparklineData={trends.successSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#10b981"
               sparklineValueLabel="successes"
             />
@@ -3437,8 +3479,8 @@ export default function AdminPage() {
               subtitle="Cumulative attempts, all users"
               tooltip="Cumulative calculation attempts across all users"
               scope="system"
-              sparklineData={fixedTrends24h.totalSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
+              sparklineData={trends.totalSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#13d2e5"
               sparklineValueLabel="calcs / hr"
             />
@@ -3455,8 +3497,8 @@ export default function AdminPage() {
               subtitle="Cumulative success rate"
               tooltip="Successful calculations as % of attempted"
               scope="system"
-              sparklineData={fixedTrends24h.rateSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
+              sparklineData={trends.rateSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#10b981"
               sparklineValueLabel="success rate"
               sparklineValueSuffix="%"
@@ -3473,8 +3515,8 @@ export default function AdminPage() {
                 setActiveTab("users");
                 setUserPage(0);
               }}
-              sparklineData={fixedTrends24h.failedSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
+              sparklineData={trends.failedSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#f87171"
               sparklineValueLabel="failures"
             />
@@ -3581,41 +3623,16 @@ export default function AdminPage() {
 
           {activeTab === "overview" && (
             <div className="space-y-6" data-testid="panel-overview">
-              <div
-                className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                data-testid="trend-window-selector-row"
-              >
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Trend window
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-                    All Overview sparklines, deltas, and charts use this window
-                    {activityCoverage.count > 0 && ` · last ${activityCoverage.count} records`}
-                    {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
-                    {!trends.dataCoversWindow && trends.hasAnyActivity ? " · this range exceeds the loaded data" : ""}
-                  </p>
-                </div>
-                <div
-                  className="inline-flex gap-0.5 self-start rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900"
-                  role="tablist"
-                  aria-label="Trend window"
-                >
-                  {(["1h", "24h", "7d", "all"] as TrendWindow[]).map((w) => (
-                    <button
-                      key={w}
-                      type="button"
-                      role="tab"
-                      aria-selected={trendWindow === w}
-                      onClick={() => setTrendWindow(w)}
-                      className={`cursor-pointer rounded-md px-3.5 py-1.5 text-[12px] font-bold transition-all active:scale-95 ${trendWindow === w ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
-                      data-testid={`button-trend-window-${w}`}
-                    >
-                      {w === "all" ? "All" : w}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500" data-testid="trend-window-caption">
+                <span className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {trends.cfg.longLabel}
+                </span>
+                {activityCoverage.count > 0 && ` · ${activityCoverage.count} records`}
+                {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
+                {activityCoverage.capped
+                  ? ` · the newest ${OVERVIEW_ACTIVITY_PAGES * 100} of ${activityCoverage.total} loaded`
+                  : ""}
+              </p>
 
               <div
                 className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
@@ -4467,28 +4484,6 @@ export default function AdminPage() {
                         </button>
                       )}
                     </div>
-                    <Select
-                      value={daysFilter.toString()}
-                      onValueChange={(val) => {
-                        setDaysFilter(parseInt(val, 10));
-                        setUserPage(0);
-                      }}
-                    >
-                      <SelectTrigger
-                        className="h-8 w-28 rounded-xl border-slate-200 text-xs dark:border-slate-800"
-                        data-testid="select-days-filter"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Last 24 Hours</SelectItem>
-                        <SelectItem value="7">This Week</SelectItem>
-                        <SelectItem value="30">This Month</SelectItem>
-                        <SelectItem value="90">This Quarter</SelectItem>
-                        <SelectItem value="365">This Year</SelectItem>
-                        <SelectItem value="9999">All Time</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
                       <SelectTrigger
                         className="h-8 w-20 rounded-xl border-slate-200 text-xs dark:border-slate-800"
@@ -4950,7 +4945,7 @@ export default function AdminPage() {
                             ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                             : filteredUsersList
                         ).length;
-                        const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || daysFilter !== 30;
+                        const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || range !== "24h";
                         const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
                         const matchingLabelSuffix = kpiFilter && !activeNameSearch ? " in cache" : "";
                         const handleSelectAllMatching = async () => {
@@ -4965,7 +4960,7 @@ export default function AdminPage() {
                               search: debouncedSearch || undefined,
                               sort: userSort.key,
                               order: userSort.dir,
-                              days: daysFilter,
+                              days: rangeDays,
                               page: 1,
                               size: cap,
                             });
@@ -6271,52 +6266,10 @@ export default function AdminPage() {
                 const actSummaryActivity = overviewAllActivity;
                 const actSummaryUsers = overviewAllUsers;
                 const actSummaryLoading = overviewLoading;
-                const now = Date.now();
-
-                const rangeLabels: Record<ActivityTimeRange, string> = {
-                  "1h": "Last Hour",
-                  "24h": "Last 24 Hours",
-                  "7d": "Last 7 Days",
-                  all: "All Loaded",
-                };
-                const rangeShort: Record<ActivityTimeRange, string> = {
-                  "1h": "1h",
-                  "24h": "24h",
-                  "7d": "7d",
-                  all: "All",
-                };
-
-                const getStartMs = (range: ActivityTimeRange): number => {
-                  switch (range) {
-                    case "1h":
-                      return now - 3600000;
-                    case "24h":
-                      return now - 86400000;
-                    case "7d":
-                      return now - 7 * 86400000;
-                    case "all":
-                      return 0;
-                    default:
-                      return 0;
-                  }
-                };
-                const getEndMs = (_range: ActivityTimeRange): number => now;
-
-                const startMs = getStartMs(activityTimeRange);
-                const endMs = getEndMs(activityTimeRange);
-
-                const parseTs = (ts: string): number => {
-                  try {
-                    return new Date(ts.endsWith("Z") ? ts : ts + "Z").getTime();
-                  } catch {
-                    return 0;
-                  }
-                };
-
-                const filteredItems = actSummaryActivity.filter((a) => {
-                  const t = parseTs(a.updated_at);
-                  return t >= startMs && t <= endMs;
-                });
+                // Already cut to the dashboard's range.
+                const filteredItems = actSummaryActivity;
+                const rangeLong = trends.cfg.longLabel;
+                const rangeShort = trends.cfg.shortLabel;
                 const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
                 const filteredFailed = filteredItems.filter((a) => isFailedStatus(a.status)).length;
                 const filteredTotal = filteredItems.length;
@@ -6331,8 +6284,6 @@ export default function AdminPage() {
                 });
                 const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
                 const uniquePubkeys = new Set(filteredItems.map((a) => a.pubkey).filter(Boolean)).size;
-
-                const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
                   <div
@@ -6351,7 +6302,7 @@ export default function AdminPage() {
                             </h3>
                             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                               Platform-wide throughput —{" "}
-                              <span className="font-semibold text-brand-deep">{rangeLabels[activityTimeRange]}</span>
+                              <span className="font-semibold text-brand-deep">{rangeLong}</span>
                             </p>
                           </div>
                         </div>
@@ -6367,47 +6318,10 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
-                      <div
-                        className="mt-3 hidden flex-wrap items-center gap-1.5 sm:flex"
-                        data-testid="time-range-selector"
-                      >
-                        {presets.map((p) => (
-                          <button
-                            key={p}
-                            onClick={() => setActivityTimeRange(p)}
-                            className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all ${
-                              activityTimeRange === p
-                                ? "bg-brand-deep text-white shadow-md shadow-brand-primary/20"
-                                : "border border-slate-200 bg-white/70 text-slate-600 hover:border-brand-primary/20 hover:bg-brand-primary/10 hover:text-brand-deep dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300"
-                            }`}
-                            data-testid={`time-range-${p}`}
-                          >
-                            {rangeShort[p]}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="mt-3 sm:hidden" data-testid="time-range-selector-mobile">
-                        <div className="relative">
-                          <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-deep" />
-                          <select
-                            value={activityTimeRange}
-                            onChange={(e) => setActivityTimeRange(e.target.value as ActivityTimeRange)}
-                            className="w-full appearance-none rounded-lg border border-brand-accent/30 bg-white py-2 pl-8 pr-8 text-xs font-semibold text-slate-700 shadow-sm focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:bg-slate-900 dark:text-slate-200"
-                            data-testid="select-time-range-mobile"
-                          >
-                            {presets.map((p) => (
-                              <option key={p} value={p}>
-                                {rangeLabels[p]}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                        </div>
-                      </div>
-                      {activityTimeRange !== "24h" && (
+                      {activityCoverage.capped && (
                         <p className="mt-2 text-[9px] italic text-slate-400 dark:text-slate-500">
-                          Based on the latest {activityCoverage.count} activity records (backend cap). Longer ranges may
-                          not reflect full history.
+                          Figures read the newest {OVERVIEW_ACTIVITY_PAGES * 100} of {activityCoverage.total} records in
+                          this range.
                         </p>
                       )}
                     </div>
@@ -6428,9 +6342,7 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
                               {filteredTotal.toLocaleString()}
                             </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Requests
-                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
@@ -6440,9 +6352,7 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                               {filteredSuccess.toLocaleString()}
                             </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Succeeded
-                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
@@ -6450,9 +6360,7 @@ export default function AdminPage() {
                           >
                             <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
                             <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Failed
-                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
@@ -6462,9 +6370,7 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
                               {uniquePubkeys.toLocaleString()}
                             </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Active Users
-                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
                           </div>
                           <div
                             className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
