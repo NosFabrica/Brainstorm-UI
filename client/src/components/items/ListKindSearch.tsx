@@ -1203,15 +1203,14 @@ function PlacesPage({ query }: { query: string }) {
       ? distanceKm(you, { lat, lon })
       : Number.POSITIVE_INFINITY;
   };
-  const shown =
-    nearYou && you
-      ? [...narrowed].sort((a, b) => distanceOf(a) - distanceOf(b))
-      : sortable && sort === "rated"
-        ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a))
-        : narrowed;
+  const shown = you
+    ? [...narrowed].sort((a, b) => distanceOf(a) - distanceOf(b))
+    : sortable && sort === "rated"
+      ? [...narrowed].sort((a, b) => starsOf(b) - starsOf(a))
+      : narrowed;
   const distanceLine = (h: KindHit, line: string): string => {
     const d = distanceOf(h);
-    return nearYou && you && Number.isFinite(d) ? `${distanceWords(d)} · ${line}` : line;
+    return you && Number.isFinite(d) ? `${distanceWords(d)} · ${line}` : line;
   };
   const openCount = hits.filter((h) => isOpenNow(h.place)).length;
   const lines = linesOf(shown);
@@ -1256,15 +1255,19 @@ function PlacesPage({ query }: { query: string }) {
     if (area) setArea(null);
   };
   // Offered once the reader has moved the map somewhere other than the area it shows — at the
-  // top of the map, where a map app puts it; on a phone, in the header's own flow under the
-  // chips, where nothing covers it and no screen cuts it off.
+  // top right of the map, clear of a picked place's or event's card at the top left and of the
+  // zoom controls lower down; on a phone, in the header's own flow under the chips, where
+  // nothing covers it and no screen cuts it off.
   const searchHere = (place: "float" | "inline") =>
     moved &&
     !sameView(moved, area) && (
       <button
         type="button"
-        onClick={() => setArea(moved)}
-        className={`${place === "float" ? "absolute left-1/2 top-4 z-[600] -translate-x-1/2" : "mt-1"} inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
+        onClick={() => {
+          setNearYou(false);
+          setArea(moved);
+        }}
+        className={`${place === "float" ? "absolute right-3 top-3 z-[600]" : "mt-1"} inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-link shadow-lg ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800`}
       >
         <Search className="h-4 w-4" aria-hidden />
         Search this area
@@ -1385,6 +1388,36 @@ function PlacesPage({ query }: { query: string }) {
               </button>
             </div>
           )}
+          {events.length > 0 && (
+            <section className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800" data-testid="places-events">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Happening near here
+                </p>
+                <Link
+                  href={`/?q=${encodeURIComponent(query)}&t=events`}
+                  className="text-xs font-medium text-brand-link hover:underline"
+                >
+                  See all events
+                </Link>
+              </div>
+              <ul className="mt-1.5 space-y-0.5">
+                {events.slice(0, 3).map((e) => (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      onClick={() => tapEvent(e.id)}
+                      className={`flex w-full items-baseline gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60 ${pickedEvent === e.id ? "bg-slate-50 dark:bg-slate-800/60" : ""}`}
+                    >
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-brand-accent" aria-hidden />
+                      <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">{e.when}</span>
+                      <span className="min-w-0 truncate text-slate-800 dark:text-slate-100">{e.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
         {map && !narrow && (
           <div>
@@ -1405,7 +1438,7 @@ function PlacesPage({ query }: { query: string }) {
               {eventPicked && (
                 <EventCard
                   event={eventPicked}
-                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-4.5rem)]"
+                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-11.5rem)]"
                   onClose={() => setPickedEvent(null)}
                 />
               )}
@@ -1418,7 +1451,7 @@ function PlacesPage({ query }: { query: string }) {
                   rating={ratingLine(shown[pickedAt])}
                   lit
                   testId="place-picked"
-                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-4.5rem)]"
+                  className="absolute left-3 top-3 z-[500] w-80 max-w-[calc(100%-11.5rem)]"
                   onClose={() => setPicked(null)}
                 />
               )}

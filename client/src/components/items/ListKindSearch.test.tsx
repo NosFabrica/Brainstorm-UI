@@ -1120,6 +1120,31 @@ describe("an event's pin on the Places page", () => {
     ],
   };
 
+  // The map's diamonds have a quiet counterpart in the list: a small "Happening near here"
+  // group under the places — never numbered with them — and a row opens the same card.
+  it("lists the town's events quietly under the places, and a row opens the event's card", async () => {
+    townEvents.list = [meetup];
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      page("places", "sarasota");
+      const group = await screen.findByTestId("places-events");
+      expect(group).toHaveTextContent(/happening near here/i);
+      const row = within(group).getByRole("button", { name: /Meetup by the river/ });
+      expect(row).toHaveTextContent(/May/);
+      // The places keep their numbers; an event takes none.
+      for (const item of screen.getAllByTestId("kind-page-item")) expect(item).not.toHaveTextContent("Meetup");
+      fireEvent.click(row);
+      expect(screen.getByTestId("event-picked")).toHaveTextContent("Meetup by the river");
+      expect(within(group).getByRole("link", { name: /see all events/i })).toHaveAttribute(
+        "href",
+        expect.stringContaining("t=events"),
+      );
+    } finally {
+      itemsOf[PLACES].pop();
+      townEvents.list = [];
+    }
+  });
+
   it("opens the event's card: what, when, where, and the way to its page", async () => {
     townEvents.list = [meetup];
     itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
@@ -1223,6 +1248,38 @@ describe("searching the map's area", () => {
       expect(sheet).toHaveTextContent(/words you type/i);
       expect(sheet).toHaveTextContent(/only when you tap/i);
       expect(sheet).toHaveTextContent(/not stored/i);
+    } finally {
+      itemsOf[PLACES] = was;
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("Near me never lists a place outside the box it widened to", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = [...sarasota, place("Far Bar", "bar", "Miami", [], ["25.76", "-80.19"])];
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition: (ok: (p: { coords: { latitude: number; longitude: number } }) => void) =>
+          ok({ coords: { latitude: 27.33, longitude: -82.535 } }),
+      },
+      configurable: true,
+    });
+    window.history.replaceState({}, "", "/?t=places");
+    try {
+      page("places", "");
+      fireEvent.click(screen.getByRole("button", { name: /near me/i }));
+      await waitFor(() => expect(screen.getByTestId("places-summary")).toHaveTextContent(/near you/i));
+      // Miami is 300 km off: outside even the widest box.
+      expect(names()).not.toContain("Far Bar");
+      // Searching an area by hand afterwards is "in this area", not "near you" — the distances stay.
+      mapMove.view = { south: 25, west: -83, north: 28, east: -80 };
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      fireEvent.click(screen.getByRole("button", { name: "Search this area" }));
+      await waitFor(() => expect(names()).toContain("Far Bar"));
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/in this area/i);
+      expect(screen.getByTestId("places-summary")).not.toHaveTextContent(/near you/i);
+      expect(screen.getAllByTestId("kind-page-item").at(-1)).toHaveTextContent(/mi ·/);
     } finally {
       itemsOf[PLACES] = was;
       Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
