@@ -45,7 +45,7 @@ function MetricCard({
         {value}
       </p>
       <p className="mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{label}</p>
-      {subtitle && <p className="mt-0.5 text-[9px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
+      {subtitle && <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
     </div>
   );
 }

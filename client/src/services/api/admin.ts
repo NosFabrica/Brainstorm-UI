@@ -265,8 +265,9 @@ export const adminApi = {
     return json?.data ?? json;
   },
 
-  async getAdminActivity(params: { page?: number; size?: number } = {}) {
+  async getAdminActivity(params: { page?: number; size?: number; days?: number } = {}) {
     const qs = new URLSearchParams();
+    if (params.days) qs.set("days", params.days.toString());
     if (params.page) qs.set("page", params.page.toString());
     if (params.size) qs.set("size", params.size.toString());
     const url = `${getBrainstormApi()}/admin/activity${qs.toString() ? `?${qs}` : ""}`;

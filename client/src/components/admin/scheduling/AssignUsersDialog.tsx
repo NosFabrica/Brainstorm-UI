@@ -374,7 +374,7 @@ export function AssignUsersDialog({
 
         {/* Staging tray */}
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Selected · {tray.length}
           </p>
           {tray.length === 0 ? (
