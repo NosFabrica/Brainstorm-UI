@@ -148,7 +148,6 @@ type PreviewProps = { query: string; slot: PreviewSlot; named: boolean; onSeeAll
 
 /** Whether a preview renders in the slot it's offered: above People when the words ask for it, else below. */
 /** Above People when the words ask for the kind, else right after them; never the low slot. */
-const inSlot = (slot: PreviewProps["slot"], lead: boolean) => slot === (lead ? "lead" : "follow");
 
 /**
  * Whether the words ask for places on their own: a kind of place two or more
@@ -765,7 +764,9 @@ function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
   const { hits: found } = useKindHits("github-account", query, CANDIDATES);
   const { ordered, lineOf } = useTrustOrdered(found);
   const hits = ordered.slice(0, 3);
-  if (hits.length === 0 || !inSlot(slot, named)) return null;
+  // An account the words don't name waits at the end of the page, with the other matches that
+  // only share a word; a shown person who owns it carries it on their row (Suggestion `owned`).
+  if (hits.length === 0 || slot !== (named ? "lead" : "late")) return null;
   return (
     <section data-testid="kind-preview-github">
       <Heading label="GitHub accounts" count={found.length} onSeeAll={onSeeAll} />

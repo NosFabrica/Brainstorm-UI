@@ -388,6 +388,39 @@ describe("SerpRow — link metadata", () => {
     expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
   });
 
+  // The Top page reads like Google: a shared page's source is its site, not the
+  // person who shared it; a plain note's source is the person, said in a small
+  // muted line. The post page and the Notes tab keep the full author line.
+  it("content first: a link row has no author line, only the site; a note keeps a small one", async () => {
+    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Club.", image: null, siteName: "Wikipedia" });
+    const { unmount } = render(
+      <SerpRow
+        event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+        contentFirst
+      />,
+    );
+    await screen.findByTestId("news-headline");
+    expect(screen.getByTestId("news-source")).toHaveTextContent("Wikipedia");
+    expect(screen.queryByTestId("serp-author")).toBeNull();
+    unmount();
+
+    render(
+      <SerpRow
+        event={note("Just a thought about liverpool")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+        contentFirst
+      />,
+    );
+    const line = screen.getByTestId("serp-author");
+    expect(line).toHaveAttribute("data-compact", "true");
+    expect(line).toHaveTextContent(author.name!);
+  });
+
   it("a bare link with nothing known yet shows the source line alone, and the page's description once it answers", async () => {
     let answer!: (m: { title: string; description: string; image: null; siteName: null }) => void;
     unfurlMock.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
