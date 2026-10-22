@@ -30,8 +30,12 @@ const retryNowMock = vi.fn();
 vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
 // All's lists read the Dictionary and the relay (hooks/useListRibbon, its own tests): none unless a test says so.
 const ribbonMock = vi.fn((_query: string, _opts: { enabled: boolean }) => [] as RibbonList[]);
+let ribbonSettled = true;
 vi.mock("@/hooks/useListRibbon", () => ({
-  useListRibbon: (query: string, opts: { enabled: boolean }) => ribbonMock(query, opts),
+  useListRibbon: (query: string, opts: { enabled: boolean }) => ({
+    lists: ribbonMock(query, opts),
+    settled: ribbonSettled,
+  }),
 }));
 vi.mock("@/lib/serverStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
@@ -5268,7 +5272,9 @@ describe("All's lists", () => {
 
   beforeEach(() => {
     ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    ribbonSettled = true;
   });
+  const listInUrl = () => new URLSearchParams(window.location.search).get("list");
 
   it("a tile narrows All to its list's items, says how many, and links the whole list; pressed again, it lets go", async () => {
     setUrlTab("all");
@@ -5294,13 +5300,52 @@ describe("All's lists", () => {
     expect(screen.getByTestId(`all-row-${"1".repeat(64)}`)).toBeInTheDocument();
   });
 
+  it("the link keeps the pressed list, and lets it go with it", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    const tile = await screen.findByTestId("list-tile-food-and-drink-places");
+    fireEvent.click(tile);
+    expect(listInUrl()).toBe(PLACES);
+    fireEvent.click(tile);
+    expect(listInUrl()).toBeNull();
+  });
+
+  it("coming back to a link with a list opens narrowed to it, waiting for the ribbon rather than showing all of All", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(PLACES)}`);
+    ribbonSettled = false;
+    ribbonMock.mockImplementation(() => []);
+    const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: ev("1".repeat(64), 1, "a".repeat(64), "fork & coin burgers"), author: null, rank: null }],
+      eose: true,
+    });
+    expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+
+    ribbonSettled = true;
+    ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    rerender(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    expect(screen.getByTestId("list-narrowing")).toBeInTheDocument();
+    expect(screen.getByTestId("list-tile-food-and-drink-places")).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("new words let go of the list", async () => {
     setUrlTab("all");
     const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
     fireEvent.click(await screen.findByTestId("list-tile-food-and-drink-places"));
     expect(screen.getByTestId("list-narrowing")).toBeInTheDocument();
+    // A new search leaves the list out of the link (pages/landing).
+    window.history.pushState({}, "", "/?q=coffee&t=all");
     rerender(<SearchResults query="coffee" pov="nosfabrica" />);
     expect(screen.queryByTestId("list-narrowing")).not.toBeInTheDocument();
+  });
+
+  it("another tab leaves the list out of the link", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    fireEvent.click(await screen.findByTestId("list-tile-food-and-drink-places"));
+    fireEvent.click(screen.getByTestId("search-tab-top"));
+    expect(listInUrl()).toBeNull();
   });
 
   it("is All's alone: Top asks for none", () => {

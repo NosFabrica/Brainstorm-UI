@@ -46,7 +46,7 @@ vi.mock("@/services/search", () => ({
   },
 }));
 
-import { useListRibbon } from "./useListRibbon";
+import { __resetListRibbon, useListRibbon } from "./useListRibbon";
 
 let seq = 0;
 const item = (z: string, field: string, value: string) => ({
@@ -65,6 +65,7 @@ const item = (z: string, field: string, value: string) => ({
 
 beforeEach(() => {
   asked.mockClear();
+  __resetListRibbon();
   dictionary.data = [places, videos];
   answers = new Map();
 });
@@ -92,12 +93,12 @@ describe("useListRibbon", () => {
       [VIDEOS, { events: [skyline], full: false }],
     ]);
     const { result } = renderHook(() => useListRibbon("videos", { pov: "nosfabrica", enabled: true, page: [] }));
-    await waitFor(() => expect(result.current).toHaveLength(2));
+    await waitFor(() => expect(result.current.lists).toHaveLength(2));
     expect(asked.mock.calls[0][1]).toEqual([
       { key: PLACES, headers: [PLACES], whole: false },
       { key: VIDEOS, headers: [VIDEOS], whole: true },
     ]);
-    expect(result.current.map((l) => [l.coordinate, l.hits.length])).toEqual([
+    expect(result.current.lists.map((l) => [l.coordinate, l.hits.length])).toEqual([
       [VIDEOS, 1],
       [PLACES, 1],
     ]);
@@ -110,15 +111,15 @@ describe("useListRibbon", () => {
       [VIDEOS, { events: [item(VIDEOS, "title", "Bitcoin for Beginners")], full: false }],
     ]);
     const { result } = renderHook(() => useListRibbon("fork & coin", { pov: "nosfabrica", enabled: true, page: [] }));
-    await waitFor(() => expect(result.current).toHaveLength(1));
-    expect(result.current[0]).toMatchObject({
+    await waitFor(() => expect(result.current.lists).toHaveLength(1));
+    expect(result.current.lists[0]).toMatchObject({
       coordinate: PLACES,
       name: "Food and Drink Places",
       image: "https://example.com/fork.png",
       more: false,
     });
-    expect(result.current[0].hits.map((h) => h.event.id)).toEqual([forkAndCoin.id]);
-    expect(result.current[0].href).toMatch(/^\/e\//);
+    expect(result.current.lists[0].hits.map((h) => h.event.id)).toEqual([forkAndCoin.id]);
+    expect(result.current.lists[0].href).toMatch(/^\/e\//);
   });
 
   it("counts a list's items on All's page too, however loosely they match, once each", async () => {
@@ -133,7 +134,7 @@ describe("useListRibbon", () => {
     const { result } = renderHook(() => useListRibbon("fork & coin", { pov: "nosfabrica", enabled: true, page }));
     await waitFor(() => expect(asked).toHaveBeenCalled());
     await waitFor(() =>
-      expect(result.current.map((l) => [l.coordinate, l.hits.map((h) => h.event.id)])).toEqual([
+      expect(result.current.lists.map((l) => [l.coordinate, l.hits.map((h) => h.event.id)])).toEqual([
         [VIDEOS, [bitcoin.id]],
         [PLACES, [forkAndCoin.id]],
       ]),
@@ -149,8 +150,8 @@ describe("useListRibbon", () => {
       ],
     ]);
     const { result } = renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: true, page: [] }));
-    await waitFor(() => expect(result.current).toHaveLength(2));
-    expect(result.current.map((l) => [l.coordinate, l.hits.length, l.more])).toEqual([
+    await waitFor(() => expect(result.current.lists).toHaveLength(2));
+    expect(result.current.lists.map((l) => [l.coordinate, l.hits.length, l.more])).toEqual([
       [VIDEOS, 2, true],
       [PLACES, 1, false],
     ]);
@@ -161,5 +162,17 @@ describe("useListRibbon", () => {
     renderHook(() => useListRibbon("sort:recent", { pov: "nosfabrica", enabled: true, page: [] }));
     await new Promise((r) => setTimeout(r, 0));
     expect(asked).not.toHaveBeenCalled();
+  });
+
+  it("is settled once the relay answers, and coming back to the words paints at once, asking nothing", async () => {
+    answers = new Map([[PLACES, { events: [item(PLACES, "name", "Austin Diner")], full: false }]]);
+    const first = renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: true, page: [] }));
+    expect(first.result.current.settled).toBe(false);
+    await waitFor(() => expect(first.result.current.settled).toBe(true));
+    first.unmount();
+
+    const back = renderHook(() => useListRibbon("austin", { pov: "nosfabrica", enabled: true, page: [] }));
+    expect(back.result.current).toMatchObject({ settled: true, lists: [{ coordinate: PLACES }] });
+    expect(asked).toHaveBeenCalledTimes(1);
   });
 });

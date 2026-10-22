@@ -27,6 +27,13 @@ export interface RibbonList {
 /** The most items asked of each list. */
 const LIMIT = 50;
 
+/** The relay's answers this visit, by ask, so coming back to a search paints its lists at once. */
+const answeredBefore = new Map<string, Map<string, ListAnswer>>();
+const REMEMBERED = 20;
+
+/** Test seam: forget the relay's answers. */
+export const __resetListRibbon = () => answeredBefore.clear();
+
 /**
  * The lists over the All tab's results: every list the Dictionary shows that
  * the words find items on, with those items. All's own answer holds every
@@ -42,6 +49,9 @@ const LIMIT = 50;
  *
  * For everyone, signed in or not, as the Top page's list results are: a
  * reader with no copy reads Brainstorm's definitions (ADR 0004).
+ *
+ * `settled` once the Dictionary and the relay have answered: until then a
+ * list missing from `lists` may yet come.
  */
 export function useListRibbon(
   query: string,
@@ -51,7 +61,7 @@ export function useListRibbon(
     enabled,
     page,
   }: { pov: SearchPov; userPubkey?: string; enabled: boolean; page: readonly SearchHit[] },
-): RibbonList[] {
+): { lists: RibbonList[]; settled: boolean } {
   const dictionary = useDictionary(enabled, { anonymous: true });
   const lists = useMemo(() => (dictionary.data ?? []).filter((e) => e.resolved), [dictionary.data]);
   const words = queryWords(query).trim();
@@ -74,13 +84,23 @@ export function useListRibbon(
         ].join("\n")
       : null;
 
-  const [answered, setAnswered] = useState<{ ask: string; answers: Map<string, ListAnswer> } | null>(null);
+  const [answered, setAnswered] = useState<{ ask: string; answers: Map<string, ListAnswer> } | null>(() => {
+    const answers = ask ? answeredBefore.get(ask) : undefined;
+    return ask && answers ? { ask, answers } : null;
+  });
   useEffect(() => {
     if (!ask) return;
+    const before = answeredBefore.get(ask);
+    if (before) {
+      setAnswered((a) => (a?.ask === ask ? a : { ask, answers: before }));
+      return;
+    }
     let alive = true;
-    void searchListItems(query, asks, { pov, userPubkey, limit: LIMIT }).then(
-      (answers) => alive && setAnswered({ ask, answers }),
-    );
+    void searchListItems(query, asks, { pov, userPubkey, limit: LIMIT }).then((answers) => {
+      answeredBefore.set(ask, answers);
+      if (answeredBefore.size > REMEMBERED) answeredBefore.delete(answeredBefore.keys().next().value!);
+      if (alive) setAnswered({ ask, answers });
+    });
     return () => {
       alive = false;
     };
@@ -90,7 +110,7 @@ export function useListRibbon(
 
   const override = useContext(PresentationOverrideContext);
   const onPage = useMemo(() => page.map((h) => h.event) as DictionaryItem[], [page]);
-  return useMemo(() => {
+  const ribbon = useMemo(() => {
     if (!enabled) return [];
     const answers = ask && answered?.ask === ask ? answered.answers : null;
     const found: RibbonList[] = [];
@@ -128,4 +148,7 @@ export function useListRibbon(
         a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
   }, [enabled, ask, answered, lists, words, override, onPage]);
+  const settled =
+    !enabled || ((dictionary.data !== undefined || dictionary.isError) && (!ask || answered?.ask === ask));
+  return { lists: ribbon, settled };
 }

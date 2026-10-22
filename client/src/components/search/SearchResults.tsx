@@ -523,12 +523,33 @@ function urlKind(): string | null {
   }
 }
 
-/** A searched map area (`area`) is the Places page's: another page or tab leaves it out of the link. */
+/** The list narrowing All (`list`), by its coordinate: kept in the link so Back comes back to it. */
+function urlList(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("list");
+  } catch {
+    return null;
+  }
+}
+
+function writeListToUrl(coordinate: string | null) {
+  try {
+    const url = new URL(window.location.href);
+    if (coordinate) url.searchParams.set("list", coordinate);
+    else url.searchParams.delete("list");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
+/** A searched map area (`area`) is the Places page's, and a pressed list All's: another page or tab leaves them out of the link. */
 function writeKindToUrl(key: string) {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("t", key);
     url.searchParams.delete("area");
+    url.searchParams.delete("list");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -541,6 +562,7 @@ function writeTabToUrl(tab: SearchTab) {
     if (tab === "top") url.searchParams.delete("t");
     else url.searchParams.set("t", tab);
     url.searchParams.delete("area");
+    url.searchParams.delete("list");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -1009,9 +1031,27 @@ export function SearchResults({
     !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
 
   // On All, a pressed list (hooks/useListRibbon, below) narrows All to its items, for the words
-  // it was pressed on.
+  // it was pressed on. The link holds it (`list`); a new search leaves it out (pages/landing), so
+  // words that change take the link's word again: none after a search, the list on Back.
   const onAll = tab === "all" && !activeKind;
-  const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(null);
+  const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(() => {
+    const coordinate = urlList();
+    return coordinate ? { query: effectiveQuery, coordinate } : null;
+  });
+  useEffect(() => {
+    setListPressed((pressed) => {
+      if (pressed?.query === effectiveQuery) return pressed;
+      const coordinate = urlList();
+      return coordinate ? { query: effectiveQuery, coordinate } : null;
+    });
+  }, [effectiveQuery]);
+  const pressList = useCallback(
+    (coordinate: string | null) => {
+      setListPressed(coordinate ? { query: effectiveQuery, coordinate } : null);
+      writeListToUrl(coordinate);
+    },
+    [effectiveQuery],
+  );
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -1299,10 +1339,11 @@ export function SearchResults({
   );
   // The Dictionary's lists the words find items on, and those with items among All's rows.
   const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll, page: hits });
-  const narrowedTo =
-    onAll && listPressed?.query === effectiveQuery
-      ? (ribbon.find((l) => l.coordinate === listPressed.coordinate) ?? null)
-      : null;
+  const listAsked = onAll && listPressed?.query === effectiveQuery;
+  const narrowedTo = listAsked ? (ribbon.lists.find((l) => l.coordinate === listPressed.coordinate) ?? null) : null;
+  // A list the link names waits for the ribbon rather than showing all of All first; one that
+  // doesn't come lets All show.
+  const listWaiting = listAsked && !narrowedTo && !ribbon.settled;
   // A list narrowing All shows its own items, by authors the page's hits may not hold.
   useAuthorScores(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
@@ -2208,11 +2249,7 @@ export function SearchResults({
               </FacetRow>
             )}
             {onAll && serverStatus.search !== "down" && (
-              <ListRibbon
-                lists={ribbon}
-                pressed={narrowedTo?.coordinate ?? null}
-                onPress={(coordinate) => setListPressed(coordinate ? { query: effectiveQuery, coordinate } : null)}
-              />
+              <ListRibbon lists={ribbon.lists} pressed={narrowedTo?.coordinate ?? null} onPress={pressList} />
             )}
             {activeKind ? (
               <activeKind.Page query={query} />
@@ -2247,7 +2284,7 @@ export function SearchResults({
               >
                 {snapshot.error}
               </div>
-            ) : searching ? (
+            ) : searching || listWaiting ? (
               <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div
