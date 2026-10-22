@@ -9,6 +9,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
+import { SearchPriorityContext } from "@/hooks/useSearchPriority";
 import { __resetNip05Cache } from "@/lib/nip05";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
@@ -181,10 +182,13 @@ const trust = vi.hoisted(() => ({
   endorsers: new Map<string, { pubkey: string; at: number }[]>(),
   follows: new Set<string>(),
   signedIn: false,
+  asked: 0,
 }));
 vi.mock("@/services/itemEngagement", () => ({
-  fetchItemsReactions: async (items: { id: string }[]) =>
-    new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!])),
+  fetchItemsReactions: async (items: { id: string }[]) => {
+    trust.asked++;
+    return new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!]));
+  },
 }));
 vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: trust.follows, ready: true, signedIn: trust.signedIn }),
@@ -228,9 +232,11 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 const ratings = vi.hoisted(() => ({
   reviews: new Map<string, { pubkey: string; rating: number | null }[]>(),
   ranks: new Map<string, number>(),
+  asked: 0,
 }));
 vi.mock("@/services/placeReviews", () => ({
-  fetchReviewsForPlaces: async (addresses: string[]) =>
+  fetchReviewsForPlaces: async (addresses: string[]) => (
+    ratings.asked++,
     new Map(
       addresses.map((a) => [
         a,
@@ -244,7 +250,8 @@ vi.mock("@/services/placeReviews", () => ({
           paid: null,
         })),
       ]),
-    ),
+    )
+  ),
   fetchLensRanks: async () => ratings.ranks,
 }));
 
@@ -1489,5 +1496,37 @@ describe("one person, one row", () => {
     renderWithProviders(<Mark pubkey={OWNER} nip05="_@riverdev.com" />);
     await settle();
     expect(screen.queryByRole("link", { name: "riverdev on GitHub" })).toBeNull();
+  });
+});
+
+// On the Top page the people and notes the words find come first: a preview's lookups for its rows'
+// order — who recommends each, its stars — wait until the search's own results have answered, so
+// they never queue in front of them at the relay (hooks/useSearchPriority).
+describe("a preview's lookups wait for the search's own results", () => {
+  const coffee = (answered: boolean) => {
+    const places = LIST_KINDS.find((k) => k.key === "places")!;
+    return renderWithProviders(
+      <SearchPriorityContext.Provider value={answered}>
+        <places.Preview query="coffee" slot="late" named={false} />
+      </SearchPriorityContext.Provider>,
+    );
+  };
+
+  it("asks nothing about recommendations or stars while the search's own results are pending", async () => {
+    trust.asked = 0;
+    ratings.asked = 0;
+    coffee(false);
+    expect(screen.getByTestId("kind-preview-places")).toBeInTheDocument();
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(trust.asked).toBe(0);
+    expect(ratings.asked).toBe(0);
+  });
+
+  it("asks once they have answered", async () => {
+    trust.asked = 0;
+    ratings.asked = 0;
+    coffee(true);
+    await waitFor(() => expect(trust.asked).toBeGreaterThan(0));
+    await waitFor(() => expect(ratings.asked).toBeGreaterThan(0));
   });
 });
