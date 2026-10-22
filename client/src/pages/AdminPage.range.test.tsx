@@ -146,6 +146,58 @@ describe("the admin dashboard's time range", () => {
     expect(screen.getByTestId("kpi-total-calcs")).toHaveTextContent("542");
   });
 
+  it("reads success rate, failed count and queue depth off every user's latest run", async () => {
+    // Ten users: eight succeeded, one failed, one still waiting.
+    const statuses = [...Array(8).fill("success"), "failed", "waiting"];
+    api.getAdminUsers.mockImplementation(async ({ days }: { days?: number }) => {
+      if (days !== 9999) return { items: [], total: 0, pages: 1 };
+      const items = statuses.map((latest_status, i) => ({
+        pubkey: String(i).padStart(64, "0"),
+        latest_status,
+        latest_ta_status: latest_status,
+        times_calculated: 1,
+        last_updated: new Date().toISOString(),
+      }));
+      return { items, total: items.length, pages: 1 };
+    });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("kpi-success-rate")).toHaveTextContent("80%"));
+    expect(screen.getByTestId("kpi-failed-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("kpi-queue-depth")).toHaveTextContent("1");
+  });
+
+  it("compares the range with the period before it", async () => {
+    // Six records in the last 24 hours, four in the 24 hours before that.
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+    const ages = [1, 2, 3, 4, 5, 6, 30, 31, 32, 33];
+    api.getAdminActivity.mockImplementation(async () => ({
+      items: ages.map((h, i) => ({
+        private_id: i,
+        pubkey: "b".repeat(64),
+        status: "success",
+        created_at: hoursAgo(h),
+        updated_at: hoursAgo(h),
+      })),
+      total: ages.length,
+      pages: 1,
+    }));
+    api.getAdminUsers.mockResolvedValue({
+      items: [{ pubkey: "c".repeat(64), latest_status: "success", times_calculated: 10, last_updated: hoursAgo(1) }],
+      total: 1,
+      pages: 1,
+    });
+    window.history.replaceState({}, "", "/admin?range=24h");
+    renderPage();
+
+    const panel = await screen.findByTestId("panel-overview");
+    await waitFor(() => expect(within(panel).getByTestId("summary-total")).toHaveTextContent("6"));
+    const deltas = within(panel)
+      .getAllByText("vs prior 24h")
+      .map((label) => label.parentElement?.textContent?.replace(/\s+/g, " ").trim());
+    expect(deltas).toContain("+2 vs prior 24h");
+  });
+
   it("takes a custom 'last N days' from the header", async () => {
     renderPage();
     await waitFor(() => expect(api.getAdminActivity).toHaveBeenCalled());

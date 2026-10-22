@@ -16,6 +16,13 @@ git switch -c feat/<name>   # from an up-to-date staging
 git push -u origin feat/<name>
 ```
 
+**Anything with a database migration behind it** — the admin trusted lists,
+scheduling policies, billing plan mappings — can't move between branches and
+environments like plain UI. Before changing one of those, confirm which
+environment and branch the backend's migrations are at, and that the UI change
+tolerates the environment it lands on first (staging may be ahead of prod, or
+behind a feature branch). Plain UI changes need no such check.
+
 ## 2. Open the PR
 
 ```bash

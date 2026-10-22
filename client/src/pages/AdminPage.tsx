@@ -2623,7 +2623,7 @@ export default function AdminPage() {
         size: activityPageSize,
         days: rangeDays,
       }),
-    enabled: !!user && activeTab === "activity",
+    enabled: !!user?.isAdmin && activeTab === "activity",
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     refetchInterval: activeTab === "activity" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
@@ -2651,7 +2651,7 @@ export default function AdminPage() {
   const assistantStatsQuery = useQuery({
     queryKey: ["/api/admin/assistants/stats"],
     queryFn: () => apiClient.getAdminAssistantStats(),
-    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin,
+    enabled: !!user?.isAdmin && activeTab === "assistants" && FEATURES.assistantsAdmin,
     staleTime: 30_000,
     refetchInterval:
       activeTab === "assistants" && FEATURES.assistantsAdmin
@@ -2669,7 +2669,7 @@ export default function AdminPage() {
         page: assistantPage + 1,
         size: assistantPageSize,
       }),
-    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin,
+    enabled: !!user?.isAdmin && activeTab === "assistants" && FEATURES.assistantsAdmin,
     staleTime: 15_000,
     placeholderData: (prev) => prev,
     refetchInterval:
@@ -2684,7 +2684,7 @@ export default function AdminPage() {
     queryKey: ["/api/admin/assistants", expandedAssistant, "history"],
     queryFn: () =>
       expandedAssistant ? apiClient.getAdminAssistantHistory(expandedAssistant, { size: 25 }) : Promise.resolve(null),
-    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin && !!expandedAssistant,
+    enabled: !!user?.isAdmin && activeTab === "assistants" && FEATURES.assistantsAdmin && !!expandedAssistant,
     staleTime: 30_000,
   });
 
