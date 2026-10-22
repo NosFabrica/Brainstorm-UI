@@ -1217,7 +1217,7 @@ describe("searching the map's area", () => {
       // The explainer is a tap away, and says where each signal comes from.
       fireEvent.click(screen.getByRole("button", { name: /how do we know/i }));
       const sheet = await screen.findByTestId("location-explainer");
-      expect(sheet).toHaveTextContent(/words you typed/i);
+      expect(sheet).toHaveTextContent(/words you type/i);
       expect(sheet).toHaveTextContent(/only when you tap/i);
       expect(sheet).toHaveTextContent(/not stored/i);
     } finally {
