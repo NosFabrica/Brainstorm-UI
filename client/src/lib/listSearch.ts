@@ -45,6 +45,15 @@ export function wordsToFind(query: string, list: Pick<NamedList, "singular" | "p
 }
 
 /**
+ * Whether a search is a list's name and nothing more — "books", "food
+ * places": it asks for the list itself, not for items in it.
+ */
+export function namesListOnly(query: string, list: Pick<NamedList, "singular" | "plural">): boolean {
+  const asked = wordsOf(query).filter((w) => !FILLER.has(w));
+  return asked.length > 0 && wordsToFind(query, list).length === 0;
+}
+
+/**
  * Whether the words are most of a title — more than half of its words, filler
  * aside — and so a search for that very thing: "dune" for Dune, "hornblower
  * in the west" for Hornblower in the West Indies. A word it only shares

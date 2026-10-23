@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
+import type { RibbonList } from "@/hooks/useListRibbon";
 
 const streamMock = vi.fn();
 const moreMock = vi.fn();
@@ -27,6 +28,15 @@ const serverStatusMock = vi.fn(() => ({
 const retryNowMock = vi.fn();
 // List items among results read the Dictionary through the account; they have their own tests.
 vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
+// All's lists read the Dictionary and the relay (hooks/useListRibbon, its own tests): none unless a test says so.
+const ribbonMock = vi.fn((_query: string, _opts: { enabled: boolean }) => [] as RibbonList[]);
+let ribbonSettled = true;
+vi.mock("@/hooks/useListRibbon", () => ({
+  useListRibbon: (query: string, opts: { enabled: boolean }) => ({
+    lists: ribbonMock(query, opts),
+    settled: ribbonSettled,
+  }),
+}));
 vi.mock("@/lib/serverStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
   return {
@@ -5319,6 +5329,107 @@ describe("a kind's own page", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
     expect(screen.queryByTestId("kind-page-places")).toBeNull();
+  });
+});
+
+describe("All's lists", () => {
+  const PLACES = `39998:${"b".repeat(64)}:food-and-drink-places`;
+  const forkAndCoin = ev("f".repeat(64), 39999, "c".repeat(64), "", [
+    ["d", "fork-and-coin"],
+    ["z", PLACES],
+    ["name", "Fork & Coin"],
+  ]);
+  const places: RibbonList = {
+    coordinate: PLACES,
+    name: "Food and Drink Places",
+    image: null,
+    hits: [{ event: forkAndCoin, author: null, rank: null }],
+    more: false,
+    href: "/e/naddr1places",
+  };
+
+  beforeEach(() => {
+    ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    ribbonSettled = true;
+  });
+  const listInUrl = () => new URLSearchParams(window.location.search).get("list");
+
+  it("a tile narrows All to its list's items, says how many, and links the whole list; pressed again, it lets go", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: ev("1".repeat(64), 1, "a".repeat(64), "fork & coin burgers"), author: null, rank: null }],
+      eose: true,
+    });
+    const tile = await screen.findByTestId("list-tile-food-and-drink-places");
+    expect(tile).toHaveTextContent("Food and Drink Places");
+    expect(tile).toHaveTextContent("1");
+    expect(screen.getByTestId(`all-row-${"1".repeat(64)}`)).toBeInTheDocument();
+
+    fireEvent.click(tile);
+    expect(tile).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId(`all-row-${forkAndCoin.id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId("list-narrowing")).toHaveTextContent("1 found in Food and Drink Places");
+    expect(screen.getByTestId("list-see-all")).toHaveAttribute("href", "/e/naddr1places");
+
+    fireEvent.click(tile);
+    expect(screen.queryByTestId("list-narrowing")).not.toBeInTheDocument();
+    expect(screen.getByTestId(`all-row-${"1".repeat(64)}`)).toBeInTheDocument();
+  });
+
+  it("the link keeps the pressed list, and lets it go with it", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    const tile = await screen.findByTestId("list-tile-food-and-drink-places");
+    fireEvent.click(tile);
+    expect(listInUrl()).toBe(PLACES);
+    fireEvent.click(tile);
+    expect(listInUrl()).toBeNull();
+  });
+
+  it("coming back to a link with a list opens narrowed to it, waiting for the ribbon rather than showing all of All", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(PLACES)}`);
+    ribbonSettled = false;
+    ribbonMock.mockImplementation(() => []);
+    const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: ev("1".repeat(64), 1, "a".repeat(64), "fork & coin burgers"), author: null, rank: null }],
+      eose: true,
+    });
+    expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+
+    ribbonSettled = true;
+    ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    rerender(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    expect(screen.getByTestId("list-narrowing")).toBeInTheDocument();
+    expect(screen.getByTestId("list-tile-food-and-drink-places")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("new words let go of the list", async () => {
+    setUrlTab("all");
+    const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    fireEvent.click(await screen.findByTestId("list-tile-food-and-drink-places"));
+    expect(screen.getByTestId("list-narrowing")).toBeInTheDocument();
+    // A new search leaves the list out of the link (pages/landing).
+    window.history.pushState({}, "", "/?q=coffee&t=all");
+    rerender(<SearchResults query="coffee" pov="nosfabrica" />);
+    expect(screen.queryByTestId("list-narrowing")).not.toBeInTheDocument();
+  });
+
+  it("another tab leaves the list out of the link", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    fireEvent.click(await screen.findByTestId("list-tile-food-and-drink-places"));
+    fireEvent.click(screen.getByTestId("search-tab-top"));
+    expect(listInUrl()).toBeNull();
+  });
+
+  it("is All's alone: Top asks for none", () => {
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    expect(ribbonMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ enabled: false }));
+    expect(screen.queryByTestId("list-ribbon")).not.toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listQueryOf, matchListItems } from "@/lib/listSearch";
+import { listQueryOf, matchListItems, namesListOnly } from "@/lib/listSearch";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 
 const GITHUB = "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts";
@@ -168,5 +168,21 @@ describe("matchListItems — whole words, and what a thing is called", () => {
   it("can match by what a thing is called alone", () => {
     expect(ids(matchListItems(things, definition, ["austin"], 9, read))).toEqual(["5"]);
     expect(ids(matchListItems(things, definition, ["austin"], 9, read, { titleOnly: true }))).toEqual([]);
+  });
+});
+
+describe("namesListOnly — a search that is a list's name alone", () => {
+  const places = { singular: "Food and Drink Place", plural: "Food and Drink Places" };
+
+  it("is the name, in either number, or some of its words", () => {
+    expect(namesListOnly("books", concepts[1])).toBe(true);
+    expect(namesListOnly("Book", concepts[1])).toBe(true);
+    expect(namesListOnly("food places", places)).toBe(true);
+  });
+
+  it("is not a name with words to find, filler alone, or another name", () => {
+    expect(namesListOnly("books herbert", concepts[1])).toBe(false);
+    expect(namesListOnly("the and", concepts[1])).toBe(false);
+    expect(namesListOnly("github", concepts[1])).toBe(false);
   });
 });

@@ -23,6 +23,7 @@ const mainStreamCalls = () =>
   streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
 // List items among results read the Dictionary through the account; they have their own tests.
 vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
+vi.mock("@/hooks/useListRibbon", () => ({ useListRibbon: () => ({ lists: [], settled: true }) }));
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {

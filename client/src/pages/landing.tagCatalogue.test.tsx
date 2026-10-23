@@ -8,6 +8,7 @@ import type { TagSummary } from "@/services/tags";
 const fetchTagIndexMock = vi.fn<(...args: unknown[]) => Promise<TagSummary[]>>();
 // List items among results read the Dictionary through the account; they have their own tests.
 vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
+vi.mock("@/hooks/useListRibbon", () => ({ useListRibbon: () => ({ lists: [], settled: true }) }));
 vi.mock("@/services/tags", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tags")>()),
   fetchTagIndex: (...args: unknown[]) => fetchTagIndexMock(...args),
