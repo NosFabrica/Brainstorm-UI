@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { ZapModal } from "@/components/ZapModal";
 import { MessageButton } from "@/components/messages/MessageButton";
@@ -2393,7 +2393,7 @@ export default function ProfilePage() {
     }
   }, [npubParam]);
 
-  const profileShareUrl = useShareUrl({ npub: displayNpub, enabled: shareOpen });
+  const profileShareUrl = useShortLink({ ...profileShortLink(displayNpub), enabled: shareOpen });
 
   // Fetch the NosFabrica ("house") perspective influence (0..1) for the viewed
   // profile on mount, so the dual-meter widget renders regardless of entry point

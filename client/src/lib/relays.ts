@@ -15,6 +15,9 @@ import { env } from "./runtimeEnv";
  */
 export const SEARCH_RELAY = normalizeURL(env.VITE_SEARCH_RELAY_URL.trim() || "wss://search.brainstorm.world/");
 
+/** The tag hub, where Decentralized Lists live and anonymous reads work. */
+export const DCOSL_RELAY = "wss://dcosl.brainstorm.world";
+
 /** Answers any filter over the whole corpus, unranked — what a fallback lookup wants. */
 export const SEARCH_RELAY_READ_TOKEN = "include:spam";
 

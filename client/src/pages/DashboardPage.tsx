@@ -17,7 +17,7 @@ import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesMod
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -160,7 +160,7 @@ export default function DashboardPage() {
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
-  const inviteShareUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteShareOpen });
+  const inviteShareUrl = useShortLink({ ...profileShortLink(user?.npub ?? ""), enabled: inviteShareOpen });
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
 
   // Lazy initialisers run once, and switching accounts in-app does not remount

@@ -1,5 +1,5 @@
 /**
- * Resolving `/s/<code>` and continuing to the profile.
+ * Resolving `/s/<code>` and continuing to the full link.
  *
  * Issue: .scratch/shorturl/issues/04-share-short-link.md
  */
@@ -17,7 +17,7 @@ vi.mock("wouter", async () => {
   return {
     ...actual,
     useRoute: () => [true, { code: "AB3XK9QZ" }],
-    useLocation: () => ["/s/AB3XK9QZ", (to: string) => navigate(to)],
+    useLocation: () => ["/s/AB3XK9QZ", (to: string, opts?: unknown) => navigate(to, opts)],
   };
 });
 vi.mock("@/services/api", () => ({
@@ -39,31 +39,25 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("resolving a short link", () => {
-  it("continues to the profile, keeping the relay hints", async () => {
-    resolveShortUrl.mockResolvedValue({
-      pubkey: PUBKEY,
-      relays: ["wss://relay.damus.io"],
-    });
+  it("continues to the full link the server built", async () => {
+    resolveShortUrl.mockResolvedValue({ kind: "event", key: "e".repeat(64), relays: [], path: "/e/nevent1abc" });
 
     renderWithProviders(<ShortLinkPage />);
 
-    await waitFor(() => expect(navigate).toHaveBeenCalled());
-    const [to] = navigate.mock.calls[0];
-    // nprofile carries the relay hints; npub would silently drop them.
-    expect(to).toMatch(/^\/p\/nprofile1/);
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/e/nevent1abc", { replace: true }));
   });
 
-  it("uses a plain npub path when the link carried no hints", async () => {
-    resolveShortUrl.mockResolvedValue({ pubkey: PUBKEY, relays: [] });
+  it("shows not-found rather than leaving the site for an off-site path", async () => {
+    resolveShortUrl.mockResolvedValue({ kind: "profile", key: PUBKEY, relays: [], path: "//evil.example/p" });
 
     renderWithProviders(<ShortLinkPage />);
 
-    await waitFor(() => expect(navigate).toHaveBeenCalled());
-    expect(navigate.mock.calls[0][0]).toMatch(/^\/p\/npub1/);
+    await waitFor(() => expect(screen.getByTestId("app-not-found")).toBeInTheDocument());
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it("passes the code through untouched, whatever its length", async () => {
-    resolveShortUrl.mockResolvedValue({ pubkey: PUBKEY, relays: [] });
+    resolveShortUrl.mockResolvedValue({ kind: "profile", key: PUBKEY, relays: [], path: "/p/npub1x" });
 
     renderWithProviders(<ShortLinkPage />);
 
@@ -90,7 +84,7 @@ describe("resolving a short link", () => {
   });
 
   it("does not flash a spinner on a fast response", async () => {
-    resolveShortUrl.mockResolvedValue({ pubkey: PUBKEY, relays: [] });
+    resolveShortUrl.mockResolvedValue({ kind: "profile", key: PUBKEY, relays: [], path: "/p/npub1x" });
 
     renderWithProviders(<ShortLinkPage />);
 

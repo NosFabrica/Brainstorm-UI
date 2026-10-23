@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNewJoiners } from "@/hooks/useNewJoiners";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { nip19 } from "nostr-tools";
 import type { NewJoiner } from "@/services/inviteAcceptance";
 import { accountKey } from "@/lib/accountStorage";
@@ -257,7 +257,7 @@ function InviteCta() {
     }
   });
   const [open, setOpen] = useState(false);
-  const inviteUrl = useShareUrl({ npub, enabled: open });
+  const inviteUrl = useShortLink({ ...profileShortLink(npub), enabled: open });
 
   if (!npub || dismissed) return null;
 

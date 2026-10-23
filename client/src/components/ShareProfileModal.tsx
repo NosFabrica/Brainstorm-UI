@@ -31,7 +31,7 @@ interface ShareProfileModalProps {
  * link when the shortener obliged, the canonical `/p/:npub` otherwise. It is
  * deliberately NOT named canonical: the page's own canonical URL (its `og:url`)
  * is the `/p/` one, and that is a different thing from the link people share.
- * `useShareUrl` is the one place that decides.
+ * `useShortLink` is the one place that decides.
  */
 export function ShareProfileModal({
   open,

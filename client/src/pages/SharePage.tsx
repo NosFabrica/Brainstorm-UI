@@ -110,7 +110,7 @@ import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -1689,7 +1689,7 @@ function ProfileShareSheet({
   relays,
   ...props
 }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
-  const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
+  const shareUrl = useShortLink({ ...profileShortLink(props.npub, relays), enabled: props.open });
   return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 

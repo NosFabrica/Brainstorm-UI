@@ -24,7 +24,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
@@ -96,7 +96,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
     retry: false,
   });
 
-  const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
+  const inviteUrl = useShortLink({ ...profileShortLink(user?.npub ?? ""), enabled: inviteOpen });
 
   const onNavigate = (path: string) => {
     close();
