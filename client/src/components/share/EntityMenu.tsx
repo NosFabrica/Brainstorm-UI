@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCopied } from "@/hooks/useCopied";
+import { copyPromisedText } from "@/lib/clipboard";
+import { shortOrLong } from "@/lib/shortLink";
 import { appLinksFor, type OpenEntity } from "@/lib/openInApp";
 
 export type CopyItem = {
@@ -18,6 +20,8 @@ export type CopyItem = {
   value: string;
   /** What the key is for, under the label — "why would they want this?" */
   hint?: string;
+  /** Mints a short form of `value` to copy instead; `value` stands in if it is slow or fails. */
+  mint?: () => Promise<string>;
 };
 
 /** The ⋯ trigger — the chrome the profile's menu always had, so it sits beside Follow unchanged. */
@@ -33,7 +37,8 @@ function CopyMenuItem({ item }: { item: CopyItem }) {
       // The menu stays open: the row itself says it worked.
       onSelect={(e) => {
         e.preventDefault();
-        void copy(item.value);
+        const { mint } = item;
+        void copy(item.value, mint && ((long) => copyPromisedText(shortOrLong(mint(), long), long)));
       }}
       data-testid={`menu-copy-${item.id}`}
     >
