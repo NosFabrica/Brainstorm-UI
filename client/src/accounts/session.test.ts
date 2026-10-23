@@ -15,6 +15,7 @@ import {
   loginTemplate,
   SessionDeferredError,
   type SessionTransport,
+  toSessionTransportError,
 } from "./session";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 import { isRemoteSignerTimeout } from "./remote-signer";
@@ -478,5 +479,20 @@ describe("the signing template used by sessions", () => {
     expect(event.kind).toBe(template.kind);
     expect(event.tags).toEqual(template.tags);
     expect(event.content).toBe(template.content);
+  });
+});
+
+describe("a failed exchange as the login screen reads it", () => {
+  it("says to wait on a 429 instead of showing the status code", () => {
+    const error = toSessionTransportError(
+      Object.assign(new Error("Failed to get auth challenge (429)"), { status: 429 }),
+    );
+    expect(error.message).toBe("Too many sign-in attempts. Wait a minute and try again.");
+    expect(error.status).toBe(429);
+  });
+
+  it("keeps the server's message for any other failure", () => {
+    const error = toSessionTransportError(Object.assign(new Error("Auth verification failed (401)"), { status: 401 }));
+    expect(error.message).toBe("Auth verification failed (401)");
   });
 });

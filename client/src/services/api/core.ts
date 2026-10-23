@@ -10,6 +10,7 @@ import {
   ensureSession,
   getSessionToken,
   isSessionDeferredError,
+  isSessionRateLimited,
   refreshSession,
   SessionDeferredError,
 } from "@/accounts/session";
@@ -98,8 +99,8 @@ function handleUnauthorized() {
   window.location.href = "/";
 }
 
-/** Healed, waiting for the user, or genuinely unusable — three different answers. */
-type ReauthResult = "ok" | "deferred" | "failed";
+/** Healed, waiting for the user, turned away for now, or genuinely unusable. */
+type ReauthResult = "ok" | "deferred" | "throttled" | "failed";
 
 /**
  * Mint a fresh Session for the Active Account, in the background: this is a 401
@@ -125,7 +126,8 @@ async function silentReauth(staleToken?: string): Promise<ReauthResult> {
     await refreshSession(account, { background: true });
     return "ok";
   } catch (err) {
-    return isSessionDeferredError(err) ? "deferred" : "failed";
+    if (isSessionDeferredError(err)) return "deferred";
+    return isSessionRateLimited(err) ? "throttled" : "failed";
   }
 }
 
@@ -163,6 +165,14 @@ class SessionLostError extends Error {
   }
 }
 
+/** A 429 on the exchange is the server's limit, not a dead Session: the user stays signed in. */
+class ReauthThrottledError extends Error {
+  constructor() {
+    super("Too many sign-in attempts. Try again in a moment.");
+    this.name = "ReauthThrottledError";
+  }
+}
+
 function sessionLost(policy: LostSessionPolicy, message: string): Error {
   if (policy === "redirect") {
     handleUnauthorized();
@@ -185,6 +195,7 @@ async function fetchWithSession(url: string, options: RequestInit, onLost: LostS
     // so nothing is wiped and nobody is redirected. The caller renders the
     // "sign in again to see this" state instead.
     if (reauth === "deferred") throw new SessionDeferredError();
+    if (reauth === "throttled") throw new ReauthThrottledError();
     if (reauth === "failed") throw sessionLost(onLost, "No session token found");
     token = currentToken();
   }
@@ -197,6 +208,7 @@ async function fetchWithSession(url: string, options: RequestInit, onLost: LostS
     const detail = data?.detail || data?.message || "";
     const reauth = await silentReauth(token);
     if (reauth === "deferred") throw new SessionDeferredError();
+    if (reauth === "throttled") throw new ReauthThrottledError();
     if (reauth === "ok") {
       const newToken = currentToken();
       const retryResponse = await fetch(url, {
@@ -237,7 +249,9 @@ export async function optionalAuthFetch(url: string, options: RequestInit = {}):
       // A deferred or lost Session says nothing about public data. Serve it
       // anonymously rather than leaving a signed-in reader worse off than a
       // signed-out one — and keep the deep link they arrived on.
-      if (isSessionDeferredError(err) || err instanceof SessionLostError) return fetch(url, options);
+      if (isSessionDeferredError(err) || err instanceof SessionLostError || err instanceof ReauthThrottledError) {
+        return fetch(url, options);
+      }
       throw err;
     }
   }

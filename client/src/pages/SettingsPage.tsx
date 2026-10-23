@@ -114,6 +114,7 @@ import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
 import { settingsTabFor } from "@/lib/settingsTab";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
+import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 
 type SettingsTab = "profile" | "trust" | "messages" | "dictionary" | "billing" | "about";
@@ -866,6 +867,8 @@ export default function SettingsPage() {
             <User className="h-4 w-4" /> View profile
           </button>
         </div>
+
+        <SignOutEverywhereRow onSignedOut={handleLogout} />
       </div>
     </div>
   );
