@@ -138,15 +138,15 @@ _Avoid_: custom renderer, hardcoded concept, override
 
 **Dictionary**:
 The concepts a User holds local copies of, shown in Settings › Dictionary.
-Which concepts the app offers is a list, Demo Dictionary Concepts: the entries
-its **curators** filed (`hooks/useDictionaryConcepts`). Adding a concept is a
-publish, not a deploy.
+Which concepts the app offers are its **curators'** headers that carry a
+Self-pointer (`hooks/useDictionaryConcepts`). Adding a concept is a publish,
+not a deploy; dropping the self-pointer takes it out.
 _Avoid_: glossary, vocabulary
 
 **Curator**:
-Someone whose entries on the Demo Dictionary Concepts list count: its author,
-or a person the house tagged "Dictionary Concept Curator". Both coordinates are
-in `config/dictionary.config.json`.
+Someone whose self-pointing headers are the Dictionary's concepts: a person the
+house tagged "Dictionary Concept Curator" (the tag's coordinate is in
+`config/dictionary.config.json`). The house curates only if it tagged itself.
 _Avoid_: editor, admin (an admin is a server role; a curator is a tag)
 
 **Governing definition**:
