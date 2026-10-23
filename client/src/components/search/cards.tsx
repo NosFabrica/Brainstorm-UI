@@ -65,7 +65,7 @@ import { postedAtOf } from "@/lib/eventDate";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
+import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
@@ -1175,6 +1175,10 @@ export function EventCard({
   rsvp?: boolean;
 }) {
   const cal = parseCalendarEvent(event);
+  // A feed's list item (Event Index): its host is the organizer it names as text — the key on it is
+  // the index's, not theirs — and going to it is on its own page, not a NIP-52 RSVP.
+  const item = event.kind === EVENT_ITEM_KIND;
+  const host = item ? cal.organizer : undefined;
   // "Past" means over — an all-day event today or a running conference is not.
   const past = isOver(cal);
   // Past: the replay when there is one. Upcoming: "I'm going" — a NIP-52
@@ -1186,7 +1190,7 @@ export function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    rsvp && !past && cal.startSec > 0 ? (
+    rsvp && !item && !past && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1229,17 +1233,26 @@ export function EventCard({
           >
             <EmojiText text={cal.title} tags={event} />
           </p>
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-            <Avatar
-              className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}
+          {host ? (
+            <p
+              className="mt-1 truncate text-xs text-slate-600 dark:text-slate-300"
+              data-testid={`event-host-${event.id}`}
             >
-              {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
-              <AvatarFallback className="overflow-hidden">
-                <DefaultAvatarImg />
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate">By {author ? getDisplayLabel(author) : "an unknown host"}</span>
-          </div>
+              By {host}
+            </p>
+          ) : (
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <Avatar
+                className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}
+              >
+                {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                <AvatarFallback className="overflow-hidden">
+                  <DefaultAvatarImg />
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">By {author ? getDisplayLabel(author) : "an unknown host"}</span>
+            </div>
+          )}
           {cal.location && (
             <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
               <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />

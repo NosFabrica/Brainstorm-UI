@@ -35,7 +35,8 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
 import config from "@/config/dictionary.config.json";
-import { useConceptItems } from "@/hooks/useConceptItems";
+import { useConceptItems, useConceptMatches } from "@/hooks/useConceptItems";
+import { useSearchPriority } from "@/hooks/useSearchPriority";
 import { useDictionary } from "@/hooks/useDictionary";
 import type { ListKindSearch, PreviewSlot } from "@/hooks/useListKinds";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
@@ -79,6 +80,11 @@ export interface KindHit {
 /**
  * The items of a kind the words find, best first, read as their cards read
  * them. With no words to find, `browse` gives the list itself, in its order.
+ * The words are found in the whole list: the page reads the list's first 500
+ * items, and the search relay is asked for the rest of the list's items that
+ * have the words (hooks/useConceptItems `useConceptMatches`) — on the Top page
+ * once its own results have answered (hooks/useSearchPriority), and never for
+ * a word still being typed. Both are matched the same way (lib/listSearch).
  */
 function useKindHits(
   view: ConceptViewKey,
@@ -102,13 +108,21 @@ function useKindHits(
   const resolved = entry?.resolved;
   const words = useMemo(() => (resolved ? wordsToFind(query, resolved.governing) : []), [query, resolved]);
   const items = useConceptItems(entry, !!entry && (browse || words.length > 0));
+  const priority = useSearchPriority();
+  const asksRelay = !!entry && words.length > 0 && !typing && priority;
+  const matches = useConceptMatches(entry, words, asksRelay);
   const hits = useMemo(() => {
     if (!resolved || !items.data || (!browse && words.length === 0)) return [];
     const definition = resolved.governing;
     const read = (item: { tags: string[][] }) => tierThreePresentation(item, resolved, presentItem(item, definition));
-    const pool = within
-      ? (items.data as Item[]).filter((item) => inView(placeOf(item, definition), within))
-      : (items.data as Item[]);
+    // The relay's matches first, then what the page read and they don't repeat (by address).
+    const loaded = items.data as Item[];
+    const extra = (matches.data ?? []) as Item[];
+    const seen = new Set(extra.map((item) => coordinateOf(item) ?? item.id));
+    const all = extra.length
+      ? [...extra, ...loaded.filter((item) => !seen.has(coordinateOf(item) ?? item.id))]
+      : loaded;
+    const pool = within ? all.filter((item) => inView(placeOf(item, definition), within)) : all;
     const found =
       words.length > 0
         ? matchListItems(pool, definition, words, max, read, { typing, titleOnly })
@@ -130,8 +144,11 @@ function useKindHits(
       ...h,
       copies: copies.map((id) => ({ id, address: addressOf.get(id) ?? null })),
     }));
-  }, [resolved, items.data, words, max, view, browse, typing, titleOnly, within]);
-  return { hits, pending: dictionary.isPending || (!!entry && items.isPending) };
+  }, [resolved, items.data, matches.data, words, max, view, browse, typing, titleOnly, within]);
+  return {
+    hits,
+    pending: dictionary.isPending || (!!entry && items.isPending) || (asksRelay && matches.isPending),
+  };
 }
 
 /**

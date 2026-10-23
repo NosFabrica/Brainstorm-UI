@@ -60,7 +60,15 @@ vi.mock("@/services/trustSource", () => ({
   resolveTrustSource: (pk: string) => trustSourceMock(pk),
 }));
 
-import { distinctItems, filedItems, itemIdentity, loadConceptItems, loadDictionary, loadListItems } from "./dictionary";
+import {
+  distinctItems,
+  filedItems,
+  itemIdentity,
+  loadConceptItems,
+  loadDictionary,
+  loadListItems,
+  searchListItems,
+} from "./dictionary";
 
 /** Answers each filter the way a relay would, from a fixed corpus. */
 /** One filter, as a relay matches it. */
@@ -390,5 +398,31 @@ describe("the items filed under a list", () => {
   it("loadListItems still asks for 500", async () => {
     await loadListItems([COORD]);
     expect(sentFilters().at(-1)).toMatchObject({ limit: 500 });
+  });
+});
+
+// A page reads a list's first 500 items; the words are found in the whole list by the search relay,
+// the only one of the two with full-text search.
+describe("finding words in a whole list", () => {
+  const elsewhere = ev(AVI, 39999, [
+    ["d", "elsewhere"],
+    ["z", `39998:${AVI}:other-list`],
+    ["github-username", "vcavallo"],
+  ]);
+
+  it("asks the search relay alone, for the list's items with the words, and keeps what is filed there", async () => {
+    indexMock.mockResolvedValue([original, elsewhere]);
+    const found = await searchListItems([COMMUNITY], ["vcavallo"]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(indexMock).toHaveBeenCalledTimes(1);
+    const [filters] = indexMock.mock.calls[0];
+    expect(filters).toEqual([{ kinds: [39999, 9999], "#z": [COMMUNITY], limit: 200, search: "vcavallo" }]);
+    expect(found.map((e) => e.id)).toEqual([original.id]);
+  });
+
+  it("asks nothing without words or a list", async () => {
+    expect(await searchListItems([COMMUNITY], [])).toEqual([]);
+    expect(await searchListItems([], ["vcavallo"])).toEqual([]);
+    expect(indexMock).not.toHaveBeenCalled();
   });
 });

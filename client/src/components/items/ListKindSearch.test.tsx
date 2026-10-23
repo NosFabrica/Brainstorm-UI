@@ -113,10 +113,20 @@ const itemsOf: Record<string, unknown[]> = {
   [GITHUB]: [account("riverdev"), account("lakebuilder")],
 };
 const itemsAsked = vi.hoisted(() => vi.fn<(coordinate: string | undefined, enabled: boolean) => void>());
+// What the search relay finds for the words in the whole list, beyond what the page read: none
+// unless a test says so.
+const matchesOf: Record<string, unknown[]> = {};
+const matchesAsked = vi.hoisted(() =>
+  vi.fn<(coordinate: string | undefined, words: string, enabled: boolean) => void>(),
+);
 vi.mock("@/hooks/useConceptItems", () => ({
   useConceptItems: (e: { communityCoordinate: string } | undefined, enabled = true) => {
     itemsAsked(e?.communityCoordinate, enabled);
     return { data: e && enabled ? itemsOf[e.communityCoordinate] : undefined, isPending: false };
+  },
+  useConceptMatches: (e: { communityCoordinate: string } | undefined, words: readonly string[], enabled = true) => {
+    matchesAsked(e?.communityCoordinate, words.join(" "), enabled);
+    return { data: e && enabled ? (matchesOf[e.communityCoordinate] ?? []) : undefined, isPending: false };
   },
 }));
 // The map draws tiles from the network: its pins are its props here, and "move map" stands in
@@ -414,6 +424,44 @@ describe("a kind's own page", () => {
     );
   });
 
+  // The page reads a list's first 500 items; Food and Drink Places holds 7,954, and neither PubKey
+  // was among the 500. The relay finds the words in the whole list, and the page shows those too.
+  it("finds what the list's first 500 left out: the relay's matches for the words in the whole list", () => {
+    matchesOf[PLACES] = [place("PubKey", "bar", "New York")];
+    try {
+      page("places", "pubkey");
+      expect(matchesAsked).toHaveBeenCalledWith(PLACES, "pubkey", true);
+      const list = screen.getByTestId("kind-page-places");
+      expect(
+        within(list)
+          .getAllByTestId("kind-page-item")
+          .map((r) => r.querySelector("a")?.textContent),
+      ).toEqual(["PubKey"]);
+    } finally {
+      delete matchesOf[PLACES];
+    }
+  });
+
+  it("a match the page had already read shows once", () => {
+    matchesOf[PLACES] = [itemsOf[PLACES][0]];
+    try {
+      page("places", "pink owl");
+      expect(within(screen.getByTestId("kind-page-places")).getAllByTestId("kind-page-item")).toHaveLength(1);
+    } finally {
+      delete matchesOf[PLACES];
+    }
+  });
+
+  it("the relay's matches still meet the page's rules: every word, in the name or the line under it", () => {
+    matchesOf[PLACES] = [place("Rooftop", "bar", "New York")];
+    try {
+      page("places", "pubkey");
+      expect(screen.getByTestId("kind-page-empty")).toBeInTheDocument();
+    } finally {
+      delete matchesOf[PLACES];
+    }
+  });
+
   it("says so when the words find nothing", () => {
     page("books", "zzzz");
     expect(screen.getByTestId("kind-page-empty")).toHaveTextContent("No books match");
@@ -440,6 +488,12 @@ describe("a kind's row in the search dropdown", () => {
       </>,
     );
   };
+
+  it("never asks the relay for a word still being typed", () => {
+    matchesAsked.mockClear();
+    suggestion("places", "pubk");
+    expect(matchesAsked).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
+  });
 
   // The dropdown opens for a kind's row alone, so a row says whether it has one to offer.
   it("says whether it has a row to offer, for the box to open on", () => {
@@ -1651,6 +1705,15 @@ describe("a preview's lookups wait for the search's own results", () => {
       </SearchPriorityContext.Provider>,
     );
   };
+
+  it("asks the relay for the whole list's matches only once they have answered", () => {
+    matchesAsked.mockClear();
+    coffee(false);
+    expect(matchesAsked).toHaveBeenCalledWith(PLACES, "coffee", false);
+    expect(matchesAsked).not.toHaveBeenCalledWith(PLACES, "coffee", true);
+    coffee(true);
+    expect(matchesAsked).toHaveBeenCalledWith(PLACES, "coffee", true);
+  });
 
   it("asks nothing about recommendations or stars while the search's own results are pending", async () => {
     trust.asked = 0;

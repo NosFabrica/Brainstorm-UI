@@ -181,6 +181,29 @@ describe("searchStream", () => {
    * by tag on the relay (probed on the search relay, 2026-09-22: the tag alone
    * returns the newest recipes; tag plus words returns "chili, but only recipes").
    */
+  // Public events from Luma, Meetup and other feeds reach Brainstorm only as Event Index's list
+  // items (config/events), so the Events tab asks them beside NIP-52, by the same words.
+  it("the Events tab asks Event Index's list items beside NIP-52 events, words and all", async () => {
+    controllable();
+    searchStream("pubkey", { tab: "events", pov: "nosfabrica" }, () => {});
+    await tick();
+    const [nip52, items] = askedFilters() as { kinds?: number[]; "#z"?: string[]; search: string; limit?: number }[];
+    expect(nip52.kinds).toEqual([31922, 31923, 31924]);
+    expect(items.kinds).toEqual([39999]);
+    expect(items["#z"]).toEqual(["39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:events"]);
+    expect(items.search).toBe(nip52.search);
+    expect(items.limit).toBe(nip52.limit);
+  });
+
+  it("a typed kind on Events, or Top's Happening band, asks NIP-52 alone", async () => {
+    controllable();
+    searchStream("pubkey kind:31923", { tab: "events", pov: "nosfabrica" }, () => {});
+    searchStream("pubkey", { tab: "events", pov: "nosfabrica", band: true }, () => {});
+    await tick();
+    expect(askedFilters(0).map((f) => f.kinds)).toEqual([[31923]]);
+    expect(askedFilters(1).map((f) => f.kinds)).toEqual([[31922, 31923]]);
+  });
+
   it("the Recipes tab asks the relay for articles tagged as recipes, words and all", async () => {
     controllable();
 
@@ -3283,7 +3306,7 @@ describe("countTabs", () => {
       controllable();
       searchStream("jack sort:recent", { tab, pov: "nosfabrica" }, () => {});
       await tick();
-      // A single filter's count drops its page size; a union (Reviews' mint split) keeps each one's.
+      // A single filter's count drops its page size; a union (Reviews' mint split, Events' list items) keeps each one's.
       const sent = askedFilters();
       const req = sent.length > 1 ? sent : sent.map(({ limit: _limit, ...rest }) => rest);
       answerBy({}, of({ count: 0 }));

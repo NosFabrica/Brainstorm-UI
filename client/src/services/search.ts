@@ -22,6 +22,8 @@ import { RelayClosedError } from "applesauce-relay";
 import type { Relay, RelayReqMessage } from "applesauce-relay";
 import { reportSearchFailure } from "@/lib/serverStatus";
 import { openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
+import { EVENT_LISTS } from "@/config/events";
+import { EVENT_ITEM_KIND } from "@/lib/calendarEvent";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { applyFilters, liftQuery, readFilters, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
@@ -525,6 +527,19 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
     },
     since: params.since,
   });
+  // The Events tab asks Event Index's list items beside NIP-52 (config/events): public events
+  // from Luma, Meetup and other feeds reach Brainstorm only as those items. Not under a typed
+  // `kind:`, which names what it wants, and not for a band (Top's Happening section).
+  const listed =
+    params.tab === "events" && !params.band && !params.kinds && !lifted.kinds
+      ? searchFilters(askedBy, {
+          kinds: [EVENT_ITEM_KIND],
+          limit,
+          searchString: (terms) => withObserver(terms, observer),
+          base: { "#z": [...EVENT_LISTS] },
+          since: params.since,
+        })
+      : [];
   const filters =
     params.tab === "reviews"
       ? askMintReviewsOnly(built)
@@ -534,7 +549,7 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
           // `label:` beside it does the same with kind 1985 label events: its filter goes
           // too, and with nothing else to ask the page is empty.
           built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
-        : built;
+        : [...built, ...listed];
   // A scope asked of a tab that holds no comments has nothing to ask: `filters` is empty.
   return { filters, keeps: hostedByThem };
 }
