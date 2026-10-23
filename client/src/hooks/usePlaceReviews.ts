@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchPriority } from "@/hooks/useSearchPriority";
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { coordinateOf } from "@/lib/dlistFields";
@@ -111,10 +112,12 @@ const NO_REVIEWS = new Map<string, PlaceReview[]>();
  */
 export function usePlacesRatings(addresses: readonly string[], curator: string | null) {
   const me = useActiveAccountDisplay()?.pubkey ?? null;
+  // On the Top page, after the search's own results: the stars only order rows (hooks/useSearchPriority).
+  const ready = useSearchPriority();
   const reviews = useQuery({
     queryKey: ["places-reviews", ...addresses],
     queryFn: () => fetchReviewsForPlaces([...addresses]),
-    enabled: addresses.length > 0,
+    enabled: ready && addresses.length > 0,
     staleTime: 60_000,
   });
   const byPlace = reviews.data ?? NO_REVIEWS;

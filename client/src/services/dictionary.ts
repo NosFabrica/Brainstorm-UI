@@ -171,10 +171,22 @@ export function filedItems<T extends DictionaryItem>(events: T[], headers: strin
   return distinctItems(events.filter(isDListItem).filter(isFiled));
 }
 
-/** The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. */
-export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
+/**
+ * The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. `onFirst`
+ * is handed the first relay's items the moment they land (services/listReads), before the merge.
+ */
+export async function loadListItems(
+  headers: string[],
+  hubRelays: string[] = dictionaryRelays(),
+  onFirst?: (items: DictionaryItem[]) => void,
+): Promise<ListItems> {
   if (!headers.length) return { items: [], truncated: false };
-  const events = (await readListEvents(itemFilters(headers, ITEM_LIMIT), TIMEOUT_MS, hubRelays)) as DictionaryItem[];
+  const events = (await readListEvents(
+    itemFilters(headers, ITEM_LIMIT),
+    TIMEOUT_MS,
+    hubRelays,
+    onFirst && ((first) => onFirst(filedItems(first as DictionaryItem[], headers))),
+  )) as DictionaryItem[];
   // Index and hub answers arrive merged, so a full answer from either can't be told apart from two
   // partial ones adding up: this errs toward saying more may exist.
   return { items: filedItems(events, headers), truncated: events.length >= ITEM_LIMIT };
@@ -189,8 +201,9 @@ export async function loadListItems(headers: string[], hubRelays: string[] = dic
 export async function loadConceptItems(
   headers: string[],
   hubRelays: string[] = dictionaryRelays(),
+  onFirst?: (items: DictionaryItem[]) => void,
 ): Promise<DictionaryItem[]> {
-  return (await loadListItems(headers, hubRelays)).items;
+  return (await loadListItems(headers, hubRelays, onFirst)).items;
 }
 
 /**

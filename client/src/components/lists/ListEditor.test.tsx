@@ -333,6 +333,39 @@ ${JSON.stringify(
     expect(screen.getByTestId("list-import-error")).toHaveTextContent("That isn't JSON.");
     expect(screen.getByTestId("list-import-fill")).toBeDisabled();
   });
+
+  it("into a published list, its license replaces the list's, and what the list carried twice goes out once", async () => {
+    const user = userEvent.setup();
+    const self = ["b", `39998:${ME}:food-trucks`, "pointer"];
+    editor({
+      id: "h".repeat(64),
+      pubkey: ME,
+      kind: 39998,
+      created_at: 1,
+      content: "",
+      sig: "",
+      tags: [
+        ["d", "food-trucks"],
+        ["names", "Food Truck", "Food Trucks"],
+        ["required", "name"],
+        ["license", "CC0-1.0"],
+        ["r", "https://btcmap.org"],
+        ["license", "CC0-1.0"],
+        ["r", "https://btcmap.org"],
+        self,
+      ],
+    });
+    await user.click(screen.getByTestId("list-editor-import"));
+    await user.click(screen.getByTestId("list-import-reply"));
+    await user.paste(reply);
+    await user.click(screen.getByTestId("list-import-fill"));
+    await user.click(screen.getByTestId("list-editor-publish"));
+
+    const published: string[][] = publish.mock.calls[0][0].tags;
+    expect(published.filter((t) => t[0] === "license")).toEqual([["license", "ODbL-1.0"]]);
+    expect(published.filter((t) => t[0] === "r")).toEqual([["r", "https://btcmap.org"]]);
+    expect(published.filter((t) => t[0] === "b")).toEqual([self]);
+  });
 });
 
 describe("ListEditor — proposing a list as a community concept", () => {

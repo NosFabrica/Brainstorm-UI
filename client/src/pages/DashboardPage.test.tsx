@@ -46,7 +46,7 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 }));
 vi.mock("@/hooks/useTrustPresetSync", () => ({ useTrustPresetSync: () => ({ preset: "default", isLoading: false }) }));
 vi.mock("@/hooks/useTierGranularity", () => ({ useTierGranularity: () => ["simple", () => {}] }));
-vi.mock("@/hooks/useShareUrl", () => ({ useShareUrl: () => "" }));
+vi.mock("@/hooks/useShortLink", () => ({ useShortLink: () => "", profileShortLink: () => ({}) }));
 vi.mock("@/hooks/useVerifiedNoFollows", () => ({ useVerifiedNoFollows: () => "has-follows" }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));

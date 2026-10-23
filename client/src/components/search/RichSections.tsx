@@ -214,7 +214,14 @@ function TopStoryCard({ story }: { story: TopStory }) {
           </p>
         )}
         <div className="mt-auto truncate pt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-          {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(hit.event.created_at)}
+          {/* A page's source is its site, named above; a pictured note's is the person. */}
+          {news.domain ? (
+            ago(hit.event.created_at)
+          ) : (
+            <span data-testid="story-poster">
+              {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(hit.event.created_at)}
+            </span>
+          )}
         </div>
       </div>
     </div>

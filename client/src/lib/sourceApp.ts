@@ -1,4 +1,3 @@
-import { nip19 } from "nostr-tools";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { naddrForEvent } from "@/lib/articleLinks";
 
@@ -92,26 +91,29 @@ const conduitApp = (url: string): SourceApp => ({
 const titleOf = (event: MinimalEvent) =>
   (event.tags.find((t) => t[0] === "title")?.[1] ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
+const conduitProduct = (event: MinimalEvent): SourceApp | null => {
+  const naddr = naddrForEvent(event);
+  return naddr ? conduitApp(`https://${CONDUIT_HOST}/products/${naddr}`) : null;
+};
+
+/** A product page the seller wrote into the listing (AGORA's T-shirt: Barattolo, swag.btc.pub as its page). */
+const hasOwnPage = (event: MinimalEvent) =>
+  event.tags.some((t) => (t[0] === "r" || t[0] === "web") && /^https?:\/\//i.test(t[1] ?? ""));
+
 /**
- * What the same seller sells on Conduit, for a listing they published
- * elsewhere. Staci's shop (2026-09-24): 67 listing events from two
+ * The same product as the seller published it on Conduit, for a listing they
+ * published elsewhere. Staci's shop (2026-09-24): 67 listing events from two
  * publishers — the Conduit Merchant Portal and another app — the other
- * app's being duplicates of products Conduit sells. A Conduit merchant's
- * listing opens on Conduit: at the twin product when one shares the title,
- * else at their store.
+ * app's being duplicates of products Conduit sells. The twin shares the
+ * title, and carries the checkout the merchant set up there.
  */
-function conduitViaSeller(event: MinimalEvent, sellerListings: MinimalEvent[]): SourceApp | null {
-  const theirs = sellerListings.filter((l) => l.kind === 30402 && l.pubkey === event.pubkey && publishedInConduit(l));
-  if (theirs.length === 0) return null;
+function conduitTwin(event: MinimalEvent, sellerListings: MinimalEvent[]): SourceApp | null {
   const title = titleOf(event);
-  const twin = title ? theirs.find((l) => titleOf(l) === title) : undefined;
-  const naddr = twin ? naddrForEvent(twin) : null;
-  if (naddr) return conduitApp(`https://${CONDUIT_HOST}/products/${naddr}`);
-  try {
-    return conduitApp(`https://${CONDUIT_HOST}/store/${nip19.npubEncode(event.pubkey)}`);
-  } catch {
-    return null;
-  }
+  if (!title) return null;
+  const twin = sellerListings.find(
+    (l) => l.kind === 30402 && l.pubkey === event.pubkey && publishedInConduit(l) && titleOf(l) === title,
+  );
+  return twin ? conduitProduct(twin) : null;
 }
 
 /**
@@ -121,16 +123,10 @@ function conduitViaSeller(event: MinimalEvent, sellerListings: MinimalEvent[]): 
  */
 export function sourceAppFor(event: MinimalEvent, context: { sellerListings?: MinimalEvent[] } = {}): SourceApp | null {
   if (!hasIdentifier(event)) return null;
-  if (event.kind === 30402 && publishedInConduit(event)) {
-    const naddr = naddrForEvent(event);
-    if (!naddr) return null;
-    return conduitApp(`https://${CONDUIT_HOST}/products/${naddr}`);
-  }
-  // The seller's Conduit store never outranks a product page the seller wrote
-  // into the listing (AGORA's T-shirt: Barattolo, swag.btc.pub as its page).
-  const ownPage = event.tags.some((t) => (t[0] === "r" || t[0] === "web") && /^https?:\/\//i.test(t[1] ?? ""));
-  if (event.kind === 30402 && !ownPage && context.sellerListings?.length) {
-    const via = conduitViaSeller(event, context.sellerListings);
+  if (event.kind === 30402 && publishedInConduit(event)) return conduitProduct(event);
+  // The seller's Conduit twin never outranks a product page the seller wrote into the listing.
+  if (event.kind === 30402 && !hasOwnPage(event) && context.sellerListings?.length) {
+    const via = conduitTwin(event, context.sellerListings);
     if (via) return via;
   }
   if (event.kind === 30023 && publishedOnZapCooking(event)) {
@@ -145,4 +141,18 @@ export function sourceAppFor(event: MinimalEvent, context: { sellerListings?: Mi
     };
   }
   return null;
+}
+
+/**
+ * Where a buyer goes for a listing: the app that published it, else — when
+ * the seller wrote no product page of their own (the caller links that one as
+ * "Visit <host>") — the listing on Conduit, which sells any NIP-99 listing by
+ * its address: Orange Horizon's shoes, published elsewhere, open there with a
+ * cart and an order sent over Nostr (2026-10-19). Never the seller's profile
+ * website: a homepage, not this product, and anyone's to point anywhere.
+ */
+export function shopAppFor(event: MinimalEvent, context: { sellerListings?: MinimalEvent[] } = {}): SourceApp | null {
+  const app = sourceAppFor(event, context);
+  if (app || event.kind !== 30402 || !hasIdentifier(event) || hasOwnPage(event)) return app;
+  return conduitProduct(event);
 }

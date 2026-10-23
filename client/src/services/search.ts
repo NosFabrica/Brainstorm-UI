@@ -21,10 +21,19 @@ import type { NostrEvent } from "nostr-tools";
 import { RelayClosedError } from "applesauce-relay";
 import type { Relay, RelayReqMessage } from "applesauce-relay";
 import { reportSearchFailure } from "@/lib/serverStatus";
-import { searchRelay } from "@/lib/searchRelay";
+import { openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { liftQuery, parseSearch, queryWords, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
+import {
+  applyFilters,
+  liftQuery,
+  parseSearch,
+  queryWords,
+  readFilters,
+  searchFilters,
+  typeaheadWords,
+  withObserver,
+} from "@/lib/searchSyntax";
 import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
 import { isListed, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
@@ -452,6 +461,213 @@ export function __resetSearchGroups(): void {
 }
 
 /**
+ * What a tab asks the relay for these words, through this lens: the filters of one REQ — or of
+ * a COUNT of the same question (countTabs). No filters means the tab has nothing to ask: a typed kind none of its kinds fit, or a scope it holds nothing for.
+ */
+interface TabAsk {
+  filters: ReturnType<typeof searchFilters>;
+  /** What the page keeps of what comes back: on the Live tab with a person scope, the streams they host. */
+  keeps: (event: NostrEvent) => boolean;
+}
+
+function askForTab(query: string, params: SearchParams, observer: string | null): TabAsk {
+  // from:/to:/#tag/since:/until:/group:/label:/kind:/the NIP-73 scopes become NIP-01
+  // filter FIELDS (the relay never sees those prefixes — verified by probing); the relay's
+  // own extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`. A #tag, a
+  // group:, a label: or a scope asks several questions at once, so what comes back is a
+  // UNION of filters ORed in one REQ.
+  const lifted = liftQuery(query);
+  // A typed kind: (or spec:) narrows whatever tab it is on. Top is
+  // one request with a filter per section, each routed by kind, so the typed
+  // kind narrows each section rather than replacing its kinds — otherwise
+  // Latest, Happening and Media would all ask for specs and fill with them.
+  // Agents filter by kind this way; no chip needed.
+  // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
+  // it is — `kind:5905` is the specs that define kind 5905. The relay
+  // narrows by `#k` (probed 2026-09-23).
+  // On the Media tab itself `#vine-archive` is the Classic Vines chip (lib/mediaFacet): the
+  // Vines Divine restored, which carry that word as a NIP-32 label and never as a `t` (probed
+  // 2026-10-12). Asked as a hashtag it is a `#t` filter that finds none of them and an `#l`
+  // filter at a quarter of the page, over every media kind; asked as the chip it is their
+  // one kind with the label on every filter, a whole page. A preview band is not the tab.
+  // (The Videos chip needs nothing here: it is `kind:video`, a typed kind, narrowed just below.)
+  const vines = params.tab === "media" && !params.band && !params.kinds && mediaFacetOf(query) === "vines";
+  const tabKinds =
+    params.kinds ?? (vines ? [CLASSIC_VINE_KIND] : params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
+  const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
+  const kinds =
+    lifted.kinds && !coveredKinds && !params.kinds
+      ? tabKinds
+        ? tabKinds.filter((k) => lifted.kinds!.includes(k))
+        : lifted.kinds
+      : tabKinds;
+  // A section the typed kind doesn't fit asks nothing.
+  if (kinds && kinds.length === 0) return { filters: [], keeps: () => true };
+  // A NIP-53 stream is published by the streaming platform's key with the
+  // streamer as its `p` host, so a person's live streams are the ones they
+  // HOST, not the ones their key authored (probed 2026-09-09: mar's own key
+  // holds 161 ended streams with no recording; the platform's holds her 300
+  // recent ones, 67 with replays). On the Live tab a person scope asks by host.
+  const byHost = params.tab === "live" && !!lifted.authors;
+  // `#p` matches any role; a stream is theirs when they host it (a missing
+  // role reads as host — self-published streams often carry none).
+  const hosts = byHost ? new Set(lifted.authors) : null;
+  const hostedByThem = (event: NostrEvent) =>
+    !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
+  const limit = params.limit ?? DEFAULT_LIMIT;
+  // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
+  // dropped and the keys ride the base every filter carries.
+  // The Classic Vines hashtag leaves the grammar's hands too: it is the label on the base.
+  const asVines = vines ? withoutVineArchiveTag(query) : query;
+  const askedBy = byHost ? asVines.replace(/(^|\s)from:\S+/gi, " ") : asVines;
+  const built = searchFilters(askedBy, {
+    kinds,
+    limit,
+    searchString: (terms) => withObserver(terms, observer),
+    base: {
+      // What a spec COVERS rather than what it is, on the NIPs tab.
+      ...(coveredKinds ? { "#k": coveredKinds.map(String) } : {}),
+      // A tab with a tag of its own asks it — unless the query named tags, which the
+      // grammar then asks for in a filter of their own.
+      ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
+      ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
+      ...(vines ? { "#l": [VINE_ARCHIVE_LABEL] } : {}),
+    },
+    since: params.since,
+  });
+  const filters =
+    params.tab === "reviews"
+      ? askMintReviewsOnly(built)
+      : vines
+        ? // Another hashtag beside the chip asks its own `#l` in a side filter, which would
+          // take the archive's label off that filter and let in what is not a Vine. A
+          // `label:` beside it does the same with kind 1985 label events: its filter goes
+          // too, and with nothing else to ask the page is empty.
+          built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
+        : built;
+  // A scope asked of a tab that holds no comments has nothing to ask: `filters` is empty.
+  return { filters, keeps: hostedByThem };
+}
+
+/** How long the tab counts wait for the relay, at most: a count not in by then is unknown. */
+const TAB_COUNT_TIMEOUT_MS = 8000;
+
+/**
+ * The kinds whose hits make a searching REQ serve their subjects as well (vespa-relay's reference
+ * expansion): NIP-32 labels, NIP-85 assertions and Trusted Lists, people lists and follow packs.
+ * A COUNT doesn't see those rows: People for "AOS 2026 Participant" counted 0 where its REQ
+ * served 88 profiles, Issues for "P4" 2 where it served 38 (probed 2026-10-22).
+ */
+const POINTER_KINDS = [1985, 30382, 30383, 30384, 30392, 30393, 30394, 30000, 39089, 39092];
+
+/** The pointers question rides in `onCount`'s results under this key, never as a tab. */
+const POINTERS = "pointers";
+
+/**
+ * How many results each tab holds for these words, through the lens the page reads them in: one
+ * NIP-45 COUNT per tab of the very filters the tab itself would ask (askForTab), all on a socket
+ * of their own (lib/searchRelay's openSideSearchRelay) so they never queue in front of the page's
+ * own requests, closed once every count is in. A tab with nothing to ask holds 0, and a count that
+ * fails or doesn't arrive in time is null: unknown, never zero. Cancel by calling the returned
+ * function.
+ *
+ * A COUNT of zero is not always an empty page: a REQ also serves what matching pointers name
+ * (POINTER_KINDS), and a COUNT counts none of it. So one more COUNT asks whether any pointer, from
+ * anyone (`include:spam`), matches the words; when one does, or that answer doesn't come, every
+ * zero is reported as unknown. The answers arrive through `onCount` once all are in.
+ *
+ * Asked newest-first, since best match matches fewer for the same words (profiles for "ramen" 79
+ * vs 192, 2026-10-22), unless the words ask `sort:text`, which applies no trust floor and matches
+ * more still (30,255 for "ramen"). A single filter's count drops its page size so More can order
+ * by it; a union keeps each filter's, since unbounded it recalls every matching id per filter
+ * ("bitcoin #nostr": 7.1s unbounded, 0.15s bounded) — a zero stays a zero either way.
+ */
+export function countTabs(
+  query: string,
+  tabs: readonly SearchTab[],
+  lens: Pick<SearchParams, "pov" | "userPubkey">,
+  onCount: (tab: SearchTab, count: number | null) => void,
+  timeoutMs = TAB_COUNT_TIMEOUT_MS,
+): () => void {
+  let cancelled = false;
+  let relay: Relay | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const subs: { unsubscribe: () => void }[] = [];
+  const answers = new Map<string, number | null>();
+  const asked = new Set<string>();
+  const close = () => {
+    clearTimeout(timer);
+    subs.forEach((s) => s.unsubscribe());
+    relay?.close();
+    relay = null;
+  };
+  // Once every answer is in: a zero from a tab that asked becomes unknown while a pointer might
+  // add to it. A tab that asked nothing sends no REQ, so nothing can add to it.
+  const report = () => {
+    if (cancelled) return;
+    const pointers = answers.get(POINTERS);
+    for (const tab of tabs) {
+      const n = answers.get(tab) ?? null;
+      onCount(tab, n === 0 && asked.has(tab) && pointers !== 0 ? null : n);
+    }
+  };
+  const settle = (key: string, count: number | null) => {
+    if (cancelled || answers.has(key)) return;
+    answers.set(key, count);
+    if ([...asked].every((k) => answers.has(k))) {
+      close();
+      report();
+    }
+  };
+  const bounded = (filters: ReturnType<typeof searchFilters>) =>
+    filters.length > 1 ? filters : filters.map(({ limit: _limit, ...rest }) => rest);
+
+  void (async () => {
+    const observer = await resolveObserver({ tab: "top", ...lens });
+    if (cancelled) return;
+    const sort = readFilters(query).sort === "text" ? "sort:text" : "sort:recent";
+    const words = `${applyFilters(query, { sort: null })} ${sort}`.trim();
+    const questions = tabs.map((tab) => ({
+      key: tab as string,
+      filters: askForTab(words, { tab, ...lens }, observer).filters,
+    }));
+    questions.push({
+      key: POINTERS,
+      filters: askForTab(words, { tab: "all", kinds: POINTER_KINDS, ...lens }, null).filters,
+    });
+    for (const { key, filters } of questions) {
+      if (filters.length === 0) answers.set(key, 0);
+      else asked.add(key);
+    }
+    if (asked.size === 0) return report();
+    const socket = openSideSearchRelay();
+    if (!socket) {
+      asked.forEach((key) => answers.set(key, null));
+      return report();
+    }
+    relay = socket;
+    // Set the timer BEFORE subscribing: a synchronous answer (the fake transport in tests) can
+    // settle every count during subscribe, and close() clears this timer.
+    timer = setTimeout(() => [...asked].forEach((key) => settle(key, null)), timeoutMs);
+    for (const { key, filters } of questions) {
+      if (!asked.has(key)) continue;
+      subs.push(
+        socket.count(bounded(filters)).subscribe({
+          next: (r: { count?: number }) => settle(key, typeof r?.count === "number" ? r.count : null),
+          error: () => settle(key, null),
+          complete: () => settle(key, null),
+        }),
+      );
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+    close();
+  };
+}
+
+/**
  * Streaming full search. Each callback delivers the WHOLE current list —
  * one setState per emit, and a cancelled handle never calls back again,
  * which is the entire stale-results story.
@@ -503,85 +719,9 @@ export function searchStream(
     const observer = await resolveObserver(params);
     if (cancelled) return;
 
-    // from:/to:/#tag/since:/until:/group:/label:/kind:/the NIP-73 scopes become NIP-01
-    // filter FIELDS (the relay never sees those prefixes — verified by probing); the relay's
-    // own extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`. A #tag, a
-    // group:, a label: or a scope asks several questions at once, so what comes back is a
-    // UNION of filters ORed in one REQ.
-    const lifted = liftQuery(query);
-    // A typed kind: (or spec:) narrows whatever tab it is on. Top is
-    // one request with a filter per section, each routed by kind, so the typed
-    // kind narrows each section rather than replacing its kinds — otherwise
-    // Latest, Happening and Media would all ask for specs and fill with them.
-    // Agents filter by kind this way; no chip needed.
-    // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
-    // it is — `kind:5905` is the specs that define kind 5905. The relay
-    // narrows by `#k` (probed 2026-09-23).
-    // On the Media tab itself `#vine-archive` is the Classic Vines chip (lib/mediaFacet): the
-    // Vines Divine restored, which carry that word as a NIP-32 label and never as a `t` (probed
-    // 2026-10-12). Asked as a hashtag it is a `#t` filter that finds none of them and an `#l`
-    // filter at a quarter of the page, over every media kind; asked as the chip it is their
-    // one kind with the label on every filter, a whole page. A preview band is not the tab.
-    // (The Videos chip needs nothing here: it is `kind:video`, a typed kind, narrowed just below.)
-    const vines = params.tab === "media" && !params.band && !params.kinds && mediaFacetOf(query) === "vines";
-    const tabKinds =
-      params.kinds ??
-      (vines ? [CLASSIC_VINE_KIND] : params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
-    const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
-    const kinds =
-      lifted.kinds && !coveredKinds && !params.kinds
-        ? tabKinds
-          ? tabKinds.filter((k) => lifted.kinds!.includes(k))
-          : lifted.kinds
-        : tabKinds;
-    // A section the typed kind doesn't fit asks nothing and is simply done.
-    if (kinds && kinds.length === 0) {
-      emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
-      return;
-    }
-    // A NIP-53 stream is published by the streaming platform's key with the
-    // streamer as its `p` host, so a person's live streams are the ones they
-    // HOST, not the ones their key authored (probed 2026-09-09: mar's own key
-    // holds 161 ended streams with no recording; the platform's holds her 300
-    // recent ones, 67 with replays). On the Live tab a person scope asks by host.
-    const byHost = params.tab === "live" && !!lifted.authors;
-    // `#p` matches any role; a stream is theirs when they host it (a missing
-    // role reads as host — self-published streams often carry none).
-    const hosts = byHost ? new Set(lifted.authors) : null;
-    const hostedByThem = (event: NostrEvent) =>
-      !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
-    const limit = params.limit ?? DEFAULT_LIMIT;
-    // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
-    // dropped and the keys ride the base every filter carries.
-    // The Classic Vines hashtag leaves the grammar's hands too: it is the label on the base.
-    const asVines = vines ? withoutVineArchiveTag(query) : query;
-    const askedBy = byHost ? asVines.replace(/(^|\s)from:\S+/gi, " ") : asVines;
-    const built = searchFilters(askedBy, {
-      kinds,
-      limit,
-      searchString: (terms) => withObserver(terms, observer),
-      base: {
-        // What a spec COVERS rather than what it is, on the NIPs tab.
-        ...(coveredKinds ? { "#k": coveredKinds.map(String) } : {}),
-        // A tab with a tag of its own asks it — unless the query named tags, which the
-        // grammar then asks for in a filter of their own.
-        ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
-        ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
-        ...(vines ? { "#l": [VINE_ARCHIVE_LABEL] } : {}),
-      },
-      since: params.since,
-    });
-    const filters =
-      params.tab === "reviews"
-        ? askMintReviewsOnly(built)
-        : vines
-          ? // Another hashtag beside the chip asks its own `#l` in a side filter, which would
-            // take the archive's label off that filter and let in what is not a Vine. A
-            // `label:` beside it does the same with kind 1985 label events: its filter goes
-            // too, and with nothing else to ask the page is empty.
-            built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
-          : built;
-    // A scope asked of a tab that holds no comments has nothing to ask.
+    const { filters, keeps: hostedByThem } = askForTab(query, params, observer);
+    // A section the typed kind doesn't fit, or a scope asked of a tab that holds no comments,
+    // has nothing to ask and is simply done.
     if (filters.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
       return;

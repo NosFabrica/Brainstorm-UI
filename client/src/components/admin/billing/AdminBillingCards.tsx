@@ -1158,10 +1158,6 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             <span className="text-[10px] text-slate-400 dark:text-slate-500">
               Page {page} of {pages}
             </span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-              Source: /admin/billing/subscriptions
-            </span>
           </div>
         </div>
         {items.length > 0 && (

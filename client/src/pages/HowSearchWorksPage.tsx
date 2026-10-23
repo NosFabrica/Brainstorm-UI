@@ -75,7 +75,7 @@ const STAGES: Stage[] = [
         start typing.
       </>
     ),
-    detail: "Powered by Vespa · typo-tolerant full-text + hybrid (semantic) search",
+    detail: "Powered by Vespa · typo-tolerant full-text search, ranked by trust",
   },
   {
     num: "02",
@@ -117,7 +117,7 @@ const STAGES: Stage[] = [
 
 const METRICS: { value: string; label: string }[] = [
   { value: "Millions", label: "Profiles indexed & growing" },
-  { value: "Hybrid", label: "Full-text + semantic search" },
+  { value: "Full-text", label: "Typo-tolerant, ranked by trust" },
   { value: "0–100", label: "Community verification score" },
   { value: "0 = ignored", label: "Unverified accounts carry no weight" },
 ];
@@ -459,8 +459,7 @@ export default function HowSearchWorksPage() {
                     Vespa
                     <ExternalLink className="h-3 w-3" />
                   </a>
-                  , a lightning-fast, open-source search engine providing instant, typo-tolerant full-text and hybrid
-                  (semantic) search.
+                  , a lightning-fast, open-source search engine providing instant, typo-tolerant full-text search.
                 </p>
               </div>
             )}

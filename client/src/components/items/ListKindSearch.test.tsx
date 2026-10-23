@@ -9,6 +9,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
+import { SearchPriorityContext } from "@/hooks/useSearchPriority";
 import { __resetNip05Cache } from "@/lib/nip05";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 
@@ -181,10 +182,13 @@ const trust = vi.hoisted(() => ({
   endorsers: new Map<string, { pubkey: string; at: number }[]>(),
   follows: new Set<string>(),
   signedIn: false,
+  asked: 0,
 }));
 vi.mock("@/services/itemEngagement", () => ({
-  fetchItemsReactions: async (items: { id: string }[]) =>
-    new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!])),
+  fetchItemsReactions: async (items: { id: string }[]) => {
+    trust.asked++;
+    return new Map(items.filter((i) => trust.endorsers.has(i.id)).map((i) => [i.id, trust.endorsers.get(i.id)!]));
+  },
 }));
 vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: trust.follows, ready: true, signedIn: trust.signedIn }),
@@ -228,9 +232,11 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 const ratings = vi.hoisted(() => ({
   reviews: new Map<string, { pubkey: string; rating: number | null }[]>(),
   ranks: new Map<string, number>(),
+  asked: 0,
 }));
 vi.mock("@/services/placeReviews", () => ({
-  fetchReviewsForPlaces: async (addresses: string[]) =>
+  fetchReviewsForPlaces: async (addresses: string[]) => (
+    ratings.asked++,
     new Map(
       addresses.map((a) => [
         a,
@@ -244,15 +250,16 @@ vi.mock("@/services/placeReviews", () => ({
           paid: null,
         })),
       ]),
-    ),
+    )
+  ),
   fetchLensRanks: async () => ratings.ranks,
 }));
 
 import { LIST_KINDS } from "./ListKindSearch";
 
-const page = (key: string, query: string) => {
+const page = (key: string, query: string, props: { onTabChange?: (tab: string) => void } = {}) => {
   const kind = LIST_KINDS.find((k) => k.key === key)!;
-  return renderWithProviders(<kind.Page query={query} />);
+  return renderWithProviders(<kind.Page query={query} onTabChange={props.onTabChange as never} />);
 };
 
 /**
@@ -314,6 +321,17 @@ describe("a kind's preview on the Top page", () => {
     const [row] = screen.getAllByTestId("kind-preview-row");
     expect(row).toHaveTextContent("riverdev");
     expect(row.querySelector("img")?.getAttribute("src")).toMatch(/^https:\/\/github\.com\/riverdev\.png/);
+  });
+
+  // An account the words don't name is a band on a topic page that isn't about it: it waits
+  // at the end, with the other matches that only share a word, unless a shown person owns it.
+  it("GitHub accounts the words don't name wait at the end of the page; named, they lead", () => {
+    preview("github", "riverdev");
+    expect(within(screen.getByTestId("slot-late")).getByTestId("kind-preview-row")).toHaveTextContent("riverdev");
+    expect(within(screen.getByTestId("slot-follow")).queryByTestId("kind-preview-row")).toBeNull();
+    cleanup();
+    preview("github", "github riverdev", true);
+    expect(within(screen.getByTestId("slot-lead")).getByTestId("kind-preview-row")).toHaveTextContent("riverdev");
   });
 
   it("shows nothing when the words find nothing, or are only small joining words", () => {
@@ -551,7 +569,9 @@ describe("places, presented cleanly", () => {
     }
   });
 
-  it("draws no map when the places are a continent apart", () => {
+  // A map app never hides the map: places a continent apart get one fitted to all of them,
+  // the summary says how far they spread, and Near me or Search this area narrows it.
+  it("draws the map fitted to all the places, even a continent apart, and says how many towns", () => {
     const was = itemsOf[PLACES];
     try {
       itemsOf[PLACES] = [
@@ -559,7 +579,8 @@ describe("places, presented cleanly", () => {
         place("West Diner", "restaurant", "West Roxbury", [], ["42.28", "-71.13"]),
       ];
       page("places", "");
-      expect(screen.queryByTestId("places-map")).toBeNull();
+      expect(screen.getByTestId("places-map")).toHaveAttribute("data-labels", "1,2");
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/2 places in 2 towns/);
     } finally {
       itemsOf[PLACES] = was;
     }
@@ -1110,6 +1131,44 @@ describe("an event's pin on the Places page", () => {
     ],
   };
 
+  // The map's diamonds have a quiet counterpart in the list: a "Happening near here" line under
+  // the places, collapsed to a count, that opens to its rows — never numbered with the places —
+  // and a row opens the same card the diamond does. A diamond tapped on the map opens the group.
+  it("folds the town's events to one line under the places, and opens them on a tap or a diamond", async () => {
+    townEvents.list = [meetup];
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      const tabChanged = vi.fn();
+      page("places", "sarasota", { onTabChange: tabChanged });
+      const group = await screen.findByTestId("places-events");
+      expect(group).toHaveTextContent(/happening near here/i);
+      expect(group).toHaveTextContent(/1/);
+      expect(within(group).queryByRole("button", { name: /Meetup by the river/ })).toBeNull();
+
+      fireEvent.click(within(group).getByRole("button", { name: /happening near here/i }));
+      const row = within(group).getByRole("button", { name: /Meetup by the river/ });
+      expect(row).toHaveTextContent(/May/);
+      for (const item of screen.getAllByTestId("kind-page-item")) expect(item).not.toHaveTextContent("Meetup");
+      fireEvent.click(row);
+      expect(screen.getByTestId("event-picked")).toHaveTextContent("Meetup by the river");
+      // "See all events" switches the search to its Events tab, in place, the words kept.
+      fireEvent.click(within(group).getByRole("button", { name: /see all events/i }));
+      expect(tabChanged).toHaveBeenCalledWith("events");
+
+      // Folded again, a diamond on the map opens it and lights the row.
+      fireEvent.click(within(group).getByRole("button", { name: /happening near here/i }));
+      expect(within(group).queryByRole("button", { name: /Meetup by the river/ })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "event Meetup by the river" }));
+      expect(within(group).getByRole("button", { name: /Meetup by the river/ })).toHaveAttribute(
+        "aria-current",
+        "true",
+      );
+    } finally {
+      itemsOf[PLACES].pop();
+      townEvents.list = [];
+    }
+  });
+
   it("opens the event's card: what, when, where, and the way to its page", async () => {
     townEvents.list = [meetup];
     itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
@@ -1181,6 +1240,94 @@ describe("searching the map's area", () => {
       expect(names()).toEqual(["Bean", "Brew", "Far Cup"]);
     } finally {
       itemsOf[PLACES] = was;
+    }
+  });
+
+  // "Near me": the browser is asked only on the tap, the box around the answer is the area
+  // searched (and in the link, like any area), and a refusal is said once, quietly.
+  it("Near me asks the browser on the tap, searches the box around the answer, and says so", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    const asked = vi.fn((ok: (p: { coords: { latitude: number; longitude: number } }) => void) =>
+      ok({ coords: { latitude: 27.33, longitude: -82.535 } }),
+    );
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: asked }, configurable: true });
+    window.history.replaceState({}, "", "/?q=cafe+sarasota&t=places");
+    try {
+      page("places", "cafe sarasota");
+      expect(asked).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: /near me/i }));
+      // Nearest first, each with how far — and the box widened past the three cafes a walk
+      // away to take in Far Cup, so there is always something close or not to see.
+      await waitFor(() => expect(names()).toEqual(["Bean", "Brew", "Lido Cafe", "Far Cup"]));
+      expect(asked).toHaveBeenCalledTimes(1);
+      expect(window.location.search).toContain("area=");
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/near you/i);
+      const rows = screen.getAllByTestId("kind-page-item");
+      expect(rows[0]).toHaveTextContent(/0\.3 mi/);
+      expect(rows[3]).toHaveTextContent(/12 mi/);
+      // The explainer is a tap away, and says where each signal comes from.
+      fireEvent.click(screen.getByRole("button", { name: /how do we know/i }));
+      const sheet = await screen.findByTestId("location-explainer");
+      expect(sheet).toHaveTextContent(/words you type/i);
+      expect(sheet).toHaveTextContent(/only when you tap/i);
+      expect(sheet).toHaveTextContent(/not stored/i);
+    } finally {
+      itemsOf[PLACES] = was;
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("Near me never lists a place outside the box it widened to", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = [...sarasota, place("Far Bar", "bar", "Miami", [], ["25.76", "-80.19"])];
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition: (ok: (p: { coords: { latitude: number; longitude: number } }) => void) =>
+          ok({ coords: { latitude: 27.33, longitude: -82.535 } }),
+      },
+      configurable: true,
+    });
+    window.history.replaceState({}, "", "/?t=places");
+    try {
+      page("places", "");
+      fireEvent.click(screen.getByRole("button", { name: /near me/i }));
+      await waitFor(() => expect(screen.getByTestId("places-summary")).toHaveTextContent(/near you/i));
+      // Miami is 300 km off: outside even the widest box.
+      expect(names()).not.toContain("Far Bar");
+      // Searching an area by hand afterwards is "in this area", not "near you" — the distances stay.
+      mapMove.view = { south: 25, west: -83, north: 28, east: -80 };
+      fireEvent.click(screen.getByRole("button", { name: "move map" }));
+      fireEvent.click(screen.getByRole("button", { name: "Search this area" }));
+      await waitFor(() => expect(names()).toContain("Far Bar"));
+      expect(screen.getByTestId("places-summary")).toHaveTextContent(/in this area/i);
+      expect(screen.getByTestId("places-summary")).not.toHaveTextContent(/near you/i);
+      expect(screen.getAllByTestId("kind-page-item").at(-1)).toHaveTextContent(/mi ·/);
+    } finally {
+      itemsOf[PLACES] = was;
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("Near me says once when the browser says no, and the page is as it was", async () => {
+    const was = itemsOf[PLACES];
+    itemsOf[PLACES] = sarasota;
+    Object.defineProperty(navigator, "geolocation", {
+      value: { getCurrentPosition: (_ok: unknown, fail: (e: { code: number }) => void) => fail({ code: 1 }) },
+      configurable: true,
+    });
+    window.history.replaceState({}, "", "/?q=cafe+sarasota&t=places");
+    try {
+      page("places", "cafe sarasota");
+      fireEvent.click(screen.getByRole("button", { name: /near me/i }));
+      expect(await screen.findByTestId("near-me-notice")).toHaveTextContent(/declined/i);
+      expect(names()).toEqual(["Bean", "Brew", "Far Cup"]);
+      expect(window.location.search).not.toContain("area=");
+    } finally {
+      itemsOf[PLACES] = was;
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
     }
   });
 
@@ -1489,5 +1636,37 @@ describe("one person, one row", () => {
     renderWithProviders(<Mark pubkey={OWNER} nip05="_@riverdev.com" />);
     await settle();
     expect(screen.queryByRole("link", { name: "riverdev on GitHub" })).toBeNull();
+  });
+});
+
+// On the Top page the people and notes the words find come first: a preview's lookups for its rows'
+// order — who recommends each, its stars — wait until the search's own results have answered, so
+// they never queue in front of them at the relay (hooks/useSearchPriority).
+describe("a preview's lookups wait for the search's own results", () => {
+  const coffee = (answered: boolean) => {
+    const places = LIST_KINDS.find((k) => k.key === "places")!;
+    return renderWithProviders(
+      <SearchPriorityContext.Provider value={answered}>
+        <places.Preview query="coffee" slot="late" named={false} />
+      </SearchPriorityContext.Provider>,
+    );
+  };
+
+  it("asks nothing about recommendations or stars while the search's own results are pending", async () => {
+    trust.asked = 0;
+    ratings.asked = 0;
+    coffee(false);
+    expect(screen.getByTestId("kind-preview-places")).toBeInTheDocument();
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(trust.asked).toBe(0);
+    expect(ratings.asked).toBe(0);
+  });
+
+  it("asks once they have answered", async () => {
+    trust.asked = 0;
+    ratings.asked = 0;
+    coffee(true);
+    await waitFor(() => expect(trust.asked).toBeGreaterThan(0));
+    await waitFor(() => expect(ratings.asked).toBeGreaterThan(0));
   });
 });

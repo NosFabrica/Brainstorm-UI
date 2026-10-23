@@ -52,3 +52,50 @@ describe("parseCalendarEvent — the replay link", () => {
     );
   });
 });
+
+// Event Index's list items (kind 39999 under its Events list) copy NIP-52's
+// field names: a timed one has a unix start, an all-day one a date; the
+// organizer is text, never a nostr name; "Cancelled: " in the title is the
+// status for clients that ignore the tag.
+describe("parseCalendarEvent — a list item", () => {
+  const item = (tags: string[][]) => ({ kind: 39999, content: "", tags: [["d", "luma:pubkey-ldkz"], ...tags] });
+
+  it("reads a timed item as NIP-52's twin, with its organizer as the host", () => {
+    const e = parseCalendarEvent(
+      item([
+        ["title", "Bitcoin & Coffee"],
+        ["start", "1793223000"],
+        ["end", "1793232000"],
+        ["organizer", "PubKey Bitcoin Events"],
+        ["location", "Pubkey, 410 7th St NW, Washington, DC 20004, USA"],
+      ]) as never,
+    );
+    expect(e.title).toBe("Bitcoin & Coffee");
+    expect(e.startSec).toBe(1793223000);
+    expect(e.endSec).toBe(1793232000);
+    expect(e.isDateOnly).toBe(false);
+    expect(e.organizer).toBe("PubKey Bitcoin Events");
+    expect(e.location).toContain("Washington");
+  });
+
+  it("reads a dated item as all day, and a cancelled one as cancelled", () => {
+    const allDay = parseCalendarEvent(
+      item([
+        ["title", "Hackday"],
+        ["start", "2026-11-07"],
+        ["end", "2026-11-08"],
+      ]) as never,
+    );
+    expect(allDay.isDateOnly).toBe(true);
+    expect(allDay.startSec).toBe(Math.floor(new Date("2026-11-07T00:00:00").getTime() / 1000));
+    const off = parseCalendarEvent(
+      item([
+        ["title", "Cancelled: Hackday"],
+        ["start", "2026-11-07"],
+        ["status", "cancelled"],
+      ]) as never,
+    );
+    expect(off.cancelled).toBe(true);
+    expect(off.title).toBe("Hackday");
+  });
+});

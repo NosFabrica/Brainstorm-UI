@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CONCEPT_LIST, CONCEPT_LIST_AUTHOR, CURATOR_TAG, ROLE_CONCEPTS, dictionaryRelays } from "@/config/dictionary";
+import { CURATOR_TAG, ROLE_CONCEPTS, dictionaryRelays } from "@/config/dictionary";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { conceptsOf, curatorsOf } from "@/lib/dictionaryConcepts";
 import { readListEvents } from "@/services/listReads";
@@ -21,7 +21,7 @@ export interface DictionaryConcepts {
 /** Asked again at most every five minutes, as the rest of the Dictionary's reads go stale. */
 const WINDOW = { minMs: 5 * 60_000, spreadMs: 30_000 };
 const READ_MS = 8000;
-const REMEMBERED = `dictionary-concepts:${CONCEPT_LIST}`;
+const REMEMBERED = `dictionary-concepts:${CURATOR_TAG}`;
 
 let held: string[] | null | undefined;
 
@@ -67,11 +67,11 @@ function useHouse(): string | null | undefined {
 }
 
 /**
- * The concepts the Dictionary shows, read from the Demo Dictionary Concepts
- * list (config/dictionary, lib/dictionaryConcepts) instead of a deploy: the
- * entries its curators filed — the list's author, and whoever the house
- * tagged "Dictionary Concept Curator". One ask, both reads at once (the
- * entries and the house's taggings), into the EventStore (ADR 0005); every
+ * The concepts the Dictionary shows (lib/dictionaryConcepts), read instead of
+ * deployed: the house's "Dictionary Concept Curator" taggings say who curates,
+ * then those curators' headers that point at themselves are the concepts. Two
+ * asks into the EventStore (ADR 0005), the second keyed on the curators the
+ * first settled on, so it isn't asked again per tagging that arrives; every
  * page that needs the set shares it, and it stays live as events arrive.
  *
  * Until an answer settles, the set is the one the device last read (a
@@ -81,31 +81,39 @@ function useHouse(): string | null | undefined {
  */
 export function useDictionaryConcepts(): DictionaryConcepts {
   const house = useHouse();
-  const filters = useMemo(
-    () =>
-      house === undefined
-        ? null
-        : [
-            { kinds: [39999], "#z": [CONCEPT_LIST] },
-            ...(house ? [{ kinds: [39999], authors: [house], "#a": [CURATOR_TAG] }] : []),
-          ],
+  const taggingFilters = useMemo(
+    () => (house ? [{ kinds: [39999], authors: [house], "#a": [CURATOR_TAG] }] : null),
     [house],
   );
-  const { events, settled } = useStoreEvents(
-    filters ? `dictionary-concepts:${house ?? "no-house"}` : null,
-    filters,
-    () => readListEvents(filters ?? [], READ_MS, dictionaryRelays()),
+  const taggings = useStoreEvents(
+    house ? `dictionary-curators:${house}` : null,
+    taggingFilters,
+    () => readListEvents(taggingFilters ?? [], READ_MS, dictionaryRelays()),
+    WINDOW,
+  );
+  const curators = useMemo(
+    () => curatorsOf(taggings.events, { house: house ?? null, curatorTag: CURATOR_TAG }).sort(),
+    [taggings.events, house],
+  );
+
+  const curatorsKey = taggings.settled ? curators.join(",") : "";
+  const headerFilters = useMemo(
+    () => (curatorsKey ? [{ kinds: [39998], authors: curatorsKey.split(",") }] : null),
+    [curatorsKey],
+  );
+  const headers = useStoreEvents(
+    curatorsKey ? `dictionary-concepts:${curatorsKey}` : null,
+    headerFilters,
+    () => readListEvents(headerFilters ?? [], READ_MS, dictionaryRelays()),
     WINDOW,
   );
 
-  const read = useMemo(() => {
-    const curators = curatorsOf(events, {
-      house: house ?? null,
-      curatorTag: CURATOR_TAG,
-      listAuthor: CONCEPT_LIST_AUTHOR,
-    });
-    return conceptsOf(events, curators, CONCEPT_LIST).filter((c) => !ROLE_CONCEPTS.includes(c));
-  }, [events, house]);
+  const read = useMemo(
+    () => conceptsOf(headers.events, curators).filter((c) => !ROLE_CONCEPTS.includes(c)),
+    [headers.events, curators],
+  );
+  // No house, nothing to ask: settled on nothing, so a page doesn't wait for good.
+  const settled = house === null || (taggings.settled && (!curatorsKey || headers.settled));
 
   useEffect(() => {
     if (settled && read.length) remember(read);

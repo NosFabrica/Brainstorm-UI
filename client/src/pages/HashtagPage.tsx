@@ -15,7 +15,7 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { getActivePreset, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
-import { publicOrigin } from "@/lib/publicOrigin";
+import { hashtagShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 
@@ -186,14 +186,15 @@ export default function HashtagPage() {
   const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], { extraPubkeys: authorPubkeys });
 
   const loading = notes.loading || (scoredAuthors.length > 0 && scoresQuery.isLoading);
-  const shareUrl = typeof window !== "undefined" ? `${publicOrigin()}/t/${tag}` : "";
+  const { canonicalUrl: shareUrl, ...shortLink } = hashtagShortLink(tag);
+  const mintShortUrl = useMintShortLink(shortLink);
 
   return (
     <ShareNavProvider>
       <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <PublicPageHeader
           maxWidthClass="max-w-2xl"
-          actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} />}
+          actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} mint={mintShortUrl} />}
         />
 
         <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6" data-testid="hashtag-page">
@@ -209,7 +210,9 @@ export default function HashtagPage() {
             actions={
               <EntityMenu
                 entity={{ kind: "hashtag", bech32: tag, uri: "" }}
-                copies={[{ id: "link", label: "Copy link", value: shareUrl, hint: "This page's address" }]}
+                copies={[
+                  { id: "link", label: "Copy link", value: shareUrl, hint: "This page's address", mint: mintShortUrl },
+                ]}
                 triggerTestId="hashtag-menu"
               />
             }

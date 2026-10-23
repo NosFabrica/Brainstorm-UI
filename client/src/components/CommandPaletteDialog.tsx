@@ -30,7 +30,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useTheme } from "@/lib/theme";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/accounts/login-flow";
@@ -61,7 +61,7 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
     toast({ title: "Copied!", description: "npub copied to clipboard" });
   };
 
-  const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
+  const inviteUrl = useShortLink({ ...profileShortLink(user?.npub ?? ""), enabled: inviteOpen });
 
   return (
     <>

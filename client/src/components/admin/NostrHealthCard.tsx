@@ -173,7 +173,7 @@ function CheckRow({
       <StatusIcon status={status} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-medium leading-tight text-slate-700 dark:text-slate-200">{label}</p>
-        {detail && <p className="mt-0.5 text-[10px] leading-tight text-slate-500 dark:text-slate-400">{detail}</p>}
+        {detail && <p className="mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{detail}</p>}
         {children}
       </div>
     </div>
@@ -196,12 +196,12 @@ function MismatchPair({
   return (
     <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-1.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-        <p className="mb-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70">
+        <p className="mb-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70">
           {expectedLabel}
         </p>
         <div className="flex min-w-0 items-center gap-1">
           <code
-            className="flex-1 truncate font-mono text-[9px] text-emerald-800 dark:text-emerald-200"
+            className="flex-1 truncate font-mono text-[10px] text-emerald-800 dark:text-emerald-200"
             data-testid={`${testIdPrefix}-expected`}
           >
             {expected || "—"}
@@ -210,12 +210,12 @@ function MismatchPair({
         </div>
       </div>
       <div className="rounded-md border border-red-100 bg-red-50/60 p-1.5 dark:border-red-500/25 dark:bg-red-500/10">
-        <p className="mb-0.5 text-[8px] font-bold uppercase tracking-wide text-red-700/70 dark:text-red-300/70">
+        <p className="mb-0.5 text-[11px] font-bold uppercase tracking-wide text-red-700/70 dark:text-red-300/70">
           {actualLabel}
         </p>
         <div className="flex min-w-0 items-center gap-1">
           <code
-            className="flex-1 truncate font-mono text-[9px] text-red-800 dark:text-red-200"
+            className="flex-1 truncate font-mono text-[10px] text-red-800 dark:text-red-200"
             data-testid={`${testIdPrefix}-actual`}
           >
             {actual || "—"}
@@ -333,12 +333,12 @@ function TagDetailCard({
     <div className={`rounded-lg border ${cardClasses[cardTone]} space-y-1.5 p-2`} data-testid={`${testIdPrefix}-card`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             {slotLabel} #{detail.index + 1}
           </span>
           {isFullyActive ? (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+              className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
               data-testid={`${testIdPrefix}-winner`}
             >
               <CheckCircle2 className="h-2.5 w-2.5" />
@@ -346,7 +346,7 @@ function TagDetailCard({
             </span>
           ) : detail.isWinner ? (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
               data-testid={`${testIdPrefix}-best-match`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -354,7 +354,7 @@ function TagDetailCard({
             </span>
           ) : cardTone === "warn" ? (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
               data-testid={`${testIdPrefix}-stale`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -362,7 +362,7 @@ function TagDetailCard({
             </span>
           ) : (
             <span
-              className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+              className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-300"
               data-testid={`${testIdPrefix}-duplicate`}
             >
               Duplicate
@@ -371,7 +371,7 @@ function TagDetailCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span
-            className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
+            className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${
               pubkeyTone === "ok"
                 ? "text-emerald-600 dark:text-emerald-400"
                 : pubkeyTone === "error"
@@ -384,7 +384,7 @@ function TagDetailCard({
             Pubkey
           </span>
           <span
-            className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
+            className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${
               relayTone === "ok"
                 ? "text-emerald-600 dark:text-emerald-400"
                 : relayTone === "error"
@@ -400,11 +400,11 @@ function TagDetailCard({
       </div>
       <div className="grid grid-cols-1 gap-1">
         <div className="flex min-w-0 items-center gap-1">
-          <span className="w-12 shrink-0 text-[8px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <span className="w-12 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Pubkey
           </span>
           <code
-            className="flex-1 truncate font-mono text-[9px] text-slate-700 dark:text-slate-200"
+            className="flex-1 truncate font-mono text-[10px] text-slate-700 dark:text-slate-200"
             data-testid={`${testIdPrefix}-pubkey-value`}
           >
             {detail.innerPubkey || "—"}
@@ -412,11 +412,11 @@ function TagDetailCard({
           {detail.innerPubkey && <MiniCopy text={detail.innerPubkey} testId={`button-copy-${testIdPrefix}-pubkey`} />}
         </div>
         <div className="flex min-w-0 items-center gap-1">
-          <span className="w-12 shrink-0 text-[8px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <span className="w-12 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Relay
           </span>
           <code
-            className="flex-1 truncate font-mono text-[9px] text-slate-700 dark:text-slate-200"
+            className="flex-1 truncate font-mono text-[10px] text-slate-700 dark:text-slate-200"
             data-testid={`${testIdPrefix}-relay-value`}
           >
             {detail.relayHint || "—"}
@@ -473,7 +473,7 @@ function AllTagsDisclosure({
           </span>
           {hasIssues && (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
               data-testid={`${testIdPrefix}-issues-badge`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -481,7 +481,7 @@ function AllTagsDisclosure({
             </span>
           )}
         </div>
-        <span className="text-[9px] text-slate-500 dark:text-slate-400">{open ? "Hide details" : "Show all"}</span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400">{open ? "Hide details" : "Show all"}</span>
       </button>
       {open && (
         <div id={listId} className="mt-1.5 space-y-1.5" data-testid={`${testIdPrefix}-list`}>
@@ -571,7 +571,7 @@ function Nip85Panel({ taPubkey, query }: { taPubkey: string | null; query: Nip85
           data-testid="status-nip85-no-ta"
         >
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
-          <p className="text-[10px] leading-tight text-slate-600 dark:text-slate-300">
+          <p className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">
             TA pubkey not yet assigned for this user. Inner-pubkey checks are unavailable until the backend assigns one.
           </p>
         </div>
@@ -585,7 +585,7 @@ function Nip85Panel({ taPubkey, query }: { taPubkey: string | null; query: Nip85
           data-testid="status-nip85-error"
         >
           <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-          <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch kind 10040 from relays.</p>
+          <p className="text-[11px] text-red-700 dark:text-red-300">Failed to fetch kind 10040 from relays.</p>
         </div>
       ) : data ? (
         <div className="space-y-0.5">
@@ -773,7 +773,7 @@ function AssignedAssistantSection({
           </p>
           {selfAssigned && (
             <span
-              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
+              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
               data-testid="badge-assistant-self-assigned"
             >
               Self-assigned
@@ -782,7 +782,7 @@ function AssignedAssistantSection({
         </div>
         <div className="flex min-w-0 items-center gap-1">
           <code
-            className="truncate font-mono text-[9px] text-slate-500 dark:text-slate-400"
+            className="truncate font-mono text-[10px] text-slate-500 dark:text-slate-400"
             data-testid="text-assistant-pubkey"
           >
             {truncateMid(assistantPubkey)}
@@ -807,7 +807,7 @@ function AssignedAssistantSection({
           data-testid="status-assistant-kind0-error"
         >
           <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-          <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch assistant kind 0 from relays.</p>
+          <p className="text-[11px] text-red-700 dark:text-red-300">Failed to fetch assistant kind 0 from relays.</p>
         </div>
       ) : !event || !profile ? (
         <div
@@ -815,7 +815,7 @@ function AssignedAssistantSection({
           data-testid="status-assistant-kind0-empty"
         >
           <Info className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
-          <p className="text-[10px] text-slate-600 dark:text-slate-300">
+          <p className="text-[11px] text-slate-600 dark:text-slate-300">
             {event
               ? "Assistant kind 0 found but content could not be parsed."
               : "No kind 0 metadata found on relays for assigned assistant."}
@@ -839,7 +839,7 @@ function AssignedAssistantSection({
               </p>
               {profile.nip05 && (
                 <p
-                  className="truncate text-[10px] text-slate-500 dark:text-slate-400"
+                  className="truncate text-[11px] text-slate-500 dark:text-slate-400"
                   data-testid="text-assistant-nip05"
                 >
                   {profile.nip05}
@@ -866,7 +866,7 @@ function AssignedAssistantSection({
 
           {profile.about && (
             <p
-              className="line-clamp-2 text-[10px] leading-snug text-slate-600 dark:text-slate-300"
+              className="line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-300"
               data-testid="text-assistant-about"
             >
               {profile.about}
@@ -942,7 +942,7 @@ function Kind0Panel({
           data-testid="status-kind0-error"
         >
           <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-          <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch kind 0 from relays.</p>
+          <p className="text-[11px] text-red-700 dark:text-red-300">Failed to fetch kind 0 from relays.</p>
         </div>
       ) : !event || !profile ? (
         <div
@@ -950,7 +950,7 @@ function Kind0Panel({
           data-testid="status-kind0-empty"
         >
           <Info className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
-          <p className="text-[10px] text-slate-600 dark:text-slate-300">
+          <p className="text-[11px] text-slate-600 dark:text-slate-300">
             {event ? "Kind 0 event found but content could not be parsed." : "No kind 0 metadata found on relays."}
           </p>
         </div>
@@ -971,7 +971,7 @@ function Kind0Panel({
                 {displayName}
               </p>
               {profile.nip05 && (
-                <p className="truncate text-[10px] text-slate-500 dark:text-slate-400" data-testid="text-kind0-nip05">
+                <p className="truncate text-[11px] text-slate-500 dark:text-slate-400" data-testid="text-kind0-nip05">
                   {profile.nip05}
                 </p>
               )}
@@ -996,7 +996,7 @@ function Kind0Panel({
 
           {profile.about && (
             <p
-              className="line-clamp-2 text-[10px] leading-snug text-slate-600 dark:text-slate-300"
+              className="line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-300"
               data-testid="text-kind0-about"
             >
               {profile.about}

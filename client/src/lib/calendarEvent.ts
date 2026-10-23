@@ -1,15 +1,23 @@
-// NIP-52 calendar events (kind 31922 date-based / 31923 time-based): parsing
-// and display formatting. Going to one is a NIP-52 RSVP (services/rsvp), not
-// a calendar-vendor link.
+// NIP-52 calendar events (kind 31922 date-based / 31923 time-based), and Event
+// Index's list items (kind 39999 under its Events list, config/events), which
+// copy NIP-52's field names: parsing and display formatting. Going to a NIP-52
+// event is an RSVP (services/rsvp); an item only links out to its RSVP page.
 
 import type { MinimalEvent } from "@/lib/noteRefs";
+
+/** A list item: the kind Event Index's Events list holds (config/events). */
+export const EVENT_ITEM_KIND = 39999;
 
 export interface CalendarEvent {
   title: string;
   startSec: number;
   endSec: number;
-  isDateOnly: boolean; // kind 31922 has no time component
+  isDateOnly: boolean; // kind 31922, or an item whose start is a date, has no time component
   location?: string;
+  /** A list item's organizer, as text — the feed's calendar name, never a nostr name. */
+  organizer?: string;
+  /** Called off: the status tag, or a title that says so for clients that ignore the tag. */
+  cancelled: boolean;
   image?: string;
   summary?: string;
   recordingUrl?: string; // a recording/replay link for past events, when present
@@ -38,12 +46,17 @@ export function parseCalendarEvent(ev: MinimalEvent): CalendarEvent {
     webUrl(tag("streaming")) ||
     (ev.content || "").match(/https?:\/\/\S+\.(mp4|webm|m3u8|mov|youtube\.com\/\S+|youtu\.be\/\S+)/i)?.[0] ||
     undefined;
+  const rawTitle = tag("title") || tag("name") || "Event";
+  const saidCancelled = /^cancelled:\s*/i.test(rawTitle);
+  const start = tag("start");
   return {
-    title: tag("title") || tag("name") || "Event",
-    startSec: toSec(tag("start")),
+    title: saidCancelled ? rawTitle.replace(/^cancelled:\s*/i, "") : rawTitle,
+    startSec: toSec(start),
     endSec: toSec(tag("end")),
-    isDateOnly: ev.kind === 31922,
+    isDateOnly: ev.kind === 31922 || (ev.kind === EVENT_ITEM_KIND && /^\d{4}-\d{2}-\d{2}$/.test(start ?? "")),
     location: tag("location"),
+    organizer: tag("organizer")?.trim() || undefined,
+    cancelled: saidCancelled || tag("status")?.toLowerCase() === "cancelled",
     image: tag("image"),
     summary: (tag("summary") || ev.content || "").trim() || undefined,
     recordingUrl,

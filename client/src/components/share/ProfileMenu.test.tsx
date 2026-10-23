@@ -10,7 +10,11 @@ import { nip19 } from "nostr-tools";
 import { ProfileMenu } from "./ProfileMenu";
 
 const copyMock = vi.fn(async (_text: string) => true);
-vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
+const copyPromisedMock = vi.fn(async (_text: Promise<string>, _fallback: string) => true);
+vi.mock("@/lib/clipboard", () => ({
+  copyToClipboard: (text: string) => copyMock(text),
+  copyPromisedText: (text: Promise<string>, fallback: string) => copyPromisedMock(text, fallback),
+}));
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 const muteUser = vi.fn(async (_pk: string) => ({ success: true }));
@@ -29,10 +33,17 @@ const npub = nip19.npubEncode(PK);
 const RELAYS = ["wss://one.example", "wss://two.example"];
 const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0 Safari/537.36";
 
+const LONG = `https://brainstorm.world/p/${npub}`;
+const SHORT = "https://brainstorm.world/s/AB3XK9QZ";
 const onReview = vi.fn();
 function menuFor(
   viewer: { loggedIn: boolean; isOwner: boolean; isAdmin: boolean },
-  extra: Partial<{ initialMuted: boolean; alreadyReported: boolean; review: "write" | "edit" | null }> = {},
+  extra: Partial<{
+    initialMuted: boolean;
+    alreadyReported: boolean;
+    review: "write" | "edit" | null;
+    link: { url: string; mint?: () => Promise<string> };
+  }> = {},
 ) {
   render(
     <ProfileMenu
@@ -45,6 +56,7 @@ function menuFor(
       searchHref={`/search?from=${npub}`}
       review={extra.review === undefined ? (viewer.loggedIn && !viewer.isOwner ? "write" : null) : extra.review}
       onReview={onReview}
+      link={extra.link}
       ua={MAC}
     />,
   );
@@ -56,6 +68,7 @@ const open = async () => {
 
 beforeEach(() => {
   copyMock.mockClear();
+  copyPromisedMock.mockClear();
   toast.mockClear();
   onReview.mockClear();
   muteUser.mockClear();
@@ -191,5 +204,27 @@ describe("ProfileMenu", () => {
       expect(within(menu).getByTestId("share-search-posts")).toHaveTextContent("Search your posts");
       expect(within(menu).queryByTestId("share-review")).toBeNull();
     });
+  });
+
+  it("Copy link leads the copies and copies the short link, the long one standing by", async () => {
+    menuFor({ loggedIn: false, isOwner: false, isAdmin: false }, { link: { url: LONG, mint: async () => SHORT } });
+    const menu = await open();
+    const link = within(menu).getByTestId("menu-copy-link");
+    expect(link).toHaveTextContent("Copy link");
+    expect(
+      link.compareDocumentPosition(within(menu).getByTestId("menu-copy-npub")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(link);
+    await waitFor(() => expect(copyPromisedMock).toHaveBeenCalledTimes(1));
+    const [text, fallback] = copyPromisedMock.mock.calls[0];
+    expect(await text).toBe(SHORT);
+    expect(fallback).toBe(LONG);
+    expect(copyMock).not.toHaveBeenCalled();
+  });
+
+  it("Copy link without a shortener copies the long link", async () => {
+    menuFor({ loggedIn: false, isOwner: false, isAdmin: false }, { link: { url: LONG } });
+    fireEvent.click(within(await open()).getByTestId("menu-copy-link"));
+    await waitFor(() => expect(copyMock).toHaveBeenCalledWith(LONG));
   });
 });

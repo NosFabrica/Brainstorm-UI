@@ -20,6 +20,8 @@ import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { onlySelfDeclared } from "@/lib/tagCounts";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { tagShortLink, useMintShortLink } from "@/hooks/useShortLink";
+import { ShareButton } from "@/components/share/ShareButton";
 import type { TagCarrier } from "@/services/tags";
 
 /**
@@ -149,6 +151,8 @@ export default function TagPage() {
 
   const status = detailQuery.data?.status;
   useTagMeta(tagName, carriers.length, status === "ok");
+  const { canonicalUrl: shareUrl, ...shortLink } = tagShortLink(authorPubkey ?? "", slug ?? "");
+  const mintShortUrl = useMintShortLink(shortLink);
   const visible = useMemo(() => {
     let list = carriers;
     if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
@@ -210,7 +214,14 @@ export default function TagPage() {
 
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader maxWidthClass="max-w-2xl" />
+      <PublicPageHeader
+        maxWidthClass="max-w-2xl"
+        actions={
+          // Gated like the byline: no link to a tag the relays haven't confirmed.
+          shareUrl &&
+          status === "ok" && <ShareButton url={shareUrl} title={`${tagName} on Brainstorm`} mint={mintShortUrl} />
+        }
+      />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6 sm:py-8" data-testid="tag-page">
         <button
           type="button"
