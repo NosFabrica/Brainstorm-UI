@@ -80,6 +80,7 @@ import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS, shareUrlFor 
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { eventShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import { shareSnippet } from "@/lib/shareSnippet";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
@@ -356,6 +357,9 @@ function EventView({
   // A list item is shared by its address: an id link someone arrived by goes stale at the next import.
   const pageUrl = publicPageUrl();
   const shareUrl = note && pageUrl ? shareUrlFor(note, pageUrl, relayHints) : pageUrl;
+  const mintShortUrl = useMintShortLink(
+    note ? eventShortLink(note, { relays: relayHints }) : { kind: "event", key: "" },
+  );
   useShareMeta(
     note
       ? {
@@ -415,6 +419,7 @@ function EventView({
           origin: renderedGenerically ? originClientOf(note) : undefined,
         }}
         copies={[
+          { id: "link", label: "Copy link", value: shareUrl, mint: mintShortUrl },
           ...(naddr
             ? [
                 {
@@ -463,7 +468,10 @@ function EventView({
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
-      <PublicPageHeader maxWidthClass="max-w-2xl" actions={<ShareButton url={shareUrl} title={pageTitle} />} />
+      <PublicPageHeader
+        maxWidthClass="max-w-2xl"
+        actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />}
+      />
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
         {!ptr ? (

@@ -34,6 +34,7 @@ import { KindPill } from "@/components/ui/kind-pill";
 import { specKindTags } from "@/lib/kindLabel";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { eventShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
@@ -301,10 +302,22 @@ export type ArticleEvent = {
 };
 
 /** The article layout's page: header, column, footer. */
-export function ArticleShell({ title, children }: { title: string; children: React.ReactNode }) {
+export function ArticleShell({
+  title,
+  mint,
+  children,
+}: {
+  title: string;
+  /** Mints the Share pill's short link (`useMintShortLink`). */
+  mint?: () => Promise<string>;
+  children: React.ReactNode;
+}) {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <PublicPageHeader maxWidthClass="max-w-3xl" actions={<ShareButton url={publicPageUrl()} title={title} />} />
+      <PublicPageHeader
+        maxWidthClass="max-w-3xl"
+        actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />}
+      />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
         {children}
         <div className="mt-10 text-center">
@@ -422,6 +435,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   const here = typeof window !== "undefined" ? window.location.pathname : "";
   const funnelLoginHref = `/login?${[authorNpub ? `invite=${authorNpub}` : "", here ? `next=${encodeURIComponent(here)}` : ""].filter(Boolean).join("&")}`;
 
+  const mintShortUrl = useMintShortLink(eventShortLink(ev, { relays: ptr?.relays }));
   useShareMeta(
     ev
       ? {
@@ -434,7 +448,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   );
 
   return (
-    <ArticleShell title={`${title} — Brainstorm`}>
+    <ArticleShell title={`${title} — Brainstorm`} mint={mintShortUrl}>
       <ShareNavProvider>
         <article>
           {image && (
@@ -592,6 +606,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
                 <EntityMenu
                   entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
                   copies={[
+                    { id: "link", label: "Copy link", value: publicPageUrl(), mint: mintShortUrl },
                     { id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" },
                   ]}
                   triggerTestId="article-menu"
