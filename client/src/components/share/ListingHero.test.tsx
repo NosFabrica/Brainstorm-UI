@@ -165,22 +165,20 @@ describe("ListingHero", () => {
     expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
   });
 
-  it("a listing with no shop link and no marketplace we know still opens the seller's own website, when their profile names one", () => {
-    // The Bitcoin Shop UK's "The Cathedral" (2026-09-24): published through Gamma Markets, no link on the listing, thebitcoinshop.uk on the profile.
-    render(
-      <ListingHero
-        event={listing([["client", "gamma-markets-bulk-updater"]])}
-        sellerWebsite="https://thebitcoinshop.uk/"
-      />,
-    );
+  it("a listing with no shop link and no marketplace we know is bought on Conduit, at its own product page", () => {
+    // Orange Horizon's shoes (2026-10-19): no link on the listing; the profile's website was a storefront elsewhere, not this product.
+    render(<ListingHero event={listing([["client", "gamma-markets-bulk-updater"]])} />);
     const shop = screen.getByTestId("listing-hero-shop");
-    expect(shop).toHaveTextContent("Visit thebitcoinshop.uk");
-    expect(shop.getAttribute("href")).toBe("https://thebitcoinshop.uk/");
+    expect(shop).toHaveTextContent(/^Buy on Conduit$/);
+    expect(shop.getAttribute("href")).toMatch(
+      /^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/,
+    );
     expect(shop.getAttribute("target")).toBe("_blank");
   });
 
-  it("a listing with no shop link offers only the message, and a sold one says so", () => {
-    render(<ListingHero event={listing([["status", "sold"]])} />);
+  it("a listing with no address offers only the message, and a sold one says so", () => {
+    const sold = listing([["status", "sold"]]);
+    render(<ListingHero event={{ ...sold, tags: sold.tags.filter((t) => t[0] !== "d") }} />);
     expect(screen.queryByTestId("listing-hero-shop")).toBeNull();
     expect(screen.getByTestId("listing-hero-status")).toHaveTextContent(/Sold/i);
     expect(screen.getByTestId("listing-hero-message")).toBeInTheDocument();
@@ -452,7 +450,11 @@ describe("ListingHero", () => {
     });
 
     it("is not offered when there is nowhere to buy, or nothing for sale", () => {
-      const { unmount } = render(<ListingHero event={listing([])} />);
+      // No address: not even Conduit can open it.
+      const unaddressed = listing([]);
+      const { unmount } = render(
+        <ListingHero event={{ ...unaddressed, tags: unaddressed.tags.filter((t) => t[0] !== "d") }} />,
+      );
       act(() => report(false));
       expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
       unmount();

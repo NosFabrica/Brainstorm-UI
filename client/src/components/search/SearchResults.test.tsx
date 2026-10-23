@@ -2112,7 +2112,7 @@ describe("SearchResults", () => {
   });
 
   // A Conduit seller's listing with no twin still opens on Conduit, at their store.
-  it("a Conduit seller's other listing, published elsewhere with no twin, opens at their Conduit store", async () => {
+  it("a Conduit seller's other listing, published elsewhere with no twin, opens at its own Conduit product page", async () => {
     setUrlTab("shop");
     render(<SearchResults query="soap" pov="nosfabrica" />);
     const seller = "6".repeat(64);
@@ -2140,7 +2140,7 @@ describe("SearchResults", () => {
     });
     const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
     expect(open.getAttribute("href")).toMatch(
-      /^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/,
+      /^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/,
     );
   });
 
