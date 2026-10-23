@@ -104,7 +104,13 @@ import {
   type EventWhen,
 } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
-import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
+import {
+  EVENT_ITEM_KIND,
+  isOver,
+  parseCalendarEvent as parseCal,
+  relativeEventTime as relativeDay,
+} from "@/lib/calendarEvent";
+import { dedupeEvents } from "@/lib/eventDedupe";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isListed, parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
@@ -1232,7 +1238,13 @@ export function SearchResults({
     // per NIP-28 channel.
     if (isThingTab(tab))
       return oneCardPerChannel(base.filter((h) => describeThing(h.event)?.detail.type === THING_TAB_DETAIL[tab]));
-    if (tab === "events") return base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
+    // Event Index's list items join the Events tab (services/search): an aggregator's NIP-52 copy of
+    // one goes, and so does a second curator's item for the same page (lib/eventDedupe).
+    if (tab === "events") {
+      const shown = base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
+      const kept = new Set(dedupeEvents(shown.map((h) => h.event)).map((e) => e.id));
+      return shown.filter((h) => kept.has(h.event.id));
+    }
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
       const seen = new Set(base.map((h) => h.event.id));
@@ -2797,7 +2809,7 @@ export function SearchResults({
                             );
                           }
                           const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-                          if (EVENT_KINDS.has(event.kind)) {
+                          if (EVENT_KINDS.has(event.kind) || (tab === "events" && event.kind === EVENT_ITEM_KIND)) {
                             const r = rsvpsOf(event);
                             return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
                           }

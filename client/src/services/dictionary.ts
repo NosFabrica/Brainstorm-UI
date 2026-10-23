@@ -19,6 +19,7 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import { dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
+import { fetchFromSearchRelayByFilters } from "@/services/nostr";
 import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
 import { DLIST_ITEM_KINDS, coordinateOf, headerReferenceOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
 import { pointsAt, resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
@@ -204,6 +205,28 @@ export async function loadConceptItems(
   onFirst?: (items: DictionaryItem[]) => void,
 ): Promise<DictionaryItem[]> {
   return (await loadListItems(headers, hubRelays, onFirst)).items;
+}
+
+/** How many items a word search of one list asks the search relay for. */
+const MATCH_LIMIT = 200;
+
+/**
+ * The items filed under these headers whose text has these words, from the whole list: the search
+ * relay matches them over every item it holds, where a page's own read stops at ITEM_LIMIT.
+ * Food and Drink Places holds 7,954 items, and neither of its two named PubKey was among the first
+ * 500 either relay sent (2026-10-23); asked by the word, the relay finds both. The hub isn't
+ * asked: it has no full-text search. Every word must match, as on the page (lib/listSearch).
+ */
+export async function searchListItems(
+  headers: string[],
+  words: readonly string[],
+  limit = MATCH_LIMIT,
+): Promise<DictionaryItem[]> {
+  if (!headers.length || !words.length) return [];
+  const search = words.join(" ");
+  const filters = itemFilters(headers, limit).map((filter) => ({ ...filter, search }));
+  const events = (await fetchFromSearchRelayByFilters(filters, TIMEOUT_MS)) as DictionaryItem[];
+  return filedItems(events, headers);
 }
 
 /**

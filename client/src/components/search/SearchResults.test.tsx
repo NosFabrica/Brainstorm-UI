@@ -1079,6 +1079,62 @@ describe("SearchResults", () => {
       expect(screen.getByTestId("event-open-e-rec").getAttribute("href")).toBe("https://youtu.be/abc12345");
       expect(screen.getByTestId("event-open-e-rec")).toHaveTextContent(/replay/i);
     });
+
+    // Event Index files feed events as items on its Events list (kind 39999),
+    // not as NIP-52 events. The tab shows them as events: who hosts is the
+    // feed's organizer, and there is no RSVP to send (the item has none).
+    const item = (id: string, title: string, start: number, extra: string[][] = []) =>
+      ev(id, 39999, "b".repeat(64), "", [
+        ["d", id],
+        ["z", "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:events"],
+        ["title", title],
+        ["start", String(start)],
+        ["location", "Austin, TX"],
+        ["organizer", "PubKey"],
+        ...extra,
+      ]);
+
+    it("shows Event Index's list items as events, hosted by the feed's organizer", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="pubkey" pov="nosfabrica" />);
+      emit({
+        hits: [
+          {
+            event: item("i-trivia", "Trivia Night", nowSec + DAY),
+            author: author("b".repeat(64), "index"),
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 300,
+      });
+      const card = await screen.findByTestId("event-card-i-trivia");
+      expect(card).toHaveTextContent("Trivia Night");
+      expect(card).toHaveTextContent("Austin, TX");
+      expect(within(card).getByTestId("event-host-i-trivia")).toHaveTextContent("By PubKey");
+      expect(card).not.toHaveTextContent(/By\s*index/);
+      expect(within(card).queryByTestId("event-rsvp")).toBeNull();
+    });
+
+    it("shows an event once when an item names a NIP-52 copy of it", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="pubkey" pov="nosfabrica" />);
+      const start = nowSec + DAY;
+      emit({
+        hits: [
+          { event: cal("e-copy", "Trivia at PubKey", start + 3600), author: null, rank: null },
+          {
+            event: item("i-trivia", "Trivia Night", start, [["a", `31923:${"c".repeat(64)}:e-copy`, "", "copy"]]),
+            author: null,
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 300,
+      });
+      await screen.findByTestId("event-card-i-trivia");
+      expect(screen.queryByTestId("event-card-e-copy")).toBeNull();
+    });
   });
 
   // Benjamin: reviews, reviewer faces and quotes stay OFF the search cards —

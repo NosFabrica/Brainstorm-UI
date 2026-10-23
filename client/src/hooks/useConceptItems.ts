@@ -3,6 +3,7 @@ import {
   listHeaders,
   loadConceptItems,
   loadListItems,
+  searchListItems,
   type DictionaryEntry,
   type DictionaryItem,
 } from "@/services/dictionary";
@@ -28,6 +29,20 @@ export function useConceptItems(entry: DictionaryEntry | undefined, enabled = tr
         queryClient.setQueryData<DictionaryItem[]>(["concept-items", ...headers], (held) => held ?? first),
       ),
     enabled: enabled && headers.length > 0,
+    staleTime: STALE_MS,
+  });
+}
+
+/**
+ * A Dictionary concept's items that have these words, from the whole list (services/dictionary
+ * `searchListItems`): what a page's own read, which stops at its first 500, can miss.
+ */
+export function useConceptMatches(entry: DictionaryEntry | undefined, words: readonly string[], enabled = true) {
+  const headers = entry ? listHeaders(entry.communityCoordinate, entry.resolved) : [];
+  return useQuery({
+    queryKey: ["concept-matches", words.join(" "), ...headers],
+    queryFn: () => searchListItems(headers, words),
+    enabled: enabled && headers.length > 0 && words.length > 0,
     staleTime: STALE_MS,
   });
 }
