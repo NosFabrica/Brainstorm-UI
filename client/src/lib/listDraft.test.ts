@@ -91,6 +91,33 @@ describe("listHeaderTemplate", () => {
     expect(t.tags.at(-1)).toEqual(["b", "39998:abc:community-trucks", "pointer"]);
   });
 
+  it("keeps a tag the previous version carried twice once, first place first: a save comes out clean", () => {
+    const previous = {
+      tags: [
+        ["d", "food-trucks"],
+        ["license", "ODbL-1.0"],
+        ["r", "https://www.openstreetmap.org/copyright"],
+        ["r", "https://btcmap.org"],
+        ["license", "ODbL-1.0"],
+        ["r", "https://www.openstreetmap.org/copyright"],
+        ["r", "https://btcmap.org"],
+        // Not the same tag: it says more.
+        ["r", "https://btcmap.org", "source"],
+        ["b", "39998:abc:community-trucks", "pointer"],
+        ["b", "39998:abc:community-trucks", "pointer"],
+      ],
+    };
+    const t = listHeaderTemplate(draft(), { d: "food-trucks", author: ME, previous });
+    expect(t.tags.slice(-5)).toEqual([
+      ["license", "ODbL-1.0"],
+      ["r", "https://www.openstreetmap.org/copyright"],
+      ["r", "https://btcmap.org"],
+      ["r", "https://btcmap.org", "source"],
+      ["b", "39998:abc:community-trucks", "pointer"],
+    ]);
+    expect(t.tags.filter((x) => x[0] === "license")).toHaveLength(1);
+  });
+
   it("keeps a type the previous version gave, even plain text", () => {
     const t = listHeaderTemplate(draft(), {
       d: "food-trucks",

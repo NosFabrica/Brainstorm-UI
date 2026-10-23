@@ -110,7 +110,7 @@ import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useMintShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -773,6 +773,7 @@ export default function SharePage() {
   );
 
   const canonicalUrl = npub ? `${publicOrigin()}/p/${npub}` : "";
+  const mintShortUrl = useMintShortLink(profileShortLink(npub, relayHints));
 
   // NOTE on the invite model: clicking a "Join" CTA below carries `?invite=<npub>`,
   // so a new account created from this profile auto-follows its owner (new user →
@@ -922,6 +923,7 @@ export default function SharePage() {
       searchHref={scopedSearchHref(pubkey, "top")}
       review={canReview ? (hasMyReview ? "edit" : "write") : null}
       onReview={() => setComposeRequest((n) => n + 1)}
+      link={{ url: canonicalUrl, mint: mintShortUrl }}
     />
   );
   // Desktop: Message + Follow + ⋯ top-right with the avatar. Phone: Message
@@ -947,6 +949,7 @@ export default function SharePage() {
         <ShareButton
           url={canonicalUrl}
           title={`${displayName} on Brainstorm`}
+          mint={mintShortUrl}
           modal={(ctl) => (
             <ProfileShareSheet
               {...ctl}
@@ -1689,7 +1692,7 @@ function ProfileShareSheet({
   relays,
   ...props
 }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
-  const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
+  const shareUrl = useShortLink({ ...profileShortLink(props.npub, relays), enabled: props.open });
   return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 

@@ -6,6 +6,8 @@
  * back, so stale results structurally cannot flash).
  */
 import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
+import { useTabCounts } from "@/hooks/useTabCounts";
+import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
@@ -324,6 +326,8 @@ const SOON_TABS: { key: string; label: string; title: string }[] = [
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
+/** The tabs a search counts results for (hooks/useTabCounts): every vertical, the row's first. */
+const COUNTED_TABS: SearchTab[] = TABS.map((t) => t.key).filter((key) => key !== "top" && key !== "all");
 
 const tabClass = (active: boolean) =>
   "shrink-0 px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
@@ -340,6 +344,8 @@ function MoreTabs({
   kinds = [],
   kind = null,
   onKind,
+  offers = () => true,
+  counts = {},
 }: {
   tab: SearchTab;
   onChange: (next: SearchTab) => void;
@@ -348,21 +354,38 @@ function MoreTabs({
   /** The kind whose page is open, if any. */
   kind?: string | null;
   onKind?: (key: string) => void;
+  /** Whether the words find anything under a tab (lib/tabCounts): one known to hold nothing isn't offered. */
+  offers?: (key: SearchTab) => boolean;
+  /** How many results each tab holds, for the order within a group: most first. */
+  counts?: TabCounts;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const activeKind = kinds.find((k) => k.key === kind);
   const active = activeKind ?? (kind ? undefined : MORE_TABS.find((t) => t.key === tab));
   // Each kind sits in its group, after the group's own tabs; a group nobody else uses comes before Lists.
+  // Within a group the tabs the words find most come first; a group left with nothing goes, and its
+  // heading with it.
   const groups = useMemo(() => {
-    const out = MORE_GROUPS.map((g) => ({ ...g, kinds: [] as ListKindSearch[] }));
+    const out = MORE_GROUPS.map((g) => ({
+      ...g,
+      tabs: byCount(
+        g.tabs.filter((t) => offers(t.key)),
+        counts,
+      ),
+      kinds: [] as ListKindSearch[],
+    }));
     for (const k of kinds) {
       const g = out.find((x) => x.title === k.group);
       if (g) g.kinds.push(k);
       else out.splice(out.length - 1, 0, { title: k.group, tabs: [], kinds: [k] });
     }
-    return out;
-  }, [kinds]);
+    return out.filter((g) => g.tabs.length > 0 || g.kinds.length > 0);
+  }, [kinds, offers, counts]);
+  // An open menu holds still: what the counts change while it is open waits for it to close, so
+  // nothing moves or vanishes under the pointer.
+  const [held, setHeld] = useState<typeof groups | null>(null);
+  const shown = open && held ? held : groups;
 
   useEffect(() => {
     if (!open) return;
@@ -380,6 +403,9 @@ function MoreTabs({
     };
   }, [open]);
 
+  // Nothing behind it for these words, and nothing behind it open: no More.
+  if (shown.length === 0 && !active) return null;
+
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
@@ -388,7 +414,10 @@ function MoreTabs({
         aria-selected={!!active}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) setHeld(groups);
+          setOpen(!open);
+        }}
         className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
         data-testid="search-tab-more"
       >
@@ -401,7 +430,7 @@ function MoreTabs({
           aria-label="More result types"
           className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {groups.map((g, gi) => (
+          {shown.map((g, gi) => (
             <div
               key={g.title ?? "rest"}
               className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
@@ -996,6 +1025,49 @@ export function SearchResults({
   // The Top page's own results first: the previews' row-ordering lookups wait for the people to
   // answer (hooks/useSearchPriority), so they never queue in front of them at the relay.
   const searchPriority = useSearchPriorityState(composed && !activeKind, sections.people, query);
+  // How many results each tab holds for the words (hooks/useTabCounts), asked once the page's own
+  // results have answered so the counts never queue in front of them: a tab known to hold nothing
+  // leaves the row and the More menu (lib/tabCounts), and More's groups lead with what has most.
+  // A vertical's page has answered when ITS snapshot has, not the one the last words or tab left
+  // on screen (hooks/useSearchPriority tells them apart). A sort changes the order, not the count,
+  // except `sort:text`, which drops the trust floor: that one rides along (services/search's
+  // countTabs asks newest-first otherwise).
+  const pageAnswered = useSearchPriorityState(!composed, snapshot, `${pov}|${userPubkey ?? ""}|${tab}|${query}`);
+  const countQuery = useMemo(
+    () => applyFilters(query, { sort: readFilters(query).sort === "text" ? "text" : null }),
+    [query],
+  );
+  const tabCounts = useTabCounts(countQuery, COUNTED_TABS, {
+    pov,
+    userPubkey,
+    ready: composed ? searchPriority : pageAnswered,
+  });
+  const scoped = !!scopeOf(query);
+  // While focus or the pointer is in the tab strip, it holds the tabs it had: a settled row that
+  // removed the focused tab would drop focus to the page, and one that moved under the pointer
+  // would turn a click into the wrong tab. It settles when both have left. New words arriving
+  // meanwhile hold the full row, since what the strip had was the last words' answer.
+  const [rowHold, setRowHold] = useState<{
+    pointer: boolean;
+    focus: boolean;
+    evidence: TabEvidence;
+    query: string;
+  } | null>(null);
+  const liveEvidence = useMemo<TabEvidence>(() => ({ ...tabCounts, scoped }), [tabCounts, scoped]);
+  const holdRow = (part: "pointer" | "focus", on: boolean) =>
+    setRowHold((h) => {
+      const next = { pointer: h?.pointer ?? false, focus: h?.focus ?? false, [part]: on };
+      if (!next.pointer && !next.focus) return null;
+      return h ? { ...h, ...next } : { ...next, evidence: liveEvidence, query: countQuery };
+    });
+  const tabEvidence = useMemo<TabEvidence>(
+    () => (!rowHold ? liveEvidence : rowHold.query === countQuery ? rowHold.evidence : { counts: {}, scoped }),
+    [rowHold, liveEvidence, countQuery, scoped],
+  );
+  const offers = useCallback(
+    (key: SearchTab) => offersTab(key, !activeKind && tab === key, tabEvidence),
+    [activeKind, tab, tabEvidence],
+  );
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
   // A browse (no words) asking for a sort the relay cannot run over the whole
@@ -2057,6 +2129,12 @@ export function SearchResults({
           <div
             className="-mx-1 mb-2 flex items-stretch border-b border-slate-100 px-1 dark:border-slate-800/60 sm:mb-3"
             data-testid="search-toolbar"
+            onPointerEnter={() => holdRow("pointer", true)}
+            onPointerLeave={() => holdRow("pointer", false)}
+            onFocus={() => holdRow("focus", true)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) holdRow("focus", false);
+            }}
           >
             <div
               role="tablist"
@@ -2064,7 +2142,7 @@ export function SearchResults({
               className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
               data-testid="search-tabs"
             >
-              {PRIMARY_TABS.map((t) => (
+              {PRIMARY_TABS.filter((t) => offers(t.key)).map((t) => (
                 <button
                   key={t.key}
                   type="button"
@@ -2079,7 +2157,15 @@ export function SearchResults({
               ))}
             </div>
             <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
-              <MoreTabs tab={tab} onChange={changeTab} kinds={kinds} kind={activeKind?.key ?? null} onKind={openKind} />
+              <MoreTabs
+                tab={tab}
+                onChange={changeTab}
+                kinds={kinds}
+                kind={activeKind?.key ?? null}
+                onKind={openKind}
+                offers={offers}
+                counts={tabEvidence.counts}
+              />
               {perspective}
               {/* The syntax sheet, before the sorting: what can be typed into the box is the
               question people have first. The mark alone — a labelled button wraps this row

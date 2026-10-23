@@ -15,6 +15,8 @@
  * - every tag the form doesn't speak kept as it was when an existing list is
  *   edited (`r`, `license`, `item-kind`, `alt`, …): editing never drops what
  *   it can't show. `client` is the one exception — signing stamps a fresh one.
+ *   A tag kept twice, exactly, is kept once: the form can't remove a repeat,
+ *   so the next save does.
  *
  * And the preview: the list's definition built from the draft, and an example
  * item from values typed for its fields, so the real renderers draw it
@@ -105,11 +107,22 @@ export function pointsAtItself(header: { pubkey: string; tags: string[][] }): bo
   return header.tags.some((t) => t[0] === "b" && t[1] === listCoordinate(header.pubkey, d));
 }
 
+/** Each tag once, where it first appears: a repeat is a tag equal to an earlier one in every element. */
+function distinct(tags: string[][]): string[][] {
+  const seen = new Set<string>();
+  return tags.filter((t) => {
+    const key = JSON.stringify(t);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * The list's header as an unsigned event. `previous` is the version being
- * edited, if any: its other tags are kept, a `b` pointing elsewhere among
- * them. `selfPointer` decides the `b` pointing at itself — the list's own
- * earlier one, exactly, if it had one.
+ * edited, if any: its other tags are kept, once each, a `b` pointing
+ * elsewhere among them. `selfPointer` decides the `b` pointing at itself —
+ * the list's own earlier one, exactly, if it had one.
  */
 export function listHeaderTemplate(
   draft: CopyDraft,
@@ -123,8 +136,8 @@ export function listHeaderTemplate(
   const before = previous?.tags ?? [];
   const self = listCoordinate(author, d);
   const typed = new Set(before.filter((t) => t[0] === "field-type" && t[1] && t[2]).map((t) => t[1]));
-  const kept = before.filter((t) => !WRITTEN.has(t[0]) && t[0] !== "b");
-  const elsewhere = before.filter((t) => t[0] === "b" && t[1] !== self);
+  const kept = distinct(before.filter((t) => !WRITTEN.has(t[0]) && t[0] !== "b"));
+  const elsewhere = distinct(before.filter((t) => t[0] === "b" && t[1] !== self));
   const itself = before.find((t) => t[0] === "b" && t[1] === self) ?? ["b", self, "pointer"];
   return {
     kind: 39998,

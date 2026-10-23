@@ -10,7 +10,12 @@
  * - any of those inside a Markdown code fence, as chats tend to reply.
  *
  * What the form can't set but a header may carry (`license`, `r`, …) is kept,
- * as editing keeps it. A `b` pointing at the list itself — whoever wrote it,
+ * as editing keeps it. Pasted into a list already published, it's the paste's
+ * by name (`withImported`): the paste's `license` replaces the list's, while a
+ * name the paste doesn't carry stays as the list had it — an AI writing from
+ * the instructions never saw the list's license.
+ *
+ * A `b` pointing at the list itself — whoever wrote it,
  * as long as it names the same `d` — says the paste was put forward as a
  * community concept, and ticks that choice for the list; a `b` pointing at
  * another list is dropped and said so: a list here is one's own, and one's
@@ -284,4 +289,14 @@ export function importIntoDraft(
     selfPointer: pointers.some(isSelf) ? true : null,
     templates,
   };
+}
+
+/**
+ * A published list's tags with an import's `kept` in place of those of the
+ * same name, as the version being edited: the one way to change what the
+ * form can't set. A name the import doesn't carry stays as it was.
+ */
+export function withImported(own: string[][], kept: string[][]): string[][] {
+  const named = new Set(kept.map((t) => t[0]));
+  return [...own.filter((t) => !named.has(t[0])), ...kept];
 }

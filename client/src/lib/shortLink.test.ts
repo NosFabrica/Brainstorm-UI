@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { MAX_SHARE_RELAYS, qrPayload, shortLinkPath, shortLinkUrl } from "./shortLink";
+import { MAX_SHARE_RELAYS, hashtagKey, isReadableHashtag, qrPayload, shortLinkPath, shortLinkUrl } from "./shortLink";
 
 const ORIGIN = "https://brainstorm.world";
 const CODE = "AB3XK9QZ";
@@ -82,5 +82,40 @@ describe("the QR payload", () => {
   it("is idempotent", () => {
     const once = qrPayload("https://brainstorm.world/s/ab3xk9qz");
     expect(qrPayload(once)).toBe(once);
+  });
+});
+
+describe("a hashtag's key, normalised as the server stores it", () => {
+  it("trims, lowercases and drops one leading #", () => {
+    expect(hashtagKey("  #Bitcoin ")).toBe("bitcoin");
+  });
+
+  it("drops only one #", () => {
+    expect(hashtagKey("##nostr")).toBe("#nostr");
+  });
+
+  it("leaves an inner # alone", () => {
+    expect(hashtagKey("c#")).toBe("c#");
+  });
+
+  it("is empty for a word longer than the server takes", () => {
+    expect(hashtagKey("x".repeat(64))).toBe("x".repeat(64));
+    expect(hashtagKey("x".repeat(65))).toBe("");
+  });
+});
+
+describe("isReadableHashtag", () => {
+  it("is a plain word of up to 12 characters", () => {
+    expect(isReadableHashtag("nostr")).toBe(true);
+    expect(isReadableHashtag("x".repeat(12))).toBe(true);
+    expect(isReadableHashtag("x".repeat(13))).toBe(false);
+    expect(isReadableHashtag("bitcoin_dev-1")).toBe(false);
+    expect(isReadableHashtag("btc-dev_2")).toBe(true);
+  });
+
+  it("is never a word its link would percent-encode", () => {
+    expect(isReadableHashtag("c++")).toBe(false);
+    expect(isReadableHashtag("日本")).toBe(false);
+    expect(isReadableHashtag("")).toBe(false);
   });
 });

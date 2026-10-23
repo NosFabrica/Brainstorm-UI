@@ -43,3 +43,17 @@ export async function copyToClipboard(
     return false;
   }
 }
+
+/** Copy a text still being fetched, starting the write inside the tap (WebKit needs that); `fallback` otherwise. */
+export async function copyPromisedText(text: Promise<string>, fallback: string): Promise<boolean> {
+  if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    const blob = text.catch(() => fallback).then((t) => new Blob([t], { type: "text/plain" }));
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+      return true;
+    } catch {
+      // fall through to the plain copy
+    }
+  }
+  return copyToClipboard(fallback);
+}

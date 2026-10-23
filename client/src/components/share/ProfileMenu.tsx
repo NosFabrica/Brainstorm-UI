@@ -37,6 +37,7 @@ export function ProfileMenu({
   searchHref,
   review,
   onReview,
+  link,
   ua,
 }: {
   pubkey: string;
@@ -56,6 +57,8 @@ export function ProfileMenu({
    */
   review: "write" | "edit" | null;
   onReview?: () => void;
+  /** The page's link, for Copy link; `mint` shortens it (`useMintShortLink`). */
+  link?: { url: string; mint?: () => Promise<string> };
   /** Test seam for the platform read; the browser's user agent by default. */
   ua?: string;
 }) {
@@ -104,8 +107,9 @@ export function ProfileMenu({
 
   const nprofile = nprofileFor(pubkey, relays);
   // Each row says what its key is for — "why would they want this?"
-  // (Benjamin, 2026-09-08). Share owns the human link; these are for machines.
+  // (Benjamin, 2026-09-08). Copy link is the human one; the keys are for machines.
   const copies = [
+    ...(link ? [{ id: "link", label: "Copy link", value: link.url, mint: link.mint }] : []),
     { id: "npub", label: "Copy npub", value: npub, hint: "Their public key, for Nostr apps and mentions" },
     { id: "hex", label: "Copy public key (hex)", value: pubkey, hint: "The raw key, for developers and relay tools" },
     ...(nprofile

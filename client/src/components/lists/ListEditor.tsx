@@ -29,7 +29,7 @@ import { AddressRef } from "@/components/dictionary/AddressRef";
 import { ItemFieldInputs, type FieldValues } from "@/components/lists/ItemFieldInputs";
 import { ItemPreview } from "@/components/lists/ItemPreview";
 import { ImportListDialog } from "@/components/lists/ImportListDialog";
-import type { ImportResult } from "@/lib/listImport";
+import { withImported, type ImportResult } from "@/lib/listImport";
 import { draftProblems, type CopyDraft } from "@/lib/conceptCopy";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 import {
@@ -73,10 +73,10 @@ export function ListEditor({
   const [typedD, setTypedD] = useState<string | null>(null);
   const d = publishedD ?? typedD ?? slugOf(draft.plural);
 
-  // An import's tags the form can't set ride along, as an edited list's own do.
+  // An import's tags the form can't set ride along, as an edited list's own do: in place of those of the same name.
   const [imported, setImported] = useState<ImportResult | null>(null);
   const previous = useMemo(
-    () => (header || imported ? { tags: [...(header?.tags ?? []), ...(imported?.kept ?? [])] } : null),
+    () => (header || imported ? { tags: withImported(header?.tags ?? [], imported?.kept ?? []) } : null),
     [header, imported],
   );
   // Put forward as a community concept: a new list is (the team, 2026-10-11); a published one as it was.
