@@ -65,8 +65,26 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
     fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
+    countTabs: (
+      query: string,
+      tabs: readonly string[],
+      _lens: unknown,
+      onCount: (tab: string, count: number | null) => void,
+    ) => {
+      tabCountAsks.push({ query, tabs, onCount });
+      return () => {};
+    },
   };
 });
+// The tab counts asked (services/search countTabs): nothing answers unless a test calls `onCount`.
+const tabCountAsks: { query: string; tabs: readonly string[]; onCount: (tab: string, count: number | null) => void }[] =
+  [];
+// Whether the words name a tag, asked once People is known to hold no one: none unless a test says so.
+const fetchSearchTagsMock = vi.fn((_q: string, _lens: unknown, _opts?: unknown) => Promise.resolve([] as unknown[]));
+vi.mock("@/services/searchTags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/searchTags")>()),
+  fetchSearchTags: (q: string, lens: unknown, opts?: unknown) => fetchSearchTagsMock(q, lens, opts),
+}));
 const goalProgressMock = vi.fn<
   (ids: string[]) => Promise<{ byGoal: Map<string, { sats: number; zappers: string[] }>; complete: boolean }>
 >(() => Promise.resolve({ byGoal: new Map(), complete: false }));
@@ -232,6 +250,7 @@ vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null
 
 import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
+import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
@@ -303,6 +322,9 @@ beforeEach(() => {
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
   wavlakeTrendingMock.mockResolvedValue([]);
   allStreams = [];
+  tabCountAsks.length = 0;
+  __forgetTabCounts();
+  fetchSearchTagsMock.mockImplementation(() => Promise.resolve([]));
   window.history.replaceState({}, "", "/?q=jack");
 });
 
@@ -5241,5 +5263,195 @@ describe("a kind's own page", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
     expect(screen.queryByTestId("kind-page-places")).toBeNull();
+  });
+});
+
+// The roadmap's first step toward categories the query chooses (E4): a tab the words find nothing
+// under is a door to "Nothing found" — "bars in funchal" offers no People tab — so it goes, and the
+// More menu holds only what they find, most first within each group. One-sided: unknown never hides.
+describe("SearchResults: tabs the words find nothing under", () => {
+  const ALL_ZERO = [
+    "people",
+    "notes",
+    "media",
+    "shop",
+    "articles",
+    "music",
+    "recipes",
+    "events",
+    "live",
+    "apps",
+    "repos",
+    "issues",
+    "prs",
+    "nips",
+    "communities",
+    "fundraisers",
+    "reviews",
+    "lists",
+  ];
+  const answer = (counts: Record<string, number | null>) =>
+    act(() => {
+      const { onCount } = tabCountAsks[tabCountAsks.length - 1];
+      for (const [tab, n] of Object.entries(counts)) onCount(tab, n);
+    });
+  const zeroesBut = (some: Record<string, number | null>) => ({
+    ...Object.fromEntries(ALL_ZERO.map((t) => [t, 0])),
+    ...some,
+  });
+  const menuItems = () =>
+    [
+      ...screen
+        .getByRole("menu")
+        .querySelectorAll(
+          '[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"]):not([data-testid$="-soon"])',
+        ),
+    ].map((el) => el.getAttribute("data-testid"));
+  const onNotes = async (query = "jack") => {
+    window.history.replaceState({}, "", `/?q=${encodeURIComponent(query)}&t=notes`);
+    const view = render(<SearchResults query={query} pov="nosfabrica" />);
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(1));
+    return view;
+  };
+
+  it("asks once the page's own results have answered, never before, and without the sort", async () => {
+    window.history.replaceState({}, "", "/?q=jack%20sort%3Arecent&t=notes");
+    render(<SearchResults query="jack sort:recent" pov="nosfabrica" />);
+    expect(tabCountAsks).toHaveLength(0);
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(1));
+    expect(tabCountAsks[0].query).toBe("jack");
+    expect(tabCountAsks[0].tabs).not.toContain("top");
+    expect(tabCountAsks[0].tabs).not.toContain("all");
+  });
+
+  it("new words wait for their own results: the last search's answer on screen doesn't count", async () => {
+    const view = await onNotes("jack");
+    view.rerender(<SearchResults query="jill" pov="nosfabrica" />);
+    await act(async () => {});
+    expect(tabCountAsks).toHaveLength(1);
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(2));
+    expect(tabCountAsks[1].query).toBe("jill");
+  });
+
+  it("a tab known to hold nothing leaves the row; the one being read stays, and More keeps what the words find, most first", async () => {
+    await onNotes();
+    answer(zeroesBut({ articles: 2, music: 0, events: 3, live: 9 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-people")).toBeNull());
+    expect(screen.getByTestId("search-tab-top")).toBeInTheDocument();
+    expect(screen.getByTestId("search-tab-all")).toBeInTheDocument();
+    // The tab being read stays, though it holds nothing.
+    expect(screen.getByTestId("search-tab-notes")).toBeInTheDocument();
+    expect(screen.queryByTestId("search-tab-media")).toBeNull();
+    expect(screen.queryByTestId("search-tab-shop")).toBeNull();
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const groups = [...screen.getByRole("menu").querySelectorAll('[data-testid^="search-tab-group-"]')].map(
+      (el) => el.textContent,
+    );
+    expect(groups).toEqual(["Read & listen", "Out & about"]);
+    // Music stays: Wavlake, the Podcast Index and tagged musicians are its sources too.
+    expect(menuItems()).toEqual(["search-tab-articles", "search-tab-music", "search-tab-live", "search-tab-events"]);
+    // The roadmap's "Soon" row rides with Build, and Build is gone for these words.
+    expect(screen.queryByTestId("search-tab-agents-soon")).toBeNull();
+  });
+
+  it("nothing changes until every count is in, and a count that failed is not a zero", async () => {
+    await onNotes();
+    answer({ people: null, shop: 0 });
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    answer(zeroesBut({ people: null, notes: 4 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-people")).toBeInTheDocument();
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
+  it("People stays for words that name a tag, whose people lead it, though no profile matches", async () => {
+    fetchSearchTagsMock.mockImplementation(() => Promise.resolve([{ key: "devs" }]));
+    await onNotes("nostr devs");
+    answer(zeroesBut({ notes: 4 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(fetchSearchTagsMock).toHaveBeenCalledWith("nostr devs", { pov: "nosfabrica" }, { members: true });
+    expect(screen.getByTestId("search-tab-people")).toBeInTheDocument();
+  });
+
+  it("Media stays while a matching note might carry a picture, or a matching profile name a person", async () => {
+    await onNotes();
+    answer(zeroesBut({ people: 2 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
+  it("an open More holds still while the counts land, and settles when it closes", async () => {
+    await onNotes();
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(menuItems()).toContain("search-tab-apps");
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(menuItems()).toEqual(["search-tab-music"]);
+  });
+
+  it("the row holds while focus is in it, so a focused tab never vanishes, and settles when focus leaves", async () => {
+    await onNotes();
+    const shop = screen.getByTestId("search-tab-shop");
+    act(() => shop.focus());
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBe(document.activeElement);
+    act(() => shop.blur());
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("new words arriving while the row is held keep the full row: the held one was the last words' answer", async () => {
+    const view = await onNotes("jack");
+    answer(zeroesBut({ notes: 3 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    const toolbar = screen.getByTestId("search-toolbar");
+    fireEvent.pointerEnter(toolbar);
+    view.rerender(<SearchResults query="jill" pov="nosfabrica" />);
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(2));
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    fireEvent.pointerLeave(toolbar);
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("the row holds while the pointer is over it, so nothing moves under a click", async () => {
+    await onNotes();
+    const toolbar = screen.getByTestId("search-toolbar");
+    fireEvent.pointerEnter(toolbar);
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    fireEvent.pointerLeave(toolbar);
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("under a from: scope Media stays: its page leads with that person's latest media", async () => {
+    const npub = nip19.npubEncode("1".repeat(64));
+    await onNotes(`from:${npub} podcast`);
+    answer(zeroesBut({ notes: 0 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
+  it("coming back to the same words shows the settled row at once and asks nothing again", async () => {
+    const first = await onNotes();
+    answer(zeroesBut({ notes: 3 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    first.unmount();
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-shop")).toBeNull();
+    emit({ eose: true, timeMs: 5 });
+    await act(async () => {});
+    expect(tabCountAsks).toHaveLength(1);
   });
 });
