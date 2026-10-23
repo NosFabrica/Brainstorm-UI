@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/services/api";
-import { profilePath } from "@/lib/shareId";
 import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
 import NotFound from "@/pages/not-found";
 
@@ -12,7 +11,7 @@ import NotFound from "@/pages/not-found";
 const SPINNER_DELAY_MS = 400;
 
 /**
- * `/s/:code` — resolve a short share link and continue to the profile.
+ * `/s/:code` — resolve a short share link and replace it with the server's full link.
  *
  * The code is passed through untouched: the server owns its format, including
  * case folding and length.
@@ -30,7 +29,8 @@ export default function ShortLinkPage() {
     staleTime: Infinity,
   });
 
-  const path = data?.pubkey ? profilePath(data.pubkey, data.relays ?? []) : "";
+  // Only an on-site path; "//host" would leave the site.
+  const path = data?.path && /^\/(?![/\\])/.test(data.path) ? data.path : "";
 
   const [showSpinner, setShowSpinner] = useState(false);
   useEffect(() => {
@@ -42,8 +42,7 @@ export default function ShortLinkPage() {
     if (path) navigate(path, { replace: true });
   }, [path, navigate]);
 
-  // An unresolvable code, and a pubkey that won't encode, both land on the
-  // app's own not-found page rather than leaving the visitor on a blank one.
+  // An unresolvable code or unusable path lands on the app's not-found page, not a blank one.
   if (isError || (data && !path)) return <NotFound />;
 
   if (!showSpinner) return null;

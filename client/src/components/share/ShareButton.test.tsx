@@ -3,7 +3,7 @@
  * browser's share sheet where it has one, the share modal where it does not.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ShareButton } from "./ShareButton";
 
 vi.mock("@/lib/clipboard", () => ({ copyToClipboard: async () => true }));
@@ -50,5 +50,91 @@ describe("ShareButton", () => {
     fireEvent.click(screen.getByTestId("share-open-modal"));
     expect(screen.getByTestId("rich-sheet")).toBeInTheDocument();
     expect(screen.queryByTestId("modal-share")).toBeNull();
+  });
+
+  describe("with a short link to mint", () => {
+    const SHORT = "https://brainstorm.world/s/AB3XK9QZ";
+    const shareWith = (impl: (d: { title: string; url: string }) => Promise<void>) => {
+      const shareMock = vi.fn(impl);
+      Object.defineProperty(navigator, "share", { value: shareMock, configurable: true, writable: true });
+      return shareMock;
+    };
+    const tap = () => {
+      const button = screen.getByTestId("share-open-modal");
+      fireEvent.pointerDown(button);
+      fireEvent.click(button);
+    };
+
+    it("the share sheet gets the short link, minted from the press", async () => {
+      const shareMock = shareWith(async () => {});
+      const mint = vi.fn(async () => SHORT);
+      render(<ShareButton url={URL} title="T" mint={mint} />);
+      fireEvent.pointerDown(screen.getByTestId("share-open-modal"));
+      expect(mint).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByTestId("share-open-modal"));
+      await waitFor(() => expect(shareMock).toHaveBeenCalledWith({ title: "T", url: SHORT }));
+      expect(mint).toHaveBeenCalledTimes(1);
+    });
+
+    it("a mint slower than the wait shares the long link instead", async () => {
+      vi.useFakeTimers();
+      try {
+        const shareMock = shareWith(async () => {});
+        render(<ShareButton url={URL} title="T" mint={() => new Promise<string>(() => {})} />);
+        tap();
+        await vi.advanceTimersByTimeAsync(1400);
+        expect(shareMock).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(200);
+        expect(shareMock).toHaveBeenCalledWith({ title: "T", url: URL });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("a failed mint shares the long link", async () => {
+      const shareMock = shareWith(async () => {});
+      render(<ShareButton url={URL} title="T" mint={async () => Promise.reject(new Error("429"))} />);
+      tap();
+      await waitFor(() => expect(shareMock).toHaveBeenCalledWith({ title: "T", url: URL }));
+    });
+
+    it("a share sheet refusing the late call (NotAllowedError) opens ours, carrying the short link", async () => {
+      shareWith(async () => Promise.reject(new DOMException("Must be handling a user gesture", "NotAllowedError")));
+      render(<ShareButton url={URL} title="T" mint={async () => SHORT} />);
+      tap();
+      expect(await screen.findByTestId("modal-share")).toBeInTheDocument();
+      expect(screen.getByTestId("share-link-input")).toHaveValue(SHORT);
+    });
+
+    it("a richer sheet opens instead of the plain one on NotAllowedError", async () => {
+      shareWith(async () => Promise.reject(new DOMException("", "NotAllowedError")));
+      render(
+        <ShareButton
+          url={URL}
+          title="T"
+          mint={async () => SHORT}
+          modal={({ open }) => (open ? <div data-testid="rich-sheet">rich</div> : null)}
+        />,
+      );
+      tap();
+      expect(await screen.findByTestId("rich-sheet")).toBeInTheDocument();
+      expect(screen.queryByTestId("modal-share")).toBeNull();
+    });
+
+    it("cancelling the share sheet (AbortError) opens nothing", async () => {
+      const shareMock = shareWith(async () => Promise.reject(new DOMException("Share canceled", "AbortError")));
+      render(<ShareButton url={URL} title="T" mint={async () => SHORT} />);
+      tap();
+      await waitFor(() => expect(shareMock).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByTestId("modal-share")).toBeNull();
+    });
+
+    it("without a share sheet, the modal opens at once and swaps in the short link", async () => {
+      render(<ShareButton url={URL} title="T" mint={async () => SHORT} />);
+      tap();
+      expect(screen.getByTestId("modal-share")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("share-link-input")).toHaveValue(SHORT));
+    });
   });
 });
