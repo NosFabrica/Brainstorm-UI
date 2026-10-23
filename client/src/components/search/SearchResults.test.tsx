@@ -5395,6 +5395,54 @@ describe("SearchResults: tabs the words find nothing under", () => {
     expect(menuItems()).toEqual(["search-tab-music"]);
   });
 
+  it("the row holds while focus is in it, so a focused tab never vanishes, and settles when focus leaves", async () => {
+    await onNotes();
+    const shop = screen.getByTestId("search-tab-shop");
+    act(() => shop.focus());
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBe(document.activeElement);
+    act(() => shop.blur());
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("new words arriving while the row is held keep the full row: the held one was the last words' answer", async () => {
+    const view = await onNotes("jack");
+    answer(zeroesBut({ notes: 3 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    const toolbar = screen.getByTestId("search-toolbar");
+    fireEvent.pointerEnter(toolbar);
+    view.rerender(<SearchResults query="jill" pov="nosfabrica" />);
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(2));
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    fireEvent.pointerLeave(toolbar);
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("the row holds while the pointer is over it, so nothing moves under a click", async () => {
+    await onNotes();
+    const toolbar = screen.getByTestId("search-toolbar");
+    fireEvent.pointerEnter(toolbar);
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    fireEvent.pointerLeave(toolbar);
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("under a from: scope Media stays: its page leads with that person's latest media", async () => {
+    const npub = nip19.npubEncode("1".repeat(64));
+    await onNotes(`from:${npub} podcast`);
+    answer(zeroesBut({ notes: 0 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
   it("coming back to the same words shows the settled row at once and asks nothing again", async () => {
     const first = await onNotes();
     answer(zeroesBut({ notes: 3 }));

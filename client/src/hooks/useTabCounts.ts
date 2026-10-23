@@ -8,6 +8,8 @@ import { fetchSearchTags } from "@/services/searchTags";
 const MAX_WAIT_MS = 4000;
 /** How many searches' counts this session remembers, so Back from a result asks nothing again. */
 const REMEMBERED = 30;
+/** How long they are remembered: an Events or Live tab hidden for words can fill again. */
+const REMEMBER_MS = 5 * 60_000;
 
 export interface TabCountsState {
   counts: TabCounts;
@@ -16,7 +18,7 @@ export interface TabCountsState {
 }
 
 const NOTHING_KNOWN: TabCountsState = { counts: {} };
-const remembered = new Map<string, TabCountsState>();
+const remembered = new Map<string, { value: TabCountsState; at: number }>();
 
 /** Test seam: forget every search's counts. */
 export function __forgetTabCounts(): void {
@@ -25,8 +27,15 @@ export function __forgetTabCounts(): void {
 
 function remember(key: string, value: TabCountsState): void {
   remembered.delete(key);
-  remembered.set(key, value);
+  remembered.set(key, { value, at: Date.now() });
   if (remembered.size > REMEMBERED) remembered.delete(remembered.keys().next().value!);
+}
+
+function recall(key: string): TabCountsState | undefined {
+  const hit = remembered.get(key);
+  if (hit && Date.now() - hit.at < REMEMBER_MS) return hit.value;
+  remembered.delete(key);
+  return undefined;
 }
 
 /**
@@ -36,7 +45,7 @@ function remember(key: string, value: TabCountsState): void {
  *
  * Nothing is known until every count is in — or has timed out, which countTabs bounds — and, when
  * People holds no one, until the tag answer is in too: the row changes once, not a tab at a time
- * as the answers land. Per query and lens, remembered for the session, so coming back from a
+ * as the answers land. Per query and lens, remembered for five minutes, so coming back from a
  * result shows the settled row at once. A query of filters alone (`sort:`, a date range) asks
  * nothing: with no words or scope to narrow it, a count runs over a whole kind, a heavy ask for little.
  */
@@ -52,7 +61,7 @@ export function useTabCounts(
   const [settled, setSettled] = useState<{ key: string; value: TabCountsState } | null>(null);
   const [waitedOut, setWaitedOut] = useState<string | null>(null);
   const asked = useRef<string | null>(null);
-  const known = remembered.get(key);
+  const known = recall(key);
   const asking = !!words && !known && (asked.current === key || ready || waitedOut === key);
 
   useEffect(() => {

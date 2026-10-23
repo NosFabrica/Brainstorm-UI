@@ -74,6 +74,29 @@ describe("useTabCounts", () => {
     expect(result.current.counts).toEqual({ shop: 0, people: 3 });
   });
 
+  it("leaving the page cancels the counts still out", () => {
+    const { unmount } = mount({ query: "jack", ready: true });
+    unmount();
+    expect(asks[0].cancelled).toBe(true);
+  });
+
+  it("settled counts are remembered for five minutes, then asked again", () => {
+    vi.useFakeTimers();
+    const first = mount({ query: "jack", ready: true });
+    act(() => {
+      asks[0].onCount("people", 3);
+      asks[0].onCount("shop", 0);
+    });
+    first.unmount();
+    const again = mount({ query: "jack", ready: true });
+    expect(asks).toHaveLength(1);
+    expect(again.result.current.counts).toEqual({ people: 3, shop: 0 });
+    again.unmount();
+    vi.advanceTimersByTime(5 * 60_000);
+    mount({ query: "jack", ready: true });
+    expect(asks).toHaveLength(2);
+  });
+
   it("a query of filters alone asks nothing", () => {
     mount({ query: "sort:recent", ready: true });
     expect(asks).toHaveLength(0);

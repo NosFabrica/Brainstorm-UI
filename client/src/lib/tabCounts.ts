@@ -7,9 +7,10 @@
  * tab the reader is on, Top and All always show. Some tabs show more than the relay's answer for
  * their own kinds, and hide only when everything they draw on is known to be empty: People leads
  * with the people on a tag the words name; Media keeps the notes that carry a picture and leads
- * with a named person's own things, and a person is named only by a profile the words match; Music
- * draws on Wavlake, the Podcast Index and the people tagged Musician as well, which no count
- * covers, so it never hides.
+ * with a named person's own things — the person a `from:` scope names, whatever the words, or one
+ * a matching profile names; Music draws on Wavlake, the Podcast Index and the people tagged
+ * Musician as well, which no count covers, so it never hides. A zero that pointers could add to
+ * arrives as unknown already (services/search's countTabs).
  */
 import type { SearchTab } from "@/services/search";
 
@@ -19,12 +20,14 @@ export interface TabEvidence {
   counts: TabCounts;
   /** The words name a tag, whose people can lead People. Undefined until known. */
   tagNamed?: boolean;
+  /** A `from:` scope names a person, whose latest media lead Media whatever the words. */
+  scoped?: boolean;
 }
 
 const known = (n: number | null | undefined): n is number => typeof n === "number";
 
 /** Whether `tab` holds anything for the words: true, false, or null when not known. */
-export function tabHolds(tab: SearchTab, { counts, tagNamed }: TabEvidence): boolean | null {
+export function tabHolds(tab: SearchTab, { counts, tagNamed, scoped }: TabEvidence): boolean | null {
   if (tab === "top" || tab === "all") return true;
   const own = counts[tab];
   if (!known(own)) return null;
@@ -32,6 +35,7 @@ export function tabHolds(tab: SearchTab, { counts, tagNamed }: TabEvidence): boo
   if (tab === "people") return tagNamed === undefined ? null : tagNamed;
   if (tab === "music") return null;
   if (tab === "media") {
+    if (scoped) return null;
     const { notes, people } = counts;
     if (!known(notes) || !known(people)) return null;
     return notes > 0 || people > 0 ? null : false;

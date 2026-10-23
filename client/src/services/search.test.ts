@@ -6,7 +6,7 @@
  * what goes on the wire, how snapshots arrive, and that cancellation is real.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Observable, Subject, of, throwError } from "rxjs";
+import { EMPTY, Observable, Subject, of, throwError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchParams } from "./search";
 import { nip19 } from "nostr-tools";
@@ -48,10 +48,11 @@ vi.mock("@/lib/searchRelay", () => ({
     count: (...args: unknown[]) => countMock(...args),
   }),
   // The tab counts' own socket: a fake whose COUNTs a test answers, and which says when it closed.
-  openSideSearchRelay: () => sideRelay,
+  openSideSearchRelay: () => sideOpenMock(),
 }));
 const sideCountMock = vi.fn();
 const sideCloseMock = vi.fn();
+const sideOpenMock = vi.fn(() => sideRelay);
 const sideRelay = {
   count: (...args: unknown[]) => sideCountMock(...args),
   close: () => sideCloseMock(),
@@ -3120,28 +3121,32 @@ describe("authors this device already knows", () => {
 
 describe("countTabs", () => {
   const settle = () => new Promise((r) => setTimeout(r, 0));
+  const POINTER_KINDS = [1985, 30382, 30383, 30384, 30392, 30393, 30394, 30000, 39089, 39092];
+  type Filter = { kinds?: number[]; search?: string; limit?: number };
+  const isPointers = (filters: Filter[]) => String(filters[0].kinds) === String(POINTER_KINDS);
+  /** Answer each COUNT by its first filter's kinds; the pointers question answers `pointers`. */
+  const answerBy = (byKinds: Record<string, unknown>, pointers: unknown = of({ count: 0 })) =>
+    sideCountMock.mockImplementation((filters: Filter[]) =>
+      isPointers(filters) ? pointers : (byKinds[String(filters[0].kinds)] ?? new Subject()),
+    );
+  const tabAsks = () => sideCountMock.mock.calls.map(([f]) => f as Filter[]).filter((f) => !isPointers(f));
 
-  it("asks one COUNT per tab of the tab's own filters, without a page size, on a socket of its own, and closes it once all are in", async () => {
-    const answers = new Map<string, Subject<{ count?: number }>>();
-    sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) => {
-      const s = new Subject<{ count?: number }>();
-      answers.set(String(filters[0].kinds), s);
-      return s;
-    });
+  it("asks each tab's own filters and one pointers question on a socket of its own, and answers once all are in", async () => {
+    const people = new Subject<{ count?: number }>();
+    const pointers = new Subject<{ count?: number }>();
+    answerBy({ "0": people, [String(TAB_KINDS.events)]: of({ count: 3 }) }, pointers);
     const got: [string, number | null][] = [];
     countTabs("bars in funchal", ["people", "events"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
     await settle();
-    expect(sideCountMock).toHaveBeenCalledTimes(2);
-    const [peopleAsk] = sideCountMock.mock.calls[0] as [Record<string, unknown>[]];
-    // Newest first whatever the page asks: best match matches fewer for the same words.
-    expect(peopleAsk).toEqual([{ kinds: [0], search: `bars in funchal sort:recent observer:${"f".repeat(64)}` }]);
-    expect(peopleAsk[0]).not.toHaveProperty("limit");
+    expect(sideOpenMock).toHaveBeenCalledTimes(1);
+    expect(sideCountMock).toHaveBeenCalledTimes(3);
+    // Newest first, and a single filter's count drops its page size.
+    expect(tabAsks()[0]).toEqual([{ kinds: [0], search: `bars in funchal sort:recent observer:${HOUSE}` }]);
     expect(reqMock).not.toHaveBeenCalled();
     expect(countMock).not.toHaveBeenCalled();
-    answers.get("0")!.next({ count: 0 });
-    answers.get("0")!.complete();
-    expect(sideCloseMock).not.toHaveBeenCalled();
-    answers.get(String(TAB_KINDS.events))!.next({ count: 3 });
+    people.next({ count: 0 });
+    expect(got).toEqual([]);
+    pointers.next({ count: 0 });
     expect(got).toEqual([
       ["people", 0],
       ["events", 3],
@@ -3149,25 +3154,74 @@ describe("countTabs", () => {
     expect(sideCloseMock).toHaveBeenCalledTimes(1);
   });
 
-  it("a tab with nothing to ask holds nothing, and is not asked", async () => {
-    sideCountMock.mockImplementation(() => of({ count: 9 }));
-    const got: [string, number | null][] = [];
-    // A typed kind none of People's kinds fit.
-    countTabs("kind:30023 bitcoin", ["people", "articles"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+  it("asks the pointer kinds from anyone, with the same words, whether any could add rows a COUNT can't see", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("jack", ["notes"], { pov: "nosfabrica" }, () => {});
     await settle();
-    expect(sideCountMock).toHaveBeenCalledTimes(1);
+    const [pointers] = sideCountMock.mock.calls.map(([f]) => f as Filter[]).filter(isPointers);
+    expect(pointers).toEqual([{ kinds: POINTER_KINDS, search: "jack sort:recent include:spam" }]);
+  });
+
+  it("a pointer that matches the words makes every zero unknown, but not a tab that asked nothing", async () => {
+    answerBy({ "0": of({ count: 0 }), [String(TAB_KINDS.events)]: of({ count: 3 }) }, of({ count: 2 }));
+    const got: [string, number | null][] = [];
+    // A typed kind none of Music's kinds fit: Music asks nothing, so nothing can add to it.
+    countTabs("kind:0 jazz", ["people", "music"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
     expect(got).toEqual([
-      ["people", 0],
-      ["articles", 9],
+      ["people", null],
+      ["music", 0],
     ]);
   });
 
-  it("a typed sort gives way to newest-first: it changes the order, not what matches", async () => {
-    sideCountMock.mockImplementation(() => of({ count: 1 }));
-    countTabs("jack sort:zaps", ["notes"], { pov: "nosfabrica" }, () => {});
+  it("a pointers question that fails leaves every zero unknown", async () => {
+    answerBy(
+      { "0": of({ count: 0 }) },
+      throwError(() => new Error("closed")),
+    );
+    const got: [string, number | null][] = [];
+    countTabs("jack", ["people"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
     await settle();
-    const [asked] = sideCountMock.mock.calls[0] as [{ search: string }[]];
-    expect(asked[0].search).toBe(`jack sort:recent observer:${"f".repeat(64)}`);
+    expect(got).toEqual([["people", null]]);
+  });
+
+  it("a union keeps each filter's page size: unbounded, the relay recalls every matching id per filter", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("bitcoin #nostr", ["notes"], { pov: "nosfabrica" }, () => {});
+    await settle();
+    const [notes] = tabAsks();
+    expect(notes.length).toBeGreaterThan(1);
+    expect(notes.every((f) => typeof f.limit === "number")).toBe(true);
+  });
+
+  it("sort:text rides along, since it drops the trust floor; any other sort gives way to newest-first", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("jack sort:text", ["notes"], { pov: "nosfabrica" }, () => {});
+    countTabs("jack sort:zaps", ["people"], { pov: "nosfabrica" }, () => {});
+    await settle();
+    const [notes, people] = tabAsks();
+    expect(notes[0].search).toBe(`jack sort:text observer:${HOUSE}`);
+    expect(people[0].search).toBe(`jack sort:recent observer:${HOUSE}`);
+  });
+
+  it("reads through the viewer's own lens when they asked for it", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("jack", ["notes"], { pov: "mywot", userPubkey: "a".repeat(64) }, () => {});
+    await settle();
+    expect(tabAsks()[0][0].search).toBe(`jack sort:recent observer:${"a".repeat(64)}`);
+  });
+
+  it("cancelled while the lens is still being looked up, it opens no socket and asks nothing", async () => {
+    let resolveHouse!: (pk: string) => void;
+    houseMock.mockImplementationOnce(() => new Promise((r) => (resolveHouse = r)));
+    const got: unknown[] = [];
+    const cancel = countTabs("jack", ["notes"], { pov: "nosfabrica" }, (...a) => got.push(a));
+    cancel();
+    resolveHouse(HOUSE);
+    await settle();
+    expect(sideOpenMock).not.toHaveBeenCalled();
+    expect(sideCountMock).not.toHaveBeenCalled();
+    expect(got).toEqual([]);
   });
 
   it("cancelling while counts are out stops their answers and closes the socket", async () => {
@@ -3176,25 +3230,21 @@ describe("countTabs", () => {
     const got: [string, number | null][] = [];
     const cancel = countTabs("jack", ["notes", "shop"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
     await settle();
-    expect(sideCountMock).toHaveBeenCalledTimes(2);
+    expect(sideCountMock).toHaveBeenCalledTimes(3);
     cancel();
     expect(sideCloseMock).toHaveBeenCalledTimes(1);
     pending.next({ count: 4 });
     expect(got).toEqual([]);
   });
 
-  it("a count that fails or never comes is unknown, never zero, and the socket closes once all have settled", async () => {
+  it("a count that is CLOSED, ends without a number, or never comes is unknown; the socket closes after all", async () => {
     vi.useFakeTimers();
     try {
-      sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) =>
-        filters[0].kinds?.includes(0) ? throwError(() => new Error("closed")) : new Subject(),
-      );
+      answerBy({ "0": throwError(() => new Error("closed: rate-limited")), [String(TAB_KINDS.notes)]: EMPTY });
       const got: [string, number | null][] = [];
-      const cancel = countTabs("jack", ["people", "notes", "shop"], { pov: "nosfabrica" }, (tab, n) =>
-        got.push([tab, n]),
-      );
+      countTabs("jack", ["people", "notes", "shop"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
       await vi.advanceTimersByTimeAsync(0);
-      expect(got).toEqual([["people", null]]);
+      expect(got).toEqual([]);
       await vi.advanceTimersByTimeAsync(8000);
       expect(got).toEqual([
         ["people", null],
@@ -3202,17 +3252,44 @@ describe("countTabs", () => {
         ["shop", null],
       ]);
       expect(sideCloseMock).toHaveBeenCalledTimes(1);
-      cancel();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("reads through the viewer's own lens when they asked for it", async () => {
-    sideCountMock.mockImplementation(() => of({ count: 1 }));
-    countTabs("jack", ["notes"], { pov: "mywot", userPubkey: "a".repeat(64) }, () => {});
-    await settle();
-    const [asked] = sideCountMock.mock.calls[0] as [{ search: string }[]];
-    expect(asked[0].search).toBe(`jack sort:recent observer:${"a".repeat(64)}`);
+  it("each tab's COUNT asks exactly what its REQ asks, a single filter's page size aside", async () => {
+    const tabs: SearchTab[] = [
+      "people",
+      "notes",
+      "media",
+      "shop",
+      "articles",
+      "music",
+      "recipes",
+      "events",
+      "live",
+      "apps",
+      "repos",
+      "issues",
+      "prs",
+      "nips",
+      "communities",
+      "fundraisers",
+      "reviews",
+      "lists",
+    ];
+    for (const tab of tabs) {
+      vi.clearAllMocks();
+      controllable();
+      searchStream("jack sort:recent", { tab, pov: "nosfabrica" }, () => {});
+      await tick();
+      // A single filter's count drops its page size; a union (Reviews' mint split) keeps each one's.
+      const sent = askedFilters();
+      const req = sent.length > 1 ? sent : sent.map(({ limit: _limit, ...rest }) => rest);
+      answerBy({}, of({ count: 0 }));
+      countTabs("jack", [tab], { pov: "nosfabrica" }, () => {});
+      await settle();
+      expect([tab, tabAsks()[0]]).toEqual([tab, req]);
+    }
   });
 });

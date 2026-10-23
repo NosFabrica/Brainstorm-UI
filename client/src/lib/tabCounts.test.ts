@@ -33,6 +33,11 @@ describe("tabHolds", () => {
     expect(tabHolds("media", evidence({ media: 0, notes: 0, people: 0 }))).toBe(false);
   });
 
+  it("under a from: scope Media leads with that person's latest media whatever the words: never empty", () => {
+    expect(tabHolds("media", evidence({ media: 0, notes: 0, people: 0 }, { scoped: true }))).toBeNull();
+    expect(tabHolds("notes", evidence({ notes: 0 }, { scoped: true }))).toBe(false);
+  });
+
   it("Music draws on Wavlake, the Podcast Index and tagged musicians too, which no count covers: never empty", () => {
     expect(tabHolds("music", evidence({ music: 0, notes: 0, people: 0 }))).toBeNull();
     expect(tabHolds("music", evidence({ music: 3 }))).toBe(true);

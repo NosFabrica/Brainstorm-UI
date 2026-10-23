@@ -7,7 +7,7 @@
  */
 import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
-import { byCount, offersTab, type TabCounts } from "@/lib/tabCounts";
+import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
@@ -1023,17 +1023,44 @@ export function SearchResults({
   // results have answered so the counts never queue in front of them: a tab known to hold nothing
   // leaves the row and the More menu (lib/tabCounts), and More's groups lead with what has most.
   // A vertical's page has answered when ITS snapshot has, not the one the last words or tab left
-  // on screen (hooks/useSearchPriority tells them apart). A sort changes the order, not the count.
+  // on screen (hooks/useSearchPriority tells them apart). A sort changes the order, not the count,
+  // except `sort:text`, which drops the trust floor: that one rides along (services/search's
+  // countTabs asks newest-first otherwise).
   const pageAnswered = useSearchPriorityState(!composed, snapshot, `${pov}|${userPubkey ?? ""}|${tab}|${query}`);
-  const countQuery = useMemo(() => applyFilters(query, { sort: null }), [query]);
+  const countQuery = useMemo(
+    () => applyFilters(query, { sort: readFilters(query).sort === "text" ? "text" : null }),
+    [query],
+  );
   const tabCounts = useTabCounts(countQuery, COUNTED_TABS, {
     pov,
     userPubkey,
     ready: composed ? searchPriority : pageAnswered,
   });
+  const scoped = !!scopeOf(query);
+  // While focus or the pointer is in the tab strip, it holds the tabs it had: a settled row that
+  // removed the focused tab would drop focus to the page, and one that moved under the pointer
+  // would turn a click into the wrong tab. It settles when both have left. New words arriving
+  // meanwhile hold the full row, since what the strip had was the last words' answer.
+  const [rowHold, setRowHold] = useState<{
+    pointer: boolean;
+    focus: boolean;
+    evidence: TabEvidence;
+    query: string;
+  } | null>(null);
+  const liveEvidence = useMemo<TabEvidence>(() => ({ ...tabCounts, scoped }), [tabCounts, scoped]);
+  const holdRow = (part: "pointer" | "focus", on: boolean) =>
+    setRowHold((h) => {
+      const next = { pointer: h?.pointer ?? false, focus: h?.focus ?? false, [part]: on };
+      if (!next.pointer && !next.focus) return null;
+      return h ? { ...h, ...next } : { ...next, evidence: liveEvidence, query: countQuery };
+    });
+  const tabEvidence = useMemo<TabEvidence>(
+    () => (!rowHold ? liveEvidence : rowHold.query === countQuery ? rowHold.evidence : { counts: {}, scoped }),
+    [rowHold, liveEvidence, countQuery, scoped],
+  );
   const offers = useCallback(
-    (key: SearchTab) => offersTab(key, !activeKind && tab === key, tabCounts),
-    [activeKind, tab, tabCounts],
+    (key: SearchTab) => offersTab(key, !activeKind && tab === key, tabEvidence),
+    [activeKind, tab, tabEvidence],
   );
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
@@ -2090,6 +2117,12 @@ export function SearchResults({
           <div
             className="-mx-1 mb-2 flex items-stretch border-b border-slate-100 px-1 dark:border-slate-800/60 sm:mb-3"
             data-testid="search-toolbar"
+            onPointerEnter={() => holdRow("pointer", true)}
+            onPointerLeave={() => holdRow("pointer", false)}
+            onFocus={() => holdRow("focus", true)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) holdRow("focus", false);
+            }}
           >
             <div
               role="tablist"
@@ -2119,7 +2152,7 @@ export function SearchResults({
                 kind={activeKind?.key ?? null}
                 onKind={openKind}
                 offers={offers}
-                counts={tabCounts.counts}
+                counts={tabEvidence.counts}
               />
               {perspective}
               {/* The syntax sheet, before the sorting: what can be typed into the box is the

@@ -24,7 +24,7 @@ import { reportSearchFailure } from "@/lib/serverStatus";
 import { openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { applyFilters, liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
+import { applyFilters, liftQuery, readFilters, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { CLASSIC_VINE_KIND, VINE_ARCHIVE_LABEL, mediaFacetOf, withoutVineArchiveTag } from "@/lib/mediaFacet";
 import { isListed, parseListing } from "@/lib/listing";
 import { familyOf } from "@/lib/listingVariants";
@@ -543,16 +543,34 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
 const TAB_COUNT_TIMEOUT_MS = 8000;
 
 /**
+ * The kinds whose hits make a searching REQ serve their subjects as well (vespa-relay's reference
+ * expansion): NIP-32 labels, NIP-85 assertions and Trusted Lists, people lists and follow packs.
+ * A COUNT doesn't see those rows: People for "AOS 2026 Participant" counted 0 where its REQ
+ * served 88 profiles, Issues for "P4" 2 where it served 38 (probed 2026-10-22).
+ */
+const POINTER_KINDS = [1985, 30382, 30383, 30384, 30392, 30393, 30394, 30000, 39089, 39092];
+
+/** The pointers question rides in `onCount`'s results under this key, never as a tab. */
+const POINTERS = "pointers";
+
+/**
  * How many results each tab holds for these words, through the lens the page reads them in: one
  * NIP-45 COUNT per tab of the very filters the tab itself would ask (askForTab), all on a socket
  * of their own (lib/searchRelay's openSideSearchRelay) so they never queue in front of the page's
- * own requests, closed once every count is in. Each answer arrives through `onCount` as it lands;
- * a tab with nothing to ask holds 0, and a count that fails or doesn't arrive in time is null —
- * unknown, never zero. Cancel by calling the returned function.
+ * own requests, closed once every count is in. A tab with nothing to ask holds 0, and a count that
+ * fails or doesn't arrive in time is null: unknown, never zero. Cancel by calling the returned
+ * function.
  *
- * Asked newest-first whatever the page's sort: best match matches fewer than recent for the same
- * words (probed 2026-10-22: profiles for "ramen" 79 vs 192, listings for "bitcoin" 2,671 vs 2,680;
- * never more), so a zero asked recent is a zero either way.
+ * A COUNT of zero is not always an empty page: a REQ also serves what matching pointers name
+ * (POINTER_KINDS), and a COUNT counts none of it. So one more COUNT asks whether any pointer, from
+ * anyone (`include:spam`), matches the words; when one does, or that answer doesn't come, every
+ * zero is reported as unknown. The answers arrive through `onCount` once all are in.
+ *
+ * Asked newest-first, since best match matches fewer for the same words (profiles for "ramen" 79
+ * vs 192, 2026-10-22), unless the words ask `sort:text`, which applies no trust floor and matches
+ * more still (30,255 for "ramen"). A single filter's count drops its page size so More can order
+ * by it; a union keeps each filter's, since unbounded it recalls every matching id per filter
+ * ("bitcoin #nostr": 7.1s unbounded, 0.15s bounded) — a zero stays a zero either way.
  */
 export function countTabs(
   query: string,
@@ -565,45 +583,69 @@ export function countTabs(
   let relay: Relay | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const subs: { unsubscribe: () => void }[] = [];
-  const pending = new Set<SearchTab>();
+  const answers = new Map<string, number | null>();
+  const asked = new Set<string>();
   const close = () => {
     clearTimeout(timer);
     subs.forEach((s) => s.unsubscribe());
     relay?.close();
     relay = null;
   };
-  const settle = (tab: SearchTab, count: number | null) => {
-    if (cancelled || !pending.delete(tab)) return;
-    onCount(tab, count);
-    if (pending.size === 0) close();
+  // Once every answer is in: a zero from a tab that asked becomes unknown while a pointer might
+  // add to it. A tab that asked nothing sends no REQ, so nothing can add to it.
+  const report = () => {
+    if (cancelled) return;
+    const pointers = answers.get(POINTERS);
+    for (const tab of tabs) {
+      const n = answers.get(tab) ?? null;
+      onCount(tab, n === 0 && asked.has(tab) && pointers !== 0 ? null : n);
+    }
   };
+  const settle = (key: string, count: number | null) => {
+    if (cancelled || answers.has(key)) return;
+    answers.set(key, count);
+    if ([...asked].every((k) => answers.has(k))) {
+      close();
+      report();
+    }
+  };
+  const bounded = (filters: ReturnType<typeof searchFilters>) =>
+    filters.length > 1 ? filters : filters.map(({ limit: _limit, ...rest }) => rest);
 
   void (async () => {
     const observer = await resolveObserver({ tab: "top", ...lens });
     if (cancelled) return;
-    const recent = `${applyFilters(query, { sort: null })} sort:recent`.trim();
-    const asks = tabs.map((tab) => ({ tab, filters: askForTab(recent, { tab, ...lens }, observer).filters }));
-    for (const { tab, filters } of asks) if (filters.length === 0) onCount(tab, 0);
-    const counted = asks.filter((a) => a.filters.length > 0);
-    if (counted.length === 0) return;
+    const sort = readFilters(query).sort === "text" ? "sort:text" : "sort:recent";
+    const words = `${applyFilters(query, { sort: null })} ${sort}`.trim();
+    const questions = tabs.map((tab) => ({
+      key: tab as string,
+      filters: askForTab(words, { tab, ...lens }, observer).filters,
+    }));
+    questions.push({
+      key: POINTERS,
+      filters: askForTab(words, { tab: "all", kinds: POINTER_KINDS, ...lens }, null).filters,
+    });
+    for (const { key, filters } of questions) {
+      if (filters.length === 0) answers.set(key, 0);
+      else asked.add(key);
+    }
+    if (asked.size === 0) return report();
     const socket = openSideSearchRelay();
     if (!socket) {
-      counted.forEach(({ tab }) => onCount(tab, null));
-      return;
+      asked.forEach((key) => answers.set(key, null));
+      return report();
     }
     relay = socket;
-    counted.forEach(({ tab }) => pending.add(tab));
     // Set the timer BEFORE subscribing: a synchronous answer (the fake transport in tests) can
     // settle every count during subscribe, and close() clears this timer.
-    timer = setTimeout(() => [...pending].forEach((tab) => settle(tab, null)), timeoutMs);
-    for (const { tab, filters } of counted) {
-      // A count has no page: the filters go without their `limit`.
-      const asked = filters.map(({ limit: _limit, ...rest }) => rest);
+    timer = setTimeout(() => [...asked].forEach((key) => settle(key, null)), timeoutMs);
+    for (const { key, filters } of questions) {
+      if (!asked.has(key)) continue;
       subs.push(
-        socket.count(asked).subscribe({
-          next: (r: { count?: number }) => settle(tab, typeof r?.count === "number" ? r.count : null),
-          error: () => settle(tab, null),
-          complete: () => settle(tab, null),
+        socket.count(bounded(filters)).subscribe({
+          next: (r: { count?: number }) => settle(key, typeof r?.count === "number" ? r.count : null),
+          error: () => settle(key, null),
+          complete: () => settle(key, null),
         }),
       );
     }
