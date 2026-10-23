@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { listHeaderTemplate } from "./listDraft";
-import { importIntoDraft, parseListImport } from "./listImport";
+import { importIntoDraft, parseListImport, withImported } from "./listImport";
 
 const ME = "1".repeat(64);
 const GOODREADS = "8382b369db6f7d3dc96be27513609a61491f33c2afcc6f7c005c8bd7cc190c83";
@@ -189,6 +189,60 @@ describe("importIntoDraft", () => {
     expect(avis.selfPointer).toBe(true);
     expect(avis.ignored).toEqual([]);
     expect(pasted(["b", `39998:${ME}:other-books`, "pointer"]).selfPointer).toBeNull();
+  });
+});
+
+describe("withImported — an import into a list that's published", () => {
+  const own = [
+    ["d", "books"],
+    ["names", "Book", "Books"],
+    ["field-type", "title", "text"],
+    ["license", "CC0-1.0"],
+    ["r", "https://openlibrary.org"],
+    ["r", "https://openlibrary.org/developers/licensing"],
+    ["item-kind", "39999"],
+    ["b", "39998:abc:community-books", "pointer"],
+    ["b", `39998:${ME}:books`, "pointer", "wss://hub"],
+  ];
+
+  it("puts the import's tags in place of the list's own of the same name: a license changes, an r goes", () => {
+    const kept = [
+      ["license", "CC-BY-4.0"],
+      ["r", "https://openlibrary.org"],
+    ];
+    expect(withImported(own, kept)).toEqual([
+      ["d", "books"],
+      ["names", "Book", "Books"],
+      ["field-type", "title", "text"],
+      ["item-kind", "39999"],
+      ["b", "39998:abc:community-books", "pointer"],
+      ["b", `39998:${ME}:books`, "pointer", "wss://hub"],
+      ["license", "CC-BY-4.0"],
+      ["r", "https://openlibrary.org"],
+    ]);
+  });
+
+  it("leaves a name the import doesn't carry as the list had it: an AI was never shown its license", () => {
+    expect(withImported(own, [])).toEqual(own);
+    expect(withImported(own, [["field-type", "isbn", "url"]])).toEqual([
+      ...own.filter((t) => t[0] !== "field-type"),
+      ["field-type", "isbn", "url"],
+    ]);
+  });
+
+  it("pasting the header it has publishes it once, not twice", () => {
+    const parsed = parseListImport(JSON.stringify(books));
+    if (!parsed.ok) throw new Error("fixture");
+    const result = importIntoDraft(parsed.value, ME);
+    const header = listHeaderTemplate(result.draft, { d: "books", author: ME, previous: { tags: result.kept } });
+    const again = importIntoDraft(parsed.value, ME);
+    expect(
+      listHeaderTemplate(again.draft, {
+        d: "books",
+        author: ME,
+        previous: { tags: withImported(header.tags, again.kept) },
+      }).tags,
+    ).toEqual(header.tags);
   });
 });
 
