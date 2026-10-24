@@ -9,6 +9,21 @@ those events, and the index is derived from the graph. This ADR turns that order
 fail, so that nothing that decides meaning lives only on a NosFabrica machine, and a fresh Brainstorm can compute
 meaning from scratch.
 
+## Why
+
+This is not disaster recovery for NosFabrica's databases. The test never rebuilds a relay: relays are the source it
+reads, and it reads only relays NosFabrica does not run. It exists so that what a word means in search does not depend
+on NosFabrica:
+
+- **Anyone can run their own Brainstorm** from public relays and the published code, and get the same concept index
+  NosFabrica serves.
+- **Anyone can check NosFabrica's index.** If an independent build matches it, nobody has edited meaning by hand or
+  kept data back.
+- **The meaning outlives NosFabrica.** If NosFabrica's servers went away, the lists and the concepts built from them
+  would still be on relays it does not control.
+
+Rebuilding after a crash of NosFabrica's own stores would also work, but that is a side effect, not the goal.
+
 ## Decision
 
 Three layers, one direction:
