@@ -1,11 +1,10 @@
 # The first search journeys: places, then events
 
-**Status:** proposed, 2026-10-24, for the team's R&D call to confirm or change. The call's outcome, and any dissent, is
-written in here before it is accepted.
+**Status:** accepted, 2026-10-24. How it was decided, and with what dissent, is at the end.
 
 Search is built one journey at a time, and every other search decision is sized by the first one: which lists need
 density, which index fields land first, which queries the [labelled set](../search/eval/README.md) leans on. The
-proposal is recommendation queries over places and events, like "best brunch in chicago" and "what's on this weekend".
+first journeys are recommendation queries over places and events, like "best brunch in chicago" and "what's on this weekend".
 A general web search engine is weakest there, the asker's trusted people are strongest, and the lists already exist:
 Food and Drink Places (BTC Map merchants, imported by Mise en Place, reviewed in Brainstorm and Regulars) and Events
 (Event Index items and native NIP-52 calendar events).
@@ -74,9 +73,10 @@ Both are the `recommendation` class in the labelled set, and its `journey` field
 So curator attention goes to Food and Drink Places first, and the index gets geo and the place fields before event
 time.
 
-**The case against, for the call.** Events are the denser list in large cities: New York has 336 upcoming events and
-23 places within 25 km. If the first journey has to look full in a demo, events may do better. The cost is the
-geotag gap and density that depends on which feeds are imported.
+**The case against.** Events are the denser list in large cities: New York has 336 upcoming events and 23 places
+within 25 km. If the first journey has to look full in a demo, events may do better. The cost is the geotag gap and
+density that depends on which feeds are imported. Weighed against the above, places still go first, and events follow
+as a quick second: M3 starts as soon as M2 is done, as the roadmap's sequence already has it.
 
 ### 3. The labelled set leans on them
 
@@ -107,20 +107,23 @@ The data cannot carry that demo yet, and getting it there is part of the work:
 - **Reasons.** The index holds 9 place reviews, by 3 reviewers. A card can only say "4 people you follow go here" when
   people in the demo account's network have reviewed places in the demo city, as themselves.
 
-Proposed bar: the demo query has at least 10 matching places within 25 km of the demo city's centre, and at least 3
-of them are reviewed by people in the demo account's network. Either curators and reviewers bring Chicago to that bar
-for "best brunch in chicago", or the demo uses a city and a query the list already answers.
+The bar: the demo query has at least 10 matching places within 25 km of the demo city's centre, and at least 3 of them
+are reviewed by people in the demo account's network. The city is not fixed in advance. The demo runs in the first
+city that meets the bar, with that city's equivalent of "best brunch in chicago".
 
 ## Consequences
 
 - The M2 engine work (the linker, geo and cuisine filters, the result card with its reasons) is sized for places.
-  Event time filters follow in M3.
+  Event time filters follow in M3, which starts as soon as M2 is done.
 - Curation is on the demo's critical path: one city needs density and real reviews before the demo can be recorded.
 - The labelled set is the measure, per journey. A change to search is judged by whether the M2 and M3 numbers move.
 - The 2026-10-24 counts are a snapshot. Count them again before the demo city is picked.
 
-## For the call
+## How it was decided
 
-1. Places first and events second, or the other way round?
-2. The demo city, and whether the demo query stays "best brunch in chicago".
-3. The density and review bar above.
+Proposed for the team's R&D call, then decided directly on 2026-10-24 without waiting for it. No dissent was raised.
+
+1. **The order:** places first, events a quick second. M3 starts as soon as M2 is done, in the order the roadmap's
+   sequence already has, so the board does not change.
+2. **The demo city:** not fixed now. The demo runs in the first city that meets the bar.
+3. **The bar:** adopted as proposed.
