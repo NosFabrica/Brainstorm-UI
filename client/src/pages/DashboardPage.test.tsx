@@ -45,6 +45,8 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: ME, npub: "npub1relay", displayName: "Relay Outpost" }),
 }));
 vi.mock("@/hooks/useTrustPresetSync", () => ({ useTrustPresetSync: () => ({ preset: "default", isLoading: false }) }));
+// The Assistant is `ta_pubkey` from the history above, asked only with a Session.
+vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
 vi.mock("@/hooks/useTierGranularity", () => ({ useTierGranularity: () => ["simple", () => {}] }));
 vi.mock("@/hooks/useShortLink", () => ({ useShortLink: () => "", profileShortLink: () => ({}) }));
 vi.mock("@/hooks/useVerifiedNoFollows", () => ({ useVerifiedNoFollows: () => "has-follows" }));

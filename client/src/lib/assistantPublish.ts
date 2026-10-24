@@ -1,10 +1,9 @@
 import { nip19 } from "nostr-tools";
 import { apiClient } from "@/services/api";
-import { publishAssistantPointer } from "@/services/nostr";
 import { followUser } from "@/services/socialActions";
 import {
-  getCurrentAssistantPubkey,
-  readPublishedAssistant,
+  dropMismatchedAssistant,
+  readAssistantFor,
   writePublishedAssistant,
   type PublishedAssistantState,
 } from "@/lib/assistantStorage";
@@ -16,50 +15,38 @@ export interface EnsureAssistantResult {
 }
 
 /**
- * Publish (or republish) the user's Brainstorm Assistant and its NIP-78 pointer —
- * the single source of truth for the publish side-effects. The backend mints and
- * holds the assistant key (POST /user/assistantProfile) and returns its pubkey +
- * kind-0 event id; we persist that and publish a kind-30078 pointer under the
- * user's OWN key so other devices can rediscover it.
+ * Publish (or republish) the user's Brainstorm Assistant — the single source of
+ * truth for the publish side-effects. The backend holds the assistant key
+ * (POST /user/assistantProfile) and returns its pubkey + kind-0 event id; we
+ * cache that in this browser. Which Assistant is the user's is the server's
+ * `ta_pubkey`, so other devices need nothing from here (#269).
  *
+ * - `taPubkey`: the server's answer. A cached Assistant that isn't it is
+ *   dropped, and a publish that comes back under any other key is neither
+ *   cached nor followed.
  * - `follow`: also follow the assistant bot (kind-3). TRUE only for explicit,
  *   user-initiated publishes — the silent new-user path passes FALSE so we never
  *   change their follow list / self-skew their trust graph without their choice.
- * - `skipIfPublished` (default true): no-op if an assistant pubkey is already
- *   stored (idempotent self-heal). The settings card passes FALSE so its button
- *   can republish / refresh on demand.
+ * - `skipIfPublished` (default true): no-op if `taPubkey` is already cached
+ *   (idempotent self-heal). The settings card passes FALSE so its button can
+ *   republish / refresh on demand.
  *
  * Throws on a hard backend error so callers' UI can surface it; returns the
  * published identity on success.
  */
 export async function ensureAssistantPublished({
+  taPubkey,
   follow,
   skipIfPublished = true,
-  background = false,
 }: {
+  taPubkey: string;
   follow: boolean;
   skipIfPublished?: boolean;
-  /** Nobody asked: the pointer publish defers rather than raising the unlock modal. */
-  background?: boolean;
 }): Promise<EnsureAssistantResult> {
+  dropMismatchedAssistant(taPubkey);
   if (skipIfPublished) {
-    const existing = getCurrentAssistantPubkey();
-    if (existing) {
-      const stored = readPublishedAssistant();
-      const state: PublishedAssistantState = stored ?? {
-        pubkey: existing,
-        npub: (() => {
-          try {
-            return nip19.npubEncode(existing);
-          } catch {
-            return existing;
-          }
-        })(),
-        eventId: "",
-        publishedAt: Date.now(),
-      };
-      return { state, name: "Your Brainstorm Assistant", alreadyPublished: true };
-    }
+    const existing = readAssistantFor(taPubkey);
+    if (existing) return { state: existing, name: "Your Brainstorm Assistant", alreadyPublished: true };
   }
 
   const resp = await apiClient.publishDefaultAssistantProfile();
@@ -71,6 +58,10 @@ export async function ensureAssistantPublished({
   const name = (top.name || wrapped.name || "Your Brainstorm Assistant").toString();
   if (!pubkey || !eventId) {
     throw new Error("The assistant was published, but no identity was returned. Please try again.");
+  }
+  // The server signs both with one key; a mismatch means we can't say which is theirs.
+  if (pubkey !== taPubkey) {
+    throw new Error("The assistant was published, but under a different key than the server reports for you.");
   }
 
   const state: PublishedAssistantState = {
@@ -86,12 +77,6 @@ export async function ensureAssistantPublished({
     publishedAt: Date.now(),
   };
   writePublishedAssistant(state);
-
-  // Cross-device sync: NIP-78 kind-30078 pointer under the user's own key.
-  publishAssistantPointer(
-    { pubkey: state.pubkey, eventId: state.eventId, publishedAt: state.publishedAt },
-    { background },
-  ).catch(() => {});
 
   // Only follow on explicit user action — never silently mutate kind-3.
   if (follow) followUser(state.pubkey).catch(() => {});

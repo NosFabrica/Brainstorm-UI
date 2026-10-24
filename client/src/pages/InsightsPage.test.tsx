@@ -38,6 +38,8 @@ vi.mock("@/hooks/useSelf", () => ({
   useSelfHistory: () => ({ data: { data: { last_time_calculated_graperank: "2026-09-30T00:10:00" } } }),
 }));
 vi.mock("@/hooks/useTrustPresetSync", () => ({ useTrustPresetSync: () => ({ preset: null }) }));
+// The Assistant is `ta_pubkey` from the history above, asked only with a Session.
+vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/billing/PlanCard", () => ({ PlanCard: () => null }));

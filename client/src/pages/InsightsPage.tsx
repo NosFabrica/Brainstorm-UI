@@ -29,7 +29,8 @@ import {
   withDeltas,
   type ScoreEntry,
 } from "@/lib/scoreJournal";
-import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantStorage";
+import { readAssistantProfile } from "@/lib/assistantStorage";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -208,7 +209,8 @@ export default function InsightsPage() {
     [scoreHistory, displayMode, granularity],
   );
 
-  const assistant = useMemo(() => readPublishedAssistant(), []);
+  // Only once the server's `ta_pubkey` confirms it (#269).
+  const { published: assistant } = useBrainstormAssistant();
   const assistantProfile = useMemo(() => (assistant ? readAssistantProfile() : null), [assistant]);
   const assistantName = assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
 
