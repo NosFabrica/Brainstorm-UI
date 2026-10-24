@@ -874,6 +874,873 @@
       "run": false
     },
     {
+      "id": "m3-whats-on-in-san-francisco-this-weekend",
+      "query": "what's on in san francisco this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this weekend"
+        }
+      },
+      "notes": "15 events in San Francisco start this weekend, most of them Luma items in the Event Index; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-hackathons-in-sf-this-weekend",
+      "query": "hackathons in sf this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this weekend"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3deu6jgkds3rtbvqljzbeclm6ftexywh",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:y6zui5cjsutcwsg2nnvsm2xjlgrotjep",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:4fttjsb5fkjuufhepefnbks2ge4bgsgx",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fymdzzmyuqhskvsbfpggzaowjrd7tmtk",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kcyoynyplshbbxmmyzwx2vikc3ah3ko6"
+        ]
+      },
+      "notes": "'sf' is San Francisco. This weekend's hackathons there: Hack for Social Impact (24 Oct), Agent Builders Hackathon (24 Oct), Lovable x Girls into VC Buildathon (24 Oct), Gemini 4 Argon SF Hackathon (25 Oct), Dell x NVIDIA AI Hackathon, San Francisco (25 Oct). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bird-walks-near-san-francisco-this-month",
+      "query": "bird walks near san francisco this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this month"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20168",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20193",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20178",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20173"
+        ]
+      },
+      "notes": "Bay Area birding outings in the next 30 days: Birds of MLK Jr Regional Shoreline (Arrowhead Marsh) (25 Oct), Albany Mudflats, McLaughlin Shoreline State Park (25 Oct), Corica Park (Alameda) (26 Oct), Lake Merritt and Lakeside Park (Oakland) (28 Oct). 'near' matters: some are across the bay.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitcoin-meetup-san-francisco",
+      "query": "bitcoin meetup san francisco",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad66901d9f0200397ed4c81",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ac7e87971f4c3c297bf68e8",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a5492ab34af2289c7239b84",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9f09f1bf4db1cbbc7cee69"
+          ]
+        ]
+      },
+      "notes": "Upcoming San Francisco events about bitcoin: Bitcoin for Beginners (25 Oct), Peninsula - Bitcoin Meetup (28 Oct), Golden Gate Bitcoin Conference (6 Nov, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-events-in-sf-today",
+      "query": "events in sf today",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "today"
+        }
+      },
+      "notes": "Which events are 'today' moves with the clock, so no id is fixed. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-book-fair-san-francisco",
+      "query": "book fair san francisco",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kvmmdhmhmwkav6i4vde47t2ugpl4qvtx"
+        ]
+      },
+      "notes": "BABF Halloween Book Fair (24 Oct). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-nashville-events-this-week",
+      "query": "nashville events this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this week"
+        },
+        "results": [
+          "31923:79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798:october-2026-executive-committee-meeting-2026-10-27",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a92d80955311772876db6c9",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3ugmqcwizchjj2wkffvubsvpvh6ertiy",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a95cf6b7f73cd0584e62fb4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:w4hzd3u5zolm25vtgamorkaya5ujdxyb"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9720eaafa63693cd2868c4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:5xclqgsuqli2kc526l6mgp3v442upctx"
+          ]
+        ]
+      },
+      "notes": "Every Nashville event in the next seven days: October 2026 Executive Committee Meeting (27 Oct), Custody & Treasury Summit 2026 (28 Oct), She Runs the World Tour x Tennessee State (28 Oct), Philosophy for Freedom In the Age of AI (29 Oct, published 2 times; any one counts), Agents Anonymous (31 Oct, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitcoin-events-in-nashville-this-month",
+      "query": "bitcoin events in nashville this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this month"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a2404f2b4c462534a67138c",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa4a44ebf4db1cbbc845f81",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ojchvcv36ucoep46bam2pui773qflwg3"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa7474f28a99c6886fd93c7",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kn6sns3s3wb3xn5mfxunmnvll7byaeo7"
+          ]
+        ]
+      },
+      "notes": "Nashville events about bitcoin in the next 30 days: Bitcoin Veterans Summit 2026 (9 Nov), NashBitDevs Socratic Seminar #49 (10 Nov, published 2 times; any one counts), Park 101: Intro to Bitcoin (12 Nov, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-things-to-do-in-nashville-this-weekend",
+      "query": "things to do in nashville this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this weekend"
+        }
+      },
+      "notes": "No Nashville event starts this weekend (24 to 25 October, checked 2026-10-24): an empty answer is the right one, and the page should say so rather than fill it.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-coffee-crawl-nashville",
+      "query": "coffee crawl nashville",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ezpfijjsbwqap2odx6c7auoav5jfewad"
+        ]
+      },
+      "notes": "nashville: the creative coffee crawl (4 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-book-club-nyc-this-weekend",
+      "query": "book club nyc this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this weekend"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:tiamlrwidy5pnza4eovpnlh3kd2gg5em",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:bcw7kk64fm344szrffwn2z356xnh563y"
+        ]
+      },
+      "notes": "'nyc' is New York. Reading groups this weekend: Reading Club: Confucius's Analects - How to be a Better Person (25 Oct), Reading Rhythms Upper West Side: October 25th (25 Oct). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-nyc-events-this-month",
+      "query": "nyc events this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this month"
+        }
+      },
+      "notes": "219 New York events in the next 30 days; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-free-events-in-new-york",
+      "query": "free events in new york",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "upcoming"
+        }
+      },
+      "notes": "No price field on events, so 'free' narrows nothing a filter can check; many titles and descriptions say it. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-film-screenings-in-new-york-this-month",
+      "query": "film screenings in new york this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this month"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:wuw4ep2ughajofeyrudguxiajozewwpj",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:sedq6n5wnuw4zzrgwhfprk4r63peqiqt",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:qed447gdkgkf62mybv3k2f7zszl4qgmu"
+        ]
+      },
+      "notes": "New York film events in the next 30 days: Future Reality AI Film Festival (NYC)-Film × Advertising × Creative Technology Screenings · Awards · Industry Leaders Networking (25 Oct), ANNY Screenings at the Queens Public Library in Ridgewood! (29 Oct), The Welcome Table: Film Screening, Dinner, & Party (20 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bird-walks-in-austin-this-weekend",
+      "query": "bird walks in austin this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "this weekend"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:30807",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:30479",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:30484",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:27437"
+        ]
+      },
+      "notes": "Austin birding this weekend: Young Adult Bird Walk at Pease Park (24 Oct), Let's Go Birding Together (LGBT) Walk (25 Oct), Filmmaking for Birds Workshop (25 Oct), Beginners Bird Walk at Commons Ford (25 Oct).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-austin-events-next-30-days",
+      "query": "austin events next 30 days",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "next 30 days"
+        }
+      },
+      "notes": "90 Austin events in the next 30 days, more than half of them birding outings; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-austin-events-today",
+      "query": "austin events today",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "today"
+        }
+      },
+      "notes": "Which events are 'today' moves with the clock, so no id is fixed. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitcoin-walk-funchal",
+      "query": "bitcoin walk funchal",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615deb9a1c1407de84c40",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-31",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-31"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615edb9a1c1407de84c92",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-07",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-07"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615fab9a1c1407de84cd2",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-14",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-14"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61606b9a1c1407de84d16",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-21",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-21"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61615b9a1c1407de84d5a",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-28",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-28"
+          ],
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-05",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-12",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-19"
+        ]
+      },
+      "notes": "The weekly BitcoinWalk Madeira: BitcoinWalk Madeira (31 Oct, published 3 times; any one counts), BitcoinWalk Madeira (7 Nov, published 3 times; any one counts), BitcoinWalk Madeira (14 Nov, published 3 times; any one counts), BitcoinWalk Madeira (21 Nov, published 3 times; any one counts), BitcoinWalk Madeira (28 Nov, published 3 times; any one counts), BitcoinWalk Madeira (5 Dec), BitcoinWalk Madeira (12 Dec), BitcoinWalk Madeira (19 Dec). Typed as two words, titled as one.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-funchal-events-this-weekend",
+      "query": "funchal events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "this weekend"
+        }
+      },
+      "notes": "No Funchal event starts this weekend (24 to 25 October, checked 2026-10-24): an empty answer is the right one.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-madeira-bitcoin-meetup",
+      "query": "madeira bitcoin meetup",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a932d5cb7fec64b1dbe50b8",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:02ee03d7-c124-4a8a-a605-ef7ec985e47d",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:2ba908a0-bf83-42d5-9dbc-ae84f6c2771f",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:b1285bc9-3a01-4350-8380-b0fb863f04b2"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ab81767b1f1ba9a191de638",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:6ad27a42-e335-4cda-8f90-3773c191927a",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:8a110218-a7cf-438e-a1c9-c1510a289a6c"
+          ],
+          "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:d774274a-7b2d-4e74-bcda-382282fbb375"
+        ]
+      },
+      "notes": "FREE Madeira Bitcoin Meetup (28 Oct, published 4 times; any one counts), FREE Madeira Bitcoin Meetup (25 Nov, published 3 times; any one counts), FREE Madeira Bitcoin Meetup (30 Dec). Madeira is the island, Funchal the city the events' places name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-halloween-parade-chicago",
+      "query": "halloween parade chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ubtq2ld4nkeyp6fzvcmq54efxkh64kgd",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:74vt7bac7otcek7mlbpepw4kn2qyjw2b"
+        ]
+      },
+      "notes": "Chicago's Halloween parades: Arts in the Dark Parade (24 Oct), Haunted Halsted Parade (31 Oct). Neither title says Halloween. Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-chicago-events-tonight",
+      "query": "chicago events tonight",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "tonight"
+        }
+      },
+      "notes": "Which events are 'tonight' moves with the clock, so no id is fixed. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-run-club-chicago",
+      "query": "run club chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ql2wkyj5p5yf4cuc3e3hp6wgubxxhusk"
+        ]
+      },
+      "notes": "Chicago Sprint Club (15 Nov): a sprint club, not a run club by name. Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-berlin-events-this-weekend",
+      "query": "berlin events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Berlin",
+          "time": "this weekend"
+        }
+      },
+      "notes": "15 Berlin events start this weekend, from several feeds; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-eventos-en-madrid-este-fin-de-semana",
+      "query": "eventos en madrid este fin de semana",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Madrid",
+          "time": "this weekend"
+        }
+      },
+      "notes": "Spanish for 'events in Madrid this weekend'. 14 Madrid events start this weekend; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-lisbon-meetups-next-7-days",
+      "query": "lisbon meetups next 7 days",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Lisbon",
+          "time": "next 7 days"
+        }
+      },
+      "notes": "26 Lisbon events in the next seven days, nearly all Luma items in the Event Index; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-mexico-city-events-this-month",
+      "query": "mexico city events this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Mexico City",
+          "time": "this month"
+        }
+      },
+      "notes": "134 Mexico City events in the next 30 days; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-seattle-tech-meetups-this-week",
+      "query": "seattle tech meetups this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Seattle",
+          "time": "this week"
+        }
+      },
+      "notes": "112 Seattle events in the next seven days, nearly all Luma items in the Event Index; 'tech' is not a field, so scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-london-bitcoin-walk",
+      "query": "london bitcoin walk",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "London",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-10-31",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615dcb9a1c1407de84c37"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-07",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615ecb9a1c1407de84c89"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-14",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615f8b9a1c1407de84cc9"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-21",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61605b9a1c1407de84d0d"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-28",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61613b9a1c1407de84d51"
+          ]
+        ]
+      },
+      "notes": "Upcoming BitcoinWalk London: BitcoinWalk London (31 Oct, published 2 times; any one counts), BitcoinWalk London (7 Nov, published 2 times; any one counts), BitcoinWalk London (14 Nov, published 2 times; any one counts), BitcoinWalk London (21 Nov, published 2 times; any one counts), BitcoinWalk London (28 Nov, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-skating-in-london",
+      "query": "skating in london",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "London",
+          "time": "upcoming"
+        }
+      },
+      "notes": "19 upcoming London skating sessions, tagged skative; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-art-in-lisbon-this-month",
+      "query": "art in lisbon this month",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Lisbon",
+          "time": "this month"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:nzluokbig2ptltkjjuafl7gtbcnrqlmg"
+        ]
+      },
+      "notes": "Lisbon art events in the next 30 days: Tech Art Lisboa - PTW26 Edition (11 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-events-today",
+      "query": "events today",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "today"
+        }
+      },
+      "notes": "No place: anything on today anywhere is right, which the reader's location would narrow. Scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-nostr-meetups",
+      "query": "nostr meetups",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        }
+      },
+      "notes": "12 upcoming events about nostr, anywhere; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitdevs-this-month",
+      "query": "bitdevs this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this month"
+        }
+      },
+      "notes": "9 BitDevs meetups in the next 30 days, in several cities; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bird-walks-this-week",
+      "query": "bird walks this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this week"
+        }
+      },
+      "notes": "23 birding events in the next seven days, in several cities; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-halloween-events-this-weekend",
+      "query": "halloween events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "10 Halloween events start this weekend across cities; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-hackathons-next-30-days",
+      "query": "hackathons next 30 days",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "next 30 days"
+        }
+      },
+      "notes": "81 hackathons in the next 30 days, anywhere; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-climate-events-in-new-york",
+      "query": "climate events in new york",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:zrfjjl5ubu5gwaym5axridt5knmw3dhu",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:j76zw43ytmfj5lmmif52ql2wvffz56i6",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ztpz5e4qyoik6nzreihdijqifqiahsgx"
+        ]
+      },
+      "notes": "Upcoming New York events about climate: Climate Cafe with CUNYverse at the Climate Imaginarium (24 Oct), What's in the Cards? A Creative Climate Tarot Experience (25 Oct), Climate Cafe + Ribbon Upcycling Workshop (21 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-agent-san-francisco-hackathons-this-weekend",
+      "query": {
+        "categories": ["events"],
+        "place": "San Francisco",
+        "time": "this weekend",
+        "words": ["hackathon"]
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this weekend"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3deu6jgkds3rtbvqljzbeclm6ftexywh",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:y6zui5cjsutcwsg2nnvsm2xjlgrotjep",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:4fttjsb5fkjuufhepefnbks2ge4bgsgx",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fymdzzmyuqhskvsbfpggzaowjrd7tmtk",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kcyoynyplshbbxmmyzwx2vikc3ah3ko6"
+        ]
+      },
+      "notes": "The structured form of 'hackathons in sf this weekend': Hack for Social Impact (24 Oct), Agent Builders Hackathon (24 Oct), Lovable x Girls into VC Buildathon (24 Oct), Gemini 4 Argon SF Hackathon (25 Oct), Dell x NVIDIA AI Hackathon, San Francisco (25 Oct). Event Index items only: the Top page's events band does not ask for them yet. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-nashville-this-week",
+      "query": {
+        "categories": ["events"],
+        "place": "Nashville",
+        "time": "this week",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this week"
+        },
+        "results": [
+          "31923:79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798:october-2026-executive-committee-meeting-2026-10-27",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a92d80955311772876db6c9",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3ugmqcwizchjj2wkffvubsvpvh6ertiy",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a95cf6b7f73cd0584e62fb4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:w4hzd3u5zolm25vtgamorkaya5ujdxyb"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9720eaafa63693cd2868c4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:5xclqgsuqli2kc526l6mgp3v442upctx"
+          ]
+        ]
+      },
+      "notes": "The structured form of 'nashville events this week': October 2026 Executive Committee Meeting (27 Oct), Custody & Treasury Summit 2026 (28 Oct), She Runs the World Tour x Tennessee State (28 Oct), Philosophy for Freedom In the Age of AI (29 Oct, published 2 times; any one counts), Agents Anonymous (31 Oct, published 2 times; any one counts). Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-funchal-bitcoin-walk",
+      "query": {
+        "categories": ["events"],
+        "place": "Funchal",
+        "time": "upcoming",
+        "words": ["bitcoin walk"]
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615deb9a1c1407de84c40",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-31",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-31"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615edb9a1c1407de84c92",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-07",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-07"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615fab9a1c1407de84cd2",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-14",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-14"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61606b9a1c1407de84d16",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-21",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-21"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61615b9a1c1407de84d5a",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-28",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-28"
+          ],
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-05",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-12",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-19"
+        ]
+      },
+      "notes": "The structured form of 'bitcoin walk funchal': BitcoinWalk Madeira (31 Oct, published 3 times; any one counts), BitcoinWalk Madeira (7 Nov, published 3 times; any one counts), BitcoinWalk Madeira (14 Nov, published 3 times; any one counts), BitcoinWalk Madeira (21 Nov, published 3 times; any one counts), BitcoinWalk Madeira (28 Nov, published 3 times; any one counts), BitcoinWalk Madeira (5 Dec), BitcoinWalk Madeira (12 Dec), BitcoinWalk Madeira (19 Dec). Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-new-york-this-weekend-my-network",
+      "query": {
+        "categories": ["events"],
+        "place": "New York",
+        "time": "this weekend",
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this weekend"
+        }
+      },
+      "notes": "New York events this weekend that the reader's people are going to. The answer depends on the reader's network, so no id is fixed. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-austin-today",
+      "query": {
+        "categories": ["events"],
+        "place": "Austin",
+        "time": "today",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "today"
+        }
+      },
+      "notes": "The structured form of 'austin events today'. Which events are today moves with the clock, so no id is fixed. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
       "id": "m1-fork-and-coin",
       "query": "fork & coin",
       "class": "navigational",
