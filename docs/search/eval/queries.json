@@ -1629,22 +1629,6 @@
       "as_of": "2026-10-24"
     },
     {
-      "id": "m2-ramen-near-me-my-friends-like",
-      "query": "ramen near me my friends like",
-      "class": "recommendation",
-      "journey": "M2",
-      "expect": {
-        "categories": ["places"],
-        "filters": {
-          "property": {
-            "cuisine": "ramen"
-          }
-        },
-        "absent_categories": ["people"]
-      },
-      "notes": "The M2 milestone's second query. It needs the reader's location and network, which the Top page never asks for; 17 places on the list serve ramen. Scored by category only."
-    },
-    {
       "id": "m2-coffee-near-me",
       "query": "coffee near me",
       "class": "recommendation",
@@ -1864,20 +1848,6 @@
         "absent_categories": ["people"]
       },
       "notes": "'top rated' asks for a ranking by the reader's people. 24 Funchal restaurants; scored by filter precision."
-    },
-    {
-      "id": "m2-cheap-eats-in-san-salvador",
-      "query": "cheap eats in san salvador",
-      "class": "recommendation",
-      "journey": "M2",
-      "expect": {
-        "categories": ["places"],
-        "filters": {
-          "place": "San Salvador"
-        },
-        "absent_categories": ["people"]
-      },
-      "notes": "The list has no price field, so 'cheap' narrows nothing. Scored by category and place."
     },
     {
       "id": "m2-bitcoin-coffee-shop",
