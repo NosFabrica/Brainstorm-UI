@@ -1134,6 +1134,597 @@
       "as_of": "2026-10-22"
     },
     {
+      "id": "m1-hodlbod",
+      "query": "hodlbod",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["97c70a44366a6535c145b333f973ea86dfdc2d7a99da618c40c64705ad98e322"]
+      },
+      "notes": "hodlbod@coracle.social, resolved at its own domain on 2026-10-24. Several profiles copy the name; this is the one the NIP-05 names.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-jb55",
+      "query": "jb55",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"]
+      },
+      "notes": "jb55@jb55.com, resolved at its own domain on 2026-10-24.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-will-casarin",
+      "query": "will casarin",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"]
+      },
+      "notes": "jb55@jb55.com, resolved at its own domain on 2026-10-24. The same account as 'jb55'. Its profile carries no real name, so the query has to know who jb55 is.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-dergigi",
+      "query": "dergigi",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["6e468422dfb74a5738702a8823b9b28168abab8655faacb6853cd0ee15deee93"]
+      },
+      "notes": "_@dergigi.com, resolved at its own domain on 2026-10-24. Its profile name is Gigi; 'dergigi' is the handle and the domain.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-pablof7z",
+      "query": "pablof7z",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52"]
+      },
+      "notes": "_@f7z.io, resolved at its own domain on 2026-10-24. Copycat profiles share the handle.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-hzrd149",
+      "query": "hzrd149",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5"]
+      },
+      "notes": "_@hzrd149.com, resolved at its own domain on 2026-10-24. Several profiles share the handle; one NIP-05 names this one.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-kieran",
+      "query": "kieran",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["63fe6318dc58583cfe16810f86dd09e18bfd76aabc24a0081ce2856f330504ed"]
+      },
+      "notes": "kieran@snort.social, resolved at its own domain on 2026-10-24. Kieran is a common name; this is the one at snort.social.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-miljan",
+      "query": "miljan",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["d61f3bc5b3eb4400efdae6169a5c17cabf3246b514361de939ce4a1a0da6ef4a"]
+      },
+      "notes": "miljan@primal.net, resolved at its own domain on 2026-10-24. Other profiles named Miljan exist; this is the one at primal.net.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-rabble",
+      "query": "rabble",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["76c71aae3a491f1d9eec47cba17e229cda4113a0bbb6e6ae1776d7643e29cafa"]
+      },
+      "notes": "rabble@nos.social, resolved at its own domain on 2026-10-24. Several profiles share the name; this is the one at nos.social.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-preston-pysh",
+      "query": "preston pysh",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["85080d3bad70ccdcd7f74c29a44f55bb85cbcd3dd0cbb957da1d215bdb931204"]
+      },
+      "notes": "preston@primal.net, resolved at its own domain on 2026-10-24. Several profiles are named Preston Pysh; the real one's profile name is just 'preston'.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-marty-bent",
+      "query": "marty bent",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["472f440f29ef996e92a186b8d320ff180c855903882e59d50de1b8bd5669301e"]
+      },
+      "notes": "marty@primal.net, resolved at its own domain on 2026-10-24. An RSS mirror and copies share the name; this is the account itself.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-damus",
+      "query": "damus",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"]
+      },
+      "notes": "_@damus.io, resolved at its own domain on 2026-10-24. The app's own account. Other profiles are named Damus too, and the Damus app is not on Zap Store (m1-damus-app).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-nvk",
+      "query": "nvk",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["e88a691e98d9987c964521dff60025f60700378a4879180dcbbb4a5027850411"]
+      },
+      "notes": "_@nvk.org, resolved at its own domain on 2026-10-24. The profile's name is just 'N', so only the handle and the domain say nvk.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-jeff-booth",
+      "query": "jeff booth",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["83e818dfbeccea56b0f551576b3fd39a7a50e1d8159343500368fa085ccd964b"]
+      },
+      "notes": "jeffbooth@primal.net, resolved at its own domain on 2026-10-24. Several profiles are named Jeff Booth.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-nostr-build",
+      "query": "nostr.build",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["9989500413fb756d8437912cc32be0730dbe1bfc6b5d2eef759e1456c239f905"]
+      },
+      "notes": "_@nostr.build, resolved at its own domain on 2026-10-24. The media host's account; a domain-shaped name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-walker",
+      "query": "walker",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["c48e29f04b482cc01ca1f9ef8c86ef8318c059e0e9353235162f080f26e14c11"]
+      },
+      "notes": "walker@primal.net, resolved at its own domain on 2026-10-24. A common name; this is the one at primal.net, and any other Walker would be a fair second.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-lucky-dawgs",
+      "query": "lucky dawgs",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"]
+      },
+      "notes": "The Chicago hot dog place on Food and Drink Places.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-solid-state-coffee",
+      "query": "solid state coffee",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "The New York cafe, also the venue of New York's Bitcoin with Coffee meetups.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-kirita-funchal",
+      "query": "kirita funchal",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406"]
+      },
+      "notes": "The Funchal ramen place.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-ooink-ramen",
+      "query": "ooink ramen",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4112849388",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2135541966"
+          ]
+        ]
+      },
+      "notes": "Seattle, listed twice; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-medici-roasting",
+      "query": "medici roasting",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-382559089",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7112908724",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5571027695",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13296570109",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13296554172",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10563618404"
+          ]
+        ]
+      },
+      "notes": "An Austin coffee roaster, listed six times; any one counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-the-vegan-nom",
+      "query": "the vegan nom",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710"]
+      },
+      "notes": "Austin's vegan taco place.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-lucky-dawgs-hours",
+      "query": "lucky dawgs hours",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"]
+      },
+      "notes": "The answer is the place card, which shows its opening hours (Mo-Fr 15:00-20:30; Sa 12:00-17:00; Su 12:00-19:00 as listed).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-solid-state-coffee-website",
+      "query": "solid state coffee website",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "The answer is the place card, which links its website (https://solidstatecoffee.com/).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-central-grill-funchal-hours",
+      "query": "central grill funchal hours",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-724127083"]
+      },
+      "notes": "The answer is the place card, with its opening hours (Mo-Su 12:30-24:00 as listed).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-is-tacotlan-open-on-sunday",
+      "query": "is tacotlan open on sunday",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6303063044"]
+      },
+      "notes": "The answer is the place card; its hours (Tu-Sa 11:00-21:00; Su 11:00-18:00) say whether Sunday is open. A yes or no is what the asker wants.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-who-wrote-neuromancer",
+      "query": "who wrote neuromancer",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27258w"]
+      },
+      "notes": "William Gibson. The relay's own search for the word also returns five books about necromancers.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-snow-crash",
+      "query": "snow crash",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol38501w"]
+      },
+      "notes": "Neal Stephenson.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-the-sovereign-individual",
+      "query": "the sovereign individual",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol3350985w"]
+      },
+      "notes": "James Dale Davidson, as the list names its author.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-project-hail-mary",
+      "query": "project hail mary",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol21745884w"]
+      },
+      "notes": "Andy Weir.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-author-of-the-fountainhead",
+      "query": "author of the fountainhead",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": [
+          [
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol731663w",
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol32423092w"
+          ]
+        ]
+      },
+      "notes": "Ayn Rand. The book is on the list twice, as 'The Fountainhead' and 'Fountainhead'; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-1984-george-orwell",
+      "query": "1984 george orwell",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol1168083w"]
+      },
+      "notes": "Listed as 'Nineteen Eighty-Four'. Books titled '1984' are by others (Samuel R. Delany, Fido Nesti): the number has to be read as the title.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-mythical-man-month",
+      "query": "mythical man month",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol3510570w"]
+      },
+      "notes": "Frederick P. Brooks; the title has a hyphen the query does not.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-lord-of-the-rings-tolkien",
+      "query": "lord of the rings tolkien",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27448w"]
+      },
+      "notes": "Tolkien's. At least five other books share the title (guides, criticism, other authors).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-brave-new-world-huxley",
+      "query": "brave new world huxley",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": [
+          [
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol64365w",
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27690578w"
+          ]
+        ]
+      },
+      "notes": "Aldous Huxley; the list has two editions (1932 and 2022), and either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-primal-app",
+      "query": "primal app",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:b090908101cc6498893cc7f14d745dcea0b2ab6842cc4b512515643d272a375c:net.primal.android"]
+      },
+      "notes": "Primal's Android listing on Zap Store. The Top page has no Apps section, so this is a miss by construction today.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-zeus-wallet",
+      "query": "zeus wallet",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:34d2f5274f1958fcd2cb2463dabeaddf8a21f84ace4241da888023bf05cc8095:app.zeusln.zeus"]
+      },
+      "notes": "ZEUS on Zap Store; 'wallet' is not in its name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-amber-signer",
+      "query": "amber signer",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": [
+          [
+            "32267:78ce6faa72264387284e647ba6938995735ec8c7d5c5a65737e55130f026307d:com.greenart7c3.nostrsigner",
+            "32267:7579076d9aff0a4cfdefa7e2045f2486c7e5d8bc63bfc6b45397233e1bbfcb19:com.greenart7c3.nostrsigner"
+          ]
+        ]
+      },
+      "notes": "Amber, listed by two publishers on Zap Store; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-olas",
+      "query": "olas",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:3f68dede81549cc0844fafe528f1574b51e095e7491f468bd9689f87779bb81d:com.pablof7z.snapstr"]
+      },
+      "notes": "Olas, whose listing id still says snapstr (com.pablof7z.snapstr).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-damus-app",
+      "query": "damus app",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps", "people"],
+        "results": ["3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"]
+      },
+      "notes": "Damus is an iOS app and is not on Zap Store (checked 2026-10-24); its own account is the useful answer.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-github-vitorpamplona",
+      "query": "github vitorpamplona",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["github"],
+        "results": [
+          [
+            "39999:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:vitorpamplona-ni5x31",
+            "39999:460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c:vitorpamplona-ni5x31"
+          ]
+        ]
+      },
+      "notes": "vitorpamplona on GitHub Accounts, listed by two curators; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-golden-gate-bitcoin-conference",
+      "query": "golden gate bitcoin conference",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9f09f1bf4db1cbbc7cee69",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a5492ab34af2289c7239b84"
+          ]
+        ]
+      },
+      "notes": "On 6 Nov, published twice; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-nashbitdevs-socratic-seminar-49",
+      "query": "nashbitdevs socratic seminar 49",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ojchvcv36ucoep46bam2pui773qflwg3",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa4a44ebf4db1cbbc845f81"
+          ]
+        ]
+      },
+      "notes": "On 10 Nov: an Event Index item and its NIP-52 copy; either counts. The '#' in the title is not typed.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-when-is-park-101-intro-to-bitcoin",
+      "query": "when is park 101 intro to bitcoin",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kn6sns3s3wb3xn5mfxunmnvll7byaeo7",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa7474f28a99c6886fd93c7"
+          ]
+        ]
+      },
+      "notes": "Nashville, 12 Nov. The answer is the event card, which shows the date; Event Index item and NIP-52 copy, either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-tech-art-lisboa",
+      "query": "tech art lisboa",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:nzluokbig2ptltkjjuafl7gtbcnrqlmg"
+        ]
+      },
+      "notes": "Lisbon, 11 Nov. An Event Index item only: the Top page's events band does not ask for those yet.",
+      "as_of": "2026-10-24"
+    },
+    {
       "id": "m4-what-do-my-people-think-of-piranesi",
       "query": "what do my people think of Piranesi",
       "class": "social",
