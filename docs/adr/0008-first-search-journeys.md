@@ -22,6 +22,10 @@ counted with read-only REQs to `wss://search.brainstorm.world`, by the audit's m
 | Fields   | category 100%, locality 79.4%, cuisine 52.1%      | `start` on every one; location text on 86.5%               |
 | Coverage | 3,017 localities; only 3 hold 50 places or more   | city counts follow the feeds imported (see below)          |
 
+On 2026-10-24, 3,335 of the list's 7,984 places had both a cuisine and a locality (a full read of the list from
+`wss://dcosl.brainstorm.world`). That is the few thousand places the M2 milestone counts on, but spread over some 3,000
+localities: only 16 hold 25 places or more.
+
 By demo city. Places count items within 25 km of the centre. Events use the audit's city assignment, which folds in
 suburbs within 40 km.
 
