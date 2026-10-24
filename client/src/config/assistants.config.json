@@ -1,0 +1,14 @@
+{
+  "_comment": "The two tags that make a profile one of the reader's Assistants (Settings › Assistants & Duties, read through config/assistants). The same two Tapestry's My Assistants page reads (nous-clawds4/tapestry src/lib/my-assistant-tags, 2026-10-01): keep them in step, so a tagging made on either app shows on both.",
+  "tags": {
+    "brainstorm": {
+      "name": "My Brainstorm Assistant",
+      "coordinate": "39999:15f7dafc4624b1e6b00ab7f863de1a53b71967528070ec7d1837c7a40c1c7270:my-brainstorm-assistant"
+    },
+    "tapestry": {
+      "name": "My Tapestry Assistant",
+      "coordinate": "39999:15f7dafc4624b1e6b00ab7f863de1a53b71967528070ec7d1837c7a40c1c7270:my-tapestry-assistant"
+    }
+  },
+  "_tags": "In the order a row shows them. A tagging counts by its tag's slug, whoever authored the definition (Tapestry's rule, ADR my-assistants/0001): the coordinate is what a new tagging points at, not a filter."
+}

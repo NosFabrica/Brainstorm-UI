@@ -50,6 +50,9 @@ import {
   ChevronRight,
   BookOpen,
   MessageCircle,
+  Bot,
+  Map as MapIcon,
+  Sparkles,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -116,8 +119,19 @@ import { settingsTabFor } from "@/lib/settingsTab";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
+import { AssistantsTab } from "@/components/settings/AssistantsTab";
+import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
 
-type SettingsTab = "profile" | "trust" | "messages" | "dictionary" | "billing" | "about";
+type SettingsTab =
+  | "profile"
+  | "trust"
+  | "brainstorm-assistant"
+  | "assistants"
+  | "treasure-map"
+  | "messages"
+  | "dictionary"
+  | "billing"
+  | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -153,6 +167,12 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  // The reader's Assistants (2026-10-23): the one Brainstorm hosts for them, out of
+  // Trust & search into a tab of its own; every one they've tagged and what each does
+  // (Tapestry's My Assistants); and the Treasure Map that hands out the duties.
+  { key: "brainstorm-assistant", label: "Brainstorm Assistant", icon: Sparkles },
+  { key: "assistants", label: "Assistants & Duties", icon: Bot },
+  { key: "treasure-map", label: "Treasure Map", icon: MapIcon },
   // Its own tab (2026-10-05), out of Trust & search: a reader looks for message settings
   // under "Messages". Where the inbox's "Manage" (and its settings icon) lands.
   { key: "messages", label: "Messages", icon: MessageCircle },
@@ -2406,9 +2426,26 @@ export default function SettingsPage() {
           {activeTab === "trust" && (
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
-              <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
               {networkAlertsCard}
               {advancedSection}
+            </div>
+          )}
+
+          {activeTab === "brainstorm-assistant" && (
+            <div className="space-y-6" data-testid="tab-content-brainstorm-assistant">
+              <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+            </div>
+          )}
+
+          {activeTab === "assistants" && (
+            <div className="space-y-6" data-testid="tab-content-assistants">
+              <AssistantsTab viewer={user?.pubkey} />
+            </div>
+          )}
+
+          {activeTab === "treasure-map" && (
+            <div className="space-y-6" data-testid="tab-content-treasure-map">
+              <TreasureMapTab viewer={user?.pubkey} />
             </div>
           )}
 
