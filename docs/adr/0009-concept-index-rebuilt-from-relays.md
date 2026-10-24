@@ -11,6 +11,9 @@ meaning from scratch.
 
 ## Why
 
+In Alice's terms: she can still find the right definition for "widgets", meaning the right list header, when
+NosFabrica's Brainstorm is gone.
+
 This is not disaster recovery for NosFabrica's databases. The test never rebuilds a relay: relays are the source it
 reads, and it reads only relays NosFabrica does not run. It exists so that what a word means in search does not depend
 on NosFabrica:
@@ -86,5 +89,7 @@ Counts for the lists are from the [data audit](../search/audit-2026-10-22.md) wh
 - **The projection job reads only relay events and Tapestry's graph,** and the same job rebuilds Tapestry's graph from
   relays when the stores are empty.
 - **No hand edits to the graph or the index.** Corrections are events.
-- **Per-observer trust is out of scope.** Whose curation counts is computed per asker (D6, G1). This test covers the
-  concept index, which is the same for every asker.
+- **Which header is right for a given asker is out of scope.** The index holds every candidate header for a word, with
+  its labels, aliases and edges, and that is what this test covers: it is the same for every asker. Which candidate
+  wins for Alice comes from her web of trust, computed per asker (D6, G1). That side needs the same bar in its own
+  decision: trust built from events on relays, by a provider she chooses rather than one NosFabrica imposes.
