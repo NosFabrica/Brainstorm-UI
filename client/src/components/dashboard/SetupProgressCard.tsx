@@ -30,7 +30,8 @@ export function SetupProgressCard({
   showStatus?: boolean;
 }) {
   const [, navigate] = useLocation();
-  const { signedIn, followDone, followPending, activateDone, activatePending, doneCount } = useFinishSetup();
+  const { signedIn, followDone, followPending, activateDone, activatePending, doneCount, totalSteps } =
+    useFinishSetup();
 
   const pending: { key: string; label: string; detail: string; href: string }[] = [];
   if (followPending)
@@ -70,7 +71,7 @@ export function SetupProgressCard({
           Finish setting up
         </span>
         <Chip tone="slate" size="sm" className="ml-auto tabular-nums">
-          {doneCount} of 3 done
+          {doneCount} of {totalSteps} done
         </Chip>
       </div>
 

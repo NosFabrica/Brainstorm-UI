@@ -20,7 +20,9 @@ import {
   Gauge,
   MessageCircle,
   Smartphone,
+  ListChecks,
 } from "lucide-react";
+import { Chip } from "@/components/ui/chip";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
@@ -30,6 +32,7 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
+import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { removeAccountFromDevice } from "@/accounts/login-flow";
 import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -457,8 +460,10 @@ export function AccountMenuBody({
              Insights and change it in Settings → Billing.
           3. Invite friends — the growth loop, and stronger AFTER someone has
              engaged with their own standing than as a cold opener.
-          4. Settings, then Help — utilities live at the bottom by convention,
-             ordered by frequency. */}
+          4. Account setup, Settings, then Help — utilities live at the bottom
+             by convention, ordered by frequency. Account setup sits with
+             Settings: both are about the account itself, and it's the way back
+             to /setup once the header pill has gone. */}
       <div className="p-1.5">
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
         {isFree && billingAvailable !== false && (
@@ -477,6 +482,7 @@ export function AccountMenuBody({
           />
         )}
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
+        <AccountSetupRow onNavigate={onNavigate} />
         <MenuRow
           icon={SettingsIcon}
           label="Settings"
@@ -533,6 +539,34 @@ function MenuDivider() {
   return <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />;
 }
 
+/**
+ * /setup, always. While required steps are left it counts them in the header
+ * pill's amber; once they're done it is the one place optional steps (messages)
+ * are counted — muted, and only here, never as a dot on the avatar.
+ */
+function AccountSetupRow({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const { remaining, optionalRemaining } = useFinishSetup();
+  const count =
+    remaining > 0 ? (
+      <Chip tone="amber" size="sm" className="tabular-nums" data-testid="dropdown-account-setup-count">
+        {remaining} {remaining === 1 ? "step" : "steps"} left
+      </Chip>
+    ) : optionalRemaining > 0 ? (
+      <Chip tone="slate" size="sm" className="tabular-nums" data-testid="dropdown-account-setup-count">
+        {optionalRemaining} optional {optionalRemaining === 1 ? "step" : "steps"}
+      </Chip>
+    ) : null;
+  return (
+    <MenuRow
+      icon={ListChecks}
+      label="Account setup"
+      onClick={() => onNavigate("/setup")}
+      testId="dropdown-account-setup"
+      badge={count}
+    />
+  );
+}
+
 /** "Install the app", where this browser can — never inside the installed app itself. */
 function InstallAppRow({ close }: { close: () => void }) {
   const { offer, install } = useInstallApp();
@@ -557,6 +591,7 @@ function MenuRow({
   tone = "default",
   testId,
   dot = false,
+  badge,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -565,6 +600,8 @@ function MenuRow({
   testId?: string;
   /** Attention dot after the label — e.g. an unread support reply. */
   dot?: boolean;
+  /** A small count at the row's end — e.g. setup steps left. */
+  badge?: ReactNode;
 }) {
   const toneCls =
     tone === "danger"
@@ -582,6 +619,7 @@ function MenuRow({
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
+      {badge && <span className="ml-auto flex shrink-0">{badge}</span>}
       {dot && (
         <span
           className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-accent"

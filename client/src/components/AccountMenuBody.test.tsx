@@ -46,6 +46,9 @@ vi.mock("@/hooks/useSubscription", () => ({
     refetch: () => {},
   }),
 }));
+// The Account setup row's counts — the one part of the menu that reads the setup model.
+const setup = vi.hoisted(() => ({ remaining: 0, optionalRemaining: 0 }));
+vi.mock("@/hooks/useFinishSetup", () => ({ useFinishSetup: () => setup }));
 
 const USER: AccountDisplay = {
   pubkey: "a".repeat(64),
@@ -81,6 +84,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   losesKey.mockReturnValue(false);
   removeAccountFromDevice.mockReturnValue(false);
+  setup.remaining = 0;
+  setup.optionalRemaining = 0;
 });
 
 describe("the identity card", () => {
@@ -235,5 +240,34 @@ describe("the plan row", () => {
       subState.isFree = true;
       subState.isError = false;
     }
+  });
+});
+
+// The way back to /setup once the header pill has gone, and the one place the
+// optional steps are counted — quietly, inside the menu, never on the avatar.
+describe("the Account setup row", () => {
+  it("counts the required steps left, as the header pill does", () => {
+    setup.remaining = 2;
+    setup.optionalRemaining = 1;
+    renderWithProviders(<Panel />);
+
+    expect(screen.getByTestId("dropdown-account-setup-count")).toHaveTextContent("2 steps left");
+  });
+
+  it("counts the optional steps once the required ones are done", () => {
+    setup.optionalRemaining = 1;
+    renderWithProviders(<Panel />);
+
+    expect(screen.getByTestId("dropdown-account-setup-count")).toHaveTextContent("1 optional step");
+  });
+
+  it("is a plain way back to /setup once everything is done", () => {
+    const close = vi.fn();
+    renderWithProviders(<Panel close={close} />);
+
+    expect(screen.queryByTestId("dropdown-account-setup-count")).toBeNull();
+    fireEvent.click(screen.getByTestId("dropdown-account-setup"));
+    expect(close).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith("/setup");
   });
 });

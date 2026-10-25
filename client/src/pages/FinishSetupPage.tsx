@@ -22,7 +22,9 @@ import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
  *
  * Every "Finish setup" surface (header banner, dashboard card) lands here, and
  * both action rows come back here when they're done, so progress is always
- * visible in one place.
+ * visible in one place. Once the required steps are done it's where the
+ * account menu's Account setup row leads, for the optional extras — and it's
+ * titled for that, not still asking them to finish.
  */
 
 function DoneRow({ label, detail, testid }: { label: string; detail: ReactNode; testid: string }) {
@@ -87,7 +89,7 @@ function PendingRow({
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const { followDone, followCount, activateDone, listsPending, doneCount, allDone } = useFinishSetup();
+  const { followDone, followCount, activateDone, listsPending, doneCount, totalSteps, allDone } = useFinishSetup();
   const { isCalculating } = useScoringStatus();
 
   if (!user) return null;
@@ -118,13 +120,21 @@ export default function FinishSetupPage() {
       />
 
       <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
-        <SectionHeader kicker="Finish setting up" className="mb-4" />
+        <SectionHeader kicker={allDone ? "Account setup" : "Finish setting up"} className="mb-4" />
         <h1
           className="text-3xl font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
           style={{ fontFamily: "var(--font-display)" }}
           data-testid="text-finish-setup-title"
         >
-          Finish setting up <span className="text-brand-link">your account</span>.
+          {allDone ? (
+            <>
+              Your account is <span className="text-brand-link">set up</span>.
+            </>
+          ) : (
+            <>
+              Finish setting up <span className="text-brand-link">your account</span>.
+            </>
+          )}
         </h1>
 
         <div className="mt-7">
@@ -132,12 +142,12 @@ export default function FinishSetupPage() {
             className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300"
             data-testid="text-finish-setup-progress"
           >
-            {doneCount} of 3 complete
+            {doneCount} of {totalSteps} complete
           </span>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
             <div
               className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-accent transition-all duration-500"
-              style={{ width: `${Math.round((doneCount / 3) * 100)}%` }}
+              style={{ width: `${Math.round((doneCount / totalSteps) * 100)}%` }}
             />
           </div>
         </div>
@@ -196,8 +206,10 @@ export default function FinishSetupPage() {
           )}
           {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
           {activateDone && listsPending && <ListsUpdateLine />}
-          <MessagesSetupRow />
         </div>
+
+        {/* Below the counted steps, under its own heading: the count above is of them alone. */}
+        <MessagesSetupRow />
 
         {allDone && (
           <Card accent className="mt-5 p-6 text-center" data-testid="card-setup-all-done">
