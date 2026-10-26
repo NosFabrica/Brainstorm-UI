@@ -533,6 +533,1497 @@
       "run": false
     },
     {
+      "id": "m2-coffee-in-san-francisco",
+      "query": "coffee in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "19 San Francisco places have category cafe; scored by filter precision. 'coffee' is the word people use, 'cafe' the category."
+    },
+    {
+      "id": "m2-bubble-tea-in-sf",
+      "query": "bubble tea in sf",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9657095566",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9462343653",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9459210057",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4925135942",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3674255658",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125736295",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125283496",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12101566691"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5893605745",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14129575583",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12983552129",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12794766076",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10560594652"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "'sf' is how people write San Francisco; the data spells it out. Bubble tea is the city's most common cuisine on the list: Little Sweet at K-Box, Little Sweet (listed 7 times; any one counts), Kiss of Matcha, Little Sweet Go, Nameless Tea & Coffee, District Tea, Turn Café x Little Sweet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-mexican-food-in-san-francisco",
+      "query": "mexican food in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3790822678",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3674255642",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1822506138",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10003173202"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13729807702",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13393504106"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Francisco places with cuisine mexican: Barrera's Cocina Mexicana, Gordo Taqueria (listed 3 times; any one counts), El Jacal Mexican Grill, Casa de la Condesa. 'food' is a word of the list's own name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-burgers-in-san-francisco",
+      "query": "burgers in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "burger"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-259056907",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4616049557"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Francisco places with cuisine burger: Newkirk's, Phillies. Typed plural, stored singular.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-sandwiches-in-san-francisco",
+      "query": "sandwiches in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "sandwich"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-259056907",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3199949652",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13816382324",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10916669656"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Francisco places with cuisine sandwich: Newkirk's, Cafe Francisco, Studio Aurora, Q's Sandwich Shop.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-cheesesteak-in-san-francisco",
+      "query": "best cheesesteak in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "cheesesteak"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-259056907",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4616049557"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Newkirk's, Phillies: one stored as cheesesteak, one as cheesesteaks. 'best' asks for a ranking the list does not give yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-sushi-in-san-francisco",
+      "query": "sushi in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "sushi"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13521684996"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Breakthrough Sushi is the one San Francisco place with cuisine sushi.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bakery-in-san-francisco",
+      "query": "bakery in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "category": "bakery"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-1189071447"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Mariposa Baking Co. is the one San Francisco place with category bakery.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pizza-in-san-francisco",
+      "query": "pizza in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13307601912"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Cheezy's Artisan Pizza is the one San Francisco place with cuisine pizza.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-in-nashville",
+      "query": "coffee in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13712525554",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294970089",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294968879",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294964180",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294958503"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Packhouse Coffee Company, Prickly Pear Coffee Co. (listed 4 times; any one counts). Packhouse Coffee Company is stored with category coffee, not cafe.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-restaurants-in-nashville",
+      "query": "restaurants in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "restaurant"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7020596624",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13335011263"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Nashville places with category restaurant: Pégate al Sabor, Don Miguel Juicery + Rustic Kitchen. Nashville has only ten places on the list.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-ice-cream-in-nashville",
+      "query": "ice cream in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "ice_cream"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-680983760"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Kokos Ice Cream, category ice_cream.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-bbq-in-nashville",
+      "query": "best bbq in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "cuisine": "barbecue"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No Nashville place on the list is barbecue (checked 2026-10-24), so there is no id to expect: a data gap as much as a search one."
+    },
+    {
+      "id": "m2-tacos-in-nashville",
+      "query": "tacos in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13705423825"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Lucia Tacos Express: cuisine mexican, and 'tacos' is in its name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-venezuelan-food-nashville",
+      "query": "venezuelan food nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "cuisine": "venezuelan"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7020596624"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Pégate al Sabor, cuisine venezuelan.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-shops-in-chicago",
+      "query": "coffee shops in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-210171211",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6256333210",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13431370942",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13314914294",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11992882059"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Chicago cafes that serve coffee: Iron Café, Base Community Cafe, Oro Chocolate & Coffee, Logan Collective, Drip Collective. Miko's Italian Ice, Mini Donut Factory and TBaar - Chicago are also category cafe, but not what 'coffee shops' asks for.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-hot-dogs-in-chicago",
+      "query": "hot dogs in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "hot_dogs"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Lucky Dawgs: stored as hot_dogs here and as hot_dog in New York (m2-hot-dogs-in-new-york).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-indian-food-chicago",
+      "query": "indian food chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "indian"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5912122886",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6282566260"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Chicago places with cuisine indian: Chiya Chai (listed 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bubble-tea-in-chicago",
+      "query": "bubble tea in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13312652437"],
+        "absent_categories": ["people"]
+      },
+      "notes": "TBaar - Chicago, cuisine bubble_tea.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-jamaican-restaurant-chicago",
+      "query": "jamaican restaurant chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "jamaican"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13794086041"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Jerky Jerk, cuisine jamaican.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-donuts-in-chicago",
+      "query": "donuts in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "donut"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13438469234"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Mini Donut Factory, cuisine donut: typed plural, stored singular.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-tacos-in-chicago",
+      "query": "best tacos in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6303063044",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6280027510"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Tacotlan, Rubi’s Tacos. Tacotlan has no cuisine; only its name says tacos.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-nyc-coffee",
+      "query": "nyc coffee",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"],
+        "absent_categories": ["people"]
+      },
+      "notes": "'nyc' is how people write it; the data says New York. Solid State Coffee is the New York cafe on the list.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pizza-in-nyc",
+      "query": "pizza in nyc",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No place with locality New York has cuisine pizza (checked 2026-10-24). Within 25 km there are three, all in New Jersey (Ricoy Pizzeria & Restaurant, Helen's Pizza, Lucci's Pizza): whether they belong is the radius question, so no id is expected."
+    },
+    {
+      "id": "m2-tacos-in-austin",
+      "query": "tacos in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "tacos"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13309555872"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Vegan Nom, El Xolo Tacos: one has cuisine tacos, the other only says tacos in its name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-bbq-in-austin",
+      "query": "best bbq in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "barbecue"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No Austin place on the list is barbecue (checked 2026-10-24), in a city known for it: the list holds places that take bitcoin, so it is as dense as their merchants."
+    },
+    {
+      "id": "m2-acai-bowls-in-austin",
+      "query": "acai bowls in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "açaí"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334961707",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334956624"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Wonky Blends (listed 2 times; any one counts): stored as açaí, with both accents, typed without them. Los Angeles spells it açai.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-middle-eastern-food-austin",
+      "query": "middle eastern food austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "middle_eastern"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13814202487",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287685",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298249811",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287162"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Austin places with cuisine middle_eastern: Reem's, Halal Bros (listed 3 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-juice-bar-austin",
+      "query": "juice bar austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "juice"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334961707",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334956624"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13580757399"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Austin places with cuisine juice: Wonky Blends (listed 2 times; any one counts), Get Juicy Roots. 'bar' here is not the category bar.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-food-trucks-in-austin",
+      "query": "food trucks in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "fast_food"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "'food truck' is not a field. The 10 Austin fast_food places are the nearest category; scored by filter precision."
+    },
+    {
+      "id": "m2-bars-in-austin",
+      "query": "bars in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3825447599",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3353487729",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1481721326"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Austin places with category bar: Hacienda Bar, Saturn, Shiner's Saloon.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-vegan-food-in-austin",
+      "query": "vegan food in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin"
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710"],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Vegan Nom: vegan only in its name; no Austin place carries a vegan cuisine or diet field.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bakeries-in-funchal",
+      "query": "bakeries in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bakery"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4648482791",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4183148414",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3884742383",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10958561090",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10912591292"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3887477219"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Funchal places with category bakery: A Confeitaria, A Confeitaria Coffee & Bakery (listed 4 times; any one counts), Penha d'Aguia Ajuda - Coffee Shop.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-portuguese-restaurant-funchal",
+      "query": "portuguese restaurant funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "portuguese"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12397550161"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Corner 205 International Restaurant, cuisine portuguese. One other Funchal place is tagged regional, which may or may not mean Portuguese food.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-ramen-in-funchal",
+      "query": "ramen in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "ramen"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Kirita, cuisine ramen.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bars-open-late-in-funchal",
+      "query": "bars open late in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4319235351",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3997675690"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Of the four Funchal bars, these stay open to midnight or later by their opening-hours: Barreirinha Bar Café, A casa da Levada. 'late' needs the opening-hours field read.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-in-los-angeles",
+      "query": "coffee in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "38 Los Angeles places have category cafe; scored by filter precision."
+    },
+    {
+      "id": "m2-tacos-in-la",
+      "query": "tacos in LA",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12300477932",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14185211870",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14046319117",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14042122755",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13606011127"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "'LA' is Los Angeles. The Mexican places there: Highland Tamalezzz, Tacos Garcia, La Herencia Estilo DF, La Sandunga Oaxacan Cuisine, El Guero Food Truck.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-korean-food-los-angeles",
+      "query": "korean food los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "korean"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13571508438",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10746685299"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with cuisine korean: M Spoon, Shiku.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-cambodian-food-in-los-angeles",
+      "query": "cambodian food in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "cambodian"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14086099008",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13529931386",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13529930597",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13529832233"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with cuisine cambodian: Kreung LA (listed 4 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-farms-near-los-angeles",
+      "query": "farms near los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "category": "farm"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14059053383",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13634330729",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13625465385",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13566364107"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The places with category farm and locality Los Angeles: Go Go Grocery Markets, Grow & Go Co, Imani Gardens, Huaraches Jr. 'near' asks for a radius; farms outside the city line would also be fair.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bubble-tea-in-los-angeles",
+      "query": "bubble tea in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13888219350",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13352030341"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with cuisine bubble_tea: Sugar Cafe & Boba, Boba Zzing.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-wine-shop-in-los-angeles",
+      "query": "wine shop in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "category": "wine"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13953615522",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13953613814",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13811770831"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with category wine, which is how wine shops are tagged: Wine Stop DTLA, Wine Stop Xpress ECPK, Wine Stop SVLK.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pizza-in-lugano",
+      "query": "pizza in lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-373417055",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-367036024",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1371473059",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12595499445",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10781766897"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Lugano places with cuisine pizza: Commercio, Argentino, Cantinone, Ristorante Fresco, Staglio.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-burger-lugano",
+      "query": "burger lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "cuisine": "burger"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-367036024",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-326308370",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12925918990"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Lugano places with cuisine burger: Argentino, McDonald's, Fully Burgers and Fries.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bars-in-lugano",
+      "query": "bars in lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4750882924",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3760350634",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10887467066",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10596226066",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10240861672",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10218830612",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10004485317"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Lugano places with category bar: Sass Café Vineria, Kream, The Market Lugano, Class Café, El Cid, Shaker, La Dispensa.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pupusas-in-san-salvador",
+      "query": "pupusas in san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador"
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No San Salvador place says pupusas in its name or cuisine (checked 2026-10-24); the pupuserías are in Berlín, Usulután (m2-pupusas-in-el-salvador)."
+    },
+    {
+      "id": "m2-coffee-in-san-salvador",
+      "query": "coffee in san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11345131810",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9291402617",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11363024905"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5427815650",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12290079484",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11333485686",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10130944937"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Salvador places with category cafe: Sprezzatura Coffee Stand, Starbucks (listed 2 times; any one counts), Café Fulanos, El Boquerón Coffee Shop, Viva Espresso, Juan Valdez Café.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-fried-chicken-san-salvador",
+      "query": "fried chicken san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "cuisine": "chicken"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11601181473",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-776388874",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-399509369",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-396795805",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-396763278",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4023863439"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Salvador places with cuisine chicken: El Xolo Maíz, Pollo Campestre, KFC, Don Pollo, Pollo Campero (listed 2 times; any one counts). 'fried' is not stored.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-seafood-restaurant-san-salvador",
+      "query": "seafood restaurant san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "cuisine": "seafood"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11601181473",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10965676041"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "El Xolo Maíz, Honolulu Seafood & Market: cuisine seafood or fish.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-near-me",
+      "query": "coffee near me",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Needs the reader's location. Scored by category and filter precision only."
+    },
+    {
+      "id": "m2-pizza-open-now-near-me",
+      "query": "pizza open now near me",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Needs the reader's location and the time, read against opening-hours. Scored by category and filter precision only."
+    },
+    {
+      "id": "m2-restaurants-in-el-salvador",
+      "query": "restaurants in el salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "country": "SV",
+            "category": "restaurant"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "El Salvador is stored as the country code SV, not a locality, so the place is a property here. 187 restaurants there; scored by filter precision."
+    },
+    {
+      "id": "m2-cafes-in-switzerland",
+      "query": "cafes in switzerland",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "country": "CH",
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Switzerland is stored as the country code CH, so the place is a property here. 13 cafes there; scored by filter precision."
+    },
+    {
+      "id": "m2-bbq-in-houston",
+      "query": "bbq in houston",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Houston",
+          "property": {
+            "cuisine": "barbecue"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13332954259",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13332950656",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13332950575"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "EZ Backyard Bar B Q (listed 3 times; any one counts), cuisine barbecue; its name spells it Bar B Q.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-tacos-in-san-diego",
+      "query": "tacos in san diego",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Diego",
+          "property": {
+            "cuisine": "tacos"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13368213933",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6582367070",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13376986759",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13328811390"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Diego places with cuisine tacos or tacos in their name: The Craft Taco, El Charro Taco Shop, The Craft Taco at The Nat, Tacos El Vaquero.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-ramen-in-seattle",
+      "query": "ramen in seattle",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Seattle",
+          "property": {
+            "cuisine": "ramen"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4112849388",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2135541966"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Ooink Ramen (listed 2 times; any one counts), cuisine ramen.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-brunch-in-omaha",
+      "query": "brunch in omaha",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Omaha",
+          "property": {
+            "cuisine": "breakfast"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13316789500",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13316760985"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Brunch Box (listed 2 times; any one counts): brunch in its name, breakfast in its cuisine.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-in-charlotte",
+      "query": "coffee in charlotte",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Charlotte",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13571630550",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9550362664"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Charlotte places with category cafe: Green Cafe, Mugs Coffee.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-pizza-in-austin",
+      "query": "best pizza in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13309320506"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Rockin' Rolls is the one Austin place with cuisine pizza. 'best' asks for a ranking the list does not give yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-top-rated-restaurants-in-funchal",
+      "query": "top rated restaurants in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "'top rated' asks for a ranking by the reader's people. 24 Funchal restaurants; scored by filter precision."
+    },
+    {
+      "id": "m2-bitcoin-coffee-shop",
+      "query": "bitcoin coffee shop",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Every place on the list takes bitcoin, so 'bitcoin' narrows nothing; a bitcoin-focused coffee account would be a fair People result. Scored by category."
+    },
+    {
+      "id": "m2-agent-bubble-tea-san-francisco",
+      "query": {
+        "categories": ["places"],
+        "place": "San Francisco",
+        "property": {
+          "cuisine": "bubble_tea"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9657095566",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9462343653",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9459210057",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4925135942",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3674255658",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125736295",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125283496",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12101566691"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5893605745",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14129575583",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12983552129",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12794766076",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10560594652"
+        ]
+      },
+      "notes": "The structured form of 'bubble tea in sf': Little Sweet at K-Box, Little Sweet (listed 7 times; any one counts), Kiss of Matcha, Little Sweet Go, Nameless Tea & Coffee, District Tea, Turn Café x Little Sweet. Not run by the baseline yet.",
+      "run": false,
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-agent-coffee-nashville",
+      "query": {
+        "categories": ["places"],
+        "place": "Nashville",
+        "property": {
+          "category": "cafe"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13712525554",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294970089",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294968879",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294964180",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294958503"
+          ]
+        ]
+      },
+      "notes": "The structured form of 'coffee in nashville': Packhouse Coffee Company, Prickly Pear Coffee Co. (listed 4 times; any one counts). Not run by the baseline yet.",
+      "run": false,
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-agent-middle-eastern-austin",
+      "query": {
+        "categories": ["places"],
+        "place": "Austin",
+        "property": {
+          "cuisine": "middle_eastern"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "middle_eastern"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13814202487",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287685",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298249811",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287162"
+          ]
+        ]
+      },
+      "notes": "The structured form of 'middle eastern food austin': Reem's, Halal Bros (listed 3 times; any one counts). Not run by the baseline yet.",
+      "run": false,
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-agent-mexican-chicago-my-network",
+      "query": {
+        "categories": ["places"],
+        "place": "Chicago",
+        "property": {
+          "cuisine": "mexican"
+        },
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "mexican"
+          }
+        }
+      },
+      "notes": "Mexican places in Chicago that the reader's people go to: the shape of the M2 demo's 'from your people'. The answer depends on the reader's network, so no id is fixed. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m2-agent-bars-funchal-open-now",
+      "query": {
+        "categories": ["places"],
+        "place": "Funchal",
+        "property": {
+          "category": "bar"
+        },
+        "open": "now",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "Funchal bars open at the moment of asking, read against opening-hours. The answer depends on the time, so no id is fixed. Not run by the baseline yet.",
+      "run": false
+    },
+    {
       "id": "m3-whats-on-this-weekend-in-chicago",
       "query": "what's on this weekend in chicago",
       "class": "recommendation",
