@@ -1,13 +1,14 @@
 name: Android preview
 
-# A staging APK per PR, for installing and testing. Signed with a test key and
-# only uploaded here; publishing is build.yml on main.
+# A staging APK per push to staging, for installing and testing. Signed with a
+# test key and only uploaded here; publishing is build.yml on main.
 on:
-  pull_request:
+  push:
+    branches: [staging]
   workflow_dispatch:
 
 concurrency:
-  group: android-preview-${{ github.event.pull_request.number || github.ref }}
+  group: android-preview-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -21,7 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Set up Node
@@ -41,7 +41,7 @@ jobs:
           VITE_SEARCH_RELAY_URL: wss://search.brainstorm.world/
           VITE_PUBLIC_ORIGIN: https://brainstorm-staging.nosfabrica.com
           VITE_IMG_PROXY: https://brainstorm-staging.nosfabrica.com/img
-          BUILD_ID: ${{ github.event.pull_request.head.sha || github.sha }}
+          BUILD_ID: ${{ github.sha }}
         run: npm run build
 
       - name: Set APK version
@@ -73,7 +73,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: brainstorm-staging-apk-${{ github.event.pull_request.number || github.run_number }}
+          name: brainstorm-staging-apk-${{ github.run_number }}
           path: build/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -84,7 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Serialised across PRs: the last build to finish is the one on the release.
+    # Serialised: the last build to finish is the one on the release.
     concurrency:
       group: android-staging-release
       cancel-in-progress: false
@@ -92,14 +92,14 @@ jobs:
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
-          name: brainstorm-staging-apk-${{ github.event.pull_request.number || github.run_number }}
+          name: brainstorm-staging-apk-${{ github.run_number }}
 
       - name: Update android-staging-latest release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          SOURCE: ${{ github.event.pull_request.html_url || github.ref_name }}
+          SHA: ${{ github.sha }}
+          SOURCE: ${{ github.ref_name }}@${{ github.sha }}
         run: |
           gh release delete android-staging-latest --yes --cleanup-tag || true
           gh release create android-staging-latest brainstorm-staging.apk \
