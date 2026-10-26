@@ -95,8 +95,9 @@ import {
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
-import { ListNarrowing, ListRibbon } from "@/components/search/ListRibbon";
+import { KindNarrowing, ListNarrowing, ListRibbon } from "@/components/search/ListRibbon";
 import { useListRibbon } from "@/hooks/useListRibbon";
+import { isKindKey, kindTiles } from "@/lib/kindTiles";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -1112,9 +1113,10 @@ export function SearchResults({
   const effectiveQuery =
     !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
 
-  // On All, a pressed list (hooks/useListRibbon, below) narrows All to its items, for the words
-  // it was pressed on. The link holds it (`list`); a new search leaves it out (pages/landing), so
-  // words that change take the link's word again: none after a search, the list on Back.
+  // On All, a pressed list (hooks/useListRibbon, below) narrows All to its items, and a pressed
+  // kind (lib/kindTiles) to its rows, for the words it was pressed on. The link holds it (`list`:
+  // a coordinate, or `kind:Video`); a new search leaves it out (pages/landing), so words that
+  // change take the link's word again: none after a search, the tile on Back.
   const onAll = tab === "all" && !activeKind;
   const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(() => {
     const coordinate = urlList();
@@ -1427,11 +1429,22 @@ export function SearchResults({
   );
   // The Dictionary's lists the words find items on, and those with items among All's rows.
   const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll, page: hits });
+  // The kinds among All's rows, past those a list tile holds.
+  const kindsOnPage = useMemo(() => {
+    if (!onAll) return [];
+    const held = new Set(ribbon.lists.flatMap((l) => l.hits.map((h) => h.event.id)));
+    return kindTiles(hits, held);
+  }, [onAll, ribbon.lists, hits]);
   const listAsked = onAll && listPressed?.query === effectiveQuery;
-  const narrowedTo = listAsked ? (ribbon.lists.find((l) => l.coordinate === listPressed.coordinate) ?? null) : null;
-  // A list the link names waits for the ribbon rather than showing all of All first; one that
-  // doesn't come lets All show.
-  const listWaiting = listAsked && !narrowedTo && !ribbon.settled;
+  const kindAsked = listAsked && isKindKey(listPressed.coordinate);
+  const narrowedTo =
+    listAsked && !kindAsked ? (ribbon.lists.find((l) => l.coordinate === listPressed.coordinate) ?? null) : null;
+  const narrowedToKind = kindAsked ? (kindsOnPage.find((k) => k.key === listPressed.coordinate) ?? null) : null;
+  // A tile the link names waits for the ribbon, or a kind for All's rows, rather than showing all
+  // of All first; one that doesn't come lets All show.
+  const listWaiting = kindAsked
+    ? !narrowedToKind && !snapshot?.eose && !snapshot?.error
+    : listAsked && !narrowedTo && !ribbon.settled;
   // A list narrowing All shows its own items, by authors the page's hits may not hold.
   useAuthorScores(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
@@ -2352,7 +2365,12 @@ export function SearchResults({
                 </FacetRow>
               )}
               {onAll && serverStatus.search !== "down" && (
-                <ListRibbon lists={ribbon.lists} pressed={narrowedTo?.coordinate ?? null} onPress={pressList} />
+                <ListRibbon
+                  lists={ribbon.lists}
+                  kinds={kindsOnPage}
+                  pressed={narrowedTo?.coordinate ?? narrowedToKind?.key ?? null}
+                  onPress={pressList}
+                />
               )}
               {activeKind ? (
                 <activeKind.Page query={query} onTabChange={changeTab} />
@@ -2364,6 +2382,11 @@ export function SearchResults({
                 <>
                   <ListNarrowing list={narrowedTo} />
                   <AllResults hits={narrowedTo.hits} settled scoreOf={scoreOf} query={query} />
+                </>
+              ) : narrowedToKind ? (
+                <>
+                  <KindNarrowing kind={narrowedToKind} />
+                  <AllResults hits={narrowedToKind.hits} settled={!!snapshot?.eose} scoreOf={scoreOf} query={query} />
                 </>
               ) : composed ? (
                 <ComposedResults

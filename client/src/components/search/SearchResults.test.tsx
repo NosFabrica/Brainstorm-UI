@@ -5426,6 +5426,52 @@ describe("All's lists", () => {
     expect(listInUrl()).toBeNull();
   });
 
+  describe("kind tiles", () => {
+    const note = (n: string) => ({
+      event: ev(n.repeat(64), 1, "a".repeat(64), "fork & coin burgers"),
+      author: null,
+      rank: null,
+    });
+    const video = { event: ev("9".repeat(64), 21, "a".repeat(64), "burger video"), author: null, rank: null };
+
+    it("a tile per kind among All's rows, named as their badges in the plural; pressed, it narrows All to them", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+      emit({ hits: [note("1"), video, note("2")], eose: true });
+      const notes = await screen.findByTestId("kind-tile-note");
+      expect(notes).toHaveTextContent("Notes");
+      expect(notes).toHaveTextContent("2");
+      expect(screen.getByTestId("kind-tile-video")).toHaveTextContent("Videos1");
+
+      fireEvent.click(screen.getByTestId("kind-tile-video"));
+      expect(screen.getByTestId("kind-narrowing")).toHaveTextContent("1 Video in these results");
+      expect(screen.getByTestId(`all-row-${"9".repeat(64)}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+      expect(listInUrl()).toBe("kind:Video");
+
+      fireEvent.click(screen.getByTestId("kind-tile-video"));
+      expect(screen.queryByTestId("kind-narrowing")).not.toBeInTheDocument();
+      expect(listInUrl()).toBeNull();
+    });
+
+    it("a list item a list tile holds is its list's, not one more kind", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+      emit({ hits: [{ event: forkAndCoin, author: null, rank: null }, note("1")], eose: true });
+      await screen.findByTestId("kind-tile-note");
+      expect(screen.queryByTestId("kind-tile-list-item")).not.toBeInTheDocument();
+    });
+
+    it("coming back to a link with a kind opens narrowed to it", async () => {
+      window.history.replaceState({}, "", "/?q=fork&t=all&list=kind%3AVideo");
+      render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+      emit({ hits: [note("1"), video], eose: true });
+      expect(await screen.findByTestId("kind-narrowing")).toBeInTheDocument();
+      expect(screen.getByTestId("kind-tile-video")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+    });
+  });
+
   it("is All's alone: Top asks for none", () => {
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
     expect(ribbonMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ enabled: false }));
