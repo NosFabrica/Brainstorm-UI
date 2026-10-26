@@ -102,6 +102,12 @@ describe("a hashtag's key, normalised as the server stores it", () => {
     expect(hashtagKey("x".repeat(64))).toBe("x".repeat(64));
     expect(hashtagKey("x".repeat(65))).toBe("");
   });
+
+  it("is empty for a word the server refuses (inner whitespace or a slash)", () => {
+    expect(hashtagKey("foo bar")).toBe("");
+    expect(hashtagKey("foo\tbar")).toBe("");
+    expect(hashtagKey("a/b")).toBe("");
+  });
 });
 
 describe("isReadableHashtag", () => {

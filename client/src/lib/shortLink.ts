@@ -73,7 +73,7 @@ export const MAX_HASHTAG_LENGTH = 64;
 /** A hashtag as the server keys it (trimmed, lowercased, one leading `#` dropped); "" if it can't be keyed. */
 export function hashtagKey(raw: string): string {
   const word = raw.trim().toLowerCase().replace(/^#/, "");
-  return word.length <= MAX_HASHTAG_LENGTH ? word : "";
+  return word.length <= MAX_HASHTAG_LENGTH && !/[\s/]/.test(word) ? word : "";
 }
 
 /** Longest hashtag shared as its readable `/t/<word>` page rather than a code. */

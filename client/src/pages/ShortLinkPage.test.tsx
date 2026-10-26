@@ -56,6 +56,15 @@ describe("resolving a short link", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it("shows not-found for a path the browser would read as off-site", async () => {
+    resolveShortUrl.mockResolvedValue({ kind: "profile", key: PUBKEY, relays: [], path: "/\t/evil.example/p" });
+
+    renderWithProviders(<ShortLinkPage />);
+
+    await waitFor(() => expect(screen.getByTestId("app-not-found")).toBeInTheDocument());
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it("passes the code through untouched, whatever its length", async () => {
     resolveShortUrl.mockResolvedValue({ kind: "profile", key: PUBKEY, relays: [], path: "/p/npub1x" });
 
