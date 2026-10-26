@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { curatorsOf, dictionaryConcepts, propertyMatches } from "./mirror.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -429,6 +430,8 @@ const TITLE_ONLY = { places: false, books: true, github: false };
 const CANDIDATES = 60;
 const PREVIEW_SHOWS = { places: 3, books: 6, github: 3 };
 const ITEM_LIMIT = 500;
+/** How many matches the page asks the relay for (services/dictionary MATCH_LIMIT). */
+const MATCH_LIMIT = 200;
 
 /** services/dictionary itemIdentity + distinctItems + filedItems: newest version of each item, newest first. */
 function poolOf(events, headers) {
@@ -453,7 +456,7 @@ function poolOf(events, headers) {
   return [...best.values()].sort((a, b) => b.created_at - a.created_at);
 }
 
-async function loadDList(index, observer) {
+async function loadDList(index, observer, house) {
   const views = JSON.parse(readFileSync(resolve(ROOT, "client/src/config/dictionary.config.json"), "utf8"));
   const tagging = JSON.parse(readFileSync(resolve(ROOT, "client/src/config/tagging.config.json"), "utf8"));
   const hubUrl = opt("hub", tagging.tagRelays[0]);
@@ -489,13 +492,23 @@ async function loadDList(index, observer) {
   ]);
   const headers = [...headerAnswers[0].events, ...headerAnswers[1].events].map((e) => e.event);
   const newest = (evs) => evs.sort((a, b) => b.created_at - a.created_at)[0] ?? null;
-  // Whether each concept is on the Demo Dictionary Concepts list (hooks/useDictionaryConcepts): it must be for a preview to show.
-  const listed = await reqWithRetry(
-    index,
-    [lens({ kinds: [39999], "#z": [views.conceptList], limit: 200 })],
-    "concept list",
+  // Whether each concept is in the Dictionary (hooks/useDictionaryConcepts): it must be for a preview to show. Read
+  // where the app reads it, on the tag hub: the house's curator taggings, then those curators' headers (mirror.mjs).
+  const curatorTag = views.curatorTag;
+  const taggings = house
+    ? (await reqWithRetry(hub, [{ kinds: [39999], authors: [house], "#a": [curatorTag] }], "curator taggings")).events
+    : [];
+  const curators = curatorsOf(
+    taggings.map((e) => e.event),
+    { house, curatorTag },
   );
-  const listedCoords = new Set(listed.events.flatMap((e) => e.event.tags.filter((t) => t[0] === "a").map((t) => t[1])));
+  const curatorHeaders = curators.length
+    ? (await reqWithRetry(hub, [{ kinds: [39998], authors: curators }], "curator headers")).events
+    : [];
+  const dictionary = dictionaryConcepts(
+    [...taggings, ...curatorHeaders].map((e) => e.event),
+    { house, curatorTag, roles: Object.values(views.roles ?? {}) },
+  );
 
   const out = {};
   for (const [cat, community] of Object.entries(communities)) {
@@ -531,7 +544,7 @@ async function loadDList(index, observer) {
     const total = await index.count([lens({ kinds: [39999, 9999], "#z": chain })]);
     out[cat] = {
       community,
-      in_dictionary: listedCoords.has(community),
+      in_dictionary: dictionary.includes(community),
       governing: governingHeader ? coordOf(governingHeader) : null,
       chain,
       names,
@@ -544,7 +557,13 @@ async function loadDList(index, observer) {
     };
   }
   hub.close();
-  return { hub: hubUrl, house_assistant: ta ?? null, setup_ms: Math.round(performance.now() - t0), lists: out };
+  return {
+    hub: hubUrl,
+    house_assistant: ta ?? null,
+    dictionary: { house, curators: curators.length, concepts: dictionary },
+    setup_ms: Math.round(performance.now() - t0),
+    lists: out,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -554,19 +573,6 @@ const norm = (s) => (s ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCas
 const placeMatches = (ev, city) => norm(tagOf(ev, "locality")) === norm(city);
 const eventPlaceMatches = (ev, city) =>
   norm(`${tagOf(ev, "location") ?? ""} ${tagOf(ev, "address") ?? ""}`).includes(norm(city));
-function propertyMatches(ev, prop) {
-  return Object.entries(prop).every(([k, v]) => {
-    const val = norm(tagOf(ev, k));
-    const want = norm(String(v));
-    return (
-      val === want ||
-      val
-        .replace(/_/g, " ")
-        .split(/[;,]\s*/)
-        .includes(want.replace(/_/g, " "))
-    );
-  });
-}
 function share(list, pred) {
   if (!list.length) return null;
   return list.filter(pred).length / list.length;
@@ -672,22 +678,29 @@ const mean = (xs) => {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 };
 
+/** The house: the server's NIP-05 `_`, as the app finds it (services/trustSource). Null when no origin answers. */
+async function discoverHouse() {
+  for (const origin of HOUSE_ORIGINS) {
+    try {
+      const res = await fetch(`${origin}/.well-known/nostr.json?name=_`, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const pk = (await res.json())?.names?._;
+      if (/^[0-9a-f]{64}$/.test(pk ?? "")) return { house: pk, source: `${origin}/.well-known/nostr.json?name=_` };
+    } catch {
+      /* next origin */
+    }
+  }
+  return null;
+}
+
 async function resolveObserver() {
   const given = opt("observer", null);
   if (given) {
     if (!/^[0-9a-f]{64}$/.test(given)) throw new Error("--observer must be 64 hex characters");
     return { observer: given, source: "--observer" };
   }
-  for (const origin of HOUSE_ORIGINS) {
-    try {
-      const res = await fetch(`${origin}/.well-known/nostr.json?name=_`, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) continue;
-      const pk = (await res.json())?.names?._;
-      if (/^[0-9a-f]{64}$/.test(pk ?? "")) return { observer: pk, source: `${origin}/.well-known/nostr.json?name=_` };
-    } catch {
-      /* next origin */
-    }
-  }
+  const found = await discoverHouse();
+  if (found) return { observer: found.house, source: found.source };
   throw new Error("Could not discover the house observer; pass --observer <hex>.");
 }
 
@@ -735,7 +748,11 @@ async function main() {
   const now = Math.floor(Date.now() / 1000);
   console.error(`observer ${observer} (${source})`);
 
-  const dlist = WITH_DLIST ? await loadDList(index, observer) : null;
+  // The Dictionary is the house's whoever reads (hooks/useDictionaryConcepts), so --observer does not change it.
+  const house = source === "--observer" ? ((await discoverHouse())?.house ?? null) : observer;
+  if (WITH_DLIST && !house)
+    console.error("Could not discover the house: the Dictionary reads as empty, as in the app.");
+  const dlist = WITH_DLIST ? await loadDList(index, observer, house) : null;
   if (dlist) {
     for (const [k, v] of Object.entries(dlist.lists))
       console.error(
@@ -820,25 +837,50 @@ async function main() {
             top10: [],
             top10_ids: [],
             top10_events: [],
-            note: "not on the Dictionary list",
+            note: "not in the Dictionary",
           };
           continue;
         }
         const words = wordsToFind(entry.query, list.names);
-        const found = matchListItems(list.pool, words, CANDIDATES, READERS[cat], TITLE_ONLY[cat]);
+        // The relay's matches first (services/dictionary searchListItems, ListKindSearch), then what the page
+        // loaded that they don't repeat, by address. The Top page asks once its people have answered.
+        const asked = words.length
+          ? await reqWithRetry(
+              index,
+              [
+                {
+                  kinds: [39999, 9999],
+                  "#z": list.chain,
+                  search: `${words.join(" ")} include:spam`,
+                  limit: MATCH_LIMIT,
+                },
+              ],
+              `${cat} matches`,
+            )
+          : { events: [] };
+        const fromRelay = poolOf(
+          asked.events.map((e) => e.event),
+          list.chain,
+        );
+        const seen = new Set(fromRelay.map(stableId));
+        const pool = [...fromRelay, ...list.pool.filter((ev) => !seen.has(stableId(ev)))];
+        const found = matchListItems(pool, words, CANDIDATES, READERS[cat], TITLE_ONLY[cat]);
         const top = found.slice(0, 10);
         categories[cat] = {
           words,
+          relay_matches: fromRelay.length,
           matched: found.length,
           shown: Math.min(found.length, PREVIEW_SHOWS[cat]),
           top10: top.map((ev) => ({ id: stableId(ev), label: READERS[cat](ev).title?.slice(0, 60) ?? "" })),
           top10_ids: top.map(stableId),
           top10_events: top,
           found_ids: found.map(stableId),
+          relay_ids: fromRelay.map(stableId),
         };
       }
-      // For each expected list item: is it in the browser's pool, did the words match it there,
-      // and would the relay have found it if the page had asked (a counterfactual probe, not today's behaviour)?
+      // For each expected list item: is it in what the page loaded, did the page's own ask of the relay return it,
+      // did the words match it, and where does the relay rank it through the observer's lens (a counterfactual probe:
+      // the page keeps match order, not the relay's ranking)?
       const dlistWanted = resultGroups(entry.expect)
         .flat()
         .filter((id) => /^(39999|9999):/.test(id));
@@ -867,6 +909,7 @@ async function main() {
             dlist_checks[id] = {
               list: cat,
               in_browser_pool: inPool,
+              in_relay_matches: (categories[cat].relay_ids ?? []).includes(id),
               matched_rank: matched || null,
               relay_probe_rank: probeIds.indexOf(id) + 1 || null,
               relay_probe_count: probe.events.length,
@@ -875,7 +918,10 @@ async function main() {
           await sleep(300);
         }
       }
-      for (const cat of DLIST_CATEGORIES) delete categories[cat]?.found_ids;
+      for (const cat of DLIST_CATEGORIES) {
+        delete categories[cat]?.found_ids;
+        delete categories[cat]?.relay_ids;
+      }
     }
 
     const run = { categories, exists, dlist_checks };
@@ -978,6 +1024,7 @@ async function main() {
     dlist: dlist && {
       hub: dlist.hub,
       house_assistant: dlist.house_assistant,
+      dictionary: dlist.dictionary,
       setup_ms: dlist.setup_ms,
       lists: Object.fromEntries(Object.entries(dlist.lists).map(([k, v]) => [k, { ...v, pool: undefined }])),
     },

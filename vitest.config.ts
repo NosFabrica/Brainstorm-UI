@@ -17,7 +17,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./client/src/test/setup.ts"],
-    include: ["client/src/**/*.test.{ts,tsx}"],
+    include: ["client/src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
     css: false,
     pool: "forks",
     poolOptions: {

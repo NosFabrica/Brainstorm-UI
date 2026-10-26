@@ -127,18 +127,27 @@ alone, like `&`, is dropped. Each filter's search is `<words> observer:<hex>`, w
 The Listen row keeps tracks with a title and a playable URL. The Shop row keeps parsed
 listings, two per seller, four in all.
 
-**The list previews.** Places, Books and GitHub accounts on the Top page are matched in the
-browser, over the items the page loaded (`services/dictionary.ts`): up to 500 from the search
-relay (under `include:spam`) and 500 from the tag hub (dcosl), merged, newest version of each,
-filed under the governing header and the community header. Words are matched as
+**The list previews.** A list's preview shows only when its concept is in the Dictionary, which
+the runner reads as the app does (`lib/dictionaryConcepts`, mirrored in `mirror.mjs`): the
+house's taggings with the curator tag say who curates, and the curators' own headers that point
+at themselves are the concepts, read from the tag hub. The house is the server's NIP-05 `_`,
+whatever `--observer` says. The results file records what it found (`dlist.dictionary`).
+
+Places, Books and GitHub accounts are then matched in the browser, over two sets of items
+(`services/dictionary.ts`, `components/items/ListKindSearch.tsx`). First, what the search relay
+returns for the words (`{kinds:[39999,9999], "#z":[…], search:"<words> include:spam", limit:200}`),
+which the Top page asks once its people have answered. Then what the page loaded and those don't
+repeat: up to 500 items from the search relay and 500 from the tag hub (dcosl), merged, newest
+version of each, filed under the governing header and the community header. Words are matched as
 `lib/listSearch` matches them: every word left after filler and the list's own name must equal
 a whole word in what the card shows (a place's name, category, cuisine and town; a book's
-title alone on the Top page; a GitHub handle and description).
+title alone on the Top page; a GitHub handle and description). A property filter matches any
+value of a tag an item carries more than once, such as a place's cuisines.
 
-For each expected list item the runner records whether it was in the browser's pool, whether
-the words matched it there, and, as a counterfactual, where the relay ranks it when asked
-directly (`{kinds:[39999,9999], "#z":[…], search:"<words> observer:<hex>"}`). The relay probe
-is not today's behaviour; it shows what asking the relay would buy.
+For each expected list item the runner records whether it was in what the page loaded, whether
+the relay's matches returned it, whether the words matched it, and, as a counterfactual, where
+the relay ranks it through the observer's lens (`search:"<words> observer:<hex>"`). The page
+keeps match order rather than the relay's ranking; the probe shows what ranking would buy.
 
 **Left out, on purpose.**
 
