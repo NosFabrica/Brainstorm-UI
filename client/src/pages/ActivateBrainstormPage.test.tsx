@@ -67,3 +67,36 @@ describe("ActivateBrainstormPage — Trusted Lists", () => {
     await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS }));
   });
 });
+
+/**
+ * Another Assistant has the rank duty: /setup counts the step as done (their
+ * choice), so this page is its optional switch — the same publish, said as a
+ * swap, with nothing shown locked out — until Brainstorm's Assistant has it.
+ */
+describe("ActivateBrainstormPage — another Assistant on rank", () => {
+  beforeEach(() => {
+    publish.mockReset();
+    page.activateDone = true;
+    page.listsPending = false;
+    page.provider = "other";
+    page.lists = undefined;
+  });
+
+  it("offers the switch, not its success card, and then shows that card", async () => {
+    publish.mockResolvedValue({ status: "success" });
+    renderWithProviders(<ActivateBrainstormPage />);
+
+    expect(screen.queryByTestId("text-activate-page-success")).toBeNull();
+    expect(screen.getByTestId("text-activate-page-title")).toHaveTextContent(
+      "Use your Brainstorm Assistant for scores",
+    );
+    expect(screen.getByTestId("text-activate-page-replace-warning")).toBeInTheDocument();
+    expect(screen.queryByTestId("activate-page-locked-clients")).toBeNull();
+    expect(screen.getByTestId("button-activate-page-confirm")).toHaveTextContent("Switch to Brainstorm");
+
+    fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
+
+    await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: null }));
+    expect(await screen.findByTestId("text-activate-page-success")).toBeInTheDocument();
+  });
+});

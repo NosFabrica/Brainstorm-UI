@@ -603,6 +603,8 @@ export default function DashboardPage() {
   // ta_pubkey, which exists from login — black-box testing showed users lost
   // in exactly that gap when the card waited for publishDone. `inviteDue` is
   // the once-per-account invite beat when scores first go live, never on recalcs.
+  // Neither activation ask goes to someone whose Treasure Map gives the rank
+  // duty to another Assistant: that was their choice (needsActivationPrompt).
   const prompt = dashboardPrompt({
     activatePending,
     consentDue:
@@ -610,6 +612,7 @@ export default function DashboardPage() {
       !isRecalculating &&
       !nip85Activated &&
       !nip85Dismissed &&
+      trustServiceProvider.data !== "other" &&
       (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)),
     inviteDue: publishDone && !inviteCardSeen && !isRecalculating,
     assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPubkey && !nip85CreatedInApp,

@@ -66,6 +66,26 @@ describe("useFinishSetup — the Activate step and Trusted Lists", () => {
     expect(result.current.remaining).toBe(1);
   });
 
+  /**
+   * Another Assistant on the rank duty is their choice: the step is done and
+   * nothing nags. Handing the duty to Brainstorm is an optional extra, and the
+   * lists update waits until Brainstorm's Assistant is theirs.
+   */
+  it("another Assistant on rank counts as done, with the switch as an optional extra", () => {
+    state.provider = "other";
+    state.activated = false;
+    state.lists = { status: "missing", designation: LISTS };
+
+    const { result } = renderHook(() => useFinishSetup());
+
+    expect(result.current.activateDone).toBe(true);
+    expect(result.current.activatePending).toBe(false);
+    expect(result.current.scoresElsewhere).toBe(true);
+    expect(result.current.remaining).toBe(0);
+    expect(result.current.optionalRemaining).toBe(1);
+    expect(result.current.listsPending).toBe(false);
+  });
+
   it.each(["declared", "none"])("lists %s leave activation done", (status) => {
     state.lists = { status, designation: LISTS };
     const { result } = renderHook(() => useFinishSetup());
@@ -92,17 +112,33 @@ describe("useFinishSetup — optional extras", () => {
     state.dm = "no-inbox";
     const { result } = renderHook(() => useFinishSetup());
 
+    expect(result.current.messages).toBe("off");
     expect(result.current.optionalRemaining).toBe(1);
     expect(result.current.remaining).toBe(0);
     expect(result.current.doneCount).toBe(3);
     expect(result.current.allDone).toBe(true);
   });
 
-  it.each(["ready", "starting", "stopped"])("counts nothing optional while messages are %s", (status) => {
+  it.each([
+    ["ready", "on"],
+    ["starting", undefined],
+    ["stopped", undefined],
+  ])("counts nothing optional while messages are %s", (status, messages) => {
     state.dm = status;
     const { result } = renderHook(() => useFinishSetup());
 
+    expect(result.current.messages).toBe(messages);
     expect(result.current.optionalRemaining).toBe(0);
+  });
+
+  it("counts both extras when both are left", () => {
+    state.provider = "other";
+    state.activated = false;
+    state.dm = "no-inbox";
+    const { result } = renderHook(() => useFinishSetup());
+
+    expect(result.current.optionalRemaining).toBe(2);
+    expect(result.current.remaining).toBe(0);
   });
 });
 void ME;

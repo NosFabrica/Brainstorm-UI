@@ -44,6 +44,7 @@ function state(overrides: Partial<FinishSetupState>): FinishSetupState {
     followCount: 0,
     activateDone: false,
     activatePending: true,
+    scoresElsewhere: false,
     remaining: 2,
     doneCount: 1,
     totalSteps: 3,
@@ -84,10 +85,10 @@ describe("FinishSetupPage", () => {
   it.each([
     ["off", "no-inbox", "setup-row-messages"],
     ["on", "ready", "setup-row-messages-done"],
-  ])("sets messages (%s) apart from the counted steps", (_, status, row) => {
+  ] as const)("sets messages (%s) apart from the counted steps", (messages, status, row) => {
     dm.engine = {};
     dm.state = { status, inboxRelays: ["wss://inbox.example"] };
-    setupState.mockReturnValue(state({ followDone: true, followPending: false, remaining: 1, doneCount: 2 }));
+    setupState.mockReturnValue(state({ followDone: true, followPending: false, remaining: 1, doneCount: 2, messages }));
     renderWithProviders(<FinishSetupPage />);
 
     expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("2 of 3 complete");
@@ -151,5 +152,38 @@ describe("FinishSetupPage", () => {
     expect(screen.getByTestId("setup-row-activate-done")).toBeInTheDocument();
     expect(screen.queryByTestId("setup-row-activate")).toBeNull();
     expect(screen.getByTestId("line-lists-update")).toBeInTheDocument();
+  });
+
+  // Another Assistant has the rank duty: their choice, so Activate is done and
+  // says why; handing the duty to Brainstorm waits under Optional.
+  it("counts another Assistant on rank as done, and offers the switch as optional", () => {
+    setupState.mockReturnValue(
+      state({
+        followDone: true,
+        followPending: false,
+        activateDone: true,
+        activatePending: false,
+        scoresElsewhere: true,
+        remaining: 0,
+        doneCount: 3,
+        allDone: true,
+        optionalRemaining: 1,
+      }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+
+    expect(screen.getByTestId("setup-row-activate-done")).toHaveTextContent(
+      "Your Treasure Map already names an Assistant for your scores.",
+    );
+    expect(screen.getByTestId("card-setup-all-done")).toHaveTextContent(
+      "Other apps find your scores through the Assistant your Treasure Map names.",
+    );
+    const optional = screen.getByTestId("setup-optional");
+    expect(within(optional).getByTestId("setup-row-scores-switch")).toHaveTextContent(
+      "Use your Brainstorm Assistant for scores",
+    );
+
+    fireEvent.click(screen.getByTestId("setup-scores-switch"));
+    expect(navigate).toHaveBeenCalledWith("/setup/activate");
   });
 });

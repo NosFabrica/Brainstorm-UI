@@ -52,8 +52,9 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/accounts/display", () => ({ identityHas: () => false }));
 // The relay verdict: "none" — no kind-10040 names Brainstorm, so activation is
-// pending — unless a test flips it to "brainstorm" for the activated cohort.
-let provider: "none" | "brainstorm" = "none";
+// pending — unless a test flips it to "brainstorm" for the activated cohort, or
+// "other" for a Treasure Map that gives the rank duty to another Assistant.
+let provider: "none" | "brainstorm" | "other" = "none";
 vi.mock("@/hooks/useTrustProviderStatus", () => ({ useTrustProviderStatus: () => ({ data: provider }) }));
 vi.mock("@/hooks/useSelf", () => ({
   useSelfOverview: () => ({
@@ -114,6 +115,17 @@ describe("DashboardPage for a returning user", () => {
     // The strip's status no longer repeats the prompt: it says what the reader has.
     expect(screen.getByTestId("text-overall-trust-score-sub")).toHaveTextContent("Scores ready");
     expect(screen.getAllByText(/Activate/)).toHaveLength(1);
+  });
+
+  // Another Assistant has the rank duty: their choice. Neither the activation
+  // line nor the consent one beneath it ("Select Brainstorm") asks again —
+  // /setup offers the switch, quietly.
+  it("asks nothing of a user whose Treasure Map gives rank to another Assistant", async () => {
+    provider = "other";
+    localStorage.setItem(accountKey("brainstorm_invite_card_seen", ME), "true");
+    show();
+    await screen.findByTestId("card-overall-trust-score");
+    expect(screen.queryByTestId("dashboard-prompt")).toBeNull();
   });
 
   it("reads status → search → alerts → reading, top to bottom: the network lives on /network now", async () => {
