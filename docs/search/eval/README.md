@@ -5,14 +5,25 @@ The set says what a good answer to each query contains. The runner asks the sear
 what the Top page asks, scores the answer, and writes the numbers down, so a change to
 search can be judged by whether the numbers move.
 
-- `queries.json`: the labelled set (v0, 93 entries).
+- `queries.json`: the labelled set (v1, 317 entries).
 - `../../../scripts/search-eval/baseline.mjs`: the runner. Node 22 or newer, no dependencies.
 - `baseline-YYYY-MM-DD.json` and `.md`: a run's results, and what they say.
+- `../../../scripts/search-eval/checkSet.mjs`: what the set must keep as it grows, which `npm test` checks.
 
 ## The set
 
-The set leans toward the first journeys on the search roadmap: about 30% places
-recommendation (M2) and 20% events (M3). Each entry belongs to one journey and one class.
+The set leans toward the first journeys on the search roadmap, as
+[ADR 0008](../../adr/0008-first-search-journeys.md) decided: about 30% places recommendation
+(M2) and 20% events (M3). v1 has M1 66, M2 95, M3 61, M4 32, M5 32 and M7 31 entries. Each entry
+belongs to one journey and one class.
+
+`npm test` fails when the set drifts (`checkSet.mjs`):
+
+- an id is used twice, or an entry breaks the schema below;
+- M2 leaves 25 to 35% of the set, or M3 leaves 15 to 25%;
+- a demo city (Chicago, New York, San Francisco, Austin, Funchal, Nashville) has no M2 or no M3
+  entry;
+- M2 or M3 has no `agent` entry.
 
 | Journey | What it covers                                                                           |
 | ------- | ---------------------------------------------------------------------------------------- |
