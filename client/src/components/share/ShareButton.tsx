@@ -36,13 +36,19 @@ export function ShareButton({
   const [open, setOpen] = useState(false);
   // Tagged with its mint, so a page reused for another entity never shows the last one's link.
   const [minted, setMinted] = useState<{ mint: () => Promise<string>; url: string } | null>(null);
-  const minting = useRef<Promise<string> | null>(null);
+  // A press with no click (a scroll, a drag-off) leaves one here: reused only for the same mint, dropped on failure.
+  const minting = useRef<{ mint: () => Promise<string>; promise: Promise<string> } | null>(null);
   const startMint = () => {
-    if (mint && !minting.current) minting.current = mint();
+    if (!mint || minting.current?.mint === mint) return;
+    const promise = mint();
+    minting.current = { mint, promise };
+    promise.catch(() => {
+      if (minting.current?.promise === promise) minting.current = null;
+    });
   };
   const share = async () => {
     startMint();
-    const pending = minting.current;
+    const pending = minting.current?.promise ?? null;
     minting.current = null;
     if (pending && mint)
       pending.then(

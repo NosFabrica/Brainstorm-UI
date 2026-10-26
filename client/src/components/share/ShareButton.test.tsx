@@ -130,6 +130,28 @@ describe("ShareButton", () => {
       expect(screen.queryByTestId("modal-share")).toBeNull();
     });
 
+    it("a press with no click, then a page for another entity, shares that entity's link", async () => {
+      const shareMock = shareWith(async () => {});
+      const mintA = vi.fn(async () => "https://brainstorm.world/s/AAAAAAAA");
+      const mintB = vi.fn(async () => SHORT);
+      const { rerender } = render(<ShareButton url={URL} title="T" mint={mintA} />);
+      fireEvent.pointerDown(screen.getByTestId("share-open-modal"));
+      rerender(<ShareButton url={URL} title="T" mint={mintB} />);
+      tap();
+      await waitFor(() => expect(shareMock).toHaveBeenCalledWith({ title: "T", url: SHORT }));
+    });
+
+    it("a press with no click whose mint failed is retried on the next tap", async () => {
+      const shareMock = shareWith(async () => {});
+      const mint = vi.fn().mockRejectedValueOnce(new Error("429")).mockResolvedValue(SHORT);
+      render(<ShareButton url={URL} title="T" mint={mint} />);
+      fireEvent.pointerDown(screen.getByTestId("share-open-modal"));
+      await new Promise((r) => setTimeout(r, 0));
+      tap();
+      await waitFor(() => expect(shareMock).toHaveBeenCalledWith({ title: "T", url: SHORT }));
+      expect(mint).toHaveBeenCalledTimes(2);
+    });
+
     it("without a share sheet, the modal opens at once and swaps in the short link", async () => {
       render(<ShareButton url={URL} title="T" mint={async () => SHORT} />);
       tap();

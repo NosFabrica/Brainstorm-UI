@@ -10,6 +10,16 @@ import NotFound from "@/pages/not-found";
 /** Long enough that a normal resolve never flashes a spinner. */
 const SPINNER_DELAY_MS = 400;
 
+// Resolved the way the browser will: "//host", "/\\host" and "/\t/host" all leave the site.
+function isOnSitePath(path: string): boolean {
+  if (!path.startsWith("/")) return false;
+  try {
+    return new URL(path, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * `/s/:code` — resolve a short share link and replace it with the server's full link.
  *
@@ -29,8 +39,7 @@ export default function ShortLinkPage() {
     staleTime: Infinity,
   });
 
-  // Only an on-site path; "//host" would leave the site.
-  const path = data?.path && /^\/(?![/\\])/.test(data.path) ? data.path : "";
+  const path = data?.path && isOnSitePath(data.path) ? data.path : "";
 
   const [showSpinner, setShowSpinner] = useState(false);
   useEffect(() => {
