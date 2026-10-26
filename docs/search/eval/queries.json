@@ -4193,6 +4193,292 @@
       "run": false
     },
     {
+      "id": "m4-what-do-people-think-of-solid-state-coffee",
+      "query": "what do people think of solid state coffee",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "The place card first, then what people said about it. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-reviews-of-lucky-dawgs",
+      "query": "reviews of lucky dawgs",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"]
+      },
+      "notes": "The Chicago place and its reviews; few exist yet (9 place reviews on the index on 2026-10-24). The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-is-kirita-any-good",
+      "query": "is kirita any good",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406"]
+      },
+      "notes": "A yes-or-no about quality, answered by the place card and what the reader's people said. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-what-my-friends-say-about-the-vegan-nom",
+      "query": "what my friends say about the vegan nom",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710"]
+      },
+      "notes": "The Austin place, with what the reader's network said about it. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-what-do-my-friends-think-of-project-hail-mary",
+      "query": "what do my friends think of project hail mary",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol21745884w"]
+      },
+      "notes": "The book, then what the reader's network said. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-reviews-of-the-bitcoin-standard",
+      "query": "reviews of the bitcoin standard",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol20984004w"]
+      },
+      "notes": "The book (as in m1-the-bitcoin-standard) and its reviews; Brainstorm and Unbnd share one review record for books. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-is-snow-crash-worth-reading",
+      "query": "is snow crash worth reading",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol38501w"]
+      },
+      "notes": "The book, then opinions about it. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-coffee-my-friends-like-in-austin",
+      "query": "coffee my friends like in austin",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Austin cafes, ordered by the reader's network; scored by filter precision. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-bars-my-network-goes-to-in-new-york",
+      "query": "bars my network goes to in new york",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "New York bars the reader's people go to; the list has only two. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-events-my-friends-are-going-to-this-weekend",
+      "query": "events my friends are going to this weekend",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "RSVPs from the reader's network; depends on the reader, so no id. Scored by time. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-books-recommended-by-people-i-follow",
+      "query": "books recommended by people i follow",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "Depends on whom the reader follows and their shelves; no id can be fixed. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-podcasts-my-friends-listen-to",
+      "query": "podcasts my friends listen to",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Podcast episodes live in the Music section. Depends on the reader's network. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-apps-my-friends-use",
+      "query": "apps my friends use",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["apps"]
+      },
+      "notes": "App recommendations from the reader's network. The Top page has no Apps section, so a miss by construction today. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-articles-my-network-shared-this-week",
+      "query": "articles my network shared this week",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["articles"]
+      },
+      "notes": "Long-form posts shared by the reader's people in the last week; depends on the reader. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-what-is-my-network-talking-about-today",
+      "query": "what is my network talking about today",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["notes"]
+      },
+      "notes": "Fresh notes from the reader's network; depends on the reader and the hour. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-posts-from-people-i-follow-about-nostr",
+      "query": "posts from people i follow about nostr",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["notes"]
+      },
+      "notes": "Notes about nostr, limited to the reader's follows. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-who-do-my-friends-follow-for-bitcoin-news",
+      "query": "who do my friends follow for bitcoin news",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "Accounts the reader's network follows that post bitcoin news; depends on the reader. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-nostr-developers-my-network-follows",
+      "query": "nostr developers my network follows",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "People who build on nostr, as the reader's network sees them. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-who-should-i-follow-for-birding",
+      "query": "who should i follow for birding",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "Birders and bird-club accounts, ranked by the reader's trust; several bird-alliance calendars publish here. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-photographers-my-friends-follow",
+      "query": "photographers my friends follow",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people", "media"]
+      },
+      "notes": "Photographers in the reader's network, and their pictures. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-bitcoiners-in-austin",
+      "query": "bitcoiners in austin",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "People in Austin who talk about bitcoin. Profiles rarely carry a place, so this leans on what they post and whom they follow. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-people-in-funchal",
+      "query": "people in funchal",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "Profiles do not carry a place field; the answer leans on what people post about Funchal and Madeira. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-best-restaurants-in-lugano-according-to-my-people",
+      "query": "best restaurants in lugano according to my people",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Lugano restaurants ordered by the reader's network; scored by filter precision. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-agent-events-this-weekend-my-network",
+      "query": {
+        "categories": ["events"],
+        "time": "this weekend",
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M4",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "The structured form of 'events my friends are going to this weekend'. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
       "id": "m5-podcast",
       "query": "podcast",
       "class": "exploratory",
@@ -4295,6 +4581,230 @@
         "categories": ["articles", "notes"]
       },
       "notes": "Guides and discussion."
+    },
+    {
+      "id": "m5-bitcoin",
+      "query": "bitcoin",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "The broadest topic on the relay; fresh notes and long-form both belong."
+    },
+    {
+      "id": "m5-nostr",
+      "query": "nostr",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles", "people"]
+      },
+      "notes": "Posts about nostr and the people who build it."
+    },
+    {
+      "id": "m5-lightning-network",
+      "query": "lightning network",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "Explainers and discussion."
+    },
+    {
+      "id": "m5-privacy",
+      "query": "privacy",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "Guides and discussion; a word that also appears in a lot of unrelated text."
+    },
+    {
+      "id": "m5-cooking",
+      "query": "cooking",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media"]
+      },
+      "notes": "Food posts and pictures; recipes are articles when they are long-form."
+    },
+    {
+      "id": "m5-gardening",
+      "query": "gardening",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media"]
+      },
+      "notes": "Garden posts and pictures."
+    },
+    {
+      "id": "m5-chess",
+      "query": "chess",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media"]
+      },
+      "notes": "Posts and clips about chess."
+    },
+    {
+      "id": "m5-music-production",
+      "query": "music production",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["music", "notes"]
+      },
+      "notes": "Tracks and posts about making music."
+    },
+    {
+      "id": "m5-ai-agents",
+      "query": "ai agents",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "Posts and long-form about AI agents; some Luma events use the words too (Agent Builders Hackathon, Agents Anonymous), and they would be fair."
+    },
+    {
+      "id": "m5-meditation",
+      "query": "meditation",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "events"]
+      },
+      "notes": "Posts, and sessions on calendars (one in New York on 25 October)."
+    },
+    {
+      "id": "m5-running",
+      "query": "running",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "events"]
+      },
+      "notes": "Posts and run clubs."
+    },
+    {
+      "id": "m5-philosophy",
+      "query": "philosophy",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "books"]
+      },
+      "notes": "Long-form and books; Nashville's 'Philosophy for Freedom' events would also be fair."
+    },
+    {
+      "id": "m5-history",
+      "query": "history",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "books"]
+      },
+      "notes": "Long-form and books."
+    },
+    {
+      "id": "m5-cats",
+      "query": "cats",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["media", "notes"]
+      },
+      "notes": "Pictures, mostly."
+    },
+    {
+      "id": "m5-poetry",
+      "query": "poetry",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "Short and long verse."
+    },
+    {
+      "id": "m5-science-fiction",
+      "query": "science fiction",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "The Books list, by genre; no subject field to filter on, so it leans on titles and descriptions."
+    },
+    {
+      "id": "m5-open-source",
+      "query": "open source",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes", "github"]
+      },
+      "notes": "Long-form, posts, and the GitHub Accounts list."
+    },
+    {
+      "id": "m5-electronic-music",
+      "query": "electronic music",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Tracks that play."
+    },
+    {
+      "id": "m5-street-food",
+      "query": "street food",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["places", "notes"]
+      },
+      "notes": "Fast food and street food places, and posts about them."
+    },
+    {
+      "id": "m5-madeira",
+      "query": "madeira",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media", "places"]
+      },
+      "notes": "The island: posts, pictures, and Funchal's places."
+    },
+    {
+      "id": "m5-economics",
+      "query": "economics",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "books"]
+      },
+      "notes": "Long-form and books."
+    },
+    {
+      "id": "m5-agent-self-custody",
+      "query": {
+        "categories": ["articles", "notes"],
+        "words": ["self custody"]
+      },
+      "class": "agent",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "The structured form of 'self custody' (m5-self-custody): no place, no time, only words. Not run by the baseline yet.",
+      "run": false
     },
     {
       "id": "m7-cozy-late-night-ramen",
@@ -4420,6 +4930,335 @@
         }
       },
       "notes": "The structured form of 'cozy late-night ramen': cuisine and opening hours as fields, 'cozy' left as words. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m7-kid-friendly-brunch-in-austin",
+      "query": "kid friendly brunch in austin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin"
+        }
+      },
+      "notes": "'kid friendly' is in no field, and no Austin place is tagged brunch (one has breakfast). Scored by place."
+    },
+    {
+      "id": "m7-romantic-dinner-in-funchal",
+      "query": "romantic dinner in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Funchal restaurants; 'romantic' is a judgement."
+    },
+    {
+      "id": "m7-restaurant-with-a-view-in-funchal",
+      "query": "restaurant with a view in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Funchal restaurants; 'with a view' is in no field."
+    },
+    {
+      "id": "m7-authentic-tacos-in-san-diego",
+      "query": "authentic tacos in san diego",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Diego",
+          "property": {
+            "cuisine": "tacos"
+          }
+        }
+      },
+      "notes": "San Diego's taco places (see m2-tacos-in-san-diego); 'authentic' is a judgement."
+    },
+    {
+      "id": "m7-late-night-food-in-chicago",
+      "query": "late night food in chicago",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago"
+        }
+      },
+      "notes": "Chicago places open late; 'late' needs opening-hours read."
+    },
+    {
+      "id": "m7-dog-friendly-cafe-in-san-francisco",
+      "query": "dog friendly cafe in san francisco",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "San Francisco cafes; whether dogs are welcome is in no field."
+    },
+    {
+      "id": "m7-coffee-shop-with-good-wifi-in-austin",
+      "query": "coffee shop with good wifi in austin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Austin cafes; wifi is in no field."
+    },
+    {
+      "id": "m7-hole-in-the-wall-pupuserias",
+      "query": "hole in the wall pupuserias",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "country": "SV"
+          }
+        }
+      },
+      "notes": "Small pupuserías, mostly in El Salvador (country SV); 'hole in the wall' is a judgement."
+    },
+    {
+      "id": "m7-a-cozy-bar-in-lugano",
+      "query": "a cozy bar in lugano",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "Lugano bars; 'cozy' is a judgement."
+    },
+    {
+      "id": "m7-something-like-snow-crash",
+      "query": "something like snow crash",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "Similar books is a judgement; Snow Crash itself is not the answer, so no id."
+    },
+    {
+      "id": "m7-books-for-a-long-flight",
+      "query": "books for a long flight",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "A mood, not a field: any engrossing book is fair."
+    },
+    {
+      "id": "m7-a-podcast-like-the-bitcoin-standard",
+      "query": "a podcast like the bitcoin standard",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Episodes about the same ideas; the book is not the answer."
+    },
+    {
+      "id": "m7-football-in-funchal",
+      "query": "football in funchal",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events", "notes", "places"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "In Madeira, football means soccer. The meaning depends on the asker's community, which is the M7 milestone's point."
+    },
+    {
+      "id": "m7-football-in-nashville",
+      "query": "football in nashville",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events", "notes"],
+        "filters": {
+          "place": "Nashville"
+        }
+      },
+      "notes": "In Nashville, football most likely means American football: the same word as m7-football-in-funchal, a different meaning."
+    },
+    {
+      "id": "m7-meetups-that-arent-about-bitcoin",
+      "query": "meetups that aren't about bitcoin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        }
+      },
+      "notes": "A negation: a keyword match on 'bitcoin' would surface exactly the meetups the asker wants left out.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m7-vegetarian-friendly-restaurants-in-lugano",
+      "query": "vegetarian friendly restaurants in lugano",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Lugano restaurants; diet tags are rare on the list."
+    },
+    {
+      "id": "m7-places-open-on-christmas-day-in-funchal",
+      "query": "places open on christmas day in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "Opening hours rarely say anything about holidays."
+    },
+    {
+      "id": "m7-spicy-food-in-nashville",
+      "query": "spicy food in nashville",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville"
+        }
+      },
+      "notes": "'spicy' is in no field; Nashville's ten places include Mexican and Venezuelan."
+    },
+    {
+      "id": "m7-healthy-lunch-in-austin",
+      "query": "healthy lunch in austin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin"
+        }
+      },
+      "notes": "One Austin place is category health_food; juice and salad places would also be fair."
+    },
+    {
+      "id": "m7-where-to-take-visitors-in-funchal",
+      "query": "where to take visitors in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places", "events"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "A host's question: places worth showing and anything on."
+    },
+    {
+      "id": "m7-rainy-day-things-to-do-in-seattle",
+      "query": "rainy day things to do in seattle",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Seattle",
+          "time": "upcoming"
+        }
+      },
+      "notes": "Indoor events; 'rainy day' is a judgement.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m7-events-for-beginners-in-san-francisco",
+      "query": "events for beginners in san francisco",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "upcoming"
+        }
+      },
+      "notes": "'beginners' sits in some titles (Bitcoin for Beginners) and in many descriptions.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m7-agent-cozy-bar-lugano",
+      "query": {
+        "categories": ["places"],
+        "place": "Lugano",
+        "property": {
+          "category": "bar"
+        },
+        "words": ["cozy"]
+      },
+      "class": "agent",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "The structured form of 'a cozy bar in lugano': category and place as fields, 'cozy' left as words. Not run by the baseline yet.",
       "run": false
     }
   ]
