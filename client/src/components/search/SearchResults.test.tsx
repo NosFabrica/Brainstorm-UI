@@ -5472,6 +5472,20 @@ describe("All's lists", () => {
     });
   });
 
+  it("on All the tiles stand in for the other tabs: the row is Top and All, with no More", () => {
+    setUrlTab("all");
+    const { unmount } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    const tabs = within(screen.getByTestId("search-tabs")).getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(["Top", "All"]);
+    expect(screen.queryByTestId("search-tab-more")).not.toBeInTheDocument();
+    unmount();
+
+    setUrlTab("top");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    expect(screen.getByTestId("search-tab-people")).toBeInTheDocument();
+    expect(screen.getByTestId("search-tab-more")).toBeInTheDocument();
+  });
+
   it("is All's alone: Top asks for none", () => {
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
     expect(ribbonMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ enabled: false }));

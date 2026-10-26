@@ -2211,7 +2211,8 @@ export function SearchResults({
               className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
               data-testid="search-tabs"
             >
-              {PRIMARY_TABS.filter((t) => offers(t.key)).map((t) => (
+              {/* On All, the ribbon's kind tiles stand in for the other tabs and More: Top and All alone. */}
+              {PRIMARY_TABS.filter((t) => (onAll ? t.key === "top" || t.key === "all" : offers(t.key))).map((t) => (
                 <button
                   key={t.key}
                   type="button"
@@ -2226,15 +2227,17 @@ export function SearchResults({
               ))}
             </div>
             <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
-              <MoreTabs
-                tab={tab}
-                onChange={changeTab}
-                kinds={kinds}
-                kind={activeKind?.key ?? null}
-                onKind={openKind}
-                offers={offers}
-                counts={tabEvidence.counts}
-              />
+              {!onAll && (
+                <MoreTabs
+                  tab={tab}
+                  onChange={changeTab}
+                  kinds={kinds}
+                  kind={activeKind?.key ?? null}
+                  onKind={openKind}
+                  offers={offers}
+                  counts={tabEvidence.counts}
+                />
+              )}
               {perspective}
               {/* The syntax sheet, before the sorting: what can be typed into the box is the
               question people have first. The mark alone — a labelled button wraps this row
