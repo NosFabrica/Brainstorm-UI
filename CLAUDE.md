@@ -35,7 +35,7 @@ checks: `docs/agents/pwa-checklist.md`.
 
 ### Shipping to staging
 
-PR → merge into `staging` → deploy staging from brainstorm-k8s. By default create the PR and walk the user through the rest. See `docs/agents/staging-deploy.md`.
+PR → merge into `staging`, which deploys staging automatically once CI has rebuilt the image. By default create the PR and walk the user through the merge. See `docs/agents/staging-deploy.md`.
 
 ## Probing Nostr data
 
@@ -68,7 +68,7 @@ Playwright happy-path checks against **live staging**, not local — CI runs the
 
 - `staging` is the default branch and what the staging env runs; `main` is prod.
 - Branch off `staging`, PR into `staging`.
-- Asked to ship a change: follow `docs/agents/staging-deploy.md` (PR → merge into `staging` → deploy via brainstorm-k8s). Default is to create the PR, then walk the user through merge and deploy, confirming before each.
+- Asked to ship a change: follow `docs/agents/staging-deploy.md` (PR → merge into `staging`; the merge deploys, so there's no deploy script to run). Default is to create the PR, then walk the user through the merge, confirming first.
 - Prod: `staging` → `main` as a merge commit, never squash. Core team's call.
 - Hotfix: branch off `main`, PR into `main`, then merge `main` back into `staging`.
 - Never create temp/join branches for staging or ask for `ui.image.tag` to be repinned; it stays `staging`.
