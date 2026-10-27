@@ -3,6 +3,15 @@ import { useLocation } from "wouter";
 import { use$ } from "applesauce-react/hooks";
 import { KeyRound, Trash2 } from "lucide-react";
 
+import {
+  isPasskeyCancelled,
+  passkeyMethod,
+  PasskeyMismatchError,
+  PasskeyPrfUnsupportedError,
+} from "@/accounts/passkey";
+import { syncPendingPasskeys } from "@/accounts/passkey-flow";
+import { PasskeyIcon } from "@/components/PasskeyIcon";
+
 import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
 import { localAccountFor } from "@/accounts/login";
 import type { UnlockFailure } from "@/accounts/restore";
@@ -49,15 +58,19 @@ export function UnlockModal() {
   const [password, setPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
   const [failure, setFailure] = useState<UnlockFailure | null>(null);
-  const [pane, setPane] = useState<"password" | "forgotten" | "removing">("password");
+  const [pane, setPane] = useState<"passkey" | "password" | "forgotten" | "removing">("password");
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const method = passkeyMethod();
 
   // A fresh request is a fresh question — including one that arrives while the
-  // "forgotten it" pane is open.
+  // "forgotten it" pane is open. A passkey, where there is one, is asked first:
+  // it is one tap where the password is a word to remember.
   useEffect(() => {
     setPassword("");
     setUnlocking(false);
     setFailure(null);
-    setPane("password");
+    setPasskeyError(null);
+    setPane(prompt?.passkey ? "passkey" : "password");
   }, [prompt]);
 
   if (!prompt) return null;
@@ -84,6 +97,30 @@ export function UnlockModal() {
     setPassword("");
   };
 
+  const unlockWithPasskey = async () => {
+    if (unlocking || !prompt.passkey) return;
+    setPasskeyError(null);
+    setUnlocking(true);
+    try {
+      await prompt.passkey();
+      // The key is open, and with it the Session: a copy the server never got
+      // can go up now.
+      void syncPendingPasskeys(localAccountFor(prompt.pubkey));
+    } catch (error) {
+      setUnlocking(false);
+      // Closing the system sheet is changing your mind about the passkey; the
+      // dialog stays, with the password still there if there is one.
+      if (isPasskeyCancelled(error)) return;
+      setPasskeyError(
+        error instanceof PasskeyMismatchError
+          ? "That passkey doesn't open this account. Pick the one you made for it."
+          : error instanceof PasskeyPrfUnsupportedError
+            ? "That passkey can't unlock your key here."
+            : "Couldn't unlock with your passkey. Try again.",
+      );
+    }
+  };
+
   // Cancelling is a deliberate choice, so the action it interrupted is abandoned
   // quietly — no toast, no error state anywhere.
   const cancel = () => {
@@ -108,6 +145,79 @@ export function UnlockModal() {
   return (
     <Dialog open onOpenChange={(next) => !next && cancel()}>
       <DialogContent className="sm:max-w-[440px]" data-testid="modal-unlock">
+        {pane === "passkey" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Unlock your account</DialogTitle>
+              <DialogDescription>
+                Confirm it's you to continue. It stays unlocked in this tab for the rest of your visit.
+              </DialogDescription>
+            </DialogHeader>
+
+            <p className="font-mono text-xs text-muted-foreground" data-testid="text-unlock-npub">
+              {shortNpub(prompt.npub)}
+            </p>
+
+            <Button
+              type="button"
+              variant="neutral"
+              size="lg"
+              className="w-full"
+              onClick={unlockWithPasskey}
+              disabled={unlocking}
+              autoFocus
+              data-testid="button-unlock-passkey"
+            >
+              <PasskeyIcon />
+              {unlocking ? `Waiting for ${method.label}…` : `Unlock with ${method.withPhrase}`}
+            </Button>
+
+            {passkeyError && (
+              <p className="text-sm text-red-600 dark:text-red-400" data-testid="text-unlock-passkey-error">
+                {passkeyError}
+              </p>
+            )}
+
+            <DialogFooter className="flex-row items-center justify-between gap-2 sm:justify-between">
+              {prompt.hasPassword ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0"
+                  onClick={() => setPane("password")}
+                  disabled={unlocking}
+                  data-testid="button-unlock-use-password"
+                >
+                  Use recovery password
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0"
+                  onClick={signInWithKey}
+                  disabled={unlocking}
+                  data-testid="button-unlock-passkey-use-key"
+                >
+                  Sign in with your key
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={cancel}
+                disabled={unlocking}
+                data-testid="button-unlock-passkey-cancel"
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
         {pane === "password" && (
           <>
             <DialogHeader>
@@ -161,15 +271,28 @@ export function UnlockModal() {
               </DialogFooter>
             </form>
 
-            <button
-              type="button"
-              className="self-start text-xs text-brand-link hover:underline disabled:opacity-50"
-              onClick={() => setPane("forgotten")}
-              disabled={unlocking}
-              data-testid="button-unlock-forgotten"
-            >
-              Forgotten it?
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                className="self-start text-xs text-brand-link hover:underline disabled:opacity-50"
+                onClick={() => setPane("forgotten")}
+                disabled={unlocking}
+                data-testid="button-unlock-forgotten"
+              >
+                Forgotten it?
+              </button>
+              {prompt.passkey && (
+                <button
+                  type="button"
+                  className="self-start text-xs text-brand-link hover:underline disabled:opacity-50"
+                  onClick={() => setPane("passkey")}
+                  disabled={unlocking}
+                  data-testid="button-unlock-back-to-passkey"
+                >
+                  Use {method.withPhrase} instead
+                </button>
+              )}
+            </div>
           </>
         )}
 

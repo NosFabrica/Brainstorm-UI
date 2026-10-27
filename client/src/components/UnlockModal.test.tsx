@@ -21,13 +21,19 @@ vi.mock("@/accounts/login-flow", () => ({
   removeAccountFromDevice: (account: unknown) => removeAccountFromDevice(account),
 }));
 vi.mock("@/accounts/login", () => ({ localAccountFor: () => heldAccount }));
+vi.mock("@/accounts/passkey-flow", () => ({ syncPendingPasskeys: vi.fn(async () => {}) }));
 vi.mock("wouter", () => ({ useLocation: () => ["/dashboard", (to: string) => navigate(to)] }));
 
 /** Raise a prompt the way a Locked Signer does, and render the modal that serves it. */
-async function raise(attempt: (password: string) => Promise<UnlockAttemptResult>) {
+async function raise(
+  attempt: (password: string) => Promise<UnlockAttemptResult>,
+  extra: Partial<Pick<RecoveryPasswordRequest, "hasPassword" | "passkey">> = {},
+) {
   const request: RecoveryPasswordRequest = {
     signer: { pubkey: PUBKEY } as unknown as LocalSigner,
+    hasPassword: true,
     attempt,
+    ...extra,
   };
   // Wrapped, or awaiting this helper would also await the action it interrupted.
   const pending = requestRecoveryPassword(request);
@@ -179,5 +185,53 @@ describe("forgetting the recovery password", () => {
     expect(isUnlockCancelled(await pending.catch((e) => e))).toBe(true);
     expect(removeAccountFromDevice).toHaveBeenCalledWith(heldAccount);
     expect(navigate).toHaveBeenCalledWith("/login");
+  });
+});
+
+describe("the unlock modal with a passkey", () => {
+  const cancelled = () => Object.assign(new Error("The operation was cancelled"), { name: "NotAllowedError" });
+
+  it("asks for the passkey first, and the action carries on once it opens", async () => {
+    const passkey = vi.fn(async () => {});
+    const { pending } = await raise(async () => ({ ok: false, reason: "wrong-password" }), { passkey });
+
+    expect(screen.queryByTestId("input-unlock-password")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-unlock-passkey"));
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(passkey).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays open, saying nothing, when the system sheet is closed", async () => {
+    const passkey = vi.fn(async () => {
+      throw cancelled();
+    });
+    await raise(async () => ({ ok: true }), { passkey });
+
+    fireEvent.click(screen.getByTestId("button-unlock-passkey"));
+
+    await waitFor(() => expect(screen.getByTestId("button-unlock-passkey")).toBeEnabled());
+    expect(screen.queryByTestId("text-unlock-passkey-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("modal-unlock")).toBeInTheDocument();
+  });
+
+  it("keeps the recovery password one tap away", async () => {
+    const attempt = vi.fn(async () => ({ ok: true }) as const);
+    const { pending } = await raise(attempt, { passkey: vi.fn() });
+
+    fireEvent.click(screen.getByTestId("button-unlock-use-password"));
+    enterPassword(PASSWORD);
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(attempt).toHaveBeenCalledWith(PASSWORD);
+  });
+
+  it("offers the key instead of a password an account doesn't have", async () => {
+    await raise(async () => ({ ok: false, reason: "wrong-password" }), { passkey: vi.fn(), hasPassword: false });
+
+    expect(screen.queryByTestId("button-unlock-use-password")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-unlock-passkey-use-key"));
+
+    expect(navigate).toHaveBeenCalledWith("/login?key=1");
   });
 });

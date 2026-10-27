@@ -5,6 +5,7 @@ import { nsecEncode } from "nostr-tools/nip19";
 import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { Subject } from "rxjs";
 
+import { assertPasskey, openSealedKey, PasskeyMismatchError, sealKey, type StoredPasskey } from "./passkey";
 import { backupTooExpensive, unlockFailureOf, UNUSABLE_BACKUP_MESSAGE, type UnlockFailure } from "./restore";
 import { deviceUnlockCache, type UnlockCache } from "./unlock-cache";
 import { isUnlockCacheUnavailable } from "@/lib/skVault";
@@ -53,19 +54,29 @@ export class RecoveryPasswordError extends Error {
 }
 
 /**
- * The two at-rest forms of a key. Both optional, and all four combinations are
- * real — see ADR 0001. `ncryptsec` is the Backup: canonical and portable.
+ * The at-rest forms of a key. All optional, and every combination is real — see
+ * ADR 0001 and ADR 0009. `ncryptsec` is the Backup: canonical and portable.
  * `envelope` is the Unlock cache: device-bound, and only saves a password.
+ * `passkeys` are seals a passkey opens: they stand in for the Recovery password,
+ * and, held by the server too, carry the key to a new device. Never a Backup.
  */
-export type LocalSignerData = { ncryptsec?: string; envelope?: string };
+export type LocalSignerData = { ncryptsec?: string; envelope?: string; passkeys?: StoredPasskey[] };
 
 export type RecoveryPasswordRequest = {
   signer: LocalSigner;
+  /** Whether there is a Backup to try a password against. A passkey-only Account has none. */
+  hasPassword: boolean;
   /**
    * Try one password. Blocks the main thread for 0.1–1.2s while scrypt runs, so
    * whoever calls this paints its pending state first — see `UnlockModal`.
    */
   attempt(password: string): Promise<UnlockAttemptResult>;
+  /**
+   * Unlock with one of this Account's passkeys instead, when it has any. Throws
+   * what the ceremony throws — a cancel included, which is the person changing
+   * their mind about the passkey, not about unlocking.
+   */
+  passkey?: () => Promise<void>;
 };
 
 /**
@@ -236,9 +247,10 @@ export class LocalSigner implements ISigner {
     // `UnlockCancelled` in silence, which is the right answer for both.
     if (started !== this.generation) throw new UnlockCancelled();
 
-    if (!this.data.ncryptsec) throw new NoUnlockPathError();
+    if (!this.data.ncryptsec && !this.hasPasskeys) throw new NoUnlockPathError();
 
     if (password !== undefined) {
+      if (!this.data.ncryptsec) throw new NoUnlockPathError("This account has no recovery password");
       const result = this.tryBackup(password);
       if (!result.ok) throw new RecoveryPasswordError(result.reason);
       return;
@@ -270,7 +282,75 @@ export class LocalSigner implements ISigner {
   private prompt(): Promise<void> {
     const request = this.requestPassword ?? installedPrompt;
     if (!request) throw new NoUnlockPathError("No recovery password prompt is installed");
-    return request({ signer: this, attempt: async (password) => this.tryBackup(password) });
+    return request({
+      signer: this,
+      hasPassword: !!this.data.ncryptsec,
+      attempt: async (password) =>
+        this.data.ncryptsec ? this.tryBackup(password) : { ok: false, reason: "wrong-password" },
+      passkey: this.hasPasskeys ? () => this.unlockWithPasskey() : undefined,
+    });
+  }
+
+  get hasPasskeys(): boolean {
+    return !!this.data.passkeys?.length;
+  }
+
+  /**
+   * Open the key with one of this Account's passkeys: the system sheet offers
+   * only those, and the seal of whichever answers is opened in memory. Nothing
+   * reaches the network. Keeps the key, as a password attempt that opens does.
+   */
+  async unlockWithPasskey(): Promise<void> {
+    if (this.inner) return;
+    const passkeys = this.data.passkeys ?? [];
+    const started = this.generation;
+    const answer = await assertPasskey({ credentialIds: passkeys.map((passkey) => passkey.credentialId) });
+    const sealed = passkeys.find((passkey) => passkey.credentialId === answer.credentialId);
+    if (!sealed) throw new PasskeyMismatchError();
+    const key = await openSealedKey(sealed, answer.prf);
+    if (getPublicKey(key) !== this.pubkey) throw new PasskeyMismatchError();
+    if (started !== this.generation) throw new UnlockCancelled();
+    this.inner = new PrivateKeySigner(key);
+  }
+
+  /**
+   * Seal the unlocked key under a passkey's PRF output and keep the seal, once
+   * it has been proven to open again. Requires an unlocked key.
+   */
+  async addPasskey(
+    credentialId: string,
+    prf: Uint8Array,
+    details: Omit<StoredPasskey, "v" | "pubkey" | "credentialId" | "iv" | "ciphertext">,
+  ): Promise<StoredPasskey> {
+    if (!this.inner) throw new Error("Unlock before adding a passkey");
+    const sealed = await sealKey(this.inner.key, this.pubkey, credentialId, prf);
+    const reopened = await openSealedKey(sealed, prf);
+    if (getPublicKey(reopened) !== this.pubkey) throw new PasskeyMismatchError("The passkey seal didn't verify");
+    const stored: StoredPasskey = { ...sealed, ...details };
+    this.data.passkeys = [...(this.data.passkeys ?? []).filter((p) => p.credentialId !== credentialId), stored];
+    this.changed$.next();
+    return stored;
+  }
+
+  /** Keep a seal that arrived already made — the one a new device signed in with. */
+  keepPasskey(stored: StoredPasskey): void {
+    this.data.passkeys = [...(this.data.passkeys ?? []).filter((p) => p.credentialId !== stored.credentialId), stored];
+    this.changed$.next();
+  }
+
+  /** Change what is recorded about one passkey — whether the server holds it. */
+  updatePasskey(credentialId: string, patch: Partial<Pick<StoredPasskey, "synced">>): void {
+    if (!this.data.passkeys?.some((p) => p.credentialId === credentialId)) return;
+    this.data.passkeys = this.data.passkeys.map((p) => (p.credentialId === credentialId ? { ...p, ...patch } : p));
+    this.changed$.next();
+  }
+
+  /** Drop one passkey's seal from this device. The passkey itself stays in its provider. */
+  removePasskey(credentialId: string): void {
+    if (!this.data.passkeys) return;
+    const rest = this.data.passkeys.filter((p) => p.credentialId !== credentialId);
+    this.data.passkeys = rest.length ? rest : undefined;
+    this.changed$.next();
   }
 
   /** Write the Unlock cache for this device. Best-effort — its absence costs convenience. */
@@ -342,16 +422,23 @@ export class LocalSigner implements ISigner {
   }
 
   /**
-   * An already-unlocked Signer over `key` — the signup and paste-nsec paths.
+   * An already-unlocked Signer over `key` — the signup, paste-nsec and
+   * passkey-sign-in paths.
    *
    * `ncryptsec` is adopted verbatim where the key came *out* of one: it is the
    * Backup its owner already holds a file of, at the work factor they chose, and
    * re-minting it here would silently replace both.
    */
-  static fromKey(key: Uint8Array, options: LocalSignerOptions & { ncryptsec?: string } = {}): LocalSigner {
+  static fromKey(
+    key: Uint8Array,
+    options: LocalSignerOptions & { ncryptsec?: string; passkeys?: StoredPasskey[] } = {},
+  ): LocalSigner {
     const signer = new LocalSigner(
       getPublicKey(key),
-      options.ncryptsec ? { ncryptsec: options.ncryptsec } : {},
+      {
+        ...(options.ncryptsec ? { ncryptsec: options.ncryptsec } : {}),
+        ...(options.passkeys?.length ? { passkeys: options.passkeys } : {}),
+      },
       options,
     );
     signer.inner = new PrivateKeySigner(key);

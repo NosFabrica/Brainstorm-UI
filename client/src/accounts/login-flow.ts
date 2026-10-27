@@ -37,6 +37,18 @@ import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
+import { accountManager } from "@/accounts";
+import { passkeyVaultApi, PasskeyNotReadyError } from "@/services/api/passkeyVault";
+import {
+  assertPasskey,
+  credentialIdHash,
+  openSealedKey,
+  parseSealedKey,
+  PasskeyMismatchError,
+  type SealedKey,
+  type StoredPasskey,
+} from "@/accounts/passkey";
+import { addPasskey, syncPendingPasskeys } from "@/accounts/passkey-flow";
 
 export type LoginErrorCode =
   "NO_EXTENSION" | "EXTENSION_FAILED" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "INVALID_NSEC" | "SERVER_ERROR";
@@ -383,21 +395,28 @@ export async function runInitialSetup(
  */
 export async function createAccount(
   displayName: string,
-  opts: { inviterPubkey?: string; password?: string } = {},
+  opts: { inviterPubkey?: string; password?: string; passkey?: boolean } = {},
 ): Promise<NostrUser> {
   const name = displayName.trim();
   const sk = generateSecretKey();
   const pubkey = getPublicKey(sk);
   const account = await localAccount(sk, { password: opts.password });
 
+  // A passkey instead of a password: made before the Account is adopted, so a
+  // cancelled sheet leaves nothing behind — not a row, not a Session. Its seal is
+  // the at-rest form a reload opens; the server's copy follows the Session.
+  if (opts.passkey) await addPasskey(account, name);
+
   let user: NostrUser;
   try {
     // A brand-new key exists only in this browser, so it is emphatically not
-    // backed up — `createdInApp` is what points the onboarding nags at it.
+    // backed up — `createdInApp` is what points the onboarding nags at it. A
+    // passkey doesn't change that: it opens the key, it isn't a copy of it.
     user = await signIn(account, { remembered: true, createdInApp: true });
   } catch (err) {
     throw asLoginError(err);
   }
+  if (opts.passkey) void syncPendingPasskeys(account);
 
   // A brand-new account has no kind-0 on relays yet, so completeLogin returns a
   // nameless user (its profile fetch finds nothing). Apply the name the user
@@ -411,4 +430,55 @@ export async function createAccount(
   // Don't block the UI on relay/scoring work.
   void runInitialSetup(pubkey, { name }, { inviterPubkey: opts.inviterPubkey }).catch(() => {});
   return user;
+}
+
+/**
+ * The seal a passkey opens, wherever it is kept: on an Account this device
+ * already holds, or — on a device that holds nothing — the server's copy, handed
+ * over only for an assertion over its own challenge.
+ */
+async function sealFor(
+  answer: Awaited<ReturnType<typeof assertPasskey>>,
+): Promise<{ sealed: SealedKey; held?: LocalAccount }> {
+  for (const held of accountManager.accounts) {
+    if (!(held instanceof LocalAccount)) continue;
+    const sealed = held.signer.data.passkeys?.find((passkey) => passkey.credentialId === answer.credentialId);
+    if (sealed) return { sealed, held };
+  }
+  const blob = await passkeyVaultApi.openPasskeyVault(await credentialIdHash(answer.credentialId), answer.wire);
+  const sealed = parseSealedKey(blob);
+  if (!sealed || sealed.credentialId !== answer.credentialId) throw new PasskeyNotReadyError();
+  return { sealed };
+}
+
+/**
+ * Sign in with a passkey, on this device or a new one: the system sheet offers
+ * every passkey this site has, the one picked names its account (`user.id` is
+ * the pubkey), and its seal opens the key here.
+ *
+ * `challenge` is the server's, fetched ahead of the tap — Safari only lets a
+ * passkey sheet open from a gesture, and a network round-trip between the tap
+ * and the sheet can spend it. Throws what the ceremony throws (a cancel is
+ * `isPasskeyCancelled`), `PasskeyNotReadyError` when no copy is held anywhere.
+ */
+export async function loginWithPasskey(challenge?: string): Promise<NostrUser> {
+  const answer = await assertPasskey({ challenge: challenge ?? (await passkeyVaultApi.passkeyVaultChallenge()) });
+  const { sealed, held } = await sealFor(answer);
+  const key = await openSealedKey(sealed, answer.prf);
+  const pubkey = getPublicKey(key);
+  if (pubkey !== sealed.pubkey || (answer.pubkey && answer.pubkey !== pubkey)) throw new PasskeyMismatchError();
+
+  // Everything the held row knew about its key comes across; a new device starts
+  // with the one seal it opened, which the server already holds.
+  const passkeys: StoredPasskey[] = held?.signer.data.passkeys ?? [
+    { ...sealed, provider: "Passkey", device: "another device", addedAt: Date.now(), synced: true },
+  ];
+  const account = await localAccount(key, { ncryptsec: held?.signer.data.ncryptsec, passkeys });
+  try {
+    // Remembered: a passkey sign-in exists to keep you signed in. Not backed up:
+    // the passkey opens the key, and losing the provider would lose both.
+    return await signIn(account, { remembered: true });
+  } catch (err) {
+    throw asLoginError(err);
+  }
 }

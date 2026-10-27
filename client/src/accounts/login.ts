@@ -10,6 +10,7 @@ import { accountManager } from "@/accounts";
 import { BrainstormExtensionAccount } from "./extension";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerOptions } from "./local-signer";
+import type { StoredPasskey } from "./passkey";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 
 declare global {
@@ -71,7 +72,12 @@ export async function extensionAccount(): Promise<BrainstormExtensionAccount<Acc
  */
 export function localAccount(
   key: Uint8Array,
-  options: LocalSignerOptions & { password?: string; logn?: number; ncryptsec?: string } = {},
+  options: LocalSignerOptions & {
+    password?: string;
+    logn?: number;
+    ncryptsec?: string;
+    passkeys?: StoredPasskey[];
+  } = {},
 ): Promise<LocalAccount> {
   return LocalAccount.fromKey(key, { ...options, requirePersistable: false });
 }
@@ -89,9 +95,13 @@ export function localAccount(
  *
  * Only fills a gap. A row that brought its own Backup keeps it: that one was
  * minted under a password the user chose more recently.
+ *
+ * Passkey seals follow the same way, for the same reason: re-pasting an nsec
+ * must not quietly cost this device its Face ID unlock.
  */
 function carryBackup(from: BrainstormAccount, to: BrainstormAccount): void {
   if (!(from instanceof LocalAccount) || !(to instanceof LocalAccount)) return;
+  if (!to.signer.hasPasskeys && from.signer.hasPasskeys) to.signer.data.passkeys = from.signer.data.passkeys;
   if (to.signer.data.ncryptsec || !from.signer.data.ncryptsec) return;
   to.signer.data.ncryptsec = from.signer.data.ncryptsec;
 }

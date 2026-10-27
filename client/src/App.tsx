@@ -37,6 +37,7 @@ import { openTarget } from "@/lib/openTarget";
 import { DmShelvesProvider } from "@/hooks/useDirectMessages";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
+import { PasskeyOffer } from "@/components/PasskeyOffer";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
 import { SignerApprovalModal } from "@/components/SignerApprovalModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -326,6 +327,7 @@ function App() {
                 <Toaster />
                 <DemoScoreDisplaySwitcher />
                 <UnlockModal />
+                <PasskeyOffer />
                 <SignerApprovalModal />
                 <CrossTabIdentity />
                 <PovAutoDefault />
