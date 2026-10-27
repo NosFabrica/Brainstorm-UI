@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:lists": "vite build --config vite.lists.config.ts",
     "check": "tsc",
     "test": "LC_ALL=en-US vitest run",
     "test:watch": "LC_ALL=en-US vitest",
