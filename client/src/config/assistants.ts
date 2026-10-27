@@ -18,7 +18,10 @@ export interface AssistantTag {
   slug: string;
 }
 
-const config = raw as { tags: Record<AssistantTagKey, { name: string; coordinate: string }> };
+const config = raw as {
+  tags: Record<AssistantTagKey, { name: string; coordinate: string }>;
+  dutyMenuHeader: string;
+};
 
 /** Both tags, in the order a row shows them. */
 export const ASSISTANT_TAGS: AssistantTag[] = (Object.keys(config.tags) as AssistantTagKey[]).map((key) => ({
@@ -35,3 +38,6 @@ export function assistantTagKeyOf(slug: string | null | undefined): AssistantTag
 
 /** The canonical namespace every person tagging carries: how a reader asks for them. */
 export const NOSTR_USER_TAG_Z: string = conceptNostrUserTag(Z_HANDLE_PUBKEYS[0]);
+
+/** Nous' Duty Menu header: what an Assistant's menu points at with `z` (lib/dutyMenu). */
+export const DUTY_MENU_HEADER: string = config.dutyMenuHeader;
