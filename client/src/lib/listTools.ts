@@ -10,6 +10,7 @@
  * does, pinned to the commit it was built at, rather than a copy of them.
  */
 import dictionaryConfig from "@/config/dictionary.config.json";
+import { parseCoordinate } from "@/lib/dlistFields";
 
 export * from "@/lib/listCheck";
 export * from "@/lib/listDraft";
@@ -19,9 +20,17 @@ export * from "@/lib/dictionaryConcepts";
 export { similarTemplates, templateOf } from "@/lib/linkTemplates";
 export type { UrlTemplate } from "@/lib/linkTemplates";
 
-/**
- * The URL Templates concept, where the templates a header links through are
- * listed: the `url-templates` role, read from the JSON itself, because
- * config/dictionary also reads the tag relays from the env and the browser.
- */
+// The Dictionary's config, read from the JSON itself, as config/dictionary
+// reads it: that module also reads the tag relays from the env and the
+// browser, which a program outside the app doesn't have.
+
+/** The URL Templates concept, where the templates a header links through are listed: the `url-templates` role. */
 export const URL_TEMPLATES_LIST: string = dictionaryConfig.roles["url-templates"];
+
+/** The tag that makes someone a Dictionary curator when the house applies it (`curatorsOf`). */
+export const CURATOR_TAG: string = dictionaryConfig.curatorTag;
+
+/** The concepts that play a role, such as URL Templates: the Dictionary keeps them out of its view. */
+export const ROLE_CONCEPTS: string[] = Object.values(dictionaryConfig.roles).filter(
+  (c) => parseCoordinate(c)?.kind === 39998,
+);
