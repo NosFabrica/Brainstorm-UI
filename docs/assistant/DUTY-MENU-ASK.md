@@ -2,6 +2,7 @@
 
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-duty-menu`, 2026-10-27
+**Filed as:** [NosFabrica/brainstorm_server#108](https://github.com/NosFabrica/brainstorm_server/issues/108)
 **Modelled on:** `POST /user/assistantProfile` (`app/routers/user/router.py`), and
 Tapestry's `POST /api/assistant/duty-menu/publish` (`src/api/assistant/dutyMenuPublish.js`,
 ADR `assistant-duty-menu/0002`)
