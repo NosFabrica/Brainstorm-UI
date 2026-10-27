@@ -129,6 +129,25 @@ describe("loadDictionary", () => {
     expect(fetchMock.mock.calls.every(([, relays]) => relays[0] === "wss://hub.example")).toBe(true);
   });
 
+  it("asks for the managers' copies too, and keeps each one's as a candidate without changing who governs", async () => {
+    const OTHER = "3".repeat(64);
+    const otherCopy = ev(OTHER, 39998, [
+      ["d", "github-accounts"],
+      ["names", "GitHub Account", "GitHub Accounts"],
+      ["required", "github-username"],
+      ["b", COMMUNITY, "pointer"],
+    ]);
+    relayWith([communityHeader, taCopy, otherCopy]);
+    const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, {
+      items: false,
+      managers: [OTHER, USER],
+    });
+    expect(sentFilters().find((f) => f["#b"])).toMatchObject({ authors: [USER, TA, OTHER] });
+    expect(Object.keys(entry.candidates?.copies ?? {}).sort()).toEqual([TA, OTHER].sort());
+    expect(entry.candidates?.community?.id).toBe(communityHeader.id);
+    expect(entry.resolved?.governing.coordinate).toBe(TA_COPY);
+  });
+
   it("an anonymous reader asks for no copies of their own", async () => {
     relayWith([communityHeader]);
     await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY]);
@@ -157,7 +176,13 @@ describe("loadDictionary", () => {
   it("a hub that fails is an empty entry, not an error", async () => {
     fetchMock.mockRejectedValue(new Error("down"));
     const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY]);
-    expect(entry).toEqual({ communityCoordinate: COMMUNITY, resolved: null, inDictionary: false, items: [] });
+    expect(entry).toEqual({
+      communityCoordinate: COMMUNITY,
+      resolved: null,
+      inDictionary: false,
+      items: [],
+      candidates: { community: null, house: null, copies: {} },
+    });
   });
 
   it("ignores a header that isn't a list item under any z it asked for", async () => {

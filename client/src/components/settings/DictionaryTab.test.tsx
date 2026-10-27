@@ -10,7 +10,9 @@ import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 import type { DictionaryEntry } from "@/services/dictionary";
 
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
+const USER = "1".repeat(64);
 const TA = "2".repeat(64);
+const TAPESTRY = "3".repeat(64);
 const COMMUNITY = `39998:${AVI}:github-accounts`;
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
@@ -66,6 +68,26 @@ import { userEvent } from "@testing-library/user-event";
 vi.mock("@/hooks/useDictionaryReader", () => ({
   useDictionaryReader: () => ({ pubkey: "1".repeat(64), taPubkey: TA, settled: true }),
 }));
+/** The reader's other Assistants, beside the local one (taPubkey), and whom their Treasure Map gives Concepts to. */
+let otherAssistants: string[] = [];
+let mapAssistant: string | null = null;
+const NAMES: Record<string, string> = { [TA]: "Local Helper", [TAPESTRY]: "Tapestry Helper" };
+vi.mock("@/hooks/useDictionaryManagers", async () => {
+  const { managerOptions } = await import("@/lib/managedDictionary");
+  return {
+    useDictionaryManagers: (me: string | null) => {
+      const assistants = [...(taPubkey ? [taPubkey] : []), ...otherAssistants];
+      const options = me ? managerOptions({ me, assistants, local: taPubkey, designated: mapAssistant }) : [];
+      return {
+        options,
+        pubkeys: options.map((o) => o.pubkey).sort(),
+        settled: true,
+        profiles: new Map(),
+        nameOf: (pubkey: string) => NAMES[pubkey] ?? pubkey.slice(0, 8),
+      };
+    },
+  };
+});
 vi.mock("@/hooks/useLinkTemplates", () => ({
   useLinkTemplates: () => ({ data: new Map() }),
   useAvailableTemplates: () => ({ data: [], isPending: false }),
@@ -88,6 +110,8 @@ const at = (url: string) => window.history.replaceState({}, "", url);
 
 beforeEach(() => {
   taPubkey = TA;
+  otherAssistants = [];
+  mapAssistant = null;
   trustedAuthors = new Set([AVI]);
   at("/settings?tab=dictionary");
 });
@@ -96,7 +120,7 @@ describe("the list", () => {
   it("a concept the Assistant hasn't copied is offered as the community's", () => {
     entries = [entryOf(null)];
     renderWithProviders(<DictionaryTab />);
-    expect(screen.getByTestId("dictionary-empty")).toHaveTextContent("Your Assistant hasn't added any concepts yet.");
+    expect(screen.getByTestId("dictionary-empty")).toHaveTextContent("Local Helper hasn't added any concepts yet.");
     const row = within(screen.getByTestId("dictionary-available")).getByTestId("dictionary-row-github-accounts");
     expect(row).toHaveTextContent("GitHub Accounts");
     expect(row).toHaveTextContent("1 item");
@@ -246,5 +270,87 @@ describe("the list's count", () => {
     entries = [entryOf(null)];
     renderWithProviders(<DictionaryTab />);
     expect(screen.getByTestId("dictionary-row-count")).toHaveTextContent("0 items");
+  });
+});
+
+describe("Managed by", () => {
+  const copyBy = (pubkey: string) =>
+    header(pubkey, [
+      ["description", "A list of github handles/accounts"],
+      ["required", "github-username"],
+      ["b", COMMUNITY, "pointer"],
+    ]);
+  /** An entry as loadDictionary reads it for the managers: each one's copy kept as a candidate. */
+  const managedEntryOf = (copies: Record<string, HeaderEvent>): DictionaryEntry => {
+    const resolved = resolveConcept({
+      community,
+      communityCoordinate: COMMUNITY,
+      personal: copies[USER],
+      assistant: copies[TA],
+    });
+    return {
+      communityCoordinate: COMMUNITY,
+      resolved,
+      inDictionary: resolved?.source === "personal" || resolved?.source === "assistant",
+      items: [item],
+      candidates: { community, house: null, copies },
+    };
+  };
+  const mineRow = () => within(screen.getByTestId("dictionary-mine")).queryByTestId("dictionary-row-github-accounts");
+
+  it("shows the Treasure Map's Concepts Assistant by default: its copy, not yours", () => {
+    otherAssistants = [TAPESTRY];
+    mapAssistant = TAPESTRY;
+    entries = [managedEntryOf({ [USER]: copyBy(USER), [TAPESTRY]: copyBy(TAPESTRY) })];
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-managed-by")).toHaveTextContent("Managed by Tapestry Helper");
+    expect(mineRow()).toHaveTextContent("Added by Tapestry Helper");
+  });
+
+  it("with no Concepts duty on the Map, the local Assistant's: your own copy isn't in it", () => {
+    entries = [managedEntryOf({ [USER]: copyBy(USER) })];
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-managed-by")).toHaveTextContent("Managed by Local Helper");
+    expect(mineRow()).toBeNull();
+    expect(screen.getByTestId("dictionary-empty")).toHaveTextContent("Local Helper hasn't added any concepts yet.");
+  });
+
+  it("picking You shows your own copies, and the URL and entry links keep the choice", async () => {
+    entries = [managedEntryOf({ [USER]: copyBy(USER) })];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-managed-by"));
+    await userEvent.click(screen.getByRole("button", { name: /^You/ }));
+    expect(new URLSearchParams(window.location.search).get("managedBy")).toBe("me");
+    expect(screen.getByTestId("dictionary-managed-by")).toHaveTextContent("Managed by You");
+    expect(mineRow()).toHaveTextContent("Your own copy");
+    expect(mineRow()).toHaveAttribute("href", expect.stringContaining("managedBy=me"));
+  });
+
+  it("all of your Assistants: each concept says how many of them hold it", () => {
+    otherAssistants = [TAPESTRY];
+    at("/settings?tab=dictionary&managedBy=all");
+    entries = [managedEntryOf({ [USER]: copyBy(USER), [TAPESTRY]: copyBy(TAPESTRY) })];
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-managed-by")).toHaveTextContent("Managed by All of your Assistants");
+    expect(mineRow()).toHaveTextContent("Added by Tapestry Helper");
+    expect(screen.getByTestId("chip-dictionary-support")).toHaveTextContent("1 of 2 Assistants");
+  });
+
+  it("a link naming someone who isn't one of your Assistants says so, and shows the default", () => {
+    at(`/settings?tab=dictionary&managedBy=${"9".repeat(64)}`);
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-managed-unknown")).toHaveTextContent("this is Local Helper’s Dictionary");
+    expect(screen.getByTestId("dictionary-managed-by")).toHaveTextContent("Managed by Local Helper");
+  });
+
+  it("an entry under an Assistant still lets you withdraw your own version", () => {
+    at(`/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`);
+    entries = [managedEntryOf({ [USER]: copyBy(USER) })];
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-entry-not-added")).toHaveTextContent(
+      "Local Helper hasn't added this concept to your Dictionary yet.",
+    );
+    expect(screen.getByTestId("dictionary-version-withdraw")).toBeInTheDocument();
   });
 });

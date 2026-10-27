@@ -48,6 +48,19 @@ export interface DictionaryEntry {
   inDictionary: boolean;
   /** Distinct items, newest version of each, newest first. */
   items: DictionaryItem[];
+  /**
+   * What `resolved` was decided from, kept so a view can resolve the concept
+   * for someone else — Settings › Dictionary's "Managed by" (lib/managedDictionary).
+   * Absent where an entry is built by hand.
+   */
+  candidates?: EntryCandidates;
+}
+
+export interface EntryCandidates {
+  community: HeaderEvent | null;
+  house: HeaderEvent | null;
+  /** Each copy author's copy of the concept, by pubkey: the reader, their Assistant, every manager asked for. */
+  copies: Record<string, HeaderEvent>;
 }
 
 const TIMEOUT_MS = 8000;
@@ -244,16 +257,24 @@ export async function houseCopyAuthors(): Promise<string[]> {
   return assistant && assistant !== house ? [house, assistant] : [house];
 }
 
+/**
+ * `managers` are more copy authors to read beside the reader's own: whoever
+ * else may manage their Dictionary (Settings › Dictionary's "Managed by").
+ * Their copies land in each entry's `candidates`; `resolved` keeps the
+ * reader's precedence all the same.
+ */
 export async function loadDictionary(
   reader: DictionaryReader,
   concepts: string[],
   hubRelays: string[] = dictionaryRelays(),
-  { items: withItems = true }: { items?: boolean } = {},
+  { items: withItems = true, managers = [] }: { items?: boolean; managers?: string[] } = {},
 ): Promise<DictionaryEntry[]> {
   concepts = concepts.filter((c) => parseCoordinate(c)?.kind === 39998);
   if (!concepts.length) return [];
   const house = await houseCopyAuthors();
-  const copyAuthors = [...new Set([reader.pubkey, reader.taPubkey, ...house].filter((a): a is string => !!a))];
+  const copyAuthors = [
+    ...new Set([reader.pubkey, reader.taPubkey, ...house, ...managers].filter((a): a is string => !!a)),
+  ];
 
   const headerEvents: HeaderEvent[] = [];
   for (let i = 0; i < concepts.length; i += CONCEPT_CHUNK) {
@@ -266,13 +287,23 @@ export async function loadDictionary(
     (h) => copyAuthors.includes(h.pubkey) && !conceptSet.has(coordinateOf(h) ?? ""),
   );
 
-  const resolved = concepts.map((coordinate) =>
+  const candidates = concepts.map((coordinate): EntryCandidates => ({
+    community: communityHeaders.get(coordinate) ?? null,
+    house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
+    copies: Object.fromEntries(
+      copyAuthors.flatMap((a) => {
+        const copy = copyBy(a, coordinate, copies);
+        return copy ? [[a, copy]] : [];
+      }),
+    ),
+  }));
+  const resolved = concepts.map((coordinate, i) =>
     resolveConcept({
-      community: communityHeaders.get(coordinate) ?? null,
+      community: candidates[i].community,
       communityCoordinate: coordinate,
-      personal: copyBy(reader.pubkey, coordinate, copies),
-      assistant: copyBy(reader.taPubkey, coordinate, copies),
-      house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
+      personal: reader.pubkey ? candidates[i].copies[reader.pubkey] : null,
+      assistant: reader.taPubkey ? candidates[i].copies[reader.taPubkey] : null,
+      house: candidates[i].house,
     }),
   );
 
@@ -288,6 +319,7 @@ export async function loadDictionary(
       resolved: r,
       inDictionary: r?.source === "personal" || r?.source === "assistant",
       items: items.filter((ev) => zValues(ev).some((z) => mine.has(z))),
+      candidates: candidates[i],
     };
   });
 }
