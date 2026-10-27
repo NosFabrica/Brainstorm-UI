@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeftRight, ArrowRight, Check, ChevronRight, PenLine, UserPlus } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Check, ChevronRight, ListChecks, PenLine, UserPlus } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,9 @@ import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
  * apps can find the scores) are surfaced as jump-off cards, and everything
  * else (profile photo, backup) lives on in Settings and its own prompts,
  * off the critical path.
+ *
+ * Where the server can publish it, a fourth step: the Brainstorm Assistant's
+ * Duty Menu, published and up to date (/setup/duty-menu does the publish).
  *
  * Every "Finish setup" surface (header banner, dashboard card) lands here, and
  * both action rows come back here when they're done, so progress is always
@@ -125,6 +128,7 @@ export default function FinishSetupPage() {
     activateDone,
     scoresElsewhere,
     listsPending,
+    dutyMenu,
     doneCount,
     totalSteps,
     allDone,
@@ -250,6 +254,47 @@ export default function FinishSetupPage() {
           )}
           {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
           {activateDone && listsPending && <ListsUpdateLine />}
+
+          {dutyMenu === "current" ? (
+            <DoneRow
+              label="Publish your Assistant's Duty Menu"
+              detail={
+                <>
+                  Your Brainstorm Assistant's Duty Menu is up to date ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/setup/duty-menu")}
+                    className="font-semibold text-brand-link hover:underline"
+                    data-testid="setup-view-duty-menu"
+                  >
+                    View
+                  </button>
+                </>
+              }
+              testid="setup-row-duty-menu-done"
+            />
+          ) : (
+            dutyMenu && (
+              <PendingRow
+                label="Publish your Assistant's Duty Menu"
+                badge={
+                  dutyMenu === "checking"
+                    ? "Checking"
+                    : dutyMenu === "out-of-date"
+                      ? "Out of date"
+                      : "Required for other apps"
+                }
+                detail={
+                  dutyMenu === "out-of-date"
+                    ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
+                    : "Let other clients, apps and Assistants know which duties your Assistant can take on, and which relay each one is published to."
+                }
+                icon={ListChecks}
+                onClick={() => navigate("/setup/duty-menu")}
+                testid="setup-row-duty-menu"
+              />
+            )
+          )}
         </div>
 
         {/* Below the counted steps, under their own heading: the count above is of

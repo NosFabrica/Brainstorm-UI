@@ -187,3 +187,42 @@ describe("FinishSetupPage", () => {
     expect(navigate).toHaveBeenCalledWith("/setup/activate");
   });
 });
+
+describe("FinishSetupPage — the Duty Menu step", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const ready = { followDone: true, followPending: false, activateDone: true, activatePending: false };
+
+  it("isn't there where the server can't publish one", () => {
+    setupState.mockReturnValue(state({ ...ready, doneCount: 3, allDone: true }));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.queryByTestId("setup-row-duty-menu")).toBeNull();
+    expect(screen.queryByTestId("setup-row-duty-menu-done")).toBeNull();
+  });
+
+  it("a missing menu is a step to take, on its own page", () => {
+    setupState.mockReturnValue(state({ ...ready, dutyMenu: "missing", doneCount: 3, totalSteps: 4 }));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("3 of 4 complete");
+    const row = screen.getByTestId("setup-row-duty-menu");
+    expect(row).toHaveTextContent("Publish your Assistant's Duty Menu");
+    expect(row).toHaveTextContent("Required for other apps");
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/duty-menu");
+  });
+
+  it("an out-of-date menu says so", () => {
+    setupState.mockReturnValue(state({ ...ready, dutyMenu: "out-of-date", doneCount: 3, totalSteps: 4 }));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.getByTestId("setup-row-duty-menu")).toHaveTextContent("Out of date");
+    expect(screen.getByTestId("setup-row-duty-menu")).toHaveTextContent("differs from what your Assistant offers now");
+  });
+
+  it("an up-to-date menu is done, with a way to see it", () => {
+    setupState.mockReturnValue(state({ ...ready, dutyMenu: "current", doneCount: 4, totalSteps: 4, allDone: true }));
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-duty-menu-done");
+    expect(row).toHaveTextContent("up to date");
+    fireEvent.click(within(row).getByTestId("setup-view-duty-menu"));
+    expect(navigate).toHaveBeenCalledWith("/setup/duty-menu");
+  });
+});

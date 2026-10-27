@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
 import { useDmStatus } from "@/hooks/useDirectMessages";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { knownFollowCount } from "@/lib/followStore";
+import type { MenuStatus } from "@/lib/dutyMenu";
 import { isNip85Activated } from "@/lib/nip85Activation";
 
 /**
@@ -17,6 +19,12 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * lets other apps find the scores). A Treasure Map that already gives the rank
  * duty to another Assistant counts as activated: they chose who publishes their
  * scores, and we don't nag them to choose again.
+ *
+ * A fourth where the server can publish it: the Brainstorm Assistant's Duty
+ * Menu, up to date with what the server offers it (hooks/useAssistantDutyMenu,
+ * docs/assistant/DUTY-MENU-ASK.md). A server without the route has no such
+ * step: it is neither shown nor counted, so nobody is asked for what they
+ * can't do.
  *
  * /setup also offers optional extras outside the count: handing that rank duty
  * to their Brainstorm Assistant, and turning on private messages
@@ -59,7 +67,14 @@ export interface FinishSetupState {
   remaining: number;
   /** Steps verifiably complete, of `totalSteps` — what the checklist page renders. */
   doneCount: number;
-  /** How many steps are counted: account, follow list, activation — never optional extras. */
+  /**
+   * The Duty Menu step, where the server supports it: the published menu against
+   * the offer, or "checking" while either is read. Undefined: no such step here.
+   */
+  dutyMenu?: MenuStatus | "checking";
+  /** Relay-verified "the Assistant's Duty Menu is missing or out of date". */
+  dutyMenuPending?: boolean;
+  /** How many steps are counted: account, follow list, activation, the Duty Menu where offered — never optional extras. */
   totalSteps: number;
   allDone: boolean;
   /** Private messages once the engine has looked — "off" is an optional extra. Unknown while it starts. */
@@ -79,6 +94,7 @@ export function useFinishSetup(): FinishSetupState {
   const locallyActivated = isNip85Activated(pubkey);
   const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
   const dmStatus = useDmStatus();
+  const menu = useAssistantDutyMenu(pubkey);
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -97,9 +113,15 @@ export function useFinishSetup(): FinishSetupState {
     // flagged apart from the steps — only where Brainstorm's Assistant is theirs.
     const listsPending = signedIn && brainstormActive && listsStatus === "missing";
 
-    const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0);
-    // The counted steps: account (done once signed in), follow list, activation.
-    const steps = [true, followDone, activateDone];
+    // The Duty Menu is a step only once the server has said what it offers.
+    const menuCounted = signedIn && menu.supported === true;
+    const dutyMenu: FinishSetupState["dutyMenu"] = menuCounted ? (menu.status ?? "checking") : undefined;
+    const dutyMenuDone = dutyMenu === "current";
+    const dutyMenuPending = menuCounted && menu.settled && (dutyMenu === "missing" || dutyMenu === "out-of-date");
+
+    const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0) + (dutyMenuPending ? 1 : 0);
+    // The counted steps: account (done once signed in), follow list, activation, then the Duty Menu where offered.
+    const steps = [true, followDone, activateDone, ...(menuCounted ? [dutyMenuDone] : [])];
     const doneCount = steps.filter(Boolean).length;
     // Messages is known once the engine has looked: no inbox list is "off", when
     // /setup offers "Turn on". Still starting, or stopped: not known, not counted.
@@ -121,12 +143,24 @@ export function useFinishSetup(): FinishSetupState {
       activatePending,
       scoresElsewhere,
       listsPending,
+      dutyMenu,
+      dutyMenuPending,
       remaining,
       doneCount,
       totalSteps: steps.length,
-      allDone: followDone && activateDone,
+      allDone: followDone && activateDone && (!menuCounted || dutyMenuDone),
       messages,
       optionalRemaining,
     };
-  }, [pubkey, followVerdict, providerStatus, locallyActivated, listsStatus, dmStatus]);
+  }, [
+    pubkey,
+    followVerdict,
+    providerStatus,
+    locallyActivated,
+    listsStatus,
+    dmStatus,
+    menu.supported,
+    menu.status,
+    menu.settled,
+  ]);
 }

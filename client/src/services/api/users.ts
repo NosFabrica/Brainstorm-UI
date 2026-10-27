@@ -3,7 +3,9 @@
  * between two people, and the brainstorm request records keyed to them.
  */
 
-import { authenticatedFetch, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
+import type { NostrEvent } from "nostr-tools";
+import { parseDutyMenuOffer } from "@/lib/dutyMenu";
+import { authenticatedFetch, extractApiError, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
 
 /**
  * The Path network from `GET /shortestPath`: every Connector on any shortest
@@ -72,6 +74,38 @@ export interface NetworkAlertsData {
 /** True when an account's verified reporters meet/exceed its flag threshold. */
 export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
   return e.reporterThreshold > 0 && e.verifiedReporterCount >= e.reporterThreshold;
+}
+
+/** This server can't publish Duty Menus yet (docs/assistant/DUTY-MENU-ASK.md): the setup step stays hidden. */
+export class DutyMenuUnavailableError extends Error {
+  constructor() {
+    super("Duty Menus aren't available on this server yet.");
+    this.name = "DutyMenuUnavailableError";
+  }
+}
+
+/** What the server would publish as the caller's Assistant's Duty Menu (`GET /user/assistantDutyMenu`). */
+export interface DutyMenuOffer {
+  assistant: string;
+  /** `[<Treasure Map key>, <relay>]`, one per duty. */
+  rows: string[][];
+}
+
+/** What `POST /user/assistantDutyMenu` answers: the signed menu, and how each relay took it. */
+export interface DutyMenuPublishResult {
+  event: NostrEvent;
+  relays: { url: string; ok: boolean; message?: string }[];
+}
+
+async function dutyMenuJson<T>(init: RequestInit, timeoutMs: number, failed: string): Promise<T> {
+  const response = await authenticatedFetch(`${getBrainstormApi()}/user/assistantDutyMenu`, {
+    ...init,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (response.status === 404 || response.status === 405) throw new DutyMenuUnavailableError();
+  if (!response.ok) throw new Error((await extractApiError(response)) || `${failed} (${response.status})`);
+  const json = await response.json();
+  return json?.data ?? json;
 }
 
 export const usersApi = {
@@ -265,5 +299,27 @@ export const usersApi = {
     }
     const json = await response.json();
     return json?.data ?? json;
+  },
+
+  /**
+   * What the caller's Assistant offers, as its Duty Menu would list it. An
+   * answer that isn't an offer means no route: `GET /user/{pubkey}` takes this
+   * path on a server without one (lib/dutyMenu `parseDutyMenuOffer`).
+   */
+  async getAssistantDutyMenu(): Promise<DutyMenuOffer> {
+    const offer = parseDutyMenuOffer(
+      await dutyMenuJson<unknown>({}, 15000, "Couldn't read your Assistant's Duty Menu"),
+    );
+    if (!offer) throw new DutyMenuUnavailableError();
+    return offer;
+  },
+
+  /** Has the server sign and publish the caller's Assistant's Duty Menu, as it offers it now. */
+  async publishAssistantDutyMenu(): Promise<DutyMenuPublishResult> {
+    return dutyMenuJson<DutyMenuPublishResult>(
+      { method: "POST" },
+      30000,
+      "Couldn't publish your Assistant's Duty Menu",
+    );
   },
 };

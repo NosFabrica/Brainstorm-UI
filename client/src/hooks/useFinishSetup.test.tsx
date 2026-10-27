@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   activated: true,
   lists: undefined as undefined | { status: string; designation: unknown },
   dm: "stopped" as string,
+  /** The Duty Menu: unsupported unless a test says otherwise. */
+  menu: { supported: false as boolean | undefined, status: null as string | null, settled: true },
 }));
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64) }) }));
@@ -26,6 +28,7 @@ vi.mock("@/hooks/useTrustListsStatus", () => ({ useTrustListsStatus: () => ({ da
 vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => 3 }));
 vi.mock("@/lib/nip85Activation", () => ({ isNip85Activated: () => state.activated }));
 vi.mock("@/hooks/useDirectMessages", () => ({ useDmStatus: () => state.dm }));
+vi.mock("@/hooks/useAssistantDutyMenu", () => ({ useAssistantDutyMenu: () => state.menu }));
 
 import { useFinishSetup } from "./useFinishSetup";
 
@@ -35,6 +38,7 @@ describe("useFinishSetup — the Activate step and Trusted Lists", () => {
     state.activated = true;
     state.lists = undefined;
     state.dm = "stopped";
+    state.menu = { supported: false, status: null, settled: true };
   });
 
   it("an activated account with lists to add stays activated, with an update flagged apart", () => {
@@ -142,3 +146,56 @@ describe("useFinishSetup — optional extras", () => {
   });
 });
 void ME;
+
+describe("useFinishSetup — the Duty Menu step", () => {
+  beforeEach(() => {
+    state.provider = "brainstorm";
+    state.activated = true;
+    state.lists = undefined;
+    state.dm = "stopped";
+  });
+
+  it("isn't a step on a server that can't publish one: three steps, nothing to nag", () => {
+    state.menu = { supported: false, status: null, settled: true };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.dutyMenu).toBeUndefined();
+    expect(result.current.totalSteps).toBe(3);
+    expect(result.current.remaining).toBe(0);
+    expect(result.current.allDone).toBe(true);
+  });
+
+  it("is the fourth step where it can, and a missing menu is one left", () => {
+    state.menu = { supported: true, status: "missing", settled: true };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.dutyMenu).toBe("missing");
+    expect(result.current.totalSteps).toBe(4);
+    expect(result.current.doneCount).toBe(3);
+    expect(result.current.dutyMenuPending).toBe(true);
+    expect(result.current.remaining).toBe(1);
+    expect(result.current.allDone).toBe(false);
+  });
+
+  it("an out-of-date menu is a step left too", () => {
+    state.menu = { supported: true, status: "out-of-date", settled: true };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.dutyMenu).toBe("out-of-date");
+    expect(result.current.remaining).toBe(1);
+  });
+
+  it("doesn't nag before the relays have answered", () => {
+    state.menu = { supported: true, status: null, settled: false };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.dutyMenu).toBe("checking");
+    expect(result.current.dutyMenuPending).toBe(false);
+    expect(result.current.remaining).toBe(0);
+    expect(result.current.allDone).toBe(false);
+  });
+
+  it("an up-to-date menu completes the four", () => {
+    state.menu = { supported: true, status: "current", settled: true };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.doneCount).toBe(4);
+    expect(result.current.totalSteps).toBe(4);
+    expect(result.current.allDone).toBe(true);
+  });
+});
