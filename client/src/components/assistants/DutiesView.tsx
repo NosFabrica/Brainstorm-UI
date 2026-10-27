@@ -11,8 +11,10 @@ import { DutyKey, PersonLine, TREASURE_MAP_PATH } from "./shared";
 
 /**
  * Every duty on the reader's Treasure Map, most generic first, each with the
- * Assistant it prefers and its alternates. Opens to the duty in words and the
- * entries behind it, as written on the Map.
+ * Assistant it prefers and its alternates, then the duties their Brainstorm
+ * Assistant offers by default that the Map doesn't name: covered by a broader
+ * key, or unassigned. Opens to the duty in words and the entries behind it,
+ * as written on the Map.
  */
 export function DutiesView({
   duties,
@@ -32,25 +34,29 @@ export function DutiesView({
   if (mapStatus === "loading") {
     return <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Reading your Treasure Map…</p>;
   }
+  const unassigned = duties.filter((d) => !d.assistants.length).length;
   return (
     <div data-testid="view-duties">
       <div className="space-y-2 px-5 py-4">
         <p className="text-sm text-slate-600 dark:text-slate-300">
           Every duty on your Treasure Map, from the most generic (a whole kind of Score or List) to the most granular
           (one exact Score, List or Concept). Within a duty, the first Assistant listed is preferred; the rest are
-          alternates.
+          alternates. The duties your Brainstorm Assistant offers by default are listed too, unassigned where your Map
+          gives them to no one.
         </p>
-        {mapStatus === "none" ? (
+        {mapStatus === "none" && (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             You haven’t published a Treasure Map yet, so no Assistant has duties.
           </p>
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {duties.length} {duties.length === 1 ? "duty" : "duties"} · Most generic first
+        )}
+        {duties.length > 0 && (
+          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="duties-count">
+            {duties.length} {duties.length === 1 ? "duty" : "duties"}
+            {unassigned > 0 && ` · ${unassigned} unassigned`} · Most generic first
           </p>
         )}
       </div>
-      {mapStatus === "found" &&
+      {(mapStatus === "found" || duties.length > 0) &&
         (duties.length ? (
           <ol className="border-t border-border" aria-label="Duties on your Treasure Map">
             {duties.map((duty, i) => (
@@ -77,6 +83,14 @@ function NotTagged() {
   return (
     <Chip tone="amber" size="sm" title="On your Treasure Map, but not tagged as one of your Assistants">
       Not tagged
+    </Chip>
+  );
+}
+
+function Unassigned() {
+  return (
+    <Chip tone="amber" size="sm" data-testid="chip-duty-unassigned">
+      Unassigned
     </Chip>
   );
 }
@@ -117,15 +131,34 @@ function DutyRow({
               <Chip tone={duty.level === "Scope" ? "violet" : "sky"} size="sm">
                 {duty.level}
               </Chip>
+              {duty.offeredBy && (
+                <Chip
+                  tone="indigo"
+                  size="sm"
+                  title={`Offered by default by ${nameOf(duty.offeredBy)}`}
+                  data-testid="chip-duty-offered"
+                >
+                  Brainstorm default
+                </Chip>
+              )}
             </div>
             <DutyKey>{duty.key}</DutyKey>
           </div>
           <div className="min-w-0 space-y-1 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400 sm:hidden">Preferred:</span>
-              <span className="truncate text-slate-800 dark:text-slate-200">{nameOf(preferred)}</span>
-              {!isTagged(preferred) && <NotTagged />}
-            </div>
+            {preferred ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-400 sm:hidden">Preferred:</span>
+                <span className="truncate text-slate-800 dark:text-slate-200">{nameOf(preferred)}</span>
+                {!isTagged(preferred) && <NotTagged />}
+              </div>
+            ) : (
+              <Unassigned />
+            )}
+            {duty.through && (
+              <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="duty-through">
+                Through <DutyKey>{duty.through}</DutyKey>
+              </p>
+            )}
             {alternates.length > 0 && (
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Alternates: {alternates.map(nameOf).join(", ")}
@@ -138,7 +171,18 @@ function DutyRow({
           aria-hidden
         />
       </button>
-      {open && (
+      {open && !preferred && (
+        <div id={panelId} className="space-y-3 px-5 pb-5 sm:pl-14">
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            No entry on your Treasure Map gives this duty to an Assistant, so clients won’t ask anyone for it.
+            {duty.offeredBy && ` ${nameOf(duty.offeredBy)} offers it by default.`}
+          </p>
+          <Link href={TREASURE_MAP_PATH} className="inline-block text-sm font-medium text-brand-deep hover:underline">
+            Assign it on Treasure Map →
+          </Link>
+        </div>
+      )}
+      {open && preferred && (
         <div id={panelId} className="space-y-4 px-5 pb-5 sm:pl-14">
           <section className="space-y-2">
             <div className="flex items-baseline gap-2">
@@ -172,6 +216,11 @@ function DutyRow({
           </section>
           <section className="space-y-1.5">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">On your Treasure Map</h3>
+            {duty.through && (
+              <p className="text-sm text-slate-700 dark:text-slate-300">
+                Your Map doesn’t name this duty; its broader <DutyKey>{duty.through}</DutyKey> entry covers it.
+              </p>
+            )}
             <p className="text-sm text-slate-700 dark:text-slate-300">{dutySentence(duty, nameOf)}</p>
             <pre className="overflow-x-auto rounded-lg bg-slate-100 p-3 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {duty.entries.map((entry) => JSON.stringify(entry)).join("\n")}

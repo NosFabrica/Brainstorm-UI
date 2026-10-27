@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MyAssistants } from "@/hooks/useMyAssistants";
+import { offeredDuties, treasureMapDuties } from "@/lib/treasureMap";
 
 const ME = "1".repeat(64);
 const LOCAL = "a".repeat(64);
@@ -79,6 +80,8 @@ function show(state: Partial<MyAssistants> = {}) {
         entries: [["30382:rank", ON_MAP_ONLY]],
         at: 0,
         seenAt: [0],
+        offeredBy: null,
+        through: null,
       },
     ],
     mapStatus: "found",
@@ -147,5 +150,58 @@ describe("tagging someone new", () => {
     expect(section).toHaveTextContent("Dee");
     fireEvent.click(within(section).getByRole("button", { name: "Tag: My Brainstorm Assistant" }));
     await waitFor(() => expect(h.tagAsAssistant).toHaveBeenCalledWith(ON_MAP_ONLY, "brainstorm", DEFS));
+  });
+});
+
+describe("the Duties view", () => {
+  const R = "wss://relay.example";
+  /** What the server's /setup offers for the local Assistant. */
+  const offered = offeredDuties(
+    ["30382:rank", "30382:followers", "30382:reporters", "30382:muters", "30382:hops", "30392"].map((k) => [
+      k,
+      LOCAL,
+      R,
+    ]),
+  );
+  const rows = () => screen.getAllByTestId("row-duty");
+  const row = (key: string) => rows().find((r) => within(r).queryByText(key, { selector: "code" }))!;
+
+  beforeEach(() => window.history.replaceState(null, "", "/settings?tab=assistants&view=duties"));
+
+  it("lists the Brainstorm Assistant's default duties, covered through a broader key or unassigned", () => {
+    show({
+      duties: treasureMapDuties(
+        {
+          tags: [
+            ["30382:rank", LOCAL, R],
+            ["3038x", ONE_TAG, R],
+          ],
+        },
+        offered,
+      ),
+    });
+    expect(screen.getByTestId("duties-count")).toHaveTextContent("9 duties · 3 unassigned");
+    expect(within(row("30382:rank")).getByTestId("chip-duty-offered")).toHaveTextContent("Brainstorm default");
+    expect(within(row("3038x")).queryByTestId("chip-duty-offered")).toBeNull();
+    expect(row("30382:muters")).toHaveTextContent("Bea");
+    expect(within(row("30382:muters")).getByTestId("duty-through")).toHaveTextContent("Through 3038x");
+    for (const key of ["30392", "39998", "39999"]) {
+      expect(within(row(key)).getByTestId("chip-duty-unassigned")).toBeInTheDocument();
+    }
+  });
+
+  it("opens an unassigned duty to who offers it and where to assign it", () => {
+    show({ duties: treasureMapDuties({ tags: [] }, offered) });
+    fireEvent.click(within(row("30392")).getByRole("button"));
+    expect(row("30392")).toHaveTextContent("No entry on your Treasure Map gives this duty to an Assistant");
+    expect(row("30392")).toHaveTextContent("Local Helper offers it by default.");
+    expect(within(row("30392")).getByRole("link", { name: /Assign it on Treasure Map/ })).toBeInTheDocument();
+  });
+
+  it("with no Treasure Map, still lists what's offered, every duty unassigned", () => {
+    show({ duties: treasureMapDuties(null, offered), mapStatus: "none" });
+    expect(screen.getByText(/haven’t published a Treasure Map yet/)).toBeInTheDocument();
+    expect(rows()).toHaveLength(8);
+    expect(screen.getAllByTestId("chip-duty-unassigned")).toHaveLength(8);
   });
 });

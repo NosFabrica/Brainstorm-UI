@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ASSISTANT_TAGS, NOSTR_USER_TAG_Z, type AssistantTagKey } from "@/config/assistants";
 import { tagRelays } from "@/config/tagging";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -9,7 +10,8 @@ import { myAssistantRows, type MyAssistantRow } from "@/lib/myAssistants";
 import { newestPerAddress } from "@/lib/newestPerAddress";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { dedupeRelays, readRelaysFor } from "@/lib/relayRouting";
-import { treasureMapDuties, type Duty } from "@/lib/treasureMap";
+import { offeredDuties, treasureMapDuties, type Duty } from "@/lib/treasureMap";
+import { apiClient } from "@/services/api";
 import type { AssistantDefinitions } from "@/services/assistants";
 import { fetchEventsByFilter } from "@/services/nostr";
 
@@ -29,6 +31,7 @@ export interface MyAssistants {
   settled: boolean;
   /** Each tag's definition, by key, where one was found: what a new tagging points at. */
   definitions: AssistantDefinitions;
+  /** The Map's duties, then those the reader's Brainstorm Assistant offers that the Map doesn't name. */
   duties: Duty[];
   mapStatus: TreasureMapStatus;
 }
@@ -49,6 +52,11 @@ export interface MyAssistants {
  *
  * The local row is the Assistant Brainstorm hosts for the reader (`ta_pubkey`),
  * once the server has said which.
+ *
+ * What that Assistant offers is the server's own word, `GET /setup/{pubkey}`:
+ * the Map rows it hands the reader to publish, and the Concept duties planned
+ * beside them (lib/treasureMap `offeredDuties`). A server that can't say
+ * offers nothing: the Map's duties stand alone.
  */
 export function useMyAssistants(viewer: string | null | undefined): MyAssistants {
   const { taPubkey } = useHasMywot();
@@ -91,7 +99,15 @@ export function useMyAssistants(viewer: string | null | undefined): MyAssistants
   }, [taggings.events]);
 
   const map = useTrustProviderList(viewer);
-  const duties = useMemo(() => treasureMapDuties(map.event), [map.event]);
+  const setup = useQuery({
+    queryKey: ["setup-rows", viewer],
+    queryFn: () => apiClient.getSetupRows(viewer!),
+    enabled: !!viewer,
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  const offered = useMemo(() => offeredDuties(setup.data), [setup.data]);
+  const duties = useMemo(() => treasureMapDuties(map.event, offered), [map.event, offered]);
   const mapStatus: TreasureMapStatus = map.event ? "found" : map.settled ? "none" : "loading";
 
   return { rows, settled: taggings.settled, definitions, duties, mapStatus };

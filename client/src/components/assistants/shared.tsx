@@ -14,6 +14,7 @@ import type { DutyGroup } from "@/lib/treasureMap";
 export const TREASURE_MAP_PATH = "/settings?tab=treasure-map";
 
 export const DUTY_GROUPS: { key: DutyGroup; label: string }[] = [
+  { key: "everything", label: "Everything" },
   { key: "scores", label: "Scores" },
   { key: "lists", label: "Lists" },
   { key: "concepts", label: "Concepts" },
