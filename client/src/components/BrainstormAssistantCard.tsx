@@ -11,10 +11,9 @@ import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchAssistantPointer } from "@/services/nostr";
-import { activePubkey } from "@/accounts/display";
+import { refreshProfileEvent } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { followUser } from "@/services/socialActions";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
@@ -24,14 +23,12 @@ import {
   ASSISTANT_UPDATED_EVENT,
   readAssistantProfile,
   writeAssistantProfile,
-  readPublishedAssistant,
   writePublishedAssistant,
   readFirstPublishDone,
   setFirstPublishDone,
   readPictureSet,
   setPictureSet,
   type AssistantProfile,
-  type PublishedAssistantState as PublishedState,
 } from "@/lib/assistantStorage";
 
 /**
@@ -100,18 +97,18 @@ export function BrainstormAssistantCard({
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const reduceMotion = usePrefersReducedMotion();
-  const [published, setPublished] = useState<PublishedState | null>(() => readPublishedAssistant());
-  const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
+  // The Assistant is the server's `ta_pubkey`; `published` is this browser's cache of its publish (#269).
+  const { taPubkey, published } = useBrainstormAssistant();
+  // The cached kind 0 is only ever the confirmed Assistant's.
+  const confirmed = !!published;
+  const [profile, setProfile] = useState<AssistantProfile | null>(() => (confirmed ? readAssistantProfile() : null));
   const userPubkey = useActiveAccountDisplay()?.pubkey ?? null;
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
   useEffect(() => {
-    const refresh = () => {
-      setPublished(readPublishedAssistant());
-      setProfile(readAssistantProfile());
-    };
+    const refresh = () => setProfile(confirmed ? readAssistantProfile() : null);
     // Cross-tab key changes still arrive via the legacy `storage` listener,
     // and the per-user keys we now use share the same `brainstorm_assistant:`
     // prefix so we just refresh on any matching update.
@@ -125,47 +122,32 @@ export function BrainstormAssistantCard({
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
     };
-  }, [userPubkey]);
-
-  // Cross-device sync (Task #86): when this device has no local pointer for
-  // the current user, query Nostr for the user's NIP-78 assistant pointer
-  // event. If one exists, hydrate local state so the active card appears
-  // automatically without re-publishing.
-  useEffect(() => {
-    if (!userPubkey || published) return;
-    let cancelled = false;
-    (async () => {
-      const remote = await fetchAssistantPointer(userPubkey);
-      if (cancelled || !remote) return;
-      // Re-check local in case a publish raced us.
-      if (readPublishedAssistant()) return;
-      // Make sure the user hasn't changed while we were awaiting.
-      if (activePubkey() !== userPubkey) return;
-      let npub = remote.pubkey;
-      try {
-        npub = nip19.npubEncode(remote.pubkey);
-      } catch {}
-      const state: PublishedState = {
-        pubkey: remote.pubkey,
-        npub,
-        eventId: remote.eventId,
-        publishedAt: remote.publishedAt,
-      };
-      writePublishedAssistant(state);
-      setPublished(state);
-      // Ensure the user follows their own (already-published) assistant.
-      followUser(state.pubkey).catch(() => {});
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userPubkey, published]);
+  }, [userPubkey, confirmed]);
 
   // The assistant's kind-0, live: a later republish reaches this card without a reload.
-  const { profile: assistantProfile } = useLiveProfile(published?.pubkey);
+  // Its id and created_at are what "View on Nostr" and "Published" show.
+  const { event: assistantEvent, profile: assistantProfile } = useLiveProfile(taPubkey ?? undefined);
+
+  // Published from another device, or by the server before its first scores:
+  // its kind 0 is out, so cache it here as published. No follow — following is
+  // only ever the reader's own click.
+  useEffect(() => {
+    if (!taPubkey || published || assistantEvent?.pubkey !== taPubkey) return;
+    let npub = taPubkey;
+    try {
+      npub = nip19.npubEncode(taPubkey);
+    } catch {}
+    writePublishedAssistant({
+      pubkey: taPubkey,
+      npub,
+      eventId: assistantEvent.id,
+      publishedAt: assistantEvent.created_at * 1000,
+    });
+  }, [taPubkey, published, assistantEvent]);
 
   useEffect(() => {
-    if (!published?.pubkey || !assistantProfile) return;
+    // The profile-default POST publishes for this server's key, so only for `ta_pubkey`.
+    if (!taPubkey || published?.pubkey !== taPubkey || !assistantProfile) return;
     let cancelled = false;
     (async () => {
       try {
@@ -177,11 +159,11 @@ export function BrainstormAssistantCard({
         // update once with the Brainstorm-branded defaults so other Nostr
         // clients see a consistent identity. Best-effort: silently swallow
         // failures and keep the local fallback rendering.
-        const alreadyTried = readPictureSet(published.pubkey);
+        const alreadyTried = readPictureSet(taPubkey);
         const needsPicture = !next.picture;
         const needsBanner = !next.banner;
         if ((needsPicture || needsBanner) && !alreadyTried) {
-          setPictureSet(published.pubkey);
+          setPictureSet(taPubkey);
           const defaultPicture = needsPicture ? getDefaultAssistantPictureUrl() : next.picture;
           const defaultBanner = needsBanner ? getDefaultAssistantBannerUrl() : next.banner;
           try {
@@ -206,15 +188,19 @@ export function BrainstormAssistantCard({
     return () => {
       cancelled = true;
     };
-  }, [published?.pubkey, published?.publishedAt, assistantProfile]);
+  }, [taPubkey, published?.pubkey, published?.publishedAt, assistantProfile]);
 
   const publishMutation = useMutation({
     // Explicit user action: always (re)publish, and DO follow the bot (consent).
-    // Side-effects (persist + NIP-78 pointer + follow) live in the shared helper.
-    mutationFn: async () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    // Side-effects (cache + follow) live in the shared helper.
+    mutationFn: async () => {
+      if (!taPubkey) throw new Error("Your assistant isn't ready yet. Please try again in a moment.");
+      return ensureAssistantPublished({ taPubkey, follow: true, skipIfPublished: false });
+    },
     onSuccess: ({ state, name }) => {
-      setPublished(state);
       setError(null);
+      // Fetch the kind 0 just published, so its link and age replace the old one's.
+      void refreshProfileEvent(state.pubkey).catch(() => {});
 
       const isFirst = !readFirstPublishDone();
       if (isFirst) {
@@ -258,8 +244,8 @@ export function BrainstormAssistantCard({
   }, [navigate]);
 
   const njumpUrl = useMemo(
-    () => (published?.eventId ? `https://njump.me/${published.eventId}` : null),
-    [published?.eventId],
+    () => (assistantEvent?.id ? `https://njump.me/${assistantEvent.id}` : null),
+    [assistantEvent?.id],
   );
 
   const lastCalcTs = useMemo(() => {
@@ -554,7 +540,7 @@ export function BrainstormAssistantCard({
                     <Copy className="h-3 w-3 opacity-50 group-hover/copy:opacity-100" />
                   </button>
                 </div>
-                {published?.publishedAt && (
+                {assistantEvent && (
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                       Published
@@ -563,7 +549,7 @@ export function BrainstormAssistantCard({
                       className="text-[11px] text-slate-600 dark:text-slate-300"
                       data-testid={`text-assistant-published-${variant}`}
                     >
-                      {formatRelative(published.publishedAt)}
+                      {formatRelative(assistantEvent.created_at * 1000)}
                     </span>
                   </div>
                 )}
@@ -605,7 +591,7 @@ export function BrainstormAssistantCard({
               <button
                 type="button"
                 onClick={handlePublish}
-                disabled={isPending}
+                disabled={isPending || !taPubkey}
                 className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 data-testid={`button-assistant-republish-${variant}`}
               >
@@ -708,7 +694,7 @@ export function BrainstormAssistantCard({
                   <button
                     type="button"
                     onClick={handlePublish}
-                    disabled={isPending}
+                    disabled={isPending || !taPubkey}
                     className="group/cta relative inline-flex min-h-[48px] w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[linear-gradient(110deg,rgb(var(--brand-primary))_0%,rgb(var(--brand-primary-hover))_40%,rgb(var(--brand-accent))_100%)] bg-[length:200%_100%] px-6 py-3 text-sm font-bold text-white transition-[filter,background-position] duration-300 hover:bg-[position:100%_0] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-60"
                     data-testid={`button-assistant-publish-${variant}`}
                   >
@@ -734,7 +720,7 @@ export function BrainstormAssistantCard({
                 <button
                   type="button"
                   onClick={handlePublish}
-                  disabled={isPending}
+                  disabled={isPending || !taPubkey}
                   className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-primary/20 transition-colors hover:bg-brand-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 sm:flex-none"
                   data-testid={`button-assistant-publish-${variant}`}
                 >

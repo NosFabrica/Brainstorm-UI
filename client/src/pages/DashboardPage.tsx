@@ -25,7 +25,6 @@ import { Loader2, ShieldAlert, RefreshCw, Keyboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ASSISTANT_UPDATED_EVENT,
-  getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
   setFirstPublishDone,
@@ -54,6 +53,7 @@ import { hasDeclinedNip85 } from "@/lib/nip85Consent";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
 import { dashboardPrompt } from "@/lib/dashboardPrompt";
@@ -156,7 +156,7 @@ export default function DashboardPage() {
     return identityHas(user?.pubkey, "createdInApp");
   })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
-  const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
+  const { taPubkey: assistantTaPubkey, published: assistantPublished } = useBrainstormAssistant();
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
@@ -181,10 +181,7 @@ export default function DashboardPage() {
     setInviteCardSeen(true);
   };
   useEffect(() => {
-    const sync = () => {
-      setAssistantPubkey(getCurrentAssistantPubkey());
-      setAssistantDismissed(readAssistantDismissed());
-    };
+    const sync = () => setAssistantDismissed(readAssistantDismissed());
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
     };
@@ -202,10 +199,12 @@ export default function DashboardPage() {
   // rather than navigating to the wrong settings page. Explicit click = consent,
   // so we DO follow the bot. Reuses the shared publish helper.
   const publishAssistantMutation = useMutation({
-    mutationFn: () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    mutationFn: async () => {
+      if (!assistantTaPubkey) throw new Error("Your assistant isn't ready yet. Please try again in a moment.");
+      return ensureAssistantPublished({ taPubkey: assistantTaPubkey, follow: true, skipIfPublished: false });
+    },
     onSuccess: ({ name }) => {
-      setFirstPublishDone();
-      setAssistantPubkey(getCurrentAssistantPubkey()); // collapse the prompt immediately
+      setFirstPublishDone(); // the cache write collapses the prompt
       toast({
         title: `${name} is live on Nostr!`,
         description: "Speaking your scores to compatible Nostr apps.",
@@ -612,7 +611,7 @@ export default function DashboardPage() {
       !nip85Dismissed &&
       (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)),
     inviteDue: publishDone && !inviteCardSeen && !isRecalculating,
-    assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPubkey && !nip85CreatedInApp,
+    assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPublished && !nip85CreatedInApp,
   });
 
   // One modal instance, reachable from both the takeover and the dashboard.

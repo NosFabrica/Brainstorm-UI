@@ -49,7 +49,7 @@ import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { copyToClipboard } from "@/lib/clipboard";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
-import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
+import { useHasMywot } from "@/hooks/useHasMywot";
 import { Badge } from "@/components/ui/badge";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { Button } from "@/components/ui/button";
@@ -1319,6 +1319,9 @@ export default function ProfilePage() {
     } catch {}
     return "";
   }, [npubParam]);
+  // The viewer's own Brainstorm Assistant is the server's `ta_pubkey`: no Session, no badge (#269).
+  const { taPubkey: ownAssistantPubkey } = useHasMywot();
+  const isOwnAssistant = !!hexPubkey && ownAssistantPubkey === hexPubkey;
 
   const social = useSocialActions(user?.pubkey);
 
@@ -2775,7 +2778,6 @@ export default function ProfilePage() {
                   {/* Avatar overlaps the banner on its own line, so the name, npub,
                     stats and actions below all share one left edge (like /p). */}
                   {(() => {
-                    const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
                     const assistantDefaultPicture = `${publicOrigin()}/assistant-default.webp`;
                     const effectivePicture =
                       displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
@@ -2825,7 +2827,7 @@ export default function ProfilePage() {
                             iconClassName="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary"
                             testId="text-profile-nip05"
                           />
-                          {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
+                          {isOwnAssistant && (
                             <Badge
                               variant="secondary"
                               className="self-center border border-brand-accent/30 bg-brand-accent/10 text-[10px] font-bold uppercase tracking-wider text-brand-deep"

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
+import { readAssistantFor } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { identityHas } from "@/accounts/display";
@@ -13,7 +13,7 @@ import { useHasSession } from "@/hooks/useHasSession";
  * speak to Nostr apps. The bot speaks *scores*, so we wait until the user has a
  * score (`ta_pubkey` exists, same trigger as the TA). Because these users never
  * see the "Publish your assistant" card, a failed/interrupted publish must
- * self-heal: on each app load, if no assistant pubkey is stored yet, try again.
+ * self-heal: on each app load, if `ta_pubkey` isn't cached as published, try again.
  * Idempotent (`ensureAssistantPublished` no-ops once one exists) and silent —
  * crucially `follow: false`, so we never silently add the bot to their kind-3.
  *
@@ -34,13 +34,14 @@ export function AutoPublishAssistant() {
 
     const createdInApp = identityHas(pk, "createdInApp");
     if (!createdInApp) return; // existing user — manual publish only
-    if (getCurrentAssistantPubkey()) return; // already published
 
     const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
     if (!taPubkey) return; // not scored yet — nothing for the bot to speak
+    // Only `ta_pubkey` counts: another deployment's Assistant in storage isn't this one published (#269).
+    if (readAssistantFor(taPubkey)) return; // already published
 
     once.mark(pk);
-    void ensureAssistantPublished({ follow: false, background: true }).catch(() => {
+    void ensureAssistantPublished({ taPubkey, follow: false }).catch(() => {
       /* retries next load */
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render (ref-backed)
