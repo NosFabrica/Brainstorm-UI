@@ -115,6 +115,45 @@ describe("the built list module", () => {
     expect(built.URL_TEMPLATES_LIST).toMatch(/^39998:[0-9a-f]{64}:url-templates$/);
   });
 
+  it("names the Dictionary's curator tag and role concepts as the app's config does", () => {
+    expect(built.CURATOR_TAG).toBe(dictionaryConfig.curatorTag);
+    expect(built.ROLE_CONCEPTS).toEqual(Object.values(dictionaryConfig.roles));
+    expect(built.ROLE_CONCEPTS).toContain(built.URL_TEMPLATES_LIST);
+  });
+
+  it("resolves the Dictionary's curators and concepts as the source does", () => {
+    const house = "4".repeat(64);
+    const alice = "a".repeat(64);
+    const event = (n: number, pubkey: string, kind: number, tags: string[][]) => ({
+      id: n.toString(16).padStart(64, "0"),
+      pubkey,
+      kind,
+      created_at: 100,
+      tags,
+    });
+    const events = [
+      event(1, house, 39999, [
+        ["d", "curator-alice"],
+        ["p", alice],
+        ["a", dictionaryConfig.curatorTag],
+      ]),
+      event(2, alice, 39998, [
+        ["d", "books"],
+        ["names", "Book", "Books"],
+        ["b", `39998:${alice}:books`, "pointer"],
+      ]),
+      event(3, alice, 39998, [
+        ["d", "notes"],
+        ["names", "Note", "Notes"],
+      ]),
+    ];
+    const curators = built.curatorsOf(events, { house, curatorTag: built.CURATOR_TAG });
+    expect(curators).toEqual(source.curatorsOf(events, { house, curatorTag: source.CURATOR_TAG }));
+    expect(curators).toEqual([alice]);
+    expect(built.conceptsOf(events, curators)).toEqual(source.conceptsOf(events, curators));
+    expect(built.conceptsOf(events, curators)).toEqual([`39998:${alice}:books`]);
+  });
+
   it("writes the same prompt for an AI", () => {
     const templates = [
       { id: TPL, name: "Open Library", template: "https://openlibrary.org/isbn/{isbn}", placeholders: ["isbn"] },
