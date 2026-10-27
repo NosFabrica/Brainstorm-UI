@@ -138,7 +138,8 @@ export function categoryAssistants(event: { tags?: unknown } | null | undefined)
   return out;
 }
 
-const SYSTEM_WORDS = new Set(["tag", "pin", "dlist", "contexts"]);
+/** The system words a key may name after its kind: `tag`, `pin`, `dlist`, `contexts`. */
+export const SYSTEM_WORDS: ReadonlySet<string> = new Set(["tag", "pin", "dlist", "contexts"]);
 
 export type EntryRole = "own" | "individual";
 
