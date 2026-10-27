@@ -1,6 +1,15 @@
 import type { ComponentType, ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeftRight, ArrowRight, Check, ChevronRight, ListChecks, PenLine, UserPlus } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  ListChecks,
+  Map as MapIcon,
+  PenLine,
+  UserPlus,
+} from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,6 +32,8 @@ import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
  *
  * Where the server can publish it, a fourth step: the Brainstorm Assistant's
  * Duty Menu, published and up to date (/setup/duty-menu does the publish).
+ * And a fifth, the same way: the Assistant's own Treasure Map, listing the
+ * duties live now (/setup/treasure-map).
  *
  * Every "Finish setup" surface (header banner, dashboard card) lands here, and
  * both action rows come back here when they're done, so progress is always
@@ -129,6 +140,7 @@ export default function FinishSetupPage() {
     scoresElsewhere,
     listsPending,
     dutyMenu,
+    treasureMap,
     doneCount,
     totalSteps,
     allDone,
@@ -292,6 +304,47 @@ export default function FinishSetupPage() {
                 icon={ListChecks}
                 onClick={() => navigate("/setup/duty-menu")}
                 testid="setup-row-duty-menu"
+              />
+            )
+          )}
+
+          {treasureMap === "current" ? (
+            <DoneRow
+              label="Publish your Assistant's Treasure Map"
+              detail={
+                <>
+                  Your Brainstorm Assistant's Treasure Map is up to date ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/setup/treasure-map")}
+                    className="font-semibold text-brand-link hover:underline"
+                    data-testid="setup-view-treasure-map"
+                  >
+                    View
+                  </button>
+                </>
+              }
+              testid="setup-row-treasure-map-done"
+            />
+          ) : (
+            treasureMap && (
+              <PendingRow
+                label="Publish your Assistant's Treasure Map"
+                badge={
+                  treasureMap === "checking"
+                    ? "Checking"
+                    : treasureMap === "out-of-date"
+                      ? "Out of date"
+                      : "Required for other apps"
+                }
+                detail={
+                  treasureMap === "out-of-date"
+                    ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
+                    : "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once."
+                }
+                icon={MapIcon}
+                onClick={() => navigate("/setup/treasure-map")}
+                testid="setup-row-treasure-map"
               />
             )
           )}

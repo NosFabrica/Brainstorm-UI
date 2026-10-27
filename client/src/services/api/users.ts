@@ -4,6 +4,7 @@
  */
 
 import type { NostrEvent } from "nostr-tools";
+import { parseTreasureMapCheck, type TreasureMapCheck } from "@/lib/assistantTreasureMap";
 import { parseDutyMenuOffer } from "@/lib/dutyMenu";
 import { authenticatedFetch, extractApiError, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
 
@@ -97,16 +98,46 @@ export interface DutyMenuPublishResult {
   relays: { url: string; ok: boolean; message?: string }[];
 }
 
-async function dutyMenuJson<T>(init: RequestInit, timeoutMs: number, failed: string): Promise<T> {
-  const response = await authenticatedFetch(`${getBrainstormApi()}/user/assistantDutyMenu`, {
+/** This server can't keep Assistants' Treasure Maps yet (docs/assistant/TREASURE-MAP-ASK.md): the setup step stays hidden. */
+export class TreasureMapUnavailableError extends Error {
+  constructor() {
+    super("Your Assistant's Treasure Map isn't available on this server yet.");
+    this.name = "TreasureMapUnavailableError";
+  }
+}
+
+/** What `POST /user/assistantTreasureMap` answers: the signed version, if one was published, and how each relay took it. */
+export interface TreasureMapPublishResult {
+  on: boolean;
+  /** False when nothing would change, so nothing was signed. */
+  published: boolean;
+  event: NostrEvent | null;
+  relays: { url: string; ok: boolean; message?: string }[];
+}
+
+/** One of the Assistant's routes under `/user`: a 404 or 405 is "not on this server yet". */
+async function assistantJson<T>(
+  path: string,
+  unavailable: () => Error,
+  init: RequestInit,
+  timeoutMs: number,
+  failed: string,
+): Promise<T> {
+  const response = await authenticatedFetch(`${getBrainstormApi()}/user/${path}`, {
     ...init,
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (response.status === 404 || response.status === 405) throw new DutyMenuUnavailableError();
+  if (response.status === 404 || response.status === 405) throw unavailable();
   if (!response.ok) throw new Error((await extractApiError(response)) || `${failed} (${response.status})`);
   const json = await response.json();
   return json?.data ?? json;
 }
+
+const dutyMenuJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
+  assistantJson<T>("assistantDutyMenu", () => new DutyMenuUnavailableError(), init, timeoutMs, failed);
+
+const treasureMapJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
+  assistantJson<T>("assistantTreasureMap", () => new TreasureMapUnavailableError(), init, timeoutMs, failed);
 
 export const usersApi = {
   async getUserHistory() {
@@ -320,6 +351,28 @@ export const usersApi = {
       { method: "POST" },
       30000,
       "Couldn't publish your Assistant's Duty Menu",
+    );
+  },
+
+  /**
+   * What the caller's Assistant's Treasure Map should list now, and why. An
+   * answer that isn't a check means no route, as for the Duty Menu
+   * (lib/assistantTreasureMap `parseTreasureMapCheck`).
+   */
+  async getAssistantTreasureMap(): Promise<TreasureMapCheck> {
+    const check = parseTreasureMapCheck(
+      await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map"),
+    );
+    if (!check) throw new TreasureMapUnavailableError();
+    return check;
+  },
+
+  /** Has the server list the Assistant's live duties in its Treasure Map (`on`), or none, and publish it. */
+  async setAssistantTreasureMap(on: boolean): Promise<TreasureMapPublishResult> {
+    return treasureMapJson<TreasureMapPublishResult>(
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) },
+      30000,
+      "Couldn't publish your Assistant's Treasure Map",
     );
   },
 };

@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
+import { useAssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import { useDmStatus } from "@/hooks/useDirectMessages";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { knownFollowCount } from "@/lib/followStore";
+import type { SelfMapStatus } from "@/lib/assistantTreasureMap";
 import type { MenuStatus } from "@/lib/dutyMenu";
 import { isNip85Activated } from "@/lib/nip85Activation";
 
@@ -25,6 +27,11 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * docs/assistant/DUTY-MENU-ASK.md). A server without the route has no such
  * step: it is neither shown nor counted, so nobody is asked for what they
  * can't do.
+ *
+ * A fifth, the same way: the Assistant's own Treasure Map, listing exactly the
+ * duties that are live now (hooks/useAssistantTreasureMap,
+ * docs/assistant/TREASURE-MAP-ASK.md). Nothing live and nothing listed is done,
+ * so nobody is asked to publish an empty Map.
  *
  * /setup also offers optional extras outside the count: handing that rank duty
  * to their Brainstorm Assistant, and turning on private messages
@@ -74,7 +81,14 @@ export interface FinishSetupState {
   dutyMenu?: MenuStatus | "checking";
   /** Relay-verified "the Assistant's Duty Menu is missing or out of date". */
   dutyMenuPending?: boolean;
-  /** How many steps are counted: account, follow list, activation, the Duty Menu where offered — never optional extras. */
+  /**
+   * The Treasure Map step, where the server supports it: the Assistant's own
+   * Treasure Map against the duties live now, or "checking". Undefined: no such step here.
+   */
+  treasureMap?: SelfMapStatus | "checking";
+  /** Relay-verified "the Assistant's Treasure Map is missing or out of date". */
+  treasureMapPending?: boolean;
+  /** How many steps are counted: account, follow list, activation, the Duty Menu and Treasure Map where offered — never optional extras. */
   totalSteps: number;
   allDone: boolean;
   /** Private messages once the engine has looked — "off" is an optional extra. Unknown while it starts. */
@@ -95,6 +109,7 @@ export function useFinishSetup(): FinishSetupState {
   const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
   const dmStatus = useDmStatus();
   const menu = useAssistantDutyMenu(pubkey);
+  const selfMap = useAssistantTreasureMap(pubkey);
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -119,9 +134,23 @@ export function useFinishSetup(): FinishSetupState {
     const dutyMenuDone = dutyMenu === "current";
     const dutyMenuPending = menuCounted && menu.settled && (dutyMenu === "missing" || dutyMenu === "out-of-date");
 
-    const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0) + (dutyMenuPending ? 1 : 0);
-    // The counted steps: account (done once signed in), follow list, activation, then the Duty Menu where offered.
-    const steps = [true, followDone, activateDone, ...(menuCounted ? [dutyMenuDone] : [])];
+    // The Treasure Map likewise, once the server has said what it should list.
+    const mapCounted = signedIn && selfMap.supported === true;
+    const treasureMap: FinishSetupState["treasureMap"] = mapCounted ? (selfMap.status ?? "checking") : undefined;
+    const treasureMapDone = treasureMap === "current";
+    const treasureMapPending =
+      mapCounted && selfMap.settled && (treasureMap === "missing" || treasureMap === "out-of-date");
+
+    const remaining =
+      (followPending ? 1 : 0) + (activatePending ? 1 : 0) + (dutyMenuPending ? 1 : 0) + (treasureMapPending ? 1 : 0);
+    // The counted steps: account (done once signed in), follow list, activation, then the Duty Menu and Treasure Map where offered.
+    const steps = [
+      true,
+      followDone,
+      activateDone,
+      ...(menuCounted ? [dutyMenuDone] : []),
+      ...(mapCounted ? [treasureMapDone] : []),
+    ];
     const doneCount = steps.filter(Boolean).length;
     // Messages is known once the engine has looked: no inbox list is "off", when
     // /setup offers "Turn on". Still starting, or stopped: not known, not counted.
@@ -145,10 +174,12 @@ export function useFinishSetup(): FinishSetupState {
       listsPending,
       dutyMenu,
       dutyMenuPending,
+      treasureMap,
+      treasureMapPending,
       remaining,
       doneCount,
       totalSteps: steps.length,
-      allDone: followDone && activateDone && (!menuCounted || dutyMenuDone),
+      allDone: followDone && activateDone && (!menuCounted || dutyMenuDone) && (!mapCounted || treasureMapDone),
       messages,
       optionalRemaining,
     };
@@ -162,5 +193,8 @@ export function useFinishSetup(): FinishSetupState {
     menu.supported,
     menu.status,
     menu.settled,
+    selfMap.supported,
+    selfMap.status,
+    selfMap.settled,
   ]);
 }
