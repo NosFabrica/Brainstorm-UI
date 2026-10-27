@@ -145,7 +145,7 @@ export function DictionaryTab() {
     <Card className="overflow-hidden" data-testid="card-dictionary">
       <CardHead
         title="Your Dictionary"
-        subtitle="The concepts Brainstorm understands for you — what a GitHub account is, which details it has, how it shows up. Your Assistant keeps a copy of each concept your community shares."
+        subtitle="The concepts Brainstorm understands for you — what a GitHub account is, which details it has, how it shows up."
       />
       <div className="space-y-6 p-5">
         <div className="space-y-2">
