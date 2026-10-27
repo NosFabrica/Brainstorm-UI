@@ -32,6 +32,8 @@ const NAMESPACES = {
   brainstorm_known_follows: "device",
   brainstorm_known_followers: "device",
   brainstorm_invite_card_seen: "device",
+  // Nothing writes it since #270, but older versions left a score history here,
+  // and an Account leaving the device takes that with it too.
   brainstorm_score_journal: "device",
   brainstorm_network_alerts_ignored: "device",
   brainstorm_network_alerts_seen: "device",
