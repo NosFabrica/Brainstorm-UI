@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
 import * as source from "./listTools";
+import dictionaryConfig from "@/config/dictionary.config.json";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const out = mkdtempSync(path.join(tmpdir(), "lists-build-"));
@@ -80,6 +81,38 @@ describe("the built list module", () => {
     ["an item with a field the header doesn't declare", [...dune, ["pages", "412"]]],
   ])("checks %s as the source does", (_name, item) => {
     expect(built.checkItem(books, item, [openLibrary])).toEqual(source.checkItem(books, item, [openLibrary]));
+  });
+
+  it("reads a URL Templates item as the source does", () => {
+    const item = { ...openLibrary, tags: [["z", dictionaryConfig.roles["url-templates"]], ...openLibrary.tags] };
+    expect(built.templateOf(item)).toEqual(source.templateOf(item));
+    expect(built.templateOf(item)).toMatchObject({ id: TPL, name: "Open Library" });
+    expect(built.templateOf({ ...item, tags: [["name", "No template"]] })).toBeNull();
+  });
+
+  it("imports against existing templates as the source does, linking to one that builds the same links", () => {
+    const existing = [source.templateOf(openLibrary)!];
+    const parsed = source.parseListImport(
+      JSON.stringify({
+        d: "books",
+        tags: [
+          ...books.filter((t) => t[0] !== "d" && t[0] !== "link"),
+          ["link", "ol", "wss://dcosl.brainstorm.world", "code", "isbn"],
+        ],
+        templates: [{ ref: "ol", name: "Open Library by ISBN", template: "https://OpenLibrary.org/isbn/{code}" }],
+      }),
+    );
+    if (!parsed.ok) throw new Error(parsed.error);
+    const imported = built.importIntoDraft(parsed.value, "c".repeat(64), existing);
+    expect(imported).toEqual(source.importIntoDraft(parsed.value, "c".repeat(64), existing));
+    expect(imported.templates.map((o) => o.outcome)).toEqual(["existing"]);
+    expect(imported.draft.links.map((l) => [l.templateId, l.bindings])).toEqual([[TPL, [["isbn", "isbn"]]]]);
+    expect(built.similarTemplates("https://openlibrary.org/isbn/{x}", existing).same?.id).toBe(TPL);
+  });
+
+  it("names the URL Templates list the app's config does", () => {
+    expect(built.URL_TEMPLATES_LIST).toBe(dictionaryConfig.roles["url-templates"]);
+    expect(built.URL_TEMPLATES_LIST).toMatch(/^39998:[0-9a-f]{64}:url-templates$/);
   });
 
   it("writes the same prompt for an AI", () => {
