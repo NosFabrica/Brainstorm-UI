@@ -43,7 +43,7 @@ Merge commits, not squash — matches the repo history and the `staging` → `ma
 
 ## 4. Wait for the rollout
 
-`.github/workflows/build.yml` runs on every push and rebuilds `ghcr.io/nosfabrica/brainstorm-ui:staging` in place (about 10 minutes), and staging rolls the new image out on its own. Until the run is green, staging still serves the previous build.
+`.github/workflows/build.yml` runs on every push and rebuilds `ghcr.io/nosfabrica/brainstorm-ui:staging` in place (about 10 minutes). Staging then rolls the new image out on its own: the `brainstorm-ui-autodeploy` CronJob checks the registry every 5 minutes, so allow up to 5 more minutes after the run goes green. Until then, staging still serves the previous build.
 
 ```bash
 gh run list --branch staging --workflow build.yml --limit 1
