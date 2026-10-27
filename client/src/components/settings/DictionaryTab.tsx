@@ -18,15 +18,23 @@
  * Items count and show only from authors in the reader's web of trust —
  * ranked at the verified line or above, from the active Perspective
  * (services/wotRanks). The rest are a count, shown on request, never mixed in.
+ *
+ * "Managed by" says whose Dictionary it is: the reader's own copies, one of
+ * their Assistants', or all their Assistants' together — by default the one
+ * their Treasure Map gives Concept headers to, else their local Assistant
+ * (lib/managedDictionary). `?managedBy=me|all|<npub>` names another, and an
+ * entry opened from the list keeps it. The choice is this page's alone: item
+ * pages and search resolve a concept as they always have.
  */
 import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useSearch } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { ArrowLeft, BookOpen, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
+import { ManagedByPicker, managerName } from "@/components/dictionary/ManagedByPicker";
 import { OwnVersionDialog } from "@/components/dictionary/OwnVersionDialog";
 import { ListManager, listManagerPath } from "@/components/lists/ListManager";
 import { DListItemRow } from "@/components/dictionary/DListItemRow";
@@ -43,6 +51,8 @@ import {
 } from "@/components/ui/dialog";
 import { withdrawOwnCopy } from "@/services/conceptCopy";
 import { useDictionary } from "@/hooks/useDictionary";
+import { useDictionaryManagers } from "@/hooks/useDictionaryManagers";
+import { useDictionaryReader } from "@/hooks/useDictionaryReader";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
@@ -54,17 +64,56 @@ import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { parseCoordinate, type FieldDecl } from "@/lib/dlistFields";
 import { filterItems, ITEM_ORDERS, sortItems, type ItemOrder } from "@/lib/dictionaryItems";
-import type { ConceptDefinition, DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
-import type { DictionaryEntry, DictionaryItem } from "@/services/dictionary";
+import {
+  ALL,
+  ME,
+  MANAGED_BY_PARAM,
+  assistantOptions,
+  defaultChoice,
+  managedByParam,
+  managedEntries,
+  parseManagedBy,
+  type ManagedEntry,
+} from "@/lib/managedDictionary";
+import {
+  definitionOf,
+  type ConceptDefinition,
+  type DefinitionSource,
+  type ResolvedConcept,
+} from "@/lib/conceptResolution";
+import type { DictionaryItem } from "@/services/dictionary";
 
 export const dictionaryEntryPath = (coordinate: string) =>
   `/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`;
 
+/** Whose Dictionary a page shows, and how to name them. */
+interface Manager {
+  choice: string;
+  nameOf: (pubkey: string) => string;
+  /** The reader has an Assistant at all: who else would add a concept. */
+  hasAssistants: boolean;
+}
+
 export function DictionaryTab() {
   const params = new URLSearchParams(useSearch());
+  const [, navigate] = useLocation();
   const concept = params.get("concept");
-  const dictionary = useDictionary();
-  const entries = dictionary.data ?? [];
+  const asked = params.get(MANAGED_BY_PARAM);
+  const { pubkey } = useDictionaryReader();
+  const managers = useDictionaryManagers(pubkey);
+  const dictionary = useDictionary(true, { managers: managers.pubkeys });
+  const { choice, unknown } = parseManagedBy(asked, managers.options);
+  const entries = useMemo(
+    () => managedEntries(dictionary.data ?? [], choice, managers.options),
+    [dictionary.data, choice, managers.options],
+  );
+  const manager: Manager = {
+    choice,
+    nameOf: managers.nameOf,
+    hasAssistants: assistantOptions(managers.options).length > 0,
+  };
+  // An entry opened from the list, and the way back, keep the choice the URL named.
+  const keep = (path: string) => (asked ? `${path}&${MANAGED_BY_PARAM}=${encodeURIComponent(asked)}` : path);
 
   if (params.get("manage") === "lists") return <ListManager />;
 
@@ -75,10 +124,19 @@ export function DictionaryTab() {
         coordinate={concept}
         entry={entry}
         loading={dictionary.isPending}
-        hasAssistant={!!dictionary.taPubkey}
+        manager={manager}
+        me={pubkey}
+        backHref={keep("/settings?tab=dictionary")}
       />
     );
   }
+
+  const pick = (key: string) => {
+    const next = new URLSearchParams(params);
+    if (key === defaultChoice(managers.options)) next.delete(MANAGED_BY_PARAM);
+    else next.set(MANAGED_BY_PARAM, managedByParam(key));
+    navigate(`/settings?${next}`);
+  };
 
   const mine = entries.filter((e) => e.inDictionary);
   const available = entries.filter((e) => !e.inDictionary && e.resolved);
@@ -90,12 +148,36 @@ export function DictionaryTab() {
         subtitle="The concepts Brainstorm understands for you — what a GitHub account is, which details it has, how it shows up. Your Assistant keeps a copy of each concept your community shares."
       />
       <div className="space-y-6 p-5">
-        <div className="flex justify-end">
-          <Button asChild variant="outline" size="sm">
-            <Link href={listManagerPath()} data-testid="dictionary-list-management">
-              List Management
-            </Link>
-          </Button>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {pubkey ? (
+              <ManagedByPicker
+                options={managers.options}
+                choice={choice}
+                settled={managers.settled}
+                profiles={managers.profiles}
+                nameOf={managers.nameOf}
+                onPick={pick}
+              />
+            ) : (
+              <span />
+            )}
+            <Button asChild variant="outline" size="sm">
+              <Link href={listManagerPath()} data-testid="dictionary-list-management">
+                List Management
+              </Link>
+            </Button>
+          </div>
+          {unknown && managers.settled && (
+            <p
+              className="text-xs text-amber-700 dark:text-amber-400"
+              role="status"
+              data-testid="dictionary-managed-unknown"
+            >
+              The link names someone who isn&rsquo;t one of your Assistants, so this is{" "}
+              {choice === ME ? "your own Dictionary" : `${managerName(choice, managers.nameOf)}’s Dictionary`}.
+            </p>
+          )}
         </div>
         {dictionary.isPending ? (
           <Pending label="Reading your Dictionary…" />
@@ -106,14 +188,17 @@ export function DictionaryTab() {
               {mine.length ? (
                 <ul className="space-y-2">
                   {mine.map((e) => (
-                    <ConceptRow key={e.communityCoordinate} entry={e} />
+                    <ConceptRow
+                      key={e.communityCoordinate}
+                      entry={e}
+                      manager={manager}
+                      href={keep(dictionaryEntryPath(e.communityCoordinate))}
+                    />
                   ))}
                 </ul>
               ) : (
                 <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="dictionary-empty">
-                  {dictionary.taPubkey
-                    ? "Your Assistant hasn't added any concepts yet."
-                    : "Concepts are added by your Brainstorm Assistant, once you have one."}
+                  {emptyText(manager)}
                 </p>
               )}
             </section>
@@ -122,7 +207,12 @@ export function DictionaryTab() {
                 <SectionHeader kicker="Shared by the community" />
                 <ul className="space-y-2">
                   {available.map((e) => (
-                    <ConceptRow key={e.communityCoordinate} entry={e} />
+                    <ConceptRow
+                      key={e.communityCoordinate}
+                      entry={e}
+                      manager={manager}
+                      href={keep(dictionaryEntryPath(e.communityCoordinate))}
+                    />
                   ))}
                 </ul>
               </section>
@@ -163,7 +253,18 @@ function Pending({ label }: { label: string }) {
 
 const itemCountText = (n: number) => `${n.toLocaleString()} ${n === 1 ? "item" : "items"}`;
 
-function ConceptRow({ entry }: { entry: DictionaryEntry }) {
+/** What an empty "In your Dictionary" says, for whoever manages it. */
+function emptyText({ choice, nameOf, hasAssistants }: Manager): string {
+  if (choice === ME) {
+    return hasAssistants
+      ? "You haven't added any concepts yourself."
+      : "Concepts are added by your Brainstorm Assistant, once you have one.";
+  }
+  if (choice === ALL) return "None of your Assistants has added any concepts yet.";
+  return `${nameOf(choice)} hasn't added any concepts yet.`;
+}
+
+function ConceptRow({ entry, manager, href }: { entry: ManagedEntry; manager: Manager; href: string }) {
   const r = entry.resolved!;
   const fields = r.governing.fields;
   // The count reads the concept's items, so only once the row nears the screen.
@@ -175,7 +276,7 @@ function ConceptRow({ entry }: { entry: DictionaryEntry }) {
   return (
     <li ref={rowRef}>
       <Link
-        href={dictionaryEntryPath(entry.communityCoordinate)}
+        href={href}
         className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-brand-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
         data-testid={`dictionary-row-${parseCoordinate(entry.communityCoordinate)?.d ?? "concept"}`}
       >
@@ -190,8 +291,13 @@ function ConceptRow({ entry }: { entry: DictionaryEntry }) {
             <p className="text-sm text-slate-600 dark:text-slate-300">{r.governing.description}</p>
           )}
           <div className="flex flex-wrap items-center gap-1.5">
-            <SourceChip source={r.source} />
+            <SourceChip entry={entry} nameOf={manager.nameOf} />
             <AgreementChip agreement={r.agreement} />
+            {entry.support && entry.support.count > 0 && (
+              <Chip tone="slate" data-testid="chip-dictionary-support">
+                {entry.support.count} of {entry.support.of} Assistants
+              </Chip>
+            )}
           </div>
           {fields.length > 0 && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -212,31 +318,46 @@ const SOURCE_LABEL: Record<DefinitionSource, string> = {
   community: "Not in your Dictionary yet",
 };
 
-function SourceChip({ source }: { source: DefinitionSource }) {
+/** Where the definition comes from — naming the Assistant whose copy it is, when the page knows. */
+function SourceChip({ entry, nameOf }: { entry: ManagedEntry; nameOf: (pubkey: string) => string }) {
+  const source = entry.resolved!.source;
   const inDictionary = source === "personal" || source === "assistant";
   return (
     <Chip tone={inDictionary ? "brand" : "slate"} data-testid="chip-dictionary-source">
-      {SOURCE_LABEL[source]}
+      {source === "assistant" && entry.holder ? `Added by ${nameOf(entry.holder)}` : SOURCE_LABEL[source]}
     </Chip>
   );
+}
+
+/** Why a concept isn't in this Dictionary, for whoever manages it. */
+function notAddedText({ choice, nameOf }: Manager): string {
+  const until = "this is the community's definition.";
+  if (choice === ME) return `You haven't added this concept to your Dictionary yourself. Until you do, ${until}`;
+  if (choice === ALL)
+    return `None of your Assistants has added this concept to your Dictionary yet. Until one does, ${until}`;
+  return `${nameOf(choice)} hasn't added this concept to your Dictionary yet. Until it does, ${until}`;
 }
 
 function DictionaryEntryView({
   coordinate,
   entry,
   loading,
-  hasAssistant,
+  manager,
+  me,
+  backHref,
 }: {
   coordinate: string;
-  entry: DictionaryEntry | undefined;
+  entry: ManagedEntry | undefined;
   loading: boolean;
-  hasAssistant: boolean;
+  manager: Manager;
+  me: string | null;
+  backHref: string;
 }) {
   // This concept's items: the only list this page reads (services/dictionary loadConceptItems).
   const items = useConceptItems(entry);
   const back = (
     <Link
-      href="/settings?tab=dictionary"
+      href={backHref}
       className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-link hover:underline"
       data-testid="link-dictionary-back"
     >
@@ -261,6 +382,15 @@ function DictionaryEntryView({
       </div>
     );
 
+  // The reader's own copy, whoever's Dictionary this is: what "Your own version" edits or withdraws.
+  const ownCopy = entry.candidates
+    ? me && entry.candidates.copies[me]
+      ? definitionOf(entry.candidates.copies[me])
+      : null
+    : r.source === "personal"
+      ? r.governing
+      : null;
+
   return (
     <div className="space-y-4" data-testid="dictionary-entry">
       {back}
@@ -268,26 +398,20 @@ function DictionaryEntryView({
         <CardHead title={r.governing.plural} subtitle={r.governing.description ?? ""} />
         <div className="space-y-6 p-5">
           <div className="flex flex-wrap items-center gap-1.5">
-            <SourceChip source={r.source} />
+            <SourceChip entry={entry} nameOf={manager.nameOf} />
             <AgreementChip agreement={r.agreement} />
           </div>
           {!entry.inDictionary && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {hasAssistant
-                ? "Your Assistant hasn't added this concept to your Dictionary yet. Until it does, this is the community's definition."
+            <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="dictionary-entry-not-added">
+              {manager.choice !== ME || manager.hasAssistants
+                ? notAddedText(manager)
                 : "Once you have a Brainstorm Assistant it can add this concept to your Dictionary. Until then, this is the community's definition."}
             </p>
           )}
           <FieldsSection fields={r.governing.fields} display={r.governing.display} />
           {r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
           <ProvenanceSection resolved={r} coordinate={coordinate} />
-          {r.community && (
-            <OwnVersionSection
-              community={r.community}
-              current={r.source === "personal" ? r.governing : null}
-              items={items.data ?? []}
-            />
-          )}
+          {r.community && <OwnVersionSection community={r.community} current={ownCopy} items={items.data ?? []} />}
           <ItemsSection items={items.data ?? []} loading={items.isPending} resolved={r} />
         </div>
       </Card>
