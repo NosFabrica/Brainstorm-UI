@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { NostrEvent } from "nostr-tools";
 import { ASSISTANT_TAGS, NOSTR_USER_TAG_Z, type AssistantTagKey } from "@/config/assistants";
 import { tagRelays } from "@/config/tagging";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -34,6 +35,8 @@ export interface MyAssistants {
   /** The Map's duties, then those the reader's Brainstorm Assistant offers that the Map doesn't name. */
   duties: Duty[];
   mapStatus: TreasureMapStatus;
+  /** The Treasure Map itself (kind 10040), once found. */
+  map: NostrEvent | null;
 }
 
 /**
@@ -110,5 +113,5 @@ export function useMyAssistants(viewer: string | null | undefined): MyAssistants
   const duties = useMemo(() => treasureMapDuties(map.event, offered), [map.event, offered]);
   const mapStatus: TreasureMapStatus = map.event ? "found" : map.settled ? "none" : "loading";
 
-  return { rows, settled: taggings.settled, definitions, duties, mapStatus };
+  return { rows, settled: taggings.settled, definitions, duties, mapStatus, map: map.event ?? null };
 }
