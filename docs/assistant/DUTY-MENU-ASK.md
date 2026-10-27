@@ -131,4 +131,4 @@ the menu, and the UI's Duties view, which shows these as Brainstorm's default du
 - **Republishing on its own** when the offer changes: the UI shows the menu as out of
   date and the user republishes.
 - The Assistant's own **self-Map** (Treasure Maps § 9.2), which says which offered
-  duties are active now.
+  duties are active now. Now asked for in [TREASURE-MAP-ASK.md](TREASURE-MAP-ASK.md).

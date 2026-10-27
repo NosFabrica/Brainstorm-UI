@@ -226,3 +226,47 @@ describe("FinishSetupPage — the Duty Menu step", () => {
     expect(navigate).toHaveBeenCalledWith("/setup/duty-menu");
   });
 });
+
+describe("FinishSetupPage — the Treasure Map step", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const ready = {
+    followDone: true,
+    followPending: false,
+    activateDone: true,
+    activatePending: false,
+    dutyMenu: "current" as const,
+  };
+
+  it("isn't there where the server can't keep one", () => {
+    setupState.mockReturnValue(state({ ...ready, doneCount: 4, totalSteps: 4, allDone: true }));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.queryByTestId("setup-row-treasure-map")).toBeNull();
+    expect(screen.queryByTestId("setup-row-treasure-map-done")).toBeNull();
+  });
+
+  it("a Map that doesn't list the live duties is a step to take, on its own page", () => {
+    setupState.mockReturnValue(state({ ...ready, treasureMap: "missing", doneCount: 4, totalSteps: 5 }));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("4 of 5 complete");
+    const row = screen.getByTestId("setup-row-treasure-map");
+    expect(row).toHaveTextContent("Publish your Assistant's Treasure Map");
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
+  });
+
+  it("an out-of-date Map says so", () => {
+    setupState.mockReturnValue(state({ ...ready, treasureMap: "out-of-date", doneCount: 4, totalSteps: 5 }));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.getByTestId("setup-row-treasure-map")).toHaveTextContent("Out of date");
+    expect(screen.getByTestId("setup-row-treasure-map")).toHaveTextContent("differs from the duties that are live now");
+  });
+
+  it("an up-to-date Map is done, with a way to see it", () => {
+    setupState.mockReturnValue(state({ ...ready, treasureMap: "current", doneCount: 5, totalSteps: 5, allDone: true }));
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-treasure-map-done");
+    expect(row).toHaveTextContent("up to date");
+    fireEvent.click(within(row).getByTestId("setup-view-treasure-map"));
+    expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
+  });
+});

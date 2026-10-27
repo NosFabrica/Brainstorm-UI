@@ -50,6 +50,7 @@ import { isAdminPubkey } from "@/config/adminAccess";
 const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
 const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
 const DutyMenuSetupPage = lazyWithReload(() => import("@/pages/DutyMenuSetupPage"));
+const TreasureMapSetupPage = lazyWithReload(() => import("@/pages/TreasureMapSetupPage"));
 const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
 const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
 const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
@@ -273,6 +274,7 @@ function Router() {
             <Route path="/welcome" component={WelcomePage} />
             <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
             <Route path="/setup/duty-menu">{() => <RequireAuth component={DutyMenuSetupPage} />}</Route>
+            <Route path="/setup/treasure-map">{() => <RequireAuth component={TreasureMapSetupPage} />}</Route>
             <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
             <Route path="/activate" component={ActivatePage} />
             <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
