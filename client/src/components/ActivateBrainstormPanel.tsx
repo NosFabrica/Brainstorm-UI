@@ -19,9 +19,10 @@ import type { TrustProviderStatus } from "@/services/trustAnchor";
  * - In-app-created accounts → hidden; the calculate-step consent card is
  *   their surface, and AutoActivateBrainstorm publishes for them.
  * - "brainstorm" → hidden, they're done.
- * - "other" → prompt even when the local flag says activated (they declared a
- *   different provider from another app; re-selecting Brainstorm is exactly
- *   the remedy — and the check already dropped the stale flag).
+ * - "other" → hidden: their Treasure Map gives the rank duty to another
+ *   Assistant, which is their choice (and "Not visible in apps" would be
+ *   untrue). Handing it to Brainstorm is an optional extra on /setup, counted
+ *   only in the account menu — never a prompt here.
  * - "none" → prompt only when the account isn't locally marked activated:
  *   absence can be relay lag, and per `nip85Activation.ts` we never downgrade
  *   on a transient miss.
@@ -33,8 +34,7 @@ export function needsActivationPrompt(opts: {
 }): boolean {
   const { status, locallyActivated, createdInApp } = opts;
   if (!status || status === "unknown" || createdInApp) return false;
-  if (status === "brainstorm") return false;
-  if (status === "other") return true;
+  if (status === "brainstorm" || status === "other") return false;
   return !locallyActivated;
 }
 

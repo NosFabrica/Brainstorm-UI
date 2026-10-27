@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
 import FinishSetupPage from "./FinishSetupPage";
@@ -9,7 +9,10 @@ const PUBKEY = "a".repeat(64);
 
 const navigate = vi.fn();
 
-vi.mock("wouter", () => ({ useLocation: () => ["/setup", navigate] }));
+vi.mock("wouter", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  useLocation: () => ["/setup", navigate],
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: PUBKEY, npub: "npub1lira", displayName: "Lira" }),
 }));
@@ -21,6 +24,12 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 // what's under test.
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/ListsUpdate", () => ({ ListsUpdateLine: () => <div data-testid="line-lists-update" /> }));
+// No messages engine unless a test sets one: the optional row then renders nothing.
+const dm = vi.hoisted(() => ({
+  engine: null as object | null,
+  state: { status: "stopped", inboxRelays: [] as string[] },
+}));
+vi.mock("@/hooks/useDirectMessages", () => ({ useDmEngine: () => dm.engine, useDmState: () => dm.state }));
 
 const setupState = vi.fn<() => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -35,9 +44,12 @@ function state(overrides: Partial<FinishSetupState>): FinishSetupState {
     followCount: 0,
     activateDone: false,
     activatePending: true,
+    scoresElsewhere: false,
     remaining: 2,
     doneCount: 1,
+    totalSteps: 3,
     allDone: false,
+    optionalRemaining: 0,
     ...overrides,
   };
 }
@@ -45,12 +57,15 @@ function state(overrides: Partial<FinishSetupState>): FinishSetupState {
 describe("FinishSetupPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dm.engine = null;
+    dm.state = { status: "stopped", inboxRelays: [] };
   });
 
   it("shows both pending steps and routes each to its surface", () => {
     setupState.mockReturnValue(state({}));
     renderWithProviders(<FinishSetupPage />);
 
+    expect(screen.getByTestId("text-finish-setup-title")).toHaveTextContent("Finish setting up your account.");
     expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("1 of 3 complete");
     expect(screen.getByTestId("setup-row-account")).toHaveTextContent("You're signed in as Lira.");
 
@@ -61,6 +76,25 @@ describe("FinishSetupPage", () => {
     expect(navigate).toHaveBeenCalledWith("/setup/activate");
 
     expect(screen.queryByTestId("card-setup-all-done")).not.toBeInTheDocument();
+    // Messages not running: no "Optional" heading over nothing.
+    expect(screen.queryByTestId("setup-optional")).not.toBeInTheDocument();
+  });
+
+  // Messages is offered, but outside the count — under its own heading, below the
+  // steps, so "2 of 3" never sits over four rows that look alike.
+  it.each([
+    ["off", "no-inbox", "setup-row-messages"],
+    ["on", "ready", "setup-row-messages-done"],
+  ] as const)("sets messages (%s) apart from the counted steps", (messages, status, row) => {
+    dm.engine = {};
+    dm.state = { status, inboxRelays: ["wss://inbox.example"] };
+    setupState.mockReturnValue(state({ followDone: true, followPending: false, remaining: 1, doneCount: 2, messages }));
+    renderWithProviders(<FinishSetupPage />);
+
+    expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("2 of 3 complete");
+    const optional = screen.getByTestId("setup-optional");
+    expect(optional).toHaveTextContent("Optional");
+    expect(within(optional).getByTestId(row)).toHaveTextContent("Turn on private messages");
   });
 
   it("renders done rows with follow count once steps complete", () => {
@@ -89,6 +123,9 @@ describe("FinishSetupPage", () => {
     );
     renderWithProviders(<FinishSetupPage />);
 
+    // Done, this is where the account menu's Account setup row leads — titled
+    // for that, not still asking them to finish.
+    expect(screen.getByTestId("text-finish-setup-title")).toHaveTextContent("Your account is set up.");
     expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("3 of 3 complete");
     expect(screen.getByTestId("card-setup-all-done")).toBeInTheDocument();
 
@@ -115,5 +152,38 @@ describe("FinishSetupPage", () => {
     expect(screen.getByTestId("setup-row-activate-done")).toBeInTheDocument();
     expect(screen.queryByTestId("setup-row-activate")).toBeNull();
     expect(screen.getByTestId("line-lists-update")).toBeInTheDocument();
+  });
+
+  // Another Assistant has the rank duty: their choice, so Activate is done and
+  // says why; handing the duty to Brainstorm waits under Optional.
+  it("counts another Assistant on rank as done, and offers the switch as optional", () => {
+    setupState.mockReturnValue(
+      state({
+        followDone: true,
+        followPending: false,
+        activateDone: true,
+        activatePending: false,
+        scoresElsewhere: true,
+        remaining: 0,
+        doneCount: 3,
+        allDone: true,
+        optionalRemaining: 1,
+      }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+
+    expect(screen.getByTestId("setup-row-activate-done")).toHaveTextContent(
+      "Your Treasure Map already names an Assistant for your scores.",
+    );
+    expect(screen.getByTestId("card-setup-all-done")).toHaveTextContent(
+      "Other apps find your scores through the Assistant your Treasure Map names.",
+    );
+    const optional = screen.getByTestId("setup-optional");
+    expect(within(optional).getByTestId("setup-row-scores-switch")).toHaveTextContent(
+      "Use your Brainstorm Assistant for scores",
+    );
+
+    fireEvent.click(screen.getByTestId("setup-scores-switch"));
+    expect(navigate).toHaveBeenCalledWith("/setup/activate");
   });
 });

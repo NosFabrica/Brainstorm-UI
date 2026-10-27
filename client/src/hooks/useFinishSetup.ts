@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useDmStatus } from "@/hooks/useDirectMessages";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
@@ -9,10 +10,18 @@ import { isNip85Activated } from "@/lib/nip85Activation";
 
 /**
  * The account-setup model behind every "Finish setting up your account"
- * surface: the header banner, the /setup checklist page and the dashboard's
- * setup card. Three steps — create your account (done the moment you're signed
- * in), create your follow list (feeds the scoring), activate your Brainstorm
- * account (the kind-10040 that lets other apps find the scores).
+ * surface: the header banner, the /setup checklist page, the dashboard's
+ * setup card and the account menu's Account setup row. Three steps — create
+ * your account (done the moment you're signed in), create your follow list
+ * (feeds the scoring), activate your Brainstorm account (the kind-10040 that
+ * lets other apps find the scores). A Treasure Map that already gives the rank
+ * duty to another Assistant counts as activated: they chose who publishes their
+ * scores, and we don't nag them to choose again.
+ *
+ * /setup also offers optional extras outside the count: handing that rank duty
+ * to their Brainstorm Assistant, and turning on private messages
+ * (MessagesSetupRow). Only the account menu counts what's left of those, and
+ * quietly.
  *
  * Two flavours of "not done", deliberately:
  *
@@ -31,9 +40,15 @@ export interface FinishSetupState {
   /** Relay-verified "this account really follows nobody". */
   followPending: boolean;
   followCount: number;
+  /** Brainstorm's Assistant has the rank duty — or another Assistant does (`scoresElsewhere`). */
   activateDone: boolean;
-  /** Relay-verified "no kind-10040 names Brainstorm" (or another provider does). */
+  /** Relay-verified "their Treasure Map gives no Assistant the rank duty". */
   activatePending: boolean;
+  /**
+   * Their Treasure Map gives the rank duty to another Assistant: the step is
+   * done, and handing that duty to their Brainstorm Assistant is an optional extra.
+   */
+  scoresElsewhere: boolean;
   /**
    * Activated, but they have Trusted Lists their 10040 doesn't name yet: an
    * update to publish (ListsUpdate), NOT a setup step — never counted in
@@ -42,9 +57,15 @@ export interface FinishSetupState {
   listsPending?: boolean;
   /** Confident steps left — what the banner counts. 0 → no nagging. */
   remaining: number;
-  /** Steps verifiably complete, of 3 — what the checklist page renders. */
+  /** Steps verifiably complete, of `totalSteps` — what the checklist page renders. */
   doneCount: number;
+  /** How many steps are counted: account, follow list, activation — never optional extras. */
+  totalSteps: number;
   allDone: boolean;
+  /** Private messages once the engine has looked — "off" is an optional extra. Unknown while it starts. */
+  messages?: "on" | "off";
+  /** Optional extras not done yet — what the account menu's row counts. Never nags. */
+  optionalRemaining: number;
 }
 
 export function useFinishSetup(): FinishSetupState {
@@ -57,6 +78,7 @@ export function useFinishSetup(): FinishSetupState {
   const providerStatus = useTrustProviderStatus(pubkey, taPubkey).data;
   const locallyActivated = isNip85Activated(pubkey);
   const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
+  const dmStatus = useDmStatus();
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -64,17 +86,31 @@ export function useFinishSetup(): FinishSetupState {
     const followDone = followCount >= 1 || followVerdict === "has-follows";
     const followPending = signedIn && !followDone && followVerdict === "none";
 
-    const activateDone = locallyActivated || providerStatus === "brainstorm";
-    // "other" counts as pending even when the local flag says activated: they
-    // declared a different provider from another app, and re-selecting
-    // Brainstorm is exactly the remedy (mirrors needsActivationPrompt).
-    const activatePending = signedIn && !activateDone && (providerStatus === "none" || providerStatus === "other");
+    // Brainstorm's Assistant has the duty, or this browser recorded that it does.
+    const brainstormActive = locallyActivated || providerStatus === "brainstorm";
+    // Another Assistant has the rank duty: their choice, so the step is done —
+    // the same respect the automatic publish shows it (ensureBrainstormTrustAnchor).
+    const scoresElsewhere = signedIn && providerStatus === "other";
+    const activateDone = brainstormActive || scoresElsewhere;
+    const activatePending = signedIn && !activateDone && providerStatus === "none";
     // Their Trusted Lists exist but the 10040 doesn't name them: an update,
-    // flagged apart from the steps.
-    const listsPending = signedIn && activateDone && listsStatus === "missing";
+    // flagged apart from the steps — only where Brainstorm's Assistant is theirs.
+    const listsPending = signedIn && brainstormActive && listsStatus === "missing";
 
     const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0);
-    const doneCount = 1 + (followDone ? 1 : 0) + (activateDone ? 1 : 0);
+    // The counted steps: account (done once signed in), follow list, activation.
+    const steps = [true, followDone, activateDone];
+    const doneCount = steps.filter(Boolean).length;
+    // Messages is known once the engine has looked: no inbox list is "off", when
+    // /setup offers "Turn on". Still starting, or stopped: not known, not counted.
+    const messages: FinishSetupState["messages"] = !signedIn
+      ? undefined
+      : dmStatus === "ready"
+        ? "on"
+        : dmStatus === "no-inbox"
+          ? "off"
+          : undefined;
+    const optionalRemaining = (scoresElsewhere ? 1 : 0) + (messages === "off" ? 1 : 0);
 
     return {
       signedIn,
@@ -83,10 +119,14 @@ export function useFinishSetup(): FinishSetupState {
       followCount,
       activateDone,
       activatePending,
+      scoresElsewhere,
       listsPending,
       remaining,
       doneCount,
+      totalSteps: steps.length,
       allDone: followDone && activateDone,
+      messages,
+      optionalRemaining,
     };
-  }, [pubkey, followVerdict, providerStatus, locallyActivated, listsStatus]);
+  }, [pubkey, followVerdict, providerStatus, locallyActivated, listsStatus, dmStatus]);
 }

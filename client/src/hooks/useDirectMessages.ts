@@ -54,6 +54,20 @@ export function useDmState(engine: DmEngine | null): DmEngineState {
   );
 }
 
+/**
+ * The engine's status alone, for a surface that only asks whether messages are on
+ * (the setup model, under every header): it re-renders when that changes, not per message.
+ */
+export function useDmStatus(): DmEngineState["status"] {
+  const engine = useDmEngine();
+  const subscribe = useCallback((l: () => void) => (engine ? engine.subscribe(l) : () => {}), [engine]);
+  return useSyncExternalStore(
+    subscribe,
+    () => engine?.state().status ?? IDLE.status,
+    () => IDLE.status,
+  );
+}
+
 const NO_ROOMS: DmRoom[] = [];
 
 export function useDmRooms(engine: DmEngine | null): DmRoom[] {

@@ -26,8 +26,11 @@ describe("needsActivationPrompt", () => {
     expect(needsActivationPrompt({ status: "none", locallyActivated: true, createdInApp: false })).toBe(false);
   });
 
-  it("prompts when the 10040 points at a different provider, even if locally activated", () => {
-    expect(needsActivationPrompt({ status: "other", locallyActivated: true, createdInApp: false })).toBe(true);
+  // Another Assistant on the rank duty is their choice: /setup offers the
+  // switch as an optional extra, and the dashboard doesn't ask.
+  it("stays hidden when the 10040 gives rank to a different Assistant", () => {
+    expect(needsActivationPrompt({ status: "other", locallyActivated: false, createdInApp: false })).toBe(false);
+    expect(needsActivationPrompt({ status: "other", locallyActivated: true, createdInApp: false })).toBe(false);
   });
 
   it("stays hidden when the 10040 already declares Brainstorm", () => {
