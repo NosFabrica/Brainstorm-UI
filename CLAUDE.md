@@ -37,6 +37,10 @@ checks: `docs/agents/pwa-checklist.md`.
 
 PR → merge into `staging`, which deploys staging automatically once CI has rebuilt the image. By default create the PR and walk the user through the merge. See `docs/agents/staging-deploy.md`.
 
+### Where skills load
+
+Skills are installed into `.agents/skills/` with the `skills` CLI and pinned in `skills-lock.json`; Codex, Cursor, Copilot and Gemini CLI read that folder. Claude Code reads only `.claude/skills/`, so a skill Claude Code should load is linked there as well: today `applesauce`.
+
 ## Probing Nostr data
 
 When you need real events (what a kind looks like in practice, who publishes it, how many), fetch them from **`wss://search.brainstorm.world`**, our production relay, before trying public relays. It holds far more than they do (kind 38000: ~16.8k events vs ~750 across ~25 public relays).

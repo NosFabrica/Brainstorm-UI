@@ -6,7 +6,9 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .env
-.claude/
+# Claude Code's local folder, except the skills linked for it from .agents/skills.
+.claude/*
+!.claude/skills/
 # macOS Finder duplicates ("foo 2.ts"). These are stale snapshots, not source —
 # one of them sat in services/ for a week still carrying the signEventLocally
 # account-overwrite bug. Keep them from ever being committed or type-checked.
