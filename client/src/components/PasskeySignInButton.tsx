@@ -155,15 +155,15 @@ export function PasskeySignInButton({
             <span className={`mb-1 flex h-10 w-10 items-center justify-center rounded-xl ${tone("warning").bg}`}>
               <AlertTriangle className={`h-5 w-5 ${tone("warning").icon}`} />
             </span>
-            <DialogTitle>This passkey isn't ready for new devices</DialogTitle>
+            <DialogTitle>Brainstorm has no copy for this passkey</DialogTitle>
             <DialogDescription>
-              Brainstorm doesn't have a copy for it yet. Open Brainstorm where you created the passkey and unlock once,
-              then try again here.
+              It was removed in Settings, or its copy hasn't reached Brainstorm yet. If you still use it on another
+              device, open Brainstorm there once and try again here. Otherwise, sign in with your key.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button type="button" variant="ghost" onClick={() => setNotReady(false)}>
-              Try again later
+              Close
             </Button>
             <Button
               type="button"

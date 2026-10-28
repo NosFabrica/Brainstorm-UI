@@ -93,6 +93,8 @@ test("B. a wiped device signs in with the passkey alone", async () => {
   expect((await localAccount(page))?.pubkey).toBe(alice);
   // The real server verified the assertion and recorded the use.
   expect(sql(`select last_used_at is not null from passkey_vault where pubkey='${alice}'`)).toBe("t");
+  // One clock for both columns: the use comes after the creation, never hours before it.
+  expect(sql(`select last_used_at >= created_at from passkey_vault where pubkey='${alice}'`)).toBe("t");
 });
 
 test("C. on a device that holds the account", async () => {
@@ -147,7 +149,8 @@ test("D. settings", async () => {
 
   await test.step("refuses a second passkey on the same provider rather than swapping it in", async () => {
     await page.getByTestId("button-add-passkey").click();
-    await expect(page.getByText("already has a passkey for this account").first()).toBeVisible();
+    // Inline in the section, not a toast: the provider's Touch ID sheet comes first and hid one.
+    await expect(page.getByTestId("text-add-passkey-error")).toContainText("already has a passkey for this account");
     expect(sql(`select count(*) from passkey_vault where pubkey='${alice}'`)).toBe("1");
   });
 });
@@ -159,7 +162,7 @@ test("E. a passkey with no server copy says it isn't ready, and offers the key",
     await wipeDevice(page);
     await page.goto("/login");
     await page.getByTestId("button-signin-passkey").click();
-    await expect(page.getByTestId("modal-passkey-not-ready")).toBeVisible();
+    await expect(page.getByTestId("modal-passkey-not-ready")).toContainText("no copy for this passkey");
     await expect(page.getByTestId("button-passkey-use-key")).toBeVisible();
   } finally {
     sql(

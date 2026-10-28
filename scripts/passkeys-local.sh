@@ -74,7 +74,9 @@ fi
 
 echo "→ Postgres on :$PG_PORT"
 as_pg "$PG_BIN/initdb" -D "$WORK/pg" -U postgres --auth=trust >/dev/null
-as_pg "$PG_BIN/pg_ctl" -D "$WORK/pg" -o "-p $PG_PORT -k $WORK" -l "$WORK/pg.log" -w start >/dev/null
+# UTC, as the deployed databases run: the backend's naive timestamp columns mix
+# Postgres now() and Python's utc_now(), which only agree there.
+as_pg "$PG_BIN/pg_ctl" -D "$WORK/pg" -o "-p $PG_PORT -k $WORK -c timezone=UTC" -l "$WORK/pg.log" -w start >/dev/null
 psql -h localhost -p "$PG_PORT" -U postgres -qc "create database brainstorm"
 
 echo "→ Redis on :$REDIS_PORT"
@@ -100,6 +102,7 @@ echo "→ brainstorm_server migrations ($SERVER_DIR @ $(git -C "$SERVER_DIR" rev
 }
 
 echo "→ brainstorm_server on :$API_PORT"
+export PYTHONDONTWRITEBYTECODE=1 # no __pycache__ beside serve_local.py
 (cd "$SERVER_DIR" && PYTHONPATH="$SERVER_DIR" exec poetry run uvicorn --app-dir "$UI_DIR/scripts/passkeys-local" \
   serve_local:app --host 127.0.0.1 --port "$API_PORT" >"$WORK/server.log" 2>&1) &
 PIDS+=($!)

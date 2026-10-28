@@ -75,6 +75,7 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [unlockedToAdd, setUnlockedToAdd] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<PasskeyListing | null>(null);
   // Bumped whenever this device's seals change, so the merged list recomputes.
   const [version, setVersion] = useState(0);
@@ -116,6 +117,7 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
    */
   const add = async () => {
     setBusy(true);
+    setAddError(null);
     try {
       if (account.locked) {
         await account.unlock();
@@ -131,8 +133,9 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
           : `Unlock with ${method.withPhrase} on this device. It will be ready on others once it reaches Brainstorm.`,
       });
     } catch (err) {
-      const message = isUnlockCancelled(err) ? null : addPasskeyFailure(err);
-      if (message) toast({ variant: "destructive", title: "Couldn't add a passkey", description: message });
+      // Inline, and until the next try: the provider asks for Touch ID before it
+      // refuses, so a corner toast landing as its sheet closes went unread.
+      setAddError(isUnlockCancelled(err) ? null : addPasskeyFailure(err));
     } finally {
       setBusy(false);
       refresh();
@@ -191,6 +194,17 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
           </button>
         )}
       </div>
+
+      {addError && (
+        <div
+          role="alert"
+          className={`mb-3 rounded-xl border p-3 text-xs leading-relaxed ${tone("danger").bg} ${tone("danger").border} ${tone("danger").text}`}
+          data-testid="text-add-passkey-error"
+        >
+          <span className="mb-0.5 block text-sm font-semibold">Couldn't add a passkey</span>
+          {addError}
+        </div>
+      )}
 
       {support && !support.supported && (
         <div
