@@ -411,11 +411,19 @@ describe("Managed by", () => {
 
 describe("Add to my Dictionary", () => {
   beforeEach(() => at(`/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`));
-  /** The server's answer for this one concept. */
+  /** The server's answer for this one concept (brainstorm_server ADR assistant-dictionary/0001 D6). */
   const answer = (status: string, error: string | null = null) => ({
     assistant: TA,
-    relays: ["wss://dcosl.brainstorm.world"],
-    concepts: [{ community: COMMUNITY, local: `39998:${TA}:github-accounts`, event: null, status, error }],
+    concepts: [
+      {
+        community: COMMUNITY,
+        local: `39998:${TA}:github-accounts`,
+        event: null,
+        status,
+        error,
+        relays: [{ url: "wss://dcosl.brainstorm.world", ok: true }],
+      },
+    ],
   });
   const line = (keeper: "assistant" | "me") => screen.getByTestId(`dictionary-add-${keeper}`);
 

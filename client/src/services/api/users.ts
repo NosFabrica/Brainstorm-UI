@@ -134,12 +134,13 @@ export interface AssistantConceptResult {
   status: "published" | "updated" | "unchanged" | "withdrawn" | "conflict" | "not_found" | "failed";
   /** A sentence, for conflict, not_found and failed. */
   error?: string | null;
+  /** How each relay took this concept's event, as the Duty Menu reports it; empty when nothing was sent. */
+  relays: { url: string; ok: boolean; message?: string | null }[];
 }
 
 /** What `POST /user/assistantDictionary` and `/user/assistantDictionary/withdraw` answer. */
 export interface AssistantDictionaryResult {
   assistant: string;
-  relays: string[];
   concepts: AssistantConceptResult[];
 }
 
