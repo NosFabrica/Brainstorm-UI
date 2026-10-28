@@ -87,7 +87,7 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
   const published = read.event ?? null;
   const found = useMemo(() => readSelfEntries(published, assistant), [published, assistant]);
   const shouldSay = check?.shouldSay ?? NONE;
-  const status = assistant && (published || read.settled) ? selfMapStatus(shouldSay, found) : null;
+  const status = assistant && (published || read.settled) ? selfMapStatus(shouldSay, published, assistant) : null;
 
   const mutation = useMutation({
     mutationFn: async (on: boolean) => {

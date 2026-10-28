@@ -3,6 +3,7 @@
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-treasure-map`, 2026-10-27
 **Filed as:** the second item of [NosFabrica/brainstorm_server#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
+**Built in:** `e2ca872` on that PR, still a draft and not deployed. This doc says what it does.
 **Modelled on:** [DUTY-MENU-ASK.md](DUTY-MENU-ASK.md), and Tapestry's Your Assistant's Treasure Map
 (`src/api/assistant/selfMap.js`, `src/lib/self-map/index.js`, `POST /api/assistant/self-map`; ADRs
 `assistant-self-map/0001`–`0003`)
@@ -39,15 +40,31 @@ that isn't one (below), means "not on this server yet".
 
 A self-Map **says less rather than more** (§ 9.2 "A part A does not publish"). A part is live only when it is
 offered, published at the offered relay, its first full set has landed there, and it is being kept up to date.
-For each kind the Duty Menu offers (`duty_menu_build.offer_rows`):
 
-| Duty                                                                                                   | Live when                                                                                                                                                                                                                                                                                                                                                                                                                                       | Otherwise, `reason`                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `30382:rank`, `followers`, `reporters`, `muters`, `hops` (the five metrics `ta_signing.ta_tags` signs) | `last_time_published_graperank` is set (it is set only when every event of a run was OK'd, and the first run publishes the full set), **and** upkeep is current: `scheduler_enabled`, the reader's scheduling policy (or the default) is enabled, and the last publish is younger than **2 ×** `schedule_interval_seconds`. One missed run is a brief gap; two in a row is a stop. `load_scheduler_candidates_on_db` already reads all of this. | `not-landed` (never published); `not-scheduled` (no upkeep: the scheduler or the policy is off); `upkeep-stopped` (with `lastLandedAt`, the last publish) |
-| Any other Score key (another `30382` metric, `30383`…)                                                 | never                                                                                                                                                                                                                                                                                                                                                                                                                                           | `not-published-here`                                                                                                                                      |
-| `30392` Trusted Lists                                                                                  | never, for now: they are published only when an admin runs `POST /admin/trustedLists`, and nothing keeps them up to date                                                                                                                                                                                                                                                                                                                        | `not-scheduled`                                                                                                                                           |
-| `39998`, `39999` Concepts                                                                              | never, for now: the Assistant publishes no headers or items yet                                                                                                                                                                                                                                                                                                                                                                                 | `not-published-here`                                                                                                                                      |
-| A kind the menu doesn't offer                                                                          | never                                                                                                                                                                                                                                                                                                                                                                                                                                           | the line is `not-offered`                                                                                                                                 |
+The offer is the Duty Menu's (`duty_menu_build.offer_rows`), and it is **per key**: Scores are offered metric by
+metric, `30382:rank` and the rest, never as a bare `30382`. For each key:
+
+- **`30382:rank`, `followers`, `reporters`, `muters`, `hops`**, the five metrics `ta_signing.ta_tags` signs. Live when
+  both hold:
+  - `last_time_published_graperank` is set. It is set only when every event of a run was OK'd, and the first run
+    publishes the full set.
+  - Something keeps them up to date, and the last publish is no older than **2 ×** its interval. One missed run is a
+    brief gap; two in a row is a stop. For most readers that is the scheduler: `scheduler_enabled`, a default policy,
+    and the reader's policy (or the default) enabled, at its `schedule_interval_seconds`. The **House Observer**
+    (`periodic_graperank_pubkey`) is the exception: the scheduler leaves it to the periodic trigger, so its interval is
+    that trigger's 2 hours, whatever `scheduler_enabled` says.
+
+  Otherwise the `reason` is, in this order:
+  - `not-scheduled`: nothing keeps them up to date, whether or not they ever landed;
+  - `not-landed`: they are kept up to date, but have never been published;
+  - `upkeep-stopped`: the last publish is too old, given as `lastLandedAt`.
+
+- **`30392` Trusted Lists**: never live, for now. They are published only when an admin runs `POST /admin/trustedLists`,
+  and nothing keeps them up to date: `not-scheduled`.
+- **`39998`, `39999` Concepts**: never live, for now. The Assistant publishes no headers or items yet:
+  `not-published-here`.
+- **Any other key**: another `30382` metric, `30383`…, or a kind the menu has no row for. No offer row covers it, so
+  the line is `not-offered`.
 
 ## What the Assistant's Treasure Map should list
 
@@ -61,8 +78,9 @@ does not publish"):
   `30382:<metric>` per live metric. Write the narrower keys in its place.
 - Copy nothing else from the reader's Map: no order, no other providers (§ 9.2 "No order, no copies").
 
-On Brainstorm every offered kind has one relay, so this is short. A reader whose Map is what `/setup` publishes, with
-Scores live, gets exactly the five Score rows:
+Because the offer is per metric, a bare `30382`, `3038x` or `*` is **never claimed verbatim**: no offer row covers all
+of it, so it always narrows to the five `30382:<metric>` keys. On Brainstorm every offered key has one relay, so the
+rest is short. A reader whose Map is what `/setup` publishes, with Scores live, gets exactly the five Score rows:
 
 ```jsonc
 ["30382:rank", "<A>", "wss://<scores relay>"],
@@ -80,7 +98,7 @@ The UI never builds the entries itself. The GET's answer is the one source, as t
   "pubkey": "<the caller's Assistant>",
   "content": "<the newest version's content, unchanged>",
   "tags": [
-    /* every tag of the newest version that isn't a self-entry, byte for byte */
+    /* every tag of the newest version the writer doesn't own, byte for byte, but its `client` tag */
     ["30382:rank", "<A>", "wss://<scores relay>"],
     /* …the other self-entries */
     ["client", "Brainstorm"],
@@ -88,16 +106,20 @@ The UI never builds the entries itself. The GET's answer is the one source, as t
 }
 ```
 
-- A **self-entry** is a tag whose element 1 parses as a Treasure Map key and whose element 2 is the Assistant itself.
-  Only those are the writer's; every other tag is kept as it was. Today nothing else signs a kind 10040 as an
-  Assistant, so in practice the event is the self-entries alone.
-- **No `expiration`** (§ 9.2): drop one if the newest version carries it.
+- **What the writer owns**: every tag whose element 1 has a kind slot (a kind, `3038x`, `3039x` or `*`) and whose
+  element 2 is the Assistant (Tapestry ADR `assistant-self-map/0002` sub-decision 4). That includes spellings readers
+  ignore, such as `39998:`, and keys the server can't check, not only keys that parse. A press replaces all of them.
+  Every other tag is kept as it was. Today nothing else signs a kind 10040 as an Assistant, so in practice the event is
+  the self-entries alone.
+- A **self-entry**, as readers count them, is an owned tag whose key parses: each key and relay once.
+- **The `client` tag**: the newest version's is replaced by ours, not kept beside it.
+- **No `expiration`** (§ 9.2): a version with self-entries drops one the newest version carries.
 - **`created_at`**: `max(now, newest version found + 1)`, so a new version always replaces (§ 9.2 "When it changes").
 
 ## The endpoints
 
 Both are under `verify_token`, for the caller's own Assistant: the key the Duty Menu and Trusted Lists use
-(`get_or_create_brainstorm_observer_nsec_by_pubkey_on_db`). Put them on the authenticated `/user` router, as the Duty
+(`get_or_create_brainstorm_observer_nsec_by_pubkey_on_db`). They're on the authenticated `/user` router, as the Duty
 Menu's are, so `GET /user/{pubkey}` doesn't answer the path.
 
 ### 1. `GET /user/assistantTreasureMap`
@@ -155,24 +177,31 @@ The check: what the Assistant's Treasure Map should list now, and why.
   - element 3 of the reader's entries that name the Assistant.
 - **The reader's Map**: their newest kind 10040, as `designation_service` reads it. When none is found, `duties` and
   `shouldSay` are both `[]`.
+- **502** when the reader's Map can't be read (a relay error, or a `CLOSED`): "Couldn't read your Treasure Map, so your
+  Assistant's Treasure Map couldn't be checked. Try again in a moment." It never answers an empty check for a Map it
+  couldn't read.
 
-The UI compares `shouldSay` with the self-entries it finds, as a set of `(key, relay)` in any order. The two equal is
-**up to date**, and both empty counts. No self-entries found is **not published yet**; anything else is **out of date**.
+The UI counts the published version **up to date** when a press would change nothing, by the press's own rule (step 4
+below). Both empty counts. No self-entries found is **not published yet**; anything else is **out of date**.
 
 ### 2. `POST /user/assistantTreasureMap`
 
 Body: `{ "on": true }` (Turn on, Update now) or `{ "on": false }` (Turn off). The request says only which; the session
-says whose Assistant.
+says whose Assistant. A body whose `on` isn't a JSON boolean is a **422**. One press runs at a time per Assistant.
 
-1. **Remember the choice.** Add a boolean column on `brainstorm_nsec`, `treasure_map_on`, default false (an alembic
-   migration). Only this route writes it.
+1. **Read the reader's Map.** If it can't be read, `{ "on": true }` answers 502, "Couldn't read your Treasure Map, so
+   nothing was published." Turn off goes ahead without it: it lists nothing, and the Map only adds relays to send to.
 2. **Read the newest version** from `relays`, strictly: if no relay answers, publish nothing and answer 502, "Couldn't
    read your Assistant's Treasure Map, so nothing was published."
-3. **Build the new tags:** replace the self-entries with `shouldSay`, as computed now, when on; with none when off.
-   Keep every other tag, and the content, unchanged.
-4. **Nothing would change** (the same self-entries, no `expiration` to drop): publish nothing.
-5. **Otherwise sign and publish** to `relays`, plus every relay an earlier version's self-entries named, so that copy
-   is replaced too (§ 9.2 "Finding a self-Map"). Use the internal write URL where the server has one, as scores do.
+3. **Remember the choice** in `brainstorm_nsec.treasure_map_on` (default false; migration `c5f1d7a9e2b4`). Only this
+   route writes it, and it is kept only when the press answers 200, "nothing changed" included. Any 502 leaves it as it
+   was.
+4. **Nothing would change** when the newest version's self-entries already are the target (`shouldSay` when on, none
+   when off), as sets of key and relay, and, beside a target that isn't empty, no `expiration` and no other owned tag
+   sits with them: no duplicate, no spelling readers ignore. Then publish nothing.
+5. **Otherwise build and sign the next version**, as The event says, and publish it to `relays`, plus every relay an
+   earlier version's self-entries named, so that copy is replaced too (§ 9.2 "Finding a self-Map"). The internal write
+   URL is used where the server has one, as scores do.
 
 Synchronous, like the Duty Menu: the UI waits up to 30 seconds.
 
@@ -188,8 +217,9 @@ Synchronous, like the Duty Menu: the UI waits up to 30 seconds.
 }
 ```
 
-When nothing changed: `{ "on": true, "published": false, "event": null, "relays": [] }`. Answer 502 if no relay took
-the new version, as the Duty Menu does.
+When nothing changed: `{ "on": true, "published": false, "event": null, "relays": [] }`. It answers 502 if no relay
+took the new version, as the Duty Menu does: "Your Assistant's Treasure Map didn't reach any relay. Try again in a
+moment."
 
 The UI adds `event` to its store, so the step turns done at once, shows one line per relay, and asks for the check
 again.
@@ -199,9 +229,13 @@ again.
 - **404 or 405 on the GET, or an answer that isn't a check** (no 64-hex `assistant`, no boolean `on`, or no `duties`
   and `shouldSay` arrays): the step and its page say nothing, and `/setup` keeps its other steps.
 - **401**: as any other signed-in call.
-- **Any other error**: "Couldn't reach your Assistant right now", with the detail.
-- **The step is done** when the found self-entries equal `shouldSay`, as Tapestry's hub counts it. A reader with
-  nothing live and nothing published is done, and nobody is asked to publish an empty Map.
+- **Any other error**, the 502s included: "Couldn't reach your Assistant right now", with the detail.
+- **It reads a version as the press does.** Self-entries are the tags under a kind slot the server owns (a kind,
+  `3038x`, `3039x` or `*`), each key and relay once, so a hand-made `3040x` entry is an ordinary tag to both. And the
+  step is done exactly when a press would change nothing (step 4), so Update now is enabled exactly when a press would
+  publish. Tapestry's page compares the self-entries only, and its ledger keeps that as an open bug
+  (`2026-10-13-self-map-current-ignores-expiration`). A reader with nothing live and nothing published is done, and
+  nobody is asked to publish an empty Map.
 - **The buttons** are Tapestry's `selfMapButtons`:
   - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, so no claim is
     stuck;
@@ -218,4 +252,7 @@ again.
   adopters should skip a Map whose public entries all name its author.
 - **Private duties** (NIP-85's encrypted `.content`): never in a self-Map's public tags.
 - **Trusted Lists and Concepts as live duties**: they become claimable once something publishes and keeps them up
-  to date, at which point the table above gains a row for each.
+  to date, at which point the list above gains a rule for each.
+- **The server's own open points** are in PR 110: one press at a time is held in-process only, so it needs Redis once
+  the server runs more than one instance; the POST has no rate limit; and a relay that refused a removal keeps the old
+  claim.
