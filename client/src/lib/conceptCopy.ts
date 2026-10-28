@@ -1,15 +1,17 @@
 /**
  * A reader's own version of a community concept, as a draft and as the
- * event it becomes — the grammar behind "Publish my own version" in the
- * Dictionary (offered on every entry; begun 2026-10-01 as a demo,
- * likely the seed of a general list editor).
+ * event it becomes — the grammar behind a Dictionary entry's "Add to my own
+ * Dictionary" and "Edit" (components/dictionary/AddToDictionary; begun
+ * 2026-10-01 as a demo, likely the seed of a general list editor).
  *
  * The event is a local copy (lib/conceptResolution): a kind-39998 at the
  * community concept's `d`, signed by the reader, pointing back with
- * `["b", <community coordinate>, "pointer"]`. Its fields are whatever the
- * reader chose; the renderer draws items from them (ADR 0004), so turning
- * on `description` makes every item page show it, and making it required
- * flags the items that lack it.
+ * `["b", <community coordinate>, "pointer"]`. Adding makes it an exact copy
+ * (`exactCopyTemplate`), the same tags the reader's Assistant signs on the
+ * server (docs/dictionary/ASSISTANT-COPY-ASK.md). Editing makes its fields
+ * whatever the reader chose; the renderer draws items from them (ADR 0004),
+ * so turning on `description` makes every item page show it, and making it
+ * required flags the items that lack it.
  *
  * The form follows dlist-ui's create-list (dlist-ui.netlify.app), minus
  * "from list", contexts, and the allowed / disallowed levels: a field here is
@@ -249,6 +251,42 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
     kind: 39998,
     content: "",
     tags: [["d", d], ...definitionTags(draft, typed), ["b", community.coordinate, "pointer"]],
+  };
+}
+
+/**
+ * The tags an exact copy takes from the community header: its definition and
+ * nothing else. Real community headers also carry `json`, `concept-graph`,
+ * `r`, `license`, `alt` and `client` (dcosl, 2026-10-27); none of those is the
+ * copier's to repeat. The server's copy follows this same list.
+ */
+export const COPIED_TAGS: ReadonlySet<string> = new Set([
+  "names",
+  "name",
+  "description",
+  "slug",
+  "required",
+  "recommended",
+  "optional",
+  "allowed",
+  "field-type",
+  "display",
+  "image",
+  "link",
+]);
+
+/**
+ * "Add to my own Dictionary": the community's definition as it stands, its
+ * tags verbatim and in its order, at its `d` and pointing back — so the copy
+ * agrees with the community until someone edits it.
+ */
+export function exactCopyTemplate(community: ConceptDefinition): EventTemplate {
+  const tags = community.event.tags;
+  const d = tags.find((t) => t[0] === "d")?.[1] ?? "";
+  return {
+    kind: 39998,
+    content: "",
+    tags: [["d", d], ...tags.filter((t) => COPIED_TAGS.has(t[0])), ["b", community.coordinate, "pointer"]],
   };
 }
 

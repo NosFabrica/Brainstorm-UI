@@ -66,8 +66,31 @@ vi.mock("@/hooks/useWotItems", () => ({
 
 import { userEvent } from "@testing-library/user-event";
 vi.mock("@/hooks/useDictionaryReader", () => ({
-  useDictionaryReader: () => ({ pubkey: "1".repeat(64), taPubkey: TA, settled: true }),
+  useDictionaryReader: () => ({ pubkey: "1".repeat(64), taPubkey, settled: true }),
 }));
+// What "Add to my Dictionary" calls: the reader's own copy in the browser, the Assistant's on the server.
+const add = vi.hoisted(() => ({
+  own: vi.fn(),
+  withdrawOwn: vi.fn(),
+  assistant: vi.fn(),
+  withdrawAssistant: vi.fn(),
+}));
+vi.mock("@/services/conceptCopy", () => ({
+  addOwnCopy: add.own,
+  withdrawOwnCopy: add.withdrawOwn,
+  publishOwnCopy: vi.fn(),
+}));
+vi.mock("@/services/api", async (orig) => {
+  const actual = await orig<typeof import("@/services/api")>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      addToAssistantDictionary: add.assistant,
+      removeFromAssistantDictionary: add.withdrawAssistant,
+    },
+  };
+});
 /** The reader's other Assistants, beside the local one (taPubkey), and whom their Treasure Map gives Concepts to. */
 let otherAssistants: string[] = [];
 let mapAssistant: string | null = null;
@@ -94,6 +117,7 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
   useDraftTemplateProblems: () => [],
 }));
 
+import { AssistantDictionaryUnavailableError } from "@/services/api";
 import { DictionaryTab } from "./DictionaryTab";
 
 const entryOf = (copy: HeaderEvent | null): DictionaryEntry => {
@@ -106,6 +130,29 @@ const entryOf = (copy: HeaderEvent | null): DictionaryEntry => {
   };
 };
 
+const copyBy = (pubkey: string) =>
+  header(pubkey, [
+    ["description", "A list of github handles/accounts"],
+    ["required", "github-username"],
+    ["b", COMMUNITY, "pointer"],
+  ]);
+/** An entry as loadDictionary reads it for the managers: each one's copy kept as a candidate. */
+const managedEntryOf = (copies: Record<string, HeaderEvent>): DictionaryEntry => {
+  const resolved = resolveConcept({
+    community,
+    communityCoordinate: COMMUNITY,
+    personal: copies[USER],
+    assistant: copies[TA],
+  });
+  return {
+    communityCoordinate: COMMUNITY,
+    resolved,
+    inDictionary: resolved?.source === "personal" || resolved?.source === "assistant",
+    items: [item],
+    candidates: { community, house: null, copies },
+  };
+};
+
 const at = (url: string) => window.history.replaceState({}, "", url);
 
 beforeEach(() => {
@@ -114,6 +161,7 @@ beforeEach(() => {
   mapAssistant = null;
   trustedAuthors = new Set([AVI]);
   at("/settings?tab=dictionary");
+  Object.values(add).forEach((fn) => fn.mockReset());
 });
 
 const openCommunity = () => userEvent.click(screen.getByTestId("dictionary-available-toggle"));
@@ -303,28 +351,6 @@ describe("the list's count", () => {
 });
 
 describe("Managed by", () => {
-  const copyBy = (pubkey: string) =>
-    header(pubkey, [
-      ["description", "A list of github handles/accounts"],
-      ["required", "github-username"],
-      ["b", COMMUNITY, "pointer"],
-    ]);
-  /** An entry as loadDictionary reads it for the managers: each one's copy kept as a candidate. */
-  const managedEntryOf = (copies: Record<string, HeaderEvent>): DictionaryEntry => {
-    const resolved = resolveConcept({
-      community,
-      communityCoordinate: COMMUNITY,
-      personal: copies[USER],
-      assistant: copies[TA],
-    });
-    return {
-      communityCoordinate: COMMUNITY,
-      resolved,
-      inDictionary: resolved?.source === "personal" || resolved?.source === "assistant",
-      items: [item],
-      candidates: { community, house: null, copies },
-    };
-  };
   const mineRow = () => within(screen.getByTestId("dictionary-mine")).queryByTestId("dictionary-row-github-accounts");
 
   it("shows the Treasure Map's Concepts Assistant by default: its copy, not yours", () => {
@@ -373,13 +399,126 @@ describe("Managed by", () => {
     expect(screen.getByTestId("dictionary-managed-by")).toHaveTextContent("Managed by Local Helper");
   });
 
-  it("an entry under an Assistant still lets you withdraw your own version", () => {
+  it("an entry under an Assistant still offers to remove your own copy", () => {
     at(`/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`);
     entries = [managedEntryOf({ [USER]: copyBy(USER) })];
     renderWithProviders(<DictionaryTab />);
-    expect(screen.getByTestId("dictionary-entry-not-added")).toHaveTextContent(
-      "Local Helper hasn't added this concept to your Dictionary yet.",
+    expect(screen.getByTestId("chip-dictionary-source")).toHaveTextContent("Not in your Dictionary yet");
+    expect(screen.getByTestId("dictionary-add-me-held")).toHaveTextContent("In your own Dictionary");
+    expect(screen.getByTestId("dictionary-add-me-remove")).toBeInTheDocument();
+  });
+});
+
+describe("Add to my Dictionary", () => {
+  beforeEach(() => at(`/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`));
+  /** The server's answer for this one concept. */
+  const answer = (status: string, error: string | null = null) => ({
+    assistant: TA,
+    relays: ["wss://dcosl.brainstorm.world"],
+    concepts: [{ community: COMMUNITY, local: `39998:${TA}:github-accounts`, event: null, status, error }],
+  });
+  const line = (keeper: "assistant" | "me") => screen.getByTestId(`dictionary-add-${keeper}`);
+
+  it("offers both Dictionaries, the Assistant's first and by name", () => {
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    const lines = within(screen.getByTestId("dictionary-add")).getAllByRole("listitem");
+    expect(lines.map((l) => l.dataset.testid)).toEqual(["dictionary-add-assistant", "dictionary-add-me"]);
+    expect(lines[0]).toHaveTextContent("Add to my Assistant's Dictionary");
+    expect(lines[0]).toHaveTextContent("Recommended. Local Helper, your Brainstorm Assistant, signs the copy.");
+    expect(lines[1]).toHaveTextContent("Add to my own Dictionary");
+  });
+
+  it("adding to your own publishes the exact copy in one click", async () => {
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-add-me-go"));
+    expect(add.own).toHaveBeenCalledTimes(1);
+    expect(add.own.mock.calls[0][0]).toMatchObject({ coordinate: COMMUNITY });
+    expect(screen.queryByTestId("own-version-dialog")).toBeNull();
+  });
+
+  it("adding to your Assistant's asks the server to sign its copy", async () => {
+    add.assistant.mockResolvedValue(answer("published"));
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-add-assistant-go"));
+    expect(add.assistant).toHaveBeenCalledWith([COMMUNITY]);
+    expect(within(line("assistant")).queryByRole("alert")).toBeNull();
+  });
+
+  it("a server without the route says so, and the button rests", async () => {
+    add.assistant.mockRejectedValue(new AssistantDictionaryUnavailableError());
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-add-assistant-go"));
+    expect(within(line("assistant")).getByRole("status")).toHaveTextContent(
+      "Your Assistant can't add concepts on this server yet.",
     );
-    expect(screen.getByTestId("dictionary-version-withdraw")).toBeInTheDocument();
+    expect(screen.getByTestId("dictionary-add-assistant-go")).toBeDisabled();
+    expect(screen.getByTestId("dictionary-add-me-go")).toBeEnabled();
+  });
+
+  it("an answer that isn't done shows the server's sentence, and can be tried again", async () => {
+    add.assistant.mockResolvedValue(answer("conflict", "Your Assistant keeps a different GitHub Accounts there."));
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-add-assistant-go"));
+    expect(within(line("assistant")).getByRole("alert")).toHaveTextContent("keeps a different GitHub Accounts");
+    expect(screen.getByTestId("dictionary-add-assistant-go")).toBeEnabled();
+  });
+
+  it("once added, each line says so and offers Remove, with Edit on your own", () => {
+    entries = [managedEntryOf({ [USER]: copyBy(USER), [TA]: copyBy(TA) })];
+    renderWithProviders(<DictionaryTab />);
+    expect(screen.getByTestId("dictionary-add-assistant-held")).toHaveTextContent("In Local Helper's Dictionary");
+    expect(screen.getByTestId("dictionary-add-me-held")).toHaveTextContent("In your own Dictionary");
+    expect(screen.queryByTestId("dictionary-add-assistant-go")).toBeNull();
+    expect(screen.queryByTestId("dictionary-add-me-go")).toBeNull();
+    expect(screen.getByTestId("dictionary-add-assistant-remove")).toBeInTheDocument();
+    expect(screen.getByTestId("dictionary-add-me-edit")).toBeInTheDocument();
+  });
+
+  it("removing your own asks first, then withdraws your copy", async () => {
+    entries = [managedEntryOf({ [USER]: copyBy(USER) })];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-add-me-remove"));
+    expect(screen.getByTestId("dictionary-remove-confirm")).toHaveTextContent("Remove from your own Dictionary?");
+    expect(add.withdrawOwn).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId("dictionary-remove-go"));
+    expect(add.withdrawOwn).toHaveBeenCalledTimes(1);
+    expect(add.withdrawOwn.mock.calls[0][0].event.pubkey).toBe(USER);
+  });
+
+  it("removing your Assistant's asks first, then has the server withdraw its copy", async () => {
+    add.withdrawAssistant.mockResolvedValue(answer("withdrawn"));
+    entries = [managedEntryOf({ [TA]: copyBy(TA) })];
+    renderWithProviders(<DictionaryTab />);
+    await userEvent.click(screen.getByTestId("dictionary-add-assistant-remove"));
+    expect(screen.getByTestId("dictionary-remove-confirm")).toHaveTextContent("Remove from Local Helper's Dictionary?");
+    await userEvent.click(screen.getByTestId("dictionary-remove-go"));
+    expect(add.withdrawAssistant).toHaveBeenCalledWith([COMMUNITY]);
+  });
+
+  it("means the local Assistant, whoever the Treasure Map gives Concepts to", async () => {
+    otherAssistants = [TAPESTRY];
+    mapAssistant = TAPESTRY;
+    add.assistant.mockResolvedValue(answer("published"));
+    entries = [managedEntryOf({ [TAPESTRY]: copyBy(TAPESTRY) })];
+    renderWithProviders(<DictionaryTab />);
+    // The page shows Tapestry's Dictionary, but the line is the local Assistant's, which holds no copy.
+    expect(screen.getByTestId("chip-dictionary-source")).toHaveTextContent("Added by Tapestry Helper");
+    expect(line("assistant")).toHaveTextContent("Local Helper, your Brainstorm Assistant");
+    await userEvent.click(screen.getByTestId("dictionary-add-assistant-go"));
+    expect(add.assistant).toHaveBeenCalledWith([COMMUNITY]);
+  });
+
+  it("with no Assistant, its line says what one would do, and your own still adds", () => {
+    taPubkey = null;
+    entries = [managedEntryOf({})];
+    renderWithProviders(<DictionaryTab />);
+    expect(line("assistant")).toHaveTextContent("Once you have a Brainstorm Assistant");
+    expect(screen.queryByTestId("dictionary-add-assistant-go")).toBeNull();
+    expect(screen.getByTestId("dictionary-add-me-go")).toBeEnabled();
   });
 });

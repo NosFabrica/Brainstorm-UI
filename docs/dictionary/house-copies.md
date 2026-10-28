@@ -2,8 +2,9 @@
 
 Headers the house key (the server's NIP-05 `_`, `be7bf5de…` on staging) should hold so
 the tier-three views (ADR 0007) and every tier-two surface agree. Each is published
-through Settings › Dictionary › "Publish your own version" while signed in as the house,
-or by whoever holds that key. Nothing here is signed by a person's key.
+from its entry in Settings › Dictionary while signed in as the house ("Add to my own
+Dictionary", then "Edit"), or by whoever holds that key. Nothing here is signed by a
+person's key.
 
 ## GitHub Accounts: the handle leads
 

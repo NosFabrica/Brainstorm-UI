@@ -2,7 +2,7 @@
  * The form for a list header's definition — its names, description, the
  * fields its items carry (each with a type and a requirement), its links
  * from URL templates, and how its items read (display hints, facts, the
- * list's image). Shared by "Publish my own version" (OwnVersionDialog) and
+ * list's image). Shared by a Dictionary entry's "Edit" (OwnVersionDialog) and
  * List Management's editor, which own the draft (lib/conceptCopy), show what
  * it publishes, and publish it.
  *

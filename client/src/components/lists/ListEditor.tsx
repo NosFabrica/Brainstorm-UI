@@ -1,6 +1,6 @@
 /**
  * A list's header, authored or edited (lib/listDraft): the same definition
- * form as "Publish my own version" (DefinitionForm) beside a live preview of
+ * form as a Dictionary entry's "Edit" (DefinitionForm) beside a live preview of
  * an example item drawn by the real renderers (ItemPreview), so a field's
  * type, a display hint or a URL template shows what it does as it's set.
  *
