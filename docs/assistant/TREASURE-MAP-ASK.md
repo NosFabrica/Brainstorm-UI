@@ -3,7 +3,7 @@
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-treasure-map`, 2026-10-27
 **Filed as:** the second item of [NosFabrica/brainstorm_server#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
-**Built in:** `28175d2` on that PR, with the fixes from its audit (2026-10-28). It is in review and not deployed. This
+**Built in:** `50443af` on that PR, with the fixes from its audit (2026-10-28). It is in review and not deployed. This
 doc says what it does.
 **Modelled on:** [DUTY-MENU-ASK.md](DUTY-MENU-ASK.md), and Tapestry's Your Assistant's Treasure Map
 (`src/api/assistant/selfMap.js`, `src/lib/self-map/index.js`, `POST /api/assistant/self-map`; ADRs
@@ -200,9 +200,11 @@ says whose Assistant. A body whose `on` isn't a JSON boolean is a **422**. A sec
 one is under way is refused at once, nothing queued: **409**, "Your Assistant's Treasure Map is already being
 published. Try again in a moment."
 
-1. **Read the reader's Map.** If it can't be read, `{ "on": true }` answers 502, "Couldn't read your Treasure Map, so
-   nothing was published." With more than 64 keys it answers 422, "…too many to check, so nothing was published." Turn
-   off goes ahead without the Map either way: it lists nothing.
+1. **Read the reader's Map and follow count.** If the Map can't be read, `{ "on": true }` answers 502, "Couldn't read
+   your Treasure Map, so nothing was published." With more than 64 keys it answers 422, "…too many to check, so nothing
+   was published." If the follow count can't be read, it answers the GET's 502. Turn off goes ahead in all three cases:
+   without the Map, and reading the follow count as none. It lists nothing, and live Scores would only add the scores
+   relay, which the Assistant's outbox already names.
 2. **Read the newest version**, strictly, from the writer's relays (§ 9.2): the Assistant's outbox and the relays
    `shouldSay` names, the scores relay at its internal URL, as scores are. If no relay answers, publish nothing and
    answer 502, "Couldn't read your Assistant's Treasure Map, so nothing was published." The reader's hints are never
