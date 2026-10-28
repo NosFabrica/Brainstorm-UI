@@ -14,6 +14,8 @@ import {
   listCategory,
   pagedWords,
   pluralLabel,
+  rowOrder,
+  standingCategories,
 } from "./allCategories";
 
 let seq = 0;
@@ -112,4 +114,40 @@ it("pagedWords says one in the singular", () => {
   const [videos] = kindCategories([hit(21)]);
   expect(pagedWords(videos, 1)).toBe("1 Video");
   expect(pagedWords(videos, 3)).toBe("3 Videos");
+});
+
+describe("standingCategories", () => {
+  it("are the kinds Top's tabs ask, by label, Events and Recipes as their tabs ask them — never a list's kinds", () => {
+    const standing = standingCategories();
+    const keys = standing.map((c) => c.key);
+    expect(keys).toEqual(expect.arrayContaining(["kind:Note", "kind:Person", "kind:Video", "kind:Repo", "kind:Event"]));
+    expect(standing.find((c) => c.key === "kind:Event")).toMatchObject({ tab: "events" });
+    // Event Index's items are list items: the Events page keeps every row, not the calendar label's alone.
+    expect(standing.find((c) => c.key === "kind:Event")?.label).toBeUndefined();
+    expect(standing.find((c) => c.key === "kind:Recipe")).toMatchObject({ tab: "recipes", label: "Recipe" });
+    expect(standing.some((c) => c.kinds.includes(39999) || c.kinds.includes(39998))).toBe(false);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("rowOrder", () => {
+  it("leads with Notes, People and the biggest list when each has any, then the rest by results", () => {
+    const [notes, people, videos] = kindCategories([hit(1), hit(0), hit(21)]);
+    const books = listCategory({ coordinate: BOOKS, name: "Books", headers: [BOOKS] });
+    const places = listCategory({ coordinate: `39998:${"c".repeat(64)}:places`, name: "Places", headers: [] });
+    const counts = new Map<string, number | null>([
+      [notes.key, 3],
+      [people.key, 0],
+      [videos.key, 900],
+      [books.key, 20],
+      [places.key, 50],
+    ]);
+    expect(rowOrder([videos, books, places, people, notes], counts).map((c) => c.name)).toEqual([
+      "Notes",
+      "Places",
+      "Videos",
+      "Books",
+      "People",
+    ]);
+  });
 });

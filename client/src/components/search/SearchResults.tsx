@@ -97,7 +97,7 @@ import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
 import { belongsTo, categoryTestId, pagedWords, type Category } from "@/lib/allCategories";
-import { useAllCategories } from "@/hooks/useAllCategories";
+import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -1218,7 +1218,10 @@ export function SearchResults({
     [effectiveQuery],
   );
   // The pressed category once it is known (set below, where the categories are): what the stream asks.
-  const [openCategory, setOpenCategory] = useState<{ query: string; category: Category } | null>(null);
+  const [openCategory, setOpenCategory] = useState<{ query: string; category: Category } | null>(() => {
+    const known = categoryPressed && knownCategory(effectiveQuery, categoryPressed.key, { pov, userPubkey });
+    return known ? { query: effectiveQuery, category: known } : null;
+  });
   const category = onAll && openCategory?.query === effectiveQuery ? openCategory.category : null;
 
   // Where the reader was when this search left the page. Read in a layout
@@ -1293,13 +1296,14 @@ export function SearchResults({
     const handle = searchStream(
       effectiveQuery,
       {
-        tab,
+        // A category of All's asks its kinds alone, or as its tab asks it (Events, Recipes).
+        tab: category?.tab ?? tab,
         pov,
         userPubkey,
         limit,
         seed: remembered?.hits,
         firstPage,
-        ...(category ? { kinds: category.kinds, tags: category.tags } : {}),
+        ...(category && !category.tab ? { kinds: category.kinds, tags: category.tags } : {}),
       },
       (snap) => {
         latest = snap;
@@ -1533,6 +1537,7 @@ export function SearchResults({
     enabled: onAll,
     page: allRows,
     lists: ribbon.lists,
+    ready: ribbon.settled && (!!snapshot?.eose || !!snapshot?.error),
   });
   const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
   const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
@@ -2355,6 +2360,23 @@ export function SearchResults({
                     {c.name}
                   </button>
                 ))}
+              {/* Until the categories are counted, the row says they are coming — then they land at once. */}
+              {onAll && categories.loading && (
+                <span
+                  className="flex shrink-0 items-center gap-2 px-2"
+                  aria-label="Finding categories"
+                  role="status"
+                  data-testid="search-categories-loading"
+                >
+                  {[14, 12, 16].map((w, i) => (
+                    <span
+                      key={i}
+                      className="h-2.5 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700"
+                      style={{ width: `${w * 4}px`, animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
+                </span>
+              )}
             </div>
             <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
               {onAll && (

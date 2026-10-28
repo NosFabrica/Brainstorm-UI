@@ -5402,8 +5402,12 @@ describe("All's categories", () => {
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
     emit({ hits: page, eose: true });
     expect(rowTabs()).toEqual(["Top", "All"]);
+    // Until counted, the row says they are coming.
+    expect(screen.getByTestId("search-categories-loading")).toBeInTheDocument();
     await answerCounts();
-    expect(rowTabs()).toEqual(["Top", "All", "Videos", "Food and Drink Places", "Notes", "Articles"]);
+    expect(screen.queryByTestId("search-categories-loading")).not.toBeInTheDocument();
+    // Notes lead, then People (none here) and the biggest list, then the rest by their results.
+    expect(rowTabs()).toEqual(["Top", "All", "Notes", "Food and Drink Places", "Videos", "Articles"]);
     fireEvent.click(screen.getByTestId("search-tab-more"));
     expect(
       within(screen.getByRole("menu"))
@@ -5457,16 +5461,39 @@ describe("All's categories", () => {
     await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
   });
 
-  it("coming back to a link with a category waits for it to be found, then opens on it", async () => {
+  it("coming back to a link with a kind opens on it at once: the kinds Top's tabs ask are known before any page", async () => {
     window.history.replaceState({}, "", "/?q=jack&t=all&list=kind%3AVideo");
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
-    expect(lastMain().kinds).toBeUndefined();
-    emit({ hits: page, eose: false });
-    expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
-    emit({ hits: page, eose: true });
     await waitFor(() => expect(lastMain().kinds).toEqual([21, 22, 34235, 34236]));
+    expect(mainStreamCalls().some(([, p]) => !(p as { kinds?: number[] }).kinds)).toBe(false);
     // Pressed, it stands in the row before it is counted.
     expect(screen.getByTestId("search-category-video")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("coming back to a link with a list waits for the lists to find it rather than showing all of All", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(PLACES)}`);
+    ribbonSettled = false;
+    ribbonMock.mockImplementation(() => []);
+    const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({ hits: page, eose: true });
+    expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
+    ribbonSettled = true;
+    ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    rerender(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
+  });
+
+  it("Events stands by its results, and pressed is asked as the Events tab asks it — Event Index's items with it — and stays on All", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({ hits: page, eose: true });
+    await waitFor(() => expect(categoryCountAsks.length).toBeGreaterThan(0));
+    act(() => categoryCountAsks.forEach((a) => a.onCounts(new Map([...COUNTS, ["kind:Event", 1000]]))));
+    expect(rowTabs().slice(2, 5)).toEqual(["Notes", "Food and Drink Places", "Events"]);
+    fireEvent.click(screen.getByTestId("search-category-event"));
+    await waitFor(() => expect(lastMain()).toMatchObject({ tab: "events" }));
+    expect(lastMain().kinds).toBeUndefined();
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
   });
 
   it("new words let go of the category, and another tab leaves it out of the link", async () => {

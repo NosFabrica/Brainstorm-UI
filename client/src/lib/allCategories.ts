@@ -7,7 +7,7 @@
  */
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
 import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
-import type { CategoryAsk, SearchHit } from "@/services/search";
+import { TAB_KINDS, type CategoryAsk, type SearchHit } from "@/services/search";
 
 export interface Category extends CategoryAsk {
   /** Its key in the row and in the link: a list's coordinate, or `kind:` and the rows' label. */
@@ -69,6 +69,48 @@ export function listCategory(list: { coordinate: string; name: string; headers: 
 /** Whether a row belongs on a category's page: a kind's keeps only the rows its label names. */
 export const belongsTo = (category: Category, hit: SearchHit) =>
   !category.label || kindLabel(hit.event) === category.label;
+
+/** All's Events: asked as the Events tab asks, so Event Index's items come with the calendar events. */
+export const EVENTS_KEY = `${KIND_KEY}Event`;
+/** All's Notes and People, which lead its row as they lead Top's. */
+export const NOTES_KEY = `${KIND_KEY}Note`;
+export const PEOPLE_KEY = `${KIND_KEY}Person`;
+
+/**
+ * The categories counted for any words, whether or not All's first page shows them: every kind
+ * Top's tabs ask, by its rows' label, and Events and Recipes as their tabs ask them (Event
+ * Index's items; zap.cooking's tag). A list item is its list's (hooks/useListRibbon asks
+ * every list the Dictionary shows), so neither the items' nor the headers' kind stands here.
+ */
+export function standingCategories(): Category[] {
+  const labels = new Set<string>();
+  for (const kinds of Object.values(TAB_KINDS))
+    for (const kind of kinds)
+      if (!(DLIST_ITEM_KINDS as readonly number[]).includes(kind) && kind !== 39998) labels.add(kindTypeLabel(kind));
+  const tabbed = new Set(["Event", "Recipe"]);
+  return [
+    { key: EVENTS_KEY, name: "Events", kinds: TAB_KINDS.events, tab: "events" },
+    { key: `${KIND_KEY}Recipe`, name: "Recipes", label: "Recipe", kinds: TAB_KINDS.recipes, tab: "recipes" },
+    ...[...labels]
+      .filter((l) => !tabbed.has(l) && !/^Kind \d+$/.test(l))
+      .map((label) => ({ key: KIND_KEY + label, name: pluralLabel(label), label, kinds: kindsLabelled(label) })),
+  ];
+}
+
+/**
+ * The row's order: Notes, People and the list with the most results lead, each when it has
+ * any; then every other by its results, lists among them.
+ */
+export function rowOrder(categories: readonly Category[], counts: ReadonlyMap<string, number | null>): Category[] {
+  const any = (c: Category) => (counts.get(c.key) ?? 0) > 0;
+  const ordered = byResults(categories, counts);
+  const lead = [
+    ordered.find((c) => c.key === NOTES_KEY && any(c)),
+    ordered.find((c) => c.key === PEOPLE_KEY && any(c)),
+    ordered.find((c) => !isKindKey(c.key) && any(c)),
+  ].filter((c): c is Category => !!c);
+  return [...lead, ...ordered.filter((c) => !lead.includes(c))];
+}
 
 /** Most results first; a count not known after them; then by name. */
 export function byResults(categories: readonly Category[], counts: ReadonlyMap<string, number | null>): Category[] {

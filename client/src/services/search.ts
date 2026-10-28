@@ -636,6 +636,8 @@ export interface CategoryAsk {
   key: string;
   kinds: number[];
   tags?: Record<`#${string}`, string[]>;
+  /** Asked as this tab asks, in place of its kinds: Events with Event Index's items, Recipes by their tag. */
+  tab?: SearchTab;
 }
 
 /**
@@ -658,7 +660,11 @@ export function countCategories(
     (words, observer) =>
       categories.map((c) => ({
         key: c.key,
-        filters: askForTab(words, { tab: "all", kinds: c.kinds, tags: c.tags, ...lens }, observer).filters,
+        filters: askForTab(
+          words,
+          c.tab ? { tab: c.tab, ...lens } : { tab: "all", kinds: c.kinds, tags: c.tags, ...lens },
+          observer,
+        ).filters,
       })),
     (answers) => onCounts(new Map(categories.map((c) => [c.key, answers.get(c.key) ?? null]))),
     timeoutMs,
