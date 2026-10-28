@@ -1,6 +1,9 @@
 # Passkeys — the screens
 
 The design the passkey work was built from (ADR [0009](../adr/0009-passkey-unlocks-a-held-key.md)).
+Testing: `npm run e2e:local` (every flow, real backend, here), `e2e/passkeys.spec.ts` (staging), and the
+[real-device checklist](../agents/passkey-checklist.md).
+
 Mockups, not captures: copy and spacing in the shipped components follow them, and where they differ
 the components win.
 

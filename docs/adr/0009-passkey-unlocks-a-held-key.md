@@ -55,3 +55,6 @@ Code: `accounts/passkey.ts` (ceremonies, seal, labels), `accounts/passkey-flow.t
 - Seals are mirrored between tabs (`passkeys-changed` in `cross-tab.ts`): every tab rewrites the whole accounts blob
   on save, and one that never heard of a new passkey would drop it.
 - A passkey sign-in for an account this device already holds opens that account in place, without the server.
+- Tested three ways: every flow against the real backend on one machine (`npm run e2e:local`), the round trip on
+  staging (`e2e/passkeys.spec.ts`), and providers' own behaviour on real devices
+  ([checklist](../agents/passkey-checklist.md)) — the virtual authenticator can't stand in for that.
