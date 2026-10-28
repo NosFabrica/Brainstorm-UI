@@ -3,7 +3,8 @@
 #   Postgres + Redis → brainstorm_server (its migrations, its code) → vite → Playwright.
 #
 #   npm run e2e:local                     # every flow
-#   npm run e2e:local -- -g "B\."         # one flow; arguments go to Playwright
+#   npm run e2e:local -- --headed         # arguments go to Playwright (the flows build on
+#                                         # each other, so filter with -g only from A)
 #   npm run e2e:local -- --serve          # just the stack, until Ctrl-C: UI on :5000
 #
 # Needs: Postgres binaries (initdb, pg_ctl, psql), redis-server, poetry, and a
@@ -29,10 +30,15 @@ done
 
 WORK="$(mktemp -d -t passkeys-local.XXXXXX)"
 PIDS=()
+# A service and everything under it: npx and poetry are wrappers, and killing
+# one alone leaves vite or uvicorn holding the port. (No setsid: macOS has none.)
+kill_tree() {
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$child"; done
+  kill "$1" 2>/dev/null || true
+}
 cleanup() {
-  # Each service runs in its own process group (setsid): npx and poetry are
-  # wrappers, and killing one leaves vite or uvicorn holding the port.
-  for pid in "${PIDS[@]}"; do kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true; done
+  for pid in ${PIDS[@]+"${PIDS[@]}"}; do kill_tree "$pid"; done
   redis-cli -p "$REDIS_PORT" shutdown nosave >/dev/null 2>&1 || true
   as_pg "$PG_BIN/pg_ctl" -D "$WORK/pg" -m fast stop >/dev/null 2>&1 || true
   # The database goes; the logs stay for whoever is reading a failure.
@@ -79,13 +85,13 @@ echo "→ brainstorm_server migrations ($SERVER_DIR @ $(git -C "$SERVER_DIR" rev
 }
 
 echo "→ brainstorm_server on :$API_PORT"
-(cd "$SERVER_DIR" && PYTHONPATH="$SERVER_DIR" exec setsid poetry run uvicorn --app-dir "$UI_DIR/scripts/passkeys-local" \
+(cd "$SERVER_DIR" && PYTHONPATH="$SERVER_DIR" exec poetry run uvicorn --app-dir "$UI_DIR/scripts/passkeys-local" \
   serve_local:app --host 127.0.0.1 --port "$API_PORT" >"$WORK/server.log" 2>&1) &
 PIDS+=($!)
 
 echo "→ UI on :5000"
 (cd "$UI_DIR" && VITE_API_URL="http://localhost:$API_PORT" VITE_NIP85_RELAY_URL=ws://127.0.0.1:9 \
-  VITE_SEARCH_RELAY_URL=ws://127.0.0.1:9 exec setsid npx vite --port 5000 --strictPort >"$WORK/vite.log" 2>&1) &
+  VITE_SEARCH_RELAY_URL=ws://127.0.0.1:9 exec npx vite --port 5000 --strictPort >"$WORK/vite.log" 2>&1) &
 PIDS+=($!)
 
 wait_for() {
