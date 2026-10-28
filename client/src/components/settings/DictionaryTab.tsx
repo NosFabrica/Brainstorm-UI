@@ -4,7 +4,8 @@
  * Assistant, hold a copy of a community concept: a header of their own
  * pointing at it with a `b` tag (services/dictionary). Which concepts are
  * shown at all is config/dictionary — two to start, GitHub Accounts and
- * URLs (2026-10-01).
+ * URLs (2026-10-01). The ones the community shares that aren't in it yet
+ * wait in a panel below, closed until the reader opens it (2026-10-27).
  *
  * Everything shown is the governing definition (lib/conceptResolution): the
  * reader's copy when they have one, with the community concept beside it
@@ -29,7 +30,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
-import { ArrowLeft, BookOpen, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -107,6 +108,8 @@ export function DictionaryTab() {
     () => managedEntries(dictionary.data ?? [], choice, managers.options),
     [dictionary.data, choice, managers.options],
   );
+  // Closed until the reader opens it, and kept while they visit an entry and come back.
+  const [communityOpen, setCommunityOpen] = useState(false);
   const manager: Manager = {
     choice,
     nameOf: managers.nameOf,
@@ -203,18 +206,31 @@ export function DictionaryTab() {
               )}
             </section>
             {available.length > 0 && (
-              <section className="space-y-3" data-testid="dictionary-available">
-                <SectionHeader kicker="Shared by the community" />
-                <ul className="space-y-2">
-                  {available.map((e) => (
-                    <ConceptRow
-                      key={e.communityCoordinate}
-                      entry={e}
-                      manager={manager}
-                      href={keep(dictionaryEntryPath(e.communityCoordinate))}
-                    />
-                  ))}
-                </ul>
+              <section className="overflow-hidden rounded-xl border border-border" data-testid="dictionary-available">
+                <button
+                  type="button"
+                  onClick={() => setCommunityOpen((v) => !v)}
+                  aria-expanded={communityOpen}
+                  className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-accent/40 dark:hover:bg-slate-800/60 ${communityOpen ? "border-b border-border" : ""}`}
+                  data-testid="dictionary-available-toggle"
+                >
+                  <SectionHeader kicker={`Shared by the community · ${available.length}`} noRule className="flex-1" />
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${communityOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {communityOpen && (
+                  <ul className="space-y-2 p-3">
+                    {available.map((e) => (
+                      <ConceptRow
+                        key={e.communityCoordinate}
+                        entry={e}
+                        manager={manager}
+                        href={keep(dictionaryEntryPath(e.communityCoordinate))}
+                      />
+                    ))}
+                  </ul>
+                )}
               </section>
             )}
           </>
