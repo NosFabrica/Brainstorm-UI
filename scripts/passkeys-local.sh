@@ -28,17 +28,32 @@ for port in 5000 "$API_PORT" "$PG_PORT" "$REDIS_PORT"; do
   fi
 done
 
-WORK="$(mktemp -d -t passkeys-local.XXXXXX)"
+# A full template: BSD mktemp takes -t as a prefix and keeps the X's literally.
+TMP_ROOT="${TMPDIR:-/tmp}"
+WORK="$(mktemp -d "${TMP_ROOT%/}/passkeys-local.XXXXXX")"
 PIDS=()
+KILLED=()
 # A service and everything under it: npx and poetry are wrappers, and killing
 # one alone leaves vite or uvicorn holding the port. (No setsid: macOS has none.)
 kill_tree() {
   local child
   for child in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$child"; done
-  kill "$1" 2>/dev/null || true
+  kill "$1" 2>/dev/null && KILLED+=("$1") || true
+}
+# uvicorn frees its port at once but can take ~15s more to exit; give it 5.
+reap() {
+  local pid alive
+  for _ in $(seq 1 50); do
+    alive=""
+    for pid in ${KILLED[@]+"${KILLED[@]}"}; do kill -0 "$pid" 2>/dev/null && alive=1; done
+    [ -z "$alive" ] && return 0
+    sleep 0.1
+  done
+  for pid in ${KILLED[@]+"${KILLED[@]}"}; do kill -9 "$pid" 2>/dev/null || true; done
 }
 cleanup() {
   for pid in ${PIDS[@]+"${PIDS[@]}"}; do kill_tree "$pid"; done
+  reap
   redis-cli -p "$REDIS_PORT" shutdown nosave >/dev/null 2>&1 || true
   as_pg "$PG_BIN/pg_ctl" -D "$WORK/pg" -m fast stop >/dev/null 2>&1 || true
   # The database goes; the logs stay for whoever is reading a failure.
