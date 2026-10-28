@@ -116,15 +116,43 @@ beforeEach(() => {
   at("/settings?tab=dictionary");
 });
 
+const openCommunity = () => userEvent.click(screen.getByTestId("dictionary-available-toggle"));
+
 describe("the list", () => {
-  it("a concept the Assistant hasn't copied is offered as the community's", () => {
+  it("a concept the Assistant hasn't copied is offered as the community's", async () => {
     entries = [entryOf(null)];
     renderWithProviders(<DictionaryTab />);
     expect(screen.getByTestId("dictionary-empty")).toHaveTextContent("Local Helper hasn't added any concepts yet.");
+    await openCommunity();
     const row = within(screen.getByTestId("dictionary-available")).getByTestId("dictionary-row-github-accounts");
     expect(row).toHaveTextContent("GitHub Accounts");
     expect(row).toHaveTextContent("1 item");
     expect(row).toHaveTextContent("Not in your Dictionary yet");
+  });
+
+  it("the community's concepts wait in a closed panel that says how many it holds", async () => {
+    entries = [entryOf(null)];
+    renderWithProviders(<DictionaryTab />);
+    const toggle = screen.getByTestId("dictionary-available-toggle");
+    expect(toggle).toHaveTextContent("Shared by the community · 1");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("dictionary-row-github-accounts")).toBeNull();
+    await openCommunity();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("dictionary-row-github-accounts")).toBeInTheDocument();
+    await openCommunity();
+    expect(screen.queryByTestId("dictionary-row-github-accounts")).toBeNull();
+  });
+
+  it("the panel stays open on the way to an entry and back", async () => {
+    entries = [entryOf(null)];
+    renderWithProviders(<DictionaryTab />);
+    await openCommunity();
+    await userEvent.click(screen.getByTestId("dictionary-row-github-accounts"));
+    expect(screen.getByTestId("dictionary-entry")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("link-dictionary-back"));
+    expect(screen.getByTestId("dictionary-available-toggle")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("dictionary-row-github-accounts")).toBeInTheDocument();
   });
 
   it("with no Assistant, says who adds concepts", () => {
@@ -265,10 +293,11 @@ describe("finding an item on an entry", () => {
 });
 
 describe("the list's count", () => {
-  it("counts only items from the web of trust", () => {
+  it("counts only items from the web of trust", async () => {
     trustedAuthors = new Set();
     entries = [entryOf(null)];
     renderWithProviders(<DictionaryTab />);
+    await openCommunity();
     expect(screen.getByTestId("dictionary-row-count")).toHaveTextContent("0 items");
   });
 });
