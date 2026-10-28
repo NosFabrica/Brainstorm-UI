@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 /**
- * A scrolling strip says it scrolls: it fades at an edge it has more past, as it scrolls.
+ * A scrolling strip says it scrolls: it fades at an edge it has more past, as it scrolls — measured
+ * a frame after each change, never while rendering.
  */
 import { describe, expect, it } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { edgeFade, useScrollEdges } from "./useScrollEdges";
 
+let renders = 0;
 function Strip() {
+  renders++;
   const [ref, edges] = useScrollEdges();
   return (
     <div ref={ref} style={edgeFade(edges)} data-testid="strip" data-edges={`${edges.start}-${edges.end}`}>
@@ -16,32 +19,55 @@ function Strip() {
 }
 
 /** jsdom lays nothing out: the strip's sizes, as a browser would measure them. */
-function sized(el: HTMLElement, { client, scroll }: { client: number; scroll: number }) {
+function sized(el: HTMLElement, { client, scroll }: { client: number; scroll: number | (() => number) }) {
   Object.defineProperty(el, "clientWidth", { configurable: true, value: client });
-  Object.defineProperty(el, "scrollWidth", { configurable: true, value: scroll });
+  Object.defineProperty(el, "scrollWidth", {
+    configurable: true,
+    get: typeof scroll === "function" ? scroll : () => scroll,
+  });
 }
+const scrollTo = (el: HTMLElement, left: number) =>
+  act(() => {
+    el.scrollLeft = left;
+    fireEvent.scroll(el);
+  });
 
 describe("useScrollEdges", () => {
-  it("fades the far edge while more lies past it, the near one once scrolled, neither when it fits", () => {
-    const { rerender } = render(<Strip />);
+  it("fades the far edge while more lies past it, the near one once scrolled", async () => {
+    render(<Strip />);
     const strip = screen.getByTestId("strip");
     expect(strip.dataset.edges).toBe("false-false");
 
     sized(strip, { client: 270, scroll: 380 });
-    rerender(<Strip />);
+    scrollTo(strip, 0);
+    await waitFor(() => expect(strip.dataset.edges).toBe("false-true"));
+    scrollTo(strip, 110);
+    await waitFor(() => expect(strip.dataset.edges).toBe("true-false"));
+    scrollTo(strip, 50);
+    await waitFor(() => expect(strip.dataset.edges).toBe("true-true"));
+  });
+
+  it("a pixel over is no more past the edge", async () => {
+    render(<Strip />);
+    const strip = screen.getByTestId("strip");
+    sized(strip, { client: 270, scroll: 271.5 });
+    scrollTo(strip, 0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(strip.dataset.edges).toBe("false-false");
+  });
+
+  it("a fade that shifts what the strip measures settles; it never loops", async () => {
+    render(<Strip />);
+    const strip = screen.getByTestId("strip");
+    // More past the edge without the fade, none with it: measured in each render, this looped until
+    // React gave up ("Maximum update depth exceeded", seen on Android, 2026-10-28).
+    sized(strip, { client: 270, scroll: () => (strip.dataset.edges === "false-true" ? 270 : 300) });
+    renders = 0;
+    scrollTo(strip, 0);
+    await waitFor(() => expect(strip.dataset.edges).toBe("false-true"));
+    await new Promise((r) => setTimeout(r, 100));
     expect(strip.dataset.edges).toBe("false-true");
-
-    act(() => {
-      strip.scrollLeft = 110;
-      fireEvent.scroll(strip);
-    });
-    expect(strip.dataset.edges).toBe("true-false");
-
-    act(() => {
-      strip.scrollLeft = 50;
-      fireEvent.scroll(strip);
-    });
-    expect(strip.dataset.edges).toBe("true-true");
+    expect(renders).toBeLessThan(4);
   });
 });
 
