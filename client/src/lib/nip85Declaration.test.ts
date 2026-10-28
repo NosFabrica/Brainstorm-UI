@@ -167,4 +167,37 @@ describe("describeDesignation", () => {
   it("an empty designation says so", () => {
     expect(describeDesignation(event10040([])).summary).toBe("No trust provider designated");
   });
+
+  // An Assistant's own Treasure Map names itself for what it publishes now
+  // (treasure-maps.md § 9.2). Read as a designation, every one read as
+  // "Activated Brainstorm trust signals" (brainstorm_server#110 audit, item 9).
+  it("an Assistant's own Map says what it publishes, and is no activation", () => {
+    const ASSISTANT = "e".repeat(64);
+    const SCORES = "wss://nip85.brainstorm.world";
+    const d = describeDesignation({
+      pubkey: ASSISTANT,
+      tags: [
+        ...["rank", "followers", "reporters", "muters", "hops"].map((m) => [`30382:${m}`, ASSISTANT, SCORES]),
+        ["client", "Brainstorm"],
+      ],
+    });
+    expect(d.self).toBe(true);
+    expect(d.signals).toEqual(["Rank", "Followers", "Reporters", "Muters", "Hops"]);
+    expect(d.providers).toEqual([{ pubkey: ASSISTANT, relay: SCORES, brainstorm: true }]);
+    expect(d.summary).toBe("Publishes and keeps up to date · Rank, Followers, Reporters, Muters, Hops");
+  });
+
+  it("reads a self-entry beside rows naming others as no part of what they designate", () => {
+    const AUTHOR = "c".repeat(64);
+    const d = describeDesignation(
+      event10040([
+        ["30382:rank", AUTHOR.toUpperCase(), "wss://nip85.brainstorm.world"],
+        ["30382:followers", TA, "wss://scores.brainstorm.world"],
+      ]),
+    );
+    expect(d.self).toBe(false);
+    expect(d.signals).toEqual(["Followers"]);
+    expect(d.providers).toEqual([{ pubkey: TA, relay: "wss://scores.brainstorm.world", brainstorm: true }]);
+    expect(d.summary).toBe("Activated Brainstorm trust signals · Followers");
+  });
 });

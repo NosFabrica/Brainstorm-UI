@@ -150,4 +150,28 @@ describe("DesignationHero", () => {
     expect(hero).toHaveTextContent("nip85.example.com");
     expect(hero).not.toHaveTextContent("Brainstorm trust signals");
   });
+
+  // An Assistant's own Treasure Map (a self-Map, treasure-maps.md § 9.2)
+  // names itself on Brainstorm's relay: no activation, so no mark, and what it
+  // publishes there is the footprint.
+  it("an Assistant's own Map says what it publishes, with no activation's mark", async () => {
+    const ASSISTANT = "c".repeat(64);
+    footprintMock.mockResolvedValueOnce({ people: 12, capped: false, updatedAt: Math.floor(Date.now() / 1000) - 60 });
+    render(
+      <DesignationHero
+        event={event([
+          ["30382:rank", ASSISTANT, "wss://nip85.brainstorm.world"],
+          ["30382:followers", ASSISTANT, "wss://nip85.brainstorm.world"],
+          ["client", "Brainstorm"],
+        ])}
+      />,
+    );
+    const hero = screen.getByTestId("designation-hero");
+    expect(hero).toHaveTextContent("Publishes and keeps up to date · Rank, Followers");
+    expect(hero).not.toHaveTextContent("Activated");
+    expect(screen.queryByTestId("designation-mark")).toBeNull();
+    expect(screen.queryByTestId("designation-signals-link")).toBeNull();
+    expect(await screen.findByTestId("designation-footprint")).toHaveTextContent("Scoring 12 people");
+    expect(footprintMock).toHaveBeenCalledWith(ASSISTANT, "wss://nip85.brainstorm.world");
+  });
 });

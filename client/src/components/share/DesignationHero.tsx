@@ -1,8 +1,10 @@
 /**
  * A kind-10040 on /e — a NIP-85 designation: whose trust assertions this
- * person reads, and from where. It has no content; it is its rows. Every
- * one on the search relay is a Brainstorm activation, so the page is also
- * where a reader who has not activated finds the way.
+ * person reads, and from where. It has no content; it is its rows. Most on
+ * the search relay are Brainstorm activations, so the page is also where a
+ * reader who has not activated finds the way. A self-Map, such as an
+ * Assistant's own Map, designates no one: it says what its author publishes,
+ * and the page shows that, with no activation's mark.
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
@@ -23,9 +25,11 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
   const specPath = (spec: { kind: number; pubkey: string; identifier: string }) => `/e/${nip19.naddrEncode(spec)}`;
   const named = [...d.signals, ...(d.lists ? ["Trusted Lists"] : [])];
   const relays = [...new Set(d.providers.map((p) => host(p.relay)).filter(Boolean))];
-  // The mark only where it is true: every designated provider is ours.
-  const ours = d.providers.length > 0 && d.providers.every((p) => p.brainstorm);
-  // What the first provider is doing on its relay — the designation's payoff.
+  // The mark only where it is true: every designated provider is ours. A
+  // self-Map designates no one, even on Brainstorm's relay.
+  const ours = !d.self && d.providers.length > 0 && d.providers.every((p) => p.brainstorm);
+  // What the first provider is doing on its relay — the designation's payoff,
+  // and for a self-Map the events that back its word (§ 9.2 "Spot-check").
   const lead = d.providers[0];
   const [footprint, setFootprint] = useState<AssertionFootprint | null>(null);
   useEffect(() => {

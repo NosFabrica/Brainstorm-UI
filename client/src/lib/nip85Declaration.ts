@@ -87,41 +87,61 @@ export interface DesignationDescription {
   /** Whether any Trusted List kind is designated. */
   lists: boolean;
   providers: { pubkey: string; relay: string; brainstorm: boolean }[];
+  /**
+   * A self-Map: every row it reads names the Map's own author, as an
+   * Assistant's own Treasure Map does (treasure-maps.md § 9.2). It entrusts
+   * no one, so it is no activation: it says what its author publishes, and
+   * where. Its `providers` are the author at those relays.
+   */
+  self: boolean;
   /** One line: "Activated Brainstorm trust signals · Rank, Followers". */
   summary: string;
 }
 
-const SIGNAL_LABEL: Record<string, string> = { "30382:rank": "Rank", "30382:followers": "Followers" };
+/** The metrics Brainstorm's assistant signs, as `30382:<metric>` keys (NIP-85). */
+const SIGNAL_LABEL: Record<string, string> = {
+  "30382:rank": "Rank",
+  "30382:followers": "Followers",
+  "30382:reporters": "Reporters",
+  "30382:muters": "Muters",
+  "30382:hops": "Hops",
+};
 const LIST_KIND_SET = new Set<string>(LIST_KINDS);
 const isBrainstormRelay = (relay: string) => /(^|\.)brainstorm\.world\/?$/.test(relay.replace(/^wss?:\/\//, ""));
 
 /**
  * A 10040 has no content — it is its rows: `[<what>, <provider pubkey>,
- * <relay>]`. Every one on the search relay is a Brainstorm activation, and
- * rendered as a blank "Post"; this is what it says instead.
+ * <relay>]`. Most on the search relay are Brainstorm activations, and were
+ * rendered as a blank "Post"; this is what one says instead. A row naming the
+ * Map's own author is a self-entry, which entrusts no one (§ 9.2): a Map of
+ * nothing else is its author saying what it publishes, as an Assistant's own
+ * Map does, never an activation; beside rows naming others it is left out.
  */
-export function describeDesignation(event: { tags: string[][] }): DesignationDescription {
+export function describeDesignation(event: { pubkey: string; tags: string[][] }): DesignationDescription {
+  const author = event.pubkey.toLowerCase();
+  const rows = event.tags.filter(([what, pubkey]) => pubkey && (SIGNAL_LABEL[what] || LIST_KIND_SET.has(what)));
+  const others = rows.filter(([, pubkey]) => pubkey.toLowerCase() !== author);
+  const self = rows.length > 0 && others.length === 0;
   const signals: string[] = [];
   let lists = false;
   const providers = new Map<string, { pubkey: string; relay: string; brainstorm: boolean }>();
-  for (const [what, pubkey, relay = ""] of event.tags) {
-    if (!pubkey) continue;
+  for (const [what, pubkey, relay = ""] of self ? rows : others) {
     const label = SIGNAL_LABEL[what];
     if (label && !signals.includes(label)) signals.push(label);
-    else if (LIST_KIND_SET.has(what)) lists = true;
-    else if (!label) continue;
+    if (LIST_KIND_SET.has(what)) lists = true;
     const key = `${pubkey}@${relay}`;
     if (!providers.has(key)) providers.set(key, { pubkey, relay, brainstorm: isBrainstormRelay(relay) });
   }
-  const named = [...signals, ...(lists ? ["Trusted Lists"] : [])];
+  const named = [...signals, ...(lists ? ["Trusted Lists"] : [])].join(", ");
   const provs = [...providers.values()];
-  const summary =
-    provs.length === 0
+  const summary = self
+    ? `Publishes and keeps up to date · ${named}`
+    : provs.length === 0
       ? "No trust provider designated"
       : provs.every((p) => p.brainstorm)
-        ? `Activated Brainstorm trust signals · ${named.join(", ")}`
-        : `Trusts a provider for ${named.join(", ")}`;
-  return { signals, lists, providers: provs, summary };
+        ? `Activated Brainstorm trust signals · ${named}`
+        : `Trusts a provider for ${named}`;
+  return { signals, lists, providers: provs, self, summary };
 }
 
 /**
