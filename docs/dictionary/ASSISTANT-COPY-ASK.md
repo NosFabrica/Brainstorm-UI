@@ -2,6 +2,8 @@
 
 **For:** brainstorm_server
 **From:** the UI, branch `feat/add-to-dictionary`, 2026-10-27
+**Filed as:** [NosFabrica/brainstorm_server#112](https://github.com/NosFabrica/brainstorm_server/issues/112), for a PR of
+its own after [#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
 **Modelled on:** [ADMIN-ASKS.md](ADMIN-ASKS.md), the admin route for the same copies, which was never built (it isn't
 in staging's or production's `/openapi.json`, checked 2026-10-27), and
 [TREASURE-MAP-ASK.md](../assistant/TREASURE-MAP-ASK.md) for the `/user` router and the 404 convention
