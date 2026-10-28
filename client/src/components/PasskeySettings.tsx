@@ -13,9 +13,11 @@ import { Plus } from "lucide-react";
 
 import { LocalAccount } from "@/accounts/local-account";
 import { getMetadata, type BrainstormAccount } from "@/accounts/metadata";
-import { isPasskeyCancelled, PasskeyPrfUnsupportedError, type PasskeySupport } from "@/accounts/passkey";
+import type { PasskeySupport } from "@/accounts/passkey";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 import {
   addPasskey,
+  addPasskeyFailure,
   listPasskeys,
   removePasskey,
   syncPendingPasskeys,
@@ -72,6 +74,7 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [unlockedToAdd, setUnlockedToAdd] = useState(false);
   const [removing, setRemoving] = useState<PasskeyListing | null>(null);
   // Bumped whenever this device's seals change, so the merged list recomputes.
   const [version, setVersion] = useState(0);
@@ -85,7 +88,10 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
   });
 
   useEffect(() => {
-    void syncPendingPasskeys(account).then(() => setVersion((v) => v + 1));
+    void syncPendingPasskeys(account);
+    // Every seal change — this tab's, or one another tab handed across.
+    const subscription = account.signer.changed$.subscribe(() => setVersion((v) => v + 1));
+    return () => subscription.unsubscribe();
   }, [account]);
 
   useEffect(() => {
@@ -103,9 +109,20 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
     void queryClient.invalidateQueries({ queryKey: ["passkeyVaults", account.pubkey] });
   };
 
+  /**
+   * Adding needs the key open. Where opening it takes a ceremony of its own (the
+   * Unlock modal, perhaps with a passkey), the passkey sheet waits for a second
+   * tap: two ceremonies off one gesture is what Safari is least willing to allow.
+   */
   const add = async () => {
     setBusy(true);
     try {
+      if (account.locked) {
+        await account.unlock();
+        setUnlockedToAdd(true);
+        return;
+      }
+      setUnlockedToAdd(false);
       const added = await addPasskey(account);
       toast({
         title: "Passkey added",
@@ -114,18 +131,8 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
           : `Unlock with ${method.withPhrase} on this device. It will be ready on others once it reaches Brainstorm.`,
       });
     } catch (err) {
-      if (!isPasskeyCancelled(err)) {
-        toast({
-          variant: "destructive",
-          title: "Couldn't add a passkey",
-          description:
-            err instanceof PasskeyPrfUnsupportedError
-              ? "Your password manager made a passkey but can't lock a key with it. Nothing changed — you can delete the new brainstorm passkey from it, and try iCloud Keychain or Google Password Manager."
-              : err instanceof Error
-                ? err.message
-                : undefined,
-        });
-      }
+      const message = isUnlockCancelled(err) ? null : addPasskeyFailure(err);
+      if (message) toast({ variant: "destructive", title: "Couldn't add a passkey", description: message });
     } finally {
       setBusy(false);
       refresh();
@@ -156,6 +163,9 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
   // Without a password or an Unlock cache, this device's last seal is the only
   // thing that opens the key here. Removing it would leave nothing.
   const lastWayIn = removingLast && !account.signer.data.ncryptsec && !account.signer.data.envelope;
+  // No password to fall back to: this browser's Unlock cache still opens it,
+  // but nothing else would.
+  const deviceBoundAfter = removingLast && !lastWayIn && !account.signer.data.ncryptsec;
 
   return (
     <div className="border-t border-slate-100 pt-4 dark:border-slate-800/60" data-testid="row-account-passkeys">
@@ -176,7 +186,8 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             data-testid="button-add-passkey"
           >
-            <Plus className="h-3.5 w-3.5" /> {busy ? `Waiting for ${method.label}…` : "Add a passkey"}
+            <Plus className="h-3.5 w-3.5" />{" "}
+            {busy ? `Waiting for ${method.label}…` : unlockedToAdd ? "Continue: add a passkey" : "Add a passkey"}
           </button>
         )}
       </div>
@@ -209,22 +220,23 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{listing.provider}</span>
-                  {listing.local && (
-                    <Chip tone="slate" size="sm">
-                      This device
-                    </Chip>
-                  )}
-                  {listing.local && !listing.onServer && !listing.local.synced && (
-                    <Chip tone="warning" size="sm">
-                      This device only
-                    </Chip>
-                  )}
+                  {listing.local &&
+                    (!listing.onServer && !listing.local.synced ? (
+                      <Chip tone="warning" size="sm">
+                        This device only
+                      </Chip>
+                    ) : (
+                      <Chip tone="slate" size="sm">
+                        This device
+                      </Chip>
+                    ))}
                 </div>
                 <p className="truncate text-xs text-slate-500 dark:text-slate-400">{addedLine(listing)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setRemoving(listing)}
+                aria-label={`Remove the ${listing.provider} passkey added on ${listing.device}`}
                 className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
                 data-testid={`button-remove-passkey-${listing.credentialIdHash.slice(0, 12)}`}
               >
@@ -249,9 +261,11 @@ function PasskeySettingsFor({ account }: { account: LocalAccount }) {
             <AlertDialogDescription>
               {lastWayIn
                 ? "It's the only way this device can unlock your key. Set a recovery password in Back up first, then remove it."
-                : removingLast
-                  ? "This device will ask for your recovery password instead. A new device will need your key or backup file."
-                  : "It won't unlock this account anymore. The passkey stays in your password manager until you delete it there."}
+                : deviceBoundAfter
+                  ? "Only this browser will still open your account — there is no recovery password to fall back on. A new device will need your key."
+                  : removingLast
+                    ? "This device will ask for your recovery password instead. A new device will need your key or backup file."
+                    : "It won't unlock this account anymore. The passkey stays in your password manager until you delete it there."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {removingLast && noBackup && !lastWayIn && (

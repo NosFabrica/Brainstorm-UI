@@ -30,7 +30,11 @@ describe("creating an account where the browser can make a passkey", () => {
     fireEvent.click(screen.getByTestId("button-create-passkey"));
 
     await waitFor(() =>
-      expect(createAccount).toHaveBeenCalledWith("Lira", { inviterPubkey: undefined, passkey: true }),
+      expect(createAccount).toHaveBeenCalledWith("Lira", {
+        inviterPubkey: undefined,
+        passkey: true,
+        secretKey: expect.any(Uint8Array),
+      }),
     );
     expect(await screen.findByTestId("text-create-passkey-done")).toHaveTextContent("Protected with Face ID");
   });
@@ -43,6 +47,19 @@ describe("creating an account where the browser can make a passkey", () => {
 
     await waitFor(() => expect(screen.getByTestId("button-create-passkey")).toBeEnabled());
     expect(screen.queryByTestId("status-create-error")).not.toBeInTheDocument();
+  });
+
+  it("retries under the same key, so the provider replaces the abandoned passkey", async () => {
+    createAccount.mockRejectedValueOnce(Object.assign(new Error("cancelled"), { name: "NotAllowedError" }));
+    open();
+
+    fireEvent.click(screen.getByTestId("button-create-passkey"));
+    await waitFor(() => expect(screen.getByTestId("button-create-passkey")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("button-create-passkey"));
+
+    await waitFor(() => expect(createAccount).toHaveBeenCalledTimes(2));
+    const keys = createAccount.mock.calls.map((call) => (call as unknown[])[1] as { secretKey: Uint8Array });
+    expect(keys[1].secretKey).toBe(keys[0].secretKey);
   });
 
   it("keeps the recovery password one tap away", () => {

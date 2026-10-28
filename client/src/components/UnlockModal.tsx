@@ -10,6 +10,7 @@ import {
   PasskeyPrfUnsupportedError,
 } from "@/accounts/passkey";
 import { syncPendingPasskeys } from "@/accounts/passkey-flow";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 import { PasskeyIcon } from "@/components/PasskeyIcon";
 
 import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
@@ -60,6 +61,7 @@ export function UnlockModal() {
   const [failure, setFailure] = useState<UnlockFailure | null>(null);
   const [pane, setPane] = useState<"passkey" | "password" | "forgotten" | "removing">("password");
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [passkeySheetClosed, setPasskeySheetClosed] = useState(false);
   const method = passkeyMethod();
 
   // A fresh request is a fresh question — including one that arrives while the
@@ -70,6 +72,7 @@ export function UnlockModal() {
     setUnlocking(false);
     setFailure(null);
     setPasskeyError(null);
+    setPasskeySheetClosed(false);
     setPane(prompt?.passkey ? "passkey" : "password");
   }, [prompt]);
 
@@ -108,9 +111,20 @@ export function UnlockModal() {
       void syncPendingPasskeys(localAccountFor(prompt.pubkey));
     } catch (error) {
       setUnlocking(false);
+      // Signed out or removed while the sheet was up: the action this was for
+      // belongs to nobody now, so it is abandoned the way a cancel is.
+      if (isUnlockCancelled(error)) {
+        prompt.cancel();
+        return;
+      }
       // Closing the system sheet is changing your mind about the passkey; the
-      // dialog stays, with the password still there if there is one.
-      if (isPasskeyCancelled(error)) return;
+      // dialog stays, with the password still there if there is one. It is also
+      // what a passkey deleted from the password manager looks like, which the
+      // browser won't tell apart — so after one, say what else works.
+      if (isPasskeyCancelled(error)) {
+        setPasskeySheetClosed(true);
+        return;
+      }
       setPasskeyError(
         error instanceof PasskeyMismatchError
           ? "That passkey doesn't open this account. Pick the one you made for it."
@@ -173,8 +187,18 @@ export function UnlockModal() {
             </Button>
 
             {passkeyError && (
-              <p className="text-sm text-red-600 dark:text-red-400" data-testid="text-unlock-passkey-error">
+              <p
+                role="alert"
+                className="text-sm text-red-600 dark:text-red-400"
+                data-testid="text-unlock-passkey-error"
+              >
                 {passkeyError}
+              </p>
+            )}
+            {!passkeyError && passkeySheetClosed && (
+              <p className="text-xs text-muted-foreground" data-testid="text-unlock-passkey-missing">
+                No passkey for this account in the list? It may have been deleted from your password manager.{" "}
+                {prompt.hasPassword ? "Use your recovery password instead." : "Sign in with your key instead."}
               </p>
             )}
 
@@ -248,7 +272,7 @@ export function UnlockModal() {
               </div>
 
               {failure && (
-                <p className="text-sm text-red-600 dark:text-red-400" data-testid="text-unlock-error">
+                <p role="alert" className="text-sm text-red-600 dark:text-red-400" data-testid="text-unlock-error">
                   {FAILURE_COPY[failure]}
                 </p>
               )}
@@ -301,8 +325,9 @@ export function UnlockModal() {
             <DialogHeader>
               <DialogTitle>There's no way to reset it</DialogTitle>
               <DialogDescription>
-                Your recovery password is the only thing that opens the copy of your key on this device. Nobody can
-                reset it — not even us. Two things still work.
+                {prompt.passkey
+                  ? "Your recovery password opens your backup, and nobody can reset it — not even us. Your passkey still unlocks this device, and two more things work."
+                  : "Your recovery password is the only thing that opens the copy of your key on this device. Nobody can reset it — not even us. Two things still work."}
               </DialogDescription>
             </DialogHeader>
 

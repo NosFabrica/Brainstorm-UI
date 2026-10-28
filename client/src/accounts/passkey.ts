@@ -66,6 +66,15 @@ export function isPasskeyCancelled(error: unknown): boolean {
 }
 
 /**
+ * The provider already holds a passkey for this account (one we listed in
+ * `excludeCredentials`). Making another would have replaced it, and with it every
+ * seal it opens — so the browser refused, and we say so rather than retry.
+ */
+export function isPasskeyAlreadyThere(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === "InvalidStateError";
+}
+
+/**
  * The provider made a passkey but can't derive a key from it (no PRF). Nothing
  * was changed on our side; `orphan` says a useless passkey now sits in their
  * password manager, which only they can delete.
@@ -183,7 +192,10 @@ export function parseSealedKey(blob: string): SealedKey | null {
     ) {
       return null;
     }
-    return record as SealedKey;
+    // Only the seal's own fields: whatever else a server put in the blob is not
+    // ours to keep on the Account.
+    const { pubkey, credentialId, iv, ciphertext } = record;
+    return { v: 1, pubkey, credentialId, iv, ciphertext };
   } catch {
     return null;
   }

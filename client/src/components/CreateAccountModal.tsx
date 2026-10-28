@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { generateSecretKey } from "nostr-tools/pure";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Check, AlertCircle, ArrowRight } from "lucide-react";
 import { createAccount, type NostrUser } from "@/accounts/login-flow";
@@ -55,6 +56,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
   // The password form until the probe says otherwise: it works everywhere.
   const lock: LockChoice = picked ?? (support?.supported ? "passkey" : "password");
   const [createdWith, setCreatedWith] = useState<LockChoice>("password");
+  const attemptKey = useRef<Uint8Array | null>(null);
 
   const busy = state === "creating";
   const trimmed = name.trim();
@@ -73,6 +75,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
       setConfirm("");
       setCreatedUser(null);
       setPicked(null);
+      attemptKey.current = null;
     }
     onOpenChange(nextOpen);
   };
@@ -84,11 +87,17 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
     setError("");
     // Encrypting the new key blocks the main thread for up to a second on a
     // phone, so "Setting up your account…" has to be on screen before it starts.
-    await afterPaint();
+    // The passkey path encrypts nothing up front, and its sheet must open
+    // straight off the tap — waiting a frame there only spends the gesture.
+    if (lock === "password") await afterPaint();
     try {
       const user = await createAccount(
         trimmed,
-        lock === "passkey" ? { inviterPubkey, passkey: true } : { inviterPubkey, password },
+        lock === "passkey"
+          ? // One key per open modal: a retry makes the provider overwrite the
+            // passkey an abandoned attempt left behind instead of adding another.
+            { inviterPubkey, passkey: true, secretKey: (attemptKey.current ??= generateSecretKey()) }
+          : { inviterPubkey, password },
       );
       setCreatedWith(lock);
       // The one follow the user explicitly opted into by using an invite link.

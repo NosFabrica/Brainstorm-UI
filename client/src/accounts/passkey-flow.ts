@@ -13,7 +13,18 @@ import { npubEncode } from "nostr-tools/nip19";
 import { passkeyVaultApi, type PasskeyVaultEntry } from "@/services/api/passkeyVault";
 import { LocalAccount } from "./local-account";
 import { getMetadata, type BrainstormAccount } from "./metadata";
-import { createPasskey, credentialIdHash, deviceName, passkeySupport, sealOf, type StoredPasskey } from "./passkey";
+import {
+  createPasskey,
+  credentialIdHash,
+  deviceName,
+  isPasskeyAlreadyThere,
+  isPasskeyCancelled,
+  PasskeyPrfUnsupportedError,
+  passkeySupport,
+  sealOf,
+  type CreatedPasskey,
+  type StoredPasskey,
+} from "./passkey";
 import { activeAccount } from "./signing";
 
 export function passkeysOf(account: BrainstormAccount | undefined): StoredPasskey[] {
@@ -25,30 +36,33 @@ export function hasPasskey(account: BrainstormAccount | undefined): boolean {
 }
 
 /** `npub1abcd…wxyz`: what the system sheet shows under a name, or instead of one. */
-function shortNpub(pubkey: string): string {
+function sheetNpub(pubkey: string): string {
   const npub = npubEncode(pubkey);
   return npub.length > 20 ? `${npub.slice(0, 10)}…${npub.slice(-4)}` : npub;
 }
 
 /**
- * Give this Account a passkey: the system sheet makes one (and, for most
- * providers, asks once more for its PRF output), the key is sealed under it and
- * kept, and the server is handed its copy when this Account can reach it.
+ * The system sheet's half alone: make a passkey for `pubkey` and get its PRF
+ * output, in one prompt or two (most providers only answer PRF on `get()`).
+ * Nothing is kept — `keepPasskey` does that — so signup can run the ceremony
+ * first, straight off the tap, before any key work spends the gesture.
  *
- * Unlocks first, like any other operation — so on a Locked Account the Unlock
- * modal comes before the passkey sheet. Throws what the ceremony throws: a cancel
- * is `isPasskeyCancelled`, a provider without PRF is `PasskeyPrfUnsupportedError`.
+ * `excludeCredentialIds` must name every passkey the account already has, on any
+ * device: `user.id` is the pubkey, so a provider holding one of them would
+ * otherwise overwrite it, and every seal it opens with it.
  */
-export async function addPasskey(account: LocalAccount, name?: string): Promise<StoredPasskey> {
-  if (account.locked) await account.unlock();
-  const label = name || getMetadata(account).name;
-  const short = shortNpub(account.pubkey);
-  const created = await createPasskey({
-    pubkey: account.pubkey,
-    userName: label ? `${label} (${short})` : short,
-    displayName: label || short,
-    excludeCredentialIds: passkeysOf(account).map((passkey) => passkey.credentialId),
+export function makePasskey(pubkey: string, name: string | undefined, excludeCredentialIds: string[]) {
+  const short = sheetNpub(pubkey);
+  return createPasskey({
+    pubkey,
+    userName: name ? `${name} (${short})` : short,
+    displayName: name || short,
+    excludeCredentialIds,
   });
+}
+
+/** Seal the Account's (unlocked) key under a passkey just made, keep it, and hand the server its copy. */
+export async function keepPasskey(account: LocalAccount, created: CreatedPasskey): Promise<StoredPasskey> {
   const stored = await account.signer.addPasskey(created.credentialId, created.prf, {
     provider: created.provider,
     device: deviceName(),
@@ -59,6 +73,41 @@ export async function addPasskey(account: LocalAccount, name?: string): Promise<
   });
   await syncPasskey(account, stored);
   return account.signer.data.passkeys?.find((passkey) => passkey.credentialId === stored.credentialId) ?? stored;
+}
+
+/**
+ * Every passkey this Account has: this device's seals, and — when the server can
+ * be asked — the ones made on other devices.
+ */
+async function knownCredentialIds(account: LocalAccount): Promise<string[]> {
+  const ids = new Set(passkeysOf(account).map((passkey) => passkey.credentialId));
+  if (activeAccount() === account) {
+    try {
+      for (const entry of await passkeyVaultApi.listPasskeyVaults()) {
+        if (typeof entry.credentialId === "string" && entry.credentialId) ids.add(entry.credentialId);
+      }
+    } catch {
+      /* this device's are still excluded; the server's are the best we can add */
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Give this Account a passkey: the system sheet makes one, the key is sealed
+ * under it and kept, and the server is handed its copy when this Account can
+ * reach it.
+ *
+ * Requires an unlocked key: unlocking can itself be a passkey ceremony, and two
+ * back to back can outrun the gesture that started them, so the caller unlocks
+ * first and asks for a fresh tap (`PasskeySettings`). Throws what the ceremony
+ * throws: a cancel is `isPasskeyCancelled`, an existing passkey on this provider
+ * is `isPasskeyAlreadyThere`, a provider without PRF is `PasskeyPrfUnsupportedError`.
+ */
+export async function addPasskey(account: LocalAccount): Promise<StoredPasskey> {
+  if (account.locked) throw new Error("Unlock before adding a passkey");
+  const created = await makePasskey(account.pubkey, getMetadata(account).name, await knownCredentialIds(account));
+  return keepPasskey(account, created);
 }
 
 /**
@@ -168,6 +217,21 @@ export async function removePasskey(account: LocalAccount, listing: PasskeyListi
     await passkeyVaultApi.removePasskeyVault(listing.credentialIdHash);
   }
   if (listing.local) account.signer.removePasskey(listing.local.credentialId);
+}
+
+/**
+ * What a failed `addPasskey` says to the person, or null for a cancel — which
+ * says nothing. One wording for every place a passkey is added.
+ */
+export function addPasskeyFailure(error: unknown): string | null {
+  if (isPasskeyCancelled(error)) return null;
+  if (isPasskeyAlreadyThere(error)) {
+    return "Your password manager already has a passkey for this account. Use that one — making another would have replaced it.";
+  }
+  if (error instanceof PasskeyPrfUnsupportedError) {
+    return "Your password manager made a passkey but can't lock your key with it. Nothing changed — you can delete the new brainstorm passkey from it, and try iCloud Keychain or Google Password Manager.";
+  }
+  return "Couldn't add a passkey. Nothing changed.";
 }
 
 /** Whether to offer a passkey to this Account on this browser at all. */

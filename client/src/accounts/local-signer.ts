@@ -332,10 +332,24 @@ export class LocalSigner implements ISigner {
     return stored;
   }
 
-  /** Keep a seal that arrived already made — the one a new device signed in with. */
-  keepPasskey(stored: StoredPasskey): void {
-    this.data.passkeys = [...(this.data.passkeys ?? []).filter((p) => p.credentialId !== stored.credentialId), stored];
+  /**
+   * Take the seals another tab wrote. Each tab rewrites the whole blob on save,
+   * so a tab that never heard of a new passkey would drop it — see `cross-tab.ts`.
+   */
+  setPasskeys(passkeys: StoredPasskey[] | undefined): void {
+    this.data.passkeys = passkeys?.length ? passkeys : undefined;
     this.changed$.next();
+  }
+
+  /**
+   * Unlock with a key opened some other way — a passkey sign-in that found its
+   * seal on this very Account. Refuses any key but this Account's own.
+   */
+  unlockWithKey(key: Uint8Array): void {
+    if (this.inner) return;
+    if (getPublicKey(key) !== this.pubkey) throw new PasskeyMismatchError();
+    this.inner = new PrivateKeySigner(key);
+    this.unlocked$.next();
   }
 
   /** Change what is recorded about one passkey — whether the server holds it. */

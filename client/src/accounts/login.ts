@@ -161,6 +161,16 @@ export function localAccountFor(pubkey: string): LocalAccount | undefined {
     LocalAccount | undefined;
 }
 
+/** The Account this device holds a seal for under one passkey, and the seal. */
+export function localAccountWithPasskey(credentialId: string): { account: LocalAccount; sealed: StoredPasskey } | null {
+  for (const account of accountManager.accounts) {
+    if (!(account instanceof LocalAccount)) continue;
+    const sealed = account.signer.data.passkeys?.find((passkey) => passkey.credentialId === credentialId);
+    if (sealed) return { account, sealed };
+  }
+  return null;
+}
+
 /** Make an Account this device already holds the one that signs — the picker's act. */
 export function activateAccount(account: BrainstormAccount): void {
   accountManager.setActive(account);

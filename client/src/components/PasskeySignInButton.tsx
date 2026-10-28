@@ -10,7 +10,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, KeyRound, Loader2 } from "lucide-react";
 
 import { loginWithPasskey } from "@/accounts/login-flow";
-import { isPasskeyCancelled, PasskeyMismatchError, PasskeyPrfUnsupportedError } from "@/accounts/passkey";
+import {
+  isPasskeyCancelled,
+  PasskeyMismatchError,
+  PasskeyPrfUnsupportedError,
+  type PasskeyMethod,
+  type PasskeySupport,
+} from "@/accounts/passkey";
 import { passkeyVaultApi, PasskeyNotReadyError } from "@/services/api/passkeyVault";
 import { PasskeyIcon } from "@/components/PasskeyIcon";
 import { Button } from "@/components/ui/button";
@@ -22,52 +28,71 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { usePasskeySupport } from "@/hooks/usePasskeySupport";
 import { tone } from "@/lib/tones";
 
 /** The server's challenges live two minutes; renewing at 90s leaves a margin for a slow tap. */
 const CHALLENGE_REFRESH_MS = 90_000;
+/** Older than this and it may die mid-ceremony: fetch at the tap instead. */
+const CHALLENGE_MAX_AGE_MS = 110_000;
 
+/**
+ * A server challenge always in hand: one is fetched on mount, renewed on a timer,
+ * fetched again the moment one is taken (a cancelled sheet is followed by a
+ * second tap that needs its own), and again when the tab comes back — a phone
+ * suspends timers, and a challenge held across that is dead.
+ */
 function usePrefetchedChallenge(enabled: boolean) {
-  const challenge = useRef<string | null>(null);
+  const held = useRef<{ value: string; at: number } | null>(null);
+  const load = useRef<() => void>(() => {});
   useEffect(() => {
     if (!enabled) return;
     let live = true;
-    const load = () =>
-      passkeyVaultApi
+    load.current = () =>
+      void passkeyVaultApi
         .passkeyVaultChallenge()
         .then((value) => {
-          if (live) challenge.current = value;
+          if (live) held.current = { value, at: Date.now() };
         })
         .catch(() => {
-          if (live) challenge.current = null;
+          /* the tap fetches one, and a passkey this device knows needs none */
         });
-    void load();
-    const timer = setInterval(load, CHALLENGE_REFRESH_MS);
+    load.current();
+    const timer = setInterval(() => load.current(), CHALLENGE_REFRESH_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load.current();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       live = false;
+      load.current = () => {};
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [enabled]);
   // Single use: the one handed out is gone, whatever the sheet does with it.
   return useCallback(() => {
-    const value = challenge.current;
-    challenge.current = null;
-    return value ?? undefined;
+    const taken = held.current;
+    held.current = null;
+    load.current();
+    return taken && Date.now() - taken.at < CHALLENGE_MAX_AGE_MS ? taken.value : undefined;
   }, []);
 }
 
 export function PasskeySignInButton({
   primary,
+  support,
+  method,
   onSignedIn,
   onUseKey,
 }: {
   /** The page's lead option — ink, not outline. */
   primary: boolean;
+  /** The page's own probe, so the page and the button never disagree about showing it. */
+  support: PasskeySupport | null;
+  method: PasskeyMethod;
   onSignedIn: () => void;
   onUseKey: () => void;
 }) {
-  const { support, method } = usePasskeySupport();
   const takeChallenge = usePrefetchedChallenge(!!support?.supported);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +137,11 @@ export function PasskeySignInButton({
           <span>{busy ? `Waiting for ${method.label}…` : `Sign in with ${method.withPhrase}`}</span>
         </Button>
         {error ? (
-          <p className={`text-center text-xs font-medium ${tone("danger").text}`} data-testid="text-passkey-error">
+          <p
+            role="alert"
+            className={`text-center text-xs font-medium ${tone("danger").text}`}
+            data-testid="text-passkey-error"
+          >
             {error}
           </p>
         ) : (

@@ -390,3 +390,55 @@ describe("mirroring an added account", () => {
     expect(bus.sent).toEqual([told]);
   });
 });
+
+describe("mirroring passkey seals", () => {
+  /** One key, held as two in-memory Accounts — a tab each. */
+  async function sharedLocal(tabs: ReturnType<typeof twoTabs>) {
+    const secretKey = generateSecretKey();
+    const make = async () => {
+      const account = await LocalAccount.fromKey(secretKey, { unlockCache: createFakeUnlockCache() });
+      account.id = "local";
+      account.metadata = { remembered: true };
+      return account;
+    };
+    const inA = await make();
+    const inB = await make();
+    tabs.a.manager.addAccount(inA);
+    tabs.b.manager.addAccount(inB);
+    tabs.settled();
+    return { inA, inB };
+  }
+
+  it("hands a passkey added in one tab to the other, so its next save keeps it", async () => {
+    const tabs = twoTabs();
+    const { inA, inB } = await sharedLocal(tabs);
+
+    const stored = await inA.signer.addPasskey("Y3JlZA", new Uint8Array(32).fill(1), {
+      provider: "iCloud Keychain",
+      device: "iPhone",
+      addedAt: 1,
+    });
+
+    expect(inB.signer.data.passkeys).toEqual([stored]);
+    expect(tabs.bus.sent.filter((m) => m.type === "passkeys-changed")).toHaveLength(1);
+  });
+
+  it("says nothing for a change that isn't about passkeys", async () => {
+    const tabs = twoTabs();
+    const { inA } = await sharedLocal(tabs);
+
+    await inA.signer.setRecoveryPassword(PASSWORD, LOW_LOGN);
+
+    expect(tabs.bus.sent.filter((m) => m.type === "passkeys-changed")).toEqual([]);
+  });
+
+  it("hands a removal across too", async () => {
+    const tabs = twoTabs();
+    const { inA, inB } = await sharedLocal(tabs);
+    await inA.signer.addPasskey("Y3JlZA", new Uint8Array(32).fill(1), { provider: "P", device: "D", addedAt: 1 });
+
+    inA.signer.removePasskey("Y3JlZA");
+
+    expect(inB.signer.data.passkeys).toBeUndefined();
+  });
+});

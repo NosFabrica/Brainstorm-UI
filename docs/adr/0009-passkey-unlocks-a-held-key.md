@@ -48,3 +48,10 @@ Code: `accounts/passkey.ts` (ceremonies, seal, labels), `accounts/passkey-flow.t
   option; a provider that guessed wrong fails at setup with nothing changed, and is told how to delete the orphan
   passkey — no site can delete one.
 - `PASSKEY_ORIGINS` on the backend must list every UI origin whose passkeys should sign in on new devices.
+- `user.id` is the pubkey, so a provider overwrites an account's passkey with a new one for the same account. A new
+  passkey therefore excludes every passkey the account has — this device's, and those the server lists from other
+  devices — and a refusal says a passkey already exists rather than silently replacing it. Signup keeps one key per
+  open dialog for the same reason, so a retry overwrites the abandoned attempt's passkey instead of adding another.
+- Seals are mirrored between tabs (`passkeys-changed` in `cross-tab.ts`): every tab rewrites the whole accounts blob
+  on save, and one that never heard of a new passkey would drop it.
+- A passkey sign-in for an account this device already holds opens that account in place, without the server.

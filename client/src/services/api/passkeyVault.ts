@@ -13,6 +13,8 @@ import type { AssertionWire, SealedKey } from "@/accounts/passkey";
 
 export interface PasskeyVaultEntry {
   credentialIdHash: string;
+  /** The raw id, base64url — what a new passkey lists in `excludeCredentials`. */
+  credentialId: string;
   label: string | null;
   createdAt: string | null;
   lastUsedAt: string | null;

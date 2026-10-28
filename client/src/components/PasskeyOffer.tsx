@@ -13,8 +13,8 @@ import { Check } from "lucide-react";
 import { unlockedByPassword$ } from "@/accounts/unlock-request";
 import { localAccountFor } from "@/accounts/login";
 import { updateMetadata } from "@/accounts/metadata";
-import { isPasskeyCancelled, passkeyMethod, PasskeyPrfUnsupportedError } from "@/accounts/passkey";
-import { addPasskey, canOfferPasskey } from "@/accounts/passkey-flow";
+import { passkeyMethod } from "@/accounts/passkey";
+import { addPasskey, addPasskeyFailure, canOfferPasskey } from "@/accounts/passkey-flow";
 import type { LocalAccount } from "@/accounts/local-account";
 import { PasskeyIcon } from "@/components/PasskeyIcon";
 import { Button } from "@/components/ui/button";
@@ -44,10 +44,14 @@ export function PasskeyOffer() {
 
   if (!account) return null;
 
+  /** "Not now" is an answer, remembered. Escape or a click outside only closes. */
   const decline = () => {
     if (busy) return;
     updateMetadata(account, { passkeyOfferDeclined: true });
     setAccount(null);
+  };
+  const close = () => {
+    if (!busy) setAccount(null);
   };
 
   const turnOn = async () => {
@@ -63,19 +67,14 @@ export function PasskeyOffer() {
           : `Unlock with ${method.withPhrase} on this device.`,
       });
     } catch (err) {
-      if (isPasskeyCancelled(err)) return;
-      setError(
-        err instanceof PasskeyPrfUnsupportedError
-          ? "Your password manager made a passkey but can't lock your key with it. Nothing changed — you can delete the new brainstorm passkey from it."
-          : "Couldn't turn it on. Your recovery password still works.",
-      );
+      setError(addPasskeyFailure(err));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && decline()}>
+    <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent className="sm:max-w-[420px]" data-testid="modal-passkey-offer">
         <DialogHeader>
           <span
@@ -102,7 +101,7 @@ export function PasskeyOffer() {
         </ul>
 
         {error && (
-          <p className={`text-sm ${tone("danger").text}`} data-testid="text-passkey-offer-error">
+          <p role="alert" className={`text-sm ${tone("danger").text}`} data-testid="text-passkey-offer-error">
             {error}
           </p>
         )}

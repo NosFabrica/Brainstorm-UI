@@ -202,6 +202,18 @@ describe("the unlock modal with a passkey", () => {
     expect(passkey).toHaveBeenCalledTimes(1);
   });
 
+  it("gives up quietly when the account was signed out while the sheet was up", async () => {
+    const passkey = vi.fn(async () => {
+      throw Object.assign(new Error("Unlock cancelled"), { name: "UnlockCancelled" });
+    });
+    const { pending } = await raise(async () => ({ ok: true }), { passkey });
+
+    fireEvent.click(screen.getByTestId("button-unlock-passkey"));
+
+    await expect(pending).rejects.toSatisfy(isUnlockCancelled);
+    expect(screen.queryByTestId("text-unlock-passkey-error")).not.toBeInTheDocument();
+  });
+
   it("stays open, saying nothing, when the system sheet is closed", async () => {
     const passkey = vi.fn(async () => {
       throw cancelled();
@@ -213,6 +225,8 @@ describe("the unlock modal with a passkey", () => {
     await waitFor(() => expect(screen.getByTestId("button-unlock-passkey")).toBeEnabled());
     expect(screen.queryByTestId("text-unlock-passkey-error")).not.toBeInTheDocument();
     expect(screen.getByTestId("modal-unlock")).toBeInTheDocument();
+    // …but says what else works, in case the passkey is gone rather than declined.
+    expect(screen.getByTestId("text-unlock-passkey-missing")).toHaveTextContent("recovery password");
   });
 
   it("keeps the recovery password one tap away", async () => {
