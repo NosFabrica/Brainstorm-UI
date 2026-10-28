@@ -13,15 +13,22 @@
  *
  * Only the server knows what is live, decides what to list and signs it
  * (docs/assistant/TREASURE-MAP-ASK.md); this compares the two, as lib/dutyMenu
- * does for the Duty Menu.
+ * does for the Duty Menu. It reads a version as the server's press does
+ * (brainstorm_server `app/services/self_map_build.py`), so "up to date" here is
+ * the press's "nothing to change", and Update now is enabled exactly when a
+ * press would publish.
  */
 import { menuKey, menuRelay } from "@/lib/dutyMenu";
 
 export const SELF_MAP_KIND = 10040;
 
 const HEX64 = /^[0-9a-f]{64}$/i;
+/** A kind slot the server reads: a kind, the Score or List family, or everything (`KIND_SLOT`). */
+const KIND_SLOT = /^(\d{5}|3038x|3039x|\*)$/;
 /** Reserved Concept spellings that name nothing in a Map (§§ 4.5–4.6), beside `39998:` and `39999:`. */
 const NAMELESS_KEYS = ["39999:dlist-header", "39999:duty-menu"];
+
+const slotOf = (key: string) => key.split(":", 1)[0];
 
 type Ev = { kind: number; pubkey?: string; tags: string[][] };
 
@@ -73,10 +80,29 @@ function entryRelay(value: unknown): string {
   return menuRelay(value) ?? value.trim();
 }
 
-/** A key a Map can hold, in its one spelling; null when it names nothing. */
+/**
+ * A key a self-entry can have, in its one spelling; null when its kind slot
+ * isn't one the server reads (a `3040x`, say), or it names nothing.
+ */
 function entryKey(value: unknown): string | null {
+  if (typeof value !== "string" || !KIND_SLOT.test(slotOf(value))) return null;
   const key = menuKey(value);
   return key === null || NAMELESS_KEYS.includes(key) ? null : key;
+}
+
+/**
+ * A tag the server owns as one of `who`'s self-entries, and so replaces on a
+ * press (`owns_tag`): a kind slot it reads, naming `who`. Spellings readers
+ * ignore count too, though `readSelfEntries` leaves them out.
+ */
+function ownsTag(tag: unknown, who: string): boolean {
+  return (
+    Array.isArray(tag) &&
+    typeof tag[0] === "string" &&
+    KIND_SLOT.test(slotOf(tag[0])) &&
+    typeof tag[1] === "string" &&
+    tag[1].toLowerCase() === who
+  );
 }
 
 /** `[key, relay]` pairs from the server, in their one spelling; the first per key wins. */
@@ -139,8 +165,10 @@ export function parseTreasureMapCheck(json: unknown): TreasureMapCheck | null {
 
 /**
  * The self-entries of a kind 10040 by `author`: the tags whose key parses and
- * whose element 2 is the author itself, in order, the first per key winning
- * (§ 9.2 "Ties"). Entries naming other keys are the author's own requests, not
+ * whose element 2 is the author itself, in order, each key and relay once, as
+ * the server reads them (`read_self_entries`). A key listed at two relays is
+ * two entries: § 9.2 "Ties" lets the first win, and the next press drops the
+ * other. Entries naming other keys are the author's own requests, not
  * self-entries.
  */
 export function readSelfEntries(event: Ev | null | undefined, author: string | null | undefined): SelfEntry[] {
@@ -151,8 +179,9 @@ export function readSelfEntries(event: Ev | null | undefined, author: string | n
   for (const t of event.tags) {
     if (!Array.isArray(t) || typeof t[1] !== "string" || t[1].toLowerCase() !== who) continue;
     const key = entryKey(t[0]);
-    if (key === null || out.some((e) => e.key === key)) continue;
-    out.push({ key, relay: entryRelay(t[2]) });
+    if (key === null) continue;
+    const entry = { key, relay: entryRelay(t[2]) };
+    if (!hasEntry(out, entry)) out.push(entry);
   }
   return out;
 }
@@ -165,15 +194,31 @@ export function hasEntry(entries: readonly SelfEntry[], entry: SelfEntry): boole
 }
 
 /**
- * The published self-entries against what the server says they should be, as
- * sets of key and relay: current when the same (both empty too), missing when
- * none are published, out of date otherwise.
+ * The published version against what the server says it should list. Current
+ * when a press would change nothing (`nothing_to_change`): the same self-entries
+ * by key and relay, both empty too, and, beside a list that isn't empty,
+ * nothing else the press takes away. That means no `expiration` (§ 9.2 "No
+ * expiration"), no second copy of an entry, and no spelling readers ignore.
+ * Otherwise missing when it lists nothing, out of date when it lists something.
  */
-export function selfMapStatus(shouldSay: readonly SelfEntry[], found: readonly SelfEntry[]): SelfMapStatus {
+export function selfMapStatus(
+  shouldSay: readonly SelfEntry[],
+  event: Ev | null | undefined,
+  author: string | null | undefined,
+): SelfMapStatus {
+  const found = readSelfEntries(event, author);
   const want = new Set(shouldSay.map(entryId));
-  const have = new Set(found.map(entryId));
-  if (want.size === have.size && [...want].every((id) => have.has(id))) return "current";
-  return have.size === 0 ? "missing" : "out-of-date";
+  const same = want.size === found.length && found.every((e) => want.has(entryId(e)));
+  if (same && (want.size === 0 || nothingStale(event, author, found.length))) return "current";
+  return found.length === 0 ? "missing" : "out-of-date";
+}
+
+/** No `expiration`, and no tag the server owns but the `found` self-entries. */
+function nothingStale(event: Ev | null | undefined, author: string | null | undefined, found: number): boolean {
+  const who = (author ?? "").toLowerCase();
+  const tags = Array.isArray(event?.tags) ? event.tags : [];
+  if (tags.some((t) => Array.isArray(t) && t[0] === "expiration")) return false;
+  return tags.filter((t) => ownsTag(t, who)).length === found;
 }
 
 /** A duties line's state: a live part is active once every self-entry that should list it is published. */

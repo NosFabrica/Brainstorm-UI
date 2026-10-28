@@ -36,17 +36,31 @@ describe("which tags are self-entries", () => {
     expect(entries).toEqual([rank, { key: "39998", relay: "wss://dcosl.brainstorm.world/" }]);
   });
 
-  it("drops keys that name nothing, and keeps the first per key", () => {
+  it("drops keys that name nothing, and reads each key and relay once, as the server does", () => {
     const entries = readSelfEntries(
       map([
         ["39999:duty-menu", BA, SCORES],
         ["39998:", BA, SCORES],
         ["30382:rank", BA, SCORES],
+        ["30382:rank", BA, "wss://scores.example"],
         ["30382:rank", BA, "wss://elsewhere.example"],
       ]),
       BA,
     );
-    expect(entries).toEqual([rank]);
+    expect(entries).toEqual([rank, { key: "30382:rank", relay: "wss://elsewhere.example/" }]);
+  });
+
+  it("reads only the kind slots the server owns: a kind, 3038x, 3039x or *", () => {
+    const entries = readSelfEntries(
+      map([
+        ["3038x", BA, SCORES],
+        ["3039x", BA, SCORES],
+        ["*", BA, SCORES],
+        ["3040x", BA, SCORES],
+      ]),
+      BA,
+    );
+    expect(entries.map((e) => e.key)).toEqual(["3038x", "3039x", "*"]);
   });
 
   it("keeps an empty relay as claiming nothing, and reads only the author's own Map", () => {
@@ -90,15 +104,47 @@ describe("the server's check", () => {
 });
 
 describe("the published Map against what it should list", () => {
+  const entry = (e: { key: string; relay: string }) => [e.key, BA, e.relay];
+
   it("is current when the same by key and relay, in any order, and when both are empty", () => {
-    expect(selfMapStatus([rank, followers], [followers, rank])).toBe("current");
-    expect(selfMapStatus([], [])).toBe("current");
+    expect(selfMapStatus([rank, followers], map([entry(followers), entry(rank), ["client", "x"]]), BA)).toBe("current");
+    expect(selfMapStatus([], null, BA)).toBe("current");
+    expect(selfMapStatus([], map([["30382:rank", OTHER, SCORES]]), BA)).toBe("current");
   });
 
   it("is missing when it lists nothing, and out of date when it lists something else", () => {
-    expect(selfMapStatus([rank], [])).toBe("missing");
-    expect(selfMapStatus([rank], [{ key: "30382:rank", relay: "wss://old.example/" }])).toBe("out-of-date");
-    expect(selfMapStatus([], [rank])).toBe("out-of-date");
+    expect(selfMapStatus([rank], null, BA)).toBe("missing");
+    expect(selfMapStatus([rank], map([["30382:rank", BA, "wss://old.example"]]), BA)).toBe("out-of-date");
+    expect(selfMapStatus([], map([entry(rank)]), BA)).toBe("out-of-date");
+  });
+
+  // What the server's press would still take away (`nothing_to_change`), so Update now stays enabled.
+  it("is out of date while the press would still change something beside the right entries", () => {
+    expect(selfMapStatus([rank], map([entry(rank), ["expiration", "1790000000"]]), BA)).toBe("out-of-date");
+    expect(selfMapStatus([rank], map([entry(rank), ["39998:", BA, SCORES]]), BA)).toBe("out-of-date");
+    expect(selfMapStatus([rank], map([entry(rank), entry(rank)]), BA)).toBe("out-of-date");
+    expect(selfMapStatus([rank], map([entry(rank), ["30382:rank", BA, "wss://elsewhere.example"]]), BA)).toBe(
+      "out-of-date",
+    );
+  });
+
+  it("with nothing to list, a version listing nothing is current whatever else it carries", () => {
+    expect(
+      selfMapStatus(
+        [],
+        map([
+          ["39998:", BA, SCORES],
+          ["expiration", "1790000000"],
+        ]),
+        BA,
+      ),
+    ).toBe("current");
+  });
+
+  it("leaves alone what the server doesn't own: other keys' entries, and families it doesn't read", () => {
+    expect(selfMapStatus([rank], map([entry(rank), ["30382:rank", OTHER, SCORES], ["3040x", BA, SCORES]]), BA)).toBe(
+      "current",
+    );
   });
 
   it("flags a listed duty that names a relay and isn't live there", () => {
