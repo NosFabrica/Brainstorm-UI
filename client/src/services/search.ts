@@ -304,6 +304,11 @@ export interface SearchParams {
    */
   band?: boolean;
   /**
+   * Tag filters every filter carries — a Dictionary list's items by the headers they are filed
+   * under (`#z`): one of All's categories (hooks/useAllCategories).
+   */
+  tags?: Record<`#${string}`, string[]>;
+  /**
    * The first page's answer already on its way — All's head start (lib/headStart),
    * asked while the bundle loaded. Followed in place of asking; should it fail,
    * the relay is asked after all. Further pages ask as usual.
@@ -534,6 +539,7 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
       ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
       ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
       ...(vines ? { "#l": [VINE_ARCHIVE_LABEL] } : {}),
+      ...params.tags,
     },
     since: params.since,
   });
@@ -604,6 +610,67 @@ export function countTabs(
   onCount: (tab: SearchTab, count: number | null) => void,
   timeoutMs = TAB_COUNT_TIMEOUT_MS,
 ): () => void {
+  return countQuestions(
+    query,
+    lens,
+    (words, observer) => [
+      ...tabs.map((tab) => ({ key: tab as string, filters: askForTab(words, { tab, ...lens }, observer).filters })),
+      { key: POINTERS, filters: askForTab(words, { tab: "all", kinds: POINTER_KINDS, ...lens }, null).filters },
+    ],
+    // A zero from a tab that asked becomes unknown while a pointer might add to it. A tab that
+    // asked nothing sends no REQ, so nothing can add to it.
+    (answers, asked) => {
+      const pointers = answers.get(POINTERS);
+      for (const tab of tabs) {
+        const n = answers.get(tab) ?? null;
+        onCount(tab, n === 0 && asked.has(tab) && pointers !== 0 ? null : n);
+      }
+    },
+    timeoutMs,
+  );
+}
+
+/** One of All's categories, as a count asks it: kinds, and a list's `#z` (hooks/useAllCategories). */
+export interface CategoryAsk {
+  key: string;
+  kinds: number[];
+  tags?: Record<`#${string}`, string[]>;
+}
+
+/**
+ * How many results each of All's categories holds for these words — countTabs' way, the very
+ * filters the category's own page asks (All's, narrowed to its kinds and tags), on the side socket.
+ * Only for the order the categories stand in; no count is shown. A count that fails or doesn't
+ * arrive in time is null.
+ */
+export function countCategories(
+  query: string,
+  categories: readonly CategoryAsk[],
+  lens: Pick<SearchParams, "pov" | "userPubkey">,
+  onCounts: (counts: Map<string, number | null>) => void,
+  timeoutMs = TAB_COUNT_TIMEOUT_MS,
+): () => void {
+  return countQuestions(
+    query,
+    lens,
+    (words, observer) =>
+      categories.map((c) => ({
+        key: c.key,
+        filters: askForTab(words, { tab: "all", kinds: c.kinds, tags: c.tags, ...lens }, observer).filters,
+      })),
+    (answers) => onCounts(new Map(categories.map((c) => [c.key, answers.get(c.key) ?? null]))),
+    timeoutMs,
+  );
+}
+
+/** A COUNT per question on a side socket of its own, reported once every answer is in or timed out. */
+function countQuestions(
+  query: string,
+  lens: Pick<SearchParams, "pov" | "userPubkey">,
+  build: (words: string, observer: string | null) => { key: string; filters: ReturnType<typeof searchFilters> }[],
+  onAnswers: (answers: Map<string, number | null>, asked: Set<string>) => void,
+  timeoutMs: number,
+): () => void {
   let cancelled = false;
   let relay: Relay | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -616,15 +683,8 @@ export function countTabs(
     relay?.close();
     relay = null;
   };
-  // Once every answer is in: a zero from a tab that asked becomes unknown while a pointer might
-  // add to it. A tab that asked nothing sends no REQ, so nothing can add to it.
   const report = () => {
-    if (cancelled) return;
-    const pointers = answers.get(POINTERS);
-    for (const tab of tabs) {
-      const n = answers.get(tab) ?? null;
-      onCount(tab, n === 0 && asked.has(tab) && pointers !== 0 ? null : n);
-    }
+    if (!cancelled) onAnswers(answers, asked);
   };
   const settle = (key: string, count: number | null) => {
     if (cancelled || answers.has(key)) return;
@@ -642,14 +702,7 @@ export function countTabs(
     if (cancelled) return;
     const sort = readFilters(query).sort === "text" ? "sort:text" : "sort:recent";
     const words = `${applyFilters(query, { sort: null })} ${sort}`.trim();
-    const questions = tabs.map((tab) => ({
-      key: tab as string,
-      filters: askForTab(words, { tab, ...lens }, observer).filters,
-    }));
-    questions.push({
-      key: POINTERS,
-      filters: askForTab(words, { tab: "all", kinds: POINTER_KINDS, ...lens }, null).filters,
-    });
+    const questions = build(words, observer);
     for (const { key, filters } of questions) {
       if (filters.length === 0) answers.set(key, 0);
       else asked.add(key);
