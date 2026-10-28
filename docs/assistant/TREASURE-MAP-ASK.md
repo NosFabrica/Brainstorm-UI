@@ -3,7 +3,8 @@
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-treasure-map`, 2026-10-27
 **Filed as:** the second item of [NosFabrica/brainstorm_server#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
-**Built in:** `e2ca872` on that PR, still a draft and not deployed. This doc says what it does.
+**Built in:** `28175d2` on that PR, with the fixes from its audit (2026-10-28). It is in review and not deployed. This
+doc says what it does.
 **Modelled on:** [DUTY-MENU-ASK.md](DUTY-MENU-ASK.md), and Tapestry's Your Assistant's Treasure Map
 (`src/api/assistant/selfMap.js`, `src/lib/self-map/index.js`, `POST /api/assistant/self-map`; ADRs
 `assistant-self-map/0001`–`0003`)
@@ -49,10 +50,12 @@ metric, `30382:rank` and the rest, never as a bare `30382`. For each key:
   - `last_time_published_graperank` is set. It is set only when every event of a run was OK'd, and the first run
     publishes the full set.
   - Something keeps them up to date, and the last publish is no older than **2 ×** its interval. One missed run is a
-    brief gap; two in a row is a stop. For most readers that is the scheduler: `scheduler_enabled`, a default policy,
-    and the reader's policy (or the default) enabled, at its `schedule_interval_seconds`. The **House Observer**
-    (`periodic_graperank_pubkey`) is the exception: the scheduler leaves it to the periodic trigger, so its interval is
-    that trigger's 2 hours, whatever `scheduler_enabled` says.
+    brief gap; two in a row is a stop. For most readers that is the scheduler, read as it admits a run:
+    `scheduler_enabled`, a default policy, the reader's policy (or the default) enabled, at its
+    `schedule_interval_seconds`, and a reader who follows someone, since with no follows there is nothing to score
+    (`has_grapevine`, which the scheduler and the check share). The **House Observer** (`periodic_graperank_pubkey`) is
+    the exception: the scheduler leaves it to the periodic trigger, so its interval is that trigger's 2 hours, whatever
+    `scheduler_enabled` says.
 
   Otherwise the `reason` is, in this order:
   - `not-scheduled`: nothing keeps them up to date, whether or not they ever landed;
@@ -64,7 +67,8 @@ metric, `30382:rank` and the rest, never as a bare `30382`. For each key:
 - **`39998`, `39999` Concepts**: never live, for now. The Assistant publishes no headers or items yet:
   `not-published-here`.
 - **Any other key**: another `30382` metric, `30383`…, or a kind the menu has no row for. No offer row covers it, so
-  the line is `not-offered`.
+  the line is `not-offered`. That includes the `30393` and `30394` rows the UI's activation writes, since the Duty
+  Menu offers Trusted Lists as `30392` alone.
 
 ## What the Assistant's Treasure Map should list
 
@@ -96,9 +100,8 @@ The UI never builds the entries itself. The GET's answer is the one source, as t
 {
   "kind": 10040,
   "pubkey": "<the caller's Assistant>",
-  "content": "<the newest version's content, unchanged>",
+  "content": "",
   "tags": [
-    /* every tag of the newest version the writer doesn't own, byte for byte, but its `client` tag */
     ["30382:rank", "<A>", "wss://<scores relay>"],
     /* …the other self-entries */
     ["client", "Brainstorm"],
@@ -106,14 +109,14 @@ The UI never builds the entries itself. The GET's answer is the one source, as t
 }
 ```
 
-- **What the writer owns**: every tag whose element 1 has a kind slot (a kind, `3038x`, `3039x` or `*`) and whose
-  element 2 is the Assistant (Tapestry ADR `assistant-self-map/0002` sub-decision 4). That includes spellings readers
-  ignore, such as `39998:`, and keys the server can't check, not only keys that parse. A press replaces all of them.
-  Every other tag is kept as it was. Today nothing else signs a kind 10040 as an Assistant, so in practice the event is
-  the self-entries alone.
-- A **self-entry**, as readers count them, is an owned tag whose key parses: each key and relay once.
-- **The `client` tag**: the newest version's is replaced by ours, not kept beside it.
-- **No `expiration`** (§ 9.2): a version with self-entries drops one the newest version carries.
+- **The self-entries and the `client` tag, nothing else**, and empty content. Only this server signs the Assistant's
+  kind 10040 (no route exports its key), so a version holds nothing else to keep. Tapestry's writer keeps every other
+  tag and the content as found (ADR `assistant-self-map/0002` sub-decision 4); the server's ADR says to bring that back
+  if the key is ever exported.
+- A **self-entry**, as readers count them, is a tag whose key parses and whose element 2 is the Assistant, each key and
+  relay once. A key parses when its kind slot is five ASCII digits, `3038x`, `3039x` or `*`, and it isn't a spelling
+  that names nothing, such as `39998:`.
+- **No `expiration`** (§ 9.2).
 - **`created_at`**: `max(now, newest version found + 1)`, so a new version always replaces (§ 9.2 "When it changes").
 
 ## The endpoints
@@ -171,39 +174,50 @@ The check: what the Assistant's Treasure Map should list now, and why.
   - There's no `falseClaim`: the UI flags a found self-entry that isn't in `shouldSay` itself.
 - **`shouldSay`**: `[key, relay]` pairs, the self-entries above. They're computed whether the choice is on or off.
   Empty when nothing is live, or when the reader has no Map.
-- **`relays`**: where a version is sent and where the UI looks for one (§ 9.2 "Finding a self-Map"):
+- **`relays`**: where to look for a version (§ 9.2 "Finding a self-Map"), each once:
   - the Assistant's kind-10002 write relays (`assistant_relay_list()`);
   - every relay a `shouldSay` entry names;
-  - element 3 of the reader's entries that name the Assistant.
+  - element 3 of the reader's entries that name the Assistant: hints for readers. A press never reads or sends there
+    (below).
 - **The reader's Map**: their newest kind 10040, as `designation_service` reads it. When none is found, `duties` and
   `shouldSay` are both `[]`.
 - **502** when the reader's Map can't be read (a relay error, or a `CLOSED`): "Couldn't read your Treasure Map, so your
   Assistant's Treasure Map couldn't be checked. Try again in a moment." It never answers an empty check for a Map it
   couldn't read.
+- **502** when the reader's follow count can't be read: "Couldn't check whether your Scores are kept up to date. Try
+  again in a moment." Read as none, it would make Turn on take the Scores entries off.
+- **422** when the reader's Map names more than 64 keys: "Your Treasure Map names more than 64 keys, too many to check,
+  so your Assistant's Treasure Map couldn't be checked." A check's cost grows with the square of the keys, and a cut-down
+  Map could give the wrong self-entries. Real Maps name about 30 at most.
 
-The UI counts the published version **up to date** when a press would change nothing, by the press's own rule (step 4
+The UI counts the published version **up to date** when a press would sign nothing, by the press's own rule (step 3
 below). Both empty counts. No self-entries found is **not published yet**; anything else is **out of date**.
 
 ### 2. `POST /user/assistantTreasureMap`
 
 Body: `{ "on": true }` (Turn on, Update now) or `{ "on": false }` (Turn off). The request says only which; the session
-says whose Assistant. A body whose `on` isn't a JSON boolean is a **422**. One press runs at a time per Assistant.
+says whose Assistant. A body whose `on` isn't a JSON boolean is a **422**. A second press for the same Assistant while
+one is under way is refused at once, nothing queued: **409**, "Your Assistant's Treasure Map is already being
+published. Try again in a moment."
 
 1. **Read the reader's Map.** If it can't be read, `{ "on": true }` answers 502, "Couldn't read your Treasure Map, so
-   nothing was published." Turn off goes ahead without it: it lists nothing, and the Map only adds relays to send to.
-2. **Read the newest version** from `relays`, strictly: if no relay answers, publish nothing and answer 502, "Couldn't
-   read your Assistant's Treasure Map, so nothing was published."
-3. **Remember the choice** in `brainstorm_nsec.treasure_map_on` (default false; migration `c5f1d7a9e2b4`). Only this
-   route writes it, and it is kept only when the press answers 200, "nothing changed" included. Any 502 leaves it as it
-   was.
-4. **Nothing would change** when the newest version's self-entries already are the target (`shouldSay` when on, none
-   when off), as sets of key and relay, and, beside a target that isn't empty, no `expiration` and no other owned tag
-   sits with them: no duplicate, no spelling readers ignore. Then publish nothing.
-5. **Otherwise build and sign the next version**, as The event says, and publish it to `relays`, plus every relay an
-   earlier version's self-entries named, so that copy is replaced too (§ 9.2 "Finding a self-Map"). The internal write
-   URL is used where the server has one, as scores do.
+   nothing was published." With more than 64 keys it answers 422, "…too many to check, so nothing was published." Turn
+   off goes ahead without the Map either way: it lists nothing.
+2. **Read the newest version**, strictly, from the writer's relays (§ 9.2): the Assistant's outbox and the relays
+   `shouldSay` names, the scores relay at its internal URL, as scores are. If no relay answers, publish nothing and
+   answer 502, "Couldn't read your Assistant's Treasure Map, so nothing was published." The reader's hints are never
+   read or sent to: the reader writes their own Map, so a hint can name any host, internal ones included.
+3. **Nothing would change** when the newest version's self-entries already are the target (`shouldSay` when on, none
+   when off), as sets of key and relay. Then nothing is signed. A relay that answered step 2 without the newest version,
+   such as the scores relay after it was down, is sent that same version, already signed, and the answer is
+   `published: true` with it. A relay that didn't answer is left alone.
+4. **Otherwise build and sign the next version**, as The event says, and send it to the writer's relays, plus every
+   relay an earlier version's self-entries named, so that copy is replaced too.
+5. **Remember the choice** in `brainstorm_nsec.treasure_map_on` (default false; migration `c5f1d7a9e2b4`), once the
+   press has succeeded: after the send, committed before the answer. Only this route writes it, and any error leaves it
+   as it was.
 
-Synchronous, like the Duty Menu: the UI waits up to 30 seconds.
+Synchronous, like the Duty Menu: the UI waits up to 30 seconds, and a press takes about 28 at worst.
 
 ```jsonc
 {
@@ -217,9 +231,11 @@ Synchronous, like the Duty Menu: the UI waits up to 30 seconds.
 }
 ```
 
-When nothing changed: `{ "on": true, "published": false, "event": null, "relays": [] }`. It answers 502 if no relay
-took the new version, as the Duty Menu does: "Your Assistant's Treasure Map didn't reach any relay. Try again in a
-moment."
+A relay the server couldn't connect to reads `"message": "couldn't connect"`; the raw error is only logged. When
+nothing changed and no relay missed the newest version: `{ "on": true, "published": false, "event": null, "relays": [] }`.
+When step 3 re-sent it: `published: true`, the version as `event`, and a line for each relay it went to. A new version
+answers 502 if no relay took it, as the Duty Menu does: "Your Assistant's Treasure Map didn't reach any relay. Try again
+in a moment."
 
 The UI adds `event` to its store, so the step turns done at once, shows one line per relay, and asks for the check
 again.
@@ -229,17 +245,23 @@ again.
 - **404 or 405 on the GET, or an answer that isn't a check** (no 64-hex `assistant`, no boolean `on`, or no `duties`
   and `shouldSay` arrays): the step and its page say nothing, and `/setup` keeps its other steps.
 - **401**: as any other signed-in call.
-- **Any other error**, the 502s included: "Couldn't reach your Assistant right now", with the detail.
-- **It reads a version as the press does.** Self-entries are the tags under a kind slot the server owns (a kind,
-  `3038x`, `3039x` or `*`), each key and relay once, so a hand-made `3040x` entry is an ordinary tag to both. And the
-  step is done exactly when a press would change nothing (step 4), so Update now is enabled exactly when a press would
-  publish. Tapestry's page compares the self-entries only, and its ledger keeps that as an open bug
-  (`2026-10-13-self-map-current-ignores-expiration`). A reader with nothing live and nothing published is done, and
-  nobody is asked to publish an empty Map.
+- **Any other error**: the server's sentence. A check that failed reads "Couldn't reach your Assistant right now."
+  before it; a press that failed, the 409 included, shows it alone.
+- **It reads a version as the press does.** Self-entries are the tags whose key parses, naming the Assistant, each key
+  and relay once, so a hand-made `3040x` entry is an ordinary tag to both. The step is done exactly when a press would
+  sign nothing (step 3): the same self-entries, whatever else the version carries. Tapestry's ledger keeps that rule as
+  an open bug (`2026-10-13-self-map-current-ignores-expiration`), because its writer keeps every other tag; Brainstorm's
+  writes none, so here it is the whole rule. A reader with nothing live and nothing published is done, and nobody is
+  asked to publish an empty Map.
+- **What it can't see**: which relays hold the newest version. A relay that missed it is mended by the next press
+  (step 3), but while the self-entries match, the page shows up to date and Update now stays off.
 - **The buttons** are Tapestry's `selfMapButtons`:
   - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, so no claim is
     stuck;
   - while on: Update now (enabled unless up to date) and Turn off.
+- **Elsewhere in the app**, a self-Map found on relays, in search results or on its `/e` page, reads as what its
+  Assistant publishes ("Publishes and keeps up to date · Rank, Followers, …"), never as an activation
+  (`describeDesignation`).
 
 ## Not asked for (yet)
 
@@ -248,11 +270,16 @@ again.
   answer changes, the UI shows the Map as out of date, flags any listed duty that isn't live, and the reader presses
   Update now. A natural first hook is after a TA publish succeeds, and whenever a reader's scheduling policy is
   disabled or their entitlement lapses: then the self-entries come off before upkeep stops.
-- **Counting Maps** (§ 9.2): a self-entry is never its key's choice of a provider. Anything that counts kind-10040
-  adopters should skip a Map whose public entries all name its author.
+- **Counting Maps** (§ 9.2): a self-entry is never its key's choice of a provider. Nothing in Brainstorm counts
+  kind-10040 adopters today; anything that starts to should skip a Map whose public entries all name its author.
 - **Private duties** (NIP-85's encrypted `.content`): never in a self-Map's public tags.
 - **Trusted Lists and Concepts as live duties**: they become claimable once something publishes and keeps them up
   to date, at which point the list above gains a rule for each.
-- **The server's own open points** are in PR 110: one press at a time is held in-process only, so it needs Redis once
-  the server runs more than one instance; the POST has no rate limit; and a relay that refused a removal keeps the old
-  claim.
+- **The server's own open points** are in PR 110:
+  - one press at a time is held in-process only, so it needs Redis once the server runs more than one instance;
+  - the POSTs have no rate limit;
+  - a relay that refused a removal keeps the old claim.
+- **The audit's follow-ups**, not filed yet:
+  - `/{pubkey}` routes that take only hex, so these paths no longer depend on the order routes are mounted in;
+  - one kind-10040 grammar for GrapeRank and the Treasure Map;
+  - the POST answering with the check, which would change § 2 here and the UI's hook together.

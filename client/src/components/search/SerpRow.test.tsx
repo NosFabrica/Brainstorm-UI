@@ -133,6 +133,25 @@ describe("SerpRow — link metadata", () => {
     expect(row).toHaveTextContent("Activated Brainstorm trust signals · Rank, Followers");
   });
 
+  // An Assistant's own Treasure Map names itself (treasure-maps.md § 9.2): it
+  // says what the Assistant publishes, and is no activation.
+  it("an Assistant's own Map says what it publishes, not that it activated", () => {
+    setTechnicalView(true);
+    const self = "a".repeat(64);
+    const ev = {
+      ...note(""),
+      kind: 10040,
+      tags: [
+        ["30382:rank", self, "wss://nip85.brainstorm.world"],
+        ["30382:hops", self, "wss://nip85.brainstorm.world"],
+      ],
+    };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("Publishes and keeps up to date · Rank, Hops");
+    expect(row).not.toHaveTextContent("Activated");
+  });
+
   // Kind-30078 app data is NIP-44 ciphertext; the row printed 300 characters
   // of base64 as its snippet (Benjamin, 2026-09-23). A row says what the
   // content is — encrypted, structured — instead of printing it, and names

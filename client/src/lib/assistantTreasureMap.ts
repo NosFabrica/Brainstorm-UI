@@ -16,7 +16,7 @@
  * does for the Duty Menu. It reads a version as the server's press does
  * (brainstorm_server `app/services/self_map_build.py`), so "up to date" here is
  * the press's "nothing to change", and Update now is enabled exactly when a
- * press would publish.
+ * press would sign a new version.
  */
 import { menuKey, menuRelay } from "@/lib/dutyMenu";
 
@@ -62,7 +62,11 @@ export interface TreasureMapCheck {
   on: boolean;
   duties: DutyLine[];
   shouldSay: SelfEntry[];
-  /** Where a version is sent, and where to look for one. */
+  /**
+   * Where to look for a version: the Assistant's outbox and the relays its
+   * self-entries name, where a press sends one, then the reader's own hints
+   * for the Assistant, where it never does.
+   */
   relays: string[];
 }
 
@@ -88,21 +92,6 @@ function entryKey(value: unknown): string | null {
   if (typeof value !== "string" || !KIND_SLOT.test(slotOf(value))) return null;
   const key = menuKey(value);
   return key === null || NAMELESS_KEYS.includes(key) ? null : key;
-}
-
-/**
- * A tag the server owns as one of `who`'s self-entries, and so replaces on a
- * press (`owns_tag`): a kind slot it reads, naming `who`. Spellings readers
- * ignore count too, though `readSelfEntries` leaves them out.
- */
-function ownsTag(tag: unknown, who: string): boolean {
-  return (
-    Array.isArray(tag) &&
-    typeof tag[0] === "string" &&
-    KIND_SLOT.test(slotOf(tag[0])) &&
-    typeof tag[1] === "string" &&
-    tag[1].toLowerCase() === who
-  );
 }
 
 /** `[key, relay]` pairs from the server, in their one spelling; the first per key wins. */
@@ -196,10 +185,14 @@ export function hasEntry(entries: readonly SelfEntry[], entry: SelfEntry): boole
 /**
  * The published version against what the server says it should list. Current
  * when a press would change nothing (`nothing_to_change`): the same self-entries
- * by key and relay, both empty too, and, beside a list that isn't empty,
- * nothing else the press takes away. That means no `expiration` (§ 9.2 "No
- * expiration"), no second copy of an entry, and no spelling readers ignore.
- * Otherwise missing when it lists nothing, out of date when it lists something.
+ * by key and relay, both empty too. Nothing else counts: only the server signs
+ * the Assistant's kind 10040, and a version it signs is its self-entries and
+ * its `client` tag alone. Otherwise missing when it lists nothing, out of date
+ * when it lists something.
+ *
+ * A press that changes nothing still re-sends the newest version to a relay it
+ * reads that answered without it, such as the scores relay while it was down.
+ * Which relays hold it isn't known here, so that waits for the next press.
  */
 export function selfMapStatus(
   shouldSay: readonly SelfEntry[],
@@ -208,17 +201,8 @@ export function selfMapStatus(
 ): SelfMapStatus {
   const found = readSelfEntries(event, author);
   const want = new Set(shouldSay.map(entryId));
-  const same = want.size === found.length && found.every((e) => want.has(entryId(e)));
-  if (same && (want.size === 0 || nothingStale(event, author, found.length))) return "current";
+  if (want.size === found.length && found.every((e) => want.has(entryId(e)))) return "current";
   return found.length === 0 ? "missing" : "out-of-date";
-}
-
-/** No `expiration`, and no tag the server owns but the `found` self-entries. */
-function nothingStale(event: Ev | null | undefined, author: string | null | undefined, found: number): boolean {
-  const who = (author ?? "").toLowerCase();
-  const tags = Array.isArray(event?.tags) ? event.tags : [];
-  if (tags.some((t) => Array.isArray(t) && t[0] === "expiration")) return false;
-  return tags.filter((t) => ownsTag(t, who)).length === found;
 }
 
 /** A duties line's state: a live part is active once every self-entry that should list it is published. */

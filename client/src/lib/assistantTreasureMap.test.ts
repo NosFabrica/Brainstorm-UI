@@ -118,11 +118,15 @@ describe("the published Map against what it should list", () => {
     expect(selfMapStatus([], map([entry(rank)]), BA)).toBe("out-of-date");
   });
 
-  // What the server's press would still take away (`nothing_to_change`), so Update now stays enabled.
-  it("is out of date while the press would still change something beside the right entries", () => {
-    expect(selfMapStatus([rank], map([entry(rank), ["expiration", "1790000000"]]), BA)).toBe("out-of-date");
-    expect(selfMapStatus([rank], map([entry(rank), ["39998:", BA, SCORES]]), BA)).toBe("out-of-date");
-    expect(selfMapStatus([rank], map([entry(rank), entry(rank)]), BA)).toBe("out-of-date");
+  // The server's press compares the self-entries alone (`nothing_to_change`,
+  // since brainstorm_server#110's audit), so Update now does too.
+  it("is current whatever else the version carries, as the press reads it", () => {
+    expect(selfMapStatus([rank], map([entry(rank), ["expiration", "1790000000"]]), BA)).toBe("current");
+    expect(selfMapStatus([rank], map([entry(rank), ["39998:", BA, SCORES]]), BA)).toBe("current");
+    expect(selfMapStatus([rank], map([entry(rank), entry(rank)]), BA)).toBe("current");
+  });
+
+  it("is out of date with a second relay for the same key: the press drops it", () => {
     expect(selfMapStatus([rank], map([entry(rank), ["30382:rank", BA, "wss://elsewhere.example"]]), BA)).toBe(
       "out-of-date",
     );
