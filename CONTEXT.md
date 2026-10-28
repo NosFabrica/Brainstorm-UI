@@ -124,8 +124,9 @@ _Avoid_: self-reference, self-b (in prose)
 **Local copy**:
 Someone's own header for a community concept, pointing at it with
 `["b", <community coordinate>, "pointer"]`. A User's are authored by their
-Brainstorm Assistant. Today a copy repeats the community's definition; one day
-it may change it.
+Brainstorm Assistant or by the User themselves: a Dictionary entry's "Add to my
+Dictionary" offers both. An added copy repeats the community's definition; the
+User's own can be edited to change it.
 _Avoid_: fork, clone, override
 
 **Tier-three view**:

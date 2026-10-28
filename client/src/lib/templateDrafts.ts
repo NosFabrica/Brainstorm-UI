@@ -1,6 +1,6 @@
 /**
  * URL templates drafted alongside a list's definition (List Management, and
- * "Publish my own version"): written in the form, linked and bound like an
+ * a Dictionary entry's "Edit"): written in the form, linked and bound like an
  * existing template, previewed live — and published, as items of the URL
  * Templates list, just before the header that pins them (lib/listPublish).
  *

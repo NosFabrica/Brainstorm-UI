@@ -115,6 +115,34 @@ export interface TreasureMapPublishResult {
   relays: { url: string; ok: boolean; message?: string }[];
 }
 
+/** This server can't have Assistants copy concepts yet (docs/dictionary/ASSISTANT-COPY-ASK.md): the Add button says so. */
+export class AssistantDictionaryUnavailableError extends Error {
+  constructor() {
+    super("Your Assistant can't add concepts on this server yet.");
+    this.name = "AssistantDictionaryUnavailableError";
+  }
+}
+
+/** What happened to one concept (docs/dictionary/ASSISTANT-COPY-ASK.md § The answer). */
+export interface AssistantConceptResult {
+  /** The community header's coordinate. */
+  community: string;
+  /** The Assistant's copy; null when the community header wasn't found. */
+  local: string | null;
+  /** The event published, when one was. */
+  event: NostrEvent | null;
+  status: "published" | "updated" | "unchanged" | "withdrawn" | "conflict" | "not_found" | "failed";
+  /** A sentence, for conflict, not_found and failed. */
+  error?: string | null;
+}
+
+/** What `POST /user/assistantDictionary` and `/user/assistantDictionary/withdraw` answer. */
+export interface AssistantDictionaryResult {
+  assistant: string;
+  relays: string[];
+  concepts: AssistantConceptResult[];
+}
+
 /** One of the Assistant's routes under `/user`: a 404 or 405 is "not on this server yet". */
 async function assistantJson<T>(
   path: string,
@@ -135,6 +163,15 @@ async function assistantJson<T>(
 
 const dutyMenuJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
   assistantJson<T>("assistantDutyMenu", () => new DutyMenuUnavailableError(), init, timeoutMs, failed);
+
+const assistantDictionaryJson = (path: string, concepts: string[], failed: string) =>
+  assistantJson<AssistantDictionaryResult>(
+    path,
+    () => new AssistantDictionaryUnavailableError(),
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ concepts }) },
+    60000,
+    failed,
+  );
 
 const treasureMapJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
   assistantJson<T>("assistantTreasureMap", () => new TreasureMapUnavailableError(), init, timeoutMs, failed);
@@ -373,6 +410,20 @@ export const usersApi = {
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) },
       30000,
       "Couldn't publish your Assistant's Treasure Map",
+    );
+  },
+
+  /** Has the server sign the caller's Assistant's exact copy of these community concepts, and publish it. */
+  async addToAssistantDictionary(concepts: string[]): Promise<AssistantDictionaryResult> {
+    return assistantDictionaryJson("assistantDictionary", concepts, "Couldn't add it to your Assistant's Dictionary");
+  },
+
+  /** Has the server republish the Assistant's copies of these concepts as withdrawn. */
+  async removeFromAssistantDictionary(concepts: string[]): Promise<AssistantDictionaryResult> {
+    return assistantDictionaryJson(
+      "assistantDictionary/withdraw",
+      concepts,
+      "Couldn't remove it from your Assistant's Dictionary",
     );
   },
 };
