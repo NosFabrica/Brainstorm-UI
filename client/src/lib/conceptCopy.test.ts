@@ -264,6 +264,20 @@ describe("withdrawnTemplate", () => {
     expect(pointsAt(withdrawn, COMMUNITY)).toBe(false);
     expect(bLinksOf(withdrawn)).toEqual([]);
   });
+
+  it("is exactly these tags: brainstorm_server signs the Assistant's withdrawn copy from the same list", () => {
+    // A cross-repo constant (brainstorm_server ADR assistant-dictionary/0001): its
+    // tests/test_dictionary_copy_build.py copies this expectation verbatim.
+    expect(withdrawnTemplate(definitionOf(header(ME, [["b", COMMUNITY, "pointer"]])))).toEqual({
+      kind: 39998,
+      content: "",
+      tags: [
+        ["d", "github-accounts"],
+        ["b", "b-tag-deferred"],
+        ["alt", "A withdrawn concept copy: considered, and affiliated with no community concept."],
+      ],
+    });
+  });
 });
 
 describe("display hints in the copy (provisional)", () => {
