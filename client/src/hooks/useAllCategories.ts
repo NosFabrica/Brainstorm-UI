@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { kindCategories, listCategory, rowOrder, standingCategories, type Category } from "@/lib/allCategories";
+import { EVENT_LISTS } from "@/config/events";
 import type { RibbonList } from "@/hooks/useListRibbon";
 import { countCategories, type SearchHit, type SearchPov } from "@/services/search";
 
@@ -104,12 +105,14 @@ export function useAllCategories(
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
 
-  // A list item a list holds is its list's, not one more kind.
+  // A list item a list holds is its list's, not one more kind. Event Index's lists are Events',
+  // which asks their items as the Events tab does (config/events): not a second "Events".
   useEffect(() => {
     if (!found) return;
     const held = new Set(lists.flatMap((l) => l.hits.map((h) => h.event.id)));
+    const own = lists.filter((l) => !EVENT_LISTS.includes(l.coordinate));
     let added = false;
-    for (const c of [...lists.map(listCategory), ...kindCategories(page, held)]) {
+    for (const c of [...own.map(listCategory), ...kindCategories(page, held)]) {
       if (!found.seen.has(c.key)) {
         found.seen.add(c.key);
         added = true;

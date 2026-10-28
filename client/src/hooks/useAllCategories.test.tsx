@@ -184,3 +184,25 @@ describe("useAllCategories loading", () => {
     expect(result.current).toMatchObject({ loading: false, shown: [{ name: "Notes" }] });
   });
 });
+
+describe("useAllCategories and Event Index", () => {
+  it("leaves Event Index's list to Events, which asks its items: no second Events", async () => {
+    const eventIndex = list(
+      `39998:${"b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450"}:events`,
+      "Events",
+    );
+    const { result } = renderHook(() =>
+      useAllCategories("pizza", {
+        pov: "nosfabrica",
+        enabled: true,
+        ready: true,
+        page: [],
+        lists: [eventIndex, books],
+      }),
+    );
+    await waitFor(() => expect(asks).toHaveLength(1));
+    expect(keysAsked()).not.toContain(eventIndex.coordinate);
+    answer(keysAsked().map((k) => [k, 3]));
+    expect(result.current.shown.filter((c) => c.name === "Events")).toHaveLength(1);
+  });
+});
