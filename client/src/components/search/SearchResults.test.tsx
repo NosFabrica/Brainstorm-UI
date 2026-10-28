@@ -5408,6 +5408,11 @@ describe("All's categories", () => {
     expect(screen.queryByTestId("search-categories-loading")).not.toBeInTheDocument();
     // Notes lead, then People (none here) and the biggest list, then the rest by their results.
     expect(rowTabs()).toEqual(["Top", "All", "Notes", "Food and Drink Places", "Videos", "Articles"]);
+    // A long name ends in an ellipsis in the row, and says itself whole on hover.
+    expect(screen.getByTestId("search-category-food-and-drink-places")).toHaveAttribute(
+      "title",
+      "Food and Drink Places",
+    );
     fireEvent.click(screen.getByTestId("search-tab-more"));
     expect(
       within(screen.getByRole("menu"))

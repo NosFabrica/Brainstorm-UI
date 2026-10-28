@@ -98,6 +98,7 @@ import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
 import { belongsTo, categoryTestId, pagedWords, type Category } from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
+import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -341,6 +342,9 @@ const tabClass = (active: boolean) =>
     ? "border-brand-primary text-brand-deep dark:text-brand-link"
     : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200");
 
+/** A category's tab on All: a long name ("Food and Drink Places") ends in an ellipsis, whole on hover. */
+const categoryTabClass = (active: boolean) => tabClass(active) + " max-w-[9.5rem] truncate";
+
 /** The More ▾ slot: names the folded vertical that is active (so the row
  *  always says where you are), otherwise "More". A plain disclosure, not a
  *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
@@ -557,10 +561,14 @@ function MoreCategories({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
+        title={active?.name}
         data-testid="search-tab-more"
       >
-        {active ? active.name : "More"}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+        <span className="max-w-[8rem] truncate">{active ? active.name : "More"}</span>
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
       </button>
       {open && (
         <div
@@ -1550,6 +1558,8 @@ export function SearchResults({
           : { query: effectiveQuery, category: pressedCategory },
     );
   }, [pressedCategory, effectiveQuery]);
+  // The tab strip fades at an edge it scrolls past.
+  const [tabStripRef, tabStripEdges] = useScrollEdges();
   // The row: the first few, the rest behind More — and the pressed one, counted or not yet.
   const rowCategories = useMemo(() => {
     const all =
@@ -2324,9 +2334,11 @@ export function SearchResults({
             }}
           >
             <div
+              ref={tabStripRef}
               role="tablist"
               aria-label="Result types"
               className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
+              style={edgeFade(tabStripEdges)}
               data-testid="search-tabs"
             >
               {/* On All, its categories stand in for the other tabs: Top, All, then what the words find most. */}
@@ -2354,7 +2366,8 @@ export function SearchResults({
                     role="tab"
                     aria-selected={categoryAsked === c.key}
                     onClick={() => pressCategory(c.key)}
-                    className={tabClass(categoryAsked === c.key) + " whitespace-nowrap"}
+                    className={categoryTabClass(categoryAsked === c.key)}
+                    title={c.name}
                     data-testid={`search-category-${categoryTestId(c.key)}`}
                   >
                     {c.name}
