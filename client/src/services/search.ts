@@ -610,8 +610,9 @@ export function countTabs(
   onCount: (tab: SearchTab, count: number | null) => void,
   timeoutMs = TAB_COUNT_TIMEOUT_MS,
 ): () => void {
+  const sort = readFilters(query).sort === "text" ? "sort:text" : "sort:recent";
   return countQuestions(
-    query,
+    `${applyFilters(query, { sort: null })} ${sort}`.trim(),
     lens,
     (words, observer) => [
       ...tabs.map((tab) => ({ key: tab as string, filters: askForTab(words, { tab, ...lens }, observer).filters })),
@@ -640,8 +641,9 @@ export interface CategoryAsk {
 /**
  * How many results each of All's categories holds for these words — countTabs' way, the very
  * filters the category's own page asks (All's, narrowed to its kinds and tags), on the side socket.
- * Only for the order the categories stand in; no count is shown. A count that fails or doesn't
- * arrive in time is null.
+ * Unlike a tab's, in the page's own order: best match matches fewer than newest-first, and asked
+ * so it is the number the page holds (Food and Drink Places for "burger": 701 counted, 701 sent;
+ * newest-first counts 704 — probed 2026-10-28). A count that fails or doesn't arrive in time is null.
  */
 export function countCategories(
   query: string,
@@ -700,9 +702,7 @@ function countQuestions(
   void (async () => {
     const observer = await resolveObserver({ tab: "top", ...lens });
     if (cancelled) return;
-    const sort = readFilters(query).sort === "text" ? "sort:text" : "sort:recent";
-    const words = `${applyFilters(query, { sort: null })} ${sort}`.trim();
-    const questions = build(words, observer);
+    const questions = build(query, observer);
     for (const { key, filters } of questions) {
       if (filters.length === 0) answers.set(key, 0);
       else asked.add(key);

@@ -35,6 +35,24 @@ export interface AllCategories {
   shown: Category[];
   /** Every one found for the words, counted or not: a category the link names opens by its key. */
   known: ReadonlyMap<string, Category>;
+  /**
+   * How many results a category's page holds, where its count says so: not a kind that shares
+   * its kinds with another category (Articles and Recipes are both kind 30023, and each page
+   * keeps its own label's rows, so neither count is its page's).
+   */
+  totals: ReadonlyMap<string, number>;
+}
+
+function totalsOf(categories: readonly Category[], counts: ReadonlyMap<string, number | null>): Map<string, number> {
+  // A list is told from the others by its headers, and its page keeps every row it is sent.
+  const holders = new Map<number, number>();
+  for (const c of categories) if (c.label) for (const k of c.kinds) holders.set(k, (holders.get(k) ?? 0) + 1);
+  const totals = new Map<string, number>();
+  for (const c of categories) {
+    const n = counts.get(c.key);
+    if (typeof n === "number" && (!c.label || c.kinds.every((k) => holders.get(k) === 1))) totals.set(c.key, n);
+  }
+  return totals;
 }
 
 /**
@@ -114,9 +132,14 @@ export function useAllCategories(
   }, [found, version]);
 
   return useMemo(() => {
-    if (!found) return { shown: [], known: new Map() };
-    const counted = [...found.categories.values()].filter((c) => found.counts.has(c.key));
-    return { shown: byResults(counted, found.counts), known: new Map(found.categories) };
+    if (!found) return { shown: [], known: new Map(), totals: new Map() };
+    const all = [...found.categories.values()];
+    const counted = all.filter((c) => found.counts.has(c.key));
+    return {
+      shown: byResults(counted, found.counts),
+      known: new Map(found.categories),
+      totals: totalsOf(all, found.counts),
+    };
     // `version` says what `found` holds has changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [found, version]);

@@ -2936,11 +2936,13 @@ export function SearchResults({
                   {/* No count by default — Google dropped it from the default view too.
               The number does work only when a chip or a filter narrows the
               page: what matched, of how many. */}
-                  {/* A category's page says what it holds so far; More below turns the next page. */}
+                  {/* A category's page says what it holds: all of it where its count is its page's,
+                  else what has come so far. More below turns the next page. */}
                   {category && (
                     <p className="mb-2 px-1 text-xs text-slate-500 dark:text-slate-400" data-testid="category-count">
-                      {pagedWords(category, displayHits.length)}
-                      {snapshot?.exhausted ? "" : " so far"}
+                      {categories.totals.has(category.key)
+                        ? pagedWords(category, categories.totals.get(category.key)!)
+                        : `${pagedWords(category, displayHits.length)}${snapshot?.exhausted ? "" : " so far"}`}
                     </p>
                   )}
                   {narrowed && totalCount > 0 && (

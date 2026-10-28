@@ -93,3 +93,20 @@ describe("useAllCategories", () => {
     expect(result.current.known.size).toBe(0);
   });
 });
+
+describe("useAllCategories totals", () => {
+  it("are the counts a category's page holds: a list's, and a kind's no other category shares", async () => {
+    const recipe = row(30023);
+    recipe.event.tags = [
+      ["d", "burger"],
+      ["t", "zapcooking"],
+    ];
+    const page = [row(21), row(30023), recipe];
+    const { result } = renderHook(() =>
+      useAllCategories("burger", { pov: "nosfabrica", enabled: true, page, lists: [books] }),
+    );
+    await waitFor(() => expect(asks).toHaveLength(1));
+    act(() => asks[0].onCounts(new Map(asks[0].keys.map((k) => [k, 7]))));
+    expect([...result.current.totals.keys()].sort()).toEqual([BOOKS, "kind:Video"].sort());
+  });
+});

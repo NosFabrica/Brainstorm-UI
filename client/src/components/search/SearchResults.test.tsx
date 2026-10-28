@@ -5434,7 +5434,8 @@ describe("All's categories", () => {
     await waitFor(() => expect(lastMain()).toMatchObject({ tab: "all", kinds: [21, 22, 34235, 34236] }));
     emit({ hits: [row("2", 21), row("6", 34235), row("7", 1)], eose: true });
     // A kind's page keeps the rows its label names.
-    expect(await screen.findByTestId("category-count")).toHaveTextContent("2 Videos so far");
+    // Its count is its page's: the whole of it, not what has come so far.
+    expect(await screen.findByTestId("category-count")).toHaveTextContent(/^900 Videos$/);
     expect(screen.queryByTestId(`all-row-${"7".repeat(64)}`)).not.toBeInTheDocument();
     expect(screen.getByTestId("search-category-video")).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByTestId("search-more"));
