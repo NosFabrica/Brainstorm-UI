@@ -96,9 +96,12 @@ import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
-import { belongsTo, categoryTestId, pagedWords, type Category } from "@/lib/allCategories";
+import { belongsTo, categoryTestId, NOTES_KEY, pagedWords, PEOPLE_KEY, type Category } from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
+import { useNamedTags } from "@/hooks/useNamedTags";
+import { TagTabResults } from "@/components/search/TagTabResults";
+import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
@@ -285,6 +288,9 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 const CATEGORIES_IN_ROW = 4;
 /** On All, how many of the results' tags show as filters before "more tags". */
 const TAG_FILTERS_SHOWN = 6;
+/** A tag's tab in All's row, by key: `tag:<author>:<slug>`, as the link holds it. */
+const TAG_TAB = "tag:";
+const tagTabKeyOf = (tag: NamedTag) => `${TAG_TAB}${tag.authorPubkey}:${tag.slug}`;
 /**
  * Behind More, grouped by what a person is doing — consumer things first,
  * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
@@ -1626,17 +1632,27 @@ export function SearchResults({
   // The tab strip fades at an edge it scrolls past.
   const [tabStripRef, tabStripEdges] = useScrollEdges();
   // The row: the first few, the rest behind More — and the pressed one, counted or not yet.
+  // The tags the words name outright, each a tab of its own holding everything that carries it
+  // (services/namedTags): after Notes and People, before the lists. The row waits for them too,
+  // so it still lands whole. The link holds a pressed one as it holds a category (`list`).
+  const namedTags = useNamedTags(scopeOf(query) ? "" : query, { pov, userPubkey, enabled: onAll });
+  const tagTabKey = categoryAsked?.startsWith(TAG_TAB) ? categoryAsked : null;
+  const tagTab = tagTabKey ? (namedTags.tags.find((t) => tagTabKeyOf(t) === tagTabKey) ?? null) : null;
+  const rowLoading = categories.loading || !namedTags.settled;
   const rowCategories = useMemo(() => {
-    const all =
-      pressedCategory && !categories.shown.some((c) => c.key === pressedCategory.key)
-        ? [...categories.shown, pressedCategory]
-        : categories.shown;
+    const tabs: Category[] = namedTags.tags.map((t) => ({ key: tagTabKeyOf(t), name: t.name, kinds: [] }));
+    const lead = categories.shown.findIndex((c) => c.key !== NOTES_KEY && c.key !== PEOPLE_KEY);
+    const at = lead < 0 ? categories.shown.length : lead;
+    const found = rowLoading ? [] : [...categories.shown.slice(0, at), ...tabs, ...categories.shown.slice(at)];
+    const pressed = pressedCategory ?? tabs.find((t) => t.key === tagTabKey) ?? null;
+    const all = pressed && !found.some((c) => c.key === pressed.key) ? [...found, pressed] : found;
     return { inRow: all.slice(0, CATEGORIES_IN_ROW), behindMore: all.slice(CATEGORIES_IN_ROW) };
-  }, [categories.shown, pressedCategory]);
+  }, [categories.shown, namedTags.tags, rowLoading, pressedCategory, tagTabKey]);
   // A category the link names waits to be found — in All's first page, or the lists' answer —
-  // rather than showing all of All first; one that isn't found lets All show.
-  const categoryWaiting =
-    !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
+  // rather than showing all of All first; one that isn't found lets All show. So does a tag's.
+  const categoryWaiting = tagTabKey
+    ? !tagTab && !namedTags.settled
+    : !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
   // What the floor held back, said once and quietly — Google's "some results
   // were removed" — with the one tap that lifts it. Rendered under the list,
@@ -2449,7 +2465,7 @@ export function SearchResults({
                   </button>
                 ))}
               {/* Until the categories are counted, the row says they are coming — then they land at once. */}
-              {onAll && categories.loading && (
+              {onAll && rowLoading && (
                 <span
                   className="flex shrink-0 items-center gap-2 px-2"
                   aria-label="Finding categories"
@@ -2611,32 +2627,35 @@ export function SearchResults({
                 </FacetRow>
               )}
               {/* The tags the results carry, most carried first: each a filter over them. */}
-              {onAll && serverStatus.search !== "down" && (tagFilters.shown.length > 0 || !!tagFilter) && (
-                <FacetRow className="mb-2" testId="tag-facets">
-                  <TagIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                  {tagFilters.shown.map((t) => (
-                    <FacetChip
-                      key={t.key}
-                      pressed={tagFilter === t.key}
-                      onClick={() => pressTag(tagFilter === t.key ? null : t.key)}
-                      testId={`tag-facet-${t.slug}`}
-                    >
-                      {t.name}
-                    </FacetChip>
-                  ))}
-                  {/* A tag the link names that no loaded row carries: still pressed, so it can be let go. */}
-                  {tagFilter && resultTags.settled && !tagFilters.shown.some((t) => t.key === tagFilter) && (
-                    <FacetChip pressed onClick={() => pressTag(null)} testId="tag-facet-pressed">
-                      {tagFilter.slice(tagFilter.indexOf("|") + 1)}
-                    </FacetChip>
-                  )}
-                  {tagFilters.more > 0 && (
-                    <FacetChip pressed={false} onClick={() => setAllTagsShown(true)} testId="tag-facets-more">
-                      +{tagFilters.more} more
-                    </FacetChip>
-                  )}
-                </FacetRow>
-              )}
+              {onAll &&
+                !tagTabKey &&
+                serverStatus.search !== "down" &&
+                (tagFilters.shown.length > 0 || !!tagFilter) && (
+                  <FacetRow className="mb-2" testId="tag-facets">
+                    <TagIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                    {tagFilters.shown.map((t) => (
+                      <FacetChip
+                        key={t.key}
+                        pressed={tagFilter === t.key}
+                        onClick={() => pressTag(tagFilter === t.key ? null : t.key)}
+                        testId={`tag-facet-${t.slug}`}
+                      >
+                        {t.name}
+                      </FacetChip>
+                    ))}
+                    {/* A tag the link names that no loaded row carries: still pressed, so it can be let go. */}
+                    {tagFilter && resultTags.settled && !tagFilters.shown.some((t) => t.key === tagFilter) && (
+                      <FacetChip pressed onClick={() => pressTag(null)} testId="tag-facet-pressed">
+                        {tagFilter.slice(tagFilter.indexOf("|") + 1)}
+                      </FacetChip>
+                    )}
+                    {tagFilters.more > 0 && (
+                      <FacetChip pressed={false} onClick={() => setAllTagsShown(true)} testId="tag-facets-more">
+                        +{tagFilters.more} more
+                      </FacetChip>
+                    )}
+                  </FacetRow>
+                )}
               {activeKind ? (
                 <activeKind.Page query={query} onTabChange={changeTab} />
               ) : serverStatus.search === "down" ? (
@@ -2658,6 +2677,9 @@ export function SearchResults({
                   onOpenProfile={openProfile}
                   onQueryRewrite={onQueryRewrite}
                 />
+              ) : tagTab ? (
+                // A tag's tab holds what carries it, not a search of the words.
+                <TagTabResults tag={tagTab} scoreOf={scoreOf} query={query} />
               ) : snapshot?.error ? (
                 <div
                   className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
