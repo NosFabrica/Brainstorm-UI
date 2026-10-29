@@ -149,6 +149,21 @@ export interface AssistantDictionaryResult {
   concepts: AssistantConceptResult[];
 }
 
+/**
+ * One of the Assistant's routes answered an error: its status, and whether the
+ * message is the server's own sentence (`said`) rather than ours with the status.
+ */
+export class AssistantRouteError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly said: boolean,
+  ) {
+    super(message);
+    this.name = "AssistantRouteError";
+  }
+}
+
 /** One of the Assistant's routes under `/user`: a 404 or 405 is "not on this server yet". */
 async function assistantJson<T>(
   path: string,
@@ -162,7 +177,11 @@ async function assistantJson<T>(
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (response.status === 404 || response.status === 405) throw unavailable();
-  if (!response.ok) throw new Error((await extractApiError(response)) || `${failed} (${response.status})`);
+  if (!response.ok) {
+    const sentence = await extractApiError(response);
+    const said = typeof sentence === "string" && sentence !== "";
+    throw new AssistantRouteError(said ? sentence : `${failed} (${response.status})`, response.status, said);
+  }
   const json = await response.json();
   return json?.data ?? json;
 }

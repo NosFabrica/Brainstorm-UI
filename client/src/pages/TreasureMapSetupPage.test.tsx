@@ -9,6 +9,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import type { AssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import type { DutyLine } from "@/lib/assistantTreasureMap";
+import { AssistantRouteError } from "@/services/api";
 
 const SCORES = "wss://scores.example/";
 const DCOSL = "wss://dcosl.brainstorm.world/";
@@ -62,6 +63,7 @@ function show(map: Partial<AssistantTreasureMap>) {
     missed: [],
     checkingRelays: false,
     error: null,
+    offUnchecked: false,
     set: vi.fn(async (on: boolean) => ({ on, published: true, event: null, relays: [] })),
     publishing: false,
     ...map,
@@ -173,21 +175,38 @@ describe("TreasureMapSetupPage", () => {
     expect(screen.getByTestId("treasure-map-off")).toBeEnabled();
   });
 
-  it("when the check fails, still offers Turn off, which needs no check", async () => {
+  const unchecked = { supported: undefined, assistant: null, status: null, settled: false } as const;
+  const TOO_MANY = "Your Treasure Map names more than 64 keys, too many to check.";
+
+  it("when the check fails in a way Turn off gets past, says the server's words and offers it", async () => {
     const set = vi.fn(async (on: boolean) => ({ on, published: false, event: null, relays: [] }));
-    show({
-      supported: undefined,
-      assistant: null,
-      status: null,
-      settled: false,
-      error: new Error("Your Treasure Map names more than 64 keys, too many to check."),
-      set,
-    });
-    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent("names more than 64 keys");
+    show({ ...unchecked, error: new AssistantRouteError(TOO_MANY, 422, true), offUnchecked: true, set });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(TOO_MANY);
+    expect(screen.getByTestId("treasure-map-error")).not.toHaveTextContent("Couldn’t reach");
     expect(screen.queryByTestId("treasure-map-on")).toBeNull();
+    expect(screen.queryByTestId("treasure-map-duties")).toBeNull();
     fireEvent.click(screen.getByTestId("treasure-map-off"));
     await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed"));
     expect(set).toHaveBeenCalledWith(false);
+  });
+
+  it("when the request got no answer, says so, and offers nothing a press couldn't get past", () => {
+    show({ ...unchecked, error: new TypeError("Failed to fetch") });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
+      "Couldn’t reach your Assistant right now. Failed to fetch",
+    );
+    expect(screen.queryByTestId("treasure-map-off")).toBeNull();
+  });
+
+  it("with a check from before, a failed re-check keeps its panels, and the buttons follow them", () => {
+    show({ error: new AssistantRouteError(TOO_MANY, 422, true), offUnchecked: true });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
+      `${TOO_MANY} What follows is from the last check.`,
+    );
+    expect(screen.getByTestId("treasure-map-duties")).toBeInTheDocument();
+    // Off with nothing listed: there's nothing to remove.
+    expect(screen.queryByTestId("treasure-map-off")).toBeNull();
+    expect(screen.getByTestId("treasure-map-on")).toBeEnabled();
   });
 
   it("on a server without the route, says it can't yet and offers nothing", () => {

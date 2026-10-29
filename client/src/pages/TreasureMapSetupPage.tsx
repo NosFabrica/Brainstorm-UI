@@ -22,7 +22,7 @@ import {
   type SelfMapStatus,
 } from "@/lib/assistantTreasureMap";
 import { categoryOf } from "@/lib/dutyMenu";
-import type { TreasureMapPublishResult } from "@/services/api";
+import { AssistantRouteError, type TreasureMapPublishResult } from "@/services/api";
 
 /**
  * /setup/treasure-map — the checklist's "Publish your Assistant's Treasure
@@ -210,24 +210,37 @@ export default function TreasureMapSetupPage() {
   };
 
   const buttons = selfMapButtons(map.on, map.status, map.found.length, map.missed.length);
-  // A press waits for the published version to be read: its base is the newest one.
-  const busy = pressing !== null || map.status === null;
+  // With a check, a press waits for the published version to be read: its base
+  // is the newest one. Without one, Turn off needs neither.
+  const busy = pressing !== null || (map.assistant !== null && map.status === null);
   const label = (which: "on" | "update" | "off", words: string) => (
     <>
       {pressing === which && <Loader2 className="h-4 w-4 animate-spin" />}
       {pressing === which ? "Publishing…" : words}
     </>
   );
-  const turnOff = (disabled: boolean) => (
+  const turnOff = (
     <Button
       size="sm"
       variant="outline"
       onClick={() => void press("off")}
-      disabled={disabled}
+      disabled={busy}
       data-testid="treasure-map-off"
     >
       {label("off", "Remove your Assistant's duties from its Treasure Map")}
     </Button>
+  );
+  // The server's sentence says what failed; a request that got no answer gets ours first.
+  const failed = map.error && (
+    <Alert variant="destructive" data-testid="treasure-map-error">
+      <AlertDescription>
+        {!(map.error instanceof AssistantRouteError && map.error.said) && (
+          <>Couldn&rsquo;t reach your Assistant right now. </>
+        )}
+        {map.error.message}
+        {map.assistant !== null && " What follows is from the last check."}
+      </AlertDescription>
+    </Alert>
   );
   const outcome = (
     <>
@@ -284,27 +297,32 @@ export default function TreasureMapSetupPage() {
           <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-unavailable">
             Your Brainstorm server can&rsquo;t keep your Assistant&rsquo;s Treasure Map yet.
           </Card>
-        ) : map.error ? (
+        ) : map.assistant === null && map.error ? (
           <>
-            <Alert variant="destructive" data-testid="treasure-map-error">
-              <AlertDescription>Couldn&rsquo;t reach your Assistant right now. {map.error.message}</AlertDescription>
-            </Alert>
-            {/* A press turns off without the check (TREASURE-MAP-ASK.md, the POST's step 1). */}
-            <Card className="space-y-3 p-5">
-              <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-off-unchecked">
-                You can still remove your Assistant&rsquo;s duties from its Treasure Map: that doesn&rsquo;t need the
-                check.
-              </p>
-              <div className="flex flex-wrap gap-2">{turnOff(pressing !== null)}</div>
-              {outcome}
-            </Card>
+            {failed}
+            {/* With no check to show, only a Turn off past this failure (TREASURE-MAP-ASK.md, the POST's step 1). */}
+            {(map.offUnchecked || result || failure) && (
+              <Card className="space-y-3 p-5">
+                {map.offUnchecked && (
+                  <>
+                    <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-off-unchecked">
+                      You can still remove your Assistant&rsquo;s duties from its Treasure Map: that doesn&rsquo;t need
+                      the check.
+                    </p>
+                    <div className="flex flex-wrap gap-2">{turnOff}</div>
+                  </>
+                )}
+                {outcome}
+              </Card>
+            )}
           </>
-        ) : !map.supported ? (
+        ) : map.assistant === null ? (
           <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Asking your Assistant which duties are live…
           </p>
         ) : (
           <>
+            {failed}
             <Card className="space-y-3 p-5">
               <PanelHead
                 title="Your Assistant's duties"
@@ -408,7 +426,7 @@ export default function TreasureMapSetupPage() {
                     {label("update", "Update your Assistant's Treasure Map now")}
                   </Button>
                 )}
-                {buttons.turnOff && turnOff(busy)}
+                {buttons.turnOff && turnOff}
               </div>
               {outcome}
             </Card>

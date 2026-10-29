@@ -69,7 +69,7 @@ vi.mock("@/lib/eventStore", () => ({
 vi.mock("@/lib/relayRequest", () => ({ requestNewestWithReach: h.reach }));
 
 import { parseTreasureMapCheck } from "@/lib/assistantTreasureMap";
-import { TreasureMapUnavailableError } from "@/services/api";
+import { AssistantRouteError, TreasureMapUnavailableError } from "@/services/api";
 import { useAssistantTreasureMap } from "./useAssistantTreasureMap";
 
 const HINT = "wss://hint.example/";
@@ -97,6 +97,20 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 const mount = (options?: { probeRelays?: boolean }) =>
   renderHook(() => useAssistantTreasureMap("a".repeat(64), options), { wrapper });
 const probing = () => mount({ probeRelays: true });
+/** Mounted, with every render's error kept. */
+const mountSeen = () => {
+  const seen: (string | undefined)[] = [];
+  const hook = renderHook(
+    () => {
+      const map = useAssistantTreasureMap("a".repeat(64));
+      seen.push(map.error?.message);
+      return map;
+    },
+    { wrapper },
+  );
+  return { ...hook, seen };
+};
+const TOO_MANY = "Your Treasure Map names more than 64 keys, too many to check.";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -121,6 +135,94 @@ describe("useAssistantTreasureMap", () => {
     // Retried once (only "no route" isn't), so the answer takes a moment.
     await waitFor(() => expect(result.current.error?.message).toBe("boom"), { timeout: 3000 });
     expect(result.current.supported).toBeUndefined();
+  });
+
+  it("a failure a Turn off gets past, the GET's own 502s and its 422, says so", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError(TOO_MANY, 422, true));
+    const tooMany = mount();
+    await waitFor(() => expect(tooMany.result.current.error?.message).toBe(TOO_MANY));
+    expect(tooMany.result.current.offUnchecked).toBe(true);
+    // Asking again can't change a 422: the Map has to be edited first.
+    expect(h.getAssistantTreasureMap).toHaveBeenCalledTimes(1);
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError("Couldn't read your Treasure Map.", 502, true));
+    const unread = mount();
+    await waitFor(() => expect(unread.result.current.offUnchecked).toBe(true), { timeout: 3000 });
+  });
+
+  it("any other failure doesn't offer Turn off: the POST would fail the same way", async () => {
+    for (const err of [
+      new TypeError("Failed to fetch"),
+      new AssistantRouteError("Couldn't check your Assistant's Treasure Map (502)", 502, false),
+      new AssistantRouteError("Internal error.", 500, true),
+    ]) {
+      h.getAssistantTreasureMap.mockRejectedValue(err);
+      const { result, unmount } = mount();
+      await waitFor(() => expect(result.current.error).toBe(err), { timeout: 3000 });
+      expect(result.current.offUnchecked).toBe(false);
+      unmount();
+    }
+  });
+
+  it("keeps a failure while the check is asked again, so a Turn off past it keeps its place", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError(TOO_MANY, 422, true));
+    const { result, seen } = mountSeen();
+    await waitFor(() => expect(result.current.error?.message).toBe(TOO_MANY));
+    let fail!: () => void;
+    h.getAssistantTreasureMap.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          fail = () => reject(new AssistantRouteError(TOO_MANY, 422, true));
+        }),
+    );
+    h.setAssistantTreasureMap.mockResolvedValue({ on: false, published: false, event: null, relays: [] });
+    // The press answers without waiting for the re-check.
+    await act(async () => {
+      await result.current.set(false);
+    });
+    await waitFor(() => expect(h.getAssistantTreasureMap).toHaveBeenCalledTimes(2));
+    await act(async () => fail());
+    await waitFor(() => expect(result.current.error?.message).toBe(TOO_MANY));
+    expect(seen.slice(seen.indexOf(TOO_MANY))).not.toContain(undefined);
+  });
+
+  it("a Turn off made before any check has loaded still adds its version", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError(TOO_MANY, 422, true));
+    const { result } = mount();
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    const empty = signedMap([]);
+    h.setAssistantTreasureMap.mockResolvedValue({ on: false, published: true, event: empty, relays: [] });
+    await act(async () => {
+      await result.current.set(false);
+    });
+    expect(h.added).toEqual([empty]);
+  });
+
+  it("shows a press's choice at once, and answers once the check is back", async () => {
+    h.stored = signedMap(SHOULD);
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const { result } = mount();
+    await waitFor(() => expect(result.current.on).toBe(true));
+    let back!: () => void;
+    h.getAssistantTreasureMap.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          back = () => resolve(check(false));
+        }),
+    );
+    h.setAssistantTreasureMap.mockResolvedValue({
+      on: false,
+      published: true,
+      event: signedMap([], 1_790_000_100),
+      relays: [],
+    });
+    let answered = false;
+    act(() => {
+      void result.current.set(false).then(() => (answered = true));
+    });
+    await waitFor(() => expect(result.current.on).toBe(false));
+    expect(answered).toBe(false);
+    await act(async () => back());
+    await waitFor(() => expect(answered).toBe(true));
   });
 
   it("with nothing published, it's missing", async () => {
