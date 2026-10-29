@@ -54,6 +54,7 @@ function show(map: Partial<AssistantTreasureMap>) {
     found: [],
     status: "missing",
     settled: true,
+    missed: [],
     error: null,
     set: vi.fn(async (on: boolean) => ({ on, published: true, event: null, relays: [] })),
     publishing: false,
@@ -135,6 +136,39 @@ describe("TreasureMapSetupPage", () => {
   it("Turn off sends off; a press that changes nothing says so", async () => {
     const set = vi.fn(async (on: boolean) => ({ on, published: false, event: null, relays: [] }));
     show({ on: true, status: "current", found: [rank], set });
+    fireEvent.click(screen.getByTestId("treasure-map-off"));
+    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed"));
+    expect(set).toHaveBeenCalledWith(false);
+  });
+
+  it("says where the newest version is missing, and offers Update now though it's up to date", () => {
+    show({ on: true, status: "current", found: [rank], published: { kind: 10040 } as never, missed: [SCORES] });
+    expect(screen.getByTestId("treasure-map-missed")).toHaveTextContent(
+      "The newest version hasn’t reached wss://scores.example/ yet: updating your Assistant's Treasure Map sends it there.",
+    );
+    expect(screen.getByTestId("treasure-map-update")).toBeEnabled();
+  });
+
+  it("while off, a relay that missed the newest version keeps Turn off", () => {
+    show({ status: "missing", missed: [SCORES] });
+    expect(screen.getByTestId("treasure-map-missed")).toHaveTextContent(
+      "removing your Assistant's duties from its Treasure Map sends it there.",
+    );
+    expect(screen.getByTestId("treasure-map-off")).toBeEnabled();
+  });
+
+  it("when the check fails, still offers Turn off, which needs no check", async () => {
+    const set = vi.fn(async (on: boolean) => ({ on, published: false, event: null, relays: [] }));
+    show({
+      supported: undefined,
+      assistant: null,
+      status: null,
+      settled: false,
+      error: new Error("Your Treasure Map names more than 64 keys, too many to check."),
+      set,
+    });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent("names more than 64 keys");
+    expect(screen.queryByTestId("treasure-map-on")).toBeNull();
     fireEvent.click(screen.getByTestId("treasure-map-off"));
     await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed"));
     expect(set).toHaveBeenCalledWith(false);

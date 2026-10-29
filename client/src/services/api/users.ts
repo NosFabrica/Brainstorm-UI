@@ -106,11 +106,17 @@ export class TreasureMapUnavailableError extends Error {
   }
 }
 
-/** What `POST /user/assistantTreasureMap` answers: the signed version, if one was published, and how each relay took it. */
+/** What `POST /user/assistantTreasureMap` answers: the version sent, if one was, and how each relay took it. */
 export interface TreasureMapPublishResult {
   on: boolean;
-  /** False when nothing would change, so nothing was signed. */
+  /**
+   * False when nothing would change and every relay that answered the read
+   * holds the newest version, so nothing was signed or sent. True for a new
+   * version, and for a repair: the newest found, sent unchanged to the relays
+   * that answered without it.
+   */
   published: boolean;
+  /** The version sent: signed now or, for a repair, the newest found. */
   event: NostrEvent | null;
   relays: { url: string; ok: boolean; message?: string }[];
 }

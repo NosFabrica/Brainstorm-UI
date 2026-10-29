@@ -11,6 +11,7 @@ import {
   readSelfEntries,
   selfMapButtons,
   selfMapStatus,
+  writerRelays,
   type DutyLine,
 } from "./assistantTreasureMap";
 
@@ -196,5 +197,30 @@ describe("the buttons", () => {
       turnOff: false,
     });
     expect(selfMapButtons(false, "out-of-date", 2).turnOff).toBe(true);
+  });
+
+  it("offers the repair once a relay a press reads missed the newest version", () => {
+    expect(selfMapButtons(true, "current", 1, 1).update.enabled).toBe(true);
+    expect(selfMapButtons(false, "current", 0, 1).turnOff).toBe(true);
+    expect(selfMapButtons(false, "current", 0, 0).turnOff).toBe(false);
+  });
+});
+
+describe("the relays a press reads", () => {
+  const OUTBOX = "wss://outbox.example/";
+  const HINT = "wss://hint.example/";
+
+  it("are the relays shouldSay names, and the scores relay when the check names it", () => {
+    expect(writerRelays({ relays: [SCORES, OUTBOX], shouldSay: [] }, "wss://SCORES.example")).toEqual([SCORES]);
+    expect(writerRelays({ relays: [OUTBOX], shouldSay: [] }, SCORES)).toEqual([]);
+    expect(writerRelays({ relays: [SCORES], shouldSay: [rank, followers] }, SCORES)).toEqual([SCORES]);
+  });
+
+  it("never count the other relays the check names: a hint among them is never sent to", () => {
+    expect(writerRelays({ relays: [SCORES, OUTBOX, HINT], shouldSay: [rank] }, SCORES)).toEqual([SCORES]);
+  });
+
+  it("skip an entry that claims no relay, and an unset scores relay", () => {
+    expect(writerRelays({ relays: [SCORES], shouldSay: [{ key: "30382:rank", relay: "" }] }, "")).toEqual([]);
   });
 });

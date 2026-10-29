@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Check, Loader2, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -209,13 +209,34 @@ export default function TreasureMapSetupPage() {
     }
   };
 
-  const buttons = selfMapButtons(map.on, map.status, map.found.length);
+  const buttons = selfMapButtons(map.on, map.status, map.found.length, map.missed.length);
   // A press waits for the published version to be read: its base is the newest one.
   const busy = pressing !== null || map.status === null;
   const label = (which: "on" | "update" | "off", words: string) => (
     <>
       {pressing === which && <Loader2 className="h-4 w-4 animate-spin" />}
       {pressing === which ? "Publishing…" : words}
+    </>
+  );
+  const turnOff = (disabled: boolean) => (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => void press("off")}
+      disabled={disabled}
+      data-testid="treasure-map-off"
+    >
+      {label("off", "Remove your Assistant's duties from its Treasure Map")}
+    </Button>
+  );
+  const outcome = (
+    <>
+      {result && <Report result={result} />}
+      {failure && (
+        <Alert variant="destructive">
+          <AlertDescription>{failure}</AlertDescription>
+        </Alert>
+      )}
     </>
   );
   const stateLine = map.on
@@ -264,9 +285,20 @@ export default function TreasureMapSetupPage() {
             Your Brainstorm server can&rsquo;t keep your Assistant&rsquo;s Treasure Map yet.
           </Card>
         ) : map.error ? (
-          <Alert variant="destructive" data-testid="treasure-map-error">
-            <AlertDescription>Couldn&rsquo;t reach your Assistant right now. {map.error.message}</AlertDescription>
-          </Alert>
+          <>
+            <Alert variant="destructive" data-testid="treasure-map-error">
+              <AlertDescription>Couldn&rsquo;t reach your Assistant right now. {map.error.message}</AlertDescription>
+            </Alert>
+            {/* A press turns off without the check (TREASURE-MAP-ASK.md, the POST's step 1). */}
+            <Card className="space-y-3 p-5">
+              <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-off-unchecked">
+                You can still remove your Assistant&rsquo;s duties from its Treasure Map: that doesn&rsquo;t need the
+                check.
+              </p>
+              <div className="flex flex-wrap gap-2">{turnOff(pressing !== null)}</div>
+              {outcome}
+            </Card>
+          </>
         ) : !map.supported ? (
           <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Asking your Assistant which duties are live…
@@ -336,6 +368,22 @@ export default function TreasureMapSetupPage() {
                   {stateLine}
                 </p>
               )}
+              {map.missed.length > 0 && (
+                <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-missed">
+                  The newest version hasn&rsquo;t reached{" "}
+                  {map.missed.map((relay, i) => (
+                    <Fragment key={relay}>
+                      {i > 0 && ", "}
+                      <Relay relay={relay} />
+                    </Fragment>
+                  ))}{" "}
+                  yet:{" "}
+                  {map.on
+                    ? "updating your Assistant's Treasure Map"
+                    : "removing your Assistant's duties from its Treasure Map"}{" "}
+                  sends it there.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {buttons.turnOn && (
                   <Button size="sm" onClick={() => void press("on")} disabled={busy} data-testid="treasure-map-on">
@@ -352,24 +400,9 @@ export default function TreasureMapSetupPage() {
                     {label("update", "Update your Assistant's Treasure Map now")}
                   </Button>
                 )}
-                {buttons.turnOff && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void press("off")}
-                    disabled={busy}
-                    data-testid="treasure-map-off"
-                  >
-                    {label("off", "Remove your Assistant's duties from its Treasure Map")}
-                  </Button>
-                )}
+                {buttons.turnOff && turnOff(busy)}
               </div>
-              {result && <Report result={result} />}
-              {failure && (
-                <Alert variant="destructive">
-                  <AlertDescription>{failure}</AlertDescription>
-                </Alert>
-              )}
+              {outcome}
             </Card>
 
             {/* While off, the state line says it; the status line is for a Map that is meant to list. */}

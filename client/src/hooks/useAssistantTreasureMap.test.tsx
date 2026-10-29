@@ -27,6 +27,7 @@ const signedMap = (entries: string[][]) =>
 const h = vi.hoisted(() => ({
   getAssistantTreasureMap: vi.fn(),
   setAssistantTreasureMap: vi.fn(),
+  reach: vi.fn(),
   stored: undefined as unknown,
   added: [] as unknown[],
 }));
@@ -44,15 +45,26 @@ vi.mock("@/hooks/useStoreReplaceable", () => ({
     settled: !!pubkey,
   }),
 }));
-vi.mock("@/services/nostr", () => ({ fetchEventsByFilter: vi.fn(async () => []) }));
+vi.mock("@/services/nostr", () => ({
+  fetchEventsByFilter: vi.fn(async () => []),
+  getNip85RelayUrl: () => "wss://scores.example",
+}));
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (ev: unknown) => h.added.push(ev) } }));
+vi.mock("@/lib/relayRequest", () => ({ requestNewestWithReach: h.reach }));
 
 import { parseTreasureMapCheck } from "@/lib/assistantTreasureMap";
 import { TreasureMapUnavailableError } from "@/services/api";
 import { useAssistantTreasureMap } from "./useAssistantTreasureMap";
 
-const check = (on: boolean) =>
-  parseTreasureMapCheck({ assistant: ASSISTANT, on, duties: [], shouldSay: SHOULD, relays: [SCORES] });
+const HINT = "wss://hint.example/";
+const check = (on: boolean, relays = [SCORES]) =>
+  parseTreasureMapCheck({ assistant: ASSISTANT, on, duties: [], shouldSay: SHOULD, relays });
+/** Each relay asked answers, holding `newest` (none by default). */
+const answer = (newest?: unknown, answered = true) =>
+  h.reach.mockImplementation(async (relays: string[]) => ({
+    newest,
+    reach: { asked: relays, answered: answered ? relays : [] },
+  }));
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -66,6 +78,7 @@ beforeEach(() => {
   h.stored = undefined;
   h.added = [];
   h.getAssistantTreasureMap.mockResolvedValue(check(false));
+  answer();
 });
 
 describe("useAssistantTreasureMap", () => {
@@ -128,5 +141,51 @@ describe("useAssistantTreasureMap", () => {
       await result.current.set(true);
     });
     expect(h.added).toHaveLength(1);
+  });
+
+  it("asks the relays a press reads for the newest version: one that answers without it missed it", async () => {
+    const event = signedMap(SHOULD);
+    h.stored = event;
+    h.getAssistantTreasureMap.mockResolvedValue(check(false, [SCORES, HINT]));
+    const { result } = mount();
+    await waitFor(() => expect(result.current.missed).toEqual([SCORES]));
+    // The hint is never asked: a press never sends there.
+    expect(h.reach.mock.calls.map((call) => call[0])).toEqual([[SCORES]]);
+    expect(h.reach).toHaveBeenCalledWith([SCORES], { ids: [event.id] }, expect.any(Number));
+  });
+
+  it("leaves alone a relay that doesn't answer, as the press does", async () => {
+    h.stored = signedMap(SHOULD);
+    answer(undefined, false);
+    const { result } = mount();
+    await waitFor(() => expect(h.reach).toHaveBeenCalled());
+    await act(async () => {});
+    expect(result.current.missed).toEqual([]);
+  });
+
+  it("asks nothing while no version is found", async () => {
+    const { result } = mount();
+    await waitFor(() => expect(result.current.status).toBe("missing"));
+    expect(h.reach).not.toHaveBeenCalled();
+    expect(result.current.missed).toEqual([]);
+  });
+
+  it("asks again after a press: a repair sends the version already found", async () => {
+    const event = signedMap(SHOULD);
+    h.stored = event;
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const { result } = mount();
+    await waitFor(() => expect(result.current.missed).toEqual([SCORES]));
+    h.setAssistantTreasureMap.mockResolvedValue({
+      on: true,
+      published: true,
+      event,
+      relays: [{ url: SCORES, ok: true }],
+    });
+    answer(event);
+    await act(async () => {
+      await result.current.set(true);
+    });
+    await waitFor(() => expect(result.current.missed).toEqual([]));
   });
 });

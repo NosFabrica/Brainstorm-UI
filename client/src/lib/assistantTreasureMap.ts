@@ -16,7 +16,8 @@
  * does for the Duty Menu. It reads a version as the server's press does
  * (brainstorm_server `app/services/self_map_build.py`), so "up to date" here is
  * the press's "nothing to change", and Update now is enabled exactly when a
- * press would sign a new version.
+ * press would send something: a new version, or the newest one to a relay that
+ * missed it (`writerRelays`).
  */
 import { menuKey, menuRelay } from "@/lib/dutyMenu";
 
@@ -192,7 +193,8 @@ export function hasEntry(entries: readonly SelfEntry[], entry: SelfEntry): boole
  *
  * A press that changes nothing still re-sends the newest version to a relay it
  * reads that answered without it, such as the scores relay while it was down.
- * Which relays hold it isn't known here, so that waits for the next press.
+ * That isn't a status: the version is right, and the relays a press reads are
+ * asked whether they hold it (`writerRelays`, hooks/useAssistantTreasureMap).
  */
 export function selfMapStatus(
   shouldSay: readonly SelfEntry[],
@@ -219,6 +221,24 @@ export function isFalseClaim(entry: SelfEntry, shouldSay: readonly SelfEntry[]):
   return entry.relay !== "" && !hasEntry(shouldSay, entry);
 }
 
+/**
+ * The relays a press reads (brainstorm_server `_writer_relays`) that the check
+ * tells apart: every relay `shouldSay` names, and the scores relay, which
+ * heads the Assistant's outbox, when `relays` names it. The rest of `relays`
+ * are the outbox's other relays and the reader's hints, and nothing in the
+ * check says which is which. A hint must never count: a press never reads or
+ * sends there, so a version it lacks would stay missing, and Update now would
+ * never turn off.
+ */
+export function writerRelays(
+  check: Pick<TreasureMapCheck, "relays" | "shouldSay">,
+  scoresRelay: string | null | undefined,
+): string[] {
+  const scores = menuRelay(scoresRelay);
+  const named = check.shouldSay.map((e) => menuRelay(e.relay)).filter((r): r is string => !!r);
+  return [...new Set([...(scores && check.relays.includes(scores) ? [scores] : []), ...named])];
+}
+
 export interface SelfMapButtons {
   turnOn: boolean;
   update: { shown: boolean; enabled: boolean };
@@ -226,12 +246,20 @@ export interface SelfMapButtons {
 }
 
 /**
- * Which buttons the page shows, as Tapestry's `selfMapButtons`. On: Update now
- * (enabled unless up to date) and Turn off. Off: Turn on, and Turn off too
- * while the published version still lists some of the Assistant's duties, so
- * no claim is stuck.
+ * Which buttons the page shows, as Tapestry's `selfMapButtons`, with the
+ * server's repair: `missedCount` relays a press reads answered without the
+ * newest version, and a press sends it there unchanged. On: Update now
+ * (enabled unless up to date and held wherever it was asked for) and Turn off.
+ * Off: Turn on, and Turn off too while the published version still lists some
+ * of the Assistant's duties, or a relay missed it, so no claim is stuck.
  */
-export function selfMapButtons(on: boolean, status: SelfMapStatus | null, foundCount: number): SelfMapButtons {
-  if (on) return { turnOn: false, update: { shown: true, enabled: status !== "current" }, turnOff: true };
-  return { turnOn: true, update: { shown: false, enabled: false }, turnOff: foundCount > 0 };
+export function selfMapButtons(
+  on: boolean,
+  status: SelfMapStatus | null,
+  foundCount: number,
+  missedCount = 0,
+): SelfMapButtons {
+  const missed = missedCount > 0;
+  if (on) return { turnOn: false, update: { shown: true, enabled: status !== "current" || missed }, turnOff: true };
+  return { turnOn: true, update: { shown: false, enabled: false }, turnOff: foundCount > 0 || missed };
 }

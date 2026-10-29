@@ -3,8 +3,8 @@
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-treasure-map`, 2026-10-27
 **Filed as:** the second item of [NosFabrica/brainstorm_server#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
-**Built in:** `50443af` on that PR, with the fixes from its audit (2026-10-28). It is in review and not deployed. This
-doc says what it does.
+**Built in:** `562110f` on that PR, with the fixes from both rounds of its audit (2026-10-28 and 2026-10-29). It is in
+review and not deployed. This doc says what it does.
 **Modelled on:** [DUTY-MENU-ASK.md](DUTY-MENU-ASK.md), and Tapestry's Your Assistant's Treasure Map
 (`src/api/assistant/selfMap.js`, `src/lib/self-map/index.js`, `POST /api/assistant/self-map`; ADRs
 `assistant-self-map/0001`–`0003`)
@@ -184,8 +184,10 @@ The check: what the Assistant's Treasure Map should list now, and why.
 - **502** when the reader's Map can't be read (a relay error, or a `CLOSED`): "Couldn't read your Treasure Map, so your
   Assistant's Treasure Map couldn't be checked. Try again in a moment." It never answers an empty check for a Map it
   couldn't read.
-- **502** when the reader's follow count can't be read: "Couldn't check whether your Scores are kept up to date. Try
-  again in a moment." Read as none, it would make Turn on take the Scores entries off.
+- **502** when the reader's follow count can't be read within 1 s: "Couldn't check whether your Scores are kept up to
+  date. Try again in a moment." Read as none, it would make Turn on take the Scores entries off. It's read only when the
+  reader's Map asks the Assistant for Scores, a key naming it that covers kind 30382 (`asks_for_scores`): otherwise no
+  Score is its duty, and the count changes nothing.
 - **422** when the reader's Map names more than 64 keys: "Your Treasure Map names more than 64 keys, too many to check,
   so your Assistant's Treasure Map couldn't be checked." A check's cost grows with the square of the keys, and a cut-down
   Map could give the wrong self-entries. Real Maps name about 30 at most.
@@ -200,11 +202,11 @@ says whose Assistant. A body whose `on` isn't a JSON boolean is a **422**. A sec
 one is under way is refused at once, nothing queued: **409**, "Your Assistant's Treasure Map is already being
 published. Try again in a moment."
 
-1. **Read the reader's Map and follow count.** If the Map can't be read, `{ "on": true }` answers 502, "Couldn't read
-   your Treasure Map, so nothing was published." With more than 64 keys it answers 422, "…too many to check, so nothing
-   was published." If the follow count can't be read, it answers the GET's 502. Turn off goes ahead in all three cases:
-   without the Map, and reading the follow count as none. It lists nothing, and live Scores would only add the scores
-   relay, which the Assistant's outbox already names.
+1. **Read the reader's Map**, and for Turn on the follow count, when the GET reads it. If the Map can't be read,
+   `{ "on": true }` answers 502, "Couldn't read your Treasure Map, so nothing was published." With more than 64 keys it
+   answers 422, "…too many to check, so nothing was published." A follow count it can't read answers the GET's 502.
+   Turn off goes ahead without the Map in both cases, and never reads the follow count: it lists nothing, and live
+   Scores would only add the scores relay, which the Assistant's outbox already names.
 2. **Read the newest version**, strictly, from the writer's relays (§ 9.2): the Assistant's outbox and the relays
    `shouldSay` names, the scores relay at its internal URL, as scores are. If no relay answers, publish nothing and
    answer 502, "Couldn't read your Assistant's Treasure Map, so nothing was published." The reader's hints are never
@@ -219,7 +221,8 @@ published. Try again in a moment."
    press has succeeded: after the send, committed before the answer. Only this route writes it, and any error leaves it
    as it was.
 
-Synchronous, like the Duty Menu: the UI waits up to 30 seconds, and a press takes about 28 at worst.
+Synchronous, like the Duty Menu: the UI waits up to 30 seconds, and a press takes about 29 at worst. The reader's Map
+and the versions are read in up to 6 seconds each, the follow count in 1, the connect takes up to 4 and the send 12.
 
 ```jsonc
 {
@@ -235,12 +238,13 @@ Synchronous, like the Duty Menu: the UI waits up to 30 seconds, and a press take
 
 A relay the server couldn't connect to reads `"message": "couldn't connect"`; the raw error is only logged. When
 nothing changed and no relay missed the newest version: `{ "on": true, "published": false, "event": null, "relays": [] }`.
-When step 3 re-sent it: `published: true`, the version as `event`, and a line for each relay it went to. A new version
-answers 502 if no relay took it, as the Duty Menu does: "Your Assistant's Treasure Map didn't reach any relay. Try again
-in a moment."
+When step 3 re-sent it: `published: true`, the version as `event`, and a line for each relay it went to, whether or not
+they took it. The version is already on a relay it was read from, so a failed line isn't a 502. A new version answers
+502 if no relay took it, as the Duty Menu does: "Your Assistant's Treasure Map didn't reach any relay. Try again in a
+moment."
 
-The UI adds `event` to its store, so the step turns done at once, shows one line per relay, and asks for the check
-again.
+The UI adds `event` to its store, so the step turns done at once, and shows one line per relay. Then it asks for the
+check again, and asks the relays whether they now hold the newest version (below).
 
 ## What the UI shows
 
@@ -248,19 +252,29 @@ again.
   and `shouldSay` arrays): the step and its page say nothing, and `/setup` keeps its other steps.
 - **401**: as any other signed-in call.
 - **Any other error**: the server's sentence. A check that failed reads "Couldn't reach your Assistant right now."
-  before it; a press that failed, the 409 included, shows it alone.
+  before it, and still offers Turn off, which needs no check (step 1). A press that failed, the 409 included, shows it
+  alone.
 - **It reads a version as the press does.** Self-entries are the tags whose key parses, naming the Assistant, each key
   and relay once, so a hand-made `3040x` entry is an ordinary tag to both. The step is done exactly when a press would
   sign nothing (step 3): the same self-entries, whatever else the version carries. Tapestry's ledger keeps that rule as
   an open bug (`2026-10-13-self-map-current-ignores-expiration`), because its writer keeps every other tag; Brainstorm's
   writes none, so here it is the whole rule. A reader with nothing live and nothing published is done, and nobody is
   asked to publish an empty Map.
-- **What it can't see**: which relays hold the newest version. A relay that missed it is mended by the next press
-  (step 3), but while the self-entries match, the page shows up to date and Update now stays off.
-- **The buttons** are Tapestry's `selfMapButtons`:
-  - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, so no claim is
-    stuck;
-  - while on: Update now (enabled unless up to date) and Turn off.
+- **Which relays hold the newest version** is a relay probe (ADR 0005), asked once the version is read. Each relay a
+  press reads (step 2) is asked for it by id:
+  - one that answers without it has missed it, and a press sends it there (step 3). The page names it, and offers the
+    press, though the self-entries match;
+  - one that doesn't answer is left alone, as the press leaves it.
+
+  Only the writer's relays the UI can tell apart are asked: those `shouldSay` names, and the scores relay, which heads
+  the Assistant's outbox. The GET's other `relays` are the outbox's other relays and the reader's hints, and the
+  answer doesn't say which is which. A hint must never be asked: a press never sends there, so Update now would never
+  turn off. A version an outbox relay missed waits for the next press that signs one.
+
+- **The buttons** are Tapestry's `selfMapButtons`, with the repair:
+  - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, or a relay missed the
+    newest one, so no claim is stuck;
+  - while on: Update now (enabled unless up to date and held wherever it was asked for) and Turn off.
 - **Elsewhere in the app**, a self-Map found on relays, in search results or on its `/e` page, reads as what its
   Assistant publishes ("Publishes and keeps up to date · Rank, Followers, …"), never as an activation
   (`describeDesignation`).
@@ -281,6 +295,8 @@ again.
   - one press at a time is held in-process only, so it needs Redis once the server runs more than one instance;
   - the POSTs have no rate limit;
   - a relay that refused a removal keeps the old claim.
+- **The GET naming the relays a press reads**, beside `relays`. The UI could then ask the whole outbox for the newest
+  version, not only the scores relay and the relays `shouldSay` names.
 - **The audit's follow-ups**, not filed yet:
   - `/{pubkey}` routes that take only hex, so these paths no longer depend on the order routes are mounted in;
   - one kind-10040 grammar for GrapeRank and the Treasure Map;
