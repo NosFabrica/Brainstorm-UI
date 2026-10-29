@@ -277,6 +277,7 @@ import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { __forgetAllCategories } from "@/hooks/useAllCategories";
+import { __forgetResultTags } from "@/hooks/useResultTags";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
@@ -293,6 +294,16 @@ vi.mock("@/lib/nip05", async (orig) => ({
   resolveNip05: async () => null,
   handleOwner: (nip05: string, pubkey: string) => handleOwnerMock(nip05, pubkey),
   peekHandleOwner: () => undefined,
+}));
+// The tags a page of results carry (hooks/useResultTags): none, unless a test says.
+const resultTagsMock = vi.hoisted(() => ({
+  events: vi.fn(async (_targets: string[]) => new Map<string, { tags: unknown[] }>()),
+  people: vi.fn(async (_pubkeys: string[]) => new Map<string, { tags: unknown[] }>()),
+}));
+vi.mock("@/services/tags", async (orig) => ({
+  ...(await orig<typeof import("@/services/tags")>()),
+  fetchEventTagsBatch: (targets: string[]) => resultTagsMock.events(targets),
+  fetchProfileTagsBatch: (pubkeys: string[]) => resultTagsMock.people(pubkeys),
 }));
 // The accounts a search's handles point at, as the face cache reads them.
 const pillProfilesMock = vi.hoisted(() => vi.fn(async (_pks: string[]) => new Map()));
@@ -5712,5 +5723,104 @@ describe("SearchResults: tabs the words find nothing under", () => {
     emit({ eose: true, timeMs: 5 });
     await act(async () => {});
     expect(tabCountAsks).toHaveLength(1);
+  });
+});
+
+describe("All's tag filters", () => {
+  const AUTHOR = "b".repeat(64);
+  const tag = (slug: string, name: string, counted = true) => ({
+    key: `${AUTHOR}|${slug}`,
+    authorPubkey: AUTHOR,
+    slug,
+    name,
+    counted,
+  });
+  const stoicism = tag("stoicism", "Stoicism");
+  const artist = tag("artist", "Artist");
+  const row = (n: string, kind: number, tags: string[][] = []) => ({
+    event: ev(n.repeat(64), kind, "a".repeat(64), "the obstacle is the way", tags),
+    author: null,
+    rank: null,
+  });
+  // A note and an article carry Stoicism, the article Artist too; a video only an uncounted tag.
+  const note = row("1", 1);
+  const article = row("2", 30023, [["d", "meditations"]]);
+  const video = row("3", 21);
+  const ARTICLE = `30023:${"a".repeat(64)}:meditations`;
+  const resultRows = () => screen.getByTestId("container-search-results").children.length;
+  const tagged = () => new URLSearchParams(window.location.search).get("tagged");
+
+  beforeEach(() => {
+    __forgetResultTags();
+    resultTagsMock.events.mockImplementation(
+      async () =>
+        new Map([
+          [note.event.id, { tags: [stoicism] }],
+          [ARTICLE, { tags: [artist, stoicism] }],
+          [video.event.id, { tags: [tag("spam", "Spam", false)] }],
+        ]),
+    );
+  });
+  afterEach(() => resultTagsMock.events.mockReset());
+
+  it("offers the results' tags, most carried first; pressing one keeps the results carrying it", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+
+    const facets = await screen.findByTestId("tag-facets");
+    // The note's id and the article's coordinate were asked; a tag nobody's support carries isn't offered.
+    expect(resultTagsMock.events).toHaveBeenCalledWith(expect.arrayContaining([note.event.id, ARTICLE]));
+    expect(
+      within(facets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Stoicism", "Artist"]);
+    expect(resultRows()).toBe(3);
+
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    expect(resultRows()).toBe(2);
+    expect(tagged()).toBe(stoicism.key);
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 3 match");
+
+    fireEvent.click(screen.getByTestId("tag-facet-artist"));
+    expect(resultRows()).toBe(1);
+    fireEvent.click(screen.getByTestId("tag-facet-artist"));
+    expect(resultRows()).toBe(3);
+    expect(tagged()).toBeNull();
+  });
+
+  it("a tag the link names waits for the results' tags, then keeps those carrying it", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&tagged=${encodeURIComponent(artist.key)}`);
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+    // Not "nothing found" while the tags are still coming.
+    expect(screen.queryByTestId("container-search-results")).not.toBeInTheDocument();
+    await waitFor(() => expect(resultRows()).toBe(1));
+    expect(screen.getByTestId("tag-facet-artist")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows the first few, and the rest on asking", async () => {
+    const many = Array.from({ length: 8 }, (_, i) => tag(`t${i}`, `Tag ${i}`));
+    resultTagsMock.events.mockImplementation(async () => new Map([[note.event.id, { tags: many }]]));
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+
+    const more = await screen.findByTestId("tag-facets-more");
+    expect(more).toHaveTextContent("+2 more");
+    expect(within(screen.getByTestId("tag-facets")).getAllByRole("button")).toHaveLength(7);
+    fireEvent.click(more);
+    expect(within(screen.getByTestId("tag-facets")).getAllByRole("button")).toHaveLength(8);
+  });
+
+  it("isn't offered off All", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+    await screen.findByTestId("container-search-results");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(resultTagsMock.events).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("tag-facets")).not.toBeInTheDocument();
   });
 });
