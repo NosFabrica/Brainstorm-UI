@@ -189,7 +189,7 @@ function PanelHead({ title, explainer, children }: { title: string; explainer?: 
 export default function TreasureMapSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const map = useAssistantTreasureMap(user?.pubkey);
+  const map = useAssistantTreasureMap(user?.pubkey, { probeRelays: true });
   const [pressing, setPressing] = useState<"on" | "update" | "off" | null>(null);
   const [result, setResult] = useState<TreasureMapPublishResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -366,6 +366,14 @@ export default function TreasureMapSetupPage() {
               {map.status !== null && (
                 <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-state">
                   {stateLine}
+                </p>
+              )}
+              {map.checkingRelays && (
+                <p
+                  className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
+                  data-testid="treasure-map-checking-relays"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking which relays have the newest version…
                 </p>
               )}
               {map.missed.length > 0 && (

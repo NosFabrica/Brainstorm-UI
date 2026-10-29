@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { verifyEvent, type NostrEvent } from "nostr-tools";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import {
+  missedRelays,
   readSelfEntries,
   SELF_MAP_KIND,
   selfMapStatus,
@@ -18,6 +19,11 @@ import { apiClient, TreasureMapUnavailableError, type TreasureMapPublishResult }
 import { fetchEventsByFilter, getNip85RelayUrl } from "@/services/nostr";
 
 const READ_MS = 8000;
+/** A press gives up on a relay's read after this long (brainstorm_server step 2), and so does the probe. */
+const PROBE_MS = 5000;
+/** A probe's answer stands this long before the page asks again; a press asks again at once. */
+const PROBE_STALE_MS = 60_000;
+const PROBE = "assistant-treasure-map-missed";
 const NONE: never[] = [];
 
 /** Unconfigured is "no scores relay to ask", not a crash in render. */
@@ -49,10 +55,14 @@ export interface AssistantTreasureMap {
   /** The relays have answered, so "missing" or "out of date" is known rather than not-yet-loaded. */
   settled: boolean;
   /**
-   * Relays a press reads that answered without the newest version found: a
-   * press sends it there unchanged. Empty until they have answered.
+   * Relays a press reads that answered without the newest version, while a
+   * press would otherwise sign nothing: it sends that version there
+   * unchanged. Asked only where the caller wants it (`probeRelays`); empty
+   * while they're being asked.
    */
   missed: string[];
+  /** Those relays are being asked, so whether one missed it isn't known yet. */
+  checkingRelays: boolean;
   /** The server couldn't answer the check, for a reason other than having no route. */
   error: Error | null;
   /** Turn on or Update now (`true`), or Turn off (`false`). */
@@ -73,12 +83,20 @@ export interface AssistantTreasureMap {
  * there once it verifies, and asks for the check again, since the choice and
  * what is live can both have moved.
  *
- * Whether each relay a press reads holds that version is a relay probe (ADR
- * 0005): the store, holding copies from anywhere, can't say. A relay that
- * answers without it is where a press sends it (brainstorm_server `_missing`);
- * one that doesn't answer is left alone, as the press leaves it.
+ * Which relays hold the newest version is a relay probe (ADR 0005), asked only
+ * where the caller wants it (`probeRelays`, the page): the store, holding
+ * copies from anywhere, can't say. It's asked while a press would otherwise
+ * sign nothing, of the relays a press reads that the check tells apart
+ * (`writerRelays`: the relays `shouldSay` names, and the scores relay). Each
+ * gives its own newest version, as the press reads it. One that answered
+ * without the newest known, theirs or the store's, is where a press sends it
+ * (`missedRelays`, brainstorm_server `_missing`); one that doesn't answer is
+ * left alone, as the press leaves it.
  */
-export function useAssistantTreasureMap(pubkey: string | null | undefined): AssistantTreasureMap {
+export function useAssistantTreasureMap(
+  pubkey: string | null | undefined,
+  { probeRelays = false }: { probeRelays?: boolean } = {},
+): AssistantTreasureMap {
   const queryClient = useQueryClient();
   const queryKey = ["assistant-treasure-map", pubkey];
   const checkQuery = useQuery({
@@ -111,24 +129,31 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
   const status = assistant && (published || read.settled) ? selfMapStatus(shouldSay, published, assistant) : null;
 
   const writer = useMemo(() => (check ? writerRelays(check, scoresRelay()) : NONE), [check]);
-  // Asked once the read has settled, so a version still arriving isn't taken for the newest.
-  const newestId = read.settled ? published?.id : undefined;
+  // A relay's answer changes a button only while a press would otherwise sign nothing: one that signs sends to them all.
+  const repairOnly = probeRelays && status !== null && (check?.on ? status === "current" : found.length === 0);
   const probe = useQuery({
-    queryKey: ["assistant-treasure-map-missed", assistant, newestId, writer],
+    queryKey: [PROBE, assistant, writer],
     queryFn: async () => {
       const answers = await Promise.all(
         writer.map((relay) =>
-          // eslint-disable-next-line no-restricted-syntax -- relay probe: does this relay hold the newest version now?
-          requestNewestWithReach([relay], { ids: [newestId!] }, READ_MS),
+          // eslint-disable-next-line no-restricted-syntax -- relay probe: what does each writer relay hold now?
+          requestNewestWithReach([relay], { kinds: [SELF_MAP_KIND], authors: [assistant!], limit: 1 }, PROBE_MS),
         ),
       );
-      return writer.filter((_, i) => answers[i].reach.answered.length > 0 && answers[i].newest?.id !== newestId);
+      return writer.map((relay, i) => ({
+        relay,
+        answered: answers[i].reach.answered.length > 0,
+        newest: answers[i].newest,
+      }));
     },
-    enabled: !!assistant && !!newestId && writer.length > 0,
-    staleTime: 0,
-    gcTime: 0,
-    retry: 0,
+    enabled: repairOnly && writer.length > 0,
+    staleTime: PROBE_STALE_MS,
   });
+  const asking = repairOnly && probe.isFetching;
+  const missed = useMemo(
+    () => (repairOnly && !asking && probe.data ? missedRelays(probe.data, published) : NONE),
+    [repairOnly, asking, probe.data, published],
+  );
 
   const mutation = useMutation({
     mutationFn: async (on: boolean) => {
@@ -139,12 +164,11 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
       }
       return result;
     },
-    // A repair sends the version already found, so only asking the relays again shows it landed.
-    onSettled: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey }),
-        queryClient.invalidateQueries({ queryKey: ["assistant-treasure-map-missed", assistant] }),
-      ]),
+    onSettled: () => {
+      // A repair adds no new version, so only asking the relays again shows it landed. The answer doesn't wait for them.
+      void queryClient.invalidateQueries({ queryKey: [PROBE, assistant] });
+      return queryClient.invalidateQueries({ queryKey });
+    },
   });
 
   return {
@@ -157,7 +181,8 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
     found,
     status,
     settled: read.settled,
-    missed: probe.data ?? NONE,
+    missed,
+    checkingRelays: asking,
     error: checkQuery.error && !unsupported ? checkQuery.error : null,
     set: mutation.mutateAsync,
     publishing: mutation.isPending,

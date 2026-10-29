@@ -29,7 +29,7 @@ const DUTIES = [
   line({ key: "30382:hops", status: "elsewhere", relay: null, entries: [] }),
 ];
 
-const h = vi.hoisted(() => ({ map: null as unknown as AssistantTreasureMap }));
+const h = vi.hoisted(() => ({ map: null as unknown as AssistantTreasureMap, args: [] as unknown[] }));
 vi.mock("wouter", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   useLocation: () => ["/setup/treasure-map", vi.fn()],
@@ -39,7 +39,12 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
-vi.mock("@/hooks/useAssistantTreasureMap", () => ({ useAssistantTreasureMap: () => h.map }));
+vi.mock("@/hooks/useAssistantTreasureMap", () => ({
+  useAssistantTreasureMap: (...args: unknown[]) => {
+    h.args = args;
+    return h.map;
+  },
+}));
 
 import TreasureMapSetupPage from "./TreasureMapSetupPage";
 
@@ -55,6 +60,7 @@ function show(map: Partial<AssistantTreasureMap>) {
     status: "missing",
     settled: true,
     missed: [],
+    checkingRelays: false,
     error: null,
     set: vi.fn(async (on: boolean) => ({ on, published: true, event: null, relays: [] })),
     publishing: false,
@@ -147,6 +153,16 @@ describe("TreasureMapSetupPage", () => {
       "The newest version hasn’t reached wss://scores.example/ yet: updating your Assistant's Treasure Map sends it there.",
     );
     expect(screen.getByTestId("treasure-map-update")).toBeEnabled();
+  });
+
+  it("asks the relays a press reads, and says so while they answer", () => {
+    show({ on: true, status: "current", found: [rank], published: { kind: 10040 } as never, checkingRelays: true });
+    expect(h.args[1]).toEqual({ probeRelays: true });
+    expect(screen.getByTestId("treasure-map-checking-relays")).toHaveTextContent(
+      "Checking which relays have the newest version",
+    );
+    expect(screen.queryByTestId("treasure-map-missed")).toBeNull();
+    expect(screen.getByTestId("treasure-map-update")).toBeDisabled();
   });
 
   it("while off, a relay that missed the newest version keeps Turn off", () => {
