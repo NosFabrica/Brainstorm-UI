@@ -333,14 +333,18 @@ export default function FinishSetupPage() {
                 badge={
                   treasureMap === "checking"
                     ? "Checking"
-                    : treasureMap === "out-of-date"
-                      ? "Out of date"
-                      : "Required for other apps"
+                    : treasureMap === "failed"
+                      ? "Couldn't check"
+                      : treasureMap === "out-of-date"
+                        ? "Out of date"
+                        : "Required for other apps"
                 }
                 detail={
-                  treasureMap === "out-of-date"
-                    ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
-                    : "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once."
+                  treasureMap === "failed"
+                    ? "Your Assistant's Treasure Map couldn't be checked just now, so this step isn't counted. Open it to see why."
+                    : treasureMap === "out-of-date"
+                      ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
+                      : "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once."
                 }
                 icon={MapIcon}
                 onClick={() => navigate("/setup/treasure-map")}

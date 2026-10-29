@@ -19,7 +19,12 @@ const state = vi.hoisted(() => ({
   /** The Duty Menu: unsupported unless a test says otherwise. */
   menu: { supported: false as boolean | undefined, status: null as string | null, settled: true },
   /** The Assistant's Treasure Map: unsupported unless a test says otherwise. */
-  selfMap: { supported: false as boolean | undefined, status: null as string | null, settled: true },
+  selfMap: {
+    supported: false as boolean | undefined,
+    status: null as string | null,
+    settled: true,
+    error: null as Error | null,
+  },
 }));
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64) }) }));
@@ -238,6 +243,24 @@ describe("useFinishSetup — the Treasure Map step", () => {
     expect(result.current.treasureMap).toBe("checking");
     expect(result.current.treasureMapPending).toBe(false);
     expect(result.current.remaining).toBe(0);
+  });
+
+  it("a check that fails keeps the row, not counted, until it answers", () => {
+    state.selfMap = {
+      supported: undefined,
+      status: null,
+      settled: false,
+      error: new Error("Couldn't read your Treasure Map."),
+    };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.treasureMap).toBe("failed");
+    expect(result.current.totalSteps).toBe(4);
+    expect(result.current.treasureMapPending).toBe(false);
+    expect(result.current.remaining).toBe(0);
+    // Still being asked, with no failure yet: no row.
+    state.selfMap = { supported: undefined, status: null, settled: false, error: null };
+    const loading = renderHook(() => useFinishSetup());
+    expect(loading.result.current.treasureMap).toBeUndefined();
   });
 
   it("an up-to-date Map completes the five", () => {

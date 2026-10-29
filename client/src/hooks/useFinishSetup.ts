@@ -31,7 +31,8 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * A fifth, the same way: the Assistant's own Treasure Map, listing exactly the
  * duties that are live now (hooks/useAssistantTreasureMap,
  * docs/assistant/TREASURE-MAP-ASK.md). Nothing live and nothing listed is done,
- * so nobody is asked to publish an empty Map.
+ * so nobody is asked to publish an empty Map. While its check fails, the row
+ * stays, not counted, so its page and the Turn off there stay in reach.
  *
  * /setup also offers optional extras outside the count: handing that rank duty
  * to their Brainstorm Assistant, and turning on private messages
@@ -83,9 +84,10 @@ export interface FinishSetupState {
   dutyMenuPending?: boolean;
   /**
    * The Treasure Map step, where the server supports it: the Assistant's own
-   * Treasure Map against the duties live now, or "checking". Undefined: no such step here.
+   * Treasure Map against the duties live now, or "checking". "failed" while the
+   * check fails: a row, not counted. Undefined: no such step here.
    */
-  treasureMap?: SelfMapStatus | "checking";
+  treasureMap?: SelfMapStatus | "checking" | "failed";
   /** Relay-verified "the Assistant's Treasure Map is missing or out of date". */
   treasureMapPending?: boolean;
   /** How many steps are counted: account, follow list, activation, the Duty Menu and Treasure Map where offered — never optional extras. */
@@ -135,8 +137,13 @@ export function useFinishSetup(): FinishSetupState {
     const dutyMenuPending = menuCounted && menu.settled && (dutyMenu === "missing" || dutyMenu === "out-of-date");
 
     // The Treasure Map likewise, once the server has said what it should list.
+    // A check that fails keeps its row, uncounted: it leads to the page's Turn off.
     const mapCounted = signedIn && selfMap.supported === true;
-    const treasureMap: FinishSetupState["treasureMap"] = mapCounted ? (selfMap.status ?? "checking") : undefined;
+    const treasureMap: FinishSetupState["treasureMap"] = mapCounted
+      ? (selfMap.status ?? "checking")
+      : signedIn && selfMap.error
+        ? "failed"
+        : undefined;
     const treasureMapDone = treasureMap === "current";
     const treasureMapPending =
       mapCounted && selfMap.settled && (treasureMap === "missing" || treasureMap === "out-of-date");
@@ -196,5 +203,6 @@ export function useFinishSetup(): FinishSetupState {
     selfMap.supported,
     selfMap.status,
     selfMap.settled,
+    selfMap.error,
   ]);
 }

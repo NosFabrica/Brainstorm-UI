@@ -254,6 +254,17 @@ describe("FinishSetupPage — the Treasure Map step", () => {
     expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
   });
 
+  it("a check that failed keeps the row, uncounted, leading to its page", () => {
+    setupState.mockReturnValue(state({ ...ready, treasureMap: "failed", doneCount: 4, totalSteps: 4, allDone: true }));
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-treasure-map");
+    expect(row).toHaveTextContent("Couldn't check");
+    expect(row).toHaveTextContent("this step isn't counted");
+    expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("4 of 4 complete");
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
+  });
+
   it("an out-of-date Map says so", () => {
     setupState.mockReturnValue(state({ ...ready, treasureMap: "out-of-date", doneCount: 4, totalSteps: 5 }));
     renderWithProviders(<FinishSetupPage />);
