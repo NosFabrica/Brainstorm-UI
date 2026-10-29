@@ -5781,10 +5781,15 @@ describe("All's tag filters", () => {
     fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
     expect(resultRows()).toBe(2);
     expect(tagged()).toBe(stoicism.key);
-    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 3 match");
+    // What the tag found, not "of" the rows loaded: those are a page of the search, not its whole.
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^2 results tagged Stoicism so far$/);
 
     fireEvent.click(screen.getByTestId("tag-facet-artist"));
     expect(resultRows()).toBe(1);
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^1 result tagged Artist so far$/);
+    // Once the search has no more to load, what it found is all there is.
+    emit({ hits: [note, article, video], eose: true, exhausted: true });
+    await waitFor(() => expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^1 result tagged Artist$/));
     fireEvent.click(screen.getByTestId("tag-facet-artist"));
     expect(resultRows()).toBe(3);
     expect(tagged()).toBeNull();

@@ -2352,7 +2352,8 @@ export function SearchResults({
   }, [displayHits, tab, effectiveWhen]);
 
   // A chip or a Filters control has narrowed the page.
-  const narrowed =
+  // Narrowed by something besides a pressed tag, which says its own count.
+  const narrowedBesidesTag =
     activeFilters > 0 ||
     !!shopCategory ||
     !!shopPrice ||
@@ -2364,8 +2365,10 @@ export function SearchResults({
     !!repoState ||
     !!repoLabel ||
     (tab === "events" && eventWhen !== "upcoming") ||
-    (tab === "live" && liveShelf !== null) ||
-    !!tagFilter;
+    (tab === "live" && liveShelf !== null);
+  const narrowed = narrowedBesidesTag || !!tagFilter;
+  const tagName =
+    resultTags.tags.find((t) => t.key === tagFilter)?.name ?? tagFilter?.slice(tagFilter.indexOf("|") + 1) ?? "";
   // A tag the link names waits for the rows' tags rather than saying nothing carries it.
   const tagWaiting = !!tagFilter && !resultTags.settled && displayHits.length === 0;
   const totalCount = rawHits.length + extraCount;
@@ -3082,7 +3085,11 @@ export function SearchResults({
                   {narrowed && totalCount > 0 && (
                     <div className="mb-2 px-1 sm:mb-3">
                       <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                        {displayedCount} of {totalCount} match
+                        {/* A pressed tag says what it found, not "of" the rows loaded so far: those are a
+                        page of the search, not what the words match. */}
+                        {tagFilter && !narrowedBesidesTag
+                          ? `${displayedCount} ${displayedCount === 1 ? "result" : "results"} tagged ${tagName}${snapshot?.exhausted ? "" : " so far"}`
+                          : `${displayedCount} of ${totalCount} match`}
                       </p>
                     </div>
                   )}
