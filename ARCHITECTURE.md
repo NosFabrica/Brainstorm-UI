@@ -189,7 +189,7 @@ separate, and a local UI needs its origin in the backend's `PASSKEY_ORIGINS`.
 ## External Dependencies
 
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
-- **Brainstorm Backend API:** Switchable between Staging (`brainstormserver-staging.nosfabrica.com`) and Production (`brainstormserver.nosfabrica.com`) via admin environment selector. Selection persisted in `localStorage` key `brainstorm_api_env`. Dynamic URL resolution in `client/src/services/api.ts` via `getApiEnvironment()`/`setApiEnvironment()`/`getApiBaseUrl()`. Admin dashboard shows environment badge and requires confirmation dialog before switching (with extra warning for Production).
+- **Brainstorm Backend API:** Each deployment talks to one API, named by `VITE_API_URL`: staging's UI to `brainstormserver-staging.nosfabrica.com`, production's to `api.brainstorm.world`. `docker-entrypoint.sh` writes it into `config.js` (`window.__ENV__`) when the container starts. `client/src/lib/runtimeEnv.ts` reads it from there, or from the build while `config.js` still holds the placeholder: that's how `npm run dev` gets it (`docs/agents/run-ui.md`) and how the Android build carries production's. The API calls get it from `getBrainstormApi()` in `client/src/services/api/core.ts`. There is no in-app switch: the staging/production toggle was dropped on 2026-04-21 (`c66e8e2a`), and `core.ts` only clears its old `brainstorm_api_env` key.
 - **Nostr HTTP APIs:** `api.nostr.band` and `purplepag.es` serve as HTTP fallback for profile fetching.
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
 
