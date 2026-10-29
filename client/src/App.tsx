@@ -24,6 +24,7 @@ import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import { AdminRoute } from "@/pages/AdminRoute";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { RouteFallback } from "@/components/RouteFallback";
+import { warmRoutes } from "@/lib/warmRoutes";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -48,6 +49,8 @@ import { isAdminPubkey } from "@/config/adminAccess";
 // guard is its own download.
 const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
 const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
+const DutyMenuSetupPage = lazyWithReload(() => import("@/pages/DutyMenuSetupPage"));
+const TreasureMapSetupPage = lazyWithReload(() => import("@/pages/TreasureMapSetupPage"));
 const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
 const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
 const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
@@ -270,6 +273,8 @@ function Router() {
             <Route path="/hero-lab" component={HeroLab} />
             <Route path="/welcome" component={WelcomePage} />
             <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
+            <Route path="/setup/duty-menu">{() => <RequireAuth component={DutyMenuSetupPage} />}</Route>
+            <Route path="/setup/treasure-map">{() => <RequireAuth component={TreasureMapSetupPage} />}</Route>
             <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
             <Route path="/activate" component={ActivatePage} />
             <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
@@ -306,7 +311,12 @@ function Router() {
   );
 }
 
+/** The pages most reached from search and the header, warmed once the app is idle (lib/warmRoutes). */
+const WARM_PAGES = [EventPage, HashtagPage, LoginPage, DashboardPage];
+
 function App() {
+  // Their code arrives before the reader moves to them: the page, not the loading screen.
+  useEffect(() => warmRoutes(WARM_PAGES), []);
   return (
     <AccountsProvider manager={accountManager}>
       <EventStoreProvider eventStore={eventStore}>

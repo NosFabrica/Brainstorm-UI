@@ -27,7 +27,7 @@
  * The rest of the list follows, for everyone; the definition line and the
  * "More fields" fold are an admin's, since a reader came for the account.
  */
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Activity, BadgeCheck, FolderGit2, Github, MapPin, Star, Users } from "lucide-react";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +40,10 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useGitHubAccount } from "@/hooks/useGitHubAccount";
+import { useGitHubEvidence } from "@/hooks/useGitHubEvidence";
+import { useVerifiedPeople } from "@/hooks/useVerifiedPeople";
+import { useProfileMap } from "@/hooks/useProfileMap";
+import { ownsGitHub } from "@/lib/githubLink";
 import { topRepos, type GitHubAccountFacts } from "@/services/github";
 import { compactCount } from "@/lib/compactCount";
 import { relativeTime } from "@/lib/relativeTime";
@@ -187,6 +191,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
       <WhoStandsBehindIt network={network} noun="account" idPrefix="github-account" />
 
       <OnNostr event={event} network={network} />
+      <LinkNudge handle={account.handle} />
 
       <DListItemNeighbours event={event} resolved={r} alsoListed={false} />
 
@@ -229,6 +234,54 @@ function IconButton({
     >
       {children}
     </a>
+  );
+}
+
+/**
+ * An account GitHub has answered for that no one is proven to own (lib/githubLink): its owner is
+ * asked to link it both ways — their npub among their GitHub profile's Social accounts, and the
+ * account as their Nostr profile's website — after which search shows the two as one person. Who
+ * might own it is whoever GitHub names or claims it; each is checked as search checks them. Not
+ * while GitHub hasn't answered, nor before those checks have: the account may be linked already.
+ */
+function LinkNudge({ handle }: { handle: string }) {
+  const evidence = useGitHubEvidence([handle]).get(handle.toLowerCase());
+  const candidates = useMemo(
+    () => [
+      ...new Set([...(evidence?.named ?? []), ...(evidence?.claimants ?? []), ...(evidence?.provenClaimants ?? [])]),
+    ],
+    [evidence],
+  );
+  const profiles = useProfileMap(candidates);
+  const people = useMemo(
+    () =>
+      candidates.map((pubkey) => ({
+        pubkey,
+        nip05: profiles.get(pubkey)?.nip05,
+        website: profiles.get(pubkey)?.website,
+      })),
+    [candidates, profiles],
+  );
+  const { verified, settled } = useVerifiedPeople(people);
+  if (!evidence?.checked || !settled) return null;
+  if (people.some((p) => ownsGitHub(evidence, handle, p, verified.has(p.pubkey)))) return null;
+  return (
+    <p
+      className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300"
+      data-testid="github-account-link-nudge"
+    >
+      <span className="font-semibold text-slate-900 dark:text-slate-100">Is this your GitHub?</span> Link it both ways:
+      add your Nostr npub to your GitHub profile's{" "}
+      <a
+        href="https://github.com/settings/profile"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-brand-link hover:underline"
+      >
+        Social accounts
+      </a>
+      , and <span className="font-medium">github.com/{handle}</span> as the website on your Nostr profile.
+    </p>
   );
 }
 

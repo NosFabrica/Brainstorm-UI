@@ -38,6 +38,19 @@ export function countBelowLine(
   return hits.filter((h) => underLine(scoreOf(h.event.pubkey), line)).length;
 }
 
+/**
+ * The search box's people under the same floor as the results page: a person
+ * whose score is known and below the line is left out, the rest kept in
+ * order — so nobody shows in the box only to vanish from the page.
+ */
+export function peopleAboveLine<P extends { pubkey: string }>(
+  people: P[],
+  scoreOf: (pk: string) => number | null | undefined,
+  line = DEFAULT_VERIFIED_LINE,
+): P[] {
+  return people.filter((p) => !underLine(scoreOf(p.pubkey), line));
+}
+
 export interface NetworkReach {
   /** People the viewer follows. */
   direct: ReadonlySet<string>;

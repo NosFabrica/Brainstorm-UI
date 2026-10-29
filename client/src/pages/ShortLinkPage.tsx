@@ -4,15 +4,24 @@ import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/services/api";
-import { profilePath } from "@/lib/shareId";
 import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
 import NotFound from "@/pages/not-found";
 
 /** Long enough that a normal resolve never flashes a spinner. */
 const SPINNER_DELAY_MS = 400;
 
+// Resolved the way the browser will: "//host", "/\\host" and "/\t/host" all leave the site.
+function isOnSitePath(path: string): boolean {
+  if (!path.startsWith("/")) return false;
+  try {
+    return new URL(path, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * `/s/:code` — resolve a short share link and continue to the profile.
+ * `/s/:code` — resolve a short share link and replace it with the server's full link.
  *
  * The code is passed through untouched: the server owns its format, including
  * case folding and length.
@@ -30,7 +39,7 @@ export default function ShortLinkPage() {
     staleTime: Infinity,
   });
 
-  const path = data?.pubkey ? profilePath(data.pubkey, data.relays ?? []) : "";
+  const path = data?.path && isOnSitePath(data.path) ? data.path : "";
 
   const [showSpinner, setShowSpinner] = useState(false);
   useEffect(() => {
@@ -42,8 +51,7 @@ export default function ShortLinkPage() {
     if (path) navigate(path, { replace: true });
   }, [path, navigate]);
 
-  // An unresolvable code, and a pubkey that won't encode, both land on the
-  // app's own not-found page rather than leaving the visitor on a blank one.
+  // An unresolvable code or unusable path lands on the app's not-found page, not a blank one.
   if (isError || (data && !path)) return <NotFound />;
 
   if (!showSpinner) return null;

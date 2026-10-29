@@ -37,7 +37,7 @@ export function PersonRow({
           </span>
           {nip05Status === "verified" && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
         </div>
-        {person.nip05 && nip05Status !== "invalid" && (
+        {person.nip05 && nip05Status === "verified" && (
           <p className="truncate text-xs text-slate-400 dark:text-slate-500">{person.nip05}</p>
         )}
       </div>

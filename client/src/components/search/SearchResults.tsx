@@ -5,6 +5,10 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
+import { useTabCounts } from "@/hooks/useTabCounts";
+import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
+import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
@@ -91,6 +95,8 @@ import {
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
+import { ListNarrowing, ListRibbon } from "@/components/search/ListRibbon";
+import { useListRibbon } from "@/hooks/useListRibbon";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -102,9 +108,15 @@ import {
   type EventWhen,
 } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
-import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
+import {
+  EVENT_ITEM_KIND,
+  isOver,
+  parseCalendarEvent as parseCal,
+  relativeEventTime as relativeDay,
+} from "@/lib/calendarEvent";
+import { dedupeEvents } from "@/lib/eventDedupe";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { isSellable, parseListing } from "@/lib/listing";
+import { isListed, parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
@@ -140,6 +152,7 @@ import {
   type MediaFacet,
 } from "@/lib/mediaFacet";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
+import { SearchPriorityContext, useSearchPriorityState } from "@/hooks/useSearchPriority";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
@@ -187,7 +200,7 @@ function showableUnfiltered(event: NostrEvent): boolean {
   if (SHOP_PLACE_KINDS.has(event.kind) || event.kind === CALENDAR_KIND) return describeThing(event) !== null;
   if (SHOP_KINDS.has(event.kind)) {
     const listing = parseListing(event);
-    return !!listing && isSellable(listing);
+    return !!listing && isListed(listing);
   }
   if (MUSIC_KINDS.has(event.kind)) return parseTrack(event) !== null && !isTestTrack(event);
   return true;
@@ -281,7 +294,7 @@ const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string
     ],
   },
   {
-    title: "Happening",
+    title: "Out & about",
     tabs: [
       { key: "events", label: "Events" },
       { key: "live", label: "Live" },
@@ -315,6 +328,8 @@ const SOON_TABS: { key: string; label: string; title: string }[] = [
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
+/** The tabs a search counts results for (hooks/useTabCounts): every vertical, the row's first. */
+const COUNTED_TABS: SearchTab[] = TABS.map((t) => t.key).filter((key) => key !== "top" && key !== "all");
 
 const tabClass = (active: boolean) =>
   "shrink-0 px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
@@ -325,10 +340,54 @@ const tabClass = (active: boolean) =>
 /** The More ▾ slot: names the folded vertical that is active (so the row
  *  always says where you are), otherwise "More". A plain disclosure, not a
  *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
-function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTab) => void }) {
+function MoreTabs({
+  tab,
+  onChange,
+  kinds = [],
+  kind = null,
+  onKind,
+  offers = () => true,
+  counts = {},
+}: {
+  tab: SearchTab;
+  onChange: (next: SearchTab) => void;
+  /** The kinds with a page of their own (hooks/useListKinds), each in its group. */
+  kinds?: readonly ListKindSearch[];
+  /** The kind whose page is open, if any. */
+  kind?: string | null;
+  onKind?: (key: string) => void;
+  /** Whether the words find anything under a tab (lib/tabCounts): one known to hold nothing isn't offered. */
+  offers?: (key: SearchTab) => boolean;
+  /** How many results each tab holds, for the order within a group: most first. */
+  counts?: TabCounts;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const active = MORE_TABS.find((t) => t.key === tab);
+  const activeKind = kinds.find((k) => k.key === kind);
+  const active = activeKind ?? (kind ? undefined : MORE_TABS.find((t) => t.key === tab));
+  // Each kind sits in its group, after the group's own tabs; a group nobody else uses comes before Lists.
+  // Within a group the tabs the words find most come first; a group left with nothing goes, and its
+  // heading with it.
+  const groups = useMemo(() => {
+    const out = MORE_GROUPS.map((g) => ({
+      ...g,
+      tabs: byCount(
+        g.tabs.filter((t) => offers(t.key)),
+        counts,
+      ),
+      kinds: [] as ListKindSearch[],
+    }));
+    for (const k of kinds) {
+      const g = out.find((x) => x.title === k.group);
+      if (g) g.kinds.push(k);
+      else out.splice(out.length - 1, 0, { title: k.group, tabs: [], kinds: [k] });
+    }
+    return out.filter((g) => g.tabs.length > 0 || g.kinds.length > 0);
+  }, [kinds, offers, counts]);
+  // An open menu holds still: what the counts change while it is open waits for it to close, so
+  // nothing moves or vanishes under the pointer.
+  const [held, setHeld] = useState<typeof groups | null>(null);
+  const shown = open && held ? held : groups;
 
   useEffect(() => {
     if (!open) return;
@@ -346,6 +405,9 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
     };
   }, [open]);
 
+  // Nothing behind it for these words, and nothing behind it open: no More.
+  if (shown.length === 0 && !active) return null;
+
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
@@ -354,7 +416,10 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
         aria-selected={!!active}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) setHeld(groups);
+          setOpen(!open);
+        }}
         className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
         data-testid="search-tab-more"
       >
@@ -367,7 +432,7 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
           aria-label="More result types"
           className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {MORE_GROUPS.map((g, gi) => (
+          {shown.map((g, gi) => (
             <div
               key={g.title ?? "rest"}
               className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
@@ -387,20 +452,41 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
                   key={t.key}
                   type="button"
                   role="menuitem"
-                  aria-current={tab === t.key ? "true" : undefined}
+                  aria-current={!kind && tab === t.key ? "true" : undefined}
                   onClick={() => {
                     setOpen(false);
                     onChange(t.key);
                   }}
                   className={
                     "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (tab === t.key
+                    (!kind && tab === t.key
                       ? "font-semibold text-brand-deep dark:text-brand-link"
                       : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
                   }
                   data-testid={`search-tab-${t.key}`}
                 >
                   {t.label}
+                </button>
+              ))}
+              {g.kinds.map((k) => (
+                <button
+                  key={k.key}
+                  type="button"
+                  role="menuitem"
+                  aria-current={kind === k.key ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onKind?.(k.key);
+                  }}
+                  className={
+                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                    (kind === k.key
+                      ? "font-semibold text-brand-deep dark:text-brand-link"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`search-tab-${k.key}`}
+                >
+                  {k.label}
                 </button>
               ))}
               {g.title === "Build" &&
@@ -463,11 +549,56 @@ function openingTab(query: string): SearchTab {
   return !urlNamesTab() && opensOnMedia(query) ? "media" : tabFromUrl();
 }
 
+/** The `t` the URL names when it isn't one of the tabs: a kind's own page, if the app has that kind. */
+function urlKind(): string | null {
+  try {
+    const t = new URLSearchParams(window.location.search).get("t");
+    return t && !TAB_KEYS.has(t as SearchTab) ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The list narrowing All (`list`), by its coordinate: kept in the link so Back comes back to it. */
+function urlList(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("list");
+  } catch {
+    return null;
+  }
+}
+
+function writeListToUrl(coordinate: string | null) {
+  try {
+    const url = new URL(window.location.href);
+    if (coordinate) url.searchParams.set("list", coordinate);
+    else url.searchParams.delete("list");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
+/** A searched map area (`area`) is the Places page's, and a pressed list All's: another page or tab leaves them out of the link. */
+function writeKindToUrl(key: string) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", key);
+    url.searchParams.delete("area");
+    url.searchParams.delete("list");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
 function writeTabToUrl(tab: SearchTab) {
   try {
     const url = new URL(window.location.href);
     if (tab === "top") url.searchParams.delete("t");
     else url.searchParams.set("t", tab);
+    url.searchParams.delete("area");
+    url.searchParams.delete("list");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -834,6 +965,9 @@ export function SearchResults({
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(() => openingTab(query));
+  const kinds = useListKinds();
+  const [kindTab, setKindTab] = useState<string | null>(() => urlKind());
+  const activeKind = kinds.find((k) => k.key === kindTab) ?? null;
   // On a page already open, `#vine-archive` alone moves it to Media under the same rule as
   // opening on it: only when the address names no tab. An address that names one is a link,
   // Back or Forward saying where to be, or the tab the reader picked, and is not overridden.
@@ -912,6 +1046,52 @@ export function SearchResults({
   const relayQuery = priceSort ? applyFilters(query, { sort: null }) : query;
   const userSorted = /(^|\s)sort:/i.test(relayQuery);
   const composed = tab === "top" && !userSorted;
+  // The Top page's own results first: the previews' row-ordering lookups wait for the people to
+  // answer (hooks/useSearchPriority), so they never queue in front of them at the relay.
+  const searchPriority = useSearchPriorityState(composed && !activeKind, sections.people, query);
+  // How many results each tab holds for the words (hooks/useTabCounts), asked once the page's own
+  // results have answered so the counts never queue in front of them: a tab known to hold nothing
+  // leaves the row and the More menu (lib/tabCounts), and More's groups lead with what has most.
+  // A vertical's page has answered when ITS snapshot has, not the one the last words or tab left
+  // on screen (hooks/useSearchPriority tells them apart). A sort changes the order, not the count,
+  // except `sort:text`, which drops the trust floor: that one rides along (services/search's
+  // countTabs asks newest-first otherwise).
+  const pageAnswered = useSearchPriorityState(!composed, snapshot, `${pov}|${userPubkey ?? ""}|${tab}|${query}`);
+  const countQuery = useMemo(
+    () => applyFilters(query, { sort: readFilters(query).sort === "text" ? "text" : null }),
+    [query],
+  );
+  const tabCounts = useTabCounts(countQuery, COUNTED_TABS, {
+    pov,
+    userPubkey,
+    ready: composed ? searchPriority : pageAnswered,
+  });
+  const scoped = !!scopeOf(query);
+  // While focus or the pointer is in the tab strip, it holds the tabs it had: a settled row that
+  // removed the focused tab would drop focus to the page, and one that moved under the pointer
+  // would turn a click into the wrong tab. It settles when both have left. New words arriving
+  // meanwhile hold the full row, since what the strip had was the last words' answer.
+  const [rowHold, setRowHold] = useState<{
+    pointer: boolean;
+    focus: boolean;
+    evidence: TabEvidence;
+    query: string;
+  } | null>(null);
+  const liveEvidence = useMemo<TabEvidence>(() => ({ ...tabCounts, scoped }), [tabCounts, scoped]);
+  const holdRow = (part: "pointer" | "focus", on: boolean) =>
+    setRowHold((h) => {
+      const next = { pointer: h?.pointer ?? false, focus: h?.focus ?? false, [part]: on };
+      if (!next.pointer && !next.focus) return null;
+      return h ? { ...h, ...next } : { ...next, evidence: liveEvidence, query: countQuery };
+    });
+  const tabEvidence = useMemo<TabEvidence>(
+    () => (!rowHold ? liveEvidence : rowHold.query === countQuery ? rowHold.evidence : { counts: {}, scoped }),
+    [rowHold, liveEvidence, countQuery, scoped],
+  );
+  const offers = useCallback(
+    (key: SearchTab) => offersTab(key, !activeKind && tab === key, tabEvidence),
+    [activeKind, tab, tabEvidence],
+  );
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
   // A browse (no words) asking for a sort the relay cannot run over the whole
@@ -931,6 +1111,29 @@ export function SearchResults({
   const searchedKinds = useMemo(() => (liftQuery(query).kinds ?? []).map(String), [query]);
   const effectiveQuery =
     !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
+
+  // On All, a pressed list (hooks/useListRibbon, below) narrows All to its items, for the words
+  // it was pressed on. The link holds it (`list`); a new search leaves it out (pages/landing), so
+  // words that change take the link's word again: none after a search, the list on Back.
+  const onAll = tab === "all" && !activeKind;
+  const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(() => {
+    const coordinate = urlList();
+    return coordinate ? { query: effectiveQuery, coordinate } : null;
+  });
+  useEffect(() => {
+    setListPressed((pressed) => {
+      if (pressed?.query === effectiveQuery) return pressed;
+      const coordinate = urlList();
+      return coordinate ? { query: effectiveQuery, coordinate } : null;
+    });
+  }, [effectiveQuery]);
+  const pressList = useCallback(
+    (coordinate: string | null) => {
+      setListPressed(coordinate ? { query: effectiveQuery, coordinate } : null);
+      writeListToUrl(coordinate);
+    },
+    [effectiveQuery],
+  );
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -1034,9 +1237,27 @@ export function SearchResults({
     return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
   }, [effectiveQuery, tab, pov, userPubkey, composed, mediaFacet]);
 
+  // Back and Forward say where to be: the page the address names, a kind's or a tab. (A step in
+  // history of its own is pushed by the Places page's area search; tabs replace theirs.)
+  useEffect(() => {
+    const follow = () => {
+      setKindTab(urlKind());
+      setTab(tabFromUrl());
+    };
+    window.addEventListener("popstate", follow);
+    return () => window.removeEventListener("popstate", follow);
+  }, []);
   const changeTab = useCallback((next: SearchTab) => {
+    setKindTab(null);
     setTab(next);
     writeTabToUrl(next);
+  }, []);
+  // A kind's own page (hooks/useListKinds): named in the URL like a tab, shown under the strip in
+  // place of the results. The Top page's sections stay unmounted, so nothing is asked of the relay.
+  const openKind = useCallback((key: string) => {
+    setKindTab(key);
+    setTab("top");
+    writeKindToUrl(key);
   }, []);
 
   const openProfile = useCallback(
@@ -1076,7 +1297,9 @@ export function SearchResults({
   // Media tab the notes that carry media join the media-kind hits.
   // The Shop as products: one card per product, its sizes and colours folded
   // into it by the family its seller declared (lib/listingVariants, #158).
-  // Same-title copies from two apps fold first, into the one with a page.
+  // Same-title copies from two apps fold first, into the one with a page —
+  // among copies for sale only: a sold copy with a page must not replace the
+  // copy on sale and then be dropped, taking the product with it.
   const shopFold = useMemo(() => {
     if (tab !== "shop") return null;
     const base = snapshot?.hits ?? [];
@@ -1084,15 +1307,34 @@ export function SearchResults({
       collapseDuplicateListings(
         base.filter((h) => {
           if (SHOP_PLACE_KINDS.has(h.event.kind)) return describeThing(h.event) !== null;
-          return parseListing(h.event) !== null;
+          const l = parseListing(h.event);
+          return !!l && isListed(l);
         }),
       ),
     );
   }, [tab, snapshot]);
-  const shopGroupOf = (id: string) => {
-    const group = shopFold?.groups.get(id);
-    return group ? cardGroupOf(group) : undefined;
-  };
+  // Each seller's events on the page, built once per snapshot: filtering every
+  // hit per card was quadratic, and a fresh array per render defeated the card's memo.
+  const hitsBySeller = useMemo(() => {
+    const out = new Map<string, NostrEvent[]>();
+    if (tab !== "shop") return out;
+    for (const h of snapshot?.hits ?? []) {
+      const list = out.get(h.event.pubkey);
+      if (list) list.push(h.event);
+      else out.set(h.event.pubkey, [h.event]);
+    }
+    return out;
+  }, [tab, snapshot]);
+  // One card group object per product per snapshot, so the card's memo holds.
+  const shopCardGroups = useMemo(() => {
+    const out = new Map<string, ReturnType<typeof cardGroupOf>>();
+    for (const [id, group] of shopFold?.groups ?? []) out.set(id, cardGroupOf(group));
+    return out;
+  }, [shopFold]);
+  const shopGroupOf = (id: string) => shopCardGroups.get(id);
+  // Who the search is about when their own profile lacks the words: the accounts the matched
+  // profiles' handles belong to (hooks/useHandlePointers), asked of every People hit before the floor.
+  const pointers = useHandlePointers(tab === "people" ? (snapshot?.hits ?? []) : []);
   const rawHits = useMemo(() => {
     const base = snapshot?.hits ?? [];
     // A listing is for sale or it is not a result: sold, hidden and priceless
@@ -1106,15 +1348,22 @@ export function SearchResults({
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
-    // The people on a matched tag lead the People tab, once each.
-    if (tab === "people") return mergeCarrierHits(base, leadPeople);
+    // The people on a matched tag lead the People tab, once each — after the accounts the
+    // matched profiles' handles belong to.
+    if (tab === "people") return mergeCarrierHits(mergePointedHits(base, pointers.hits), leadPeople);
     if (tab === "top") return base.filter((h) => showableUnfiltered(h.event));
     // Only what lib/thing can name is a result — decided here, like the Shop,
     // so "Nothing found" and the counts agree with the cards — and one card
     // per NIP-28 channel.
     if (isThingTab(tab))
       return oneCardPerChannel(base.filter((h) => describeThing(h.event)?.detail.type === THING_TAB_DETAIL[tab]));
-    if (tab === "events") return base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
+    // Event Index's list items join the Events tab (services/search): an aggregator's NIP-52 copy of
+    // one goes, and so does a second curator's item for the same page (lib/eventDedupe).
+    if (tab === "events") {
+      const shown = base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
+      const kept = new Set(dedupeEvents(shown.map((h) => h.event)).map((e) => e.id));
+      return shown.filter((h) => kept.has(h.event.id));
+    }
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
       const seen = new Set(base.map((h) => h.event.id));
@@ -1124,7 +1373,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold]);
+  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -1176,6 +1425,15 @@ export function SearchResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
+  // The Dictionary's lists the words find items on, and those with items among All's rows.
+  const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll, page: hits });
+  const listAsked = onAll && listPressed?.query === effectiveQuery;
+  const narrowedTo = listAsked ? (ribbon.lists.find((l) => l.coordinate === listPressed.coordinate) ?? null) : null;
+  // A list the link names waits for the ribbon rather than showing all of All first; one that
+  // doesn't come lets All show.
+  const listWaiting = listAsked && !narrowedTo && !ribbon.settled;
+  // A list narrowing All shows its own items, by authors the page's hits may not hold.
+  useAuthorScores(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
   // What the floor held back, said once and quietly — Google's "some results
   // were removed" — with the one tap that lifts it. Rendered under the list,
@@ -1632,24 +1890,33 @@ export function SearchResults({
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
     }
+    // The price a Shop card shows, so the band and the sort agree with it: a
+    // product's lowest option ("From $50"), else the listing's own price.
+    const shownPrice = (h: SearchHit) => {
+      const from = shopFold?.groups.get(h.event.id)?.priceFrom;
+      if (from && from.varies && !from.mixed) return from.price;
+      return parseListing(h.event)?.price ?? null;
+    };
     if (tab === "shop" && shopPrice && rates) {
       const band = bands.find((b) => b.key === shopPrice);
       shown = shown.filter((h) => {
-        const price = parseListing(h.event)?.price;
+        const price = shownPrice(h);
         const amount = price ? priceInCurrency(price, rates, viewerFiat) : null;
         return amount !== null && !!band?.holds(amount);
       });
     }
     if (tab === "shop" && priceSort) {
       // Cheapest (or dearest) first; a price we cannot convert goes last either way.
-      const satsOf = (h: SearchHit) => {
-        const price = parseListing(h.event)?.price;
-        return price ? toSats(price, rates) : null;
-      };
+      // Keyed once, not in the comparator: a sort calls it n·log n times.
+      const keys = new Map<string, number | null>();
+      for (const h of shown) {
+        const price = shownPrice(h);
+        keys.set(h.event.id, price ? toSats(price, rates) : null);
+      }
       const dir = priceSort === "asc" ? 1 : -1;
       shown = [...shown].sort((a, b) => {
-        const x = satsOf(a);
-        const y = satsOf(b);
+        const x = keys.get(a.event.id) ?? null;
+        const y = keys.get(b.event.id) ?? null;
         if (x === null && y === null) return 0;
         if (x === null) return 1;
         if (y === null) return -1;
@@ -1909,819 +2176,849 @@ export function SearchResults({
   }, [hits, noteRefs.profiles]);
 
   return (
-    <QuietTrustChrome>
-      <div className="mx-auto mt-4 w-full max-w-2xl text-left sm:mt-5 lg:max-w-[62rem]" data-testid="search-results">
-        {/* One quiet row, Google's anatomy: six tabs (scrolling on phones),
+    <SearchPriorityContext.Provider value={searchPriority}>
+      <QuietTrustChrome>
+        <div className="mx-auto mt-4 w-full max-w-2xl text-left sm:mt-5 lg:max-w-[62rem]" data-testid="search-results">
+          {/* One quiet row, Google's anatomy: six tabs (scrolling on phones),
           then pinned at the right edge — More ▾, the perspective control and
           Filters — so nothing a person needs ever scrolls out of view. */}
-        <div
-          className="-mx-1 mb-2 flex items-stretch border-b border-slate-100 px-1 dark:border-slate-800/60 sm:mb-3"
-          data-testid="search-toolbar"
-        >
           <div
-            role="tablist"
-            aria-label="Result types"
-            className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
-            data-testid="search-tabs"
+            className="-mx-1 mb-2 flex items-stretch border-b border-slate-100 px-1 dark:border-slate-800/60 sm:mb-3"
+            data-testid="search-toolbar"
+            onPointerEnter={() => holdRow("pointer", true)}
+            onPointerLeave={() => holdRow("pointer", false)}
+            onFocus={() => holdRow("focus", true)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) holdRow("focus", false);
+            }}
           >
-            {PRIMARY_TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.key}
-                onClick={() => changeTab(t.key)}
-                className={tabClass(tab === t.key)}
-                data-testid={`search-tab-${t.key}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
-            <MoreTabs tab={tab} onChange={changeTab} />
-            {perspective}
-            {/* The syntax sheet, before the sorting: what can be typed into the box is the
+            <div
+              role="tablist"
+              aria-label="Result types"
+              className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
+              data-testid="search-tabs"
+            >
+              {PRIMARY_TABS.filter((t) => offers(t.key)).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={!activeKind && tab === t.key}
+                  onClick={() => changeTab(t.key)}
+                  className={tabClass(!activeKind && tab === t.key)}
+                  data-testid={`search-tab-${t.key}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
+              <MoreTabs
+                tab={tab}
+                onChange={changeTab}
+                kinds={kinds}
+                kind={activeKind?.key ?? null}
+                onKind={openKind}
+                offers={offers}
+                counts={tabEvidence.counts}
+              />
+              {perspective}
+              {/* The syntax sheet, before the sorting: what can be typed into the box is the
               question people have first. The mark alone — a labelled button wraps this row
               on a phone — and `aria-label` says what it is. */}
-            <button
-              type="button"
-              aria-haspopup="dialog"
-              aria-label="Search syntax"
-              title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
-              onClick={() => setSyntaxOpen(true)}
-              // Same bare 24px round mark as the perspective control's ⓘ beside it (not a tab: a
-              // tab's underline border pushes the glyph off-centre), pulled in so the pair reads as one.
-              className={
-                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-white" +
-                (perspective ? " sm:-ml-1.5" : "")
-              }
-              data-testid="search-syntax-toggle"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-            </button>
-            {onQueryRewrite && (
               <button
                 type="button"
-                aria-expanded={filtersOpen}
-                aria-label="Filters"
-                onClick={() => setFiltersOpen((v) => !v)}
+                aria-haspopup="dialog"
+                aria-label="Search syntax"
+                title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
+                onClick={() => setSyntaxOpen(true)}
+                // Same bare 24px round mark as the perspective control's ⓘ beside it (not a tab: a
+                // tab's underline border pushes the glyph off-centre), pulled in so the pair reads as one.
                 className={
-                  tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"
+                  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-white" +
+                  (perspective ? " sm:-ml-1.5" : "")
                 }
-                data-testid="search-filters-toggle"
+                data-testid="search-syntax-toggle"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-                <span className="hidden sm:inline">Filters</span>
-                {activeFilters > 0 && (
-                  <span
-                    className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
-                    data-testid="filters-active-count"
-                  >
-                    {activeFilters}
-                  </span>
-                )}
+                <HelpCircle className="h-3.5 w-3.5" />
               </button>
-            )}
+              {onQueryRewrite && (
+                <button
+                  type="button"
+                  aria-expanded={filtersOpen}
+                  aria-label="Filters"
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  className={
+                    tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"
+                  }
+                  data-testid="search-filters-toggle"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                  <span className="hidden sm:inline">Filters</span>
+                  {activeFilters > 0 && (
+                    <span
+                      className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
+                      data-testid="filters-active-count"
+                    >
+                      {activeFilters}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
-        {filtersOpen && onQueryRewrite && (
-          <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />
-        )}
-        <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
+          <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
+          {filtersOpen && onQueryRewrite && (
+            <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />
+          )}
+          <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
-        {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
+          {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
           card on mobile, the right rail on desktop (flex order). When no
           person clears the confidence bar it renders nothing and the column
           takes the full width. */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-center lg:gap-6">
-          <KnowledgePanel
-            query={query}
-            pov={pov}
-            userPubkey={userPubkey}
-            sections={composed ? sections : undefined}
-            rails={tab === "top"}
-            // Not on All — the relay's answer, one list, which the rails would repeat —
-            // but kept mounted there, hidden and asking nothing, so back on Top it is as it was.
-            active={tab !== "all"}
-            group={composed ? "search-top" : undefined}
-            onOpen={onOpenProfile}
-            onPerson={setPanelPerson}
-            onTab={(next) => changeTab(next as SearchTab)}
-            // Not pinned: the panel is context for the query, read at the top, and
-            // it scrolls away with the page the way Google's does. Pinned, it
-            // followed the reader down every page and ducked under the search
-            // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
-            // always stays in view"). The Top pill brings it back in one tap.
-            className="lg:order-2 lg:w-72 lg:shrink-0"
-          />
-          <div className="w-full min-w-0 lg:order-1 lg:w-[42rem] lg:flex-none">
-            {/* Above the results and whatever stands in for them: Videos and Classic Vines are
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-center lg:gap-6">
+            <KnowledgePanel
+              query={query}
+              pov={pov}
+              userPubkey={userPubkey}
+              sections={composed ? sections : undefined}
+              rails={tab === "top"}
+              // Not on All — the relay's answer, one list, which the rails would repeat —
+              // but kept mounted there, hidden and asking nothing, so back on Top it is as it was.
+              // Nor on a kind's own page: the list and its map take the width.
+              active={tab !== "all" && !activeKind}
+              group={composed ? "search-top" : undefined}
+              onOpen={onOpenProfile}
+              onPerson={setPanelPerson}
+              onTab={(next) => changeTab(next as SearchTab)}
+              onOpenKind={openKind}
+              // Not pinned: the panel is context for the query, read at the top, and
+              // it scrolls away with the page the way Google's does. Pinned, it
+              // followed the reader down every page and ducked under the search
+              // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
+              // always stays in view"). The Top pill brings it back in one tap.
+              className="lg:order-2 lg:w-72 lg:shrink-0"
+            />
+            <div className="w-full min-w-0 lg:order-1 lg:w-[42rem] lg:flex-none">
+              {/* Above the results and whatever stands in for them: Videos and Classic Vines are
                 offered on every Media page, and a narrowed page that found nothing still needs
                 the way back. Photos and Audio join them when the loaded page mixes kinds. */}
-            {tab === "media" && serverStatus.search !== "down" && (
-              <FacetRow className="mb-2" testId="media-facets">
-                <FacetChip
-                  pressed={!mediaFacet && pageKind === null}
-                  onClick={() => chooseMediaFacet(null)}
-                  testId="media-facet-all"
-                >
-                  All
-                </FacetChip>
-                {MEDIA_KIND_ORDER.map((kind) => {
-                  if (kind === "video")
-                    return (
-                      <Fragment key={kind}>
-                        <FacetChip
-                          pressed={mediaFacet === "videos" || pageKind === "video"}
-                          onClick={toggleVideos}
-                          testId="media-facet-video"
-                        >
-                          {MEDIA_FACET_LABELS.videos}
-                        </FacetChip>
-                        {onQueryRewrite && (
-                          <FacetChip
-                            pressed={mediaFacet === "vines"}
-                            onClick={() => chooseMediaFacet(mediaFacet === "vines" ? null : "vines")}
-                            testId="media-facet-vines"
-                          >
-                            {MEDIA_FACET_LABELS.vines}
-                          </FacetChip>
-                        )}
-                      </Fragment>
-                    );
-                  const count = mediaCounts.get(kind);
-                  return count === undefined ? null : (
-                    <FacetChip
-                      key={kind}
-                      pressed={pageKind === kind}
-                      onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
-                      count={count}
-                      testId={`media-facet-${kind}`}
-                    >
-                      {MEDIA_KIND_LABELS[kind]}
-                    </FacetChip>
-                  );
-                })}
-              </FacetRow>
-            )}
-            {serverStatus.search === "down" ? (
-              // The relay is the thing that is down: the results area says so, and
-              // the box, the tabs and Filters above stay usable.
-              <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
-            ) : composed ? (
-              <ComposedResults
-                query={query}
-                personMedia={personMedia}
-                onSections={setSections}
-                onSectionHits={rememberSections}
-                seeds={composedSeeds}
-                peopleSeedIsGuess={peopleSeedIsGuess}
-                pov={pov}
-                userPubkey={userPubkey}
-                onTabChange={changeTab}
-                onOpenProfile={openProfile}
-                onQueryRewrite={onQueryRewrite}
-              />
-            ) : snapshot?.error ? (
-              <div
-                className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
-                data-testid="search-error"
-              >
-                {snapshot.error}
-              </div>
-            ) : searching ? (
-              <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex animate-pulse items-start gap-3 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-800/60 dark:bg-slate-900/70 sm:gap-4 sm:p-4"
-                    style={{ animationDelay: `${i * 0.08}s` }}
+              {tab === "media" && serverStatus.search !== "down" && (
+                <FacetRow className="mb-2" testId="media-facets">
+                  <FacetChip
+                    pressed={!mediaFacet && pageKind === null}
+                    onClick={() => chooseMediaFacet(null)}
+                    testId="media-facet-all"
                   >
-                    <div className="h-9 w-9 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 sm:h-11 sm:w-11" />
-                    <div className="flex-1 space-y-2 pt-1">
-                      <div className="h-3 w-28 rounded-full bg-slate-200 dark:bg-slate-700 sm:h-3.5 sm:w-36" />
-                      <div className="h-2.5 w-full max-w-md rounded-full bg-slate-100 dark:bg-slate-800" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : noResults && tab === "music" && scopedTo ? (
-              // A person's music view with nothing here yet: say so, and offer the
-              // person — a face in a music context opens their music, and this is
-              // where a Bandcamp-only musician lands.
-              <div className="mt-4 sm:mt-6" data-testid="music-scoped-empty">
-                <div className="rounded-xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60 sm:rounded-2xl">
-                  <EmptyState
-                    icon={Radar}
-                    compact
-                    title={`No songs from ${panelPerson ? getDisplayLabel(panelPerson) : "them"} here yet`}
-                    description="Nothing on Nostr or Wavlake under their key so far."
-                    action={
-                      <Link
-                        href={`/p/${(() => {
-                          try {
-                            return nip19.npubEncode(scopedTo);
-                          } catch {
-                            return scopedTo;
-                          }
-                        })()}`}
-                        className="text-sm font-semibold text-brand-link hover:underline"
-                      >
-                        See their profile →
-                      </Link>
-                    }
-                  />
-                </div>
-              </div>
-            ) : noResults ? (
-              <div className="mt-4 sm:mt-6" data-testid="container-no-results">
-                <div className="rounded-xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60 sm:rounded-2xl">
-                  {scopedTo && hiddenBelowLine === 0 ? (
-                    (() => {
-                      const who = scopedName ?? "This person";
-                      const thing = isKindlessTab(tab) ? "anything" : tabLabel(tab).toLowerCase();
-                      const others = { chips: (scopedContent.get(scopedTo)?.chips ?? []).filter((c) => c.tab !== tab) };
+                    All
+                  </FacetChip>
+                  {MEDIA_KIND_ORDER.map((kind) => {
+                    if (kind === "video")
                       return (
-                        <EmptyState
-                          icon={Radar}
-                          compact
-                          title={`${who} hasn't published ${thing} here yet`}
-                          description={
-                            others.chips.length
-                              ? `What ${scopedName ? who : "they"} ${scopedName ? "does" : "do"} publish:`
-                              : "Try another tab, or everything they have published."
-                          }
-                          action={
-                            <div className="flex flex-col items-center gap-3" data-testid="scoped-empty">
-                              {others.chips.length > 0 && (
-                                <PersonContentChips
-                                  pubkey={scopedTo}
-                                  name={who}
-                                  content={others}
-                                  onPick={(c) => changeTab(c.tab as SearchTab)}
-                                  testId="scoped-empty-chips"
-                                />
-                              )}
-                              {!isKindlessTab(tab) && (
-                                // The page reads its tab once, on mount: a link that only rewrites the URL
-                                // moved nothing. It switches the tab in place, the way the chips do; the
-                                // href stays for a middle-click or a copied link.
-                                <Link
-                                  href={scopedSearchHref(scopedTo, "top", scope?.rest)}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    changeTab("top");
-                                  }}
-                                  className="text-xs font-semibold text-brand-link hover:underline"
-                                  data-testid="scoped-empty-all"
-                                >
-                                  See everything from {who === "This person" ? "them" : who} →
-                                </Link>
-                              )}
-                            </div>
-                          }
-                        />
+                        <Fragment key={kind}>
+                          <FacetChip
+                            pressed={mediaFacet === "videos" || pageKind === "video"}
+                            onClick={toggleVideos}
+                            testId="media-facet-video"
+                          >
+                            {MEDIA_FACET_LABELS.videos}
+                          </FacetChip>
+                          {onQueryRewrite && (
+                            <FacetChip
+                              pressed={mediaFacet === "vines"}
+                              onClick={() => chooseMediaFacet(mediaFacet === "vines" ? null : "vines")}
+                              testId="media-facet-vines"
+                            >
+                              {MEDIA_FACET_LABELS.vines}
+                            </FacetChip>
+                          )}
+                        </Fragment>
                       );
-                    })()
-                  ) : (
+                    const count = mediaCounts.get(kind);
+                    return count === undefined ? null : (
+                      <FacetChip
+                        key={kind}
+                        pressed={pageKind === kind}
+                        onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
+                        count={count}
+                        testId={`media-facet-${kind}`}
+                      >
+                        {MEDIA_KIND_LABELS[kind]}
+                      </FacetChip>
+                    );
+                  })}
+                </FacetRow>
+              )}
+              {onAll && serverStatus.search !== "down" && (
+                <ListRibbon lists={ribbon.lists} pressed={narrowedTo?.coordinate ?? null} onPress={pressList} />
+              )}
+              {activeKind ? (
+                <activeKind.Page query={query} onTabChange={changeTab} />
+              ) : serverStatus.search === "down" ? (
+                // The relay is the thing that is down: the results area says so, and
+                // the box, the tabs and Filters above stay usable.
+                <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
+              ) : narrowedTo ? (
+                <>
+                  <ListNarrowing list={narrowedTo} />
+                  <AllResults hits={narrowedTo.hits} settled scoreOf={scoreOf} query={query} />
+                </>
+              ) : composed ? (
+                <ComposedResults
+                  onOpenKind={openKind}
+                  query={query}
+                  personMedia={personMedia}
+                  onSections={setSections}
+                  onSectionHits={rememberSections}
+                  seeds={composedSeeds}
+                  peopleSeedIsGuess={peopleSeedIsGuess}
+                  pov={pov}
+                  userPubkey={userPubkey}
+                  onTabChange={changeTab}
+                  onOpenProfile={openProfile}
+                  onQueryRewrite={onQueryRewrite}
+                />
+              ) : snapshot?.error ? (
+                <div
+                  className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
+                  data-testid="search-error"
+                >
+                  {snapshot.error}
+                </div>
+              ) : searching || listWaiting ? (
+                <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="flex animate-pulse items-start gap-3 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-800/60 dark:bg-slate-900/70 sm:gap-4 sm:p-4"
+                      style={{ animationDelay: `${i * 0.08}s` }}
+                    >
+                      <div className="h-9 w-9 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 sm:h-11 sm:w-11" />
+                      <div className="flex-1 space-y-2 pt-1">
+                        <div className="h-3 w-28 rounded-full bg-slate-200 dark:bg-slate-700 sm:h-3.5 sm:w-36" />
+                        <div className="h-2.5 w-full max-w-md rounded-full bg-slate-100 dark:bg-slate-800" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : noResults && tab === "music" && scopedTo ? (
+                // A person's music view with nothing here yet: say so, and offer the
+                // person — a face in a music context opens their music, and this is
+                // where a Bandcamp-only musician lands.
+                <div className="mt-4 sm:mt-6" data-testid="music-scoped-empty">
+                  <div className="rounded-xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60 sm:rounded-2xl">
                     <EmptyState
                       icon={Radar}
                       compact
-                      title="Nothing found"
-                      description={
-                        hiddenBelowLine > 0
-                          ? "Everything that matched came from accounts below the verified line."
-                          : "Try different words, another tab, or paste an npub directly."
+                      title={`No songs from ${panelPerson ? getDisplayLabel(panelPerson) : "them"} here yet`}
+                      description="Nothing on Nostr or Wavlake under their key so far."
+                      action={
+                        <Link
+                          href={`/p/${(() => {
+                            try {
+                              return nip19.npubEncode(scopedTo);
+                            } catch {
+                              return scopedTo;
+                            }
+                          })()}`}
+                          className="text-sm font-semibold text-brand-link hover:underline"
+                        >
+                          See their profile →
+                        </Link>
                       }
                     />
-                  )}
+                  </div>
                 </div>
-                {floorNotice}
-              </div>
-            ) : (
-              <>
-                {tab === "events" && eventCounts && (
-                  <div className="mb-2.5">
-                    <FacetRow testId="event-facets">
-                      {EVENT_WHEN_ORDER.filter(
-                        (when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0),
-                      ).map((when) => (
-                        <button
-                          key={when}
-                          type="button"
-                          aria-pressed={effectiveWhen === when}
-                          onClick={() => setEventWhen(when)}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            effectiveWhen === when
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`event-facet-${when}`}
+              ) : noResults ? (
+                <div className="mt-4 sm:mt-6" data-testid="container-no-results">
+                  <div className="rounded-xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60 sm:rounded-2xl">
+                    {scopedTo && hiddenBelowLine === 0 ? (
+                      (() => {
+                        const who = scopedName ?? "This person";
+                        const thing = isKindlessTab(tab) ? "anything" : tabLabel(tab).toLowerCase();
+                        const others = {
+                          chips: (scopedContent.get(scopedTo)?.chips ?? []).filter((c) => c.tab !== tab),
+                        };
+                        return (
+                          <EmptyState
+                            icon={Radar}
+                            compact
+                            title={`${who} hasn't published ${thing} here yet`}
+                            description={
+                              others.chips.length
+                                ? `What ${scopedName ? who : "they"} ${scopedName ? "does" : "do"} publish:`
+                                : "Try another tab, or everything they have published."
+                            }
+                            action={
+                              <div className="flex flex-col items-center gap-3" data-testid="scoped-empty">
+                                {others.chips.length > 0 && (
+                                  <PersonContentChips
+                                    pubkey={scopedTo}
+                                    name={who}
+                                    content={others}
+                                    onPick={(c) => changeTab(c.tab as SearchTab)}
+                                    testId="scoped-empty-chips"
+                                  />
+                                )}
+                                {!isKindlessTab(tab) && (
+                                  // The page reads its tab once, on mount: a link that only rewrites the URL
+                                  // moved nothing. It switches the tab in place, the way the chips do; the
+                                  // href stays for a middle-click or a copied link.
+                                  <Link
+                                    href={scopedSearchHref(scopedTo, "top", scope?.rest)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      changeTab("top");
+                                    }}
+                                    className="text-xs font-semibold text-brand-link hover:underline"
+                                    data-testid="scoped-empty-all"
+                                  >
+                                    See everything from {who === "This person" ? "them" : who} →
+                                  </Link>
+                                )}
+                              </div>
+                            }
+                          />
+                        );
+                      })()
+                    ) : (
+                      <EmptyState
+                        icon={Radar}
+                        compact
+                        title="Nothing found"
+                        description={
+                          hiddenBelowLine > 0
+                            ? "Everything that matched came from accounts below the verified line."
+                            : "Try different words, another tab, or paste an npub directly."
+                        }
+                      />
+                    )}
+                  </div>
+                  {floorNotice}
+                </div>
+              ) : (
+                <>
+                  {tab === "events" && eventCounts && (
+                    <div className="mb-2.5">
+                      <FacetRow testId="event-facets">
+                        {EVENT_WHEN_ORDER.filter(
+                          (when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0),
+                        ).map((when) => (
+                          <button
+                            key={when}
+                            type="button"
+                            aria-pressed={effectiveWhen === when}
+                            onClick={() => setEventWhen(when)}
+                            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                              effectiveWhen === when
+                                ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                                : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                            }`}
+                            data-testid={`event-facet-${when}`}
+                          >
+                            {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
+                          </button>
+                        ))}
+                      </FacetRow>
+                      {eventsFellBack && (
+                        <p
+                          className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
+                          data-testid="event-facets-note"
                         >
-                          {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
+                          No upcoming events for this search — showing past events.
+                        </p>
+                      )}
+                      {displayHits.length === 0 && !eventsFellBack && (
+                        <p
+                          className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
+                          data-testid="event-facets-empty"
+                        >
+                          No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
+                    <FacetRow className="mb-2" testId="repo-state-facets">
+                      <button
+                        type="button"
+                        onClick={() => setRepoState(null)}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
+                        data-testid="repo-state-all"
+                      >
+                        All
+                      </button>
+                      {repoStateFacets.map(([st]) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => setRepoState(repoState === st ? null : st)}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
+                          data-testid={`repo-state-${st}`}
+                        >
+                          {GIT_STATE_LABEL[st]}
+                        </button>
+                      ))}
+                      {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
+                        <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+                      )}
+                      {repoLabelFacets.map(([label]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => setRepoLabel(repoLabel === label ? null : label)}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
+                          data-testid={`repo-label-${label}`}
+                        >
+                          {label}
                         </button>
                       ))}
                     </FacetRow>
-                    {eventsFellBack && (
-                      <p
-                        className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
-                        data-testid="event-facets-note"
+                  )}
+                  {tab === "live" &&
+                    !liveShowable &&
+                    hits.length > 0 &&
+                    // Nothing on any shelf yet. While the relay or the proofs are still
+                    // answering, hold the shape; once they have, say so — never a blank
+                    // page under a count of eleven (Joe Martin's stale "live" pair).
+                    (!snapshot?.eose || proofs.pending > 0 ? (
+                      <div
+                        className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+                        data-testid="live-skeleton"
+                        aria-hidden="true"
                       >
-                        No upcoming events for this search — showing past events.
-                      </p>
-                    )}
-                    {displayHits.length === 0 && !eventsFellBack && (
-                      <p
-                        className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
-                        data-testid="event-facets-empty"
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="animate-pulse">
+                            <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
+                            <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
+                            <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        className="mt-2 rounded-2xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60"
+                        data-testid="live-empty"
                       >
-                        No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
-                      </p>
-                    )}
-                  </div>
-                )}
-                {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
-                  <FacetRow className="mb-2" testId="repo-state-facets">
-                    <button
-                      type="button"
-                      onClick={() => setRepoState(null)}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                      data-testid="repo-state-all"
-                    >
-                      All
-                    </button>
-                    {repoStateFacets.map(([st]) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => setRepoState(repoState === st ? null : st)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                        data-testid={`repo-state-${st}`}
-                      >
-                        {GIT_STATE_LABEL[st]}
-                      </button>
+                        <EmptyState
+                          icon={Radio}
+                          compact
+                          title={
+                            scopedTo
+                              ? "Nothing live from them right now"
+                              : query.trim()
+                                ? `Nothing live for “${query.trim()}” right now`
+                                : "Nothing live right now"
+                          }
+                          description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
+                        />
+                      </div>
                     ))}
-                    {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
-                      <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                    )}
-                    {repoLabelFacets.map(([label]) => (
+                  {tab === "live" && liveShowable && (
+                    <FacetRow className="mb-3" testId="live-facets">
+                      {(["live", "upcoming", "replay"] as LiveState[])
+                        .filter((st) => liveCounts[st] > 0)
+                        .map((st) => (
+                          <FacetChip
+                            key={st}
+                            pressed={effectiveShelf === st}
+                            onClick={() => setLiveShelf(st)}
+                            count={liveCounts[st]}
+                            testId={`live-facet-${st === "replay" ? "replays" : st}`}
+                          >
+                            {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
+                          </FacetChip>
+                        ))}
+                    </FacetRow>
+                  )}
+                  {tab === "articles" && articleFacets.length > 0 && (
+                    <FacetRow className="mb-2" testId="article-facets">
                       <button
-                        key={label}
                         type="button"
-                        onClick={() => setRepoLabel(repoLabel === label ? null : label)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                        data-testid={`repo-label-${label}`}
+                        onClick={() => setArticleType(null)}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          articleType === null
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid="article-facet-all"
                       >
-                        {label}
+                        All
                       </button>
-                    ))}
-                  </FacetRow>
-                )}
-                {tab === "live" &&
-                  !liveShowable &&
-                  hits.length > 0 &&
-                  // Nothing on any shelf yet. While the relay or the proofs are still
-                  // answering, hold the shape; once they have, say so — never a blank
-                  // page under a count of eleven (Joe Martin's stale "live" pair).
-                  (!snapshot?.eose || proofs.pending > 0 ? (
-                    <div
-                      className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                      data-testid="live-skeleton"
-                      aria-hidden="true"
-                    >
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="animate-pulse">
-                          <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
-                          <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
-                          <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div
-                      className="mt-2 rounded-2xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60"
-                      data-testid="live-empty"
-                    >
-                      <EmptyState
-                        icon={Radio}
-                        compact
-                        title={
-                          scopedTo
-                            ? "Nothing live from them right now"
-                            : query.trim()
-                              ? `Nothing live for “${query.trim()}” right now`
-                              : "Nothing live right now"
-                        }
-                        description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
-                      />
-                    </div>
-                  ))}
-                {tab === "live" && liveShowable && (
-                  <FacetRow className="mb-3" testId="live-facets">
-                    {(["live", "upcoming", "replay"] as LiveState[])
-                      .filter((st) => liveCounts[st] > 0)
-                      .map((st) => (
-                        <FacetChip
-                          key={st}
-                          pressed={effectiveShelf === st}
-                          onClick={() => setLiveShelf(st)}
-                          count={liveCounts[st]}
-                          testId={`live-facet-${st === "replay" ? "replays" : st}`}
+                      {articleFacets.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setArticleType((cur) => (cur === t ? null : t))}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            articleType === t
+                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                          }`}
+                          data-testid={`article-facet-${t}`}
                         >
-                          {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
+                          {ARTICLE_TYPE_LABEL[t]}
+                        </button>
+                      ))}
+                    </FacetRow>
+                  )}
+                  {tab === "recipes" && recipeFacets.length > 0 && (
+                    <FacetRow className="mb-2" testId="recipe-facets">
+                      <button
+                        type="button"
+                        onClick={() => setRecipeTopic(null)}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          recipeTopic === null
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid="recipe-facet-all"
+                      >
+                        All
+                      </button>
+                      {recipeFacets.map(([topic]) => (
+                        <button
+                          key={topic}
+                          type="button"
+                          onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            recipeTopic === topic
+                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                          }`}
+                          data-testid={`recipe-facet-${topic}`}
+                        >
+                          {topic}
+                        </button>
+                      ))}
+                    </FacetRow>
+                  )}
+                  {tab === "shop" && shopFacets.length > 0 && (
+                    <FacetRow className="mb-2" testId="shop-facets">
+                      <button
+                        type="button"
+                        onClick={() => setShopCategory(null)}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          shopCategory === null
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid="shop-facet-all"
+                      >
+                        All
+                      </button>
+                      {shopFacets.map(([cat]) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            shopCategory === cat
+                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                          }`}
+                          data-testid={`shop-facet-${cat}`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </FacetRow>
+                  )}
+                  {tab === "shop" && rates && rawHits.length > 0 && (
+                    <FacetRow className="mb-2" testId="shop-price-facets">
+                      {bands.map((b) => (
+                        <FacetChip
+                          key={b.key}
+                          pressed={shopPrice === b.key}
+                          onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))}
+                          testId={`shop-price-${b.key}`}
+                        >
+                          {b.label}
                         </FacetChip>
                       ))}
-                  </FacetRow>
-                )}
-                {tab === "articles" && articleFacets.length > 0 && (
-                  <FacetRow className="mb-2" testId="article-facets">
-                    <button
-                      type="button"
-                      onClick={() => setArticleType(null)}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        articleType === null
-                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                      }`}
-                      data-testid="article-facet-all"
-                    >
-                      All
-                    </button>
-                    {articleFacets.map((t) => (
+                    </FacetRow>
+                  )}
+                  {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
+                    <FacetRow className="mb-2" testId="app-facets">
                       <button
-                        key={t}
                         type="button"
-                        onClick={() => setArticleType((cur) => (cur === t ? null : t))}
+                        onClick={() => setAppPlatform(null)}
                         className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          articleType === t
+                          appPlatform === null
                             ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
                             : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
                         }`}
-                        data-testid={`article-facet-${t}`}
+                        data-testid="app-facet-all"
                       >
-                        {ARTICLE_TYPE_LABEL[t]}
+                        All
                       </button>
-                    ))}
-                  </FacetRow>
-                )}
-                {tab === "recipes" && recipeFacets.length > 0 && (
-                  <FacetRow className="mb-2" testId="recipe-facets">
-                    <button
-                      type="button"
-                      onClick={() => setRecipeTopic(null)}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        recipeTopic === null
-                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                      }`}
-                      data-testid="recipe-facet-all"
-                    >
-                      All
-                    </button>
-                    {recipeFacets.map(([topic]) => (
-                      <button
-                        key={topic}
-                        type="button"
-                        onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          recipeTopic === topic
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid={`recipe-facet-${topic}`}
-                      >
-                        {topic}
-                      </button>
-                    ))}
-                  </FacetRow>
-                )}
-                {tab === "shop" && shopFacets.length > 0 && (
-                  <FacetRow className="mb-2" testId="shop-facets">
-                    <button
-                      type="button"
-                      onClick={() => setShopCategory(null)}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        shopCategory === null
-                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                      }`}
-                      data-testid="shop-facet-all"
-                    >
-                      All
-                    </button>
-                    {shopFacets.map(([cat]) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          shopCategory === cat
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid={`shop-facet-${cat}`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </FacetRow>
-                )}
-                {tab === "shop" && rates && rawHits.length > 0 && (
-                  <FacetRow className="mb-2" testId="shop-price-facets">
-                    {bands.map((b) => (
-                      <FacetChip
-                        key={b.key}
-                        pressed={shopPrice === b.key}
-                        onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))}
-                        testId={`shop-price-${b.key}`}
-                      >
-                        {b.label}
-                      </FacetChip>
-                    ))}
-                  </FacetRow>
-                )}
-                {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
-                  <FacetRow className="mb-2" testId="app-facets">
-                    <button
-                      type="button"
-                      onClick={() => setAppPlatform(null)}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        appPlatform === null
-                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                      }`}
-                      data-testid="app-facet-all"
-                    >
-                      All
-                    </button>
-                    {appFacets.map(([platform]) => (
-                      <button
-                        key={platform}
-                        type="button"
-                        onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          appPlatform === platform
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid={`app-facet-${platform.toLowerCase()}`}
-                      >
-                        {platform}
-                      </button>
-                    ))}
-                    {/* One row, like Repos: platforms, a hairline, then the apps' own
+                      {appFacets.map(([platform]) => (
+                        <button
+                          key={platform}
+                          type="button"
+                          onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            appPlatform === platform
+                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                          }`}
+                          data-testid={`app-facet-${platform.toLowerCase()}`}
+                        >
+                          {platform}
+                        </button>
+                      ))}
+                      {/* One row, like Repos: platforms, a hairline, then the apps' own
                   categories. Licences are a fact for the app page, not a way
                   people browse. */}
-                    {appCategoryFacets.length > 0 && (
-                      <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                    )}
-                    {appCategoryFacets.map(([cat]) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          appCategory === cat
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid={`app-cat-facet-${cat}`}
-                      >
-                        #{cat}
-                      </button>
-                    ))}
-                  </FacetRow>
-                )}
-                {/* No count by default — Google dropped it from the default view too.
+                      {appCategoryFacets.length > 0 && (
+                        <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+                      )}
+                      {appCategoryFacets.map(([cat]) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            appCategory === cat
+                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                          }`}
+                          data-testid={`app-cat-facet-${cat}`}
+                        >
+                          #{cat}
+                        </button>
+                      ))}
+                    </FacetRow>
+                  )}
+                  {/* No count by default — Google dropped it from the default view too.
               The number does work only when a chip or a filter narrows the
               page: what matched, of how many. */}
-                {narrowed && totalCount > 0 && (
-                  <div className="mb-2 px-1 sm:mb-3">
-                    <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                      {displayedCount} of {totalCount} match
-                    </p>
-                  </div>
-                )}
-                {tab === "all" ? (
-                  // Every kind, in the relay's order, one row shape: the pill says which is which.
-                  <AllResults
-                    hits={displayHits.map((d) => d.hit)}
-                    settled={!!snapshot?.eose && !snapshot.loadingMore}
-                    scoreOf={scoreOf}
-                    query={query}
-                  />
-                ) : tab === "music" ? (
-                  <MusicResults
-                    hits={displayHits.map((d) => d.hit)}
-                    query={query}
-                    wavlake={wavlake}
-                    podcastIndex={podcastIndex}
-                    tagged={tagged}
-                    fountain={fountain}
-                    person={panelPerson}
-                    scoreOf={scoreOf}
-                    onOpenProfile={openProfile}
-                  />
-                ) : (
-                  <div
-                    className={
-                      tab === "shop"
-                        ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
-                        : tab === "live"
-                          ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                          : tab === "apps" || isGitTab(tab) || isThingTab(tab)
-                            ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
-                            : "space-y-2 sm:space-y-3"
-                    }
-                    data-testid="container-search-results"
-                  >
-                    {tab === "media" && panelPerson && personMedia.length > 0 && (
-                      <div className="col-span-full mb-1" data-testid="media-from-person">
-                        <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          From {getDisplayLabel(panelPerson)}
-                        </p>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          {personMedia.map((h) => (
-                            <MediaCard
-                              key={h.event.id}
-                              event={h.event}
-                              author={h.author}
-                              score={scoreOf(h.event.pubkey)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {displayHits
-                      .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
-                      .map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
-                        const { event } = hit;
-                        const chip =
-                          collapsedCount > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedClusters((prev) => new Set(prev).add(clusterId))}
-                              className="ml-1 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
-                              data-testid={`cluster-expand-${clusterId}`}
-                            >
-                              {chipLabel ?? `+${collapsedCount} more like this`}
-                            </button>
-                          ) : null;
-                        // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
-                        // shares one height; list tabs are unaffected by h-full.
-                        const day = eventDayHeaders.get(event.id);
-                        const wrap = (card: React.ReactNode) => (
-                          <div key={event.id} className="h-full">
-                            {day && (
-                              <div
-                                className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`}
-                                data-testid={`event-day-${day.key}`}
-                              >
-                                {day.startSec > 0 ? (
-                                  <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
-                                ) : (
-                                  <span
-                                    className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"
-                                    aria-hidden="true"
-                                  />
-                                )}
-                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {day.label}
-                                </span>
-                                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
-                              </div>
-                            )}
-                            {card}
-                            {chip}
+                  {narrowed && totalCount > 0 && (
+                    <div className="mb-2 px-1 sm:mb-3">
+                      <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
+                        {displayedCount} of {totalCount} match
+                      </p>
+                    </div>
+                  )}
+                  {tab === "all" ? (
+                    // Every kind, in the relay's order, one row shape: the pill says which is which.
+                    <AllResults
+                      hits={displayHits.map((d) => d.hit)}
+                      settled={!!snapshot?.eose && !snapshot.loadingMore}
+                      scoreOf={scoreOf}
+                      query={query}
+                    />
+                  ) : tab === "music" ? (
+                    <MusicResults
+                      hits={displayHits.map((d) => d.hit)}
+                      query={query}
+                      wavlake={wavlake}
+                      podcastIndex={podcastIndex}
+                      tagged={tagged}
+                      fountain={fountain}
+                      person={panelPerson}
+                      scoreOf={scoreOf}
+                      onOpenProfile={openProfile}
+                    />
+                  ) : (
+                    <div
+                      className={
+                        tab === "shop"
+                          ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
+                          : tab === "live"
+                            ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+                            : tab === "apps" || isGitTab(tab) || isThingTab(tab)
+                              ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
+                              : "space-y-2 sm:space-y-3"
+                      }
+                      data-testid="container-search-results"
+                    >
+                      {tab === "media" && panelPerson && personMedia.length > 0 && (
+                        <div className="col-span-full mb-1" data-testid="media-from-person">
+                          <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            From {getDisplayLabel(panelPerson)}
+                          </p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {personMedia.map((h) => (
+                              <MediaCard
+                                key={h.event.id}
+                                event={h.event}
+                                author={h.author}
+                                score={scoreOf(h.event.pubkey)}
+                              />
+                            ))}
                           </div>
-                        );
-                        if (event.kind === 0 && hit.author) {
-                          const idx = peopleIdx.current++;
-                          // The one tag the words matched, if this person carries it.
-                          const cardTag =
-                            tagMatches.length > 0 && carriers.settled
-                              ? matchedTagChip(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
-                              : undefined;
-                          const scored =
-                            hit.author.wotRank == null
-                              ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
-                              : hit.author;
-                          return wrap(
-                            <PersonCard
-                              result={scored}
-                              idx={idx}
-                              pov={pov}
-                              onOpen={openProfile}
-                              onPrefetchEnter={onPrefetchEnter}
-                              onPrefetchLeave={onPrefetchLeave}
-                              showFollowedBy={idx < 3}
-                              tag={cardTag}
-                            />,
+                        </div>
+                      )}
+                      {displayHits
+                        .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
+                        .map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
+                          const { event } = hit;
+                          const chip =
+                            collapsedCount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedClusters((prev) => new Set(prev).add(clusterId))}
+                                className="ml-1 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
+                                data-testid={`cluster-expand-${clusterId}`}
+                              >
+                                {chipLabel ?? `+${collapsedCount} more like this`}
+                              </button>
+                            ) : null;
+                          // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
+                          // shares one height; list tabs are unaffected by h-full.
+                          const day = eventDayHeaders.get(event.id);
+                          const wrap = (card: React.ReactNode) => (
+                            <div key={event.id} className="h-full">
+                              {day && (
+                                <div
+                                  className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`}
+                                  data-testid={`event-day-${day.key}`}
+                                >
+                                  {day.startSec > 0 ? (
+                                    <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
+                                  ) : (
+                                    <span
+                                      className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    {day.label}
+                                  </span>
+                                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
+                                </div>
+                              )}
+                              {card}
+                              {chip}
+                            </div>
                           );
-                        }
-                        // The kinds with no card of their own, whichever tab they are on.
-                        if (THING_KINDS.has(event.kind)) {
-                          const thing = describeThing(event);
-                          if (thing)
+                          if (event.kind === 0 && hit.author) {
+                            const idx = peopleIdx.current++;
+                            // The one tag the words matched, if this person carries it.
+                            const cardTag =
+                              tagMatches.length > 0 && carriers.settled
+                                ? matchedTagChip(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
+                                : undefined;
+                            const scored =
+                              hit.author.wotRank == null
+                                ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
+                                : hit.author;
                             return wrap(
-                              <ThingCard
-                                event={event}
-                                author={hit.author}
-                                score={scoreOf(event.pubkey)}
-                                thing={thing}
-                                progress={progressOf(event)}
+                              <PersonCard
+                                result={scored}
+                                idx={idx}
+                                pov={pov}
+                                onOpen={openProfile}
+                                onPrefetchEnter={onPrefetchEnter}
+                                onPrefetchLeave={onPrefetchLeave}
+                                showFollowedBy={idx < 3}
+                                tag={cardTag}
+                                pointedBy={pointers.namesOf.get(event.pubkey)}
                               />,
                             );
-                        }
-                        if (ARTICLE_KINDS.has(event.kind)) {
-                          return wrap(
-                            <EmbeddedArticleCard
-                              leadKinds={searchedKinds}
-                              mixed={tab === "articles"}
-                              event={event as MinimalEvent}
-                              author={profiles.get(event.pubkey)}
-                              trustScore01={scoreOf(event.pubkey) ?? null}
-                            />,
-                          );
-                        }
-                        if (NOTE_KINDS.has(event.kind) && tab !== "media") {
-                          return wrap(
-                            <ShareNoteCard
-                              event={event as MinimalEvent}
-                              profiles={profiles}
-                              eventsById={noteRefs.eventsById}
-                              addrByCoord={noteRefs.addrByCoord}
-                              href={eventPath(event)}
-                              showAuthor
-                              authorScore={scoreOf(event.pubkey)}
-                            />,
-                          );
-                        }
-                        const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-                        if (EVENT_KINDS.has(event.kind)) {
-                          const r = rsvpsOf(event);
-                          return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
-                        }
-                        if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-                        if (SHOP_KINDS.has(event.kind))
-                          return wrap(
-                            <ListingCard
-                              {...typed}
-                              group={shopGroupOf(event.id)}
-                              rates={rates}
-                              sellerListings={(snapshot?.hits ?? [])
-                                .filter((h) => h.event.pubkey === event.pubkey)
-                                .map((h) => h.event)}
-                            />,
-                          );
-                        if (LIVE_KINDS.has(event.kind)) {
-                          const hostPk = liveHostOf(event);
-                          return wrap(
-                            <LiveTile
-                              {...typed}
-                              state={liveStates.get(event.id) ?? liveStateOf(event)}
-                              hostScore={hostPk ? scoreOf(hostPk) : undefined}
-                            />,
-                          );
-                        }
-                        if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-                        if (REPO_KINDS.has(event.kind))
-                          return wrap(
-                            <RepoCard
-                              {...typed}
-                              state={stateOf(event) ?? undefined}
-                              comments={gitComments.get(event.id)}
-                              forkOf={forkOf}
-                            />,
-                          );
-                        if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
-                        if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
-                        if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
-                        // Open-set posture: an unmapped kind renders rather than vanishing —
-                        // the relay may index new kinds before this UI learns them. With
-                        // something to show it is a media card; without, the composed
-                        // page's generic row, which reads a `name` tag, a kind label and an
-                        // `alt` line (a kind-39999 place has no content and no picture, and
-                        // was a blank media tile).
-                        if (mediaUrlOf(event) !== null) return wrap(<MediaCard {...typed} />);
-                        return wrap(<SerpRow {...typed} query={query} />);
-                      })}
-                  </div>
-                )}
-                <MoreResults
-                  show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
-                  loading={!!snapshot?.loadingMore}
-                  onMore={() => streamRef.current?.more()}
-                />
-                {floorNotice}
-              </>
-            )}
+                          }
+                          // The kinds with no card of their own, whichever tab they are on.
+                          if (THING_KINDS.has(event.kind)) {
+                            const thing = describeThing(event);
+                            if (thing)
+                              return wrap(
+                                <ThingCard
+                                  event={event}
+                                  author={hit.author}
+                                  score={scoreOf(event.pubkey)}
+                                  thing={thing}
+                                  progress={progressOf(event)}
+                                />,
+                              );
+                          }
+                          if (ARTICLE_KINDS.has(event.kind)) {
+                            return wrap(
+                              <EmbeddedArticleCard
+                                leadKinds={searchedKinds}
+                                mixed={tab === "articles"}
+                                event={event as MinimalEvent}
+                                author={profiles.get(event.pubkey)}
+                                trustScore01={scoreOf(event.pubkey) ?? null}
+                              />,
+                            );
+                          }
+                          if (NOTE_KINDS.has(event.kind) && tab !== "media") {
+                            return wrap(
+                              <ShareNoteCard
+                                event={event as MinimalEvent}
+                                profiles={profiles}
+                                eventsById={noteRefs.eventsById}
+                                addrByCoord={noteRefs.addrByCoord}
+                                href={eventPath(event)}
+                                showAuthor
+                                authorScore={scoreOf(event.pubkey)}
+                              />,
+                            );
+                          }
+                          const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
+                          if (EVENT_KINDS.has(event.kind) || (tab === "events" && event.kind === EVENT_ITEM_KIND)) {
+                            const r = rsvpsOf(event);
+                            return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
+                          }
+                          if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
+                          if (SHOP_KINDS.has(event.kind))
+                            return wrap(
+                              <ListingCard
+                                {...typed}
+                                group={shopGroupOf(event.id)}
+                                rates={rates}
+                                sellerListings={hitsBySeller.get(event.pubkey)}
+                              />,
+                            );
+                          if (LIVE_KINDS.has(event.kind)) {
+                            const hostPk = liveHostOf(event);
+                            return wrap(
+                              <LiveTile
+                                {...typed}
+                                state={liveStates.get(event.id) ?? liveStateOf(event)}
+                                hostScore={hostPk ? scoreOf(hostPk) : undefined}
+                              />,
+                            );
+                          }
+                          if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
+                          if (REPO_KINDS.has(event.kind))
+                            return wrap(
+                              <RepoCard
+                                {...typed}
+                                state={stateOf(event) ?? undefined}
+                                comments={gitComments.get(event.id)}
+                                forkOf={forkOf}
+                              />,
+                            );
+                          if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
+                          if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
+                          if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
+                          // Open-set posture: an unmapped kind renders rather than vanishing —
+                          // the relay may index new kinds before this UI learns them. With
+                          // something to show it is a media card; without, the composed
+                          // page's generic row, which reads a `name` tag, a kind label and an
+                          // `alt` line (a kind-39999 place has no content and no picture, and
+                          // was a blank media tile).
+                          if (mediaUrlOf(event) !== null) return wrap(<MediaCard {...typed} />);
+                          return wrap(<SerpRow {...typed} query={query} />);
+                        })}
+                    </div>
+                  )}
+                  <MoreResults
+                    show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
+                    loading={!!snapshot?.loadingMore}
+                    onMore={() => streamRef.current?.more()}
+                  />
+                  {floorNotice}
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </QuietTrustChrome>
+      </QuietTrustChrome>
+    </SearchPriorityContext.Provider>
   );
 }

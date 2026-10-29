@@ -8,6 +8,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { newestPerAddress } from "@/lib/newestPerAddress";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
@@ -317,77 +318,6 @@ export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, tim
   return !!event && declaresTrustProvider(event, innerPubkey, NIP85_RELAY_URL);
 }
 
-// NIP-78 application-specific data: stores the user's Brainstorm Assistant
-// pointer (assistant pubkey + kind 0 event id) under their own pubkey so any
-// device they sign in from can rediscover their existing assistant.
-export const ASSISTANT_POINTER_D_TAG = "brainstorm.world/assistant";
-
-export interface AssistantPointer {
-  pubkey: string;
-  eventId: string;
-  publishedAt: number;
-}
-
-export async function fetchAssistantPointer(userPubkey: string, timeoutMs = 10000): Promise<AssistantPointer | null> {
-  try {
-    // Awaited, not read from the store: app data lives wherever its author
-    // publishes and the default set carries almost none of it, so guessing here
-    // reads back as "this user has no assistant" and mints a second one.
-    const writeRelays = await outboxRelays(userPubkey, PROFILE_RELAYS);
-
-    // NIP-78 events are addressable/replaceable — different relays may hold
-    // different versions, so this waits out the window for the newest rather
-    // than hydrating from whichever relay answered first.
-    const newest = await loadReplaceable(30078, userPubkey, {
-      identifier: ASSISTANT_POINTER_D_TAG,
-      relays: writeRelays,
-      timeoutMs,
-    });
-
-    if (!newest) return null;
-
-    let parsed: Record<string, unknown> | null = null;
-    try {
-      parsed = JSON.parse(newest.content || "{}");
-    } catch {
-      return null;
-    }
-    const pubkey = typeof parsed?.pubkey === "string" ? parsed.pubkey : null;
-    const eventId = typeof parsed?.event_id === "string" ? parsed.event_id : null;
-    if (!pubkey || !eventId) return null;
-    const publishedAt = Number(parsed?.published_at) || (newest.created_at ? newest.created_at * 1000 : Date.now());
-    return { pubkey, eventId, publishedAt };
-  } catch {
-    return null;
-  }
-}
-
-export async function publishAssistantPointer(
-  pointer: AssistantPointer,
-  { background = false }: { background?: boolean } = {},
-): Promise<PublishOutcome> {
-  const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
-  // The self-heal on app load is nobody's request: a Locked Account that can't open
-  // silently, or a signer that would prompt, is left to the manual publish.
-  if (background && !(await canSignUnasked(account))) return { success: false, deferred: true };
-
-  try {
-    const signed = await signAs(account, {
-      kind: 30078,
-      tags: [["d", ASSISTANT_POINTER_D_TAG]],
-      content: JSON.stringify({
-        pubkey: pointer.pubkey,
-        event_id: pointer.eventId,
-        published_at: pointer.publishedAt,
-      }),
-    });
-    return await publishToRelays(signed);
-  } catch (err) {
-    return signingFailure(err, "Failed to sign");
-  }
-}
-
 // NIP-78 application-specific data: a user's PUBLIC-PROFILE personalization —
 // what to hide, the section order, hand-picked "Followed by" people, and roles —
 // stored under their own pubkey so they own it and it's portable across clients.
@@ -440,8 +370,6 @@ export async function publishProfilePrefs(prefs: unknown): Promise<PublishOutcom
 // portable across your devices/clients, readable only by your key.
 export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
 
-/** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
-export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
 /** Pinned, muted and accepted chats (lib/dm/prefsSync). Room keys name who you talk to: encrypted, like the rest. */
 export const DM_PREFS_D_TAG = "brainstorm.world/dm-prefs";
 
@@ -906,14 +834,42 @@ export async function fetchListingFamily(
     { kinds: [Number(kind)], authors: [pubkey], "#d": [d] },
     { kinds: [Number(kind)], authors: [pubkey], "#a": [parentAddress], limit: 200 },
   ];
+  // The search relay needs no routing: it is asked while the outbox is looked up.
+  const searched = fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]);
   const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
   const answers = await Promise.all([
-    fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
+    searched,
     ...filters.map((f) => fetchEventsByFilter(f, relays, timeoutMs).catch(() => [] as NostrEvent[])),
   ]);
-  const byId = new Map<string, NostrEvent>();
-  for (const ev of answers.flat()) byId.set(ev.id, ev);
-  return [...byId.values()];
+  // One version per listing: a lagging relay may still serve an older one.
+  return newestPerAddress(answers.flat());
+}
+
+/**
+ * The listings a seller filed under one of their own collections
+ * (`30405:<pubkey>:<d>`): Open Markets products name their collections with
+ * an `a` tag, and the collections published so far name no products of their
+ * own. Only the collection's own seller's listings — anyone may tag a
+ * collection, but only its seller can say what is in it. Asked of the search
+ * relay and the seller's own relays together; never rejects.
+ */
+export async function fetchCollectionProducts(
+  pubkey: string,
+  collectionAddress: string,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const [kind, author] = collectionAddress.split(":");
+  if (kind !== "30405" || author !== pubkey) return [];
+  const filter = { kinds: [30402], authors: [pubkey], "#a": [collectionAddress], limit: 200 };
+  // The search relay needs no routing: it is asked while the outbox is looked up.
+  const searched = fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]);
+  const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
+  const answers = await Promise.all([
+    searched,
+    fetchEventsByFilter(filter, relays, timeoutMs).catch(() => [] as NostrEvent[]),
+  ]);
+  // One version per listing: a lagging relay may still serve an older one.
+  return newestPerAddress(answers.flat());
 }
 
 /** Any filter against the search relay, with the lens it requires; EOSE or
@@ -935,7 +891,11 @@ export function fetchFromSearchRelayByFilters(
     const timer = setTimeout(finish, timeoutMs);
     try {
       // One filter goes on the wire as one filter: only a batch needs the array.
-      const asked = filters.map((f) => ({ ...f, search: "include:spam" }));
+      // The lens joins a filter's own search words ("Austin") rather than replacing them.
+      const asked = filters.map((f) => ({
+        ...f,
+        search: typeof f.search === "string" && f.search.trim() ? `${f.search.trim()} include:spam` : "include:spam",
+      }));
       sub = relay
         .req((asked.length === 1 ? asked[0] : asked) as Parameters<typeof relay.req>[0])
         .subscribe((msg: { type: string; event?: NostrEvent }) => {

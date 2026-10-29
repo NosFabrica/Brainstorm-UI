@@ -13,12 +13,13 @@
  */
 import { contentShape } from "@/lib/contentShape";
 import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarEvent";
-import { formatListingPrice, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingStatus, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
+import { kindLabel } from "@/lib/kindLabel";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
 import { eventPath, profilePath } from "@/lib/shareId";
@@ -352,7 +353,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
 
   const listing = parseListing(ev);
   if (listing) {
-    const status = listing.hidden ? "Hidden" : listing.status !== "active" ? listing.status : null;
+    const status = listingStatus(listing)?.label ?? null;
     return {
       ...base,
       title: listing.title,
@@ -361,7 +362,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       facts: [
         listing.price ? formatListingPrice(listing.price) : null,
         listing.location ? shortPlace(listing.location) : null,
-        status ? status.charAt(0).toUpperCase() + status.slice(1) : null,
+        status,
       ].filter((f): f is string => !!f),
     };
   }
@@ -427,6 +428,9 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         title: thing.title,
         body: thing.description,
         image: isHttp(thing.image) ? thing.image : base.image,
+        // The thing's own short facts — a shipping option's price, a review's
+        // verdict, a collection's product count — less what the row's kind pill says.
+        facts: thing.facts.filter((f) => f.trim() && f.toLowerCase() !== kindLabel(ev).toLowerCase()),
       });
   }
 

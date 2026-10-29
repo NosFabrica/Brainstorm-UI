@@ -13,6 +13,8 @@ import {
   removalTemplate,
   standingReviews,
   weightedStars,
+  orderingScore,
+  reviewsByPlace,
 } from "./placeReviews";
 
 const CURATOR = "4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64";
@@ -349,5 +351,65 @@ describe("the star value a page shows, and whose lens it is", () => {
 
   it("no value when nobody in either lens gave stars", () => {
     expect(placeRating(reviews, { you: new Map(), curator: null })).toBeNull();
+  });
+});
+
+// Ordering places by rating (the contract's section 8): as if each place also had 1.5 of a vote of
+// 3.5 stars, so one five-star review does not top a list. Worked by hand.
+describe("orderingScore", () => {
+  const rank = new Map([
+    [A, 80],
+    [B, 30],
+    [C, 100],
+  ]);
+  const rankOf = (pk: string) => rank.get(pk) ?? null;
+
+  it("weighs each reviewer's stars by their rank, damped toward 3.5", () => {
+    // (0.8 × 5 + 0.3 × 3 + 1.5 × 3.5) / (0.8 + 0.3 + 1.5) = 10.15 / 2.6
+    const score = orderingScore(
+      [
+        { pubkey: A, rating: 5 },
+        { pubkey: B, rating: 3 },
+      ],
+      rankOf,
+    );
+    expect(score).toBeCloseTo(3.9038, 4);
+  });
+
+  it("puts one five-star review from the most trusted below two good ones", () => {
+    const one = orderingScore([{ pubkey: C, rating: 5 }], rankOf); // (5 + 5.25) / 2.5 = 4.1
+    const two = orderingScore(
+      [
+        { pubkey: C, rating: 4.5 },
+        { pubkey: A, rating: 5 },
+      ],
+      rankOf,
+    ); // (4.5 + 4 + 5.25) / 3.3 = 4.1667
+    expect(one).toBeCloseTo(4.1, 4);
+    expect(two).toBeGreaterThan(one);
+  });
+
+  it("is 3.5 for a place nobody counted has rated", () => {
+    expect(orderingScore([], rankOf)).toBe(3.5);
+    expect(orderingScore([{ pubkey: "9".repeat(64), rating: 5 }], rankOf)).toBe(3.5);
+  });
+});
+
+describe("reviewsByPlace", () => {
+  const OTHER = `39999:${CURATOR}:osm-node-1`;
+  it("gives each place the reviews that stand for it, from one batch", () => {
+    const here = regulars({ content: "Here." });
+    const there = regulars({
+      pubkey: B,
+      content: "There.",
+      tags: [
+        ["d", `place:${OTHER}`],
+        ["a", OTHER],
+        ["s", "3"],
+      ],
+    });
+    const out = reviewsByPlace([here, there], [PLACE, OTHER], NOW);
+    expect(out.get(PLACE)?.map((r) => r.text)).toEqual(["Here."]);
+    expect(out.get(OTHER)?.map((r) => r.text)).toEqual(["There."]);
   });
 });

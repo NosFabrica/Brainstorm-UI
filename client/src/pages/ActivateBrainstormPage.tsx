@@ -21,6 +21,10 @@ import { ListsUpdateLine } from "@/components/ListsUpdate";
  * dashboard's ActivateBrainstormModal performs, reframed for the setup flow —
  * the motivator is the two real clients (Nostria, Ditto) shown locked out
  * until the note exists.
+ *
+ * Where their Treasure Map gives the rank duty to another Assistant, the step
+ * already counts as done (their choice) and this is /setup's optional switch
+ * instead: same publish, said as a swap — nothing here is locked out.
  */
 
 type Phase = "idle" | "signing" | "publishing";
@@ -46,7 +50,8 @@ export default function ActivateBrainstormPage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [justActivated, setJustActivated] = useState(false);
-  const done = justActivated || activateDone;
+  // The step counts another Assistant as done; this page is done only once Brainstorm's has the duty.
+  const done = justActivated || (activateDone && !hasOtherProvider);
 
   if (!user) return null;
 
@@ -122,7 +127,7 @@ export default function ActivateBrainstormPage() {
             <div className="p-6 sm:p-8">
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-brand-link">
-                  {followDone ? "One step left" : "Almost there"}
+                  {hasOtherProvider ? "Optional" : followDone ? "One step left" : "Almost there"}
                 </span>
                 <div className="h-px w-10 bg-brand-link/30" />
               </div>
@@ -131,32 +136,48 @@ export default function ActivateBrainstormPage() {
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-activate-page-title"
               >
-                Activate your <span className="text-brand-link">Brainstorm</span> account
+                {hasOtherProvider ? (
+                  <>
+                    Use your <span className="text-brand-link">Brainstorm</span> Assistant for scores
+                  </>
+                ) : (
+                  <>
+                    Activate your <span className="text-brand-link">Brainstorm</span> account
+                  </>
+                )}
               </h1>
               <p className="mt-2.5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-                Sign a note that tells other apps where to find your Brainstorm scores.
+                {hasOtherProvider
+                  ? "Sign a note that tells other apps to take your scores from your Brainstorm Assistant."
+                  : "Sign a note that tells other apps where to find your Brainstorm scores."}
               </p>
 
-              <div className="mt-6 flex items-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
-                <div className="flex shrink-0 items-center gap-2">
-                  {SHOWCASE_CLIENTS.map((client) => (
-                    <span key={client.name} className="relative block">
-                      <img
-                        src={client.logo}
-                        alt={client.name}
-                        className="block h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain opacity-75 grayscale dark:border-slate-700"
-                        draggable={false}
-                      />
-                      <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-slate-300 dark:border-slate-900 dark:bg-slate-600">
-                        <Lock className="h-2.5 w-2.5 text-slate-600 dark:text-slate-300" />
+              {/* Another Assistant's scores already reach these apps: nothing to show locked. */}
+              {!hasOtherProvider && (
+                <div
+                  className="mt-6 flex items-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"
+                  data-testid="activate-page-locked-clients"
+                >
+                  <div className="flex shrink-0 items-center gap-2">
+                    {SHOWCASE_CLIENTS.map((client) => (
+                      <span key={client.name} className="relative block">
+                        <img
+                          src={client.logo}
+                          alt={client.name}
+                          className="block h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain opacity-75 grayscale dark:border-slate-700"
+                          draggable={false}
+                        />
+                        <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-slate-300 dark:border-slate-900 dark:bg-slate-600">
+                          <Lock className="h-2.5 w-2.5 text-slate-600 dark:text-slate-300" />
+                        </span>
                       </span>
-                    </span>
-                  ))}
+                    ))}
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Nostria and Ditto can't see your scores yet.
+                  </p>
                 </div>
-                <p className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-                  Nostria and Ditto can't see your scores yet.
-                </p>
-              </div>
+              )}
 
               {hasOtherProvider && (
                 <div
@@ -201,7 +222,7 @@ export default function ActivateBrainstormPage() {
                 ) : (
                   <>
                     <BrainLogo mono size={16} className="text-white" />
-                    Activate Brainstorm
+                    {hasOtherProvider ? "Switch to Brainstorm" : "Activate Brainstorm"}
                   </>
                 )}
               </button>
@@ -220,7 +241,9 @@ export default function ActivateBrainstormPage() {
                   className="text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                   data-testid="button-activate-page-later"
                 >
-                  Maybe later — my scores stay invisible in other apps for now
+                  {hasOtherProvider
+                    ? "Maybe later — keep my current Assistant"
+                    : "Maybe later — my scores stay invisible in other apps for now"}
                 </button>
               </div>
             </div>

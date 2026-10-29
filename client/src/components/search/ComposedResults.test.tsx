@@ -101,6 +101,7 @@ vi.mock("@/services/nostr", async (importOriginal) => ({
     new Map(pks.filter((pk) => knownNames.has(pk)).map((pk) => [pk, knownNames.get(pk)!])),
 }));
 
+import { ListKindsContext } from "@/hooks/useListKinds";
 import { ComposedResults } from "./ComposedResults";
 import { nip19 } from "nostr-tools";
 
@@ -323,6 +324,31 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.queryByTestId("composed-loading")).toBeNull();
   });
 
+  // The sections follow the evidence (lib/topOrder): a topic leads with what
+  // the words asked for and the latest, People beneath; a handle leads with People.
+  it("puts People after Latest for a topic, and first for a handle", async () => {
+    const before = (a: HTMLElement, b: HTMLElement) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const person = hitOf(ev("p1", 0, "a".repeat(64), JSON.stringify({ name: "kop" })), "kop");
+    const note = hitOf(ev("n1", 1, "b".repeat(64), "liverpool won again"), "liverpool won again");
+
+    const topic = render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({ hits: [person], eose: true, timeMs: 50 });
+    sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 60 });
+    const people = await screen.findByTestId("serp-section-people");
+    const latest = await screen.findByTestId("serp-section-latest");
+    expect(before(latest, people)).toBe(true);
+    topic.unmount();
+    calls.length = 0;
+
+    render(<ComposedResults query="@kop" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({ hits: [person], eose: true, timeMs: 50 });
+    sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 60 });
+    const people2 = await screen.findByTestId("serp-section-people");
+    const latest2 = await screen.findByTestId("serp-section-latest");
+    expect(before(people2, latest2)).toBe(true);
+  });
+
   it("People, Latest and Articles hold their place while loading, then fill or collapse", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
@@ -405,6 +431,24 @@ describe("ComposedResults — media-rich sections", () => {
     const card = await screen.findByTestId("top-story-s1");
     await vi.waitFor(() => expect(card).toHaveTextContent("Livestream with @Joe Martin is Live!"));
     expect(card).not.toHaveTextContent("nostr:npub");
+  });
+
+  it("captions a Top story with its site, not the person who posted it", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("notes").emit({
+      // Three or nothing — the strip needs company.
+      hits: [
+        hitOf(ev("s1", 1, "a".repeat(64), NEWS(1)), "Liverpool"),
+        hitOf(ev("s2", 1, "2".repeat(64), NEWS(2)), "Echo"),
+        hitOf(ev("s3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
+      ],
+      eose: true,
+      timeMs: 50,
+    });
+    const tile = await screen.findByTestId("top-story-s1");
+    expect(tile).toHaveTextContent("liverpoolecho.co.uk");
+    expect(tile).not.toHaveTextContent("Unknown");
+    expect(screen.queryByTestId("story-poster")).toBeNull();
   });
 
   it("leads Latest with a Top stories strip of news-shaped notes, the rest as rows", async () => {
@@ -1677,6 +1721,121 @@ describe("ComposedResults — a query that matches a tag", () => {
     });
     await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
     expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
+  });
+
+  // The kinds with a look of their own (Books, Places…) come from the app's root. The Top page offers
+  // each a place above People and one below; a kind takes the one above when the words ask for it
+  // (they name it, or for Places, a kind of place or a town) and the one below otherwise.
+  type Slot = { query: string; slot: "lead" | "follow" | "late"; named: boolean };
+  const fake = (key: string, leadsOnItsOwn: (q: string) => boolean) =>
+    function FakePreview({ query, slot, named }: Slot) {
+      const lead = named || leadsOnItsOwn(query);
+      // One slot at most (hooks/useListKinds PreviewSlot): above People, or right after them.
+      if (slot !== (lead ? "lead" : "follow")) return null;
+      return <div data-testid={`kind-${key}`}>{query}</div>;
+    };
+  const kinds = [
+    {
+      key: "places",
+      label: "Places",
+      community: "39998:p:places",
+      Preview: fake("places", (q) => q.includes("austin")),
+    },
+    { key: "books", label: "Books", community: "39998:b:books", Preview: fake("books", () => false) },
+  ];
+  const peopleFor = async (query: string) => {
+    render(
+      <ListKindsContext.Provider value={kinds as never}>
+        <ComposedResults query={query} pov="nosfabrica" onTabChange={vi.fn()} />
+      </ListKindsContext.Provider>,
+    );
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Vinney" })), "Vinney")],
+      eose: true,
+      timeMs: 100,
+    });
+    return screen.findByTestId("serp-section-people");
+  };
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  // Words a kind's things only share ("west" in book titles) put it low: after Latest, just above
+  // Media, out of the way of what the search is most likely for.
+  it("draws a kind's low preview after Latest and just above Media", async () => {
+    const late = [
+      {
+        key: "books",
+        label: "Books",
+        community: "39998:b:books",
+        Preview: ({ query, slot }: { query: string; slot: string }) =>
+          slot === "late" ? <div data-testid="kind-books-late">{query}</div> : null,
+      },
+    ];
+    render(
+      <ListKindsContext.Provider value={late as never}>
+        <ComposedResults query="west" pov="nosfabrica" onTabChange={vi.fn()} />
+      </ListKindsContext.Provider>,
+    );
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("h1", 1, "2".repeat(64), "West of here"), "alice")],
+      eose: true,
+      timeMs: 100,
+    });
+    sectionCall("media").emit({
+      hits: [
+        hitOf(
+          ev("1".repeat(64), 20, "1".repeat(64), "West view", [
+            ["imeta", "url https://cdn.example/west.jpg", "m image/jpeg"],
+          ]),
+          "Views",
+        ),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const latest = await screen.findByTestId("serp-section-latest");
+    const media = await screen.findByTestId("serp-section-media");
+    const books = screen.getByTestId("kind-books-late");
+    expect(before(latest, books)).toBe(true);
+    expect(before(books, media)).toBe(true);
+  });
+
+  it("draws a kind's preview the words don't name above People still — a title they cover outranks a face", async () => {
+    const people = await peopleFor("dune");
+    expect(screen.getByTestId("kind-books")).toHaveTextContent("dune");
+    expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
+  });
+
+  it("draws it above People when the words name the kind", async () => {
+    const people = await peopleFor("books dune");
+    expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
+  });
+
+  it("lets a kind lead on its own reading of the words — Places for a town, above a kind that only covers a title", async () => {
+    const people = await peopleFor("austin");
+    expect(before(screen.getByTestId("kind-places"), screen.getByTestId("kind-books"))).toBe(true);
+    expect(before(screen.getByTestId("kind-books"), people)).toBe(true);
+  });
+
+  it("a preview's See all opens its kind's page", () => {
+    const onOpenKind = vi.fn();
+    const seeAll = [
+      {
+        ...kinds[1],
+        Preview: ({ slot, onSeeAll }: Slot & { onSeeAll?: () => void }) =>
+          slot === "follow" ? (
+            <button type="button" onClick={onSeeAll}>
+              See all
+            </button>
+          ) : null,
+      },
+    ];
+    render(
+      <ListKindsContext.Provider value={seeAll as never}>
+        <ComposedResults query="dune" pov="nosfabrica" onTabChange={vi.fn()} onOpenKind={onOpenKind} />
+      </ListKindsContext.Provider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "See all" }));
+    expect(onOpenKind).toHaveBeenCalledWith("books");
   });
 
   it("a named list's items sit above People, asked with the reader's words", async () => {

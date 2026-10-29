@@ -1,5 +1,5 @@
 {
-  "include": ["client/src/**/*", "vite.config.ts"],
+  "include": ["client/src/**/*", "vite.config.ts", "vite.lists.config.ts"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "**/*.test.tsx", "client/src/test/**"],
   "compilerOptions": {
     "incremental": true,

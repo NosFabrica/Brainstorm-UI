@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "rea
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
-import { env } from "@/lib/runtimeEnv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
@@ -48,12 +47,10 @@ import {
   Copy,
   Globe,
   RefreshCw,
-  Hash,
   Eye,
   Play,
   Loader2,
   UserPlus,
-  Calendar,
   ArrowRight,
   User,
   Square,
@@ -66,21 +63,21 @@ import {
   LifeBuoy,
   Receipt,
   ListChecks,
+  TrendingUp,
 } from "lucide-react";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
-import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip as RcTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  ADMIN_RANGES,
+  BACKEND_MAX_DAYS,
+  customDays,
+  parseAdminRange,
+  rangeQuery,
+  withinRange,
+  type AdminRange,
+} from "./adminRange";
+import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
+import { GrowthCard } from "@/components/admin/growth/GrowthCard";
+import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
 import { fetchProfile, searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -95,7 +92,6 @@ import { useToast } from "@/hooks/use-toast";
 
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
-type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
 
 function formatTimestamp(dateStr?: string): string {
   if (!dateStr) return "";
@@ -113,6 +109,31 @@ function formatTimestamp(dateStr?: string): string {
 }
 
 const POLL_OVERVIEW_MS = 15_000;
+/** The backend pages lists at 100 rows; the Overview reads a list's pages this many at a time. */
+const PAGE_BATCH = 10;
+
+/**
+ * Every page of a backend list: the first, then the rest a batch at a time,
+ * `onBatch` handed the items so far as each batch lands.
+ */
+async function readEveryPage<T extends { items?: unknown[]; pages?: number }>(
+  fetchPage: (page: number) => Promise<T>,
+  onBatch?: (sofar: T) => void,
+): Promise<T> {
+  const first = await fetchPage(1);
+  const pages = first?.pages ?? 1;
+  let items = [...(first?.items ?? [])];
+  for (let from = 2; from <= pages; from += PAGE_BATCH) {
+    const batch = await Promise.all(
+      Array.from({ length: Math.min(PAGE_BATCH, pages - from + 1) }, (_, i) => fetchPage(from + i)),
+    );
+    items = items.concat(batch.flatMap((pg) => pg?.items ?? []));
+    onBatch?.({ ...first, items });
+  }
+  return { ...first, items };
+}
+/** The users directory lists everyone: the backend's `days` has no ceiling, and this covers the data. */
+const ALL_USERS_DAYS = 9999;
 const POLL_USERS_MS = 10_000;
 const POLL_ACTIVITY_MS = 10_000;
 const POLL_STATS_MS = 30_000;
@@ -147,7 +168,7 @@ function LiveBadge({
   const label = formatRelativeAge(updatedAt, now);
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
         boosting
           ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
           : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
@@ -325,7 +346,7 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
 
 type HourlyBucket = { t: number; success: number; failed: number; total: number };
 
-type TrendWindow = "1h" | "24h" | "7d" | "all";
+type TrendWindow = AdminRange;
 
 type WindowConfig = {
   windowMs: number;
@@ -375,6 +396,21 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 3,
         bucketUnitLabel: "calcs / hr",
       };
+    case "72h":
+      return {
+        windowMs: 3 * DAY,
+        bucketCount: 36,
+        bucketSizeMs: 2 * HOUR,
+        shortLabel: "72h",
+        windowPhrase: "the last 72h",
+        longLabel: "Last 72 hours",
+        priorLabel: "vs prior 72h",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleString([], { weekday: "short", hour: "2-digit" }),
+        bucketTooltipFn: (ts) =>
+          new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
+        xAxisInterval: 5,
+        bucketUnitLabel: "calcs / 2h",
+      };
     case "7d":
       return {
         windowMs: 7 * DAY,
@@ -390,14 +426,29 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 0,
         bucketUnitLabel: "calcs / day",
       };
+    case "30d":
+      return {
+        windowMs: 30 * DAY,
+        bucketCount: 30,
+        bucketSizeMs: DAY,
+        shortLabel: "30d",
+        windowPhrase: "the last 30d",
+        longLabel: "Last 30 days",
+        priorLabel: "vs prior 30d",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
+        bucketTooltipFn: (ts) =>
+          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+        xAxisInterval: 4,
+        bucketUnitLabel: "calcs / day",
+      };
     case "all":
       return {
         windowMs: Number.POSITIVE_INFINITY,
         bucketCount: 12,
         bucketSizeMs: DAY, // overridden dynamically from the loaded-data span
         shortLabel: "All",
-        windowPhrase: "all loaded",
-        longLabel: "All loaded activity",
+        windowPhrase: "all time",
+        longLabel: "All time",
         priorLabel: "vs prior period",
         bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
         bucketTooltipFn: (ts) =>
@@ -405,6 +456,24 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 2,
         bucketUnitLabel: "calcs",
       };
+    default: {
+      // A custom "last N days": a bucket a day.
+      const days = customDays(w) ?? 1;
+      return {
+        windowMs: days * DAY,
+        bucketCount: days,
+        bucketSizeMs: DAY,
+        shortLabel: `${days}d`,
+        windowPhrase: `the last ${days} days`,
+        longLabel: `Last ${days} days`,
+        priorLabel: `vs prior ${days}d`,
+        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
+        bucketTooltipFn: (ts) =>
+          new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+        xAxisInterval: Math.max(0, Math.ceil(days / 8) - 1),
+        bucketUnitLabel: "calcs / day",
+      };
+    }
   }
 }
 
@@ -502,7 +571,7 @@ function MiniSparkline({
   if (!data || data.length < 2) {
     return (
       <div
-        className={`inline-flex items-center justify-center text-[8px] text-slate-300 dark:text-slate-600 ${className ?? ""}`}
+        className={`inline-flex items-center justify-center text-[10px] text-slate-300 dark:text-slate-600 ${className ?? ""}`}
         style={{ height, width }}
         title="No trend data available yet"
         data-testid="mini-sparkline-empty"
@@ -708,7 +777,6 @@ function KpiCard({
   subtitle,
   unsupported,
   tooltip,
-  scope,
   onClick,
   sparklineData,
   sparklineTimestamps,
@@ -724,7 +792,6 @@ function KpiCard({
   subtitle?: string;
   unsupported?: boolean;
   tooltip?: string;
-  scope?: "system" | "graph";
   onClick?: () => void;
   sparklineData?: number[];
   sparklineTimestamps?: number[];
@@ -751,16 +818,7 @@ function KpiCard({
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-accent/15 bg-gradient-to-br from-brand-accent/10 to-brand-deep/10">
             <Icon className="h-4 w-4 text-brand-deep" />
           </div>
-          {scope && (
-            <Chip
-              tone={scope === "system" ? "brand" : "slate"}
-              size="sm"
-              className="font-bold uppercase tracking-wider"
-            >
-              {scope === "system" ? "System" : "Your graph"}
-            </Chip>
-          )}
-          {trend && !scope && (
+          {trend && (
             <span
               className={`flex items-center gap-0.5 text-[10px] font-semibold ${trend.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}
             >
@@ -806,15 +864,17 @@ function KpiCard({
           )}
         </div>
         <p className="relative mt-0.5 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{label}</p>
-        {subtitle && <p className="relative mt-0.5 text-[9px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="relative mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
         {deltaSlot && (
           <div className="relative mt-1" data-testid={`kpi-delta-${label.toLowerCase().replace(/\s+/g, "-")}`}>
             {deltaSlot}
           </div>
         )}
-        <div className="relative mt-auto pt-1.5">
-          {unsupported ? <StatusBadge status="disconnected" /> : <StatusBadge status="connected" />}
-        </div>
+        {unsupported && (
+          <div className="relative mt-auto pt-1.5">
+            <StatusBadge status="disconnected" />
+          </div>
+        )}
       </div>
       {hasSparkline && (
         <SparklineDetailsDialog
@@ -984,22 +1044,31 @@ function FailureBreakdownCard({
     setRetrying(null);
   }
 
+  // Nothing to act on: the card is one line, not a block of empty space.
+  const quiet = !isError && !isLoading && totalFailures === 0;
   return (
     <div
-      className="overflow-hidden rounded-2xl border border-red-200/70 bg-card text-card-foreground shadow-sm dark:border-red-500/25 dark:shadow-none"
+      className={`overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm dark:shadow-none ${quiet ? "border-border" : "border-red-200/70 dark:border-red-500/25"}`}
       data-testid="card-failure-breakdown"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-red-100 px-5 py-4 dark:border-red-500/20">
+      <div
+        className={`flex items-start justify-between gap-3 px-5 ${quiet ? "py-3" : "border-b border-red-100 py-4 dark:border-red-500/20"}`}
+      >
         <div>
           <h3
             className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            <AlertTriangle className="h-4 w-4 text-red-500" /> Failure Breakdown
+            {quiet ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            )}{" "}
+            Failure Breakdown
           </h3>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
             {totalFailures === 0
-              ? "No failures in the current activity feed."
+              ? "No failures in this range."
               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} across ${groups.length} pattern${groups.length === 1 ? "" : "s"} — expand one to see who's affected and re-run them.`}
           </p>
         </div>
@@ -1007,126 +1076,122 @@ function FailureBreakdownCard({
           {totalFailures}
         </Chip>
       </div>
-      <div className="p-5">
-        {isError ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <XCircle className="mb-2 h-8 w-8 text-red-400" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
-            <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
-              {errorMessage || "The /admin/activity endpoint did not respond."}
-            </p>
-          </div>
-        ) : isLoading && totalFailures === 0 ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-          </div>
-        ) : totalFailures === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No failures right now</p>
-            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Every recent request has succeeded.</p>
-          </div>
-        ) : (
-          <ul className="space-y-2.5" data-testid="list-failure-breakdown">
-            {groups.map((g) => {
-              const errMsg = extractErrorMessage(g.latest);
-              const users = Array.from(g.users.entries())
-                .sort((a, b) => b[1] - a[1])
-                .map(([pk]) => pk);
-              const isOpen = expanded === g.key;
-              const isRetrying = retrying === g.key;
-              return (
-                <li
-                  key={g.key}
-                  className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
-                  data-testid="failure-breakdown-group"
-                >
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
-                          {g.stage}
-                        </span>
-                        <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
-                          {g.count}×
-                        </span>
-                        <span className="text-[9px] text-slate-500 dark:text-slate-400">
-                          {users.length} user{users.length === 1 ? "" : "s"} affected
-                        </span>
-                        <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
-                          {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
-                        </span>
-                      </div>
-                      <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
-                        {truncateError(errMsg, 220)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {users.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setExpanded(isOpen ? null : g.key)}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-                            data-testid="failure-breakdown-toggle-users"
-                          >
-                            <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />{" "}
-                            {isOpen ? "Hide" : "Show"} affected users
-                          </button>
-                        )}
-                        {users.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 gap-1 border-red-200 text-[10px] text-red-700 hover:bg-red-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
-                            disabled={isRetrying}
-                            onClick={() => retryGroup(g.key, users)}
-                            data-testid="failure-breakdown-retry-all"
-                          >
-                            {isRetrying ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3 w-3" />
-                            )}{" "}
-                            Retry all {users.length}
-                          </Button>
-                        )}
-                      </div>
-                      {isOpen && (
-                        <ul className="mt-2 max-h-52 space-y-1 overflow-auto rounded-lg border border-slate-100 bg-white p-2 dark:border-slate-800/60 dark:bg-slate-900">
-                          {users.slice(0, 100).map((pk) => (
-                            <li key={pk} className="flex items-center justify-between gap-2">
-                              <button
-                                type="button"
-                                onClick={() => onViewUser(pk)}
-                                className="truncate font-mono text-[10px] text-brand-deep hover:text-brand-accent"
-                                title={pk}
-                              >
-                                {pk.slice(0, 16)}…{pk.slice(-6)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onViewUser(pk)}
-                                className="inline-flex shrink-0 items-center gap-1 text-[9px] text-slate-400 hover:text-brand-deep dark:text-slate-500"
-                              >
-                                <Eye className="h-3 w-3" /> view
-                              </button>
-                            </li>
-                          ))}
-                          {users.length > 100 && (
-                            <li className="px-1 text-[9px] text-slate-400 dark:text-slate-500">
-                              + {users.length - 100} more
-                            </li>
+      {quiet ? null : (
+        <div className="p-5">
+          {isError ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <XCircle className="mb-2 h-8 w-8 text-red-400" />
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
+              <p className="mt-1 max-w-md text-[11px] text-slate-500 dark:text-slate-400">
+                {errorMessage || "The activity feed did not respond."}
+              </p>
+            </div>
+          ) : isLoading && totalFailures === 0 ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
+            </div>
+          ) : (
+            <ul className="space-y-2.5" data-testid="list-failure-breakdown">
+              {groups.map((g) => {
+                const errMsg = extractErrorMessage(g.latest);
+                const users = Array.from(g.users.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([pk]) => pk);
+                const isOpen = expanded === g.key;
+                const isRetrying = retrying === g.key;
+                return (
+                  <li
+                    key={g.key}
+                    className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
+                    data-testid="failure-breakdown-group"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
+                            {g.stage}
+                          </span>
+                          <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
+                            {g.count}×
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {users.length} user{users.length === 1 ? "" : "s"} affected
+                          </span>
+                          <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
+                            {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
+                          </span>
+                        </div>
+                        <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
+                          {truncateError(errMsg, 220)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {users.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpanded(isOpen ? null : g.key)}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+                              data-testid="failure-breakdown-toggle-users"
+                            >
+                              <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />{" "}
+                              {isOpen ? "Hide" : "Show"} affected users
+                            </button>
                           )}
-                        </ul>
-                      )}
+                          {users.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 gap-1 border-red-200 text-[10px] text-red-700 hover:bg-red-50 dark:border-red-500/25 dark:text-red-300 dark:hover:bg-red-500/10"
+                              disabled={isRetrying}
+                              onClick={() => retryGroup(g.key, users)}
+                              data-testid="failure-breakdown-retry-all"
+                            >
+                              {isRetrying ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}{" "}
+                              Retry all {users.length}
+                            </Button>
+                          )}
+                        </div>
+                        {isOpen && (
+                          <ul className="mt-2 max-h-52 space-y-1 overflow-auto rounded-lg border border-slate-100 bg-white p-2 dark:border-slate-800/60 dark:bg-slate-900">
+                            {users.slice(0, 100).map((pk) => (
+                              <li key={pk} className="flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onViewUser(pk)}
+                                  className="truncate font-mono text-[10px] text-brand-deep hover:text-brand-accent"
+                                  title={pk}
+                                >
+                                  {pk.slice(0, 16)}…{pk.slice(-6)}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onViewUser(pk)}
+                                  className="inline-flex shrink-0 items-center gap-1 text-[10px] text-slate-400 hover:text-brand-deep dark:text-slate-500"
+                                >
+                                  <Eye className="h-3 w-3" /> view
+                                </button>
+                              </li>
+                            ))}
+                            {users.length > 100 && (
+                              <li className="px-1 text-[10px] text-slate-400 dark:text-slate-500">
+                                + {users.length - 100} more
+                              </li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1153,32 +1218,32 @@ function UserHistoryRow({
       className="bg-gradient-to-r from-slate-50/80 to-brand-primary/10 dark:bg-slate-900/40 dark:bg-none"
       data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}
     >
-      <td colSpan={12} className="px-5 py-4">
+      <td colSpan={8} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
-            <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Identity
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                <p className="mb-0.5 text-[8px] uppercase text-slate-400 dark:text-slate-500">Full Pubkey</p>
+                <p className="mb-0.5 text-[11px] uppercase text-slate-400 dark:text-slate-500">Full Pubkey</p>
                 <div className="flex min-w-0 items-center gap-1">
-                  <p className="truncate font-mono text-[9px] text-slate-700 dark:text-slate-200">{pubkey}</p>
+                  <p className="truncate font-mono text-[11px] text-slate-700 dark:text-slate-200">{pubkey}</p>
                   <CopyButton text={pubkey} />
                 </div>
               </div>
               <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                <p className="mb-0.5 text-[8px] uppercase text-slate-400 dark:text-slate-500">Nostr npub</p>
+                <p className="mb-0.5 text-[11px] uppercase text-slate-400 dark:text-slate-500">Nostr npub</p>
                 <div className="flex min-w-0 items-center gap-1">
-                  <p className="truncate font-mono text-[9px] text-brand-primary dark:text-brand-link">{npub}</p>
+                  <p className="truncate font-mono text-[11px] text-brand-primary dark:text-brand-link">{npub}</p>
                   <CopyButton text={npub} />
                 </div>
               </div>
               {taPubkey && (
                 <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                  <p className="mb-0.5 text-[8px] uppercase text-slate-400 dark:text-slate-500">TA Pubkey</p>
+                  <p className="mb-0.5 text-[11px] uppercase text-slate-400 dark:text-slate-500">TA Pubkey</p>
                   <div className="flex min-w-0 items-center gap-1">
-                    <p className="truncate font-mono text-[9px] text-emerald-600 dark:text-emerald-400">{taPubkey}</p>
+                    <p className="truncate font-mono text-[11px] text-emerald-600 dark:text-emerald-400">{taPubkey}</p>
                     <CopyButton text={taPubkey} />
                   </div>
                 </div>
@@ -1291,7 +1356,7 @@ function UserHistoryRow({
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span
-                                        className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
+                                        className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                         data-testid={`tooltip-history-error-status-${rowKey}`}
                                       >
                                         {item.status}
@@ -1307,7 +1372,7 @@ function UserHistoryRow({
                                   </Tooltip>
                                 ) : (
                                   <span
-                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                       statusLower === "success"
                                         ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                         : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
@@ -1328,7 +1393,7 @@ function UserHistoryRow({
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span
-                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
+                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                           data-testid={`tooltip-history-error-ta-${rowKey}`}
                                         >
                                           {item.ta_status}
@@ -1344,7 +1409,7 @@ function UserHistoryRow({
                                     </Tooltip>
                                   ) : (
                                     <span
-                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                         taLower === "success"
                                           ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                           : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
@@ -1363,7 +1428,7 @@ function UserHistoryRow({
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span
-                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
+                                          className="inline-flex cursor-help items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                           data-testid={`tooltip-history-error-pub-${rowKey}`}
                                         >
                                           {item.internal_publication_status}
@@ -1379,7 +1444,7 @@ function UserHistoryRow({
                                     </Tooltip>
                                   ) : (
                                     <span
-                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                         pubLower === "success" || pubLower === "published"
                                           ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
                                           : pubLower === "pending" || pubLower === "in_progress"
@@ -1423,7 +1488,7 @@ function UserHistoryRow({
                                               {errorText}
                                             </span>
                                           ) : (
-                                            <span className="block text-[11px] italic text-red-600/80 dark:text-red-400/80">
+                                            <span className="block text-[11px] text-red-600/80 dark:text-red-400/80">
                                               No error details captured — check server logs.
                                             </span>
                                           )}
@@ -2034,7 +2099,7 @@ function ActivityRow({
                       {profile?.picture ? (
                         <AvatarImage src={profile.picture} alt={displayName || "User"} className="object-cover" />
                       ) : null}
-                      <AvatarFallback className="border border-slate-200 bg-slate-100 text-[8px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+                      <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
                         {displayName?.charAt(0)?.toUpperCase() || (
                           <Users className="h-2.5 w-2.5 text-slate-300 dark:text-slate-600" />
                         )}
@@ -2045,7 +2110,7 @@ function ActivityRow({
                         {displayName || npubShort}
                       </span>
                       {displayName && (
-                        <span className="hidden max-w-[120px] truncate font-mono text-[8px] text-slate-400 dark:text-slate-500 sm:inline">
+                        <span className="hidden max-w-[120px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:inline">
                           {npubShort}
                         </span>
                       )}
@@ -2065,7 +2130,7 @@ function ActivityRow({
           <TriggerSourceBadge value={item.trigger_source} />
           {schedulingName && (
             <div
-              className="mt-0.5 text-[8px] font-medium text-brand-primary dark:text-brand-link"
+              className="mt-0.5 text-[10px] font-medium text-brand-primary dark:text-brand-link"
               title="This user's current scheduling tier"
             >
               {schedulingName}
@@ -2106,7 +2171,7 @@ function ActivityRow({
             <span className="font-mono text-slate-400 dark:text-slate-500">{item.private_id}</span>
             {isInPipeline && style.label && (
               <span
-                className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${style.labelClass}`}
+                className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style.labelClass}`}
               >
                 {style.label}
               </span>
@@ -2188,7 +2253,7 @@ function ActivityRow({
                 <span className="break-words font-mono text-[10px] text-red-800 dark:text-red-300">
                   {truncateError(extractErrorMessage(item), 160)}
                 </span>
-                <span className="ml-2 text-[9px] italic text-red-500/70">Click for details</span>
+                <span className="ml-2 text-[10px] text-red-500/70">Click for details</span>
               </div>
             </div>
           </td>
@@ -2217,7 +2282,7 @@ function ActivityRow({
                       <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
                         Full Pubkey
                       </span>
-                      <p className="mt-0.5 break-all font-mono text-[9px] text-slate-700 dark:text-slate-200">
+                      <p className="mt-0.5 break-all font-mono text-[11px] text-slate-700 dark:text-slate-200">
                         {item.pubkey}
                       </p>
                     </div>
@@ -2295,22 +2360,29 @@ export default function AdminPage() {
   const [trustedListsObserver, setTrustedListsObserver] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [daysFilter, setDaysFilter] = useState(30);
   const [userSort, setUserSort] = useState<SortState>({ key: "last_triggered", dir: "desc" });
   const [userPage, setUserPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
   const [activityPage, setActivityPage] = useState(0);
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
-  const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | "failed" | null>(null);
-  const [trendWindow, setTrendWindow] = useState<TrendWindow>("24h");
-  useEffect(() => {
-    try {
-      localStorage.removeItem("admin_trend_window");
-    } catch {
-      /* ignore */
-    }
+  // The dashboard's one time range (adminRange): every tab's queries, figures
+  // and charts read it, and `?range=` keeps it across tabs and reloads.
+  const [range, setRangeState] = useState<AdminRange>(() =>
+    parseAdminRange(new URLSearchParams(window.location.search).get("range")),
+  );
+  const setRange = useCallback((next: AdminRange) => {
+    setRangeState(next);
+    const params = new URLSearchParams(window.location.search);
+    params.set("range", next);
+    window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
   }, []);
+  const rangeDays = rangeQuery(range, Date.now()).days;
+  // The range drives the Overview's figures, the Activity log and Growth;
+  // the other tabs are directories and settings, so it isn't shown there.
+  const rangeDriven = activeTab === "overview" || activeTab === "activity" || activeTab === "growth";
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customDraft, setCustomDraft] = useState(() => String(customDays(range) ?? 14));
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
@@ -2415,7 +2487,9 @@ export default function AdminPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("tab") || params.has("highlight")) {
-      window.history.replaceState({}, "", window.location.pathname);
+      const kept = new URLSearchParams();
+      if (params.has("range")) kept.set("range", params.get("range")!);
+      window.history.replaceState({}, "", `${window.location.pathname}${kept.toString() ? `?${kept}` : ""}`);
       if (params.get("highlight")) {
         setTimeout(() => setHighlightedPubkey(null), 2500);
       }
@@ -2448,13 +2522,13 @@ export default function AdminPage() {
   const activeNameSearch = isNameSearch(userSearch.trim());
 
   const adminUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize],
+    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, userPage, pageSize],
     queryFn: () =>
       apiClient.getAdminUsers({
         search: debouncedSearch || undefined,
         sort: userSort.key,
         order: userSort.dir,
-        days: daysFilter,
+        days: ALL_USERS_DAYS,
         page: userPage + 1,
         size: pageSize,
       }),
@@ -2491,8 +2565,19 @@ export default function AdminPage() {
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
 
   const overviewUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users/overview", daysFilter],
-    queryFn: () => apiClient.getAdminUsers({ days: daysFilter, page: 1, size: 100 }),
+    queryKey: ["/api/admin/users/overview", rangeDays],
+    queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: rangeDays, page, size: 100 })),
+    enabled: !!user?.isAdmin,
+    staleTime: 60_000,
+    retry: 1,
+    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
+    refetchOnWindowFocus: "always",
+  });
+
+  // Every user, whatever the range: the header cards show the system's state now.
+  const allUsersQuery = useQuery<AdminUsersPage>({
+    queryKey: ["/api/admin/users/all"],
+    queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: ALL_USERS_DAYS, page, size: 100 })),
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
@@ -2501,9 +2586,17 @@ export default function AdminPage() {
   });
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/activity/overview"],
-    // Backend caps `size` at 100; requesting more 422s.
-    queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
+    queryKey: ["/api/admin/activity/overview", rangeDays],
+    // Twice the range, so the deltas have a prior window to compare with.
+    // Backend caps `size` at 100 (more 422s), so the range comes page by
+    // page, a batch at a time, each batch shown as it lands.
+    queryFn: () => {
+      const days = Math.min(rangeDays * 2, BACKEND_MAX_DAYS);
+      return readEveryPage(
+        (page) => apiClient.getAdminActivity({ page, size: 100, days }),
+        (sofar) => queryClient.setQueryData(["/api/admin/activity/overview", rangeDays], sofar),
+      );
+    },
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
@@ -2511,14 +2604,25 @@ export default function AdminPage() {
     refetchOnWindowFocus: "always",
   });
 
+  // The year's runs, whole, for the Growth tab: a person's first run is their
+  // earliest record here, whatever the dashboard's range.
+  const yearActivityQuery = useQuery<AdminUserHistoryPage>({
+    queryKey: ["/api/admin/activity/year"],
+    queryFn: () => readEveryPage((page) => apiClient.getAdminActivity({ page, size: 100, days: BACKEND_MAX_DAYS })),
+    enabled: !!user?.isAdmin && activeTab === "growth",
+    staleTime: 300_000,
+    retry: 1,
+  });
+
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/activity", activityPage, activityPageSize],
+    queryKey: ["/api/admin/activity", rangeDays, activityPage, activityPageSize],
     queryFn: () =>
       apiClient.getAdminActivity({
         page: activityPage + 1,
         size: activityPageSize,
+        days: rangeDays,
       }),
-    enabled: !!user && activeTab === "activity",
+    enabled: !!user?.isAdmin && activeTab === "activity",
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     refetchInterval: activeTab === "activity" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
@@ -2546,7 +2650,7 @@ export default function AdminPage() {
   const assistantStatsQuery = useQuery({
     queryKey: ["/api/admin/assistants/stats"],
     queryFn: () => apiClient.getAdminAssistantStats(),
-    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin,
+    enabled: !!user?.isAdmin && activeTab === "assistants" && FEATURES.assistantsAdmin,
     staleTime: 30_000,
     refetchInterval:
       activeTab === "assistants" && FEATURES.assistantsAdmin
@@ -2564,7 +2668,7 @@ export default function AdminPage() {
         page: assistantPage + 1,
         size: assistantPageSize,
       }),
-    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin,
+    enabled: !!user?.isAdmin && activeTab === "assistants" && FEATURES.assistantsAdmin,
     staleTime: 15_000,
     placeholderData: (prev) => prev,
     refetchInterval:
@@ -2579,7 +2683,7 @@ export default function AdminPage() {
     queryKey: ["/api/admin/assistants", expandedAssistant, "history"],
     queryFn: () =>
       expandedAssistant ? apiClient.getAdminAssistantHistory(expandedAssistant, { size: 25 }) : Promise.resolve(null),
-    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin && !!expandedAssistant,
+    enabled: !!user?.isAdmin && activeTab === "assistants" && FEATURES.assistantsAdmin && !!expandedAssistant,
     staleTime: 30_000,
   });
 
@@ -2689,12 +2793,12 @@ export default function AdminPage() {
   useEffect(() => {
     setSelectedUserPubkeys(new Set());
     setBulkLastResult((prev) => (prev?.source === "users" ? null : prev));
-  }, [userSearch, debouncedSearch, daysFilter, kpiFilter]);
+  }, [userSearch, debouncedSearch, kpiFilter]);
 
   useEffect(() => {
     setSelectedActivityRows(new Map());
     setBulkLastResult((prev) => (prev?.source === "activity" ? null : prev));
-  }, [activityTimeRange]);
+  }, [range]);
 
   const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
 
@@ -2801,20 +2905,48 @@ export default function AdminPage() {
     }
     return m;
   }, [overviewAllUsers]);
-  const overviewAllActivity = overviewActivityQuery.data?.items ?? NONE;
+  // What the Overview loaded (the range and the one before it, for deltas)
+  // and the part inside the range, which every figure and chart reads.
+  const overviewLoadedActivity = overviewActivityQuery.data?.items ?? NONE;
+  const overviewAllActivity = useMemo(() => {
+    const now = Date.now();
+    return overviewLoadedActivity.filter((a) => withinRange(parseActivityTs(a.updated_at), range, now));
+  }, [overviewLoadedActivity, range]);
   // Coverage of the loaded activity feed — surfaced so admins know how far the
   // trend windows actually reach (7d/30d may exceed the loaded records).
   const activityCoverage = useMemo(() => {
     const times = overviewAllActivity.map((a) => parseActivityTs(a.updated_at)).filter((t): t is number => !!t);
-    return { count: overviewAllActivity.length, oldest: times.length ? Math.min(...times) : null };
-  }, [overviewAllActivity]);
-  const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
+    return {
+      count: overviewAllActivity.length,
+      total: overviewActivityQuery.data?.total ?? overviewLoadedActivity.length,
+      loaded: overviewLoadedActivity.length,
+      loading:
+        overviewActivityQuery.isFetching && overviewLoadedActivity.length < (overviewActivityQuery.data?.total ?? 0),
+      oldest: times.length ? Math.min(...times) : null,
+    };
+  }, [
+    overviewAllActivity,
+    overviewLoadedActivity.length,
+    overviewActivityQuery.data,
+    overviewActivityQuery.isFetching,
+  ]);
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
+  const allUsers = allUsersQuery.data?.items ?? NONE;
+  const allUsersTotal = allUsersQuery.data?.total ?? 0;
+  // pubkey → scheduling tier, for the Growth tab's rows and its tier filter.
+  const tiersByPubkey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of allUsers) if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
+    return m;
+  }, [allUsers]);
+  // A KPI card's filter or a name search narrows every user (allUsersQuery,
+  // loaded whole), paged here; otherwise the directory is the backend's page.
+  const clientFilteredUsers = activeNameSearch || !!kpiFilter;
   const filteredUsersList = useMemo(() => {
     const trimmed = userSearch.trim();
     const nameSearch = trimmed && isNameSearch(trimmed);
-    let list = nameSearch ? overviewAllUsers : adminUsersList;
+    let list = nameSearch || kpiFilter ? allUsers : adminUsersList;
     if (nameSearch) {
       const query = trimmed.toLowerCase();
       list = list.filter((u) => {
@@ -2834,11 +2966,13 @@ export default function AdminPage() {
       });
     }
     return list;
-  }, [adminUsersList, overviewAllUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
+  }, [adminUsersList, allUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
 
-  const pipelineMetrics = useMemo(() => {
-    const users = overviewAllUsers;
-    const activity = overviewAllActivity;
+  const computePipelineMetrics = (
+    users: AdminUsersPage["items"],
+    activity: AdminUserHistoryPage["items"],
+    totalUsers: number,
+  ) => {
     const total = users.length;
     if (total === 0) return null;
 
@@ -2884,7 +3018,7 @@ export default function AdminPage() {
     const neverCalc = users.filter((u) => !u.times_calculated || u.times_calculated === 0).length;
 
     return {
-      total: overviewTotalUsers,
+      total: totalUsers,
       successCount,
       failedCount,
       pendingCount,
@@ -2901,15 +3035,20 @@ export default function AdminPage() {
       lastPlatformActivity,
       neverCalc,
     };
-  }, [overviewAllUsers, overviewAllActivity, overviewTotalUsers]);
+  };
+  // Everyone, now: the header cards.
+  const nowMetrics = useMemo(
+    () => computePipelineMetrics(allUsers, overviewLoadedActivity, allUsersTotal),
+    [allUsers, overviewLoadedActivity, allUsersTotal],
+  );
 
   const computedQueueDepth = useMemo(() => {
-    if (overviewAllUsers.length === 0) return null;
-    return overviewAllUsers.filter((u) => {
+    if (allUsers.length === 0) return null;
+    return allUsers.filter((u) => {
       const s = u.latest_status?.toLowerCase();
       return s === "waiting" || s === "ongoing" || s === "queued" || s === "pending";
     }).length;
-  }, [overviewAllUsers]);
+  }, [allUsers]);
 
   // Assign a live "queue position" to every in-flight request so the
   // Platform Activity table's Queue column reflects real ordering instead
@@ -2959,46 +3098,27 @@ export default function AdminPage() {
     return map;
   }, [overviewAllActivity, activityItems]);
 
-  // Fixed 24h glance-trend for the top KPI-card sparklines — independent of the
-  // Overview trend-window filter (the header cards show "right now" state).
-  const fixedTrends24h = useMemo(() => {
-    const now = Date.now();
-    const cfg = getWindowConfig("24h");
-    const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
-    return {
-      bucketTimestamps: buckets.map((b) => b.t),
-      totalSeries: buckets.map((b) => b.total),
-      successSeries: buckets.map((b) => b.success),
-      failedSeries: buckets.map((b) => b.failed),
-      rateSeries: buckets.map((b) => {
-        const d = b.success + b.failed;
-        return d === 0 ? 0 : Math.round((b.success / d) * 100);
-      }),
-    };
-  }, [overviewAllActivity]);
-
   const trends = useMemo(() => {
     const now = Date.now();
     const HOUR = 3600000;
-    const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
+    const oldestActivityTs = overviewLoadedActivity.reduce((min, a) => {
       const t = parseActivityTs(a.updated_at);
       if (!t) return min;
       return min === 0 ? t : Math.min(min, t);
     }, 0);
     const dataAgeMs = oldestActivityTs > 0 ? now - oldestActivityTs : 0;
-    let cfg = getWindowConfig(trendWindow);
-    if (trendWindow === "all") {
+    let cfg = getWindowConfig(range);
+    if (range === "all") {
       // Bucket the whole loaded span so "All" reads well no matter the range.
       const spanMs = Math.max(dataAgeMs, HOUR);
       const bucketCount = 12;
       cfg = { ...cfg, bucketCount, bucketSizeMs: Math.ceil(spanMs / bucketCount) };
     }
-    const dataCoversWindow = trendWindow === "all" ? true : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
-    const dataCoversPriorWindow =
-      trendWindow === "all" ? false : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
+    const dataCoversWindow = range === "all" ? true : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
+    const dataCoversPriorWindow = range === "all" ? false : oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
     const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
-    const cmp = compareActivityWindows(overviewAllActivity, cfg.windowMs, now);
-    const cmp1h = compareActivityWindows(overviewAllActivity, HOUR, now);
+    const cmp = compareActivityWindows(overviewLoadedActivity, cfg.windowMs, now);
+    const cmp1h = compareActivityWindows(overviewLoadedActivity, HOUR, now);
     const totalSeries = buckets.map((b) => b.total);
     const successSeries = buckets.map((b) => b.success);
     const failedSeries = buckets.map((b) => b.failed);
@@ -3023,9 +3143,31 @@ export default function AdminPage() {
       dataCoversWindow,
       dataCoversPriorWindow,
     };
-  }, [overviewAllActivity, trendWindow]);
+  }, [overviewAllActivity, overviewLoadedActivity, range]);
 
-  const algoDistinct = pipelineMetrics ? Object.keys(pipelineMetrics.algoCounts).length : 0;
+  // The header's six figures — the system now — drawn once for the cards and
+  // for the one-line strip the other tabs show.
+  const headerFigures = {
+    scored: nowMetrics
+      ? `${formatNumber(nowMetrics.successCount)} / ${formatNumber(nowMetrics.total)}`
+      : hasSystemData
+        ? formatNumber(adminStats!.scoredUsers)
+        : "0",
+    published: nowMetrics
+      ? `${formatNumber(nowMetrics.taSuccessCount)} / ${formatNumber(nowMetrics.total)}`
+      : hasSystemData
+        ? formatNumber(adminStats!.spAdopters)
+        : "0",
+    queue:
+      computedQueueDepth !== null
+        ? formatNumber(computedQueueDepth)
+        : hasSystemData
+          ? formatNumber(adminStats!.queueDepth)
+          : "0",
+    calcs: nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "0",
+    rate: nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—",
+    failed: nowMetrics ? formatNumber(nowMetrics.failedCount) : formatNumber(trends.cmp.curFailed),
+  };
 
   const handleTriggerGraperank = useCallback(
     async (pubkey: string) => {
@@ -3050,7 +3192,7 @@ export default function AdminPage() {
     [toast, queryClient, triggerRefreshBoost],
   );
 
-  const totalPages = activeNameSearch
+  const totalPages = clientFilteredUsers
     ? Math.max(1, Math.ceil(filteredUsersList.length / pageSize))
     : adminUsersTotalPages;
 
@@ -3296,6 +3438,7 @@ export default function AdminPage() {
     { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
     { key: "users", label: "Users", icon: Users },
     { key: "trusted-lists", label: "Trusted Lists", icon: ListChecks },
+    { key: "growth", label: "Growth", icon: TrendingUp },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
   ];
@@ -3340,7 +3483,7 @@ export default function AdminPage() {
             <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Current system state
             </span>
-            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] text-emerald-600 dark:text-emerald-400">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -3348,137 +3491,224 @@ export default function AdminPage() {
               live now
             </span>
             <span
-              className="basis-full text-[9px] text-slate-400 dark:text-slate-500 sm:basis-auto"
+              className="basis-full text-[10px] text-slate-400 dark:text-slate-500 sm:basis-auto"
               data-testid="system-state-note"
             >
-              <span className="hidden sm:inline">· </span>mini-charts show the last 24h · window filters affect the
-              charts below, not these
+              <span className="hidden sm:inline">· </span>values are now
+              {rangeDriven ? ` · sparklines and everything below: ${trends.cfg.longLabel.toLowerCase()}` : ""}
             </span>
+            {rangeDriven && (
+              <div className="flex basis-full items-center gap-2 sm:ml-auto sm:basis-auto">
+                <div
+                  className="hidden gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900 sm:inline-flex"
+                  role="tablist"
+                  aria-label="Time range"
+                  data-testid="range-selector"
+                >
+                  {ADMIN_RANGES.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      role="tab"
+                      aria-selected={range === r}
+                      onClick={() => setRange(r)}
+                      className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${range === r ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                      data-testid={`button-range-${r}`}
+                    >
+                      {r === "all" ? "All" : r}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={customDays(range) !== null}
+                    onClick={() => setCustomOpen((o) => !o)}
+                    className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${customDays(range) !== null ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                    data-testid="button-range-custom"
+                  >
+                    {customDays(range) !== null ? `${customDays(range)}d` : "Custom"}
+                  </button>
+                </div>
+                <select
+                  value={customDays(range) !== null ? "custom" : range}
+                  onChange={(e) =>
+                    e.target.value === "custom" ? setCustomOpen(true) : setRange(e.target.value as AdminRange)
+                  }
+                  className="rounded-lg border border-brand-accent/30 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200 sm:hidden"
+                  aria-label="Time range"
+                  data-testid="select-range"
+                >
+                  {ADMIN_RANGES.map((r) => (
+                    <option key={r} value={r}>
+                      {getWindowConfig(r).longLabel}
+                    </option>
+                  ))}
+                  <option value="custom">
+                    {customDays(range) !== null ? `Last ${customDays(range)} days` : "Custom…"}
+                  </option>
+                </select>
+                {(customOpen || customDays(range) !== null) && (
+                  <form
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"
+                    data-testid="form-range-days"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const n = Math.floor(Number(customDraft));
+                      if (n >= 1 && n <= BACKEND_MAX_DAYS) {
+                        setRange(`${n}d`);
+                        setCustomOpen(false);
+                      }
+                    }}
+                  >
+                    last
+                    <input
+                      type="number"
+                      min={1}
+                      max={BACKEND_MAX_DAYS}
+                      value={customDraft}
+                      onChange={(e) => setCustomDraft(e.target.value)}
+                      className="w-14 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      aria-label="Days"
+                      data-testid="input-range-days"
+                    />
+                    days
+                    <button
+                      type="submit"
+                      className="rounded-md bg-brand-primary px-2 py-0.5 text-[11px] font-bold text-white"
+                      data-testid="button-range-days-apply"
+                    >
+                      Go
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
-          <div
-            className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
-            data-testid="section-kpi-strip"
-          >
-            <KpiCard
-              label="Scored Users"
-              value={
-                pipelineMetrics
-                  ? `${formatNumber(pipelineMetrics.successCount)} / ${formatNumber(pipelineMetrics.total)}`
-                  : hasSystemData
-                    ? formatNumber(adminStats!.scoredUsers)
-                    : "0"
-              }
-              icon={UserCheck}
-              subtitle={pipelineMetrics ? `${pipelineMetrics.successRate}% of all users scored` : "Completed GrapeRank"}
-              tooltip="Click to view scored users"
-              scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
-              onClick={() => {
-                setKpiFilter("scored");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-              sparklineData={fixedTrends24h.successSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
-              sparklineColor="#10b981"
-              sparklineValueLabel="successes"
-            />
-            <KpiCard
-              label="SP Adopters"
-              value={
-                pipelineMetrics
-                  ? `${formatNumber(pipelineMetrics.taSuccessCount)} / ${formatNumber(pipelineMetrics.total)}`
-                  : hasSystemData
-                    ? formatNumber(adminStats!.spAdopters)
-                    : "0"
-              }
-              icon={Shield}
-              subtitle={pipelineMetrics ? `${pipelineMetrics.taAdoptionRate}% TA adoption` : "Published NIP-85 TA"}
-              tooltip="Click to view SP adopters"
-              scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
-              onClick={() => {
-                setKpiFilter("sp_adopters");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-            />
-            <KpiCard
-              label="Queue Depth"
-              value={
-                computedQueueDepth !== null
-                  ? formatNumber(computedQueueDepth)
-                  : hasSystemData
-                    ? formatNumber(adminStats!.queueDepth)
-                    : queuePosition !== null
-                      ? queuePosition.toString()
-                      : "—"
-              }
-              icon={Clock}
-              subtitle={
-                computedQueueDepth !== null
-                  ? "Users awaiting calculation"
-                  : hasSystemData
+          {activeTab === "overview" && (
+            <div
+              className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+              data-testid="section-kpi-strip"
+            >
+              <KpiCard
+                label="Scored Users"
+                value={headerFigures.scored}
+                icon={UserCheck}
+                subtitle={
+                  nowMetrics ? `${nowMetrics.successRate}% have a GrapeRank score` : "Users with a GrapeRank score"
+                }
+                tooltip="Users whose last GrapeRank run succeeded — click to list them"
+                onClick={() => {
+                  setKpiFilter("scored");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+                sparklineData={trends.successSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#10b981"
+                sparklineValueLabel="successes"
+              />
+              <KpiCard
+                label="Assertions Published"
+                value={headerFigures.published}
+                icon={Shield}
+                subtitle={
+                  nowMetrics
+                    ? `${nowMetrics.taAdoptionRate}% publish trusted assertions`
+                    : "Users publishing trusted assertions"
+                }
+                tooltip="Users whose scores are published to relays as NIP-85 trusted assertions — click to list them"
+                onClick={() => {
+                  setKpiFilter("sp_adopters");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+              />
+              <KpiCard
+                label="Queue Depth"
+                value={headerFigures.queue}
+                icon={Clock}
+                subtitle={
+                  computedQueueDepth !== null
                     ? "Users awaiting calculation"
-                    : queuePosition !== null
-                      ? "Position in queue"
-                      : "Via graperankResult"
-              }
-              tooltip="Click to view queued users"
-              scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
-              onClick={() => {
-                setKpiFilter("queue");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-            />
-            <KpiCard
-              label="Total Calcs"
-              value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
-              icon={Activity}
-              subtitle="Cumulative attempts, all users"
-              tooltip="Cumulative calculation attempts across all users"
-              scope="system"
-              sparklineData={fixedTrends24h.totalSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
-              sparklineColor="#13d2e5"
-              sparklineValueLabel="calcs / hr"
-            />
-            <KpiCard
-              label="Success Rate"
-              value={
-                pipelineMetrics
-                  ? `${pipelineMetrics.successRate}%`
-                  : trends.cmp.curSR !== null
-                    ? `${trends.cmp.curSR}%`
-                    : "—"
-              }
-              icon={CheckCircle2}
-              subtitle="Cumulative success rate"
-              tooltip="Successful calculations as % of attempted"
-              scope="system"
-              sparklineData={fixedTrends24h.rateSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
-              sparklineColor="#10b981"
-              sparklineValueLabel="success rate"
-              sparklineValueSuffix="%"
-            />
-            <KpiCard
-              label="Failed Count"
-              value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
-              icon={AlertTriangle}
-              subtitle="Users with a failed run"
-              tooltip="Click to view users with failures"
-              scope="system"
-              onClick={() => {
-                setKpiFilter("failed");
-                setActiveTab("users");
-                setUserPage(0);
-              }}
-              sparklineData={fixedTrends24h.failedSeries}
-              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
-              sparklineColor="#f87171"
-              sparklineValueLabel="failures"
-            />
-          </div>
+                    : hasSystemData
+                      ? "Users awaiting calculation"
+                      : queuePosition !== null
+                        ? "Position in queue"
+                        : "Via graperankResult"
+                }
+                tooltip="Click to view queued users"
+                onClick={() => {
+                  setKpiFilter("queue");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+              />
+              <KpiCard
+                label="Total Calcs"
+                value={headerFigures.calcs}
+                icon={Activity}
+                subtitle="Cumulative attempts, all users"
+                tooltip="Cumulative calculation attempts across all users"
+                sparklineData={trends.totalSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#13d2e5"
+                sparklineValueLabel="calcs / hr"
+              />
+              <KpiCard
+                label="Success Rate"
+                value={headerFigures.rate}
+                icon={CheckCircle2}
+                subtitle="Cumulative success rate"
+                tooltip="Successful calculations as % of attempted"
+                sparklineData={trends.rateSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#10b981"
+                sparklineValueLabel="success rate"
+                sparklineValueSuffix="%"
+              />
+              <KpiCard
+                label="Failed Count"
+                value={headerFigures.failed}
+                icon={AlertTriangle}
+                subtitle="Users with a failed run"
+                tooltip="Click to view users with failures"
+                onClick={() => {
+                  setKpiFilter("failed");
+                  setActiveTab("users");
+                  setUserPage(0);
+                }}
+                sparklineData={trends.failedSeries}
+                sparklineTimestamps={trends.bucketTimestamps}
+                sparklineColor="#f87171"
+                sparklineValueLabel="failures"
+              />
+            </div>
+          )}
+          {activeTab !== "overview" && (
+            <p
+              className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300"
+              data-testid="kpi-compact"
+            >
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.scored}</b> scored
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.published}</b> published
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.queue}</b> queued
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.calcs}</b> calcs
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.rate}</b> success
+              </span>
+              <span>
+                <b className="font-semibold text-slate-900 dark:text-slate-100">{headerFigures.failed}</b> failed
+              </span>
+            </p>
+          )}
 
           <div className="scrollbar-hide -mx-4 hidden overflow-x-auto px-4 sm:mx-0 sm:block sm:px-0">
             <div
@@ -3581,41 +3811,136 @@ export default function AdminPage() {
 
           {activeTab === "overview" && (
             <div className="space-y-6" data-testid="panel-overview">
-              <div
-                className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                data-testid="trend-window-selector-row"
-              >
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Trend window
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-                    All Overview sparklines, deltas, and charts use this window
-                    {activityCoverage.count > 0 && ` · last ${activityCoverage.count} records`}
-                    {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
-                    {!trends.dataCoversWindow && trends.hasAnyActivity ? " · this range exceeds the loaded data" : ""}
-                  </p>
-                </div>
-                <div
-                  className="inline-flex gap-0.5 self-start rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900"
-                  role="tablist"
-                  aria-label="Trend window"
-                >
-                  {(["1h", "24h", "7d", "all"] as TrendWindow[]).map((w) => (
-                    <button
-                      key={w}
-                      type="button"
-                      role="tab"
-                      aria-selected={trendWindow === w}
-                      onClick={() => setTrendWindow(w)}
-                      className={`cursor-pointer rounded-md px-3.5 py-1.5 text-[12px] font-bold transition-all active:scale-95 ${trendWindow === w ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
-                      data-testid={`button-trend-window-${w}`}
-                    >
-                      {w === "all" ? "All" : w}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="trend-window-caption">
+                <span className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {trends.cfg.longLabel}
+                </span>
+                {activityCoverage.count > 0 && ` · ${activityCoverage.count} records`}
+                {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
+                {activityCoverage.loading
+                  ? ` · loading ${activityCoverage.loaded.toLocaleString()} of ${activityCoverage.total.toLocaleString()}…`
+                  : ""}
+              </p>
+
+              {(() => {
+                const actSummaryActivity = overviewAllActivity;
+                const actSummaryUsers = overviewAllUsers;
+                const actSummaryLoading = overviewLoading;
+                // Already cut to the dashboard's range.
+                const filteredItems = actSummaryActivity;
+                const rangeLong = trends.cfg.longLabel;
+                const rangeShort = trends.cfg.shortLabel;
+                const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
+                const filteredFailed = filteredItems.filter((a) => isFailedStatus(a.status)).length;
+                const filteredTotal = filteredItems.length;
+                const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
+                  const ta = new Date(a.last_updated || "").getTime() || 0;
+                  const tb = new Date(b.last_updated || "").getTime() || 0;
+                  return tb - ta;
+                });
+                const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
+                const uniquePubkeys = new Set(filteredItems.map((a) => a.pubkey).filter(Boolean)).size;
+
+                return (
+                  <div
+                    className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
+                    data-testid="card-activity-summary"
+                  >
+                    <div className="border-b border-brand-accent/10 px-4 py-4 sm:px-5">
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div>
+                            <h3
+                              className="text-sm font-bold text-slate-900 dark:text-slate-100"
+                              style={{ fontFamily: "var(--font-display)" }}
+                            >
+                              Activity Summary
+                            </h3>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              Platform-wide throughput —{" "}
+                              <span className="font-semibold text-brand-deep">{rangeLong}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge
+                            status={
+                              overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess
+                                ? "connected"
+                                : overviewActivityQuery.isError || overviewUsersQuery.isError
+                                  ? "disconnected"
+                                  : "degraded"
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 sm:p-5">
+                      {actSummaryLoading ? (
+                        <div className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                          {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-total"
+                          >
+                            <Activity className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                              {filteredTotal.toLocaleString()}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Requests</p>
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-success"
+                          >
+                            <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                              {filteredSuccess.toLocaleString()}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Succeeded</p>
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-failed"
+                          >
+                            <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
+                            <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Failed</p>
+                          </div>
+                          <div
+                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
+                            data-testid="summary-unique-users"
+                          >
+                            <Users className="mx-auto mb-1 h-4 w-4 text-blue-500" />
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                              {uniquePubkeys.toLocaleString()}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{rangeShort} Active Users</p>
+                          </div>
+                        </div>
+                      )}
+                      {lastActivityTs && !actSummaryLoading && (
+                        <p className="mt-3 text-[11px] text-slate-400 dark:text-slate-500">
+                          Last platform activity:{" "}
+                          {(() => {
+                            try {
+                              const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
+                              return d.toLocaleString();
+                            } catch {
+                              return lastActivityTs;
+                            }
+                          })()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div
                 className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
@@ -3630,9 +3955,17 @@ export default function AdminPage() {
                     >
                       {trends.cfg.longLabel}
                     </h3>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                      Calculation volume with failure-rate band{" "}
-                      {!trends.dataCoversWindow && trends.hasAnyActivity ? "· data may be partial" : ""}
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>
+                        {trends.cmp.curTotal.toLocaleString()} calc{trends.cmp.curTotal === 1 ? "" : "s"}
+                        {trends.cmp.curSR !== null ? `, ${trends.cmp.curSR}% succeeded` : ""}
+                        {!trends.dataCoversWindow && trends.hasAnyActivity ? " · data may be partial" : ""}
+                      </span>
+                      <DeltaIndicator
+                        delta={trends.hasPriorWindow ? trends.cmp.curTotal - trends.cmp.prevTotal : null}
+                        insufficient={!trends.hasPriorWindow}
+                        label={trends.cfg.priorLabel}
+                      />
                     </p>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
@@ -3739,380 +4072,6 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div
-                  className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                  data-testid="card-pipeline-health"
-                >
-                  <div className="border-b border-brand-accent/10 px-5 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3
-                          className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                          style={{ fontFamily: "var(--font-display)" }}
-                        >
-                          Pipeline Health
-                        </h3>
-                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                          Platform-wide GrapeRank calculation health from /admin/users
-                        </p>
-                      </div>
-                      <LiveBadge
-                        updatedAt={overviewUsersQuery.dataUpdatedAt}
-                        boosting={isBoostActive}
-                        isFetching={overviewUsersQuery.isFetching || overviewActivityQuery.isFetching}
-                      />
-                    </div>
-                  </div>
-                  {overviewLoading && !pipelineMetrics ? (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  ) : pipelineMetrics ? (
-                    <div className="space-y-5 p-5">
-                      <div>
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Success Rate
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {trends.hasAnyActivity && (
-                              <MiniSparkline
-                                data={trends.rateSeries}
-                                timestamps={trends.bucketTimestamps}
-                                color="#10b981"
-                                height={20}
-                                width={64}
-                                valueLabel="success rate"
-                                valueSuffix="%"
-                              />
-                            )}
-                            <span
-                              className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}
-                            >
-                              {pipelineMetrics.successRate}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mb-1 flex justify-end">
-                          <DeltaIndicator
-                            delta={
-                              trends.cmp.curSR !== null && trends.cmp.prevSR !== null
-                                ? trends.cmp.curSR - trends.cmp.prevSR
-                                : null
-                            }
-                            insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
-                            suffix=" pts"
-                            label={trends.cfg.priorLabel}
-                          />
-                        </div>
-                        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full bg-emerald-500 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.successCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                          <div
-                            className="h-full bg-red-400 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.failedCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                          <div
-                            className="h-full bg-slate-300 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.pendingCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-4">
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            {pipelineMetrics.successCount} success
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
-                            {pipelineMetrics.failedCount} failed
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" />
-                            {pipelineMetrics.pendingCount} pending
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 dark:border-slate-800/60">
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Total Users
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatNumber(pipelineMetrics.total)}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Total Calculations
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatNumber(pipelineMetrics.totalCalcs)}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Avg Calcs / User
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {pipelineMetrics.avgCalcs}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/60">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Never Calculated
-                          </p>
-                          <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {formatNumber(pipelineMetrics.neverCalc)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-4 dark:border-slate-800/60">
-                        <div className="mb-2 flex items-center justify-between">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Throughput · {trends.cfg.windowPhrase}
-                          </p>
-                          <DeltaIndicator
-                            delta={trends.hasPriorWindow ? trends.cmp.curTotal - trends.cmp.prevTotal : null}
-                            insufficient={!trends.hasPriorWindow}
-                            label={trends.cfg.priorLabel}
-                          />
-                        </div>
-                        <div
-                          className="rounded-xl border border-slate-100 bg-white/60 px-2 pb-1 pt-2 dark:border-slate-800/60 dark:bg-slate-900/60"
-                          style={{ height: 110 }}
-                          data-testid="chart-pipeline-throughput"
-                        >
-                          {!trends.hasAnyActivity ? (
-                            <div className="flex h-full items-center justify-center text-[11px] text-slate-400 dark:text-slate-500">
-                              No activity in {trends.cfg.windowPhrase}
-                            </div>
-                          ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={trends.buckets.map((b) => ({
-                                  bucket: trends.cfg.bucketLabelFn(b.t),
-                                  ts: b.t,
-                                  success: b.success,
-                                  failed: b.failed,
-                                }))}
-                                margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
-                              >
-                                <XAxis
-                                  dataKey="bucket"
-                                  tick={{ fontSize: 9, fill: "#94a3b8" }}
-                                  interval={trends.cfg.xAxisInterval}
-                                  axisLine={false}
-                                  tickLine={false}
-                                />
-                                <YAxis
-                                  tick={{ fontSize: 9, fill: "#94a3b8" }}
-                                  axisLine={false}
-                                  tickLine={false}
-                                  width={24}
-                                  allowDecimals={false}
-                                />
-                                <RcTooltip
-                                  contentStyle={{
-                                    fontSize: 11,
-                                    borderRadius: 8,
-                                    border: "1px solid #e2e8f0",
-                                    padding: "6px 8px",
-                                  }}
-                                  labelFormatter={(_, items) => {
-                                    const ts = items?.[0]?.payload?.ts as number | undefined;
-                                    return ts ? trends.cfg.bucketTooltipFn(ts) : "";
-                                  }}
-                                />
-                                <Bar
-                                  dataKey="success"
-                                  stackId="t"
-                                  name="Success"
-                                  fill="#10b981"
-                                  radius={[2, 2, 0, 0]}
-                                />
-                                <Bar dataKey="failed" stackId="t" name="Failed" fill="#f87171" radius={[2, 2, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          )}
-                        </div>
-                      </div>
-
-                      {pipelineMetrics.lastPlatformActivity && (
-                        <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800/60">
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">Last platform activity</span>
-                          <span className="text-xs text-slate-600 dark:text-slate-300">
-                            {new Date(
-                              pipelineMetrics.lastPlatformActivity.endsWith("Z")
-                                ? pipelineMetrics.lastPlatformActivity
-                                : pipelineMetrics.lastPlatformActivity + "Z",
-                            ).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : overviewUsersQuery.isError ? (
-                    <div className="p-8 text-center text-xs text-red-400">Failed to load pipeline data</div>
-                  ) : (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  )}
-                </div>
-
-                <div
-                  className="self-start overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                  data-testid="card-ta-adoption"
-                >
-                  <div className="border-b border-brand-accent/10 px-5 py-4">
-                    <h3
-                      className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      Trust Attestation & Throughput
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      TA adoption and recent calculation activity
-                    </p>
-                  </div>
-                  {overviewLoading && !pipelineMetrics ? (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  ) : pipelineMetrics ? (
-                    <div className="space-y-5 p-5">
-                      <div>
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            TA Success Rate
-                          </span>
-                          <span
-                            className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}
-                          >
-                            {pipelineMetrics.taAdoptionRate}%
-                          </span>
-                        </div>
-                        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full bg-brand-primary transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taSuccessCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                          <div
-                            className="h-full bg-red-400 transition-all duration-500"
-                            style={{
-                              width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taFailedCount / pipelineMetrics.total) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-4">
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-primary" />
-                            {pipelineMetrics.taSuccessCount} published
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
-                            {pipelineMetrics.taFailedCount} failed
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-700" />
-                            {pipelineMetrics.withTaPubkey} with TA key
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-4 dark:border-slate-800/60">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          Throughput · {trends.cfg.windowPhrase}
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                              Successful
-                            </p>
-                            <p className="mt-0.5 text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
-                              {trends.cmp.curSuccess}
-                            </p>
-                          </div>
-                          <div className="rounded-xl border border-red-100 bg-red-50/60 p-2.5 dark:border-red-500/25 dark:bg-red-500/10">
-                            <p className="text-[10px] font-semibold text-red-600 dark:text-red-400">Failed</p>
-                            <p className="mt-0.5 text-lg font-bold tabular-nums text-red-700 dark:text-red-300">
-                              {trends.cmp.curFailed}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {algoDistinct === 1 ? (
-                        (() => {
-                          const [algo, count] = Object.entries(pipelineMetrics.algoCounts)[0];
-                          return (
-                            <div
-                              className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800/60"
-                              data-testid="row-algo-single"
-                            >
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                Algorithm
-                              </span>
-                              <span className="text-xs text-slate-700 dark:text-slate-200">
-                                <span className="font-mono">{algo}</span>{" "}
-                                <span className="text-slate-400 dark:text-slate-500">
-                                  · {count} user{count !== 1 ? "s" : ""}
-                                </span>
-                              </span>
-                            </div>
-                          );
-                        })()
-                      ) : algoDistinct > 1 ? (
-                        <div
-                          className="border-t border-slate-100 pt-4 dark:border-slate-800/60"
-                          data-testid="section-algo-distribution"
-                        >
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Algorithm Distribution
-                          </p>
-                          <div className="space-y-1.5">
-                            {Object.entries(pipelineMetrics.algoCounts)
-                              .sort((a, b) => b[1] - a[1])
-                              .map(([algo, count]) => (
-                                <div key={algo} className="flex items-center justify-between">
-                                  <span className="max-w-[180px] truncate font-mono text-xs text-slate-600 dark:text-slate-300">
-                                    {algo}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                                      <div
-                                        className="h-full rounded-full bg-brand-primary"
-                                        style={{ width: `${(count / pipelineMetrics.total) * 100}%` }}
-                                      />
-                                    </div>
-                                    <span className="w-8 text-right text-[10px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
-                                      {count}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center p-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                    </div>
-                  )}
-                </div>
-
                 {(() => {
                   const failureWindowMs = trends.cfg.windowMs;
                   const failureNow = Date.now();
@@ -4162,19 +4121,25 @@ export default function AdminPage() {
                   const dataUnavailable =
                     overviewActivityQuery.isError ||
                     (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
+                  // Nothing to act on: one line, not a block of empty space.
+                  const quiet = !dataUnavailable && !overviewLoading && totalFailures === 0;
                   return (
                     <div
-                      className="overflow-hidden rounded-2xl border border-red-200/70 bg-card text-card-foreground shadow-sm dark:border-red-500/25 dark:shadow-none lg:col-span-2"
+                      className={`overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm dark:shadow-none lg:col-span-2 ${quiet ? "border-border" : "border-red-200/70 dark:border-red-500/25"}`}
                       data-testid="card-recent-failures"
                     >
-                      <div className="border-b border-red-100 px-5 py-4 dark:border-red-500/20">
+                      <div className={quiet ? "px-5 py-3" : "border-b border-red-100 px-5 py-4 dark:border-red-500/20"}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3
                               className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100"
                               style={{ fontFamily: "var(--font-display)" }}
                             >
-                              <AlertTriangle className="h-4 w-4 text-red-500" />
+                              {quiet ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                              )}
                               Recent Failures
                             </h3>
                             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -4192,219 +4157,148 @@ export default function AdminPage() {
                           </Chip>
                         </div>
                       </div>
-                      <div className="p-5">
-                        {overviewActivityQuery.isError ? (
-                          <div
-                            className="flex flex-col items-center justify-center py-6 text-center"
-                            data-testid="failures-error-state"
-                          >
-                            <XCircle className="mb-2 h-8 w-8 text-red-400" />
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              Couldn't load failure data
-                            </p>
-                            <p className="mt-1 max-w-md text-[10px] text-slate-500 dark:text-slate-400">
-                              {overviewActivityQuery.error instanceof Error
-                                ? overviewActivityQuery.error.message
-                                : "The /admin/activity endpoint did not respond. Failure status is unknown."}
-                            </p>
-                          </div>
-                        ) : overviewLoading && totalFailures === 0 ? (
-                          <div className="flex items-center justify-center py-6">
-                            <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
-                          </div>
-                        ) : dataUnavailable ? (
-                          <div
-                            className="flex flex-col items-center justify-center py-6 text-center"
-                            data-testid="failures-unknown-state"
-                          >
-                            <AlertTriangle className="mb-2 h-8 w-8 text-amber-400" />
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              Failure status unavailable
-                            </p>
-                            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                              Activity data has not loaded yet.
-                            </p>
-                          </div>
-                        ) : totalFailures === 0 ? (
-                          <div
-                            className="flex flex-col items-center justify-center py-6 text-center"
-                            data-testid="failures-empty-state"
-                          >
-                            <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              All recent requests succeeded
-                            </p>
-                            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                              No errors found in the latest activity feed.
-                            </p>
-                          </div>
-                        ) : (
-                          <ul className="space-y-2.5" data-testid="list-recent-failures">
-                            {sortedGroups.map((g, idx) => {
-                              const stage = getFailureStage(g.latest) ?? "Pipeline";
-                              const errMsg = extractErrorMessage(g.latest);
-                              const userCount = g.pubkeys.size;
-                              return (
-                                <li
-                                  key={idx}
-                                  className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
-                                  data-testid={`failure-group-${idx}`}
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                                    <div className="min-w-0 flex-1">
-                                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
-                                          {stage}
-                                        </span>
-                                        {g.count > 1 && (
-                                          <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
-                                            {g.count}× occurrences
+                      {quiet ? null : (
+                        <div className="p-5">
+                          {overviewActivityQuery.isError ? (
+                            <div
+                              className="flex flex-col items-center justify-center py-6 text-center"
+                              data-testid="failures-error-state"
+                            >
+                              <XCircle className="mb-2 h-8 w-8 text-red-400" />
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                Couldn't load failure data
+                              </p>
+                              <p className="mt-1 max-w-md text-[11px] text-slate-500 dark:text-slate-400">
+                                {overviewActivityQuery.error instanceof Error
+                                  ? overviewActivityQuery.error.message
+                                  : "The /admin/activity endpoint did not respond. Failure status is unknown."}
+                              </p>
+                            </div>
+                          ) : overviewLoading && totalFailures === 0 ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
+                            </div>
+                          ) : dataUnavailable ? (
+                            <div
+                              className="flex flex-col items-center justify-center py-6 text-center"
+                              data-testid="failures-unknown-state"
+                            >
+                              <AlertTriangle className="mb-2 h-8 w-8 text-amber-400" />
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                Failure status unavailable
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                Activity data has not loaded yet.
+                              </p>
+                            </div>
+                          ) : totalFailures === 0 ? (
+                            <div
+                              className="flex flex-col items-center justify-center py-6 text-center"
+                              data-testid="failures-empty-state"
+                            >
+                              <CheckCircle2 className="mb-2 h-8 w-8 text-emerald-400" />
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                All recent requests succeeded
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                No errors found in the latest activity feed.
+                              </p>
+                            </div>
+                          ) : (
+                            <ul className="space-y-2.5" data-testid="list-recent-failures">
+                              {sortedGroups.map((g, idx) => {
+                                const stage = getFailureStage(g.latest) ?? "Pipeline";
+                                const errMsg = extractErrorMessage(g.latest);
+                                const userCount = g.pubkeys.size;
+                                return (
+                                  <li
+                                    key={idx}
+                                    className="rounded-lg border border-red-200 bg-white/70 p-3 dark:border-red-500/25 dark:bg-slate-900/70"
+                                    data-testid={`failure-group-${idx}`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
+                                            {stage}
                                           </span>
-                                        )}
-                                        {userCount > 0 && (
-                                          <span className="text-[9px] text-slate-500 dark:text-slate-400">
-                                            {userCount} user{userCount === 1 ? "" : "s"} affected
+                                          {g.count > 1 && (
+                                            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-red-700 dark:border-red-500/25 dark:bg-red-500/15 dark:text-red-300">
+                                              {g.count}× occurrences
+                                            </span>
+                                          )}
+                                          {userCount > 0 && (
+                                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                              {userCount} user{userCount === 1 ? "" : "s"} affected
+                                            </span>
+                                          )}
+                                          <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">
+                                            {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
                                           </span>
-                                        )}
-                                        <span className="ml-auto text-[9px] text-slate-400 dark:text-slate-500">
-                                          {timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}
-                                        </span>
-                                      </div>
-                                      <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
-                                        {truncateError(errMsg, 220)}
-                                      </p>
-                                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                                        {g.latest.pubkey && (
-                                          <button
-                                            onClick={() => {
-                                              const pk = g.latest.pubkey!;
-                                              setUserSearch(pk);
-                                              setDebouncedSearch(pk);
-                                              setActiveTab("users");
-                                              setKpiFilter(null);
-                                              setUserPage(0);
-                                              setExpandedRows(new Set([pk]));
-                                              setHighlightedPubkey(pk);
-                                              setTimeout(() => setHighlightedPubkey(null), 2500);
-                                            }}
-                                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:text-brand-accent"
-                                            data-testid={`failure-group-view-user-${idx}`}
-                                          >
-                                            <Eye className="h-3 w-3" /> View latest affected user
-                                          </button>
-                                        )}
-                                        {g.latest.pubkey && (
-                                          <ConfirmRetriggerButton
-                                            pubkey={g.latest.pubkey}
-                                            testId={`failure-group-retrigger-${idx}`}
-                                            onConfirm={async (pk) => {
-                                              try {
-                                                await apiClient.triggerUserGraperank(pk);
-                                                toast({
-                                                  title: "Request Queued",
-                                                  description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
-                                                });
-                                                queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-                                                queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                                                triggerRefreshBoost();
-                                              } catch (err: unknown) {
-                                                const msg = err instanceof Error ? err.message : "Unknown error";
-                                                toast({
-                                                  title: "Re-trigger Failed",
-                                                  description: msg,
-                                                  variant: "destructive",
-                                                });
-                                                throw err;
-                                              }
-                                            }}
-                                          />
-                                        )}
+                                        </div>
+                                        <p className="break-words font-mono text-[11px] leading-relaxed text-slate-800 dark:text-slate-200">
+                                          {truncateError(errMsg, 220)}
+                                        </p>
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                          {g.latest.pubkey && (
+                                            <button
+                                              onClick={() => {
+                                                const pk = g.latest.pubkey!;
+                                                setUserSearch(pk);
+                                                setDebouncedSearch(pk);
+                                                setActiveTab("users");
+                                                setKpiFilter(null);
+                                                setUserPage(0);
+                                                setExpandedRows(new Set([pk]));
+                                                setHighlightedPubkey(pk);
+                                                setTimeout(() => setHighlightedPubkey(null), 2500);
+                                              }}
+                                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-deep hover:text-brand-accent"
+                                              data-testid={`failure-group-view-user-${idx}`}
+                                            >
+                                              <Eye className="h-3 w-3" /> View latest affected user
+                                            </button>
+                                          )}
+                                          {g.latest.pubkey && (
+                                            <ConfirmRetriggerButton
+                                              pubkey={g.latest.pubkey}
+                                              testId={`failure-group-retrigger-${idx}`}
+                                              onConfirm={async (pk) => {
+                                                try {
+                                                  await apiClient.triggerUserGraperank(pk);
+                                                  toast({
+                                                    title: "Request Queued",
+                                                    description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
+                                                  });
+                                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+                                                  queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                                                  triggerRefreshBoost();
+                                                } catch (err: unknown) {
+                                                  const msg = err instanceof Error ? err.message : "Unknown error";
+                                                  toast({
+                                                    title: "Re-trigger Failed",
+                                                    description: msg,
+                                                    variant: "destructive",
+                                                  });
+                                                  throw err;
+                                                }
+                                              }}
+                                            />
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
-
-                <div
-                  className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none lg:col-span-2"
-                  data-testid="card-quick-stats"
-                >
-                  <div className="border-b border-brand-accent/10 px-5 py-4">
-                    <h3
-                      className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      System Endpoints
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">API connectivity</p>
-                  </div>
-                  <div className="p-5">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {(() => {
-                        const baseUrl = env.VITE_API_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-                        return [
-                          // TODO: replace with a meaningful health probe (dedicated endpoint?)
-                          // { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
-                          {
-                            endpoint: "/user/graperankResult",
-                            label: "GrapeRank Result",
-                            status: grapeRankQuery.isSuccess
-                              ? ("connected" as const)
-                              : grapeRankQuery.isError
-                                ? ("disconnected" as const)
-                                : ("degraded" as const),
-                          },
-                          {
-                            endpoint: "/admin/users",
-                            label: "Admin Users",
-                            status: adminUsersQuery.isSuccess
-                              ? ("connected" as const)
-                              : adminUsersQuery.isError
-                                ? ("disconnected" as const)
-                                : ("degraded" as const),
-                          },
-                          {
-                            endpoint: "/admin/activity",
-                            label: "Admin Activity",
-                            status: adminActivityQuery.isSuccess
-                              ? ("connected" as const)
-                              : adminActivityQuery.isError
-                                ? ("disconnected" as const)
-                                : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError
-                                  ? ("connected" as const)
-                                  : ("degraded" as const),
-                          },
-                        ].map((ep) => (
-                          <div
-                            key={ep.endpoint}
-                            className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white/50 p-3 dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{ep.label}</p>
-                              <p
-                                className="truncate font-mono text-[10px] text-slate-400 dark:text-slate-500"
-                                title={`${baseUrl}${ep.endpoint}`}
-                              >
-                                {baseUrl}
-                                {ep.endpoint}
-                              </p>
-                            </div>
-                            <StatusBadge status={ep.status} />
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -4425,16 +4319,12 @@ export default function AdminPage() {
                     </h3>
                     <div className="mt-1 flex items-center gap-3">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users
+                        {(clientFilteredUsers ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users
                         {activeNameSearch && userSearch.trim() ? " (filtered)" : ""}
                       </span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">
                         Page {userPage + 1} of {totalPages}
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-                      <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                        Source: /admin/users
                       </span>
                     </div>
                   </div>
@@ -4467,28 +4357,6 @@ export default function AdminPage() {
                         </button>
                       )}
                     </div>
-                    <Select
-                      value={daysFilter.toString()}
-                      onValueChange={(val) => {
-                        setDaysFilter(parseInt(val, 10));
-                        setUserPage(0);
-                      }}
-                    >
-                      <SelectTrigger
-                        className="h-8 w-28 rounded-xl border-slate-200 text-xs dark:border-slate-800"
-                        data-testid="select-days-filter"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Last 24 Hours</SelectItem>
-                        <SelectItem value="7">This Week</SelectItem>
-                        <SelectItem value="30">This Month</SelectItem>
-                        <SelectItem value="90">This Quarter</SelectItem>
-                        <SelectItem value="365">This Year</SelectItem>
-                        <SelectItem value="9999">All Time</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
                       <SelectTrigger
                         className="h-8 w-20 rounded-xl border-slate-200 text-xs dark:border-slate-800"
@@ -4626,7 +4494,7 @@ export default function AdminPage() {
 
                           {lookupNameResults.length > 0 && (
                             <div className="space-y-1" data-testid="lookup-name-results">
-                              <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                 {lookupNameResults.length} user{lookupNameResults.length !== 1 ? "s" : ""} found
                               </p>
                               <div className="-mx-1 max-h-[200px] space-y-1 overflow-y-auto px-1">
@@ -4654,7 +4522,7 @@ export default function AdminPage() {
                                         <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
                                           {u.name || "Unknown"}
                                         </p>
-                                        <p className="truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                                        <p className="truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
                                           {npub.slice(0, 20)}...{npub.slice(-6)}
                                         </p>
                                       </div>
@@ -4699,7 +4567,7 @@ export default function AdminPage() {
                               {onboardSearching ? "..." : "Search"}
                             </Button>
                           </div>
-                          <p className="-mt-1 flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500">
+                          <p className="-mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
                             <Globe className="h-2.5 w-2.5 shrink-0" />
                             Powered by Brainstorm WoT search
                           </p>
@@ -4745,7 +4613,7 @@ export default function AdminPage() {
                                       <p className="truncate text-[11px] font-semibold text-slate-900 dark:text-slate-100">
                                         {displayName}
                                       </p>
-                                      <p className="truncate font-mono text-[9px] text-slate-400 dark:text-slate-500">
+                                      <p className="truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
                                         {profile.npub.slice(0, 16)}...{profile.npub.slice(-4)}
                                       </p>
                                     </div>
@@ -4799,7 +4667,7 @@ export default function AdminPage() {
                               data-testid="onboard-error"
                             >
                               <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                              <p className="text-[10px] text-red-700 dark:text-red-300">{onboardError}</p>
+                              <p className="text-[11px] text-red-700 dark:text-red-300">{onboardError}</p>
                             </div>
                           )}
 
@@ -4883,7 +4751,7 @@ export default function AdminPage() {
                                       style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }}
                                     />
                                   </div>
-                                  <p className="text-center text-[10px] text-slate-500 dark:text-slate-400">
+                                  <p className="text-center text-[11px] text-slate-500 dark:text-slate-400">
                                     {onboardProgress.done} of {onboardProgress.total} processed
                                   </p>
                                 </div>
@@ -4943,14 +4811,14 @@ export default function AdminPage() {
                         const liveFailed = bulkRunning
                           ? Array.from(bulkStatuses.values()).filter((s) => s === "failed").length
                           : 0;
-                        const clientFiltered = activeNameSearch || !!kpiFilter;
+                        const clientFiltered = clientFilteredUsers;
                         const matchingTotal = clientFiltered ? filteredUsersList.length : adminUsersTotal;
                         const visibleCount = (
-                          activeNameSearch
+                          clientFilteredUsers
                             ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                             : filteredUsersList
                         ).length;
-                        const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || daysFilter !== 30;
+                        const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter;
                         const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
                         const matchingLabelSuffix = kpiFilter && !activeNameSearch ? " in cache" : "";
                         const handleSelectAllMatching = async () => {
@@ -4965,7 +4833,7 @@ export default function AdminPage() {
                               search: debouncedSearch || undefined,
                               sort: userSort.key,
                               order: userSort.dir,
-                              days: daysFilter,
+                              days: ALL_USERS_DAYS,
                               page: 1,
                               size: cap,
                             });
@@ -5171,7 +5039,7 @@ export default function AdminPage() {
                         <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/80">
                           <th className="sticky left-0 z-20 w-8 border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle dark:border-slate-800 dark:bg-slate-900">
                             {(() => {
-                              const visible = activeNameSearch
+                              const visible = clientFilteredUsers
                                 ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                                 : filteredUsersList;
                               const visiblePks = visible.map((u) => u.pubkey);
@@ -5217,15 +5085,7 @@ export default function AdminPage() {
                           <th className="sticky left-8 z-20 w-12 border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle dark:border-slate-800 dark:bg-slate-900"></th>
                           <th className="sticky left-20 z-20 whitespace-nowrap border-r border-slate-200 bg-slate-50 px-2 py-2.5 align-middle shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)] dark:border-slate-800 dark:bg-slate-900">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Profile
-                            </span>
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} />
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              TA Pubkey
+                              Person
                             </span>
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
@@ -5235,17 +5095,12 @@ export default function AdminPage() {
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              TA Status
-                            </span>
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Algorithm
+                              Tier
                             </span>
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
                             <SortHeader
-                              label="# Calcs"
+                              label="Runs"
                               sortKey="times_calculated"
                               currentSort={userSort}
                               onSort={handleSort}
@@ -5253,24 +5108,11 @@ export default function AdminPage() {
                           </th>
                           <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
                             <SortHeader
-                              label="Last Triggered"
+                              label="Last run"
                               sortKey="last_triggered"
                               currentSort={userSort}
                               onSort={handleSort}
                             />
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <SortHeader
-                              label="Last Updated"
-                              sortKey="last_updated"
-                              currentSort={userSort}
-                              onSort={handleSort}
-                            />
-                          </th>
-                          <th className="whitespace-nowrap border-r border-slate-200 px-2 py-2.5 align-middle dark:border-slate-800">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Tier
-                            </span>
                           </th>
                           <th className="sticky right-0 z-20 whitespace-nowrap bg-slate-50 px-2 py-2.5 text-center align-middle shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)] dark:bg-slate-900">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -5315,7 +5157,7 @@ export default function AdminPage() {
                             </td>
                           </tr>
                         ) : (
-                          (activeNameSearch
+                          (clientFilteredUsers
                             ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize)
                             : filteredUsersList
                           ).map((u, i) => {
@@ -5425,161 +5267,65 @@ export default function AdminPage() {
                                             className="object-cover"
                                           />
                                         ) : null}
-                                        <AvatarFallback className="border border-slate-200 bg-slate-100 text-[9px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+                                        <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
                                           {prof?.name?.charAt(0)?.toUpperCase() || (
                                             <Users className="h-3 w-3 text-slate-300 dark:text-slate-600" />
                                           )}
                                         </AvatarFallback>
                                       </Avatar>
-                                      <span className="block max-w-[90px] truncate text-[9px] font-medium text-slate-700 dark:text-slate-200">
-                                        {prof?.name || npub.slice(0, 12) + "..."}
+                                      <span className="min-w-0">
+                                        <span className="block max-w-[140px] truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                                          {prof?.name || npub.slice(0, 12) + "…"}
+                                        </span>
+                                        <span className="flex items-center gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                                          {npub.slice(0, 12)}…{npub.slice(-4)}
+                                          <CopyButton text={npub} />
+                                        </span>
                                       </span>
                                     </div>
-                                  </td>
-                                  <td className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60">
-                                    <div className="space-y-0.5">
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[8px] text-brand-primary/80">
-                                          {npub.slice(0, 12)}...{npub.slice(-4)}
-                                        </span>
-                                        <CopyButton text={npub} />
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[7px] text-slate-400 dark:text-slate-500">
-                                          {u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}
-                                        </span>
-                                        <CopyButton text={u.pubkey} />
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-ta-pubkey-${i}`}
-                                  >
-                                    {u.ta_pubkey ? (
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[8px] text-emerald-600 dark:text-emerald-400">
-                                          {u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}
-                                        </span>
-                                        <CopyButton text={u.ta_pubkey} />
-                                      </div>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-300 dark:text-slate-600">none</span>
-                                    )}
                                   </td>
                                   <td
                                     className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
                                     data-testid={`cell-status-${i}`}
                                   >
-                                    {u.latest_status ? (
-                                      <div className="flex items-center gap-1">
+                                    {(() => {
+                                      const run = u.latest_status?.toLowerCase();
+                                      const pub = u.latest_ta_status?.toLowerCase();
+                                      const runFailed = isFailedStatus(u.latest_status);
+                                      const pubFailed = isFailedStatus(u.latest_ta_status);
+                                      const chip = (tone: "emerald" | "red" | "slate", text: string) => (
                                         <span
-                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-semibold ${
-                                            u.latest_status.toLowerCase() === "success"
+                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                            tone === "emerald"
                                               ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-                                              : isFailedStatus(u.latest_status)
+                                              : tone === "red"
                                                 ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                                                 : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                                           }`}
                                         >
-                                          {u.latest_status}
+                                          {text}
                                         </span>
-                                        {isFailedStatus(u.latest_status) && (
-                                          <span
-                                            title="Calculation failed — click row to view error"
-                                            data-testid={`icon-status-failed-${i}`}
-                                          >
-                                            <AlertTriangle className="h-3 w-3 text-red-500" />
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-400 dark:text-slate-500">
-                                        Pending
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-ta-status-${i}`}
-                                  >
-                                    {u.latest_ta_status ? (
-                                      <div className="flex items-center gap-1">
-                                        <span
-                                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[8px] font-semibold ${
-                                            u.latest_ta_status.toLowerCase() === "success"
-                                              ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
-                                              : isFailedStatus(u.latest_ta_status)
-                                                ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
-                                                : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                                          }`}
-                                        >
-                                          {u.latest_ta_status}
-                                        </span>
-                                        {isFailedStatus(u.latest_ta_status) && (
-                                          <span
-                                            title="Trust Attestation failed — click row to view error"
-                                            data-testid={`icon-ta-status-failed-${i}`}
-                                          >
-                                            <AlertTriangle className="h-3 w-3 text-red-500" />
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-400 dark:text-slate-500">
-                                        Pending
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-algorithm-${i}`}
-                                  >
-                                    {u.latest_algorithm ? (
-                                      <span className="font-mono text-[9px] text-slate-600 dark:text-slate-300">
-                                        {u.latest_algorithm}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[8px] italic text-slate-400 dark:text-slate-500">N/A</span>
-                                    )}
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-times-calc-${i}`}
-                                  >
-                                    <span className="font-mono text-[10px] tabular-nums text-slate-600 dark:text-slate-300">
-                                      {u.times_calculated}
-                                    </span>
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-last-triggered-${i}`}
-                                  >
-                                    <div>
-                                      <span className="block text-[9px] text-slate-600 dark:text-slate-300">
-                                        {formatTimestamp(u.last_triggered)}
-                                      </span>
-                                      {timeAgo(u.last_triggered) && (
-                                        <span className="text-[8px] text-slate-400 dark:text-slate-500">
-                                          {timeAgo(u.last_triggered)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td
-                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
-                                    data-testid={`cell-last-updated-${i}`}
-                                  >
-                                    <div>
-                                      <span className="block text-[9px] text-slate-600 dark:text-slate-300">
-                                        {formatTimestamp(u.last_updated)}
-                                      </span>
-                                      {timeAgo(u.last_updated) && (
-                                        <span className="text-[8px] text-slate-400 dark:text-slate-500">
-                                          {timeAgo(u.last_updated)}
-                                        </span>
-                                      )}
-                                    </div>
+                                      );
+                                      if (runFailed || pubFailed)
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            {chip("red", runFailed ? "calculation failed" : "publishing failed")}
+                                            <span
+                                              title="Failed — click the row to see the error"
+                                              data-testid={
+                                                runFailed ? `icon-status-failed-${i}` : `icon-ta-status-failed-${i}`
+                                              }
+                                            >
+                                              <AlertTriangle className="h-3 w-3 text-red-500" />
+                                            </span>
+                                          </div>
+                                        );
+                                      if (run === "success" && pub === "success")
+                                        return chip("emerald", "scored · published");
+                                      if (run === "success") return chip("emerald", "scored");
+                                      if (!run) return chip("slate", "pending");
+                                      return chip("slate", u.latest_status ?? "pending");
+                                    })()}
                                   </td>
                                   <td
                                     className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
@@ -5595,10 +5341,33 @@ export default function AdminPage() {
                                         picture={prof?.picture}
                                       />
                                     ) : (
-                                      <span className="text-[9px] text-slate-500 dark:text-slate-400">
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
                                         {u.scheduling_name}
                                       </span>
                                     )}
+                                  </td>
+                                  <td
+                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
+                                    data-testid={`cell-times-calc-${i}`}
+                                  >
+                                    <span className="font-mono text-[10px] tabular-nums text-slate-600 dark:text-slate-300">
+                                      {u.times_calculated}
+                                    </span>
+                                  </td>
+                                  <td
+                                    className="border-r border-slate-100 px-2 py-2.5 dark:border-slate-800/60"
+                                    data-testid={`cell-last-triggered-${i}`}
+                                  >
+                                    <div>
+                                      <span className="block text-[10px] text-slate-600 dark:text-slate-300">
+                                        {formatTimestamp(u.last_triggered)}
+                                      </span>
+                                      {timeAgo(u.last_triggered) && (
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                          {timeAgo(u.last_triggered)}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="sticky right-0 z-10 bg-white px-2 py-2.5 text-center shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-900">
                                     <UserActionsMenu
@@ -5629,7 +5398,7 @@ export default function AdminPage() {
                                       className="border-b border-red-100 bg-red-50/40 dark:border-red-500/25 dark:bg-red-500/10"
                                       data-testid={`row-failure-summary-${i}`}
                                     >
-                                      <td colSpan={13} className="px-3 py-1.5">
+                                      <td colSpan={8} className="px-3 py-1.5">
                                         <div className="flex flex-wrap items-center gap-2">
                                           <AlertTriangle className="h-3 w-3 shrink-0 text-red-500" />
                                           <span className="text-[10px] font-medium text-red-800 dark:text-red-300">
@@ -5639,7 +5408,7 @@ export default function AdminPage() {
                                                 ? "GrapeRank calculation failed on the most recent run."
                                                 : "TA Attestation failed on the most recent run."}
                                           </span>
-                                          <span className="text-[9px] text-red-600/80 dark:text-red-400/80">
+                                          <span className="text-[10px] text-red-600/80 dark:text-red-400/80">
                                             Open the error history to see the full message.
                                           </span>
                                           <button
@@ -5796,22 +5565,22 @@ export default function AdminPage() {
                           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                             {u.latest_status && (
                               <span
-                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
+                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
                               >
                                 {u.latest_status}
                               </span>
                             )}
                             {u.latest_ta_status && (
                               <span
-                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_ta_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
+                                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300" : isFailedStatus(u.latest_ta_status) ? "border border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300" : "border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}
                               >
                                 TA {u.latest_ta_status}
                               </span>
                             )}
-                            <span className="text-[9px] tabular-nums text-slate-400 dark:text-slate-500">
+                            <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
                               {u.times_calculated} calcs
                             </span>
-                            <span className="text-[9px] text-slate-400 dark:text-slate-500">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
                               · Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}
                             </span>
                           </div>
@@ -5845,14 +5614,10 @@ export default function AdminPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-3 dark:border-slate-800/60 sm:gap-3 sm:px-5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="text-[9px] text-slate-500 dark:text-slate-400">Data from /admin/users</span>
-                  </div>
                   {adminUsersQuery.isFetching && (
                     <div className="ml-auto flex items-center gap-1.5">
                       <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />
-                      <span className="text-[9px] text-slate-400 dark:text-slate-500">Refreshing...</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">Refreshing...</span>
                     </div>
                   )}
                 </div>
@@ -5912,7 +5677,7 @@ export default function AdminPage() {
                   {triggerConfirmPubkey && (
                     <div className="space-y-4 pt-2">
                       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-500/25 dark:bg-amber-500/10">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                           What happens when you confirm
                         </p>
                         <ul className="list-inside list-disc space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
@@ -5935,7 +5700,7 @@ export default function AdminPage() {
                         </ul>
                       </div>
                       <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 dark:border-blue-500/25 dark:bg-blue-500/10">
-                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
                           Good to know
                         </p>
                         <p className="text-xs text-blue-800 dark:text-blue-300">
@@ -5944,7 +5709,7 @@ export default function AdminPage() {
                         </p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-                        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                           Target Pubkey
                         </p>
                         <p
@@ -6082,6 +5847,28 @@ export default function AdminPage() {
             </div>
           )}
 
+          {activeTab === "growth" && (
+            <div data-testid="panel-growth">
+              <GrowthCard
+                records={yearActivityQuery.data?.items ?? NONE}
+                range={range}
+                isLoading={yearActivityQuery.isLoading}
+                profiles={userProfiles}
+                tiers={tiersByPubkey}
+                onOpenPerson={(pk) => {
+                  setUserSearch(pk);
+                  setDebouncedSearch(pk);
+                  setActiveTab("users");
+                  setKpiFilter(null);
+                  setUserPage(0);
+                  setExpandedRows(new Set([pk]));
+                  setHighlightedPubkey(pk);
+                  setTimeout(() => setHighlightedPubkey(null), 2500);
+                }}
+              />
+            </div>
+          )}
+
           {activeTab === "health" && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="panel-health">
               <div
@@ -6142,7 +5929,7 @@ export default function AdminPage() {
                           <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
                             {ep.name}
                           </span>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500">{ep.description}</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500">{ep.description}</p>
                         </div>
                       </div>
                       <span
@@ -6220,7 +6007,7 @@ export default function AdminPage() {
                             <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               {relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}
                             </p>
-                            <p className="max-w-[200px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:max-w-none">
+                            <p className="max-w-[200px] truncate font-mono text-[11px] text-slate-400 dark:text-slate-500 sm:max-w-none">
                               {relay}
                             </p>
                           </div>
@@ -6251,7 +6038,7 @@ export default function AdminPage() {
                     );
                   })}
                   {relayLatencies.length > 0 && (
-                    <p className="pt-2 text-[10px] text-slate-400 dark:text-slate-500">
+                    <p className="pt-2 text-[11px] text-slate-400 dark:text-slate-500">
                       Last checked: {relayLatencies[0].checkedAt.toLocaleTimeString()} · Avg latency:{" "}
                       {Math.round(
                         relayLatencies.filter((r) => r.latencyMs !== null).reduce((s, r) => s + (r.latencyMs ?? 0), 0) /
@@ -6267,252 +6054,6 @@ export default function AdminPage() {
 
           {activeTab === "activity" && (
             <div className="space-y-6" data-testid="panel-activity">
-              {(() => {
-                const actSummaryActivity = overviewAllActivity;
-                const actSummaryUsers = overviewAllUsers;
-                const actSummaryLoading = overviewLoading;
-                const now = Date.now();
-
-                const rangeLabels: Record<ActivityTimeRange, string> = {
-                  "1h": "Last Hour",
-                  "24h": "Last 24 Hours",
-                  "7d": "Last 7 Days",
-                  all: "All Loaded",
-                };
-                const rangeShort: Record<ActivityTimeRange, string> = {
-                  "1h": "1h",
-                  "24h": "24h",
-                  "7d": "7d",
-                  all: "All",
-                };
-
-                const getStartMs = (range: ActivityTimeRange): number => {
-                  switch (range) {
-                    case "1h":
-                      return now - 3600000;
-                    case "24h":
-                      return now - 86400000;
-                    case "7d":
-                      return now - 7 * 86400000;
-                    case "all":
-                      return 0;
-                    default:
-                      return 0;
-                  }
-                };
-                const getEndMs = (_range: ActivityTimeRange): number => now;
-
-                const startMs = getStartMs(activityTimeRange);
-                const endMs = getEndMs(activityTimeRange);
-
-                const parseTs = (ts: string): number => {
-                  try {
-                    return new Date(ts.endsWith("Z") ? ts : ts + "Z").getTime();
-                  } catch {
-                    return 0;
-                  }
-                };
-
-                const filteredItems = actSummaryActivity.filter((a) => {
-                  const t = parseTs(a.updated_at);
-                  return t >= startMs && t <= endMs;
-                });
-                const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
-                const filteredFailed = filteredItems.filter((a) => isFailedStatus(a.status)).length;
-                const filteredTotal = filteredItems.length;
-                const totalCalcsAll = actSummaryUsers.reduce((s, u) => s + (u.times_calculated || 0), 0);
-                const failedUsers = actSummaryUsers.filter(
-                  (u) => isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status),
-                ).length;
-                const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
-                  const ta = new Date(a.last_updated || "").getTime() || 0;
-                  const tb = new Date(b.last_updated || "").getTime() || 0;
-                  return tb - ta;
-                });
-                const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
-                const uniquePubkeys = new Set(filteredItems.map((a) => a.pubkey).filter(Boolean)).size;
-
-                const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
-
-                return (
-                  <div
-                    className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none"
-                    data-testid="card-activity-summary"
-                  >
-                    <div className="border-b border-brand-accent/10 px-4 py-4 sm:px-5">
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <div>
-                            <h3
-                              className="text-sm font-bold text-slate-900 dark:text-slate-100"
-                              style={{ fontFamily: "var(--font-display)" }}
-                            >
-                              Activity Summary
-                            </h3>
-                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                              Platform-wide throughput —{" "}
-                              <span className="font-semibold text-brand-deep">{rangeLabels[activityTimeRange]}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge
-                            status={
-                              overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess
-                                ? "connected"
-                                : overviewActivityQuery.isError || overviewUsersQuery.isError
-                                  ? "disconnected"
-                                  : "degraded"
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div
-                        className="mt-3 hidden flex-wrap items-center gap-1.5 sm:flex"
-                        data-testid="time-range-selector"
-                      >
-                        {presets.map((p) => (
-                          <button
-                            key={p}
-                            onClick={() => setActivityTimeRange(p)}
-                            className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all ${
-                              activityTimeRange === p
-                                ? "bg-brand-deep text-white shadow-md shadow-brand-primary/20"
-                                : "border border-slate-200 bg-white/70 text-slate-600 hover:border-brand-primary/20 hover:bg-brand-primary/10 hover:text-brand-deep dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300"
-                            }`}
-                            data-testid={`time-range-${p}`}
-                          >
-                            {rangeShort[p]}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="mt-3 sm:hidden" data-testid="time-range-selector-mobile">
-                        <div className="relative">
-                          <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-deep" />
-                          <select
-                            value={activityTimeRange}
-                            onChange={(e) => setActivityTimeRange(e.target.value as ActivityTimeRange)}
-                            className="w-full appearance-none rounded-lg border border-brand-accent/30 bg-white py-2 pl-8 pr-8 text-xs font-semibold text-slate-700 shadow-sm focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:bg-slate-900 dark:text-slate-200"
-                            data-testid="select-time-range-mobile"
-                          >
-                            {presets.map((p) => (
-                              <option key={p} value={p}>
-                                {rangeLabels[p]}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                        </div>
-                      </div>
-                      {activityTimeRange !== "24h" && (
-                        <p className="mt-2 text-[9px] italic text-slate-400 dark:text-slate-500">
-                          Based on the latest {activityCoverage.count} activity records (backend cap). Longer ranges may
-                          not reflect full history.
-                        </p>
-                      )}
-                    </div>
-                    <div className="p-4 sm:p-5">
-                      {actSummaryLoading ? (
-                        <div className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                          {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-total"
-                          >
-                            <Activity className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {filteredTotal.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Requests
-                            </p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-success"
-                          >
-                            <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
-                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                              {filteredSuccess.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Succeeded
-                            </p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-failed"
-                          >
-                            <XCircle className="mx-auto mb-1 h-4 w-4 text-red-400" />
-                            <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Failed
-                            </p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-unique-users"
-                          >
-                            <Users className="mx-auto mb-1 h-4 w-4 text-blue-500" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {uniquePubkeys.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {rangeShort[activityTimeRange]} Active Users
-                            </p>
-                          </div>
-                          <div
-                            className="rounded-xl border border-slate-100 bg-white/50 p-3 text-center dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-total-calcs"
-                          >
-                            <Hash className="mx-auto mb-1 h-4 w-4 text-brand-deep" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {totalCalcsAll.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Total Calculations</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setKpiFilter("failed");
-                              setActiveTab("users");
-                              setUserPage(0);
-                            }}
-                            className="h-full w-full cursor-pointer rounded-xl border border-slate-100 bg-white/50 p-3 text-center transition-colors hover:border-red-200 hover:bg-red-50 dark:border-slate-800/60 dark:bg-slate-900/50"
-                            data-testid="summary-failed-users"
-                            title="Click to view users with failures"
-                          >
-                            <AlertTriangle className="mx-auto mb-1 h-4 w-4 text-amber-500" />
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              {failedUsers.toLocaleString()}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Users w/ Failures</p>
-                          </button>
-                        </div>
-                      )}
-                      {lastActivityTs && !actSummaryLoading && (
-                        <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
-                          Last platform activity:{" "}
-                          {(() => {
-                            try {
-                              const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
-                              return d.toLocaleString();
-                            } catch {
-                              return lastActivityTs;
-                            }
-                          })()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
               <FailureBreakdownCard
                 items={overviewAllActivity}
                 isLoading={overviewLoading}
@@ -6546,7 +6087,12 @@ export default function AdminPage() {
                         Platform Activity
                       </h3>
                       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        All GrapeRank calculation records from /admin/activity
+                        Every GrapeRank calculation record,{" "}
+                        {rangeDays === 1
+                          ? "last 24 hours"
+                          : rangeDays === BACKEND_MAX_DAYS
+                            ? "all time"
+                            : `last ${rangeDays} days`}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -6585,7 +6131,7 @@ export default function AdminPage() {
                       <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
                         Failed to load activity
                       </p>
-                      <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                         {adminActivityQuery.error instanceof Error ? adminActivityQuery.error.message : "Unknown error"}
                       </p>
                     </div>
@@ -6593,7 +6139,7 @@ export default function AdminPage() {
                     <div className="py-8 text-center">
                       <Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
                       <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No activity records</p>
-                      <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                         No GrapeRank calculations have been recorded yet.
                       </p>
                     </div>
@@ -6924,7 +6470,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="mt-2 text-[10px] italic text-slate-400 dark:text-slate-500">
+                      <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
                         Click any row to expand details. Use the re-trigger button to re-run GrapeRank for that user.
                       </p>
                     </>
@@ -7046,13 +6592,13 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-total"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Total Assistants
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                               {(stats?.totalAssistants ?? 0).toLocaleString()}
                             </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                               Distinct owner pubkeys
                             </p>
                           </div>
@@ -7060,13 +6606,13 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-publishes"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Total Publishes
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                               {(stats?.totalPublishes ?? 0).toLocaleString()}
                             </p>
-                            <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                               Successful kind 0 events
                             </p>
                           </div>
@@ -7074,7 +6620,7 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-24h"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Last 24h
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
@@ -7085,7 +6631,7 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-7d"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Last 7 days
                             </p>
                             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
@@ -7096,7 +6642,7 @@ export default function AdminPage() {
                             className="rounded-xl border border-slate-100 bg-white/60 p-3 dark:border-slate-800/60 dark:bg-slate-900/60"
                             data-testid="kpi-assistants-last"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               Last Publish
                             </p>
                             <p className="mt-2 text-sm font-semibold leading-tight text-slate-900 dark:text-slate-100">
@@ -7223,7 +6769,7 @@ export default function AdminPage() {
                                             {npub.slice(0, 18)}…{npub.slice(-6)}
                                           </span>
                                           <span
-                                            className="max-w-[220px] truncate font-mono text-[9px] text-slate-400 dark:text-slate-500"
+                                            className="max-w-[220px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500"
                                             title={it.owner_pubkey}
                                           >
                                             {it.owner_pubkey.slice(0, 12)}…
@@ -7270,7 +6816,7 @@ export default function AdminPage() {
                                             </div>
                                           ) : (
                                             <div className="space-y-1">
-                                              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                 Recent publishes
                                               </p>
                                               <ul className="max-h-60 space-y-1 overflow-auto">
@@ -7290,7 +6836,7 @@ export default function AdminPage() {
                                                       {h.event_id.slice(0, 24)}…
                                                     </span>
                                                     {h.status && (
-                                                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                         {h.status}
                                                       </span>
                                                     )}
@@ -7385,7 +6931,7 @@ export default function AdminPage() {
               return (
                 <div className="space-y-4 pt-2">
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-500/25 dark:bg-amber-500/10">
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                       What happens when you confirm
                     </p>
                     <ul className="list-inside list-disc space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
@@ -7399,7 +6945,7 @@ export default function AdminPage() {
                     </ul>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Targets
                     </p>
                     <p className="text-xs text-slate-800 dark:text-slate-200" data-testid="text-bulk-confirm-count">
@@ -7412,7 +6958,7 @@ export default function AdminPage() {
                       className="rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-500/25 dark:bg-orange-500/10"
                       data-testid="text-bulk-confirm-inflight"
                     >
-                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300">
+                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300">
                         Heads up
                       </p>
                       <p className="text-xs text-orange-900 dark:text-orange-200">

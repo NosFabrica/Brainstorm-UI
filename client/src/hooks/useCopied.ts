@@ -7,7 +7,10 @@ import { copyToClipboard } from "@/lib/clipboard";
  * check and back. The timer dies with the component, and a copy the
  * browser refused never claims success.
  */
-export function useCopied(ttlMs = 1500): { copied: boolean; copy: (text: string) => Promise<boolean> } {
+export function useCopied(ttlMs = 1500): {
+  copied: boolean;
+  copy: (text: string, write?: (text: string) => Promise<boolean>) => Promise<boolean>;
+} {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -17,8 +20,8 @@ export function useCopied(ttlMs = 1500): { copied: boolean; copy: (text: string)
     [],
   );
   const copy = useCallback(
-    async (text: string) => {
-      const ok = await copyToClipboard(text);
+    async (text: string, write: (text: string) => Promise<boolean> = copyToClipboard) => {
+      const ok = await write(text);
       if (!ok) return false;
       setCopied(true);
       if (timer.current) clearTimeout(timer.current);

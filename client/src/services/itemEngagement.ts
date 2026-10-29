@@ -14,6 +14,7 @@ import { fetchFromSearchRelayByFilters } from "@/services/nostr";
 import { coordinateOf } from "@/lib/dlistFields";
 import {
   endorsementTemplate,
+  endorsersByItem,
   endorsersOf,
   githubClaimantsOf,
   type Endorser,
@@ -53,4 +54,19 @@ export async function publishEndorsement(item: {
   const signed = await signAs(requireActiveAccount(), endorsementTemplate(item, hint));
   await publishTagEvent(signed as never);
   return { pubkey: signed.pubkey, at: signed.created_at };
+}
+
+/**
+ * Who endorsed each of many items, in one batch: what search shows at once
+ * (lib/itemEngagement endorsersByItem gives each reaction to the item it names).
+ */
+export async function fetchItemsReactions(
+  items: { id: string; address: string | null }[],
+): Promise<Map<string, Endorser[]>> {
+  if (items.length === 0) return new Map();
+  const addresses = items.map((i) => i.address).filter((a): a is string => !!a);
+  const filters: Record<string, unknown>[] = [{ kinds: [7], "#e": items.map((i) => i.id), limit: 2000 }];
+  if (addresses.length) filters.push({ kinds: [7], "#a": addresses, limit: 2000 });
+  const events = await readListEvents(filters, TIMEOUT_MS);
+  return endorsersByItem(events, items);
 }

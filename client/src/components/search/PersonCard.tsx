@@ -4,6 +4,7 @@
  * follower pill, npub copy), extracted from landing.tsx so every vertical
  * shares it.
  */
+import { HandleOwnerWarning } from "@/components/Nip05Check";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { PersonTagChips } from "@/components/search/PersonTagChips";
 import type { TagChip } from "@/lib/tagCarrierPeople";
@@ -45,6 +46,7 @@ export function PersonCard({
   onPrefetchLeave,
   showFollowedBy = false,
   tag,
+  pointedBy,
 }: {
   result: SearchResult;
   idx: number;
@@ -54,13 +56,19 @@ export function PersonCard({
   onPrefetchLeave?: (result: SearchResult) => void;
   /** The "Followed by …" line costs a server call — the top of the page earns it. */
   showFollowedBy?: boolean;
+  /**
+   * The names profiles used when they matched the words but use this
+   * account's handle — why this account is here when its own profile doesn't
+   * carry the words (hooks/useHandlePointers). Said as evidence, not as its name.
+   */
+  pointedBy?: string[];
   /** The tag the words matched, if this person carries it — the pill at the card's right edge. */
   tag?: TagChip;
 }) {
   const tierRing = useTierRing();
   const quiet = useQuietTrustChrome();
   const coinReplaced = useCoinReplacedByRing();
-  // The kind-0 nip05 is only a claim: check it, and drop it if the domain names someone else.
+  // The kind-0 nip05 is only a claim: shown once its domain confirms it, and not otherwise.
   const nip05Status = useNip05(result.nip05, result.pubkey);
   const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
   return (
@@ -115,16 +123,27 @@ export function PersonCard({
             <TierWordChip score01={result.wotRank} />
             <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
           </div>
-          {result.nip05 && nip05Status !== "invalid" && (
+          {result.nip05 && nip05Status === "verified" && (
             <p
-              className={`mt-0.5 flex items-center gap-0.5 truncate text-xs ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
+              className="mt-0.5 flex items-center gap-0.5 truncate text-xs text-brand-primary dark:text-brand-link"
               data-testid={`text-nip05-${idx}`}
               data-nip05-status={nip05Status}
             >
-              {nip05Status === "verified" && <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />}
+              <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
               {result.nip05.replace(/^_@/, "")}
             </p>
           )}
+          {pointedBy && pointedBy.length > 0 && (
+            <p
+              className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400"
+              data-testid="person-handle-pointers"
+              title="Profiles that matched your search use this account's handle, and the handle's server says it belongs to this account"
+            >
+              Profiles named {pointedBy.map((n) => `“${n}”`).join(", ")} use this account's handle
+            </p>
+          )}
+          {/* A copy that kept someone else's handle: said, with a link to whose it is. */}
+          <HandleOwnerWarning nip05={result.nip05} pubkey={result.pubkey} compact className="mt-0.5" />
           {result.lud16 && (
             <p
               className="mt-0.5 flex items-center gap-0.5 truncate text-xs text-slate-500 dark:text-slate-400"

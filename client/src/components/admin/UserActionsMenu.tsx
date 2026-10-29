@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Eye, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, SearchCheck } from "lucide-react";
+import { BookOpen, Eye, ListChecks, Loader2, LogOut, MoreHorizontal, Play, RefreshCw, SearchCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RelayAuditControl } from "./RelayAuditControl";
 import { ResyncControl } from "./ResyncControl";
+import { RevokeSessionsControl } from "./RevokeSessionsControl";
 import { DictionaryConceptsDialog } from "./dictionary/DictionaryConceptsDialog";
 import { useUserDictionary } from "./dictionary/useUserDictionary";
 
@@ -50,6 +51,7 @@ export function UserActionsMenu({
 }) {
   const [resyncOpen, setResyncOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const held = useUserDictionary(pubkey, dictionary?.taPubkey ?? null, !!dictionary && menuOpen);
@@ -109,11 +111,16 @@ export function UserActionsMenu({
           <DropdownMenuItem onSelect={() => setResyncOpen(true)} data-testid="user-action-resync">
             <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync published state…
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setRevokeOpen(true)} data-testid="user-action-revoke-sessions">
+            <LogOut className="mr-2 h-3.5 w-3.5" /> Revoke sessions…
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <RelayAuditControl pubkey={pubkey} open={auditOpen} onOpenChange={setAuditOpen} />
       <ResyncControl pubkey={pubkey} showTrigger={false} open={resyncOpen} onOpenChange={setResyncOpen} />
+      <RevokeSessionsControl pubkey={pubkey} open={revokeOpen} onOpenChange={setRevokeOpen} />
       {dictionary && (
         <DictionaryConceptsDialog
           pubkey={pubkey}

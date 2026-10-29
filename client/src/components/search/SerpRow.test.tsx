@@ -133,6 +133,25 @@ describe("SerpRow — link metadata", () => {
     expect(row).toHaveTextContent("Activated Brainstorm trust signals · Rank, Followers");
   });
 
+  // An Assistant's own Treasure Map names itself (treasure-maps.md § 9.2): it
+  // says what the Assistant publishes, and is no activation.
+  it("an Assistant's own Map says what it publishes, not that it activated", () => {
+    setTechnicalView(true);
+    const self = "a".repeat(64);
+    const ev = {
+      ...note(""),
+      kind: 10040,
+      tags: [
+        ["30382:rank", self, "wss://nip85.brainstorm.world"],
+        ["30382:hops", self, "wss://nip85.brainstorm.world"],
+      ],
+    };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("Publishes and keeps up to date · Rank, Hops");
+    expect(row).not.toHaveTextContent("Activated");
+  });
+
   // Kind-30078 app data is NIP-44 ciphertext; the row printed 300 characters
   // of base64 as its snippet (Benjamin, 2026-09-23). A row says what the
   // content is — encrypted, structured — instead of printing it, and names
@@ -386,6 +405,39 @@ describe("SerpRow — link metadata", () => {
     expect(screen.queryByTestId("link-chip")).toBeNull();
     expect(screen.queryByTestId("link-card")).toBeNull();
     expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+  });
+
+  // The Top page reads like Google: a shared page's source is its site, not the
+  // person who shared it; a plain note's source is the person, said in a small
+  // muted line. The post page and the Notes tab keep the full author line.
+  it("content first: a link row has no author line, only the site; a note keeps a small one", async () => {
+    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Club.", image: null, siteName: "Wikipedia" });
+    const { unmount } = render(
+      <SerpRow
+        event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+        contentFirst
+      />,
+    );
+    await screen.findByTestId("news-headline");
+    expect(screen.getByTestId("news-source")).toHaveTextContent("Wikipedia");
+    expect(screen.queryByTestId("serp-author")).toBeNull();
+    unmount();
+
+    render(
+      <SerpRow
+        event={note("Just a thought about liverpool")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+        contentFirst
+      />,
+    );
+    const line = screen.getByTestId("serp-author");
+    expect(line).toHaveAttribute("data-compact", "true");
+    expect(line).toHaveTextContent(author.name!);
   });
 
   it("a bare link with nothing known yet shows the source line alone, and the page's description once it answers", async () => {

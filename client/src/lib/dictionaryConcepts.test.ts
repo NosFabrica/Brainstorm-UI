@@ -1,26 +1,22 @@
 /**
  * Who curates the Dictionary and what's in it, from the events that say so:
- * the house's curator taggings and the curators' entries on the list.
+ * the house's curator taggings and the curators' self-pointing headers.
  */
 import { describe, expect, it } from "vitest";
 import { conceptsOf, curatorsOf } from "./dictionaryConcepts";
 
-const LIST_AUTHOR = "1".repeat(64);
+const TAG_AUTHOR = "1".repeat(64);
 const HOUSE = "4".repeat(64);
 const ALICE = "a".repeat(64);
 const BOB = "b".repeat(64);
 const MALLORY = "e".repeat(64);
-const LIST = `39998:${LIST_AUTHOR}:demo-dictionary-concepts`;
-const TAG = `39999:${LIST_AUTHOR}:dictionary-concept-curator`;
-const GITHUB = "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts";
-const BOOKS = "39998:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:books";
-const VIDEOS = "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:divine-videos";
+const TAG = `39999:${TAG_AUTHOR}:dictionary-concept-curator`;
 
 let seq = 0;
-const ev = (pubkey: string, tags: string[][], created_at = 100) => ({
+const ev = (pubkey: string, tags: string[][], created_at = 100, kind = 39999) => ({
   id: (++seq).toString(16).padStart(64, "0"),
   pubkey,
-  kind: 39999,
+  kind,
   created_at,
   tags,
 });
@@ -36,20 +32,42 @@ const tagging = (by: string, person: string, polarity?: string, created_at?: num
     ],
     created_at,
   );
-const entry = (by: string, concept: string, name: string, extra: string[][] = [], created_at?: number) =>
-  ev(by, [["d", concept], ["z", LIST], ["a", concept, "wss://hub"], ["name", name], ...extra], created_at);
+/** A list header; `self` points it at itself, as its author's candidate community concept. */
+const header = (
+  by: string,
+  d: string,
+  plural: string,
+  { self = true, extra = [] as string[][], created_at = 100 } = {},
+) =>
+  ev(
+    by,
+    [
+      ["d", d],
+      ["names", plural.replace(/s$/, ""), plural],
+      ...(self ? [["b", `39998:${by}:${d}`, "pointer"]] : []),
+      ...extra,
+    ],
+    created_at,
+    39998,
+  );
+const at = (by: string, d: string) => `39998:${by}:${d}`;
 
 const curators = (events: ReturnType<typeof ev>[], house: string | null = HOUSE) =>
-  curatorsOf(events, { house, curatorTag: TAG, listAuthor: LIST_AUTHOR });
+  curatorsOf(events, { house, curatorTag: TAG });
 
 describe("curatorsOf", () => {
-  it("is the list's author, and everyone the house tagged", () => {
-    expect(curators([tagging(HOUSE, ALICE), tagging(HOUSE, BOB)])).toEqual([LIST_AUTHOR, ALICE, BOB]);
+  it("is everyone the house tagged", () => {
+    expect(curators([tagging(HOUSE, ALICE), tagging(HOUSE, BOB)])).toEqual([ALICE, BOB]);
   });
 
-  it("is the list's author alone when the house can't be found, or has tagged no one", () => {
-    expect(curators([tagging(HOUSE, ALICE)], null)).toEqual([LIST_AUTHOR]);
-    expect(curators([])).toEqual([LIST_AUTHOR]);
+  it("is no one when the house can't be found, or has tagged no one", () => {
+    expect(curators([tagging(HOUSE, ALICE)], null)).toEqual([]);
+    expect(curators([])).toEqual([]);
+  });
+
+  it("leaves out the tag's author, and the house, unless the house tagged them", () => {
+    expect(curators([tagging(HOUSE, ALICE)])).toEqual([ALICE]);
+    expect(curators([tagging(HOUSE, HOUSE)])).toEqual([HOUSE]);
   });
 
   it("counts only the house's taggings, and only with the curator tag", () => {
@@ -61,48 +79,45 @@ describe("curatorsOf", () => {
         ["a", `39999:${HOUSE}:podcaster`],
       ],
     };
-    expect(curators([tagging(MALLORY, MALLORY), otherTag])).toEqual([LIST_AUTHOR]);
+    expect(curators([tagging(MALLORY, MALLORY), otherTag])).toEqual([]);
   });
 
   it("drops someone the house disputes — the newest tagging decides", () => {
-    expect(curators([tagging(HOUSE, ALICE, "1", 100), tagging(HOUSE, ALICE, "-1", 200)])).toEqual([LIST_AUTHOR]);
-    expect(curators([tagging(HOUSE, ALICE, "-1", 100), tagging(HOUSE, ALICE, "1", 200)])).toEqual([LIST_AUTHOR, ALICE]);
+    expect(curators([tagging(HOUSE, ALICE, "1", 100), tagging(HOUSE, ALICE, "-1", 200)])).toEqual([]);
+    expect(curators([tagging(HOUSE, ALICE, "-1", 100), tagging(HOUSE, ALICE, "1", 200)])).toEqual([ALICE]);
   });
 });
 
 describe("conceptsOf", () => {
-  it("is what curators' entries name, by name", () => {
-    const events = [entry(LIST_AUTHOR, GITHUB, "GitHub Accounts"), entry(ALICE, BOOKS, "Books")];
-    expect(conceptsOf(events, [LIST_AUTHOR, ALICE], LIST)).toEqual([BOOKS, GITHUB]);
+  it("is the curators' headers that point at themselves, by name", () => {
+    const events = [header(ALICE, "github-accounts", "GitHub Accounts"), header(BOB, "books", "Books")];
+    expect(conceptsOf(events, [ALICE, BOB])).toEqual([at(BOB, "books"), at(ALICE, "github-accounts")]);
   });
 
-  it("ignores anyone who isn't a curator, and entries on other lists", () => {
-    const elsewhere = {
-      ...entry(LIST_AUTHOR, VIDEOS, "Divine Videos"),
-      tags: [
-        ["d", VIDEOS],
-        ["a", VIDEOS],
-      ],
-    };
-    expect(conceptsOf([entry(MALLORY, BOOKS, "Books"), elsewhere], [LIST_AUTHOR], LIST)).toEqual([]);
-  });
-
-  it("counts a concept once, however many curators list it", () => {
-    const events = [entry(LIST_AUTHOR, GITHUB, "GitHub Accounts"), entry(ALICE, GITHUB, "GitHub")];
-    expect(conceptsOf(events, [LIST_AUTHOR, ALICE], LIST)).toEqual([GITHUB]);
-  });
-
-  it("takes out an entry marked removed — the newest version decides — unless another curator still lists it", () => {
-    const gone = [
-      entry(LIST_AUTHOR, BOOKS, "Books", [], 100),
-      entry(LIST_AUTHOR, BOOKS, "Books", [["removed", "yes"]], 200),
+  it("leaves out a header with no self-pointer: a list of one's own, a copy, a withdrawn copy", () => {
+    const events = [
+      header(ALICE, "notes", "Notes", { self: false }),
+      header(ALICE, "books", "Books", { self: false, extra: [["b", at(BOB, "books"), "pointer"]] }),
+      header(ALICE, "videos", "Videos", { self: false, extra: [["b", "b-tag-deferred"]] }),
     ];
-    expect(conceptsOf(gone, [LIST_AUTHOR], LIST)).toEqual([]);
-    expect(conceptsOf([...gone, entry(ALICE, BOOKS, "Books")], [LIST_AUTHOR, ALICE], LIST)).toEqual([BOOKS]);
+    expect(conceptsOf(events, [ALICE])).toEqual([]);
   });
 
-  it("skips an entry whose `a` isn't a list header", () => {
-    const note = entry(LIST_AUTHOR, `30023:${ALICE}:an-article`, "An article");
-    expect(conceptsOf([note], [LIST_AUTHOR], LIST)).toEqual([]);
+  it("ignores anyone who isn't a curator, and anything that isn't a list header", () => {
+    const item = { ...header(ALICE, "books", "Books"), kind: 39999 };
+    expect(conceptsOf([header(MALLORY, "books", "Books"), item], [ALICE])).toEqual([]);
+  });
+
+  it("takes a header out when its newest version drops the self-pointer", () => {
+    const gone = [
+      header(ALICE, "books", "Books", { created_at: 100 }),
+      header(ALICE, "books", "Books", { self: false, created_at: 200 }),
+    ];
+    expect(conceptsOf(gone, [ALICE])).toEqual([]);
+    const back = [
+      header(ALICE, "books", "Books", { self: false, created_at: 100 }),
+      header(ALICE, "books", "Books", { created_at: 200 }),
+    ];
+    expect(conceptsOf(back, [ALICE])).toEqual([at(ALICE, "books")]);
   });
 });

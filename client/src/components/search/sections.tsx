@@ -148,10 +148,13 @@ export function ClusterRows({
   engagementOf,
   showType = true,
   renderRow,
+  contentFirst = false,
 }: {
   cluster: HitCluster;
   scoreOf: (pk: string) => number | null | undefined;
   query: string;
+  /** The Top page's reading of a row (SerpRow contentFirst). */
+  contentFirst?: boolean;
   /** Quiet zap / reply counts for a row, when the caller fetched them. */
   engagementOf?: (id: string) => { zaps: number; replies: number } | null;
   /** Say the kind on each row only where a section mixes kinds. */
@@ -166,6 +169,7 @@ export function ClusterRows({
       renderRow(h)
     ) : (
       <SerpRow
+        contentFirst={contentFirst}
         event={h.event}
         author={h.author}
         score={scoreOf(h.event.pubkey)}

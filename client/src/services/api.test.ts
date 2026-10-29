@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getSessionToken, SessionDeferredError } from "@/accounts/session";
+import { getSessionToken, SessionDeferredError, SessionTransportError } from "@/accounts/session";
 import { stubAccount, type StubAccount } from "@/test/accountStub";
 
 const activeAccount = vi.fn();
@@ -152,6 +152,56 @@ describe("a session that cannot be renewed at all", () => {
 
     expect(isAuthRedirecting()).toBe(false);
     expect(getSessionToken(account as never)).toBeUndefined();
+  });
+});
+
+describe("a re-auth the server rate-limited", () => {
+  const throttled = () =>
+    refreshSession.mockRejectedValue(new SessionTransportError("Auth verification failed (429)", 429));
+
+  it("is an ordinary error: nobody is signed out or sent home", async () => {
+    holdsSession("stale");
+    throttled();
+    setRouteRequiresSession(true);
+    stubFetch(unauthorized());
+
+    const error = await apiClient.getUserHistory().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(SessionDeferredError);
+    expect((error as Error).message).toMatch(/too many sign-in attempts/i);
+    expect(isAuthRedirecting()).toBe(false);
+    expect(getSessionToken(account as never)).toBe("stale");
+  });
+
+  it("does the same when there was no token to send", async () => {
+    throttled();
+    setRouteRequiresSession(true);
+    const fetchMock = stubFetch(ok());
+
+    await expect(apiClient.getUserHistory()).rejects.toThrow(/too many sign-in attempts/i);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(isAuthRedirecting()).toBe(false);
+  });
+
+  it("is what a 429 from the login exchange reads as", async () => {
+    stubFetch(new Response(JSON.stringify({ detail: "Too many requests" }), { status: 429 }));
+    const { sessions, isSessionRateLimited } = await import("@/accounts/session");
+
+    const error = await sessions.refreshSession(account as never).catch((e: unknown) => e);
+
+    expect(isSessionRateLimited(error)).toBe(true);
+  });
+
+  it("still serves anon-viewable data, anonymously", async () => {
+    holdsSession("stale");
+    throttled();
+    const fetchMock = stubFetch(unauthorized(), ok());
+
+    await expect(apiClient.getUserOverview("c".repeat(64))).resolves.toEqual({ data: [] });
+
+    expect(fetchMock.mock.calls[1]?.[1]).not.toHaveProperty("headers.access_token");
   });
 });
 

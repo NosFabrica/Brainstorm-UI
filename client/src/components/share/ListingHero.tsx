@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Link } from "wouter";
-import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
+import { Download, ExternalLink, MapPin, MessageCircle, Package, ShoppingBag } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { categoriesToShow, formatListingPrice, isSellable, parseListing } from "@/lib/listing";
-import { sourceAppFor } from "@/lib/sourceApp";
+import { categoriesToShow, formatListingPrice, isSellable, listingStatus, parseListing } from "@/lib/listing";
+import { shopAppFor, sourceAppFor } from "@/lib/sourceApp";
 import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
 import { nostrUriFor } from "@/lib/shareId";
@@ -15,6 +15,7 @@ import { FollowedByLine } from "@/components/search/EndorsementLine";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ListingOptions } from "@/components/share/ListingOptions";
+import { ListingShipping } from "@/components/share/ListingShipping";
 import type { NostrEvent } from "nostr-tools";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
@@ -40,21 +41,17 @@ const CATEGORIES_SHOWN = 5;
  * wrote it, where it is, how it ships, the description with its links live —
  * and two ways to act. "Message seller" opens the seller in the reader's own
  * Nostr app, where their keys and conversations already live; the second
- * button goes to the listing's own page — "Buy on Conduit" when we know which
- * marketplace sold it, or "Visit <host>" on whatever link the seller
- * published. There is no checkout of ours: payment happens where
- * the seller sells.
+ * button goes to the listing's own page — "Visit <host>" on a link the seller
+ * published, else "Buy on Conduit", which sells any listing. There is no
+ * checkout of ours: payment happens with the seller.
  */
 export function ListingHero({
   event,
-  sellerWebsite,
   sellerName,
 }: {
   event: MinimalEvent;
   /** The seller's name, when the page knows it: a category that only repeats it is not shown. */
   sellerName?: string | null;
-  /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?:
-    string | null;
 }) {
   const l = parseListing({
     ...event,
@@ -92,22 +89,13 @@ export function ListingHero({
   const [allCategories, setAllCategories] = useState(false);
   // The app that sold it wins over a stray shop link: that is where the
   // product actually lives and checks out.
-  // A listing published outside Conduit by a seller who sells on Conduit still
-  // opens there: the seller's other listings say whether they do.
+  // A listing published outside Conduit by a seller who also sells it on
+  // Conduit opens at that copy: the seller's other listings say whether they do.
   const sellerListings = useRecentByKinds(sourceAppFor(event) ? null : event.pubkey, [30402], 40)
     .events as MinimalEvent[];
-  const app = sourceAppFor(event, { sellerListings });
+  const app = shopAppFor(event, { sellerListings });
   // The seller's price leads; what it is in the buyer's own money sits under it.
   const rates = useBtcRates();
-  const websiteHost = (() => {
-    try {
-      return sellerWebsite && /^https?:\/\//i.test(sellerWebsite)
-        ? new URL(sellerWebsite).hostname.replace(/^www\./, "")
-        : null;
-    } catch {
-      return null;
-    }
-  })();
   if (!l) return null;
   const categories = categoriesToShow(l.categories, sellerName);
   const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
@@ -115,8 +103,11 @@ export function ListingHero({
   // Long enough that shipping, categories and the seller's other things are a scroll away.
   const long = text.length > DESCRIPTION_FOLD;
   const sellable = isSellable(l);
-  // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
-  const gone = !sellable && (l.status !== "active" || l.hidden);
+  // Sold, hidden, inactive — or for sale ahead of delivery: a status worth a
+  // chip. Merely priceless is not, and a hidden listing never reads "active".
+  const status = listingStatus(l);
+  // A parent's stock is not a count of anything (its options carry their own).
+  const stock = l.productType === "variable" ? null : l.stock;
   const shopHost = (() => {
     try {
       return l.shopUrl ? new URL(l.shopUrl).hostname.replace(/^www\./, "") : null;
@@ -126,14 +117,12 @@ export function ListingHero({
   })();
   const current = l.images[Math.min(photo, Math.max(0, l.images.length - 1))];
   // The one way to buy, as the buttons below choose it: the marketplace that
-  // sold it, else the listing's own link, else the seller's website.
+  // sold it, else the listing's own link, else the listing on Conduit.
   const buy = app
     ? { href: app.url, label: `Buy on ${app.name}` }
     : l.shopUrl && shopHost
       ? { href: l.shopUrl, label: `Visit ${shopHost}` }
-      : websiteHost
-        ? { href: sellerWebsite as string, label: `Visit ${websiteHost}` }
-        : null;
+      : null;
 
   return (
     <div data-testid="listing-hero">
@@ -151,10 +140,10 @@ export function ListingHero({
             <ShoppingBag className="h-10 w-10" />
           </span>
         )}
-        {gone && (
+        {status && (
           <span className="absolute right-3 top-3">
-            <Chip tone="slate" size="sm" data-testid="listing-hero-status">
-              {l.status === "sold" ? "Sold" : l.status}
+            <Chip tone={status.gone ? "slate" : "info"} size="sm" data-testid="listing-hero-status">
+              {status.label}
             </Chip>
           </span>
         )}
@@ -236,6 +225,15 @@ export function ListingHero({
             <MapPin className="h-3.5 w-3.5" /> {l.location}
           </span>
         )}
+        {l.format && (
+          <span className="inline-flex items-center gap-1" data-testid="listing-hero-format">
+            {l.format === "digital" ? <Download className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
+            {l.format === "digital" ? "Digital" : "Physical"}
+          </span>
+        )}
+        {stock !== null && (
+          <span data-testid="listing-hero-stock">{stock === 0 ? "Out of stock" : `${stock} in stock`}</span>
+        )}
       </div>
 
       {/* What it is, then how to get it: one quiet rule between the two. */}
@@ -270,20 +268,6 @@ export function ListingHero({
             <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost}{" "}
             <ExternalLink className="h-3.5 w-3.5 opacity-70" />
           </a>
-        ) : websiteHost ? (
-          // No shop on the listing and no marketplace we know (The Bitcoin
-          // Shop UK, via Gamma Markets): the seller's own website is the way in.
-          <a
-            href={sellerWebsite!}
-            target="_blank"
-            rel="noopener"
-            className={BUY_BUTTON}
-            data-testid="listing-hero-shop"
-            title={`Opens ${websiteHost} in a new tab`}
-          >
-            <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost}{" "}
-            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-          </a>
         ) : null}
         <a
           href={nostrUriFor(event.pubkey)}
@@ -297,26 +281,7 @@ export function ListingHero({
         Messaging opens your Nostr app. Payment happens with the seller, in their app.
       </p>
 
-      {l.shipping.length > 0 && (
-        <div
-          className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-800"
-          data-testid="listing-hero-shipping"
-        >
-          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            <Truck className="h-3.5 w-3.5" /> Shipping
-          </p>
-          <ul className="space-y-0.5 text-sm text-slate-700 dark:text-slate-200">
-            {l.shipping.map((s, i) => (
-              <li key={s.name + i} className="flex items-center justify-between gap-3">
-                <span className="truncate">{s.name}</span>
-                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
-                  {formatListingPrice({ amount: s.amount, currency: s.currency || l.price?.currency || "" })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ListingShipping listing={l} className="mt-4" />
 
       {text && (
         <div

@@ -1,10 +1,18 @@
 /**
- * "Publish my own version": the draft the form starts from, and the event
- * it publishes — a copy that points at the community concept.
+ * A reader's own copy: the exact copy "Add to my own Dictionary" publishes,
+ * the draft "Edit" starts from, and the event it publishes — a copy that
+ * points at the community concept.
  */
 import { describe, expect, it } from "vitest";
-import { bLinksOf, definitionOf, pointsAt, type HeaderEvent } from "./conceptResolution";
-import { copyTemplate, draftProblems, fieldsSeenOnItems, initialDraft, withdrawnTemplate } from "./conceptCopy";
+import { bLinksOf, definitionOf, pointsAt, resolveConcept, type HeaderEvent } from "./conceptResolution";
+import {
+  copyTemplate,
+  draftProblems,
+  exactCopyTemplate,
+  fieldsSeenOnItems,
+  initialDraft,
+  withdrawnTemplate,
+} from "./conceptCopy";
 
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const ME = "1".repeat(64);
@@ -188,6 +196,53 @@ describe("draftProblems", () => {
 
   it("needs both names", () => {
     expect(draftProblems({ ...draft, plural: " " })).toEqual(["Give the concept a singular and a plural name."]);
+  });
+});
+
+describe("exactCopyTemplate", () => {
+  const full = definitionOf(
+    header(AVI, [
+      ["names", "GitHub Account", "GitHub Accounts"],
+      ["json", "{}"],
+      ["description", "A list of github handles/accounts"],
+      ["concept-graph", "x"],
+      ["required", "github-username"],
+      ["field-type", "github-username", "text"],
+      ["optional", "description", "Who it belongs to"],
+      ["display", "title", "github-username"],
+      ["image", "https://example.com/gh.png"],
+      ["link", "f".repeat(64), "wss://dcosl.brainstorm.world", "username", "github-username"],
+      ["license", "CC0"],
+      ["alt", "GitHub accounts"],
+      ["client", "Tapestry"],
+      ["b", COMMUNITY, "pointer"],
+    ]),
+  );
+
+  it("takes the definition's tags verbatim and in order, at the community's d, pointing back last", () => {
+    expect(exactCopyTemplate(full)).toEqual({
+      kind: 39998,
+      content: "",
+      tags: [
+        ["d", "github-accounts"],
+        ["names", "GitHub Account", "GitHub Accounts"],
+        ["description", "A list of github handles/accounts"],
+        ["required", "github-username"],
+        ["field-type", "github-username", "text"],
+        ["optional", "description", "Who it belongs to"],
+        ["display", "title", "github-username"],
+        ["image", "https://example.com/gh.png"],
+        ["link", "f".repeat(64), "wss://dcosl.brainstorm.world", "username", "github-username"],
+        ["b", COMMUNITY, "pointer"],
+      ],
+    });
+  });
+
+  it("agrees with the community once signed", () => {
+    const copy = { ...header(ME, []), tags: exactCopyTemplate(full).tags };
+    const r = resolveConcept({ community: full.event, communityCoordinate: COMMUNITY, personal: copy });
+    expect(r?.source).toBe("personal");
+    expect(r?.agreement).toBe("agrees");
   });
 });
 

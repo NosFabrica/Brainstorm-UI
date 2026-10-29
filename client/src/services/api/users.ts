@@ -3,7 +3,10 @@
  * between two people, and the brainstorm request records keyed to them.
  */
 
-import { authenticatedFetch, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
+import type { NostrEvent } from "nostr-tools";
+import { parseTreasureMapCheck, type TreasureMapCheck } from "@/lib/assistantTreasureMap";
+import { parseDutyMenuOffer } from "@/lib/dutyMenu";
+import { authenticatedFetch, extractApiError, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
 
 /**
  * The Path network from `GET /shortestPath`: every Connector on any shortest
@@ -73,6 +76,105 @@ export interface NetworkAlertsData {
 export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
   return e.reporterThreshold > 0 && e.verifiedReporterCount >= e.reporterThreshold;
 }
+
+/** This server can't publish Duty Menus yet (docs/assistant/DUTY-MENU-ASK.md): the setup step stays hidden. */
+export class DutyMenuUnavailableError extends Error {
+  constructor() {
+    super("Duty Menus aren't available on this server yet.");
+    this.name = "DutyMenuUnavailableError";
+  }
+}
+
+/** What the server would publish as the caller's Assistant's Duty Menu (`GET /user/assistantDutyMenu`). */
+export interface DutyMenuOffer {
+  assistant: string;
+  /** `[<Treasure Map key>, <relay>]`, one per duty. */
+  rows: string[][];
+}
+
+/** What `POST /user/assistantDutyMenu` answers: the signed menu, and how each relay took it. */
+export interface DutyMenuPublishResult {
+  event: NostrEvent;
+  relays: { url: string; ok: boolean; message?: string }[];
+}
+
+/** This server can't keep Assistants' Treasure Maps yet (docs/assistant/TREASURE-MAP-ASK.md): the setup step stays hidden. */
+export class TreasureMapUnavailableError extends Error {
+  constructor() {
+    super("Your Assistant's Treasure Map isn't available on this server yet.");
+    this.name = "TreasureMapUnavailableError";
+  }
+}
+
+/** What `POST /user/assistantTreasureMap` answers: the signed version, if one was published, and how each relay took it. */
+export interface TreasureMapPublishResult {
+  on: boolean;
+  /** False when nothing would change, so nothing was signed. */
+  published: boolean;
+  event: NostrEvent | null;
+  relays: { url: string; ok: boolean; message?: string }[];
+}
+
+/** This server can't have Assistants copy concepts yet (docs/dictionary/ASSISTANT-COPY-ASK.md): the Add button says so. */
+export class AssistantDictionaryUnavailableError extends Error {
+  constructor() {
+    super("Your Assistant can't add concepts on this server yet.");
+    this.name = "AssistantDictionaryUnavailableError";
+  }
+}
+
+/** What happened to one concept (docs/dictionary/ASSISTANT-COPY-ASK.md § The answer). */
+export interface AssistantConceptResult {
+  /** The community header's coordinate. */
+  community: string;
+  /** The Assistant's copy; null when the community header wasn't found. */
+  local: string | null;
+  /** The event published, when one was. */
+  event: NostrEvent | null;
+  status: "published" | "updated" | "unchanged" | "withdrawn" | "conflict" | "not_found" | "failed";
+  /** A sentence, for conflict, not_found and failed. */
+  error?: string | null;
+}
+
+/** What `POST /user/assistantDictionary` and `/user/assistantDictionary/withdraw` answer. */
+export interface AssistantDictionaryResult {
+  assistant: string;
+  relays: string[];
+  concepts: AssistantConceptResult[];
+}
+
+/** One of the Assistant's routes under `/user`: a 404 or 405 is "not on this server yet". */
+async function assistantJson<T>(
+  path: string,
+  unavailable: () => Error,
+  init: RequestInit,
+  timeoutMs: number,
+  failed: string,
+): Promise<T> {
+  const response = await authenticatedFetch(`${getBrainstormApi()}/user/${path}`, {
+    ...init,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (response.status === 404 || response.status === 405) throw unavailable();
+  if (!response.ok) throw new Error((await extractApiError(response)) || `${failed} (${response.status})`);
+  const json = await response.json();
+  return json?.data ?? json;
+}
+
+const dutyMenuJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
+  assistantJson<T>("assistantDutyMenu", () => new DutyMenuUnavailableError(), init, timeoutMs, failed);
+
+const assistantDictionaryJson = (path: string, concepts: string[], failed: string) =>
+  assistantJson<AssistantDictionaryResult>(
+    path,
+    () => new AssistantDictionaryUnavailableError(),
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ concepts }) },
+    60000,
+    failed,
+  );
+
+const treasureMapJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
+  assistantJson<T>("assistantTreasureMap", () => new TreasureMapUnavailableError(), init, timeoutMs, failed);
 
 export const usersApi = {
   async getUserHistory() {
@@ -265,5 +367,63 @@ export const usersApi = {
     }
     const json = await response.json();
     return json?.data ?? json;
+  },
+
+  /**
+   * What the caller's Assistant offers, as its Duty Menu would list it. An
+   * answer that isn't an offer means no route: `GET /user/{pubkey}` takes this
+   * path on a server without one (lib/dutyMenu `parseDutyMenuOffer`).
+   */
+  async getAssistantDutyMenu(): Promise<DutyMenuOffer> {
+    const offer = parseDutyMenuOffer(
+      await dutyMenuJson<unknown>({}, 15000, "Couldn't read your Assistant's Duty Menu"),
+    );
+    if (!offer) throw new DutyMenuUnavailableError();
+    return offer;
+  },
+
+  /** Has the server sign and publish the caller's Assistant's Duty Menu, as it offers it now. */
+  async publishAssistantDutyMenu(): Promise<DutyMenuPublishResult> {
+    return dutyMenuJson<DutyMenuPublishResult>(
+      { method: "POST" },
+      30000,
+      "Couldn't publish your Assistant's Duty Menu",
+    );
+  },
+
+  /**
+   * What the caller's Assistant's Treasure Map should list now, and why. An
+   * answer that isn't a check means no route, as for the Duty Menu
+   * (lib/assistantTreasureMap `parseTreasureMapCheck`).
+   */
+  async getAssistantTreasureMap(): Promise<TreasureMapCheck> {
+    const check = parseTreasureMapCheck(
+      await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map"),
+    );
+    if (!check) throw new TreasureMapUnavailableError();
+    return check;
+  },
+
+  /** Has the server list the Assistant's live duties in its Treasure Map (`on`), or none, and publish it. */
+  async setAssistantTreasureMap(on: boolean): Promise<TreasureMapPublishResult> {
+    return treasureMapJson<TreasureMapPublishResult>(
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) },
+      30000,
+      "Couldn't publish your Assistant's Treasure Map",
+    );
+  },
+
+  /** Has the server sign the caller's Assistant's exact copy of these community concepts, and publish it. */
+  async addToAssistantDictionary(concepts: string[]): Promise<AssistantDictionaryResult> {
+    return assistantDictionaryJson("assistantDictionary", concepts, "Couldn't add it to your Assistant's Dictionary");
+  },
+
+  /** Has the server republish the Assistant's copies of these concepts as withdrawn. */
+  async removeFromAssistantDictionary(concepts: string[]): Promise<AssistantDictionaryResult> {
+    return assistantDictionaryJson(
+      "assistantDictionary/withdraw",
+      concepts,
+      "Couldn't remove it from your Assistant's Dictionary",
+    );
   },
 };

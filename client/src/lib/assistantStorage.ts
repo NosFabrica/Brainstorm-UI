@@ -145,8 +145,29 @@ export function setPictureSet(assistantPubkey: string): void {
   safeSet(key(`${SUFFIX_PICTURE_SET}:${assistantPubkey}`), "1");
 }
 
-export function getCurrentAssistantPubkey(): string | null {
-  return safeGet(key(SUFFIX_PUBKEY));
+/**
+ * The stored Assistant, if it is `taPubkey`: the server's answer to which
+ * Assistant is the reader's on this deployment. Storage only caches a publish,
+ * so anything else (or no answer yet) is no Assistant. Doesn't touch storage;
+ * `dropMismatchedAssistant` does.
+ */
+export function readAssistantFor(taPubkey: string | null | undefined): PublishedAssistantState | null {
+  if (!taPubkey) return null;
+  const stored = readPublishedAssistant();
+  return stored?.pubkey === taPubkey ? stored : null;
+}
+
+/**
+ * Drops a stored Assistant that isn't `taPubkey`, with its cached kind 0. The
+ * kind-30078 pointer used to put another deployment's Assistant here (#269);
+ * this is how those browsers fix themselves. True if it dropped one.
+ */
+export function dropMismatchedAssistant(taPubkey: string): boolean {
+  const stored = safeGet(key(SUFFIX_PUBKEY));
+  if (!stored || stored === taPubkey) return false;
+  for (const suffix of [SUFFIX_PUBKEY, SUFFIX_EVENT_ID, SUFFIX_PUBLISHED_AT, SUFFIX_PROFILE]) safeRemove(key(suffix));
+  notify();
+  return true;
 }
 
 // NOTE: One-time cleanup of pre-Task-#85 unscoped global keys lives at the

@@ -31,9 +31,13 @@ It is namespaced by its `d` tag:
 d = "brainstorm.world/profile-prefs"     // client/src/services/nostr.ts (PROFILE_PREFS_D_TAG)
 ```
 
-Brainstorm uses the same NIP-78 pattern with `d = "brainstorm.world/assistant"`
-for a separate settings object — one app, multiple independent records under one
-key.
+Brainstorm used the same NIP-78 pattern with `d = "brainstorm.world/assistant"`
+to say which Assistant is the user's Brainstorm Assistant. It no longer reads or
+writes that record ([#269](https://github.com/NosFabrica/Brainstorm-UI/issues/269)):
+the `d` tag names no deployment, so production and staging overwrote each
+other's. Each deployment's server answers it instead (`ta_pubkey` from
+`/user/history`), and the "View on Nostr" link and "Published" age come from that
+Assistant's live kind 0. Copies left on relays are unread.
 
 Example event as published today:
 

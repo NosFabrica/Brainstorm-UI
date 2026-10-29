@@ -10,7 +10,7 @@
 import { ListCard } from "@/components/search/cards";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -395,10 +395,15 @@ function AuthorLine({
   children?: ReactNode;
 }) {
   const tierRing = useTierRing();
+  const compact = useContext(ContentFirstContext);
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
+    <div
+      className={`flex min-w-0 items-center ${compact ? "gap-1" : "gap-1.5"}`}
+      data-testid="serp-author"
+      data-compact={compact ? "true" : undefined}
+    >
       <Avatar
-        className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+        className={`${compact ? "h-4 w-4" : "h-6 w-6"} border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
       >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
@@ -408,7 +413,13 @@ function AuthorLine({
       {/* Name (14px, Google's source line) and the 12px meta share one baseline —
           centring boxes of two font sizes leaves the meta riding high. */}
       <div className="flex min-w-0 items-baseline gap-1.5 leading-5">
-        <span className="truncate text-sm font-medium text-slate-600 dark:text-slate-300">
+        <span
+          className={
+            compact
+              ? "truncate text-xs font-medium text-slate-500 dark:text-slate-400"
+              : "truncate text-sm font-medium text-slate-600 dark:text-slate-300"
+          }
+        >
           {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
         </span>
         <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
@@ -461,7 +472,13 @@ type SerpRowProps = {
   engagement?: { zaps: number; replies: number };
   /** "· Note", "· Event" — only worth saying where kinds mix. */
   showType?: boolean;
+  /** The Top page's reading: a shared page's source is its site, not the person who
+   *  shared it, and a note's author is a small muted line — as Google shows a result. */
+  contentFirst?: boolean;
 };
+
+/** Whether the row reads content first (SerpRowProps.contentFirst), for every part of it. */
+const ContentFirstContext = createContext(false);
 
 /** The row is a link to the event's page — a div that navigates, so the anchors inside stay legal HTML. */
 function rowPropsFor(event: NostrEvent, open: () => void) {
@@ -482,6 +499,14 @@ function rowPropsFor(event: NostrEvent, open: () => void) {
 }
 
 export function SerpRow(props: SerpRowProps) {
+  return (
+    <ContentFirstContext.Provider value={!!props.contentFirst}>
+      <SerpRowBody {...props} />
+    </ContentFirstContext.Provider>
+  );
+}
+
+function SerpRowBody(props: SerpRowProps) {
   // A Trusted List's content is its members again, as JSON: the row would say
   // "Structured data". It is a people list — drawn as one, with its scores.
   // A bookmark set has no words of its own, or only sealed ones: its card
@@ -640,6 +665,7 @@ function HighlightRow({ event, author, score, query, engagement, showType = true
 }
 
 function NoteRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
+  const contentFirst = useContext(ContentFirstContext);
   const [, setLocation] = useLocation();
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
   // Dead news thumbs (expired signed URLs) vanish rather than render broken.
@@ -761,17 +787,19 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
     return (
       <div {...rowProps} ref={rowRef}>
         <div className="min-w-0 flex-1">
-          <AuthorLine
-            author={author}
-            score={score}
-            created_at={event.created_at}
-            type={feed || news.headline ? "News" : undefined}
-            typeOf={event}
-            feed={feed}
-          />
+          {!contentFirst && (
+            <AuthorLine
+              author={author}
+              score={score}
+              created_at={event.created_at}
+              type={feed || news.headline ? "News" : undefined}
+              typeOf={event}
+              feed={feed}
+            />
+          )}
           <a
             {...out}
-            className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400"
+            className={`${contentFirst ? "" : "mt-1.5"}flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400`}
             data-testid="news-source"
           >
             <Favicon host={news.domain} className="h-4 w-4 shrink-0 rounded-sm object-contain" />

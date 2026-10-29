@@ -1,3 +1,6 @@
+import { PersonMarks } from "@/components/PersonMarks";
+import { useListKinds } from "@/hooks/useListKinds";
+import { useHandlePointers } from "@/hooks/useHandlePointers";
 import {
   useCallback,
   useEffect,
@@ -35,7 +38,7 @@ import { CATEGORY_ICON } from "@/lib/dlists";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { Nip05Handle } from "@/components/Nip05Check";
+import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import {
   getRecentItems,
   removeRecentItem,
@@ -71,6 +74,7 @@ import { usePersonContent } from "@/hooks/usePersonContent";
 import { useSearchTags } from "@/hooks/useSearchTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
+import { peopleAboveLine } from "@/lib/clientFilters";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { SearchField } from "@/components/search/SearchField";
 import { ShopSuggestionRow } from "@/components/search/ShopSuggestionRow";
@@ -273,12 +277,57 @@ export function SearchBox({
   }, [tagMatches]);
   // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
   // and coins feed from the shared author-score cache, like every card.
-  const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
+  // Who the words are about when their own profile lacks them: the accounts the suggested
+  // profiles' handles belong to (hooks/useHandlePointers) — asked before the floor, since the
+  // profiles pointing are often copies below it.
+  const pointers = useHandlePointers(
+    useMemo(
+      () =>
+        suggestions.map((author) => ({
+          event: {
+            id: `suggestion:${author.pubkey}`,
+            kind: 0,
+            pubkey: author.pubkey,
+            created_at: 0,
+            tags: [],
+            content: "",
+            sig: "",
+          },
+          author,
+          rank: null,
+        })),
+      [suggestions],
+    ),
+  );
+  const pointedPeople = useMemo(
+    () => pointers.hits.map((h) => h.author).filter((a) => !suggestions.some((s) => s.pubkey === a.pubkey)),
+    [pointers.hits, suggestions],
+  );
+  const suggestScoreOf = useAuthorScores(
+    useMemo(() => [...pointedPeople, ...suggestions].map((x) => x.pubkey), [pointedPeople, suggestions]),
+  );
   // The rows are the people whose name or handle matched, in the relay's
   // order. A tag the words match is its own row above them, and the way in to
   // everyone who carries it — the box offers each reading of the words once
-  // and does not guess which was meant (the team, 2026-10-01).
-  const rows = suggestions;
+  // and does not guess which was meant (the team, 2026-10-01). Under the house
+  // lens the box keeps the results page's floor (lib/clientFilters): a person
+  // below the verified line isn't offered here only to vanish there.
+  const offered = [...pointedPeople, ...suggestions];
+  const kinds = useListKinds();
+  // Which kinds have a row for the words (hooks/useListKinds onOffer), by kind and slot: the box opens
+  // on one even when no person matches — a book's full title, a place's name.
+  const [offers, setOffers] = useState<{ query: string; ids: ReadonlySet<string> }>({ query: "", ids: new Set() });
+  const offer = useCallback((id: string, query: string, on: boolean) => {
+    setOffers((prev) => {
+      const same = prev.query === query;
+      if (same && prev.ids.has(id) === on) return prev;
+      const ids = new Set(same ? prev.ids : []);
+      if (on) ids.add(id);
+      else ids.delete(id);
+      return { query, ids };
+    });
+  }, []);
+  const rows = effectivePov === "mywot" ? offered : peopleAboveLine(offered, suggestScoreOf);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<SearchFieldHandle | null>(null);
@@ -583,7 +632,12 @@ export function SearchBox({
       ? // The sheet keeps its list up while there are words: "See all" is never a dead end.
         value.trim().length > 0
       : showSuggestions &&
-        (rows.length > 0 || shop !== null || isSuggesting || topicMatch.isTopic || tagMatches.length > 0));
+        (rows.length > 0 ||
+          shop !== null ||
+          isSuggesting ||
+          topicMatch.isTopic ||
+          tagMatches.length > 0 ||
+          (offers.query === value && offers.ids.size > 0)));
   // "Recent" shows under an empty, focused box — never alongside the suggestions. The sheet
   // was opened to search, so it shows them at once.
   const showRecent = recentsAllowed && value.trim() === "" && !dropdownOpen && (sheet || (engaged && focused));
@@ -762,6 +816,22 @@ export function SearchBox({
 
   const panels = (
     <>
+      {/* Closed, the kinds still read the words — out of sight — so a row of theirs can open the box. */}
+      {!dropdownOpen && showSuggestions && !fieldPicking && !sheet && value.trim().length >= 2 && (
+        <div hidden aria-hidden="true">
+          {kinds.flatMap((k) =>
+            (["lead", "follow"] as const).map((slot) => (
+              <k.Suggestion
+                key={`${k.key}-${slot}`}
+                query={value}
+                slot={slot}
+                people={rows}
+                onOffer={(on) => offer(`${k.key}-${slot}`, value, on)}
+              />
+            )),
+          )}
+        </div>
+      )}
       {dropdownOpen && (
         <div
           id={listId}
@@ -839,6 +909,17 @@ export function SearchBox({
                 className={cn(!sheet && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}
                 data-testid="list-home-suggestions"
               >
+                {/* A group the words name ("Coffee places · 60+") leads: it's what they most likely mean. */}
+                {kinds.map((k) => (
+                  <k.Suggestion
+                    key={k.key}
+                    query={value}
+                    slot="lead"
+                    people={rows}
+                    onPick={() => setShowSuggestions(false)}
+                    onOffer={(on) => offer(`${k.key}-lead`, value, on)}
+                  />
+                ))}
                 {rows.map((s, i) => {
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                   return (
@@ -871,10 +952,13 @@ export function SearchBox({
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <p
-                          className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
+                          className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100"
                           data-testid={`home-suggestion-name-${i}`}
                         >
-                          {getDisplayLabel(s)}
+                          <span className="truncate">{getDisplayLabel(s)}</span>
+                          {/* Their own things the kinds list (a GitHub account), beside the name:
+                              one person, one row (hooks/useListKinds PersonMark). */}
+                          <PersonMarks pubkey={s.pubkey} nip05={s.nip05} website={s.website} inRow />
                         </p>
                         {/* A handle is only a claim: the check waits on its domain. */}
                         <Nip05Handle
@@ -884,6 +968,20 @@ export function SearchBox({
                           iconClassName="h-2.5 w-2.5 shrink-0 text-brand-primary"
                           testId={`home-suggestion-nip05-${i}`}
                         />
+                        {pointers.namesOf.get(s.pubkey) && (
+                          <p
+                            className="truncate text-xs text-slate-500 dark:text-slate-400"
+                            data-testid={`home-suggestion-pointers-${i}`}
+                          >
+                            Profiles named{" "}
+                            {pointers.namesOf
+                              .get(s.pubkey)!
+                              .map((n) => `“${n}”`)
+                              .join(", ")}{" "}
+                            use this account's handle
+                          </p>
+                        )}
+                        <HandleOwnerWarning nip05={s.nip05} pubkey={s.pubkey} compact linked={false} />
                       </div>
                       {/* What they publish, one tap to it. Desktop reveals on
                           hover or the arrowed row; a phone row stays a name. */}
@@ -913,6 +1011,19 @@ export function SearchBox({
                     </div>
                   );
                 })}
+              </div>
+              {/* A thing the words name — a place, a book, an account — follows the people, two at most. */}
+              <div className="[&>*:nth-child(n+3)]:hidden" data-testid="kind-suggestions-follow">
+                {kinds.map((k) => (
+                  <k.Suggestion
+                    key={k.key}
+                    query={value}
+                    slot="follow"
+                    people={rows}
+                    onPick={() => setShowSuggestions(false)}
+                    onOffer={(on) => offer(`${k.key}-follow`, value, on)}
+                  />
+                ))}
               </div>
               <button
                 type="button"

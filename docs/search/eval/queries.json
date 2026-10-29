@@ -1,0 +1,5265 @@
+{
+  "version": "v1",
+  "checked": "2026-10-24",
+  "description": "Labelled search queries for Brainstorm. Schema, classes and metrics: docs/search/eval/README.md.",
+  "entries": [
+    {
+      "id": "m2-restaurants-in-funchal",
+      "query": "restaurants in Funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Staging demo seed: should return BTC Map places in Funchal. 26 Funchal restaurants are on Food and Drink Places, so any of them is right; scored by category and filter precision, not recall."
+    },
+    {
+      "id": "m2-bars-in-new-york",
+      "query": "bars in new york",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Staging demo seed: should return the PubKey bar in NYC. The Expat (osm-node-2768451052) is the other NYC bar on the list."
+    },
+    {
+      "id": "m2-new-york-bar",
+      "query": "New York bar",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405"]
+      },
+      "notes": "Staging demo seed, the same ask in other words: should return the PubKey bar in NYC."
+    },
+    {
+      "id": "m2-bars-in-funchal",
+      "query": "bars in Funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10295182582",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4319235351",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11844100083",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3997675690"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Staging demo seed: no People category. The four Funchal places with category bar."
+    },
+    {
+      "id": "m2-best-brunch-in-chicago",
+      "query": "best brunch in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "brunch"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Staging demo seed. No Chicago place on Food and Drink Places names brunch in its name or cuisine (checked 2026-10-22), so there is no id to expect: a data gap as much as a search one."
+    },
+    {
+      "id": "m2-coffee-in-funchal",
+      "query": "coffee in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Ten Funchal cafes on the list; scored by filter precision. 'coffee' is the word people use, 'cafe' the category."
+    },
+    {
+      "id": "m2-pizza-in-funchal",
+      "query": "pizza in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1760247844",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10899529872"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The two Funchal places with cuisine pizza: Xarambinha Pizzeria Expresso and Ciao Pizzeria."
+    },
+    {
+      "id": "m2-japanese-restaurant-funchal",
+      "query": "japanese restaurant funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "japanese"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14144104757"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Yuki by Chef Júlio Pereira is the one Funchal place with cuisine japanese."
+    },
+    {
+      "id": "m2-brunch-in-funchal",
+      "query": "brunch in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal"
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12971275599",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10934040100",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3884132779",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12128667974"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Pátio Brunch & Bistro, and Loft Brunch & Cocktails (three entries on the list; any one counts)."
+    },
+    {
+      "id": "m2-ice-cream-in-funchal",
+      "query": "ice cream in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "ice_cream"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12542162389",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-1429127235",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-1529665711"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Gelataria Gela-Tó, and FRIIC (two entries; either counts). Category is ice_cream with an underscore."
+    },
+    {
+      "id": "m2-steakhouse-in-funchal",
+      "query": "steakhouse in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "steak_house"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-724127083"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Central Grill has cuisine steak_house: one word typed, two words stored."
+    },
+    {
+      "id": "m2-indian-restaurant-in-funchal",
+      "query": "indian restaurant in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9712012317"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Indian Palace: the cuisine is only in its name; its cuisine field is empty."
+    },
+    {
+      "id": "m2-tapas-in-funchal",
+      "query": "tapas in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "tapas"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10855911506"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Tapas y Copas, cuisine tapas."
+    },
+    {
+      "id": "m2-hot-dogs-in-new-york",
+      "query": "hot dogs in new york",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "cuisine": "hot_dog"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405"],
+        "absent_categories": ["people"]
+      },
+      "notes": "PubKey NYC carries cuisine hot_dog."
+    },
+    {
+      "id": "m2-coffee-in-new-york",
+      "query": "coffee in new york",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Solid State Coffee is the NYC cafe on the list."
+    },
+    {
+      "id": "m2-french-restaurant-new-york",
+      "query": "french restaurant new york",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "cuisine": "french"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13806073520"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Margaux by La Sirène, cuisine french."
+    },
+    {
+      "id": "m2-mexican-restaurants-in-chicago",
+      "query": "mexican restaurants in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6280027510",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13285829847"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Rubi's Tacos and Pozoleria El Mexicano, both cuisine mexican."
+    },
+    {
+      "id": "m2-bitcoin-restaurant-chicago",
+      "query": "bitcoin restaurant chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago"
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11501636224"]
+      },
+      "notes": "Fork & Coin bills itself as built on Bitcoin. Every place on the list takes bitcoin, so 'bitcoin' adds nothing a card shows. Its own account (forkandcoin) would also be a fair People result."
+    },
+    {
+      "id": "m2-ice-cream-chicago",
+      "query": "ice cream chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "category": "ice_cream"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2406301174",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11149082876",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11168362633"
+        ]
+      },
+      "notes": "Chicago places with category ice_cream: Miko's Italian Ice, Logan Vegan, Yoberri Gourmet."
+    },
+    {
+      "id": "m2-sushi-in-lugano",
+      "query": "sushi in lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "cuisine": "sushi"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10982817246",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10217022957"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Kohakinho and Level Sushi, both cuisine sushi."
+    },
+    {
+      "id": "m2-italian-restaurants-in-lugano",
+      "query": "italian restaurants in lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "cuisine": "italian"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Eleven Lugano places carry cuisine italian; scored by filter precision."
+    },
+    {
+      "id": "m2-coffee-shops-in-austin",
+      "query": "coffee shops in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "coffee_shop"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Several Austin cafes with cuisine coffee_shop (Medici Roasting is listed five times); scored by filter precision."
+    },
+    {
+      "id": "m2-bars-in-berlin",
+      "query": "bars in berlin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Berlin",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3747274058",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7610691602",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3036860727"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The three bars in Berlin, Germany: Keith, Vater Bar, Fabelhaft Bar. Berlín in El Salvador is also on the list with the same locality spelling (La Cancha is a bar there): a trap."
+    },
+    {
+      "id": "m2-pupusas-in-el-salvador",
+      "query": "pupusas in el salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Many pupuserías in Berlín, Usulután (country SV): 'pupusas' is not 'Pupusería', and El Salvador is stored as SV. Too many right answers to name one."
+    },
+    {
+      "id": "m2-restaurants-near-me",
+      "query": "restaurants near me",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Needs the reader's location, which the Top page never asks for. Scored by category only."
+    },
+    {
+      "id": "m2-indian-food-in-london",
+      "query": "indian food in london",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "London",
+          "property": {
+            "cuisine": "indian"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10907899933",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10094817176"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Calm Indian Cow, listed twice in London with cuisine indian; either counts. 'food' is a word of the list's own name, so the page drops it before matching."
+    },
+    {
+      "id": "m2-agent-restaurants-funchal",
+      "query": {
+        "categories": ["places"],
+        "place": "Funchal",
+        "property": {
+          "category": "restaurant"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "The structured form of 'restaurants in Funchal' an agent (or a query parser) would send. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m2-agent-bars-new-york",
+      "query": {
+        "categories": ["places"],
+        "place": "New York",
+        "property": {
+          "category": "bar"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405"]
+      },
+      "notes": "The structured form of 'bars in new york'. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m2-coffee-in-san-francisco",
+      "query": "coffee in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "19 San Francisco places have category cafe; scored by filter precision. 'coffee' is the word people use, 'cafe' the category."
+    },
+    {
+      "id": "m2-bubble-tea-in-sf",
+      "query": "bubble tea in sf",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9657095566",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9462343653",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9459210057",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4925135942",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3674255658",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125736295",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125283496",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12101566691"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5893605745",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14129575583",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12983552129",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12794766076",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10560594652"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "'sf' is how people write San Francisco; the data spells it out. Bubble tea is the city's most common cuisine on the list: Little Sweet at K-Box, Little Sweet (listed 7 times; any one counts), Kiss of Matcha, Little Sweet Go, Nameless Tea & Coffee, District Tea, Turn Café x Little Sweet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-mexican-food-in-san-francisco",
+      "query": "mexican food in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3790822678",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3674255642",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1822506138",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10003173202"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13729807702",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13393504106"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Francisco places with cuisine mexican: Barrera's Cocina Mexicana, Gordo Taqueria (listed 3 times; any one counts), El Jacal Mexican Grill, Casa de la Condesa. 'food' is a word of the list's own name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-burgers-in-san-francisco",
+      "query": "burgers in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "burger"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-259056907",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4616049557"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Francisco places with cuisine burger: Newkirk's, Phillies. Typed plural, stored singular.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-sandwiches-in-san-francisco",
+      "query": "sandwiches in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "sandwich"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-259056907",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3199949652",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13816382324",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10916669656"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Francisco places with cuisine sandwich: Newkirk's, Cafe Francisco, Studio Aurora, Q's Sandwich Shop.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-cheesesteak-in-san-francisco",
+      "query": "best cheesesteak in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "cheesesteak"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-259056907",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4616049557"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Newkirk's, Phillies: one stored as cheesesteak, one as cheesesteaks. 'best' asks for a ranking the list does not give yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-sushi-in-san-francisco",
+      "query": "sushi in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "sushi"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13521684996"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Breakthrough Sushi is the one San Francisco place with cuisine sushi.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bakery-in-san-francisco",
+      "query": "bakery in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "category": "bakery"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-1189071447"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Mariposa Baking Co. is the one San Francisco place with category bakery.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pizza-in-san-francisco",
+      "query": "pizza in san francisco",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13307601912"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Cheezy's Artisan Pizza is the one San Francisco place with cuisine pizza.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-in-nashville",
+      "query": "coffee in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13712525554",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294970089",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294968879",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294964180",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294958503"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Packhouse Coffee Company, Prickly Pear Coffee Co. (listed 4 times; any one counts). Packhouse Coffee Company is stored with category coffee, not cafe.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-restaurants-in-nashville",
+      "query": "restaurants in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "restaurant"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7020596624",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13335011263"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Nashville places with category restaurant: Pégate al Sabor, Don Miguel Juicery + Rustic Kitchen. Nashville has only ten places on the list.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-ice-cream-in-nashville",
+      "query": "ice cream in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "ice_cream"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-680983760"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Kokos Ice Cream, category ice_cream.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-bbq-in-nashville",
+      "query": "best bbq in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "cuisine": "barbecue"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No Nashville place on the list is barbecue (checked 2026-10-24), so there is no id to expect: a data gap as much as a search one."
+    },
+    {
+      "id": "m2-tacos-in-nashville",
+      "query": "tacos in nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13705423825"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Lucia Tacos Express: cuisine mexican, and 'tacos' is in its name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-venezuelan-food-nashville",
+      "query": "venezuelan food nashville",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "cuisine": "venezuelan"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7020596624"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Pégate al Sabor, cuisine venezuelan.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-shops-in-chicago",
+      "query": "coffee shops in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-210171211",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6256333210",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13431370942",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13314914294",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11992882059"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Chicago cafes that serve coffee: Iron Café, Base Community Cafe, Oro Chocolate & Coffee, Logan Collective, Drip Collective. Miko's Italian Ice, Mini Donut Factory and TBaar - Chicago are also category cafe, but not what 'coffee shops' asks for.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-hot-dogs-in-chicago",
+      "query": "hot dogs in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "hot_dogs"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Lucky Dawgs: stored as hot_dogs here and as hot_dog in New York (m2-hot-dogs-in-new-york).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-indian-food-chicago",
+      "query": "indian food chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "indian"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5912122886",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6282566260"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Chicago places with cuisine indian: Chiya Chai (listed 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bubble-tea-in-chicago",
+      "query": "bubble tea in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13312652437"],
+        "absent_categories": ["people"]
+      },
+      "notes": "TBaar - Chicago, cuisine bubble_tea.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-jamaican-restaurant-chicago",
+      "query": "jamaican restaurant chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "jamaican"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13794086041"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Jerky Jerk, cuisine jamaican.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-donuts-in-chicago",
+      "query": "donuts in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "donut"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13438469234"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Mini Donut Factory, cuisine donut: typed plural, stored singular.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-tacos-in-chicago",
+      "query": "best tacos in chicago",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6303063044",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6280027510"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Tacotlan, Rubi’s Tacos. Tacotlan has no cuisine; only its name says tacos.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-nyc-coffee",
+      "query": "nyc coffee",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"],
+        "absent_categories": ["people"]
+      },
+      "notes": "'nyc' is how people write it; the data says New York. Solid State Coffee is the New York cafe on the list.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pizza-in-nyc",
+      "query": "pizza in nyc",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No place with locality New York has cuisine pizza (checked 2026-10-24). Within 25 km there are three, all in New Jersey (Ricoy Pizzeria & Restaurant, Helen's Pizza, Lucci's Pizza): whether they belong is the radius question, so no id is expected."
+    },
+    {
+      "id": "m2-tacos-in-austin",
+      "query": "tacos in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "tacos"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13309555872"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Vegan Nom, El Xolo Tacos: one has cuisine tacos, the other only says tacos in its name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-bbq-in-austin",
+      "query": "best bbq in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "barbecue"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No Austin place on the list is barbecue (checked 2026-10-24), in a city known for it: the list holds places that take bitcoin, so it is as dense as their merchants."
+    },
+    {
+      "id": "m2-acai-bowls-in-austin",
+      "query": "acai bowls in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "açaí"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334961707",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334956624"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Wonky Blends (listed 2 times; any one counts): stored as açaí, with both accents, typed without them. Los Angeles spells it açai.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-middle-eastern-food-austin",
+      "query": "middle eastern food austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "middle_eastern"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13814202487",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287685",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298249811",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287162"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Austin places with cuisine middle_eastern: Reem's, Halal Bros (listed 3 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-juice-bar-austin",
+      "query": "juice bar austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "juice"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334961707",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13334956624"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13580757399"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Austin places with cuisine juice: Wonky Blends (listed 2 times; any one counts), Get Juicy Roots. 'bar' here is not the category bar.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-food-trucks-in-austin",
+      "query": "food trucks in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "fast_food"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "'food truck' is not a field. The 10 Austin fast_food places are the nearest category; scored by filter precision."
+    },
+    {
+      "id": "m2-bars-in-austin",
+      "query": "bars in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3825447599",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3353487729",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1481721326"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Austin places with category bar: Hacienda Bar, Saturn, Shiner's Saloon.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-vegan-food-in-austin",
+      "query": "vegan food in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin"
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710"],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Vegan Nom: vegan only in its name; no Austin place carries a vegan cuisine or diet field.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bakeries-in-funchal",
+      "query": "bakeries in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bakery"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4648482791",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4183148414",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3884742383",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10958561090",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10912591292"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3887477219"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Funchal places with category bakery: A Confeitaria, A Confeitaria Coffee & Bakery (listed 4 times; any one counts), Penha d'Aguia Ajuda - Coffee Shop.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-portuguese-restaurant-funchal",
+      "query": "portuguese restaurant funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "portuguese"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12397550161"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Corner 205 International Restaurant, cuisine portuguese. One other Funchal place is tagged regional, which may or may not mean Portuguese food.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-ramen-in-funchal",
+      "query": "ramen in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "cuisine": "ramen"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Kirita, cuisine ramen.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bars-open-late-in-funchal",
+      "query": "bars open late in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4319235351",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3997675690"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Of the four Funchal bars, these stay open to midnight or later by their opening-hours: Barreirinha Bar Café, A casa da Levada. 'late' needs the opening-hours field read.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-in-los-angeles",
+      "query": "coffee in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "38 Los Angeles places have category cafe; scored by filter precision."
+    },
+    {
+      "id": "m2-tacos-in-la",
+      "query": "tacos in LA",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "mexican"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12300477932",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14185211870",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14046319117",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14042122755",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13606011127"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "'LA' is Los Angeles. The Mexican places there: Highland Tamalezzz, Tacos Garcia, La Herencia Estilo DF, La Sandunga Oaxacan Cuisine, El Guero Food Truck.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-korean-food-los-angeles",
+      "query": "korean food los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "korean"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13571508438",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10746685299"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with cuisine korean: M Spoon, Shiku.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-cambodian-food-in-los-angeles",
+      "query": "cambodian food in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "cambodian"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14086099008",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13529931386",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13529930597",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13529832233"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with cuisine cambodian: Kreung LA (listed 4 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-farms-near-los-angeles",
+      "query": "farms near los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "category": "farm"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14059053383",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13634330729",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13625465385",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13566364107"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The places with category farm and locality Los Angeles: Go Go Grocery Markets, Grow & Go Co, Imani Gardens, Huaraches Jr. 'near' asks for a radius; farms outside the city line would also be fair.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bubble-tea-in-los-angeles",
+      "query": "bubble tea in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13888219350",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13352030341"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with cuisine bubble_tea: Sugar Cafe & Boba, Boba Zzing.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-wine-shop-in-los-angeles",
+      "query": "wine shop in los angeles",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Los Angeles",
+          "property": {
+            "category": "wine"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13953615522",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13953613814",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13811770831"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Los Angeles places with category wine, which is how wine shops are tagged: Wine Stop DTLA, Wine Stop Xpress ECPK, Wine Stop SVLK.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pizza-in-lugano",
+      "query": "pizza in lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-373417055",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-367036024",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1371473059",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12595499445",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10781766897"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Lugano places with cuisine pizza: Commercio, Argentino, Cantinone, Ristorante Fresco, Staglio.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-burger-lugano",
+      "query": "burger lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "cuisine": "burger"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-367036024",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-326308370",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12925918990"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Lugano places with cuisine burger: Argentino, McDonald's, Fully Burgers and Fries.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-bars-in-lugano",
+      "query": "bars in lugano",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "bar"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4750882924",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3760350634",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10887467066",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10596226066",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10240861672",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10218830612",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10004485317"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Lugano places with category bar: Sass Café Vineria, Kream, The Market Lugano, Class Café, El Cid, Shaker, La Dispensa.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-pupusas-in-san-salvador",
+      "query": "pupusas in san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador"
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "No San Salvador place says pupusas in its name or cuisine (checked 2026-10-24); the pupuserías are in Berlín, Usulután (m2-pupusas-in-el-salvador)."
+    },
+    {
+      "id": "m2-coffee-in-san-salvador",
+      "query": "coffee in san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11345131810",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9291402617",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11363024905"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5427815650",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12290079484",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11333485686",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10130944937"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Salvador places with category cafe: Sprezzatura Coffee Stand, Starbucks (listed 2 times; any one counts), Café Fulanos, El Boquerón Coffee Shop, Viva Espresso, Juan Valdez Café.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-fried-chicken-san-salvador",
+      "query": "fried chicken san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "cuisine": "chicken"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11601181473",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-776388874",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-399509369",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-396795805",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-396763278",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4023863439"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Salvador places with cuisine chicken: El Xolo Maíz, Pollo Campestre, KFC, Don Pollo, Pollo Campero (listed 2 times; any one counts). 'fried' is not stored.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-seafood-restaurant-san-salvador",
+      "query": "seafood restaurant san salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "cuisine": "seafood"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11601181473",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10965676041"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "El Xolo Maíz, Honolulu Seafood & Market: cuisine seafood or fish.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-near-me",
+      "query": "coffee near me",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Needs the reader's location. Scored by category and filter precision only."
+    },
+    {
+      "id": "m2-pizza-open-now-near-me",
+      "query": "pizza open now near me",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Needs the reader's location and the time, read against opening-hours. Scored by category and filter precision only."
+    },
+    {
+      "id": "m2-restaurants-in-el-salvador",
+      "query": "restaurants in el salvador",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "country": "SV",
+            "category": "restaurant"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "El Salvador is stored as the country code SV, not a locality, so the place is a property here. 187 restaurants there; scored by filter precision."
+    },
+    {
+      "id": "m2-cafes-in-switzerland",
+      "query": "cafes in switzerland",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "country": "CH",
+            "category": "cafe"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "Switzerland is stored as the country code CH, so the place is a property here. 13 cafes there; scored by filter precision."
+    },
+    {
+      "id": "m2-bbq-in-houston",
+      "query": "bbq in houston",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Houston",
+          "property": {
+            "cuisine": "barbecue"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13332954259",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13332950656",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13332950575"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "EZ Backyard Bar B Q (listed 3 times; any one counts), cuisine barbecue; its name spells it Bar B Q.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-tacos-in-san-diego",
+      "query": "tacos in san diego",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Diego",
+          "property": {
+            "cuisine": "tacos"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13368213933",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6582367070",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13376986759",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13328811390"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The San Diego places with cuisine tacos or tacos in their name: The Craft Taco, El Charro Taco Shop, The Craft Taco at The Nat, Tacos El Vaquero.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-ramen-in-seattle",
+      "query": "ramen in seattle",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Seattle",
+          "property": {
+            "cuisine": "ramen"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4112849388",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2135541966"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "Ooink Ramen (listed 2 times; any one counts), cuisine ramen.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-brunch-in-omaha",
+      "query": "brunch in omaha",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Omaha",
+          "property": {
+            "cuisine": "breakfast"
+          }
+        },
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13316789500",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13316760985"
+          ]
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Brunch Box (listed 2 times; any one counts): brunch in its name, breakfast in its cuisine.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-coffee-in-charlotte",
+      "query": "coffee in charlotte",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Charlotte",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13571630550",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9550362664"
+        ],
+        "absent_categories": ["people"]
+      },
+      "notes": "The Charlotte places with category cafe: Green Cafe, Mugs Coffee.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-best-pizza-in-austin",
+      "query": "best pizza in austin",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "pizza"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13309320506"],
+        "absent_categories": ["people"]
+      },
+      "notes": "Rockin' Rolls is the one Austin place with cuisine pizza. 'best' asks for a ranking the list does not give yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-top-rated-restaurants-in-funchal",
+      "query": "top rated restaurants in funchal",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        },
+        "absent_categories": ["people"]
+      },
+      "notes": "'top rated' asks for a ranking by the reader's people. 24 Funchal restaurants; scored by filter precision."
+    },
+    {
+      "id": "m2-bitcoin-coffee-shop",
+      "query": "bitcoin coffee shop",
+      "class": "recommendation",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Every place on the list takes bitcoin, so 'bitcoin' narrows nothing; a bitcoin-focused coffee account would be a fair People result. Scored by category."
+    },
+    {
+      "id": "m2-agent-bubble-tea-san-francisco",
+      "query": {
+        "categories": ["places"],
+        "place": "San Francisco",
+        "property": {
+          "cuisine": "bubble_tea"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "cuisine": "bubble_tea"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9657095566",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9462343653",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9459210057",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4925135942",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3674255658",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125736295",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125283496",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12101566691"
+          ],
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5893605745",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14129575583",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12983552129",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12794766076",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10560594652"
+        ]
+      },
+      "notes": "The structured form of 'bubble tea in sf': Little Sweet at K-Box, Little Sweet (listed 7 times; any one counts), Kiss of Matcha, Little Sweet Go, Nameless Tea & Coffee, District Tea, Turn Café x Little Sweet. Not run by the baseline yet.",
+      "run": false,
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-agent-coffee-nashville",
+      "query": {
+        "categories": ["places"],
+        "place": "Nashville",
+        "property": {
+          "category": "cafe"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13712525554",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294970089",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294968879",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294964180",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294958503"
+          ]
+        ]
+      },
+      "notes": "The structured form of 'coffee in nashville': Packhouse Coffee Company, Prickly Pear Coffee Co. (listed 4 times; any one counts). Not run by the baseline yet.",
+      "run": false,
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-agent-middle-eastern-austin",
+      "query": {
+        "categories": ["places"],
+        "place": "Austin",
+        "property": {
+          "cuisine": "middle_eastern"
+        },
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "cuisine": "middle_eastern"
+          }
+        },
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13814202487",
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287685",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298249811",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287162"
+          ]
+        ]
+      },
+      "notes": "The structured form of 'middle eastern food austin': Reem's, Halal Bros (listed 3 times; any one counts). Not run by the baseline yet.",
+      "run": false,
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m2-agent-mexican-chicago-my-network",
+      "query": {
+        "categories": ["places"],
+        "place": "Chicago",
+        "property": {
+          "cuisine": "mexican"
+        },
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago",
+          "property": {
+            "cuisine": "mexican"
+          }
+        }
+      },
+      "notes": "Mexican places in Chicago that the reader's people go to: the shape of the M2 demo's 'from your people'. The answer depends on the reader's network, so no id is fixed. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m2-agent-bars-funchal-open-now",
+      "query": {
+        "categories": ["places"],
+        "place": "Funchal",
+        "property": {
+          "category": "bar"
+        },
+        "open": "now",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M2",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "Funchal bars open at the moment of asking, read against opening-hours. The answer depends on the time, so no id is fixed. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m3-whats-on-this-weekend-in-chicago",
+      "query": "what's on this weekend in chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "this weekend"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6a7e1d3c4786851c33ad3d0c",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6aa3ea2f70b53a440355a2f0"
+        ]
+      },
+      "notes": "Staging demo seed. Chicago Bird Alliance outings on Saturday 24 and Sunday 25 October 2026 (Wooded Island; Montrose Point).",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-jazz-in-chicago",
+      "query": "jazz in chicago",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        }
+      },
+      "notes": "Staging demo seed. No upcoming jazz event in Chicago was found on the relay (2026-10-22). The one upcoming event carrying both words is a post-punk gig in Berlin ('EDGING (post-punk, chicago) + JAZZ'): it should not lead.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-bitcoin-meetup-chicago",
+      "query": "bitcoin meetup chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ab4764bcc13dd78886ebb8d",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa7475b28a99c6886fd9508"
+        ]
+      },
+      "notes": "Upcoming Chicago bitcoin meetups: Bitcoin and Coffee at Fork & Coin (6 Nov) and the Socratic Seminar (12 Nov). Neither title says 'meetup'.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-bird-walk-chicago",
+      "query": "bird walk chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6aa3ea2f70b53a440355a2f0",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6a7e1d3c4786851c33ad3d0c"
+        ]
+      },
+      "notes": "Fall Bird Walk at Montrose Point (25 Oct) and the Wooded Island Birding Outing (24 Oct).",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-events-at-fork-and-coin",
+      "query": "events at fork & coin",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ab4764bcc13dd78886ebb8d",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ac44836dd8c81992dcc4234"
+        ]
+      },
+      "notes": "Bitcoin and Coffee (6 Nov, location names Fork & Coin) and the B.O.B. Social (19 Nov, at its street address only).",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-halloween-party-bitcoin",
+      "query": "halloween party bitcoin",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        },
+        "results": ["31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad7ba68ea793f2e2fd2066e"]
+      },
+      "notes": "Bitcoin & Beers Halloween Party, Elmhurst IL, 28 Oct.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-bitcoin-meetup-this-week",
+      "query": "bitcoin meetup this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this week"
+        }
+      },
+      "notes": "No place given; any bitcoin meetup in the next seven days is right. Scored by the time filter.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-events-in-funchal",
+      "query": "events in funchal",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615ceb9a1c1407de84bee",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-24",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-24"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a932d5cb7fec64b1dbe50b8",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:2ba908a0-bf83-42d5-9dbc-ae84f6c2771f",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:02ee03d7-c124-4a8a-a605-ef7ec985e47d",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:b1285bc9-3a01-4350-8380-b0fb863f04b2"
+          ]
+        ]
+      },
+      "notes": "BitcoinWalk Madeira (24 Oct) and the FREE Madeira Bitcoin Meetup (28 Oct). Each is published by three or four calendars; any copy counts.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-concerts-in-amsterdam",
+      "query": "concerts in amsterdam",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Amsterdam",
+          "time": "upcoming"
+        },
+        "results": ["31923:a828c6fa1e85bcbf6a41c443965d4646eadce9675d2f12ec2a9fab7ed1e4e241:korn-architects-tmfamq"]
+      },
+      "notes": "Korn at the Ziggo Dome, 8 Nov. 'concert' is not in the event's text.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-live-music-tonight-in-austin",
+      "query": "live music tonight in austin",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "tonight"
+        }
+      },
+      "notes": "An Austin venue publishes nightly shows (tagged livemusic); which one is 'tonight' moves with the clock, so no id. Scored by place and time.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-things-to-do-in-new-york-this-weekend",
+      "query": "things to do in new york this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this weekend"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ac79ab5fb17f172dac02762",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ac6ec0cc931800bb1ec9628"
+          ]
+        ]
+      },
+      "notes": "Bitcoin with Coffee #15 at Solid State Coffee on Saturday, published twice under two addresses; either counts.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-socratic-seminar-chicago",
+      "query": "socratic seminar chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa7475b28a99c6886fd9508",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6acc315e6d6a8a7ca4d02667"
+        ]
+      },
+      "notes": "The monthly Chicago Socratic Seminar: 12 Nov and 10 Dec.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-bitcoin-conference",
+      "query": "bitcoin conference",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        }
+      },
+      "notes": "Plan B Forum Lugano (23 Oct), Bitcoin Amsterdam (5 Nov), Bitcoin Korea (7 Nov) are all upcoming; any is right. Scored by the time filter.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-bitcoin-events-in-new-york",
+      "query": "bitcoin events in new york",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "upcoming"
+        },
+        "results": ["31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ac269e6b74263160b3b54eb"]
+      },
+      "notes": "Proof of Print Preview Night at Fat Cat Fab Lab, 16 Nov.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-birding-events-this-weekend",
+      "query": "birding events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "Birding walks this weekend in Chicago and Austin; any is right. Scored by the time filter.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-meetups-in-austin",
+      "query": "meetups in austin",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad90b7645e3809c3867783d",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ab2288cffe5d2291e54d2b3"
+        ]
+      },
+      "notes": "Bitcoin & Coffee at The Meteor and Open Hackerspace Day, both 27 Oct.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m3-agent-chicago-this-weekend",
+      "query": {
+        "categories": ["events"],
+        "place": "Chicago",
+        "time": "this weekend",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "this weekend"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6a7e1d3c4786851c33ad3d0c",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6aa3ea2f70b53a440355a2f0"
+        ]
+      },
+      "notes": "The structured form of 'what's on this weekend in chicago'. Not run by the baseline yet.",
+      "as_of": "2026-10-22",
+      "run": false
+    },
+    {
+      "id": "m3-agent-funchal-next-7-days",
+      "query": {
+        "categories": ["events"],
+        "place": "Funchal",
+        "time": "next 7 days",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "next 7 days"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615ceb9a1c1407de84bee",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-24",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-24"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a932d5cb7fec64b1dbe50b8",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:2ba908a0-bf83-42d5-9dbc-ae84f6c2771f",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:02ee03d7-c124-4a8a-a605-ef7ec985e47d",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:b1285bc9-3a01-4350-8380-b0fb863f04b2"
+          ]
+        ]
+      },
+      "notes": "Events in Funchal in the coming week. Not run by the baseline yet.",
+      "as_of": "2026-10-22",
+      "run": false
+    },
+    {
+      "id": "m3-whats-on-in-san-francisco-this-weekend",
+      "query": "what's on in san francisco this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this weekend"
+        }
+      },
+      "notes": "15 events in San Francisco start this weekend, most of them Luma items in the Event Index; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-hackathons-in-sf-this-weekend",
+      "query": "hackathons in sf this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this weekend"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3deu6jgkds3rtbvqljzbeclm6ftexywh",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:y6zui5cjsutcwsg2nnvsm2xjlgrotjep",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:4fttjsb5fkjuufhepefnbks2ge4bgsgx",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fymdzzmyuqhskvsbfpggzaowjrd7tmtk",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kcyoynyplshbbxmmyzwx2vikc3ah3ko6"
+        ]
+      },
+      "notes": "'sf' is San Francisco. This weekend's hackathons there: Hack for Social Impact (24 Oct), Agent Builders Hackathon (24 Oct), Lovable x Girls into VC Buildathon (24 Oct), Gemini 4 Argon SF Hackathon (25 Oct), Dell x NVIDIA AI Hackathon, San Francisco (25 Oct). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bird-walks-near-san-francisco-this-month",
+      "query": "bird walks near san francisco this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this month"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20168",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20193",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20178",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:golden-gate-bird-alliance:20173"
+        ]
+      },
+      "notes": "Bay Area birding outings in the next 30 days: Birds of MLK Jr Regional Shoreline (Arrowhead Marsh) (25 Oct), Albany Mudflats, McLaughlin Shoreline State Park (25 Oct), Corica Park (Alameda) (26 Oct), Lake Merritt and Lakeside Park (Oakland) (28 Oct). 'near' matters: some are across the bay.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitcoin-meetup-san-francisco",
+      "query": "bitcoin meetup san francisco",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "upcoming"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad66901d9f0200397ed4c81",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ac7e87971f4c3c297bf68e8",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a5492ab34af2289c7239b84",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9f09f1bf4db1cbbc7cee69"
+          ]
+        ]
+      },
+      "notes": "Upcoming San Francisco events about bitcoin: Bitcoin for Beginners (25 Oct), Peninsula - Bitcoin Meetup (28 Oct), Golden Gate Bitcoin Conference (6 Nov, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-events-in-sf-today",
+      "query": "events in sf today",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "today"
+        }
+      },
+      "notes": "Which events are 'today' moves with the clock, so no id is fixed. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-book-fair-san-francisco",
+      "query": "book fair san francisco",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kvmmdhmhmwkav6i4vde47t2ugpl4qvtx"
+        ]
+      },
+      "notes": "BABF Halloween Book Fair (24 Oct). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-nashville-events-this-week",
+      "query": "nashville events this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this week"
+        },
+        "results": [
+          "31923:79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798:october-2026-executive-committee-meeting-2026-10-27",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a92d80955311772876db6c9",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3ugmqcwizchjj2wkffvubsvpvh6ertiy",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a95cf6b7f73cd0584e62fb4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:w4hzd3u5zolm25vtgamorkaya5ujdxyb"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9720eaafa63693cd2868c4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:5xclqgsuqli2kc526l6mgp3v442upctx"
+          ]
+        ]
+      },
+      "notes": "Every Nashville event in the next seven days: October 2026 Executive Committee Meeting (27 Oct), Custody & Treasury Summit 2026 (28 Oct), She Runs the World Tour x Tennessee State (28 Oct), Philosophy for Freedom In the Age of AI (29 Oct, published 2 times; any one counts), Agents Anonymous (31 Oct, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitcoin-events-in-nashville-this-month",
+      "query": "bitcoin events in nashville this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this month"
+        },
+        "results": [
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a2404f2b4c462534a67138c",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa4a44ebf4db1cbbc845f81",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ojchvcv36ucoep46bam2pui773qflwg3"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa7474f28a99c6886fd93c7",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kn6sns3s3wb3xn5mfxunmnvll7byaeo7"
+          ]
+        ]
+      },
+      "notes": "Nashville events about bitcoin in the next 30 days: Bitcoin Veterans Summit 2026 (9 Nov), NashBitDevs Socratic Seminar #49 (10 Nov, published 2 times; any one counts), Park 101: Intro to Bitcoin (12 Nov, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-things-to-do-in-nashville-this-weekend",
+      "query": "things to do in nashville this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this weekend"
+        }
+      },
+      "notes": "No Nashville event starts this weekend (24 to 25 October, checked 2026-10-24): an empty answer is the right one, and the page should say so rather than fill it.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-coffee-crawl-nashville",
+      "query": "coffee crawl nashville",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ezpfijjsbwqap2odx6c7auoav5jfewad"
+        ]
+      },
+      "notes": "nashville: the creative coffee crawl (4 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-book-club-nyc-this-weekend",
+      "query": "book club nyc this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this weekend"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:tiamlrwidy5pnza4eovpnlh3kd2gg5em",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:bcw7kk64fm344szrffwn2z356xnh563y"
+        ]
+      },
+      "notes": "'nyc' is New York. Reading groups this weekend: Reading Club: Confucius's Analects - How to be a Better Person (25 Oct), Reading Rhythms Upper West Side: October 25th (25 Oct). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-nyc-events-this-month",
+      "query": "nyc events this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this month"
+        }
+      },
+      "notes": "219 New York events in the next 30 days; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-free-events-in-new-york",
+      "query": "free events in new york",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "upcoming"
+        }
+      },
+      "notes": "No price field on events, so 'free' narrows nothing a filter can check; many titles and descriptions say it. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-film-screenings-in-new-york-this-month",
+      "query": "film screenings in new york this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this month"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:wuw4ep2ughajofeyrudguxiajozewwpj",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:sedq6n5wnuw4zzrgwhfprk4r63peqiqt",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:qed447gdkgkf62mybv3k2f7zszl4qgmu"
+        ]
+      },
+      "notes": "New York film events in the next 30 days: Future Reality AI Film Festival (NYC)-Film × Advertising × Creative Technology Screenings · Awards · Industry Leaders Networking (25 Oct), ANNY Screenings at the Queens Public Library in Ridgewood! (29 Oct), The Welcome Table: Film Screening, Dinner, & Party (20 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bird-walks-in-austin-this-weekend",
+      "query": "bird walks in austin this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "this weekend"
+        },
+        "results": [
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:30807",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:30479",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:30484",
+          "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:travis-audubon:27437"
+        ]
+      },
+      "notes": "Austin birding this weekend: Young Adult Bird Walk at Pease Park (24 Oct), Let's Go Birding Together (LGBT) Walk (25 Oct), Filmmaking for Birds Workshop (25 Oct), Beginners Bird Walk at Commons Ford (25 Oct).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-austin-events-next-30-days",
+      "query": "austin events next 30 days",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "next 30 days"
+        }
+      },
+      "notes": "90 Austin events in the next 30 days, more than half of them birding outings; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-austin-events-today",
+      "query": "austin events today",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "today"
+        }
+      },
+      "notes": "Which events are 'today' moves with the clock, so no id is fixed. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitcoin-walk-funchal",
+      "query": "bitcoin walk funchal",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615deb9a1c1407de84c40",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-31",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-31"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615edb9a1c1407de84c92",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-07",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-07"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615fab9a1c1407de84cd2",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-14",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-14"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61606b9a1c1407de84d16",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-21",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-21"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61615b9a1c1407de84d5a",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-28",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-28"
+          ],
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-05",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-12",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-19"
+        ]
+      },
+      "notes": "The weekly BitcoinWalk Madeira: BitcoinWalk Madeira (31 Oct, published 3 times; any one counts), BitcoinWalk Madeira (7 Nov, published 3 times; any one counts), BitcoinWalk Madeira (14 Nov, published 3 times; any one counts), BitcoinWalk Madeira (21 Nov, published 3 times; any one counts), BitcoinWalk Madeira (28 Nov, published 3 times; any one counts), BitcoinWalk Madeira (5 Dec), BitcoinWalk Madeira (12 Dec), BitcoinWalk Madeira (19 Dec). Typed as two words, titled as one.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-funchal-events-this-weekend",
+      "query": "funchal events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "this weekend"
+        }
+      },
+      "notes": "No Funchal event starts this weekend (24 to 25 October, checked 2026-10-24): an empty answer is the right one.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-madeira-bitcoin-meetup",
+      "query": "madeira bitcoin meetup",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a932d5cb7fec64b1dbe50b8",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:02ee03d7-c124-4a8a-a605-ef7ec985e47d",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:2ba908a0-bf83-42d5-9dbc-ae84f6c2771f",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:b1285bc9-3a01-4350-8380-b0fb863f04b2"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ab81767b1f1ba9a191de638",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:6ad27a42-e335-4cda-8f90-3773c191927a",
+            "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:8a110218-a7cf-438e-a1c9-c1510a289a6c"
+          ],
+          "31923:cad00c48a8c689d32d7c770b90221124d6a68bbc6b1d31c2039a84d5ab90cf7b:d774274a-7b2d-4e74-bcda-382282fbb375"
+        ]
+      },
+      "notes": "FREE Madeira Bitcoin Meetup (28 Oct, published 4 times; any one counts), FREE Madeira Bitcoin Meetup (25 Nov, published 3 times; any one counts), FREE Madeira Bitcoin Meetup (30 Dec). Madeira is the island, Funchal the city the events' places name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-halloween-parade-chicago",
+      "query": "halloween parade chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ubtq2ld4nkeyp6fzvcmq54efxkh64kgd",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:74vt7bac7otcek7mlbpepw4kn2qyjw2b"
+        ]
+      },
+      "notes": "Chicago's Halloween parades: Arts in the Dark Parade (24 Oct), Haunted Halsted Parade (31 Oct). Neither title says Halloween. Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-chicago-events-tonight",
+      "query": "chicago events tonight",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "tonight"
+        }
+      },
+      "notes": "Which events are 'tonight' moves with the clock, so no id is fixed. Scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-run-club-chicago",
+      "query": "run club chicago",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Chicago",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ql2wkyj5p5yf4cuc3e3hp6wgubxxhusk"
+        ]
+      },
+      "notes": "Chicago Sprint Club (15 Nov): a sprint club, not a run club by name. Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-berlin-events-this-weekend",
+      "query": "berlin events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Berlin",
+          "time": "this weekend"
+        }
+      },
+      "notes": "15 Berlin events start this weekend, from several feeds; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-eventos-en-madrid-este-fin-de-semana",
+      "query": "eventos en madrid este fin de semana",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Madrid",
+          "time": "this weekend"
+        }
+      },
+      "notes": "Spanish for 'events in Madrid this weekend'. 14 Madrid events start this weekend; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-lisbon-meetups-next-7-days",
+      "query": "lisbon meetups next 7 days",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Lisbon",
+          "time": "next 7 days"
+        }
+      },
+      "notes": "26 Lisbon events in the next seven days, nearly all Luma items in the Event Index; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-mexico-city-events-this-month",
+      "query": "mexico city events this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Mexico City",
+          "time": "this month"
+        }
+      },
+      "notes": "134 Mexico City events in the next 30 days; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-seattle-tech-meetups-this-week",
+      "query": "seattle tech meetups this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Seattle",
+          "time": "this week"
+        }
+      },
+      "notes": "112 Seattle events in the next seven days, nearly all Luma items in the Event Index; 'tech' is not a field, so scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-london-bitcoin-walk",
+      "query": "london bitcoin walk",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "London",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-10-31",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615dcb9a1c1407de84c37"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-07",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615ecb9a1c1407de84c89"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-14",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615f8b9a1c1407de84cc9"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-21",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61605b9a1c1407de84d0d"
+          ],
+          [
+            "31923:6534806c21772d8b35daf5570ebc10bf1540360ad792c46e0f48ea3a9b2de65f:ca2f9905-fb4d-4948-a12c-c792b28ec7c8:2026-11-28",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61613b9a1c1407de84d51"
+          ]
+        ]
+      },
+      "notes": "Upcoming BitcoinWalk London: BitcoinWalk London (31 Oct, published 2 times; any one counts), BitcoinWalk London (7 Nov, published 2 times; any one counts), BitcoinWalk London (14 Nov, published 2 times; any one counts), BitcoinWalk London (21 Nov, published 2 times; any one counts), BitcoinWalk London (28 Nov, published 2 times; any one counts).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-skating-in-london",
+      "query": "skating in london",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "London",
+          "time": "upcoming"
+        }
+      },
+      "notes": "19 upcoming London skating sessions, tagged skative; scored by place and time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-art-in-lisbon-this-month",
+      "query": "art in lisbon this month",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Lisbon",
+          "time": "this month"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:nzluokbig2ptltkjjuafl7gtbcnrqlmg"
+        ]
+      },
+      "notes": "Lisbon art events in the next 30 days: Tech Art Lisboa - PTW26 Edition (11 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-events-today",
+      "query": "events today",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "today"
+        }
+      },
+      "notes": "No place: anything on today anywhere is right, which the reader's location would narrow. Scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-nostr-meetups",
+      "query": "nostr meetups",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        }
+      },
+      "notes": "12 upcoming events about nostr, anywhere; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bitdevs-this-month",
+      "query": "bitdevs this month",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this month"
+        }
+      },
+      "notes": "9 BitDevs meetups in the next 30 days, in several cities; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-bird-walks-this-week",
+      "query": "bird walks this week",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this week"
+        }
+      },
+      "notes": "23 birding events in the next seven days, in several cities; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-halloween-events-this-weekend",
+      "query": "halloween events this weekend",
+      "class": "recommendation",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "10 Halloween events start this weekend across cities; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-hackathons-next-30-days",
+      "query": "hackathons next 30 days",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "next 30 days"
+        }
+      },
+      "notes": "81 hackathons in the next 30 days, anywhere; scored by time.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-climate-events-in-new-york",
+      "query": "climate events in new york",
+      "class": "exploratory",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "upcoming"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:zrfjjl5ubu5gwaym5axridt5knmw3dhu",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:j76zw43ytmfj5lmmif52ql2wvffz56i6",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ztpz5e4qyoik6nzreihdijqifqiahsgx"
+        ]
+      },
+      "notes": "Upcoming New York events about climate: Climate Cafe with CUNYverse at the Climate Imaginarium (24 Oct), What's in the Cards? A Creative Climate Tarot Experience (25 Oct), Climate Cafe + Ribbon Upcycling Workshop (21 Nov). Event Index items only: the Top page's events band does not ask for them yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m3-agent-san-francisco-hackathons-this-weekend",
+      "query": {
+        "categories": ["events"],
+        "place": "San Francisco",
+        "time": "this weekend",
+        "words": ["hackathon"]
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "this weekend"
+        },
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3deu6jgkds3rtbvqljzbeclm6ftexywh",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:y6zui5cjsutcwsg2nnvsm2xjlgrotjep",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:4fttjsb5fkjuufhepefnbks2ge4bgsgx",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fymdzzmyuqhskvsbfpggzaowjrd7tmtk",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kcyoynyplshbbxmmyzwx2vikc3ah3ko6"
+        ]
+      },
+      "notes": "The structured form of 'hackathons in sf this weekend': Hack for Social Impact (24 Oct), Agent Builders Hackathon (24 Oct), Lovable x Girls into VC Buildathon (24 Oct), Gemini 4 Argon SF Hackathon (25 Oct), Dell x NVIDIA AI Hackathon, San Francisco (25 Oct). Event Index items only: the Top page's events band does not ask for them yet. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-nashville-this-week",
+      "query": {
+        "categories": ["events"],
+        "place": "Nashville",
+        "time": "this week",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Nashville",
+          "time": "this week"
+        },
+        "results": [
+          "31923:79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798:october-2026-executive-committee-meeting-2026-10-27",
+          "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a92d80955311772876db6c9",
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3ugmqcwizchjj2wkffvubsvpvh6ertiy",
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a95cf6b7f73cd0584e62fb4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:w4hzd3u5zolm25vtgamorkaya5ujdxyb"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9720eaafa63693cd2868c4",
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:5xclqgsuqli2kc526l6mgp3v442upctx"
+          ]
+        ]
+      },
+      "notes": "The structured form of 'nashville events this week': October 2026 Executive Committee Meeting (27 Oct), Custody & Treasury Summit 2026 (28 Oct), She Runs the World Tour x Tennessee State (28 Oct), Philosophy for Freedom In the Age of AI (29 Oct, published 2 times; any one counts), Agents Anonymous (31 Oct, published 2 times; any one counts). Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-funchal-bitcoin-walk",
+      "query": {
+        "categories": ["events"],
+        "place": "Funchal",
+        "time": "upcoming",
+        "words": ["bitcoin walk"]
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Funchal",
+          "time": "upcoming"
+        },
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615deb9a1c1407de84c40",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-31",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-31"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615edb9a1c1407de84c92",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-07",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-07"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615fab9a1c1407de84cd2",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-14",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-14"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61606b9a1c1407de84d16",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-21",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-21"
+          ],
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad61615b9a1c1407de84d5a",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-28",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-28"
+          ],
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-05",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-12",
+          "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-19"
+        ]
+      },
+      "notes": "The structured form of 'bitcoin walk funchal': BitcoinWalk Madeira (31 Oct, published 3 times; any one counts), BitcoinWalk Madeira (7 Nov, published 3 times; any one counts), BitcoinWalk Madeira (14 Nov, published 3 times; any one counts), BitcoinWalk Madeira (21 Nov, published 3 times; any one counts), BitcoinWalk Madeira (28 Nov, published 3 times; any one counts), BitcoinWalk Madeira (5 Dec), BitcoinWalk Madeira (12 Dec), BitcoinWalk Madeira (19 Dec). Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-new-york-this-weekend-my-network",
+      "query": {
+        "categories": ["events"],
+        "place": "New York",
+        "time": "this weekend",
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "New York",
+          "time": "this weekend"
+        }
+      },
+      "notes": "New York events this weekend that the reader's people are going to. The answer depends on the reader's network, so no id is fixed. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m3-agent-austin-today",
+      "query": {
+        "categories": ["events"],
+        "place": "Austin",
+        "time": "today",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M3",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Austin",
+          "time": "today"
+        }
+      },
+      "notes": "The structured form of 'austin events today'. Which events are today moves with the clock, so no id is fixed. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m1-fork-and-coin",
+      "query": "fork & coin",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places", "people"],
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11501636224",
+          "1800d3d0176543c517b7658de667df3fb457615ae6e3976dd257417781ee606f"
+        ]
+      },
+      "notes": "Staging demo seed. The place on Food and Drink Places and the venue's own account (forkandcoin)."
+    },
+    {
+      "id": "m1-fork-and-coin-hours",
+      "query": "fork & coin hours",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11501636224"]
+      },
+      "notes": "Staging demo seed. The answer is the place card, which shows its opening hours (We-Fr 17-21, Sa 11-21, Su 11-15 as listed)."
+    },
+    {
+      "id": "m1-jack",
+      "query": "jack",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"]
+      },
+      "notes": "jack@primal.net."
+    },
+    {
+      "id": "m1-fiatjaf",
+      "query": "fiatjaf",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d"]
+      },
+      "notes": "_@fiatjaf.com."
+    },
+    {
+      "id": "m1-odell",
+      "query": "odell",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"]
+      },
+      "notes": "odell@primal.net."
+    },
+    {
+      "id": "m1-vitor-pamplona",
+      "query": "vitor pamplona",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c"]
+      },
+      "notes": "_@vitorpamplona.com."
+    },
+    {
+      "id": "m1-lyn-alden",
+      "query": "lyn alden",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["eab0e756d32b80bcd464f3d844b8040303075a13eabc3599a762c9ac7ab91f4f"]
+      },
+      "notes": "lyn@primal.net."
+    },
+    {
+      "id": "m1-derek-ross",
+      "query": "derek ross",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["3f770d65d3a764a9c5cb503ae123e62ec7598ad035d836e2a810f3877a745b24"]
+      },
+      "notes": "derekross@grownostr.org."
+    },
+    {
+      "id": "m1-edward-snowden",
+      "query": "edward snowden",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["84dee6e676e5bb67b4ad4e042cf70cbd8681155db535942fcc6a0533858a7240"]
+      },
+      "notes": "Snowden@Nostr-Check.com."
+    },
+    {
+      "id": "m1-chicago-bitcoin-collective",
+      "query": "chicago bitcoin collective",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["8bcba26f8f648b834c4c60f1df55acbbf4df451434d7d600b9b9487c8aa3ddb1"]
+      },
+      "notes": "The account with the about text and the Fork & Coin link (8bcba26f). A second profile by the same name (393615b2) has no about."
+    },
+    {
+      "id": "m1-nosfabrica",
+      "query": "nosfabrica",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a"]
+      },
+      "notes": "The house account."
+    },
+    {
+      "id": "m1-pubkey-bar",
+      "query": "pubkey bar",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": [
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405",
+          "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2419110699"
+        ]
+      },
+      "notes": "Both PubKey bars on the list: New York and Washington DC."
+    },
+    {
+      "id": "m1-piranesi",
+      "query": "piranesi",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol20893680w"]
+      },
+      "notes": "Piranesi by Susanna Clarke on the Books list (Unbnd librarian)."
+    },
+    {
+      "id": "m1-dune-frank-herbert",
+      "query": "dune frank herbert",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol893415w"]
+      },
+      "notes": "Dune by Frank Herbert. Four other books titled Dune are on the list (Brian Herbert, Kevin J. Anderson)."
+    },
+    {
+      "id": "m1-the-bitcoin-standard",
+      "query": "the bitcoin standard",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol20984004w"]
+      },
+      "notes": "Saifedean Ammous."
+    },
+    {
+      "id": "m1-the-hobbit",
+      "query": "the hobbit",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27482w"]
+      },
+      "notes": "J.R.R. Tolkien's; three other books share the title."
+    },
+    {
+      "id": "m1-amethyst",
+      "query": "amethyst",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:aa9047325603dacd4f8142093567973566de3b1e20a89557b728c3be4c6a844b:com.vitorpamplona.amethyst"]
+      },
+      "notes": "The Amethyst listing on Zap Store. The Top page has no Apps section, so this is a miss by construction today."
+    },
+    {
+      "id": "m1-github-vcavallo",
+      "query": "github vcavallo",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["github"],
+        "results": ["39999:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:vcavallo-1i6dn0p"]
+      },
+      "notes": "The example in lib/listSearch: vcavallo among GitHub Accounts."
+    },
+    {
+      "id": "m1-plan-b-forum-lugano",
+      "query": "plan b forum lugano",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6903c4d97c5f69a9687847db",
+            "31923:a19aadee53bc71d25afef365067a3978ac30d5520d36ec8cc74d77a872af7359:fdacb33b-ecb7-4105-9462-6bbc13718efe",
+            "31923:83f6c8d35a3911e5d656a944dfaed914df9dbe119056a04cfbb4f3c1cdcacb5d:plan-₿-forum-1785530406012-0"
+          ]
+        ]
+      },
+      "notes": "Published as 'Plan ₿ Forum': the B is the bitcoin sign. Three calendars list the forum itself (any copy counts); the 'Run For Hal' and member-meetup listings are side events.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m1-bitcoinwalk-madeira",
+      "query": "bitcoinwalk madeira",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615ceb9a1c1407de84bee",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-24",
+            "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-24"
+          ]
+        ]
+      },
+      "notes": "The weekly walk in Funchal; the 24 Oct instance, from any of its three calendars.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m1-bitcoin-amsterdam-2026",
+      "query": "bitcoin amsterdam 2026",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad767184f9f388b967845ba",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:694d9926e0f600e8dee26c01",
+            "31923:89ff65862a39a40642b41121070a46e5506950fc2077f5d4fa99af9b45a321d9:45159488-c089-4d5f-b9e5-6d71bbf1035d",
+            "31923:a19aadee53bc71d25afef365067a3978ac30d5520d36ec8cc74d77a872af7359:06b75a18-2ad4-4ebb-87b9-1e1a376edacf",
+            "31923:a19aadee53bc71d25afef365067a3978ac30d5520d36ec8cc74d77a872af7359:e88b1406-a80d-4677-aa13-15bf5141acae"
+          ]
+        ]
+      },
+      "notes": "5 Nov 2026, SugarFactory. Five listings across four calendars; any copy counts.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m1-hodlbod",
+      "query": "hodlbod",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["97c70a44366a6535c145b333f973ea86dfdc2d7a99da618c40c64705ad98e322"]
+      },
+      "notes": "hodlbod@coracle.social, resolved at its own domain on 2026-10-24. Several profiles copy the name; this is the one the NIP-05 names.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-jb55",
+      "query": "jb55",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"]
+      },
+      "notes": "jb55@jb55.com, resolved at its own domain on 2026-10-24.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-will-casarin",
+      "query": "will casarin",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"]
+      },
+      "notes": "jb55@jb55.com, resolved at its own domain on 2026-10-24. The same account as 'jb55'. Its profile carries no real name, so the query has to know who jb55 is.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-dergigi",
+      "query": "dergigi",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["6e468422dfb74a5738702a8823b9b28168abab8655faacb6853cd0ee15deee93"]
+      },
+      "notes": "_@dergigi.com, resolved at its own domain on 2026-10-24. Its profile name is Gigi; 'dergigi' is the handle and the domain.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-pablof7z",
+      "query": "pablof7z",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52"]
+      },
+      "notes": "_@f7z.io, resolved at its own domain on 2026-10-24. Copycat profiles share the handle.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-hzrd149",
+      "query": "hzrd149",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5"]
+      },
+      "notes": "_@hzrd149.com, resolved at its own domain on 2026-10-24. Several profiles share the handle; one NIP-05 names this one.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-kieran",
+      "query": "kieran",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["63fe6318dc58583cfe16810f86dd09e18bfd76aabc24a0081ce2856f330504ed"]
+      },
+      "notes": "kieran@snort.social, resolved at its own domain on 2026-10-24. Kieran is a common name; this is the one at snort.social.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-miljan",
+      "query": "miljan",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["d61f3bc5b3eb4400efdae6169a5c17cabf3246b514361de939ce4a1a0da6ef4a"]
+      },
+      "notes": "miljan@primal.net, resolved at its own domain on 2026-10-24. Other profiles named Miljan exist; this is the one at primal.net.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-rabble",
+      "query": "rabble",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["76c71aae3a491f1d9eec47cba17e229cda4113a0bbb6e6ae1776d7643e29cafa"]
+      },
+      "notes": "rabble@nos.social, resolved at its own domain on 2026-10-24. Several profiles share the name; this is the one at nos.social.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-preston-pysh",
+      "query": "preston pysh",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["85080d3bad70ccdcd7f74c29a44f55bb85cbcd3dd0cbb957da1d215bdb931204"]
+      },
+      "notes": "preston@primal.net, resolved at its own domain on 2026-10-24. Several profiles are named Preston Pysh; the real one's profile name is just 'preston'.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-marty-bent",
+      "query": "marty bent",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["472f440f29ef996e92a186b8d320ff180c855903882e59d50de1b8bd5669301e"]
+      },
+      "notes": "marty@primal.net, resolved at its own domain on 2026-10-24. An RSS mirror and copies share the name; this is the account itself.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-damus",
+      "query": "damus",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"]
+      },
+      "notes": "_@damus.io, resolved at its own domain on 2026-10-24. The app's own account. Other profiles are named Damus too, and the Damus app is not on Zap Store (m1-damus-app).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-nvk",
+      "query": "nvk",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["e88a691e98d9987c964521dff60025f60700378a4879180dcbbb4a5027850411"]
+      },
+      "notes": "_@nvk.org, resolved at its own domain on 2026-10-24. The profile's name is just 'N', so only the handle and the domain say nvk.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-jeff-booth",
+      "query": "jeff booth",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["83e818dfbeccea56b0f551576b3fd39a7a50e1d8159343500368fa085ccd964b"]
+      },
+      "notes": "jeffbooth@primal.net, resolved at its own domain on 2026-10-24. Several profiles are named Jeff Booth.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-nostr-build",
+      "query": "nostr.build",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["9989500413fb756d8437912cc32be0730dbe1bfc6b5d2eef759e1456c239f905"]
+      },
+      "notes": "_@nostr.build, resolved at its own domain on 2026-10-24. The media host's account; a domain-shaped name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-walker",
+      "query": "walker",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["people"],
+        "results": ["c48e29f04b482cc01ca1f9ef8c86ef8318c059e0e9353235162f080f26e14c11"]
+      },
+      "notes": "walker@primal.net, resolved at its own domain on 2026-10-24. A common name; this is the one at primal.net, and any other Walker would be a fair second.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-lucky-dawgs",
+      "query": "lucky dawgs",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"]
+      },
+      "notes": "The Chicago hot dog place on Food and Drink Places.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-solid-state-coffee",
+      "query": "solid state coffee",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "The New York cafe, also the venue of New York's Bitcoin with Coffee meetups.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-kirita-funchal",
+      "query": "kirita funchal",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406"]
+      },
+      "notes": "The Funchal ramen place.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-ooink-ramen",
+      "query": "ooink ramen",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4112849388",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2135541966"
+          ]
+        ]
+      },
+      "notes": "Seattle, listed twice; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-medici-roasting",
+      "query": "medici roasting",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": [
+          [
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-382559089",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-7112908724",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5571027695",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13296570109",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13296554172",
+            "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10563618404"
+          ]
+        ]
+      },
+      "notes": "An Austin coffee roaster, listed six times; any one counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-the-vegan-nom",
+      "query": "the vegan nom",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710"]
+      },
+      "notes": "Austin's vegan taco place.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-lucky-dawgs-hours",
+      "query": "lucky dawgs hours",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"]
+      },
+      "notes": "The answer is the place card, which shows its opening hours (Mo-Fr 15:00-20:30; Sa 12:00-17:00; Su 12:00-19:00 as listed).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-solid-state-coffee-website",
+      "query": "solid state coffee website",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "The answer is the place card, which links its website (https://solidstatecoffee.com/).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-central-grill-funchal-hours",
+      "query": "central grill funchal hours",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-way-724127083"]
+      },
+      "notes": "The answer is the place card, with its opening hours (Mo-Su 12:30-24:00 as listed).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-is-tacotlan-open-on-sunday",
+      "query": "is tacotlan open on sunday",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6303063044"]
+      },
+      "notes": "The answer is the place card; its hours (Tu-Sa 11:00-21:00; Su 11:00-18:00) say whether Sunday is open. A yes or no is what the asker wants.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-who-wrote-neuromancer",
+      "query": "who wrote neuromancer",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27258w"]
+      },
+      "notes": "William Gibson. The relay's own search for the word also returns five books about necromancers.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-snow-crash",
+      "query": "snow crash",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol38501w"]
+      },
+      "notes": "Neal Stephenson.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-the-sovereign-individual",
+      "query": "the sovereign individual",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol3350985w"]
+      },
+      "notes": "James Dale Davidson, as the list names its author.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-project-hail-mary",
+      "query": "project hail mary",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol21745884w"]
+      },
+      "notes": "Andy Weir.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-author-of-the-fountainhead",
+      "query": "author of the fountainhead",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": [
+          [
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol731663w",
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol32423092w"
+          ]
+        ]
+      },
+      "notes": "Ayn Rand. The book is on the list twice, as 'The Fountainhead' and 'Fountainhead'; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-1984-george-orwell",
+      "query": "1984 george orwell",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol1168083w"]
+      },
+      "notes": "Listed as 'Nineteen Eighty-Four'. Books titled '1984' are by others (Samuel R. Delany, Fido Nesti): the number has to be read as the title.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-mythical-man-month",
+      "query": "mythical man month",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol3510570w"]
+      },
+      "notes": "Frederick P. Brooks; the title has a hyphen the query does not.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-lord-of-the-rings-tolkien",
+      "query": "lord of the rings tolkien",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27448w"]
+      },
+      "notes": "Tolkien's. At least five other books share the title (guides, criticism, other authors).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-brave-new-world-huxley",
+      "query": "brave new world huxley",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["books"],
+        "results": [
+          [
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol64365w",
+            "39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol27690578w"
+          ]
+        ]
+      },
+      "notes": "Aldous Huxley; the list has two editions (1932 and 2022), and either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-primal-app",
+      "query": "primal app",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:b090908101cc6498893cc7f14d745dcea0b2ab6842cc4b512515643d272a375c:net.primal.android"]
+      },
+      "notes": "Primal's Android listing on Zap Store. The Top page has no Apps section, so this is a miss by construction today.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-zeus-wallet",
+      "query": "zeus wallet",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:34d2f5274f1958fcd2cb2463dabeaddf8a21f84ace4241da888023bf05cc8095:app.zeusln.zeus"]
+      },
+      "notes": "ZEUS on Zap Store; 'wallet' is not in its name.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-amber-signer",
+      "query": "amber signer",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": [
+          [
+            "32267:78ce6faa72264387284e647ba6938995735ec8c7d5c5a65737e55130f026307d:com.greenart7c3.nostrsigner",
+            "32267:7579076d9aff0a4cfdefa7e2045f2486c7e5d8bc63bfc6b45397233e1bbfcb19:com.greenart7c3.nostrsigner"
+          ]
+        ]
+      },
+      "notes": "Amber, listed by two publishers on Zap Store; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-olas",
+      "query": "olas",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps"],
+        "results": ["32267:3f68dede81549cc0844fafe528f1574b51e095e7491f468bd9689f87779bb81d:com.pablof7z.snapstr"]
+      },
+      "notes": "Olas, whose listing id still says snapstr (com.pablof7z.snapstr).",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-damus-app",
+      "query": "damus app",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["apps", "people"],
+        "results": ["3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"]
+      },
+      "notes": "Damus is an iOS app and is not on Zap Store (checked 2026-10-24); its own account is the useful answer.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-github-vitorpamplona",
+      "query": "github vitorpamplona",
+      "class": "navigational",
+      "journey": "M1",
+      "expect": {
+        "categories": ["github"],
+        "results": [
+          [
+            "39999:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:vitorpamplona-ni5x31",
+            "39999:460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c:vitorpamplona-ni5x31"
+          ]
+        ]
+      },
+      "notes": "vitorpamplona on GitHub Accounts, listed by two curators; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-golden-gate-bitcoin-conference",
+      "query": "golden gate bitcoin conference",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a9f09f1bf4db1cbbc7cee69",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a5492ab34af2289c7239b84"
+          ]
+        ]
+      },
+      "notes": "On 6 Nov, published twice; either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-nashbitdevs-socratic-seminar-49",
+      "query": "nashbitdevs socratic seminar 49",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ojchvcv36ucoep46bam2pui773qflwg3",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa4a44ebf4db1cbbc845f81"
+          ]
+        ]
+      },
+      "notes": "On 10 Nov: an Event Index item and its NIP-52 copy; either counts. The '#' in the title is not typed.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-when-is-park-101-intro-to-bitcoin",
+      "query": "when is park 101 intro to bitcoin",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          [
+            "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kn6sns3s3wb3xn5mfxunmnvll7byaeo7",
+            "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6aa7474f28a99c6886fd93c7"
+          ]
+        ]
+      },
+      "notes": "Nashville, 12 Nov. The answer is the event card, which shows the date; Event Index item and NIP-52 copy, either counts.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m1-tech-art-lisboa",
+      "query": "tech art lisboa",
+      "class": "lookup",
+      "journey": "M1",
+      "expect": {
+        "categories": ["events"],
+        "results": [
+          "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:nzluokbig2ptltkjjuafl7gtbcnrqlmg"
+        ]
+      },
+      "notes": "Lisbon, 11 Nov. An Event Index item only: the Top page's events band does not ask for those yet.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-what-do-my-people-think-of-piranesi",
+      "query": "what do my people think of Piranesi",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol20893680w"]
+      },
+      "notes": "Staging demo seed. The book, then what the reader's network said about it. Run through the house lens, so 'my people' is the house's."
+    },
+    {
+      "id": "m4-ramen-near-me-my-friends-like",
+      "query": "ramen near me my friends like",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "cuisine": "ramen"
+          }
+        }
+      },
+      "notes": "Staging demo seed. Needs location and the reader's own network; no id can be fixed."
+    },
+    {
+      "id": "m4-restaurants-my-friends-recommend-in-funchal",
+      "query": "restaurants my friends recommend in funchal",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Funchal restaurants ordered by the reader's network. Scored by filter precision."
+    },
+    {
+      "id": "m4-what-are-people-saying-about-fork-and-coin",
+      "query": "what are people saying about fork & coin",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["notes", "places"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11501636224"]
+      },
+      "notes": "Notes about the place, and the place itself."
+    },
+    {
+      "id": "m4-bitcoiners-in-chicago",
+      "query": "bitcoiners in chicago",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"],
+        "results": ["8bcba26f8f648b834c4c60f1df55acbbf4df451434d7d600b9b9487c8aa3ddb1"]
+      },
+      "notes": "Chicago Bitcoin Collective is the obvious first face."
+    },
+    {
+      "id": "m4-books-my-friends-are-reading",
+      "query": "books my friends are reading",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "Depends on the reader's network and their shelves; no id can be fixed."
+    },
+    {
+      "id": "m4-pubkey-bar-reviews",
+      "query": "pubkey bar reviews",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405"]
+      },
+      "notes": "The NYC bar, with what people said about it."
+    },
+    {
+      "id": "m4-agent-funchal-restaurants-my-network",
+      "query": {
+        "categories": ["places"],
+        "place": "Funchal",
+        "property": {
+          "category": "restaurant"
+        },
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Funchal restaurants that people in the reader's network recommend. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m4-what-do-people-think-of-solid-state-coffee",
+      "query": "what do people think of solid state coffee",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "The place card first, then what people said about it. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-reviews-of-lucky-dawgs",
+      "query": "reviews of lucky dawgs",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550"]
+      },
+      "notes": "The Chicago place and its reviews; few exist yet (9 place reviews on the index on 2026-10-24). The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-is-kirita-any-good",
+      "query": "is kirita any good",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406"]
+      },
+      "notes": "A yes-or-no about quality, answered by the place card and what the reader's people said. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-what-my-friends-say-about-the-vegan-nom",
+      "query": "what my friends say about the vegan nom",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places", "notes"],
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5562235710"]
+      },
+      "notes": "The Austin place, with what the reader's network said about it. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-what-do-my-friends-think-of-project-hail-mary",
+      "query": "what do my friends think of project hail mary",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol21745884w"]
+      },
+      "notes": "The book, then what the reader's network said. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-reviews-of-the-bitcoin-standard",
+      "query": "reviews of the bitcoin standard",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol20984004w"]
+      },
+      "notes": "The book (as in m1-the-bitcoin-standard) and its reviews; Brainstorm and Unbnd share one review record for books. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-is-snow-crash-worth-reading",
+      "query": "is snow crash worth reading",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books", "notes"],
+        "results": ["39999:6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b:ol-ol38501w"]
+      },
+      "notes": "The book, then opinions about it. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-coffee-my-friends-like-in-austin",
+      "query": "coffee my friends like in austin",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Austin cafes, ordered by the reader's network; scored by filter precision. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-bars-my-network-goes-to-in-new-york",
+      "query": "bars my network goes to in new york",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "New York bars the reader's people go to; the list has only two. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-events-my-friends-are-going-to-this-weekend",
+      "query": "events my friends are going to this weekend",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "RSVPs from the reader's network; depends on the reader, so no id. Scored by time. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m4-books-recommended-by-people-i-follow",
+      "query": "books recommended by people i follow",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "Depends on whom the reader follows and their shelves; no id can be fixed. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-podcasts-my-friends-listen-to",
+      "query": "podcasts my friends listen to",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Podcast episodes live in the Music section. Depends on the reader's network. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-apps-my-friends-use",
+      "query": "apps my friends use",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["apps"]
+      },
+      "notes": "App recommendations from the reader's network. The Top page has no Apps section, so a miss by construction today. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-articles-my-network-shared-this-week",
+      "query": "articles my network shared this week",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["articles"]
+      },
+      "notes": "Long-form posts shared by the reader's people in the last week; depends on the reader. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-what-is-my-network-talking-about-today",
+      "query": "what is my network talking about today",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["notes"]
+      },
+      "notes": "Fresh notes from the reader's network; depends on the reader and the hour. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-posts-from-people-i-follow-about-nostr",
+      "query": "posts from people i follow about nostr",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["notes"]
+      },
+      "notes": "Notes about nostr, limited to the reader's follows. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-who-do-my-friends-follow-for-bitcoin-news",
+      "query": "who do my friends follow for bitcoin news",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "Accounts the reader's network follows that post bitcoin news; depends on the reader. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-nostr-developers-my-network-follows",
+      "query": "nostr developers my network follows",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "People who build on nostr, as the reader's network sees them. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-who-should-i-follow-for-birding",
+      "query": "who should i follow for birding",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "Birders and bird-club accounts, ranked by the reader's trust; several bird-alliance calendars publish here. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-photographers-my-friends-follow",
+      "query": "photographers my friends follow",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people", "media"]
+      },
+      "notes": "Photographers in the reader's network, and their pictures. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-bitcoiners-in-austin",
+      "query": "bitcoiners in austin",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "People in Austin who talk about bitcoin. Profiles rarely carry a place, so this leans on what they post and whom they follow. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-people-in-funchal",
+      "query": "people in funchal",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["people"]
+      },
+      "notes": "Profiles do not carry a place field; the answer leans on what people post about Funchal and Madeira. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-best-restaurants-in-lugano-according-to-my-people",
+      "query": "best restaurants in lugano according to my people",
+      "class": "social",
+      "journey": "M4",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Lugano restaurants ordered by the reader's network; scored by filter precision. The baseline runs through the house lens, so 'my' and 'friends' mean the house's network there."
+    },
+    {
+      "id": "m4-agent-events-this-weekend-my-network",
+      "query": {
+        "categories": ["events"],
+        "time": "this weekend",
+        "by": "my network",
+        "words": []
+      },
+      "class": "agent",
+      "journey": "M4",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "this weekend"
+        }
+      },
+      "notes": "The structured form of 'events my friends are going to this weekend'. Not run by the baseline yet.",
+      "as_of": "2026-10-24",
+      "run": false
+    },
+    {
+      "id": "m5-podcast",
+      "query": "podcast",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Staging demo seed. Podcast episodes (kinds 54, 30054, 30055) live in the Music section. The Listen row also pulls Wavlake and Podcast Index, which the runner does not mirror."
+    },
+    {
+      "id": "m5-football",
+      "query": "football",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes"]
+      },
+      "notes": "Staging demo seed. Fresh notes about football."
+    },
+    {
+      "id": "m5-jazz",
+      "query": "jazz",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Jazz tracks that play."
+    },
+    {
+      "id": "m5-bitcoin-art",
+      "query": "bitcoin art",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["media", "notes"]
+      },
+      "notes": "Pictures and posts about bitcoin art."
+    },
+    {
+      "id": "m5-sourdough",
+      "query": "sourdough",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "Posts and recipes (recipes are articles)."
+    },
+    {
+      "id": "m5-birding",
+      "query": "birding",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        }
+      },
+      "notes": "Several bird-alliance calendars publish upcoming walks.",
+      "as_of": "2026-10-22"
+    },
+    {
+      "id": "m5-nostr-clients",
+      "query": "nostr clients",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["apps", "articles"]
+      },
+      "notes": "The answer is mostly apps, which the Top page does not show."
+    },
+    {
+      "id": "m5-photography",
+      "query": "photography",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["media"]
+      },
+      "notes": "Pictures."
+    },
+    {
+      "id": "m5-hiking",
+      "query": "hiking",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["media", "notes"]
+      },
+      "notes": "Trail pictures and posts."
+    },
+    {
+      "id": "m5-self-custody",
+      "query": "self custody",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "Guides and discussion."
+    },
+    {
+      "id": "m5-bitcoin",
+      "query": "bitcoin",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "The broadest topic on the relay; fresh notes and long-form both belong."
+    },
+    {
+      "id": "m5-nostr",
+      "query": "nostr",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles", "people"]
+      },
+      "notes": "Posts about nostr and the people who build it."
+    },
+    {
+      "id": "m5-lightning-network",
+      "query": "lightning network",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "Explainers and discussion."
+    },
+    {
+      "id": "m5-privacy",
+      "query": "privacy",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "Guides and discussion; a word that also appears in a lot of unrelated text."
+    },
+    {
+      "id": "m5-cooking",
+      "query": "cooking",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media"]
+      },
+      "notes": "Food posts and pictures; recipes are articles when they are long-form."
+    },
+    {
+      "id": "m5-gardening",
+      "query": "gardening",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media"]
+      },
+      "notes": "Garden posts and pictures."
+    },
+    {
+      "id": "m5-chess",
+      "query": "chess",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media"]
+      },
+      "notes": "Posts and clips about chess."
+    },
+    {
+      "id": "m5-music-production",
+      "query": "music production",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["music", "notes"]
+      },
+      "notes": "Tracks and posts about making music."
+    },
+    {
+      "id": "m5-ai-agents",
+      "query": "ai agents",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "Posts and long-form about AI agents; some Luma events use the words too (Agent Builders Hackathon, Agents Anonymous), and they would be fair."
+    },
+    {
+      "id": "m5-meditation",
+      "query": "meditation",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "events"]
+      },
+      "notes": "Posts, and sessions on calendars (one in New York on 25 October)."
+    },
+    {
+      "id": "m5-running",
+      "query": "running",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "events"]
+      },
+      "notes": "Posts and run clubs."
+    },
+    {
+      "id": "m5-philosophy",
+      "query": "philosophy",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "books"]
+      },
+      "notes": "Long-form and books; Nashville's 'Philosophy for Freedom' events would also be fair."
+    },
+    {
+      "id": "m5-history",
+      "query": "history",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "books"]
+      },
+      "notes": "Long-form and books."
+    },
+    {
+      "id": "m5-cats",
+      "query": "cats",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["media", "notes"]
+      },
+      "notes": "Pictures, mostly."
+    },
+    {
+      "id": "m5-poetry",
+      "query": "poetry",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "articles"]
+      },
+      "notes": "Short and long verse."
+    },
+    {
+      "id": "m5-science-fiction",
+      "query": "science fiction",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "The Books list, by genre; no subject field to filter on, so it leans on titles and descriptions."
+    },
+    {
+      "id": "m5-open-source",
+      "query": "open source",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes", "github"]
+      },
+      "notes": "Long-form, posts, and the GitHub Accounts list."
+    },
+    {
+      "id": "m5-electronic-music",
+      "query": "electronic music",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Tracks that play."
+    },
+    {
+      "id": "m5-street-food",
+      "query": "street food",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["places", "notes"]
+      },
+      "notes": "Fast food and street food places, and posts about them."
+    },
+    {
+      "id": "m5-madeira",
+      "query": "madeira",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["notes", "media", "places"]
+      },
+      "notes": "The island: posts, pictures, and Funchal's places."
+    },
+    {
+      "id": "m5-economics",
+      "query": "economics",
+      "class": "exploratory",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "books"]
+      },
+      "notes": "Long-form and books."
+    },
+    {
+      "id": "m5-agent-self-custody",
+      "query": {
+        "categories": ["articles", "notes"],
+        "words": ["self custody"]
+      },
+      "class": "agent",
+      "journey": "M5",
+      "expect": {
+        "categories": ["articles", "notes"]
+      },
+      "notes": "The structured form of 'self custody' (m5-self-custody): no place, no time, only words. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m7-cozy-late-night-ramen",
+      "query": "cozy late-night ramen",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "cuisine": "ramen"
+          }
+        }
+      },
+      "notes": "Staging demo seed. Ramen places open late; 'cozy' is a judgement no field holds. No location given."
+    },
+    {
+      "id": "m7-quiet-cafe-to-work-from-in-funchal",
+      "query": "quiet cafe to work from in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Funchal cafes; 'quiet' and 'to work from' are in no field."
+    },
+    {
+      "id": "m7-somewhere-to-watch-football-in-funchal",
+      "query": "somewhere to watch football in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "Bars and pubs in Funchal. Scored by place."
+    },
+    {
+      "id": "m7-date-night-restaurant-in-lugano",
+      "query": "date night restaurant in lugano",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Lugano restaurants; 'date night' is a judgement."
+    },
+    {
+      "id": "m7-a-book-like-piranesi",
+      "query": "a book like piranesi",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "Similar books is a judgement; Piranesi itself is not the answer, so no id."
+    },
+    {
+      "id": "m7-spend-sats-on-coffee-in-new-york",
+      "query": "where can I spend sats on coffee in new york",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "New York",
+          "property": {
+            "category": "cafe"
+          }
+        },
+        "results": ["39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12960242112"]
+      },
+      "notes": "Solid State Coffee. Every listed place takes bitcoin, so 'spend sats' is already true of the list."
+    },
+    {
+      "id": "m7-cheap-eats-in-san-salvador",
+      "query": "cheap eats in san salvador",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Salvador",
+          "property": {
+            "category": "fast_food"
+          }
+        }
+      },
+      "notes": "Fast food in San Salvador; price-range is mostly empty on the list."
+    },
+    {
+      "id": "m7-agent-late-night-ramen",
+      "query": {
+        "categories": ["places"],
+        "property": {
+          "cuisine": "ramen"
+        },
+        "open": "after 22:00",
+        "words": ["cozy"]
+      },
+      "class": "agent",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "cuisine": "ramen"
+          }
+        }
+      },
+      "notes": "The structured form of 'cozy late-night ramen': cuisine and opening hours as fields, 'cozy' left as words. Not run by the baseline yet.",
+      "run": false
+    },
+    {
+      "id": "m7-kid-friendly-brunch-in-austin",
+      "query": "kid friendly brunch in austin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin"
+        }
+      },
+      "notes": "'kid friendly' is in no field, and no Austin place is tagged brunch (one has breakfast). Scored by place."
+    },
+    {
+      "id": "m7-romantic-dinner-in-funchal",
+      "query": "romantic dinner in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Funchal restaurants; 'romantic' is a judgement."
+    },
+    {
+      "id": "m7-restaurant-with-a-view-in-funchal",
+      "query": "restaurant with a view in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Funchal restaurants; 'with a view' is in no field."
+    },
+    {
+      "id": "m7-authentic-tacos-in-san-diego",
+      "query": "authentic tacos in san diego",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Diego",
+          "property": {
+            "cuisine": "tacos"
+          }
+        }
+      },
+      "notes": "San Diego's taco places (see m2-tacos-in-san-diego); 'authentic' is a judgement."
+    },
+    {
+      "id": "m7-late-night-food-in-chicago",
+      "query": "late night food in chicago",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Chicago"
+        }
+      },
+      "notes": "Chicago places open late; 'late' needs opening-hours read."
+    },
+    {
+      "id": "m7-dog-friendly-cafe-in-san-francisco",
+      "query": "dog friendly cafe in san francisco",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "San Francisco",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "San Francisco cafes; whether dogs are welcome is in no field."
+    },
+    {
+      "id": "m7-coffee-shop-with-good-wifi-in-austin",
+      "query": "coffee shop with good wifi in austin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin",
+          "property": {
+            "category": "cafe"
+          }
+        }
+      },
+      "notes": "Austin cafes; wifi is in no field."
+    },
+    {
+      "id": "m7-hole-in-the-wall-pupuserias",
+      "query": "hole in the wall pupuserias",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "property": {
+            "country": "SV"
+          }
+        }
+      },
+      "notes": "Small pupuserías, mostly in El Salvador (country SV); 'hole in the wall' is a judgement."
+    },
+    {
+      "id": "m7-a-cozy-bar-in-lugano",
+      "query": "a cozy bar in lugano",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "Lugano bars; 'cozy' is a judgement."
+    },
+    {
+      "id": "m7-something-like-snow-crash",
+      "query": "something like snow crash",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "Similar books is a judgement; Snow Crash itself is not the answer, so no id."
+    },
+    {
+      "id": "m7-books-for-a-long-flight",
+      "query": "books for a long flight",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["books"]
+      },
+      "notes": "A mood, not a field: any engrossing book is fair."
+    },
+    {
+      "id": "m7-a-podcast-like-the-bitcoin-standard",
+      "query": "a podcast like the bitcoin standard",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["music"]
+      },
+      "notes": "Episodes about the same ideas; the book is not the answer."
+    },
+    {
+      "id": "m7-football-in-funchal",
+      "query": "football in funchal",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events", "notes", "places"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "In Madeira, football means soccer. The meaning depends on the asker's community, which is the M7 milestone's point."
+    },
+    {
+      "id": "m7-football-in-nashville",
+      "query": "football in nashville",
+      "class": "exploratory",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events", "notes"],
+        "filters": {
+          "place": "Nashville"
+        }
+      },
+      "notes": "In Nashville, football most likely means American football: the same word as m7-football-in-funchal, a different meaning."
+    },
+    {
+      "id": "m7-meetups-that-arent-about-bitcoin",
+      "query": "meetups that aren't about bitcoin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "time": "upcoming"
+        }
+      },
+      "notes": "A negation: a keyword match on 'bitcoin' would surface exactly the meetups the asker wants left out.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m7-vegetarian-friendly-restaurants-in-lugano",
+      "query": "vegetarian friendly restaurants in lugano",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "restaurant"
+          }
+        }
+      },
+      "notes": "Lugano restaurants; diet tags are rare on the list."
+    },
+    {
+      "id": "m7-places-open-on-christmas-day-in-funchal",
+      "query": "places open on christmas day in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "Opening hours rarely say anything about holidays."
+    },
+    {
+      "id": "m7-spicy-food-in-nashville",
+      "query": "spicy food in nashville",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Nashville"
+        }
+      },
+      "notes": "'spicy' is in no field; Nashville's ten places include Mexican and Venezuelan."
+    },
+    {
+      "id": "m7-healthy-lunch-in-austin",
+      "query": "healthy lunch in austin",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Austin"
+        }
+      },
+      "notes": "One Austin place is category health_food; juice and salad places would also be fair."
+    },
+    {
+      "id": "m7-where-to-take-visitors-in-funchal",
+      "query": "where to take visitors in funchal",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places", "events"],
+        "filters": {
+          "place": "Funchal"
+        }
+      },
+      "notes": "A host's question: places worth showing and anything on."
+    },
+    {
+      "id": "m7-rainy-day-things-to-do-in-seattle",
+      "query": "rainy day things to do in seattle",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "Seattle",
+          "time": "upcoming"
+        }
+      },
+      "notes": "Indoor events; 'rainy day' is a judgement.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m7-events-for-beginners-in-san-francisco",
+      "query": "events for beginners in san francisco",
+      "class": "recommendation",
+      "journey": "M7",
+      "expect": {
+        "categories": ["events"],
+        "filters": {
+          "place": "San Francisco",
+          "time": "upcoming"
+        }
+      },
+      "notes": "'beginners' sits in some titles (Bitcoin for Beginners) and in many descriptions.",
+      "as_of": "2026-10-24"
+    },
+    {
+      "id": "m7-agent-cozy-bar-lugano",
+      "query": {
+        "categories": ["places"],
+        "place": "Lugano",
+        "property": {
+          "category": "bar"
+        },
+        "words": ["cozy"]
+      },
+      "class": "agent",
+      "journey": "M7",
+      "expect": {
+        "categories": ["places"],
+        "filters": {
+          "place": "Lugano",
+          "property": {
+            "category": "bar"
+          }
+        }
+      },
+      "notes": "The structured form of 'a cozy bar in lugano': category and place as fields, 'cozy' left as words. Not run by the baseline yet.",
+      "run": false
+    }
+  ]
+}

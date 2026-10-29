@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
 import { liveStateOf } from "@/lib/liveStream";
@@ -109,7 +110,7 @@ import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useMintShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -117,7 +118,8 @@ import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults"
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
-import { Nip05Handle } from "@/components/Nip05Check";
+import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
+import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
 const NO_RELAYS: string[] = [];
@@ -770,7 +772,8 @@ export default function SharePage() {
     [publishedPrefs.roles],
   );
 
-  const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
+  const canonicalUrl = npub ? `${publicOrigin()}/p/${npub}` : "";
+  const mintShortUrl = useMintShortLink(profileShortLink(npub, relayHints));
 
   // NOTE on the invite model: clicking a "Join" CTA below carries `?invite=<npub>`,
   // so a new account created from this profile auto-follows its owner (new user →
@@ -920,6 +923,7 @@ export default function SharePage() {
       searchHref={scopedSearchHref(pubkey, "top")}
       review={canReview ? (hasMyReview ? "edit" : "write") : null}
       onReview={() => setComposeRequest((n) => n + 1)}
+      link={{ url: canonicalUrl, mint: mintShortUrl }}
     />
   );
   // Desktop: Message + Follow + ⋯ top-right with the avatar. Phone: Message
@@ -945,6 +949,7 @@ export default function SharePage() {
         <ShareButton
           url={canonicalUrl}
           title={`${displayName} on Brainstorm`}
+          mint={mintShortUrl}
           modal={(ctl) => (
             <ProfileShareSheet
               {...ctl}
@@ -1059,12 +1064,16 @@ export default function SharePage() {
                     className="inline-flex items-center gap-1 text-sm font-medium text-brand-link"
                     iconClassName="h-4 w-4"
                   />
+                  {/* Their own things the lists hold, beside the handle that proves them: a GitHub account. */}
+                  {pubkey && <PersonMarks pubkey={pubkey} nip05={profile.nip05} website={profile.website} />}
                   {/* "Follows you" is a fact about the two of you, not an action — it
                 sits with the identity, beside the handle, where X, Bluesky and
                 Mastodon put it (Benjamin, 2026-09-08: in the button row it read
                 as a button that did nothing). */}
                   {followsYouChip}
                 </div>
+                {/* Someone else's handle on this profile: often a copy of theirs. Said, with a link to whose it is. */}
+                <HandleOwnerWarning nip05={profile.nip05} pubkey={pubkey} className="mt-1.5" />
                 {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
                 {npub && (
                   <div className="mt-1 flex items-center gap-1.5" data-testid="share-npub">
@@ -1683,7 +1692,7 @@ function ProfileShareSheet({
   relays,
   ...props
 }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
-  const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
+  const shareUrl = useShortLink({ ...profileShortLink(props.npub, relays), enabled: props.open });
   return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 

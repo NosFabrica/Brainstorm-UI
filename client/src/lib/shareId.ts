@@ -119,29 +119,40 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
  *  rendered as a note, markup and all. */
 export const READER_KINDS = new Set([30023, 30818, 30817]);
 
-/** Addressable kinds linked by address that keep their own page: NIP-71's
- *  addressable videos (Divine publishes shorts as 34236), and list items
+/** Addressable kinds linked by address that keep their own page: NIP-52's
+ *  calendar events and calendars (31922, 31923, 31924), which a calendar
+ *  mirrored from a feed publishes again whenever its source changes; NIP-71's
+ *  addressable videos (Divine publishes shorts as 34236); and list items
  *  (39999), which a curator signs again at every import. Whoever republishes
  *  one gives it a new id, and a link by id is left on the old version. Apart
  *  from READER_KINDS, which sends a kind to the article reader. */
-export const ADDRESS_LINK_KINDS: ReadonlySet<number> = new Set([34235, 34236, 39999]);
+export const ADDRESS_LINK_KINDS: ReadonlySet<number> = new Set([31922, 31923, 31924, 34235, 34236, 39999]);
 
-/** On-site path for an event: `/e/<naddr>` (its latest version) for an
- *  article, wiki page or addressable video we know by kind and name, else
+/** An addressable event's coordinate; null for other kinds or without a `d` tag. */
+export function addressOf(event: {
+  kind?: number;
+  pubkey?: string;
+  tags?: string[][];
+}): { kind: number; pubkey: string; identifier: string } | null {
+  if (event.kind === undefined || event.kind < 30000 || event.kind >= 40000 || !event.pubkey) return null;
+  const identifier = event.tags?.find((t) => t[0] === "d")?.[1];
+  return identifier === undefined ? null : { kind: event.kind, pubkey: event.pubkey, identifier };
+}
+
+/** On-site path for an event: `/e/<naddr>` (its latest version) for a kind
+ *  in READER_KINDS or ADDRESS_LINK_KINDS that we know by kind and name, else
  *  `/e/<nevent>` (falls back to the bare id). */
 export function eventPath(
   event: { id: string; pubkey?: string; kind?: number; tags?: string[][] },
   relays: string[] = [],
 ): string {
   const byAddress = event.kind !== undefined && (READER_KINDS.has(event.kind) || ADDRESS_LINK_KINDS.has(event.kind));
-  if (event.kind !== undefined && byAddress && event.pubkey && event.tags) {
-    const identifier = event.tags.find((t) => t[0] === "d")?.[1];
-    if (identifier !== undefined) {
-      try {
-        return `/e/${nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier, relays: relays.slice(0, 4) })}`;
-      } catch {
-        /* fall through to the event link */
-      }
+  const address = byAddress ? addressOf(event) : null;
+  if (address) {
+    try {
+      return `/e/${nip19.naddrEncode({ ...address, relays: relays.slice(0, 4) })}`;
+    } catch {
+      /* fall through to the event link */
     }
   }
   return `/e/${neventFor(event.id, relays, event.pubkey)}`;
@@ -163,13 +174,7 @@ export function shareUrlFor(
   }
 }
 
-/**
- * On-site profile path for a resolved short link.
- *
- * Carries every hint the link stored — the server keeps up to MAX_RELAYS, and
- * truncating here would silently drop the tail, defeating the reason the hints
- * ride along at all. "" if the pubkey won't encode.
- */
+/** On-site profile path, `/p/<npub or nprofile>` with every hint given; "" if the pubkey won't encode. */
 export function profilePath(pubkey: string, relays: string[] = []): string {
   const id = profileIdentifier(pubkey, relays);
   return id ? `/p/${id}` : "";

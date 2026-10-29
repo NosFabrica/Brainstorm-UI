@@ -20,10 +20,17 @@ the page simply shows the account as the list describes it; nothing breaks.
 GET /github/users/{handle}
 GET /github/users/{handle}/repos?per_page=100&sort=pushed
 GET /github/users/{handle}/events/public?per_page=1
+GET /github/users/{handle}/social_accounts
+GET /github/gists/{id}
 ```
 
 Proxy `/github/` to `https://api.github.com/`, stripping the prefix. Only `GET`, only
-paths under `/users/`; refuse the rest.
+paths under `/users/` and `/gists/`; refuse the rest.
+
+The last two (added on `feat/search-books-github-places`) are how search knows a GitHub
+account and a Nostr profile are one person (`lib/githubLink`): the npub the account's owner
+lists among their GitHub social accounts, and the gist a NIP-39 claim names. Until they're
+proxied, the two stay separate rows in search — nothing breaks.
 
 Suggested nginx (the UI's server block):
 

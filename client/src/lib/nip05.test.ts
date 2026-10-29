@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetNip05, __resetNip05Cache, parseNip05, peekNip05, resolveNip05, verifyNip05 } from "./nip05";
+import {
+  __resetNip05,
+  __resetNip05Cache,
+  handleOwner,
+  parseNip05,
+  peekHandleOwner,
+  peekNip05,
+  resolveNip05,
+  verifyNip05,
+} from "./nip05";
 
 const HZRD = "266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5";
 const COPYCAT = "e48465b08afc" + "0".repeat(52);
@@ -132,6 +141,43 @@ describe("verifyNip05", () => {
 const PK = "75d737c3472471029c44876b330d2284288a42779b591a2ed4daa1c6c07efaf7";
 const ok = (body: unknown) =>
   new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+// A copy of someone's profile often keeps their handle. When the handle's own server names a
+// different account, that account is who the handle belongs to — the one signal worth a warning.
+// Every other failure (unlisted, unreachable, malformed) is common and says nothing.
+describe("handleOwner", () => {
+  it("is the account the server names when it isn't this one", async () => {
+    stubNames({ _: HZRD });
+    expect(await handleOwner("_@hzrd149.com", COPYCAT)).toBe(HZRD);
+  });
+
+  it("is nobody for the owner itself, an unlisted name, an unreachable domain, or a malformed claim", async () => {
+    stubNames({ _: HZRD });
+    expect(await handleOwner("_@hzrd149.com", HZRD)).toBeNull();
+    expect(await handleOwner("someoneelse@hzrd149.com", COPYCAT)).toBeNull();
+    expect(await handleOwner("not a handle", COPYCAT)).toBeNull();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    expect(await handleOwner("_@down.example", COPYCAT)).toBeNull();
+  });
+
+  it("is nobody when the server names something that isn't a key", async () => {
+    stubNames({ _: "not-a-key" });
+    expect(await handleOwner("_@hzrd149.com", COPYCAT)).toBeNull();
+  });
+
+  it("peeks synchronously once the server has answered", async () => {
+    stubNames({ _: HZRD });
+    expect(peekHandleOwner("_@hzrd149.com", COPYCAT)).toBeUndefined();
+    await handleOwner("_@hzrd149.com", COPYCAT);
+    expect(peekHandleOwner("_@hzrd149.com", COPYCAT)).toBe(HZRD);
+    expect(peekHandleOwner("_@hzrd149.com", HZRD)).toBeNull();
+  });
+});
 
 describe("resolveNip05", () => {
   beforeEach(() => __resetNip05());

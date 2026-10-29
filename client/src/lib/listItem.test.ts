@@ -47,6 +47,22 @@ describe("itemTemplate", () => {
     });
   });
 
+  it("files under a 9998 by its id, even when it carries a d", () => {
+    const id = "9".repeat(64);
+    const nines = definitionOf({
+      id,
+      pubkey: AVI,
+      kind: 9998,
+      created_at: 1,
+      tags: [
+        ["d", "nines"],
+        ["names", "Nine", "Nines"],
+        ["required", "name"],
+      ],
+    } as HeaderEvent);
+    expect(itemTemplate(nines, { name: "Ninth" }, "a1b2c3d4").tags).toContainEqual(["z", id]);
+  });
+
   it("titles its d by the list's title field, with a random tail so it never replaces another item", () => {
     expect(titleFieldOf(places)).toBe("name");
     expect(itemD("", "00ff00ff")).toBe("item-00ff00ff");

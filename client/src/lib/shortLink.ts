@@ -1,5 +1,5 @@
 /**
- * Short share links: a code standing in for a pubkey plus its relay hints,
+ * Short share links: a code standing in for a shareable entity (a profile, an event…),
  * turning a 63-character npub URL into `/s/AB3XK9QZ`.
  *
  * Nothing here assumes a code length — the server may lengthen codes later and
@@ -54,4 +54,32 @@ export function qrPayload(url: string): string {
   } catch {
     return url;
   }
+}
+
+/** How long a tap waits for a short link before sharing the long one (Chromium allows ~4–5 s). */
+export const SHORT_LINK_WAIT_MS = 1500;
+
+/** The short link if it arrives within {@link SHORT_LINK_WAIT_MS}, the long one otherwise. Never rejects. */
+export function shortOrLong(minting: Promise<string>, longUrl: string, waitMs = SHORT_LINK_WAIT_MS): Promise<string> {
+  return Promise.race([
+    minting.catch(() => longUrl),
+    new Promise<string>((resolve) => setTimeout(() => resolve(longUrl), waitMs)),
+  ]);
+}
+
+/** The server's hashtag length limit (`CreateShortUrlBody`). */
+export const MAX_HASHTAG_LENGTH = 64;
+
+/** A hashtag as the server keys it (trimmed, lowercased, one leading `#` dropped); "" if it can't be keyed. */
+export function hashtagKey(raw: string): string {
+  const word = raw.trim().toLowerCase().replace(/^#/, "");
+  return word.length <= MAX_HASHTAG_LENGTH && !/[\s/]/.test(word) ? word : "";
+}
+
+/** Longest hashtag shared as its readable `/t/<word>` page rather than a code. */
+export const READABLE_HASHTAG_MAX = 12;
+
+/** A plain word short enough that its page link beats a code for reading and retyping. */
+export function isReadableHashtag(word: string): boolean {
+  return word.length <= READABLE_HASHTAG_MAX && /^[a-z0-9_-]+$/.test(word);
 }

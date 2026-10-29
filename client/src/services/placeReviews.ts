@@ -6,9 +6,10 @@
  * and the hub, at once (services/listReads) — by the place's address either
  * way a record names it, then the removals of what came back — and from
  * the relays Regulars publishes reviews to as well, since the index can lag
- * (the contract's section 5). Published,
- * and removed, as every user event is (publishTagEvent: the reviewer's
- * write relays and the hub) and to the index as well, where Regulars reads.
+ * (the contract's section 5). Published, and removed, to the reviewer's own
+ * write relays and the index, where Regulars reads (services/tags
+ * publishToOutbox) — never the hub, which keeps list events and refuses
+ * reviews (the contract's section 9).
  *
  * A lens's ranks for the star value (the contract's section 8): the scorer
  * an observer names in their kind 10040 (services/trustSource), and its
@@ -23,6 +24,7 @@ import {
   placeReviewTemplate,
   ranksFrom,
   removalTemplate,
+  reviewsByPlace,
   standingReviews,
   type PlaceReview,
   type ReviewDraft,
@@ -30,7 +32,7 @@ import {
 import { readListEvents } from "@/services/listReads";
 import { fetchEventsByFilter } from "@/services/nostr";
 import { resolveTrustSource } from "@/services/trustSource";
-import { publishTagEvent } from "@/services/tags";
+import { publishToOutbox } from "@/services/tags";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 const TIMEOUT_MS = 6000;
@@ -78,7 +80,7 @@ export async function publishPlaceReview(
 ): Promise<PlaceReview> {
   const address = coordinateOf(item) ?? "";
   const signed = await signAs(requireActiveAccount(), placeReviewTemplate({ address, name }, draft, previous));
-  await publishTagEvent(signed as never, [SEARCH_RELAY]);
+  await publishToOutbox(signed as never, [SEARCH_RELAY]);
   const [mine] = standingReviews([signed], address, nowS());
   return mine;
 }
@@ -86,7 +88,7 @@ export async function publishPlaceReview(
 /** Sign and publish the removal of the reader's review, wherever reviews are sent. */
 export async function removePlaceReview(review: Pick<PlaceReview, "id" | "pubkey" | "tags">): Promise<void> {
   const signed = await signAs(requireActiveAccount(), removalTemplate(review));
-  await publishTagEvent(signed as never, [SEARCH_RELAY]);
+  await publishToOutbox(signed as never, [SEARCH_RELAY]);
 }
 
 /** The most people one request for ranks names, as Regulars asks. */
@@ -112,4 +114,34 @@ export async function fetchLensRanks(observer: string, pubkeys: string[]): Promi
     ),
   );
   return ranksFrom(events.flat(), source.taPubkey);
+}
+
+/**
+ * The reviews that stand for each of many places — a search's places — in
+ * one batch: their records by `a` and by `d`, then the removals of those.
+ */
+export async function fetchReviewsForPlaces(addresses: string[]): Promise<Map<string, PlaceReview[]>> {
+  if (addresses.length === 0) return new Map();
+  const records = await readListEvents(
+    [
+      { kinds: [PLACE_REVIEW_KIND], "#a": addresses, limit: 2000 },
+      { kinds: [PLACE_REVIEW_KIND], "#d": [...addresses, ...addresses.map((a) => `place:${a}`)], limit: 2000 },
+    ],
+    TIMEOUT_MS,
+    readRelays(),
+  );
+  if (records.length === 0) return reviewsByPlace([], addresses, nowS());
+  const ids = [...new Set(records.map((e) => e.id))];
+  const coords = [
+    ...new Set(records.map((e) => `${PLACE_REVIEW_KIND}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)),
+  ];
+  const removals = await readListEvents(
+    [
+      { kinds: [5], "#e": ids },
+      { kinds: [5], "#a": coords },
+    ],
+    TIMEOUT_MS,
+    readRelays(),
+  );
+  return reviewsByPlace([...records, ...removals], addresses, nowS());
 }

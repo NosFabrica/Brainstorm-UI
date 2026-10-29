@@ -281,8 +281,29 @@ export async function publishTagEvent(
   signed: Record<string, unknown>,
   also: string[] = [],
 ): Promise<{ accepted: number; total: number }> {
+  return publishTo(signed, [...tagRelays(), ...also]);
+}
+
+/**
+ * A record that is no list event — a review (kind 34259), its removal — to the
+ * author's own write relays and `also` (the index, where the other apps read
+ * reviews), never the hub: it keeps list kinds and reactions only, and refuses
+ * the rest (the places and books contracts). An author with no relay list
+ * reaches `also` alone.
+ */
+export async function publishToOutbox(
+  signed: Record<string, unknown>,
+  also: string[],
+): Promise<{ accepted: number; total: number }> {
+  return publishTo(signed, also);
+}
+
+async function publishTo(
+  signed: Record<string, unknown>,
+  more: string[],
+): Promise<{ accepted: number; total: number }> {
   const author = signed.pubkey as string;
-  const relays = dedupeRelays([...(await outboxRelays(author, [])), ...tagRelays(), ...also]);
+  const relays = dedupeRelays([...(await outboxRelays(author, [])), ...more]);
   const responses = await pool.publish(relays, signed as never);
   const accepted = responses.filter((r) => r.ok).length;
   const total = responses.length || relays.length;

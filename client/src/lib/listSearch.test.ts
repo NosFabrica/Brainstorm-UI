@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listQueryOf, matchListItems } from "@/lib/listSearch";
+import { listQueryOf, matchListItems, namesListOnly } from "@/lib/listSearch";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 
 const GITHUB = "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts";
@@ -90,5 +90,99 @@ describe("matchListItems — the items the words find", () => {
 
   it("stops at the number asked for", () => {
     expect(matchListItems(items, definition, ["vcavallo"], 2).map((i) => i.id)).toEqual(["2", "3"]);
+  });
+});
+
+// A list whose header declares no fields still has items that read as something: the view that
+// draws them says what they show (a book's title and author from its own tags). Search finds them
+// by that reading — what the card shows is what the words are matched against.
+describe("matchListItems — through the reading the cards show", () => {
+  const bare = definitionOf({
+    ...header,
+    tags: [
+      ["d", "books"],
+      ["names", "Book", "Books"],
+    ],
+  });
+  const book = (id: string, title: string, author: string) => ({
+    id,
+    pubkey: "c".repeat(64),
+    kind: 39999,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["z", BOOKS],
+      ["name", title],
+      ["author", author],
+    ],
+  });
+  const books = [book("1", "Dune", "Frank Herbert"), book("2", "The Hobbit", "J. R. R. Tolkien")];
+  const reading = (it: { tags: string[][] }) => ({
+    title: it.tags.find((t) => t[0] === "name")?.[1] ?? null,
+    summary: it.tags.find((t) => t[0] === "author")?.[1] ?? null,
+  });
+
+  it("finds nothing by the bare header's reading, which shows no title", () => {
+    expect(matchListItems(books, bare, ["dune"])).toEqual([]);
+  });
+
+  it("finds a book by its title or its author when given the cards' reading", () => {
+    expect(matchListItems(books, bare, ["dune"], 3, reading).map((i) => i.id)).toEqual(["1"]);
+    expect(matchListItems(books, bare, ["tolkien"], 3, reading).map((i) => i.id)).toEqual(["2"]);
+  });
+});
+
+// "west" is the word west: West Roxbury, Local Joe West — not Westlake, Westcliffe or Western.
+// While the words are still being typed, the last one may be the start of a word ("coff").
+// The Top page matches by what an item is called; its own page matches everything it shows.
+describe("matchListItems — whole words, and what a thing is called", () => {
+  const read = (it: { tags: string[][] }) => ({
+    title: it.tags.find((t) => t[0] === "name")?.[1] ?? null,
+    summary: it.tags.find((t) => t[0] === "line")?.[1] ?? null,
+  });
+  const thing = (id: string, name: string, line: string) => ({
+    id,
+    tags: [
+      ["name", name],
+      ["line", line],
+    ],
+  });
+  const things = [
+    thing("1", "Local Joe West", "Cafe · Ewa Beach"),
+    thing("2", "Yucatan Tacos", "Restaurant · West Roxbury"),
+    thing("3", "The Pasta Co-Op", "Fast food · Westlake"),
+    thing("4", "The Western Canon", "Harold Bloom"),
+    thing("5", "The Indian Constitution", "Granville Austin"),
+  ];
+  const ids = (found: { id: string }[]) => found.map((t) => t.id);
+
+  it("matches whole words, not the starts of longer ones", () => {
+    expect(ids(matchListItems(things, definition, ["west"], 9, read))).toEqual(["1", "2"]);
+  });
+
+  it("lets the last word being typed be the start of a word", () => {
+    expect(ids(matchListItems(things, definition, ["west"], 9, read, { typing: true }))).toEqual(["1", "4", "2", "3"]);
+    expect(ids(matchListItems(things, definition, ["yucatan", "ta"], 9, read, { typing: true }))).toEqual(["2"]);
+  });
+
+  it("can match by what a thing is called alone", () => {
+    expect(ids(matchListItems(things, definition, ["austin"], 9, read))).toEqual(["5"]);
+    expect(ids(matchListItems(things, definition, ["austin"], 9, read, { titleOnly: true }))).toEqual([]);
+  });
+});
+
+describe("namesListOnly — a search that is a list's name alone", () => {
+  const places = { singular: "Food and Drink Place", plural: "Food and Drink Places" };
+
+  it("is the name, in either number, or some of its words", () => {
+    expect(namesListOnly("books", concepts[1])).toBe(true);
+    expect(namesListOnly("Book", concepts[1])).toBe(true);
+    expect(namesListOnly("food places", places)).toBe(true);
+  });
+
+  it("is not a name with words to find, filler alone, or another name", () => {
+    expect(namesListOnly("books herbert", concepts[1])).toBe(false);
+    expect(namesListOnly("the and", concepts[1])).toBe(false);
+    expect(namesListOnly("github", concepts[1])).toBe(false);
   });
 });

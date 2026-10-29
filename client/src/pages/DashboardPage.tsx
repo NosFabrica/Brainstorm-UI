@@ -17,7 +17,7 @@ import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesMod
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { useShareUrl } from "@/hooks/useShareUrl";
+import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,7 +25,6 @@ import { Loader2, ShieldAlert, RefreshCw, Keyboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ASSISTANT_UPDATED_EVENT,
-  getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
   setFirstPublishDone,
@@ -54,6 +53,7 @@ import { hasDeclinedNip85 } from "@/lib/nip85Consent";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
 import { dashboardPrompt } from "@/lib/dashboardPrompt";
@@ -156,11 +156,11 @@ export default function DashboardPage() {
     return identityHas(user?.pubkey, "createdInApp");
   })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
-  const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
+  const { taPubkey: assistantTaPubkey, published: assistantPublished } = useBrainstormAssistant();
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
-  const inviteShareUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteShareOpen });
+  const inviteShareUrl = useShortLink({ ...profileShortLink(user?.npub ?? ""), enabled: inviteShareOpen });
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
 
   // Lazy initialisers run once, and switching accounts in-app does not remount
@@ -181,10 +181,7 @@ export default function DashboardPage() {
     setInviteCardSeen(true);
   };
   useEffect(() => {
-    const sync = () => {
-      setAssistantPubkey(getCurrentAssistantPubkey());
-      setAssistantDismissed(readAssistantDismissed());
-    };
+    const sync = () => setAssistantDismissed(readAssistantDismissed());
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
     };
@@ -202,15 +199,20 @@ export default function DashboardPage() {
   // rather than navigating to the wrong settings page. Explicit click = consent,
   // so we DO follow the bot. Reuses the shared publish helper.
   const publishAssistantMutation = useMutation({
-    mutationFn: () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    mutationFn: async () => {
+      if (!assistantTaPubkey) throw new Error("Your assistant isn't ready yet. Please try again in a moment.");
+      return ensureAssistantPublished({ taPubkey: assistantTaPubkey, follow: true, skipIfPublished: false });
+    },
     onSuccess: ({ name }) => {
-      setFirstPublishDone();
-      setAssistantPubkey(getCurrentAssistantPubkey()); // collapse the prompt immediately
+      setFirstPublishDone(); // the cache write collapses the prompt
       toast({
         title: `${name} is live on Nostr!`,
         description: "Speaking your scores to compatible Nostr apps.",
         action: (
-          <ToastAction altText="Customize your assistant" onClick={() => navigate("/settings?tab=trust")}>
+          <ToastAction
+            altText="Customize your assistant"
+            onClick={() => navigate("/settings?tab=brainstorm-assistant")}
+          >
             Customize
           </ToastAction>
         ),
@@ -600,6 +602,8 @@ export default function DashboardPage() {
   // ta_pubkey, which exists from login — black-box testing showed users lost
   // in exactly that gap when the card waited for publishDone. `inviteDue` is
   // the once-per-account invite beat when scores first go live, never on recalcs.
+  // Neither activation ask goes to someone whose Treasure Map gives the rank
+  // duty to another Assistant: that was their choice (needsActivationPrompt).
   const prompt = dashboardPrompt({
     activatePending,
     consentDue:
@@ -607,9 +611,10 @@ export default function DashboardPage() {
       !isRecalculating &&
       !nip85Activated &&
       !nip85Dismissed &&
+      trustServiceProvider.data !== "other" &&
       (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)),
     inviteDue: publishDone && !inviteCardSeen && !isRecalculating,
-    assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPubkey && !nip85CreatedInApp,
+    assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPublished && !nip85CreatedInApp,
   });
 
   // One modal instance, reachable from both the takeover and the dashboard.

@@ -1,7 +1,17 @@
 import type { ComponentType, ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, Check, ChevronRight, PenLine, UserPlus } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  ListChecks,
+  Map as MapIcon,
+  PenLine,
+  UserPlus,
+} from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -20,9 +30,16 @@ import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
  * else (profile photo, backup) lives on in Settings and its own prompts,
  * off the critical path.
  *
+ * Where the server can publish it, a fourth step: the Brainstorm Assistant's
+ * Duty Menu, published and up to date (/setup/duty-menu does the publish).
+ * And a fifth, the same way: the Assistant's own Treasure Map, listing the
+ * duties live now (/setup/treasure-map).
+ *
  * Every "Finish setup" surface (header banner, dashboard card) lands here, and
  * both action rows come back here when they're done, so progress is always
- * visible in one place.
+ * visible in one place. Once the required steps are done it's where the
+ * account menu's Account setup row leads, for the optional extras — and it's
+ * titled for that, not still asking them to finish.
  */
 
 function DoneRow({ label, detail, testid }: { label: string; detail: ReactNode; testid: string }) {
@@ -84,10 +101,51 @@ function PendingRow({
   );
 }
 
+/**
+ * The optional extra for a Treasure Map that gives the rank duty to another
+ * Assistant: hand it to their Brainstorm Assistant. /setup/activate does the
+ * publish, behind its "replace" warning.
+ */
+function ScoresSwitchRow({ onSwitch }: { onSwitch: () => void }) {
+  return (
+    <Card
+      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-3.5"
+      data-testid="setup-row-scores-switch"
+    >
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-brand-primary bg-brand-primary/10">
+        <ArrowLeftRight className="h-3.5 w-3.5 text-brand-primary dark:text-brand-link" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-bold text-slate-900 dark:text-slate-100">
+          Use your Brainstorm Assistant for scores
+        </span>
+        <span className="mt-1 block text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+          Another Assistant publishes your rank. One signature hands that duty to your Brainstorm Assistant.
+        </span>
+      </span>
+      <Button size="sm" onClick={onSwitch} data-testid="setup-scores-switch">
+        Switch
+      </Button>
+    </Card>
+  );
+}
+
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const { followDone, followCount, activateDone, listsPending, doneCount, allDone } = useFinishSetup();
+  const {
+    followDone,
+    followCount,
+    activateDone,
+    scoresElsewhere,
+    listsPending,
+    dutyMenu,
+    treasureMap,
+    doneCount,
+    totalSteps,
+    allDone,
+    messages,
+  } = useFinishSetup();
   const { isCalculating } = useScoringStatus();
 
   if (!user) return null;
@@ -118,13 +176,21 @@ export default function FinishSetupPage() {
       />
 
       <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
-        <SectionHeader kicker="Finish setting up" className="mb-4" />
+        <SectionHeader kicker={allDone ? "Account setup" : "Finish setting up"} className="mb-4" />
         <h1
           className="text-3xl font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
           style={{ fontFamily: "var(--font-display)" }}
           data-testid="text-finish-setup-title"
         >
-          Finish setting up <span className="text-brand-link">your account</span>.
+          {allDone ? (
+            <>
+              Your account is <span className="text-brand-link">set up</span>.
+            </>
+          ) : (
+            <>
+              Finish setting up <span className="text-brand-link">your account</span>.
+            </>
+          )}
         </h1>
 
         <div className="mt-7">
@@ -132,12 +198,12 @@ export default function FinishSetupPage() {
             className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300"
             data-testid="text-finish-setup-progress"
           >
-            {doneCount} of 3 complete
+            {doneCount} of {totalSteps} complete
           </span>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
             <div
               className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-accent transition-all duration-500"
-              style={{ width: `${Math.round((doneCount / 3) * 100)}%` }}
+              style={{ width: `${Math.round((doneCount / totalSteps) * 100)}%` }}
             />
           </div>
         </div>
@@ -181,7 +247,11 @@ export default function FinishSetupPage() {
           {activateDone ? (
             <DoneRow
               label="Activate your Brainstorm account"
-              detail="Other apps can now find your scores."
+              detail={
+                scoresElsewhere
+                  ? "Your Treasure Map already names an Assistant for your scores."
+                  : "Other apps can now find your scores."
+              }
               testid="setup-row-activate-done"
             />
           ) : (
@@ -196,8 +266,101 @@ export default function FinishSetupPage() {
           )}
           {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
           {activateDone && listsPending && <ListsUpdateLine />}
-          <MessagesSetupRow />
+
+          {dutyMenu === "current" ? (
+            <DoneRow
+              label="Publish your Assistant's Duty Menu"
+              detail={
+                <>
+                  Your Brainstorm Assistant's Duty Menu is up to date ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/setup/duty-menu")}
+                    className="font-semibold text-brand-link hover:underline"
+                    data-testid="setup-view-duty-menu"
+                  >
+                    View
+                  </button>
+                </>
+              }
+              testid="setup-row-duty-menu-done"
+            />
+          ) : (
+            dutyMenu && (
+              <PendingRow
+                label="Publish your Assistant's Duty Menu"
+                badge={
+                  dutyMenu === "checking"
+                    ? "Checking"
+                    : dutyMenu === "out-of-date"
+                      ? "Out of date"
+                      : "Required for other apps"
+                }
+                detail={
+                  dutyMenu === "out-of-date"
+                    ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
+                    : "Let other clients, apps and Assistants know which duties your Assistant can take on, and which relay each one is published to."
+                }
+                icon={ListChecks}
+                onClick={() => navigate("/setup/duty-menu")}
+                testid="setup-row-duty-menu"
+              />
+            )
+          )}
+
+          {treasureMap === "current" ? (
+            <DoneRow
+              label="Publish your Assistant's Treasure Map"
+              detail={
+                <>
+                  Your Brainstorm Assistant's Treasure Map is up to date ·{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/setup/treasure-map")}
+                    className="font-semibold text-brand-link hover:underline"
+                    data-testid="setup-view-treasure-map"
+                  >
+                    View
+                  </button>
+                </>
+              }
+              testid="setup-row-treasure-map-done"
+            />
+          ) : (
+            treasureMap && (
+              <PendingRow
+                label="Publish your Assistant's Treasure Map"
+                badge={
+                  treasureMap === "checking"
+                    ? "Checking"
+                    : treasureMap === "out-of-date"
+                      ? "Out of date"
+                      : "Required for other apps"
+                }
+                detail={
+                  treasureMap === "out-of-date"
+                    ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
+                    : "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once."
+                }
+                icon={MapIcon}
+                onClick={() => navigate("/setup/treasure-map")}
+                testid="setup-row-treasure-map"
+              />
+            )
+          )}
         </div>
+
+        {/* Below the counted steps, under their own heading: the count above is of
+            them alone. Only with a row to show — messages once its engine has looked. */}
+        {(scoresElsewhere || messages) && (
+          <section className="mt-8" data-testid="setup-optional">
+            <SectionHeader kicker="Optional" className="mb-3" />
+            <div className="flex flex-col gap-3">
+              {scoresElsewhere && <ScoresSwitchRow onSwitch={() => navigate("/setup/activate")} />}
+              <MessagesSetupRow />
+            </div>
+          </section>
+        )}
 
         {allDone && (
           <Card accent className="mt-5 p-6 text-center" data-testid="card-setup-all-done">
@@ -211,9 +374,11 @@ export default function FinishSetupPage() {
               You're all set!
             </h2>
             <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-              {isCalculating
-                ? "Your scores are calculating — usually about 5 minutes — and other apps can find them as soon as they're published."
-                : "Other apps can now find your Brainstorm scores."}
+              {scoresElsewhere
+                ? "Other apps find your scores through the Assistant your Treasure Map names."
+                : isCalculating
+                  ? "Your scores are calculating — usually about 5 minutes — and other apps can find them as soon as they're published."
+                  : "Other apps can now find your Brainstorm scores."}
             </p>
             <button
               type="button"

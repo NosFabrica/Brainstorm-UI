@@ -10,8 +10,15 @@ import type { NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 const profileMapMock = vi.fn((_pks: string[]) => Promise.resolve(new Map<string, Record<string, unknown>>()));
+// Open Markets: what a review, a collection or a listing names by address, and a seller's listings filed under a collection.
+const addressedMock = vi.fn((_coords: { kind: number; pubkey: string; identifier: string }[]) =>
+  Promise.resolve(new Map<string, NostrEvent>()),
+);
+const collectionProductsMock = vi.fn((_pubkey: string, _address: string) => Promise.resolve([] as NostrEvent[]));
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchAddressableEvents: (c: { kind: number; pubkey: string; identifier: string }[]) => addressedMock(c),
+  fetchCollectionProducts: (pk: string, a: string) => collectionProductsMock(pk, a),
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
   refreshProfileEvent: async (pk: string) => {
     const content = (await profileMapMock([pk])).get(pk);
@@ -83,6 +90,8 @@ beforeEach(() => {
   fromSearchMock.mockResolvedValue([]);
   byAddressMock.mockResolvedValue(new Map());
   profileMapMock.mockResolvedValue(new Map());
+  addressedMock.mockResolvedValue(new Map());
+  collectionProductsMock.mockResolvedValue([]);
 });
 
 describe("hasThingPage", () => {
@@ -606,5 +615,250 @@ describe("readablePost", () => {
       text: "look and",
       image: "https://x.test/a.png",
     });
+  });
+});
+
+describe("Open Markets pages", () => {
+  const seller = "c".repeat(64);
+  const product = (d: string, title: string, extra: string[][] = []) =>
+    ev(30402, [["d", d], ["title", title], ["price", "30", "USD"], ...extra], "", seller);
+  const keyed = (...events: NostrEvent[]) =>
+    new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
+
+  it("a product review shows the product it reviews, the thumb, the score, each category, and every review of it", async () => {
+    const plate = product("om-plate-1", "Seed plate");
+    addressedMock.mockResolvedValue(keyed(plate));
+    const review = ev(
+      31555,
+      [
+        ["d", `a:30402:${seller}:om-plate-1`],
+        ["rating", "1", "thumb"],
+        ["rating", "0.8", "value"],
+        ["rating", "0.6", "delivery"],
+      ],
+      "Arrived early, well packed.",
+    );
+    page(review);
+    expect(await screen.findByTestId(`listing-card-${plate.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Review of Seed plate");
+    expect(screen.getByTestId("thing-page-thumb")).toHaveTextContent("Recommends");
+    // (1 × 0.5 + 0.5 × 0.7) × 5
+    expect(screen.getByTestId("thing-page-score")).toHaveTextContent("4.3");
+    expect(screen.getByTestId("thing-page-aspects")).toHaveTextContent("Value");
+    expect(screen.getByTestId("thing-page-aspects")).toHaveTextContent("Delivery");
+    expect(screen.getByTestId("thing-page-description")).toHaveTextContent("Arrived early");
+    await waitFor(() =>
+      // Both spellings of the product, so a review written bare (`30402:…`) is found too.
+      expect(fromSearchMock).toHaveBeenCalledWith(
+        [{ kinds: [31555], "#d": [`a:30402:${seller}:om-plate-1`, `30402:${seller}:om-plate-1`] }],
+        {
+          limit: 200,
+        },
+      ),
+    );
+  });
+
+  it("a thumbs-down review says so, and a product not found says that instead of a raw address", async () => {
+    const review = ev(31555, [
+      ["d", `a:30402:${seller}:om-gone-1`],
+      ["rating", "0", "thumb"],
+    ]);
+    page(review);
+    expect(screen.getByTestId("thing-page-thumb")).toHaveTextContent("Doesn't recommend");
+    expect(await screen.findByText(/isn't on the relays we asked/)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-page-product")).not.toHaveTextContent(seller);
+  });
+
+  it("a collection lists what is for sale in it: the products it names and the ones filed under it", async () => {
+    const named = product("om-krux-1", "Krux Amigo");
+    const filed = product("om-tzt-1", "TZT Krux", [["a", `30405:${seller}:om-wallets-1`]]);
+    const sold = product("om-old-1", "Old wallet", [
+      ["a", `30405:${seller}:om-wallets-1`],
+      ["status", "sold"],
+    ]);
+    // Unlisted is not off sale: Conduit sells its event-only products, every
+    // one `visibility: hidden`, through the event's collection.
+    const unlisted = product("om-event-1", "Event-only wallet", [
+      ["a", `30405:${seller}:om-wallets-1`],
+      ["visibility", "hidden"],
+    ]);
+    addressedMock.mockResolvedValue(keyed(named));
+    collectionProductsMock.mockResolvedValue([filed, sold, unlisted]);
+    const collection = ev(
+      30405,
+      [
+        ["d", "om-wallets-1"],
+        ["title", "Krux DIY Wallets"],
+        ["summary", "Ready to use"],
+        ["a", `30402:${seller}:om-krux-1`],
+      ],
+      "Open-source firmware on off-the-shelf hardware.",
+      seller,
+    );
+    page(collection);
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Krux DIY Wallets");
+    expect(screen.getByTestId("thing-page-summary")).toHaveTextContent("Ready to use");
+    expect(screen.getByTestId("thing-page-description")).toHaveTextContent("Open-source firmware");
+    const products = screen.getByTestId("thing-page-products");
+    expect(await within(products).findByTestId(`listing-card-${named.id}`)).toBeInTheDocument();
+    expect(await within(products).findByTestId(`listing-card-${filed.id}`)).toBeInTheDocument();
+    expect(await within(products).findByTestId(`listing-card-${unlisted.id}`)).toBeInTheDocument();
+    expect(within(products).queryByTestId(`listing-card-${sold.id}`)).toBeNull();
+    expect(collectionProductsMock).toHaveBeenCalledWith(seller, `30405:${seller}:om-wallets-1`);
+  });
+
+  it("a listing the seller has since sold stays sold, though a lagging relay still serves it on sale", async () => {
+    const inIt = ["a", `30405:${seller}:om-wallets-1`];
+    const kept = product("om-tzt-1", "TZT Krux", [inIt]);
+    const onSale = { ...product("om-jade-1", "Jade", [inIt]), created_at: 1_790_000_000 };
+    const hiddenSince = {
+      ...product("om-jade-1", "Jade", [inIt, ["status", "sold"]]),
+      created_at: 1_790_000_100,
+    };
+    collectionProductsMock.mockResolvedValue([onSale, hiddenSince, kept]);
+    page(
+      ev(
+        30405,
+        [
+          ["d", "om-wallets-1"],
+          ["title", "Krux DIY Wallets"],
+        ],
+        "",
+        seller,
+      ),
+    );
+    const products = screen.getByTestId("thing-page-products");
+    expect(await within(products).findByTestId(`listing-card-${kept.id}`)).toBeInTheDocument();
+    expect(within(products).queryByTestId(`listing-card-${onSale.id}`)).toBeNull();
+    expect(within(products).queryByTestId(`listing-card-${hiddenSince.id}`)).toBeNull();
+  });
+
+  it("a collection shows another seller's product only when the product files itself under it", async () => {
+    // An event market: the collection names vendors' products, and each vendor's
+    // product names the market back. A collection cannot claim a stranger's listing.
+    const vendor = "e".repeat(64);
+    const market = `30405:${seller}:om-market-1`;
+    const consenting = ev(
+      30402,
+      [
+        ["d", "jar"],
+        ["title", "Body butter"],
+        ["price", "17", "USD"],
+        ["a", market],
+      ],
+      "",
+      vendor,
+    );
+    const claimed = ev(
+      30402,
+      [
+        ["d", "mug"],
+        ["title", "Someone else's mug"],
+        ["price", "9", "USD"],
+      ],
+      "",
+      vendor,
+    );
+    addressedMock.mockResolvedValue(keyed(consenting, claimed));
+    collectionProductsMock.mockResolvedValue([]);
+    page(
+      ev(
+        30405,
+        [
+          ["d", "om-market-1"],
+          ["title", "Summit market"],
+          ["a", `30402:${vendor}:jar`],
+          ["a", `30402:${vendor}:mug`],
+        ],
+        "",
+        seller,
+      ),
+    );
+    const products = screen.getByTestId("thing-page-products");
+    const card = await within(products).findByTestId(`listing-card-${consenting.id}`);
+    expect(card).toBeInTheDocument();
+    expect(within(products).queryByTestId(`listing-card-${claimed.id}`)).toBeNull();
+  });
+
+  it("a collection's own shipping options are priced without a product's extra cost", async () => {
+    addressedMock.mockResolvedValue(
+      keyed(
+        ev(
+          30406,
+          [
+            ["d", "std"],
+            ["title", "Standard"],
+            ["price", "10", "USD"],
+            ["service", "standard"],
+          ],
+          "",
+          seller,
+        ),
+      ),
+    );
+    collectionProductsMock.mockResolvedValue([]);
+    page(
+      ev(
+        30405,
+        [
+          ["d", "om-wallets-2"],
+          ["title", "Wallets"],
+          ["shipping_option", `30406:${seller}:std`, "5"],
+        ],
+        "",
+        seller,
+      ),
+    );
+    expect(await screen.findByText("$10")).toBeInTheDocument();
+    expect(screen.queryByText("$15")).toBeNull();
+  });
+
+  it("a big collection's lookups go out two chunks at a time, and stop at 200 products", async () => {
+    let inflight = 0;
+    let peak = 0;
+    addressedMock.mockImplementation(async () => {
+      inflight++;
+      peak = Math.max(peak, inflight);
+      await new Promise((r) => setTimeout(r, 5));
+      inflight--;
+      return new Map();
+    });
+    collectionProductsMock.mockResolvedValue([]);
+    page(
+      ev(
+        30405,
+        [
+          ["d", "om-huge-1"],
+          ["title", "Everything"],
+          ...Array.from({ length: 1000 }, (_, i) => ["a", `30402:${seller}:p${i}`]),
+        ],
+        "",
+        seller,
+      ),
+    );
+    await waitFor(() => expect(addressedMock).toHaveBeenCalledTimes(2));
+    const asked = addressedMock.mock.calls.flatMap(([coords]) => coords);
+    expect(asked).toHaveLength(200);
+    expect(peak).toBeLessThanOrEqual(2);
+  });
+
+  it("a shipping option states its price and delivery facts", () => {
+    page(
+      ev(30406, [
+        ["d", "om-pickup-1"],
+        ["title", "Downtown Store Pickup"],
+        ["price", "0", "USD"],
+        ["country", "US"],
+        ["region", "US-FL"],
+        ["service", "pickup"],
+        ["location", "123 Main St, Downtown, FL"],
+      ]),
+    );
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Downtown Store Pickup");
+    expect(screen.getByTestId("thing-page-price")).toHaveTextContent("Free");
+    const facts = screen.getByTestId("thing-page-shipping-facts");
+    expect(facts).toHaveTextContent("Pickup");
+    expect(facts).toHaveTextContent("US-FL");
+    expect(facts).toHaveTextContent("123 Main St");
   });
 });

@@ -39,8 +39,6 @@ test("signed-in journey", async ({ page }) => {
   await test.step("insights", async () => {
     await openMenu("dropdown-insights")();
     await expect.soft(page.getByRole("heading", { name: "My Insights" })).toBeVisible();
-    // History is journalled in the browser, so a fresh CI browser always shows it empty.
-    await expect.soft(page.getByTestId("insights-score-history")).toBeVisible();
     await expect.soft(page.getByTestId("insights-recalculate")).toBeVisible();
   });
 

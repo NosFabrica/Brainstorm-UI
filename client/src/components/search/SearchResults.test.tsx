@@ -10,10 +10,11 @@ import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { scopedSearchHref } from "@/lib/searchSyntax";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
+import type { RibbonList } from "@/hooks/useListRibbon";
 
 const streamMock = vi.fn();
 const moreMock = vi.fn();
@@ -27,6 +28,15 @@ const serverStatusMock = vi.fn(() => ({
 const retryNowMock = vi.fn();
 // List items among results read the Dictionary through the account; they have their own tests.
 vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
+// All's lists read the Dictionary and the relay (hooks/useListRibbon, its own tests): none unless a test says so.
+const ribbonMock = vi.fn((_query: string, _opts: { enabled: boolean }) => [] as RibbonList[]);
+let ribbonSettled = true;
+vi.mock("@/hooks/useListRibbon", () => ({
+  useListRibbon: (query: string, opts: { enabled: boolean }) => ({
+    lists: ribbonMock(query, opts),
+    settled: ribbonSettled,
+  }),
+}));
 vi.mock("@/lib/serverStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
   return {
@@ -65,8 +75,26 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
     fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
+    countTabs: (
+      query: string,
+      tabs: readonly string[],
+      _lens: unknown,
+      onCount: (tab: string, count: number | null) => void,
+    ) => {
+      tabCountAsks.push({ query, tabs, onCount });
+      return () => {};
+    },
   };
 });
+// The tab counts asked (services/search countTabs): nothing answers unless a test calls `onCount`.
+const tabCountAsks: { query: string; tabs: readonly string[]; onCount: (tab: string, count: number | null) => void }[] =
+  [];
+// Whether the words name a tag, asked once People is known to hold no one: none unless a test says so.
+const fetchSearchTagsMock = vi.fn((_q: string, _lens: unknown, _opts?: unknown) => Promise.resolve([] as unknown[]));
+vi.mock("@/services/searchTags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/searchTags")>()),
+  fetchSearchTags: (q: string, lens: unknown, opts?: unknown) => fetchSearchTagsMock(q, lens, opts),
+}));
 const goalProgressMock = vi.fn<
   (ids: string[]) => Promise<{ byGoal: Map<string, { sats: number; zappers: string[] }>; complete: boolean }>
 >(() => Promise.resolve({ byGoal: new Map(), complete: false }));
@@ -134,6 +162,11 @@ vi.mock("@/hooks/useSearchTags", () => ({
   },
 }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+// Offline: a list item's definition is never looked up, so it reads as its tags say (AllResults).
+vi.mock("@/hooks/useItemView", async (orig) => ({
+  ...(await orig<typeof import("@/hooks/useItemView")>()),
+  useItemView: () => ({ resolved: null, shown: null, pending: true }),
+}));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
 const ratesMock = vi.fn<() => Record<string, number> | null>(() => TEST_RATES);
@@ -225,14 +258,31 @@ const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: bo
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
+import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
+import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+// Offline by default: no domain confirms a handle unless a test says it does.
+const verifyNip05Mock = vi.hoisted(() =>
+  vi.fn<(nip05: string, pubkey: string) => Promise<"verified" | "invalid" | "unknown">>(async () => "unknown"),
+);
+const handleOwnerMock = vi.hoisted(() =>
+  vi.fn<(nip05: string, pubkey: string) => Promise<string | null>>(async () => null),
+);
 vi.mock("@/lib/nip05", async (orig) => ({
   ...(await orig<typeof import("@/lib/nip05")>()),
-  verifyNip05: async () => "unknown",
+  verifyNip05: (nip05: string, pubkey: string) => verifyNip05Mock(nip05, pubkey),
   resolveNip05: async () => null,
+  handleOwner: (nip05: string, pubkey: string) => handleOwnerMock(nip05, pubkey),
+  peekHandleOwner: () => undefined,
+}));
+// The accounts a search's handles point at, as the face cache reads them.
+const pillProfilesMock = vi.hoisted(() => vi.fn(async (_pks: string[]) => new Map()));
+vi.mock("@/services/searchFaces", async (orig) => ({
+  ...(await orig<typeof import("@/services/searchFaces")>()),
+  fetchPillProfiles: (pks: string[]) => pillProfilesMock(pks),
 }));
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
@@ -282,6 +332,9 @@ beforeEach(() => {
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
   wavlakeTrendingMock.mockResolvedValue([]);
   allStreams = [];
+  tabCountAsks.length = 0;
+  __forgetTabCounts();
+  fetchSearchTagsMock.mockImplementation(() => Promise.resolve([]));
   window.history.replaceState({}, "", "/?q=jack");
 });
 
@@ -563,12 +616,12 @@ describe("SearchResults", () => {
   // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
   // settings list. The menu is grouped by what a person is doing, consumer
   // things first and developer things last.
-  it("groups More by what you're doing: Read & listen, Happening, Build, Community, then Lists", () => {
+  it("groups More by what you're doing: Read & listen, Out & about, Build, Community, then Lists", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     fireEvent.click(screen.getByTestId("search-tab-more"));
     const menu = screen.getByRole("menu");
     const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
-    expect(groups).toEqual(["Read & listen", "Happening", "Build", "Community"]);
+    expect(groups).toEqual(["Read & listen", "Out & about", "Build", "Community"]);
     // Doors only: a "Soon" row names where we're going and opens nothing.
     const items = [
       ...menu.querySelectorAll(
@@ -1057,6 +1110,62 @@ describe("SearchResults", () => {
       fireEvent.click(screen.getByTestId("event-facet-past"));
       expect(screen.getByTestId("event-open-e-rec").getAttribute("href")).toBe("https://youtu.be/abc12345");
       expect(screen.getByTestId("event-open-e-rec")).toHaveTextContent(/replay/i);
+    });
+
+    // Event Index files feed events as items on its Events list (kind 39999),
+    // not as NIP-52 events. The tab shows them as events: who hosts is the
+    // feed's organizer, and there is no RSVP to send (the item has none).
+    const item = (id: string, title: string, start: number, extra: string[][] = []) =>
+      ev(id, 39999, "b".repeat(64), "", [
+        ["d", id],
+        ["z", "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:events"],
+        ["title", title],
+        ["start", String(start)],
+        ["location", "Austin, TX"],
+        ["organizer", "PubKey"],
+        ...extra,
+      ]);
+
+    it("shows Event Index's list items as events, hosted by the feed's organizer", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="pubkey" pov="nosfabrica" />);
+      emit({
+        hits: [
+          {
+            event: item("i-trivia", "Trivia Night", nowSec + DAY),
+            author: author("b".repeat(64), "index"),
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 300,
+      });
+      const card = await screen.findByTestId("event-card-i-trivia");
+      expect(card).toHaveTextContent("Trivia Night");
+      expect(card).toHaveTextContent("Austin, TX");
+      expect(within(card).getByTestId("event-host-i-trivia")).toHaveTextContent("By PubKey");
+      expect(card).not.toHaveTextContent(/By\s*index/);
+      expect(within(card).queryByTestId("event-rsvp")).toBeNull();
+    });
+
+    it("shows an event once when an item names a NIP-52 copy of it", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="pubkey" pov="nosfabrica" />);
+      const start = nowSec + DAY;
+      emit({
+        hits: [
+          { event: cal("e-copy", "Trivia at PubKey", start + 3600), author: null, rank: null },
+          {
+            event: item("i-trivia", "Trivia Night", start, [["a", `31923:${"c".repeat(64)}:e-copy`, "", "copy"]]),
+            author: null,
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 300,
+      });
+      await screen.findByTestId("event-card-i-trivia");
+      expect(screen.queryByTestId("event-card-e-copy")).toBeNull();
     });
   });
 
@@ -2091,7 +2200,7 @@ describe("SearchResults", () => {
   });
 
   // A Conduit seller's listing with no twin still opens on Conduit, at their store.
-  it("a Conduit seller's other listing, published elsewhere with no twin, opens at their Conduit store", async () => {
+  it("a Conduit seller's other listing, published elsewhere with no twin, opens at its own Conduit product page", async () => {
     setUrlTab("shop");
     render(<SearchResults query="soap" pov="nosfabrica" />);
     const seller = "6".repeat(64);
@@ -2119,7 +2228,7 @@ describe("SearchResults", () => {
     });
     const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
     expect(open.getAttribute("href")).toMatch(
-      /^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/,
+      /^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/,
     );
   });
 
@@ -4750,6 +4859,7 @@ describe("a People search whose words match a tag", () => {
 
   it("shows a person the relay also found once, in the tag's place, with the relay's fuller profile", async () => {
     carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    verifyNip05Mock.mockImplementation(async (nip05) => (nip05 === "avi@nip21.media" ? "verified" : "unknown"));
     render(<SearchResults query="verified human" pov="nosfabrica" />);
     emit({
       hits: [
@@ -5061,5 +5171,454 @@ describe("SearchResults — the kinds lib/thing reads", () => {
     emit({ hits: [hitOf(track)], eose: true, timeMs: 100 });
 
     expect(await screen.findByTestId("track-card-t36787")).toHaveTextContent("Acapella Random Song");
+  });
+});
+
+// A person whose own profile never carries the words typed, searched by the name copies of
+// their profile use: the copies kept the person's handle, and the handle's server names them.
+describe("a People search answered only by profiles using someone else's handle", () => {
+  const REAL = "f".repeat(64);
+  const copy = (c: string) => ({
+    event: person(`copy-${c}`, c.repeat(64), "Jo Rivers"),
+    author: { ...author(c.repeat(64), "Jo Rivers"), displayName: "Jo Rivers", nip05: "rivers@music.example" },
+    rank: null,
+  });
+
+  beforeEach(() => {
+    setUrlTab("people");
+    window.history.replaceState({}, "", "/?q=jo%20rivers&t=people");
+    handleOwnerMock.mockImplementation(async (nip05, pk) =>
+      nip05 === "rivers@music.example" && pk !== REAL ? REAL : null,
+    );
+    pillProfilesMock.mockImplementation(
+      async (pks) => new Map(pks.filter((pk) => pk === REAL).map((pk) => [pk, author(pk, "rivers")])),
+    );
+    scoreOfMock.mockImplementation((pk) => (pk === REAL ? 0.6 : 0.01));
+  });
+  afterEach(() => {
+    handleOwnerMock.mockImplementation(async () => null);
+    pillProfilesMock.mockImplementation(async () => new Map());
+    scoreOfMock.mockImplementation(() => 0.85);
+  });
+
+  it("leads with the account the handle belongs to, saying why, while the copies stay hidden", async () => {
+    render(<SearchResults query="jo rivers" pov="nosfabrica" />);
+    emit({ hits: [copy("1"), copy("2")], eose: true, timeMs: 100 });
+    const first = await screen.findByTestId("result-profile-0");
+    expect(within(first).getByTestId("text-result-name-0")).toHaveTextContent("rivers");
+    expect(within(first).getByTestId("person-handle-pointers")).toHaveTextContent(
+      "Profiles named “Jo Rivers” use this account's handle",
+    );
+    expect(screen.queryByTestId("result-profile-1")).toBeNull();
+  });
+});
+
+// A handle is shown only once its own server confirms it; while it's asked, or when the server
+// can't be reached or doesn't list the name, the card says nothing about one.
+describe("a person's handle on their search card", () => {
+  const card = (nip05: string) => ({
+    event: person("p1", "a".repeat(64), "Ada"),
+    author: { ...author("a".repeat(64), "Ada"), nip05 },
+    rank: null,
+  });
+
+  beforeEach(() => {
+    setUrlTab("people");
+    window.history.replaceState({}, "", "/?q=ada&t=people");
+  });
+  afterEach(() => verifyNip05Mock.mockImplementation(async () => "unknown"));
+
+  it("shows a confirmed handle, with its check", async () => {
+    verifyNip05Mock.mockImplementation(async () => "verified");
+    render(<SearchResults query="ada" pov="nosfabrica" />);
+    emit({ hits: [card("ada@example.com")], eose: true, timeMs: 100 });
+    const handle = await screen.findByTestId("text-nip05-0");
+    expect(handle).toHaveTextContent("ada@example.com");
+    expect(handle).toHaveAttribute("data-nip05-status", "verified");
+  });
+
+  it("shows no handle that its server hasn't confirmed", async () => {
+    render(<SearchResults query="ada" pov="nosfabrica" />);
+    emit({ hits: [card("ada@down.example")], eose: true, timeMs: 100 });
+    await screen.findByTestId("result-profile-0");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("text-nip05-0")).toBeNull();
+  });
+});
+
+// The kinds with a look of their own (Books, Places, GitHub accounts) are handed down from the
+// app's root; each has a page of its own, listed under More with its neighbours.
+describe("a kind's own page", () => {
+  const kinds = [
+    {
+      key: "books",
+      label: "Books",
+      group: "Read & listen",
+      community: "39998:b:books",
+      Preview: () => null,
+      Page: ({ query }: { query: string }) => <div data-testid="kind-page-books">{query}</div>,
+    },
+    {
+      key: "places",
+      label: "Places",
+      group: "Out & about",
+      community: "39998:p:places",
+      Preview: () => null,
+      Page: ({ query }: { query: string }) => <div data-testid="kind-page-places">{query}</div>,
+    },
+  ];
+  const withKinds = (query: string) =>
+    render(
+      <ListKindsContext.Provider value={kinds}>
+        <SearchResults query={query} pov="nosfabrica" />
+      </ListKindsContext.Provider>,
+    );
+
+  it("is listed under More with its neighbours, and opens with the reader's words", () => {
+    setUrlTab(null);
+    withKinds("dune");
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(
+      within(screen.getByRole("group", { name: "Read & listen" })).getByTestId("search-tab-books"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Out & about" })).getByTestId("search-tab-places"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("search-tab-books"));
+    expect(screen.getByTestId("kind-page-books")).toHaveTextContent("dune");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("books");
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Books");
+  });
+
+  it("opens from its link", () => {
+    setUrlTab("places");
+    withKinds("coffee");
+    expect(screen.getByTestId("kind-page-places")).toHaveTextContent("coffee");
+  });
+
+  it("takes the page for itself: no side panel asks the relay about the words", () => {
+    setUrlTab("places");
+    streamMock.mockClear();
+    withKinds("coffee");
+    expect(streamMock.mock.calls.filter(([q, prm]) => isPanelProbe(String(q), prm as never))).toEqual([]);
+  });
+
+  it("gives way to a main tab", () => {
+    setUrlTab("books");
+    withKinds("dune");
+    fireEvent.click(screen.getByTestId("search-tab-people"));
+    expect(screen.queryByTestId("kind-page-books")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("people");
+  });
+
+  // A searched area is the Places page's (a step in history of its own): leaving the page leaves
+  // it out of the link, and Back or Forward put the page the address names on screen.
+  it("leaves a searched area behind, and follows Back to the page the address names", () => {
+    window.history.replaceState({}, "", "/?q=coffee&t=places&area=30.1,-97.9,30.4,-97.5");
+    withKinds("coffee");
+    expect(screen.getByTestId("kind-page-places")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("search-tab-people"));
+    expect(new URLSearchParams(window.location.search).get("area")).toBeNull();
+    act(() => {
+      window.history.replaceState({}, "", "/?q=coffee&t=places");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByTestId("kind-page-places")).toBeInTheDocument();
+    act(() => {
+      window.history.replaceState({}, "", "/?q=coffee&t=people");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.queryByTestId("kind-page-places")).toBeNull();
+  });
+});
+
+describe("All's lists", () => {
+  const PLACES = `39998:${"b".repeat(64)}:food-and-drink-places`;
+  const forkAndCoin = ev("f".repeat(64), 39999, "c".repeat(64), "", [
+    ["d", "fork-and-coin"],
+    ["z", PLACES],
+    ["name", "Fork & Coin"],
+  ]);
+  const places: RibbonList = {
+    coordinate: PLACES,
+    name: "Food and Drink Places",
+    image: null,
+    hits: [{ event: forkAndCoin, author: null, rank: null }],
+    more: false,
+    href: "/e/naddr1places",
+  };
+
+  beforeEach(() => {
+    ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    ribbonSettled = true;
+  });
+  const listInUrl = () => new URLSearchParams(window.location.search).get("list");
+
+  it("a tile narrows All to its list's items, says how many, and links the whole list; pressed again, it lets go", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: ev("1".repeat(64), 1, "a".repeat(64), "fork & coin burgers"), author: null, rank: null }],
+      eose: true,
+    });
+    const tile = await screen.findByTestId("list-tile-food-and-drink-places");
+    expect(tile).toHaveTextContent("Food and Drink Places");
+    expect(tile).toHaveTextContent("1");
+    expect(screen.getByTestId(`all-row-${"1".repeat(64)}`)).toBeInTheDocument();
+
+    fireEvent.click(tile);
+    expect(tile).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId(`all-row-${forkAndCoin.id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId("list-narrowing")).toHaveTextContent("1 found in Food and Drink Places");
+    expect(screen.getByTestId("list-see-all")).toHaveAttribute("href", "/e/naddr1places");
+
+    fireEvent.click(tile);
+    expect(screen.queryByTestId("list-narrowing")).not.toBeInTheDocument();
+    expect(screen.getByTestId(`all-row-${"1".repeat(64)}`)).toBeInTheDocument();
+  });
+
+  it("the link keeps the pressed list, and lets it go with it", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    const tile = await screen.findByTestId("list-tile-food-and-drink-places");
+    fireEvent.click(tile);
+    expect(listInUrl()).toBe(PLACES);
+    fireEvent.click(tile);
+    expect(listInUrl()).toBeNull();
+  });
+
+  it("coming back to a link with a list opens narrowed to it, waiting for the ribbon rather than showing all of All", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(PLACES)}`);
+    ribbonSettled = false;
+    ribbonMock.mockImplementation(() => []);
+    const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: ev("1".repeat(64), 1, "a".repeat(64), "fork & coin burgers"), author: null, rank: null }],
+      eose: true,
+    });
+    expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId(`all-row-${"1".repeat(64)}`)).not.toBeInTheDocument();
+
+    ribbonSettled = true;
+    ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
+    rerender(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    expect(screen.getByTestId("list-narrowing")).toBeInTheDocument();
+    expect(screen.getByTestId("list-tile-food-and-drink-places")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("new words let go of the list", async () => {
+    setUrlTab("all");
+    const { rerender } = render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    fireEvent.click(await screen.findByTestId("list-tile-food-and-drink-places"));
+    expect(screen.getByTestId("list-narrowing")).toBeInTheDocument();
+    // A new search leaves the list out of the link (pages/landing).
+    window.history.pushState({}, "", "/?q=coffee&t=all");
+    rerender(<SearchResults query="coffee" pov="nosfabrica" />);
+    expect(screen.queryByTestId("list-narrowing")).not.toBeInTheDocument();
+  });
+
+  it("another tab leaves the list out of the link", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    fireEvent.click(await screen.findByTestId("list-tile-food-and-drink-places"));
+    fireEvent.click(screen.getByTestId("search-tab-top"));
+    expect(listInUrl()).toBeNull();
+  });
+
+  it("is All's alone: Top asks for none", () => {
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    expect(ribbonMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ enabled: false }));
+    expect(screen.queryByTestId("list-ribbon")).not.toBeInTheDocument();
+  });
+});
+
+// The roadmap's first step toward categories the query chooses (E4): a tab the words find nothing
+// under is a door to "Nothing found" — "bars in funchal" offers no People tab — so it goes, and the
+// More menu holds only what they find, most first within each group. One-sided: unknown never hides.
+describe("SearchResults: tabs the words find nothing under", () => {
+  const ALL_ZERO = [
+    "people",
+    "notes",
+    "media",
+    "shop",
+    "articles",
+    "music",
+    "recipes",
+    "events",
+    "live",
+    "apps",
+    "repos",
+    "issues",
+    "prs",
+    "nips",
+    "communities",
+    "fundraisers",
+    "reviews",
+    "lists",
+  ];
+  const answer = (counts: Record<string, number | null>) =>
+    act(() => {
+      const { onCount } = tabCountAsks[tabCountAsks.length - 1];
+      for (const [tab, n] of Object.entries(counts)) onCount(tab, n);
+    });
+  const zeroesBut = (some: Record<string, number | null>) => ({
+    ...Object.fromEntries(ALL_ZERO.map((t) => [t, 0])),
+    ...some,
+  });
+  const menuItems = () =>
+    [
+      ...screen
+        .getByRole("menu")
+        .querySelectorAll(
+          '[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"]):not([data-testid$="-soon"])',
+        ),
+    ].map((el) => el.getAttribute("data-testid"));
+  const onNotes = async (query = "jack") => {
+    window.history.replaceState({}, "", `/?q=${encodeURIComponent(query)}&t=notes`);
+    const view = render(<SearchResults query={query} pov="nosfabrica" />);
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(1));
+    return view;
+  };
+
+  it("asks once the page's own results have answered, never before, and without the sort", async () => {
+    window.history.replaceState({}, "", "/?q=jack%20sort%3Arecent&t=notes");
+    render(<SearchResults query="jack sort:recent" pov="nosfabrica" />);
+    expect(tabCountAsks).toHaveLength(0);
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(1));
+    expect(tabCountAsks[0].query).toBe("jack");
+    expect(tabCountAsks[0].tabs).not.toContain("top");
+    expect(tabCountAsks[0].tabs).not.toContain("all");
+  });
+
+  it("new words wait for their own results: the last search's answer on screen doesn't count", async () => {
+    const view = await onNotes("jack");
+    view.rerender(<SearchResults query="jill" pov="nosfabrica" />);
+    await act(async () => {});
+    expect(tabCountAsks).toHaveLength(1);
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(2));
+    expect(tabCountAsks[1].query).toBe("jill");
+  });
+
+  it("a tab known to hold nothing leaves the row; the one being read stays, and More keeps what the words find, most first", async () => {
+    await onNotes();
+    answer(zeroesBut({ articles: 2, music: 0, events: 3, live: 9 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-people")).toBeNull());
+    expect(screen.getByTestId("search-tab-top")).toBeInTheDocument();
+    expect(screen.getByTestId("search-tab-all")).toBeInTheDocument();
+    // The tab being read stays, though it holds nothing.
+    expect(screen.getByTestId("search-tab-notes")).toBeInTheDocument();
+    expect(screen.queryByTestId("search-tab-media")).toBeNull();
+    expect(screen.queryByTestId("search-tab-shop")).toBeNull();
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const groups = [...screen.getByRole("menu").querySelectorAll('[data-testid^="search-tab-group-"]')].map(
+      (el) => el.textContent,
+    );
+    expect(groups).toEqual(["Read & listen", "Out & about"]);
+    // Music stays: Wavlake, the Podcast Index and tagged musicians are its sources too.
+    expect(menuItems()).toEqual(["search-tab-articles", "search-tab-music", "search-tab-live", "search-tab-events"]);
+    // The roadmap's "Soon" row rides with Build, and Build is gone for these words.
+    expect(screen.queryByTestId("search-tab-agents-soon")).toBeNull();
+  });
+
+  it("nothing changes until every count is in, and a count that failed is not a zero", async () => {
+    await onNotes();
+    answer({ people: null, shop: 0 });
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    answer(zeroesBut({ people: null, notes: 4 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-people")).toBeInTheDocument();
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
+  it("People stays for words that name a tag, whose people lead it, though no profile matches", async () => {
+    fetchSearchTagsMock.mockImplementation(() => Promise.resolve([{ key: "devs" }]));
+    await onNotes("nostr devs");
+    answer(zeroesBut({ notes: 4 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(fetchSearchTagsMock).toHaveBeenCalledWith("nostr devs", { pov: "nosfabrica" }, { members: true });
+    expect(screen.getByTestId("search-tab-people")).toBeInTheDocument();
+  });
+
+  it("Media stays while a matching note might carry a picture, or a matching profile name a person", async () => {
+    await onNotes();
+    answer(zeroesBut({ people: 2 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
+  it("an open More holds still while the counts land, and settles when it closes", async () => {
+    await onNotes();
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(menuItems()).toContain("search-tab-apps");
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(menuItems()).toEqual(["search-tab-music"]);
+  });
+
+  it("the row holds while focus is in it, so a focused tab never vanishes, and settles when focus leaves", async () => {
+    await onNotes();
+    const shop = screen.getByTestId("search-tab-shop");
+    act(() => shop.focus());
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBe(document.activeElement);
+    act(() => shop.blur());
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("new words arriving while the row is held keep the full row: the held one was the last words' answer", async () => {
+    const view = await onNotes("jack");
+    answer(zeroesBut({ notes: 3 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    const toolbar = screen.getByTestId("search-toolbar");
+    fireEvent.pointerEnter(toolbar);
+    view.rerender(<SearchResults query="jill" pov="nosfabrica" />);
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    emit({ eose: true, timeMs: 5 });
+    await waitFor(() => expect(tabCountAsks).toHaveLength(2));
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    fireEvent.pointerLeave(toolbar);
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("the row holds while the pointer is over it, so nothing moves under a click", async () => {
+    await onNotes();
+    const toolbar = screen.getByTestId("search-toolbar");
+    fireEvent.pointerEnter(toolbar);
+    answer(zeroesBut({ notes: 3 }));
+    await act(async () => {});
+    expect(screen.getByTestId("search-tab-shop")).toBeInTheDocument();
+    fireEvent.pointerLeave(toolbar);
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+  });
+
+  it("under a from: scope Media stays: its page leads with that person's latest media", async () => {
+    const npub = nip19.npubEncode("1".repeat(64));
+    await onNotes(`from:${npub} podcast`);
+    answer(zeroesBut({ notes: 0 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    expect(screen.getByTestId("search-tab-media")).toBeInTheDocument();
+  });
+
+  it("coming back to the same words shows the settled row at once and asks nothing again", async () => {
+    const first = await onNotes();
+    answer(zeroesBut({ notes: 3 }));
+    await waitFor(() => expect(screen.queryByTestId("search-tab-shop")).toBeNull());
+    first.unmount();
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-shop")).toBeNull();
+    emit({ eose: true, timeMs: 5 });
+    await act(async () => {});
+    expect(tabCountAsks).toHaveLength(1);
   });
 });

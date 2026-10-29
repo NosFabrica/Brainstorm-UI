@@ -155,7 +155,7 @@ function PolicyUsersInline({ policy, policies }: { policy: SchedulingItem; polic
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Assigned users
           </p>
           <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">

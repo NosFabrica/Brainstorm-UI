@@ -51,6 +51,14 @@ function reviewFilters(event: PageEvent, subject: Detail<"review">["subject"]): 
     const u = tagOf(event, "u")?.trim();
     return [...(u ? [{ kinds: [38000], "#u": [u] }] : []), ...(d ? [{ kinds: [38000], "#d": [d] }] : [])];
   }
+  // Open Markets product reviews name the product in `d`, written `a:30402:…`
+  // by the spec and bare `30402:…` by some apps: both spellings, as the reader accepts them.
+  if (subject === "product") {
+    const [kind, pubkey, ...rest] = d.replace(/^a:/i, "").split(":");
+    if (!kind || !pubkey || !rest.length) return d ? [{ kinds: [31555], "#d": [d] }] : [];
+    const bare = `${kind}:${pubkey.toLowerCase()}:${rest.join(":")}`;
+    return [{ kinds: [31555], "#d": [...new Set([d, `a:${bare}`, bare])] }];
+  }
   return d ? [{ kinds: [34259], "#d": [d] }] : [];
 }
 

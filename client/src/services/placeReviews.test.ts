@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const io = vi.hoisted(() => ({
   readListEvents: vi.fn(),
   signAs: vi.fn(),
-  publishTagEvent: vi.fn(),
+  publishToOutbox: vi.fn(),
   resolveTrustSource: vi.fn(),
   fetchEventsByFilter: vi.fn(),
 }));
@@ -18,7 +18,7 @@ vi.mock("@/services/trustSource", () => ({ resolveTrustSource: io.resolveTrustSo
 vi.mock("@/services/nostr", () => ({ fetchEventsByFilter: io.fetchEventsByFilter }));
 vi.mock("@/services/listReads", () => ({ readListEvents: io.readListEvents }));
 vi.mock("@/accounts/signing", () => ({ requireActiveAccount: () => ({ pubkey: "f".repeat(64) }), signAs: io.signAs }));
-vi.mock("@/services/tags", () => ({ publishTagEvent: io.publishTagEvent }));
+vi.mock("@/services/tags", () => ({ publishToOutbox: io.publishToOutbox }));
 vi.mock("@/lib/relays", () => ({ SEARCH_RELAY: "wss://search.brainstorm.world/" }));
 vi.mock("@/config/dictionary", () => ({ dictionaryRelays: () => ["wss://dcosl.brainstorm.world"] }));
 
@@ -95,10 +95,10 @@ describe("fetchPlaceReviews", () => {
 });
 
 describe("publishPlaceReview", () => {
-  it("signs the record as the active account and publishes it to the index as well as the reviewer's relays and the hub", async () => {
+  it("signs the record as the active account and publishes it to the reviewer's relays and the index, never the hub", async () => {
     const signed = { ...review("s1", ME, "Best pizza on the key."), sig: "" };
     io.signAs.mockResolvedValue(signed);
-    io.publishTagEvent.mockResolvedValue({ accepted: 2, total: 3 });
+    io.publishToOutbox.mockResolvedValue({ accepted: 2, total: 3 });
     const out = await publishPlaceReview(
       item,
       { text: "Best pizza on the key.", rating: 4, price: 2, paid: null, photos: [] },
@@ -115,7 +115,7 @@ describe("publishPlaceReview", () => {
         ]),
       }),
     );
-    expect(io.publishTagEvent).toHaveBeenCalledWith(signed, ["wss://search.brainstorm.world/"]);
+    expect(io.publishToOutbox).toHaveBeenCalledWith(signed, ["wss://search.brainstorm.world/"]);
     expect(out).toMatchObject({ id: "s1", pubkey: ME, text: "Best pizza on the key.", rating: 4 });
   });
 
@@ -126,7 +126,7 @@ describe("publishPlaceReview", () => {
       pubkey: ME,
       created_at: now,
     }));
-    io.publishTagEvent.mockResolvedValue({ accepted: 1, total: 3 });
+    io.publishToOutbox.mockResolvedValue({ accepted: 1, total: 3 });
     const previous = {
       ...review("r0", ME, "Old."),
       tags: [
@@ -150,7 +150,7 @@ describe("removePlaceReview", () => {
   it("signs the removal of the reader's review and sends it wherever the review went", async () => {
     const signed = { id: "del", kind: 5, pubkey: ME, created_at: now, content: "", tags: [], sig: "" };
     io.signAs.mockResolvedValue(signed);
-    io.publishTagEvent.mockResolvedValue({ accepted: 3, total: 3 });
+    io.publishToOutbox.mockResolvedValue({ accepted: 3, total: 3 });
     await removePlaceReview({ id: "r2", pubkey: ME, tags: [["d", `place:${PLACE}`]] });
     expect(io.signAs).toHaveBeenCalledWith(
       { pubkey: ME },
@@ -164,7 +164,7 @@ describe("removePlaceReview", () => {
         ],
       },
     );
-    expect(io.publishTagEvent).toHaveBeenCalledWith(signed, ["wss://search.brainstorm.world/"]);
+    expect(io.publishToOutbox).toHaveBeenCalledWith(signed, ["wss://search.brainstorm.world/"]);
   });
 });
 

@@ -107,8 +107,8 @@ export function PersonListRow({
 
   const name = displayName || (npub ? npub.slice(0, 12) + "…" : pubkey.slice(0, 12) + "…");
   const nip05Status = useNip05(cleanNip05(nip05) && nip05, pubkey);
-  // A handle whose domain names someone else isn't theirs — show the npub instead.
-  const handle = nip05Status === "invalid" ? undefined : cleanNip05(nip05);
+  // A handle is shown once its domain confirms it; until then, and when it doesn't, the npub.
+  const handle = nip05Status === "verified" ? cleanNip05(nip05) : undefined;
 
   return (
     // Only the identity block is a link. `actions` and `meta` sit outside it —
@@ -124,7 +124,7 @@ export function PersonListRow({
             </p>
             {handle ? (
               <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                {nip05Status === "verified" && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
+                <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />
                 <span className="truncate">{handle}</span>
               </p>
             ) : (

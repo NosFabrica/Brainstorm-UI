@@ -6,7 +6,11 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
+import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { isKey } from "@/lib/searchQuery";
+import { orderTopSections, type TopSection } from "@/lib/topOrder";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { parseListing } from "@/lib/listing";
 import { cardGroupOf, foldProductHits, type ProductCardGroup } from "@/lib/listingVariants";
@@ -88,11 +92,14 @@ function PersonChip({
   score,
   visited,
   tag,
+  pointedBy,
   onOpen,
 }: {
   person: SearchResult;
   score: number | null;
   visited: boolean;
+  /** The names profiles used that matched the words and use this account's handle (hooks/useHandlePointers). */
+  pointedBy?: string[];
   /** The tag the words matched, if this person carries it. */
   tag?: TagChip;
   onOpen: (p: SearchResult) => void;
@@ -145,6 +152,16 @@ function PersonChip({
         >
           <span className="truncate">{tag.name}</span>
         </Chip>
+      )}
+      {/* Why this face is here though its own profile lacks the words: said as evidence, in full on hover. */}
+      {pointedBy && pointedBy.length > 0 && (
+        <span
+          className="w-full truncate text-center text-[10px] text-slate-500 dark:text-slate-400"
+          title={`Profiles named ${pointedBy.map((n) => `“${n}”`).join(", ")} use this account's handle`}
+          data-testid={`strip-person-pointers-${pk8}`}
+        >
+          Handle used by “{pointedBy[0]}”
+        </span>
       )}
       {visited && (
         <span
@@ -248,6 +265,7 @@ function ComposedResultsBody({
   onSectionHits,
   seeds: remembered,
   peopleSeedIsGuess,
+  onOpenKind,
 }: {
   query: string;
   pov: SearchPov;
@@ -265,6 +283,8 @@ function ComposedResultsBody({
   seeds?: Record<string, SearchHit[]>;
   /** The People seed is the typeahead's guess, to be replaced by the answer. */
   peopleSeedIsGuess?: boolean;
+  /** Opens a kind's own page (hooks/useListKinds): a preview's "See all". */
+  onOpenKind?: (key: string) => void;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   // Taking the head start is a one-shot with a side effect — it hands the
@@ -446,6 +466,9 @@ function ComposedResultsBody({
     () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
     [carriers.people, carriers.byPubkey, tagMatches, query],
   );
+  // Who the search is about when their own profile lacks the words: the accounts the matched
+  // profiles' handles belong to (hooks/useHandlePointers), asked of the people before the floor.
+  const pointers = useHandlePointers(people?.hits ?? []);
   const carrierSets = useMemo(() => {
     const sets = new Map<string, Set<string>>();
     for (const [pubkey, tags] of carriers.byPubkey) {
@@ -466,8 +489,9 @@ function ComposedResultsBody({
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
       ...carriers.people.map((c) => c.pubkey),
+      ...pointers.hits.map((h) => h.event.pubkey),
     ],
-    [people, latest, articles, happening, media, music, shop, byKind, carriers.people],
+    [people, latest, articles, happening, media, music, shop, byKind, carriers.people, pointers.hits],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // Their order, taken once when they land and held for the query.
@@ -565,9 +589,48 @@ function ComposedResultsBody({
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
   const stripRef = useWheelScrollX();
+  // The kinds with their own look in search, the one the words name ("books dune") first.
+  const kinds = useListKinds();
+  const named = useMemo(() => {
+    const words = new Set(
+      query
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.replace(/s$/, "")),
+    );
+    const names = (k: ListKindSearch) =>
+      k.label
+        .toLowerCase()
+        .split(/\s+/)
+        .some((w) => words.has(w.replace(/s$/, "")));
+    return new Set(kinds.filter(names).map((k) => k.key));
+  }, [kinds, query]);
+  const orderedKinds = useMemo(
+    () => [...kinds.filter((k) => named.has(k.key)), ...kinds.filter((k) => !named.has(k.key))],
+    [kinds, named],
+  );
+  // Each kind is offered a place above People and one below: it takes the one above when the words
+  // ask for it (they name it, or the kind's own reading — a town, a kind of place), else below.
+  const kindPreviews = (slot: PreviewSlot) =>
+    orderedKinds.map((k) => (
+      <k.Preview
+        key={`${k.key}-${slot}`}
+        query={query}
+        slot={slot}
+        named={named.has(k.key)}
+        onSeeAll={onOpenKind ? () => onOpenKind(k.key) : undefined}
+      />
+    ));
+  const kindCommunities = useMemo(() => kinds.map((k) => k.community), [kinds]);
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
-    const merged = leadCarriersByRank(mergeCarrierHits(hits, leadPeople), carrierRank);
+    // The account the handles point at leads — unless the floor would hide it too.
+    const pointed = clientFilterHits(
+      pointers.hits,
+      { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor },
+      { scoreOf, reach },
+    );
+    const merged = leadCarriersByRank(mergeCarrierHits(mergePointedHits(hits, pointed), leadPeople), carrierRank);
     let end = 0;
     while (end < merged.length && merged[end].event.id.startsWith("tag-carrier:")) end++;
     // Transparent on-device personalization: faces you've opened lead the relay's part.
@@ -575,7 +638,8 @@ function ComposedResultsBody({
       .slice(end)
       .sort((a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)));
     return [...merged.slice(0, end), ...tail];
-  }, [peopleF, visited, leadPeople, carrierRank]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peopleF, visited, leadPeople, carrierRank, pointers.hits]);
 
   const articleClusters = useMemo(
     () => (articlesF ? peopleFirst(collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 })) : []),
@@ -647,6 +711,7 @@ function ComposedResultsBody({
       : [];
     return (opts.peopleFirst ? peopleFirst(clusters) : clusters).map((c) => (
       <ClusterRows
+        contentFirst
         key={c.primary.event.id}
         cluster={c}
         scoreOf={scoreOf}
@@ -683,6 +748,221 @@ function ComposedResultsBody({
   }, [mediaF, personMedia]);
   const mediaTileIds = useMemo(() => new Set(mediaTiles.map((h) => h.event.id)), [mediaTiles]);
 
+  // What the words read as, and what came back: the order follows (lib/topOrder).
+  const trimmed = query.trim();
+  const personQuery =
+    isKey(trimmed) || trimmed.startsWith("@") || /^[\w.+-]+@[\w.-]+\.\w+$/.test(trimmed) || pointers.hits.length > 0;
+  const order = orderTopSections({
+    personQuery,
+    counts: {
+      people: peopleOrdered.length,
+      latest: latestF?.hits.length ?? 0,
+      articles: articlesF?.hits.length ?? 0,
+      shop: shopRow.length,
+      listen: listen.length + listenWavlake.length + listenPodcast.length,
+      happening: happeningClusters.length,
+      media: (mediaF?.hits.length ?? 0) + mediaTiles.length,
+    },
+  });
+  // Each section once, keyed; the evidence orders them (lib/topOrder).
+  const parts: Record<TopSection, ReactNode> = {
+    "kinds-lead": (
+      <>
+        {/* The kinds with a look of their own — Books, Places, GitHub accounts (hooks/useListKinds) —
+          that the words ask for lead; the rest follow People. */}
+        {kindPreviews("lead")}
+      </>
+    ),
+    lists: (
+      <>
+        {/* A search that names any other list — "v4v songs …" — leads with its items, for everyone. */}
+        <ListItemResults query={query} onTabChange={onTabChange} except={kindCommunities} />
+      </>
+    ),
+    people: (
+      <>
+        {peopleOrdered.length === 0 && stillLoading(peopleF) && (
+          <SectionSkeleton id="people" kicker="People" shape="people" />
+        )}
+        {peopleOrdered.length > 0 && (
+          <Section id="people" kicker="People" tab="people" onTabChange={onTabChange} className={FADE}>
+            {/* More people than fit → arrow paging, Google-carousel style.
+              Touch scrolling still works; the arrows are for mouse users
+              who otherwise see a stagnant strip. */}
+            <div className="relative">
+              <div
+                ref={stripRef}
+                className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                data-testid="people-strip"
+              >
+                {peopleOrdered.map((h) => (
+                  <PersonChip
+                    key={h.event.pubkey}
+                    person={h.author!}
+                    score={h.author!.wotRank ?? scoreOf(h.event.pubkey) ?? null}
+                    visited={visited.has(h.event.pubkey)}
+                    // A face card wears a tag only when it is the one searched.
+                    tag={matchedTagChip(tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches))}
+                    pointedBy={pointers.namesOf.get(h.event.pubkey)}
+                    onOpen={(p) => onOpenProfile?.(p)}
+                  />
+                ))}
+              </div>
+            </div>
+          </Section>
+        )}
+      </>
+    ),
+    "kinds-follow": <>{kindPreviews("follow")}</>,
+    latest: (
+      <>
+        {(latestF?.hits.length ?? 0) === 0 && stillLoading(latestF) && (
+          <SectionSkeleton id="latest" kicker="Latest" shape="rows" />
+        )}
+        {(latestF?.hits.length ?? 0) > 0 && (
+          <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange} className={FADE}>
+            <TopStories stories={topStories} stripRef={storiesRef} />
+            {/* Only notes here — no "· Note" on every row. */}
+            <div className="space-y-1">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
+          </Section>
+        )}
+      </>
+    ),
+    articles: (
+      <>
+        {(articlesF?.hits.length ?? 0) === 0 && stillLoading(articlesF) && (
+          <SectionSkeleton id="articles" kicker="Articles" shape="bento" />
+        )}
+        {(articlesF?.hits.length ?? 0) > 0 && (
+          <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange} className={FADE}>
+            {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
+            <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
+            {articleRows.length > 0 && (
+              <div className={coveredArticles.length > 0 ? "mt-3 space-y-1" : "space-y-1"} data-testid="articles-rows">
+                {/* The section says "Articles" for the rows, so an essay needs no
+                  label — a spec (30817) rides here too and must not pass for one. */}
+                {articleRows.map((c) => (
+                  <ClusterRows contentFirst key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
+      </>
+    ),
+    shop: (
+      <>
+        {shopRow.length > 0 && (
+          <Section id="shop" kicker="Shop" tab="shop" onTabChange={onTabChange}>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              {shopRow.map(({ hit: h, group }) => (
+                <ListingCard
+                  key={h.event.id}
+                  event={h.event}
+                  author={h.author}
+                  score={scoreOf(h.event.pubkey)}
+                  group={group}
+                />
+              ))}
+            </div>
+          </Section>
+        )}
+      </>
+    ),
+    kind: (
+      <>
+        {(byKindF?.hits.length ?? 0) > 0 && (
+          <Section id="kind" kicker={kindKicker} onTabChange={onTabChange} className={FADE}>
+            {kindSpecs.length > 0 && (
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                Specs covering it:{" "}
+                <Link
+                  href={`/?t=nips&q=${encodeURIComponent(`kind:${unplacedKinds[0]}`)}`}
+                  className="font-medium text-brand-primary hover:underline dark:text-brand-link"
+                  data-testid="serp-kind-spec"
+                >
+                  {kindSpecs
+                    .slice(0, 2)
+                    .map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec")
+                    .join(", ")}
+                  {kindSpecs.length > 2 ? ` +${kindSpecs.length - 2}` : ""}
+                </Link>
+              </p>
+            )}
+            <div className="space-y-1">{clustersOf(byKindF)}</div>
+          </Section>
+        )}
+      </>
+    ),
+    listen: (
+      <>
+        {listen.length + listenWavlake.length + listenPodcast.length > 0 && (
+          <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
+            {/* Rows, not boxes: a stream of songs reads like a list. */}
+            <div className="space-y-1">
+              {listen.map((h) => (
+                <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} flat />
+              ))}
+              {listenWavlake.map((song) => (
+                <WavlakeSongCard key={song.id} song={song} flat />
+              ))}
+              {listenPodcast.map((song) => (
+                <PodcastIndexSongCard key={song.id} song={song} flat />
+              ))}
+            </div>
+          </Section>
+        )}
+      </>
+    ),
+    happening: (
+      <>
+        {happeningClusters.length > 0 && (
+          <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
+            <div className="space-y-1">
+              {happeningClusters.map((c) => (
+                <ClusterRows
+                  contentFirst
+                  key={c.primary.event.id}
+                  cluster={c}
+                  scoreOf={scoreOf}
+                  query={query}
+                  renderRow={
+                    c.primary.event.kind === 31922 || c.primary.event.kind === 31923
+                      ? (h) => (
+                          <EventRow
+                            hit={h}
+                            score={scoreOf(h.event.pubkey)}
+                            going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0}
+                            showKind
+                          />
+                        )
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          </Section>
+        )}
+      </>
+    ),
+    "kinds-late": (
+      <>
+        {/* Low on the page, just above Media: a kind whose things only share a word with the search
+          ("west" in book titles) — found, but out of the way of what the search is most likely for. */}
+        {kindPreviews("late")}
+      </>
+    ),
+    media: (
+      <>
+        {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
+          <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
+            <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
+            <div className="space-y-1">{clustersOf(mediaF, mediaTileIds)}</div>
+          </Section>
+        )}
+      </>
+    ),
+  };
   return (
     <div data-testid="composed-results">
       {!anyContent && allSettled && (
@@ -694,157 +974,9 @@ function ComposedResultsBody({
         </p>
       )}
 
-      {/* A search that names a list — "github vcavallo" — leads with its items. Admins only for now. */}
-      <ListItemResults query={query} onTabChange={onTabChange} />
-
-      {peopleOrdered.length === 0 && stillLoading(peopleF) && (
-        <SectionSkeleton id="people" kicker="People" shape="people" />
-      )}
-      {peopleOrdered.length > 0 && (
-        <Section id="people" kicker="People" tab="people" onTabChange={onTabChange} className={FADE}>
-          {/* More people than fit → arrow paging, Google-carousel style.
-              Touch scrolling still works; the arrows are for mouse users
-              who otherwise see a stagnant strip. */}
-          <div className="relative">
-            <div
-              ref={stripRef}
-              className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              data-testid="people-strip"
-            >
-              {peopleOrdered.map((h) => (
-                <PersonChip
-                  key={h.event.pubkey}
-                  person={h.author!}
-                  score={h.author!.wotRank ?? scoreOf(h.event.pubkey) ?? null}
-                  visited={visited.has(h.event.pubkey)}
-                  // A face card wears a tag only when it is the one searched.
-                  tag={matchedTagChip(tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches))}
-                  onOpen={(p) => onOpenProfile?.(p)}
-                />
-              ))}
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {(latestF?.hits.length ?? 0) === 0 && stillLoading(latestF) && (
-        <SectionSkeleton id="latest" kicker="Latest" shape="rows" />
-      )}
-      {(latestF?.hits.length ?? 0) > 0 && (
-        <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange} className={FADE}>
-          <TopStories stories={topStories} stripRef={storiesRef} />
-          {/* Only notes here — no "· Note" on every row. */}
-          <div className="space-y-1">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
-        </Section>
-      )}
-
-      {(articlesF?.hits.length ?? 0) === 0 && stillLoading(articlesF) && (
-        <SectionSkeleton id="articles" kicker="Articles" shape="bento" />
-      )}
-      {(articlesF?.hits.length ?? 0) > 0 && (
-        <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange} className={FADE}>
-          {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
-          <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
-          {articleRows.length > 0 && (
-            <div className={coveredArticles.length > 0 ? "mt-3 space-y-1" : "space-y-1"} data-testid="articles-rows">
-              {/* The section says "Articles" for the rows, so an essay needs no
-                  label — a spec (30817) rides here too and must not pass for one. */}
-              {articleRows.map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
-              ))}
-            </div>
-          )}
-        </Section>
-      )}
-
-      {shopRow.length > 0 && (
-        <Section id="shop" kicker="Shop" tab="shop" onTabChange={onTabChange}>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            {shopRow.map(({ hit: h, group }) => (
-              <ListingCard
-                key={h.event.id}
-                event={h.event}
-                author={h.author}
-                score={scoreOf(h.event.pubkey)}
-                group={group}
-              />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {(byKindF?.hits.length ?? 0) > 0 && (
-        <Section id="kind" kicker={kindKicker} onTabChange={onTabChange} className={FADE}>
-          {kindSpecs.length > 0 && (
-            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Specs covering it:{" "}
-              <Link
-                href={`/?t=nips&q=${encodeURIComponent(`kind:${unplacedKinds[0]}`)}`}
-                className="font-medium text-brand-primary hover:underline dark:text-brand-link"
-                data-testid="serp-kind-spec"
-              >
-                {kindSpecs
-                  .slice(0, 2)
-                  .map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec")
-                  .join(", ")}
-                {kindSpecs.length > 2 ? ` +${kindSpecs.length - 2}` : ""}
-              </Link>
-            </p>
-          )}
-          <div className="space-y-1">{clustersOf(byKindF)}</div>
-        </Section>
-      )}
-
-      {listen.length + listenWavlake.length + listenPodcast.length > 0 && (
-        <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
-          {/* Rows, not boxes: a stream of songs reads like a list. */}
-          <div className="space-y-1">
-            {listen.map((h) => (
-              <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} flat />
-            ))}
-            {listenWavlake.map((song) => (
-              <WavlakeSongCard key={song.id} song={song} flat />
-            ))}
-            {listenPodcast.map((song) => (
-              <PodcastIndexSongCard key={song.id} song={song} flat />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {happeningClusters.length > 0 && (
-        <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
-          <div className="space-y-1">
-            {happeningClusters.map((c) => (
-              <ClusterRows
-                key={c.primary.event.id}
-                cluster={c}
-                scoreOf={scoreOf}
-                query={query}
-                renderRow={
-                  c.primary.event.kind === 31922 || c.primary.event.kind === 31923
-                    ? (h) => (
-                        <EventRow
-                          hit={h}
-                          score={scoreOf(h.event.pubkey)}
-                          going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0}
-                          showKind
-                        />
-                      )
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
-        <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
-          <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
-          <div className="space-y-1">{clustersOf(mediaF, mediaTileIds)}</div>
-        </Section>
-      )}
+      {order.map((id) => (
+        <Fragment key={id}>{parts[id]}</Fragment>
+      ))}
       {/* What the floor held back, said once and quietly, with the one tap that lifts it. */}
       {hiddenBelowLine > 0 && (
         <p className="mt-2 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="search-floor-notice">

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { LISTING_EMBED_KINDS } from "@/lib/embedShape";
+import { parseListing } from "@/lib/listing";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
@@ -78,12 +80,14 @@ import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS, shareUrlFor 
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { eventShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import { shareSnippet } from "@/lib/shareSnippet";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { Nip05Check } from "@/components/Nip05Check";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { publicPageUrl } from "@/lib/publicOrigin";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -351,8 +355,11 @@ function EventView({
   // A kind whose content is no words (a voice message's file, a reaction's "+", a repost's JSON) is said in words.
   const snippet = note ? shareSnippet(note) : "";
   // A list item is shared by its address: an id link someone arrived by goes stale at the next import.
-  const pageUrl = typeof window !== "undefined" ? window.location.href : "";
+  const pageUrl = publicPageUrl();
   const shareUrl = note && pageUrl ? shareUrlFor(note, pageUrl, relayHints) : pageUrl;
+  const mintShortUrl = useMintShortLink(
+    note ? eventShortLink(note, { relays: relayHints }) : { kind: "event", key: "" },
+  );
   useShareMeta(
     note
       ? {
@@ -377,11 +384,16 @@ function EventView({
   const DEDICATED_KINDS = new Set([
     30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998,
   ]);
+  // Something for sale: a NIP-99 listing, or a NIP-15 product or auction the
+  // Shop draws as one — its own page is the listing page, never the
+  // structural view of its JSON (a NIP-15 product's content is all data).
+  const isListingPage = !!note && LISTING_EMBED_KINDS.has(note.kind) && parseListing(note) !== null;
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
+    !isListingPage &&
     !hasAudioHero(note) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
@@ -407,6 +419,7 @@ function EventView({
           origin: renderedGenerically ? originClientOf(note) : undefined,
         }}
         copies={[
+          { id: "link", label: "Copy link", value: shareUrl, mint: mintShortUrl },
           ...(naddr
             ? [
                 {
@@ -455,7 +468,10 @@ function EventView({
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
-      <PublicPageHeader maxWidthClass="max-w-2xl" actions={<ShareButton url={shareUrl} title={pageTitle} />} />
+      <PublicPageHeader
+        maxWidthClass="max-w-2xl"
+        actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />}
+      />
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
         {!ptr ? (
@@ -622,8 +638,8 @@ function EventView({
               ) : hasAudioHero(note) ? (
                 // A track, a podcast episode or trailer, a voice message, an audio header.
                 <AudioHero event={note} />
-              ) : note.kind === 30402 ? (
-                <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
+              ) : isListingPage ? (
+                <ListingHero event={note} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : hasActivityHero(note) ? (
@@ -716,7 +732,7 @@ function EventView({
 
             {/* Under a listing: the seller's other things, then similar things
                 from other sellers — a shop page that leads somewhere. */}
-            {note.kind === 30402 && <ListingRelated event={note} sellerName={authorName} />}
+            {isListingPage && <ListingRelated event={note} sellerName={authorName} />}
 
             {/* Under a thing: what the network holds around it — a community's
                 posts, a fundraiser's supporters, a calendar's events… */}

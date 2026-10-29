@@ -34,6 +34,7 @@ import { KindPill } from "@/components/ui/kind-pill";
 import { specKindTags } from "@/lib/kindLabel";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { eventShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
@@ -44,6 +45,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
+import { publicPageUrl } from "@/lib/publicOrigin";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -300,12 +302,21 @@ export type ArticleEvent = {
 };
 
 /** The article layout's page: header, column, footer. */
-export function ArticleShell({ title, children }: { title: string; children: React.ReactNode }) {
+export function ArticleShell({
+  title,
+  mint,
+  children,
+}: {
+  title: string;
+  /** Mints the Share pill's short link (`useMintShortLink`). */
+  mint?: () => Promise<string>;
+  children: React.ReactNode;
+}) {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
-        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={title} />}
+        actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />}
       />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
         {children}
@@ -424,19 +435,20 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   const here = typeof window !== "undefined" ? window.location.pathname : "";
   const funnelLoginHref = `/login?${[authorNpub ? `invite=${authorNpub}` : "", here ? `next=${encodeURIComponent(here)}` : ""].filter(Boolean).join("&")}`;
 
+  const mintShortUrl = useMintShortLink(eventShortLink(ev, { relays: ptr?.relays }));
   useShareMeta(
     ev
       ? {
           title: `${title} — Brainstorm`,
           description: summary || `A long-form article by ${authorName}.`,
           image,
-          url: typeof window !== "undefined" ? window.location.href : "",
+          url: publicPageUrl(),
         }
       : null,
   );
 
   return (
-    <ArticleShell title={`${title} — Brainstorm`}>
+    <ArticleShell title={`${title} — Brainstorm`} mint={mintShortUrl}>
       <ShareNavProvider>
         <article>
           {image && (
@@ -594,6 +606,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
                 <EntityMenu
                   entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
                   copies={[
+                    { id: "link", label: "Copy link", value: publicPageUrl(), mint: mintShortUrl },
                     { id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" },
                   ]}
                   triggerTestId="article-menu"

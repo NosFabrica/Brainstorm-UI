@@ -10,6 +10,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const runtimeEnv = vi.hoisted(() => ({ env: { VITE_PUBLIC_ORIGIN: "" } }));
+vi.mock("@/lib/runtimeEnv", () => runtimeEnv);
+
 const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>();
 vi.stubGlobal("fetch", (input: string, init?: RequestInit) => fetchMock(input, init));
 
@@ -21,6 +24,7 @@ const status = (code: number) => Promise.resolve(new Response("", { status: code
 
 beforeEach(() => {
   vi.clearAllMocks();
+  runtimeEnv.env.VITE_PUBLIC_ORIGIN = "";
   __resetUnfurl();
 });
 
@@ -58,6 +62,15 @@ describe("fetchUnfurl", () => {
     // A relative path is what keeps it same-origin; an absolute one to the API
     // host would land the SPA in the untrusted rate-limit tier.
     expect(asked.startsWith("http")).toBe(false);
+  });
+
+  it("asks the public origin when one is set (the APK)", async () => {
+    runtimeEnv.env.VITE_PUBLIC_ORIGIN = "https://brainstorm.world/";
+    fetchMock.mockReturnValue(ok({ data: { title: "x" } }));
+    await fetchUnfurl("https://example.com/a");
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://brainstorm.world/link-preview?url=" + encodeURIComponent("https://example.com/a"),
+    );
   });
 
   it("gives up rather than hanging when the proxy never answers", async () => {

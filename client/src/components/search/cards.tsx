@@ -1,12 +1,12 @@
 import { parseTrack } from "@/lib/trackEvent";
-import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingCardLine, listingStatus, parseListing } from "@/lib/listing";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { ProductCardGroup } from "@/lib/listingVariants";
 import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -41,7 +41,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { sourceAppFor } from "@/lib/sourceApp";
+import { shopAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
@@ -65,7 +65,7 @@ import { postedAtOf } from "@/lib/eventDate";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
+import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
@@ -1175,6 +1175,10 @@ export function EventCard({
   rsvp?: boolean;
 }) {
   const cal = parseCalendarEvent(event);
+  // A feed's list item (Event Index): its host is the organizer it names as text — the key on it is
+  // the index's, not theirs — and going to it is on its own page, not a NIP-52 RSVP.
+  const item = event.kind === EVENT_ITEM_KIND;
+  const host = item ? cal.organizer : undefined;
   // "Past" means over — an all-day event today or a running conference is not.
   const past = isOver(cal);
   // Past: the replay when there is one. Upcoming: "I'm going" — a NIP-52
@@ -1186,7 +1190,7 @@ export function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    rsvp && !past && cal.startSec > 0 ? (
+    rsvp && !item && !past && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1229,17 +1233,26 @@ export function EventCard({
           >
             <EmojiText text={cal.title} tags={event} />
           </p>
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-            <Avatar
-              className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}
+          {host ? (
+            <p
+              className="mt-1 truncate text-xs text-slate-600 dark:text-slate-300"
+              data-testid={`event-host-${event.id}`}
             >
-              {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
-              <AvatarFallback className="overflow-hidden">
-                <DefaultAvatarImg />
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate">By {author ? getDisplayLabel(author) : "an unknown host"}</span>
-          </div>
+              By {host}
+            </p>
+          ) : (
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <Avatar
+                className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}
+              >
+                {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                <AvatarFallback className="overflow-hidden">
+                  <DefaultAvatarImg />
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">By {author ? getDisplayLabel(author) : "an unknown host"}</span>
+            </div>
+          )}
           {cal.location && (
             <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
               <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -1706,7 +1719,7 @@ export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: bo
  * their trust ring, which is the one thing no store can show. The corner
  * opens the seller's own page for it when the app published one.
  */
-export function ListingCard({
+export const ListingCard = memo(function ListingCard({
   event,
   author,
   score,
@@ -1728,12 +1741,18 @@ export function ListingCard({
   /** The page's Bitcoin price, when it has one: the buyer's own money goes under the seller's price. */
   rates?: BtcRates | null;
 }) {
-  const l = parseListing(event);
+  // Parsed once per event, not per render: the Shop re-renders on every streamed hit.
+  const l = useMemo(() => parseListing(event), [event]);
   if (!l) return null;
   const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
-  // The verb says where a tap lands: "Buy on Conduit" when we know the
-  // marketplace by name, "Visit <host>" on a seller's own link.
-  const app = sourceAppFor(event, { sellerListings });
+  // A card that is reached but no longer for sale (a reviewed product, a quoted
+  // listing, a stall's sold-out item) says so where its price would be.
+  const status = listingStatus(l);
+  const gone = status?.gone ? status.label : null;
+  const line = listingCardLine(l);
+  // The verb says where a tap lands: "Visit <host>" on a seller's own link,
+  // else "Buy on Conduit", which sells any listing.
+  const app = shopAppFor(event, { sellerListings });
   const host = l.shopUrl ? (hostOf(l.shopUrl) ?? undefined) : undefined;
   const open = app
     ? { url: app.url, label: `Buy on ${app.name}`, host: app.host, icon: app.icon }
@@ -1768,13 +1787,15 @@ export function ListingCard({
         )}
         <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
           <span data-testid={`listing-price-${event.id}`}>
-            {group?.from
-              ? `From ${formatListingPrice(group.from)}`
-              : l.price
-                ? formatListingPrice(l.price)
-                : "Price on request"}
+            {gone
+              ? gone
+              : group?.from
+                ? `From ${formatListingPrice(group.from)}`
+                : l.price
+                  ? formatListingPrice(l.price)
+                  : "Price on request"}
           </span>
-          {converted && (
+          {converted && !gone && (
             <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>
               {converted}
             </span>
@@ -1802,12 +1823,12 @@ export function ListingCard({
       >
         {group?.title ?? l.title}
       </p>
-      {listingCardLine(l) && (
+      {line && (
         <p
           className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400"
           data-testid={`listing-meta-${event.id}`}
         >
-          {listingCardLine(l)}
+          {line}
         </p>
       )}
       {showAuthor && (
@@ -1827,4 +1848,4 @@ export function ListingCard({
       )}
     </CardShell>
   );
-}
+});

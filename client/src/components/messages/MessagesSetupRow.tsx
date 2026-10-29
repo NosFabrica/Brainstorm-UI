@@ -1,14 +1,15 @@
 /**
  * The /setup checklist's optional step: private messages, turned on in place
- * with one signature. Not one of the counted steps — nothing nags about it —
- * but it is where a new account first meets messaging.
+ * with one signature. Not one of the counted steps — nothing nags about it;
+ * the account menu's Account setup row only counts it, muted — but it is where
+ * a new account first meets messaging. It sits under /setup's "Optional"
+ * heading below the counted steps, so their count plainly leaves it out.
  */
 import { useState } from "react";
 import { Link } from "wouter";
 import { Check, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
 import { useToast } from "@/hooks/use-toast";
 import { useDmEngine, useDmState } from "@/hooks/useDirectMessages";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
@@ -57,12 +58,8 @@ export function MessagesSetupRow() {
         <MessageCircle className="h-3.5 w-3.5 text-brand-primary dark:text-brand-link" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Turn on private messages</span>
-          <Chip tone="slate" size="sm" className="uppercase tracking-wide">
-            Optional
-          </Chip>
-        </span>
+        {/* No "Optional" chip: the heading above says it. */}
+        <span className="block text-[15px] font-bold text-slate-900 dark:text-slate-100">Turn on private messages</span>
         <span className="mt-1 block text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
           End-to-end encrypted chats with anyone on Nostr, sorted by your web of trust. One signature tells people where
           to reach you.

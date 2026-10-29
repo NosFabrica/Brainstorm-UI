@@ -33,8 +33,7 @@ afterEach(() => {
 /**
  * A publish that rides along with a page load is nobody's request, so a Locked
  * Account must not be asked to unlock for it — that is exactly what
- * `canSignSilently` and the `background` flag exist to enforce, and
- * `scoreJournal` was already updated for it.
+ * `canSignSilently` and the `background` flag exist to enforce.
  */
 describe("the flush that runs on app load", () => {
   it("does not ask a locked account to unlock", async () => {

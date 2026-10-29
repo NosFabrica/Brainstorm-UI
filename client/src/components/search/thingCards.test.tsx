@@ -8,9 +8,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
+const addressedMock = vi.fn((_coords: unknown[]) => Promise.resolve(new Map<string, NostrEvent>()));
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  fetchAddressableEvents: (coords: unknown[]) => addressedMock(coords),
 }));
 vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
@@ -22,6 +24,8 @@ vi.mock("@/lib/eventStore", async () => ({
 }));
 
 import { ThingCard, magnetOf } from "./thingCards";
+import { EmbeddedKindCard } from "@/components/share/EmbeddedKindCard";
+import { __resetAddressedBatch } from "@/hooks/useAddressedEvents";
 import { describeThing } from "@/lib/thing";
 
 const who = "7".repeat(64);
@@ -305,5 +309,126 @@ describe("TorrentCard", () => {
     ]);
     const t = describeThing(e)!;
     expect(t.detail.type === "torrent" && magnetOf(t.title, t.detail)).toBeNull();
+  });
+});
+
+describe("Open Markets cards", () => {
+  const seller = "c".repeat(64);
+
+  it("a product review leads with the thumb, scores the product, quotes the words — and names the product", async () => {
+    const plate = ev(30402, [
+      ["d", "card-plate-1"],
+      ["title", "Seed plate"],
+      ["price", "30", "USD"],
+      ["image", "https://img/plate.jpg"],
+    ]);
+    addressedMock.mockResolvedValueOnce(new Map([[`30402:${who}:card-plate-1`, plate]]));
+    const e = ev(
+      31555,
+      [
+        ["d", `a:30402:${who}:card-plate-1`],
+        ["rating", "1", "thumb"],
+        ["rating", "0.5", "value"],
+      ],
+      "Good, a bit pricey.",
+    );
+    card(e);
+    expect(screen.getByTestId(`thing-thumb-${e.id}`)).toHaveTextContent("Recommends");
+    // (1 × 0.5 + 0.5 × 0.5) × 5 = 3.75
+    expect(screen.getByTestId(`thing-stars-${e.id}`)).toHaveAttribute("aria-label", "4 out of 5 stars");
+    expect(screen.getByTestId(`thing-description-${e.id}`)).toHaveTextContent("Good, a bit pricey.");
+    expect(screen.getByTestId(`thing-aspects-${e.id}`)).toHaveTextContent("Value 2.5/5");
+    expect(await screen.findByText("Seed plate")).toBeInTheDocument();
+    expect(screen.getByTestId(`thing-product-${e.id}`)).toHaveTextContent("$30");
+  });
+
+  const productReview = (d: string, author = "d".repeat(64)) =>
+    ({
+      ...ev(31555, [
+        ["d", `a:30402:${seller}:${d}`],
+        ["rating", "1", "thumb"],
+      ]),
+      pubkey: author,
+    }) as NostrEvent;
+
+  it("a tab of product reviews asks for all their products in one request, not one per card", async () => {
+    __resetAddressedBatch();
+    addressedMock.mockClear();
+    const plates = Array.from({ length: 30 }, (_, i) =>
+      ev(30402, [
+        ["d", `plate-${i}`],
+        ["title", `Plate ${i}`],
+        ["price", "30", "USD"],
+      ]),
+    ).map((p) => ({ ...p, pubkey: seller }) as NostrEvent);
+    addressedMock.mockResolvedValueOnce(new Map(plates.map((p, i) => [`30402:${seller}:plate-${i}`, p])));
+    const reviews = plates.map((_, i) => productReview(`plate-${i}`));
+    render(
+      <>
+        {reviews.map((r) => (
+          <ThingCard key={r.id} event={r} author={null} score={null} />
+        ))}
+      </>,
+    );
+    expect(await screen.findByText("Plate 29")).toBeInTheDocument();
+    expect(screen.getByText("Plate 0")).toBeInTheDocument();
+    expect(addressedMock).toHaveBeenCalledTimes(1);
+    const asked = (addressedMock.mock.calls[0][0] as { identifier: string }[]).map((c) => c.identifier);
+    expect(asked.sort()).toEqual(plates.map((_, i) => `plate-${i}`).sort());
+  });
+
+  it("a product review inside a quote asks no relay for its product", async () => {
+    __resetAddressedBatch();
+    addressedMock.mockClear();
+    const e = productReview("quoted-plate");
+    render(<EmbeddedKindCard event={e} shape="thing" trustScore01={0.5} author={{ name: "Reviewer" }} />);
+    expect(screen.getByTestId(`thing-thumb-${e.id}`)).toHaveTextContent("Recommends");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(addressedMock).not.toHaveBeenCalled();
+  });
+
+  it("a collection is shaped like a listing: picture, name, how many products", () => {
+    const e = ev(30405, [
+      ["d", "w"],
+      ["title", "Hardware Wallets"],
+      ["summary", "Various Hardware Wallets"],
+      ["a", `30402:${seller}:a`],
+      ["a", `30402:${seller}:b`],
+    ]);
+    card(e);
+    const c = screen.getByTestId(`thing-card-${e.id}`);
+    expect(c).toHaveTextContent("Collection");
+    expect(c).toHaveTextContent("Hardware Wallets");
+    expect(c).toHaveTextContent("2 products");
+    expect(screen.getByTestId(`thing-description-${e.id}`)).toHaveTextContent("Various Hardware Wallets");
+  });
+
+  it("a shipping option says its price, service, speed and where it goes", () => {
+    const e = ev(30406, [
+      ["d", "s"],
+      ["title", "Standard Shipping"],
+      ["price", "5.99", "USD"],
+      ["country", "US", "CA"],
+      ["service", "standard"],
+      ["duration", "1", "3", "D"],
+    ]);
+    card(e);
+    const c = screen.getByTestId(`thing-card-${e.id}`);
+    expect(screen.getByTestId(`thing-price-${e.id}`)).toHaveTextContent("$5.99");
+    expect(c).toHaveTextContent("Standard");
+    expect(c).toHaveTextContent("1–3 days");
+    expect(c).toHaveTextContent("Ships to US, CA");
+  });
+
+  it("Shopstr's carts and escrow records on the same kinds draw nothing", () => {
+    const cart = ev(30405, [["d", "cart"]], "AgB3…");
+    const escrow = ev(30406, [["d", "escrow"]], "{}");
+    const { container } = render(
+      <>
+        <ThingCard event={cart} author={null} />
+        <ThingCard event={escrow} author={null} />
+      </>,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });

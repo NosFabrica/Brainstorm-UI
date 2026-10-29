@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
+import { nip19 } from "nostr-tools";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -291,5 +292,56 @@ describe("EventHero — Add to calendar follows the device", () => {
     const outlook = screen.getByTestId("event-hero-calendar");
     expect(outlook).toHaveTextContent("Add to Outlook");
     expect(outlook.getAttribute("href")).toContain("outlook.live.com");
+  });
+});
+
+// NIP-52 lets a `p` tag name the host (Flockstr writes "host", Formstr "organizer"). Event
+// Index signs each event with its calendar's key and adds a "host" `p` for every calendar
+// that lists it, so a co-hosted event names each calendar, and each links to its page.
+describe("EventHero — the hosts the event names", () => {
+  const CO = "d".repeat(64);
+  const ORG = "e".repeat(64);
+  const names = new Map([
+    [v4v.pubkey, { display_name: "AI Builders" }],
+    [CO, { display_name: "Venice Tech" }],
+    [ORG, { name: "fiatjaf" }],
+  ]);
+  beforeEach(() => {
+    profileMapMock.mockImplementation(
+      async (pks) => new Map(pks.flatMap((pk) => (names.has(pk) ? [[pk, names.get(pk)!]] : []))),
+    );
+  });
+
+  it("names every host calendar of a co-hosted event, each a link to its profile", async () => {
+    const cohosted = {
+      ...v4v,
+      tags: [
+        ...v4v.tags,
+        ["p", v4v.pubkey, "wss://relay.eventindex.space", "host"],
+        ["p", CO, "wss://relay.eventindex.space", "host"],
+      ],
+    };
+    render(<EventHero event={cohosted} />);
+    const host = await screen.findByTestId("event-hero-host");
+    await waitFor(() => expect(host).toHaveTextContent("By AI Builders and Venice Tech"));
+    const hrefs = within(host)
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual([`/p/${nip19.npubEncode(v4v.pubkey)}`, `/p/${nip19.npubEncode(CO)}`]);
+  });
+
+  it("an organizer the event names is its host, in place of whoever signed it", async () => {
+    render(<EventHero event={{ ...v4v, tags: [...v4v.tags, ["p", ORG, "", "organizer"]] }} />);
+    const host = await screen.findByTestId("event-hero-host");
+    await waitFor(() => expect(host).toHaveTextContent("By fiatjaf"));
+    expect(host).not.toHaveTextContent("AI Builders");
+    // One host: the whole line is the link.
+    expect(host.getAttribute("href")).toBe(`/p/${nip19.npubEncode(ORG)}`);
+  });
+
+  it("with no host named, the signer is the host", async () => {
+    render(<EventHero event={v4v} />);
+    const host = await screen.findByTestId("event-hero-host");
+    await waitFor(() => expect(host).toHaveTextContent("By AI Builders"));
   });
 });

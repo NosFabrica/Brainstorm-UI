@@ -6,7 +6,7 @@
  * what goes on the wire, how snapshots arrive, and that cancellation is real.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Observable, Subject, of, throwError } from "rxjs";
+import { EMPTY, Observable, Subject, of, throwError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchParams } from "./search";
 import { nip19 } from "nostr-tools";
@@ -47,7 +47,16 @@ vi.mock("@/lib/searchRelay", () => ({
     req: (...args: unknown[]) => reqMock(...args),
     count: (...args: unknown[]) => countMock(...args),
   }),
+  // The tab counts' own socket: a fake whose COUNTs a test answers, and which says when it closed.
+  openSideSearchRelay: () => sideOpenMock(),
 }));
+const sideCountMock = vi.fn();
+const sideCloseMock = vi.fn();
+const sideOpenMock = vi.fn(() => sideRelay);
+const sideRelay = {
+  count: (...args: unknown[]) => sideCountMock(...args),
+  close: () => sideCloseMock(),
+};
 const houseMock = vi.fn(() => Promise.resolve<string | null>("f".repeat(64)));
 vi.mock("@/services/trustSource", () => ({
   resolveHouseObserver: () => houseMock(),
@@ -99,6 +108,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   searchStream,
+  countTabs,
   suggestProfiles,
   suggestListings,
   kindsForTab,
@@ -171,6 +181,29 @@ describe("searchStream", () => {
    * by tag on the relay (probed on the search relay, 2026-09-22: the tag alone
    * returns the newest recipes; tag plus words returns "chili, but only recipes").
    */
+  // Public events from Luma, Meetup and other feeds reach Brainstorm only as Event Index's list
+  // items (config/events), so the Events tab asks them beside NIP-52, by the same words.
+  it("the Events tab asks Event Index's list items beside NIP-52 events, words and all", async () => {
+    controllable();
+    searchStream("pubkey", { tab: "events", pov: "nosfabrica" }, () => {});
+    await tick();
+    const [nip52, items] = askedFilters() as { kinds?: number[]; "#z"?: string[]; search: string; limit?: number }[];
+    expect(nip52.kinds).toEqual([31922, 31923, 31924]);
+    expect(items.kinds).toEqual([39999]);
+    expect(items["#z"]).toEqual(["39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:events"]);
+    expect(items.search).toBe(nip52.search);
+    expect(items.limit).toBe(nip52.limit);
+  });
+
+  it("a typed kind on Events, or Top's Happening band, asks NIP-52 alone", async () => {
+    controllable();
+    searchStream("pubkey kind:31923", { tab: "events", pov: "nosfabrica" }, () => {});
+    searchStream("pubkey", { tab: "events", pov: "nosfabrica", band: true }, () => {});
+    await tick();
+    expect(askedFilters(0).map((f) => f.kinds)).toEqual([[31923]]);
+    expect(askedFilters(1).map((f) => f.kinds)).toEqual([[31922, 31923]]);
+  });
+
   it("the Recipes tab asks the relay for articles tagged as recipes, words and all", async () => {
     controllable();
 
@@ -210,7 +243,7 @@ describe("searchStream", () => {
    * reviews carry `k` — the mint's kind — so 38000 is asked in a filter of its own,
    * narrowed by it, beside the other review kinds.
    */
-  it("on Reviews, asks kind 38000 only for NIP-87 mint reviews, by `#k`, beside the other review kinds", async () => {
+  it("on Reviews, asks kind 38000 only for NIP-87 mint reviews, by `#k`, beside the other review kinds (product reviews among them)", async () => {
     controllable();
 
     searchStream("bitcoin", { tab: "reviews", pov: "nosfabrica" }, () => {});
@@ -218,7 +251,7 @@ describe("searchStream", () => {
 
     const filters = askedFilters() as { kinds?: number[]; "#k"?: string[]; search: string }[];
     expect(filters).toHaveLength(2);
-    expect(filters[0].kinds).toEqual([34259, 31987]);
+    expect(filters[0].kinds).toEqual([34259, 31987, 31555]);
     expect(filters[0]["#k"]).toBeUndefined();
     expect(filters[1]).toMatchObject({ kinds: [38000], "#k": ["38172", "38173"] });
     for (const f of filters) expect(f.search).toMatch(/^bitcoin observer:/);
@@ -1154,7 +1187,7 @@ describe("paging a union", () => {
     await tick();
     const page2 = askedFilters(1);
     expect(page2).toHaveLength(1);
-    expect(page2[0]).toMatchObject({ kinds: [34259, 31987], until: 1000, limit: 2 });
+    expect(page2[0]).toMatchObject({ kinds: [34259, 31987, 31555], until: 1000, limit: 2 });
 
     second.next(frame(rating("r3", 900)));
     second.next(EOSE);
@@ -3105,6 +3138,181 @@ describe("authors this device already knows", () => {
     } finally {
       deviceProfiles.clear();
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("countTabs", () => {
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const POINTER_KINDS = [1985, 30382, 30383, 30384, 30392, 30393, 30394, 30000, 39089, 39092];
+  type Filter = { kinds?: number[]; search?: string; limit?: number };
+  const isPointers = (filters: Filter[]) => String(filters[0].kinds) === String(POINTER_KINDS);
+  /** Answer each COUNT by its first filter's kinds; the pointers question answers `pointers`. */
+  const answerBy = (byKinds: Record<string, unknown>, pointers: unknown = of({ count: 0 })) =>
+    sideCountMock.mockImplementation((filters: Filter[]) =>
+      isPointers(filters) ? pointers : (byKinds[String(filters[0].kinds)] ?? new Subject()),
+    );
+  const tabAsks = () => sideCountMock.mock.calls.map(([f]) => f as Filter[]).filter((f) => !isPointers(f));
+
+  it("asks each tab's own filters and one pointers question on a socket of its own, and answers once all are in", async () => {
+    const people = new Subject<{ count?: number }>();
+    const pointers = new Subject<{ count?: number }>();
+    answerBy({ "0": people, [String(TAB_KINDS.events)]: of({ count: 3 }) }, pointers);
+    const got: [string, number | null][] = [];
+    countTabs("bars in funchal", ["people", "events"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(sideOpenMock).toHaveBeenCalledTimes(1);
+    expect(sideCountMock).toHaveBeenCalledTimes(3);
+    // Newest first, and a single filter's count drops its page size.
+    expect(tabAsks()[0]).toEqual([{ kinds: [0], search: `bars in funchal sort:recent observer:${HOUSE}` }]);
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(countMock).not.toHaveBeenCalled();
+    people.next({ count: 0 });
+    expect(got).toEqual([]);
+    pointers.next({ count: 0 });
+    expect(got).toEqual([
+      ["people", 0],
+      ["events", 3],
+    ]);
+    expect(sideCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks the pointer kinds from anyone, with the same words, whether any could add rows a COUNT can't see", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("jack", ["notes"], { pov: "nosfabrica" }, () => {});
+    await settle();
+    const [pointers] = sideCountMock.mock.calls.map(([f]) => f as Filter[]).filter(isPointers);
+    expect(pointers).toEqual([{ kinds: POINTER_KINDS, search: "jack sort:recent include:spam" }]);
+  });
+
+  it("a pointer that matches the words makes every zero unknown, but not a tab that asked nothing", async () => {
+    answerBy({ "0": of({ count: 0 }), [String(TAB_KINDS.events)]: of({ count: 3 }) }, of({ count: 2 }));
+    const got: [string, number | null][] = [];
+    // A typed kind none of Music's kinds fit: Music asks nothing, so nothing can add to it.
+    countTabs("kind:0 jazz", ["people", "music"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(got).toEqual([
+      ["people", null],
+      ["music", 0],
+    ]);
+  });
+
+  it("a pointers question that fails leaves every zero unknown", async () => {
+    answerBy(
+      { "0": of({ count: 0 }) },
+      throwError(() => new Error("closed")),
+    );
+    const got: [string, number | null][] = [];
+    countTabs("jack", ["people"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(got).toEqual([["people", null]]);
+  });
+
+  it("a union keeps each filter's page size: unbounded, the relay recalls every matching id per filter", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("bitcoin #nostr", ["notes"], { pov: "nosfabrica" }, () => {});
+    await settle();
+    const [notes] = tabAsks();
+    expect(notes.length).toBeGreaterThan(1);
+    expect(notes.every((f) => typeof f.limit === "number")).toBe(true);
+  });
+
+  it("sort:text rides along, since it drops the trust floor; any other sort gives way to newest-first", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("jack sort:text", ["notes"], { pov: "nosfabrica" }, () => {});
+    countTabs("jack sort:zaps", ["people"], { pov: "nosfabrica" }, () => {});
+    await settle();
+    const [notes, people] = tabAsks();
+    expect(notes[0].search).toBe(`jack sort:text observer:${HOUSE}`);
+    expect(people[0].search).toBe(`jack sort:recent observer:${HOUSE}`);
+  });
+
+  it("reads through the viewer's own lens when they asked for it", async () => {
+    answerBy({}, of({ count: 0 }));
+    countTabs("jack", ["notes"], { pov: "mywot", userPubkey: "a".repeat(64) }, () => {});
+    await settle();
+    expect(tabAsks()[0][0].search).toBe(`jack sort:recent observer:${"a".repeat(64)}`);
+  });
+
+  it("cancelled while the lens is still being looked up, it opens no socket and asks nothing", async () => {
+    let resolveHouse!: (pk: string) => void;
+    houseMock.mockImplementationOnce(() => new Promise((r) => (resolveHouse = r)));
+    const got: unknown[] = [];
+    const cancel = countTabs("jack", ["notes"], { pov: "nosfabrica" }, (...a) => got.push(a));
+    cancel();
+    resolveHouse(HOUSE);
+    await settle();
+    expect(sideOpenMock).not.toHaveBeenCalled();
+    expect(sideCountMock).not.toHaveBeenCalled();
+    expect(got).toEqual([]);
+  });
+
+  it("cancelling while counts are out stops their answers and closes the socket", async () => {
+    const pending = new Subject<{ count?: number }>();
+    sideCountMock.mockImplementation(() => pending);
+    const got: [string, number | null][] = [];
+    const cancel = countTabs("jack", ["notes", "shop"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(sideCountMock).toHaveBeenCalledTimes(3);
+    cancel();
+    expect(sideCloseMock).toHaveBeenCalledTimes(1);
+    pending.next({ count: 4 });
+    expect(got).toEqual([]);
+  });
+
+  it("a count that is CLOSED, ends without a number, or never comes is unknown; the socket closes after all", async () => {
+    vi.useFakeTimers();
+    try {
+      answerBy({ "0": throwError(() => new Error("closed: rate-limited")), [String(TAB_KINDS.notes)]: EMPTY });
+      const got: [string, number | null][] = [];
+      countTabs("jack", ["people", "notes", "shop"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(got).toEqual([]);
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(got).toEqual([
+        ["people", null],
+        ["notes", null],
+        ["shop", null],
+      ]);
+      expect(sideCloseMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("each tab's COUNT asks exactly what its REQ asks, a single filter's page size aside", async () => {
+    const tabs: SearchTab[] = [
+      "people",
+      "notes",
+      "media",
+      "shop",
+      "articles",
+      "music",
+      "recipes",
+      "events",
+      "live",
+      "apps",
+      "repos",
+      "issues",
+      "prs",
+      "nips",
+      "communities",
+      "fundraisers",
+      "reviews",
+      "lists",
+    ];
+    for (const tab of tabs) {
+      vi.clearAllMocks();
+      controllable();
+      searchStream("jack sort:recent", { tab, pov: "nosfabrica" }, () => {});
+      await tick();
+      // A single filter's count drops its page size; a union (Reviews' mint split, Events' list items) keeps each one's.
+      const sent = askedFilters();
+      const req = sent.length > 1 ? sent : sent.map(({ limit: _limit, ...rest }) => rest);
+      answerBy({}, of({ count: 0 }));
+      countTabs("jack", [tab], { pov: "nosfabrica" }, () => {});
+      await settle();
+      expect([tab, tabAsks()[0]]).toEqual([tab, req]);
     }
   });
 });

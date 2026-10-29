@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PresetBadge } from "@/components/PresetBadge";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
-import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { rungFor } from "@/lib/trustLadder";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -21,15 +20,8 @@ import { apiClient } from "@/services/api";
 import { networkOfRun, runOf } from "@/lib/graperankRun";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
-import {
-  foldUnchanged,
-  getScoreJournal,
-  hydrateScoreJournal,
-  recordScore,
-  withDeltas,
-  type ScoreEntry,
-} from "@/lib/scoreJournal";
-import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantStorage";
+import { readAssistantProfile } from "@/lib/assistantStorage";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -69,11 +61,6 @@ function toMs(iso?: string | null): number | null {
   return isNaN(t) ? null : t;
 }
 
-/** Influence 0–1 → the 0–100 number shown everywhere else in the product. */
-function score100(v: number): number {
-  return Math.round(Math.min(1, Math.max(0, v)) * 100);
-}
-
 function fmtWhen(iso?: string | null): string | null {
   if (!iso) return null;
   const d = new Date(withZ(iso));
@@ -103,7 +90,6 @@ function Stat({ label, value }: { label: string; value: number | string }) {
  * graperankResult) — no new backend.
  */
 export default function InsightsPage() {
-  const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const [, navigate] = useLocation();
   const goBack = useGoBack();
@@ -162,57 +148,13 @@ export default function InsightsPage() {
   const verifiedFollowers = stats?.followed_by?.verified ?? counts.followed_by ?? 0;
   const verifiedFollowing = stats?.following?.verified ?? counts.following ?? 0;
 
-  // Score journal: the backend records that a run happened but not what it
-  // scored, so we capture the score each time we observe a NEW completed
-  // calculation. Forward-only — nothing to backfill from.
-  const [journal, setJournal] = useState<ScoreEntry[]>(() => getScoreJournal(pubkey ?? ""));
-  useEffect(() => {
-    if (!pubkey) return;
-    let live = true;
-    void hydrateScoreJournal(pubkey)
-      .then((j) => {
-        if (live) setJournal(j);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [pubkey]);
-  const lastCalcMs = toMs(history?.last_time_calculated_graperank);
-  useEffect(() => {
-    if (!pubkey || lastCalcMs == null || globalInfluence == null) return;
-    // Capture the preset this run used, so each history row shows what setting
-    // produced it. Backend value first; fall back to the active preset.
-    const calcPreset =
-      (grapeRank?.graperank_preset_used as string | undefined) ??
-      (activePreset ? presetToBackend(activePreset) : undefined);
-    setJournal(recordScore(pubkey, lastCalcMs, globalInfluence, calcPreset));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pubkey, lastCalcMs, globalInfluence]);
-  const scoreHistory = useMemo(() => withDeltas(journal), [journal]);
-  // What is worth reading: the newest run, every run that moved the score, and
-  // each quiet stretch between them as one line.
-  // A change is what the reader can see: the number in number mode, the tier
-  // word otherwise — a run that nudged a hidden number is not news.
-  const historyRows = useMemo(
-    () =>
-      displayMode === "number"
-        ? foldUnchanged(scoreHistory)
-        : foldUnchanged(
-            scoreHistory,
-            // The same rung the row prints, at the reader's granularity.
-            (e) =>
-              e.previous !== null &&
-              rungFor(e.score, false, granularity).key !== rungFor(e.previous, false, granularity).key,
-          ),
-    [scoreHistory, displayMode, granularity],
-  );
-
-  const assistant = useMemo(() => readPublishedAssistant(), []);
+  // Only once the server's `ta_pubkey` confirms it (#269).
+  const { published: assistant } = useBrainstormAssistant();
   const assistantProfile = useMemo(() => (assistant ? readAssistantProfile() : null), [assistant]);
   const assistantName = assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
 
   const calculatedAt = fmtWhen(history?.last_time_calculated_graperank);
+  const lastCalcMs = toMs(history?.last_time_calculated_graperank);
   const preset = grapeRank?.graperank_preset_used as string | undefined;
   const presetForBadge = preset ?? (activePreset ? presetToBackend(activePreset) : undefined);
   // Two INDEPENDENT steps, matching useScoringStatus (the app-wide source of truth):
@@ -220,7 +162,7 @@ export default function InsightsPage() {
   //   ta_status === success                    → the Trusted Assertions PUBLICATION finished
   // This page previously read internal_publication_status and labelled it
   // "Published", collapsing both steps into one binary. So a user whose scores had
-  // finished computing — score journaled, "Last calculated" stamped — still saw a
+  // finished computing — "Last calculated" stamped — still saw a
   // permanent amber "In progress" under a card titled "Trust calculation", which
   // reads as "my scores never finished". Report the two separately, and stop
   // rendering a failed run as eternally optimistic.
@@ -448,142 +390,6 @@ export default function InsightsPage() {
             <Alert className="mt-3" data-testid="insights-recalculate-error">
               <AlertDescription>{recalc.error?.message || "Something went wrong. Please try again."}</AlertDescription>
             </Alert>
-          )}
-        </Card>
-
-        {/* Score history — outcome-first: what each calculation DID to your score.
-            Journalled client-side because the backend records that a run happened
-            but not what it scored. Forward-only, so it starts empty for everyone. */}
-        <Card
-          className="mb-4 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          data-testid="insights-score-history"
-        >
-          <div className="mb-3 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span
-              className="text-sm font-bold text-slate-800 dark:text-slate-200"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Calculation history
-            </span>
-            {scoreHistory.length > 0 && (
-              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
-                {scoreHistory.length} calculation{scoreHistory.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-          {scoreHistory.length === 0 ? (
-            <p
-              className="text-xs leading-relaxed text-slate-500 dark:text-slate-400"
-              data-testid="insights-score-history-empty"
-            >
-              Nothing recorded yet. Tracking starts now — after your next calculation completes, you'll see how your
-              number moved and why.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {historyRows.slice(0, 12).map((row, i) => {
-                if (row.kind === "fold") {
-                  const day = (ms: number) =>
-                    new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-                  return (
-                    <li
-                      key={`fold-${row.toMs}`}
-                      className="flex items-center justify-between gap-3 py-2 text-xs text-slate-400 dark:text-slate-500"
-                      data-testid="insights-score-fold"
-                    >
-                      <span>
-                        {row.count} runs, no change ·{" "}
-                        {day(row.fromMs) === day(row.toMs) ? day(row.toMs) : `${day(row.fromMs)} – ${day(row.toMs)}`}
-                      </span>
-                    </li>
-                  );
-                }
-                const e = row.entry;
-                const up = (e.delta ?? 0) > 0;
-                const flat = e.delta === 0 || e.delta == null;
-                // The newest run is the one behind your CURRENT score — it gets the
-                // filled pill. Older rows carry the same info as a quiet dot+label,
-                // so the column reads as data instead of a stack of loud pills.
-                const isActiveRun = i === 0;
-                return (
-                  // One clean line at every width: date then the preset it ran at,
-                  // inline, with the score movement held right. min-w-0 lets the
-                  // date shrink on narrow phones instead of pushing the numbers off.
-                  <li
-                    key={e.t}
-                    className="flex items-center justify-between gap-3 py-2"
-                    data-testid="insights-score-row"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <p className="truncate text-sm text-slate-600 dark:text-slate-300">
-                        {new Date(e.t).toLocaleString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      {e.preset && (
-                        <PresetBadge
-                          preset={e.preset}
-                          size="xs"
-                          variant={isActiveRun ? "pill" : "quiet"}
-                          className="shrink-0"
-                        />
-                      )}
-                    </div>
-                    {displayMode === "number" ? (
-                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                        {e.previous != null && (
-                          <span className="font-mono text-xs tabular-nums text-slate-400 dark:text-slate-500">
-                            {score100(e.previous)} →
-                          </span>
-                        )}
-                        <span className="font-mono text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                          {score100(e.score)}
-                        </span>
-                        <span
-                          className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
-                            flat
-                              ? "text-slate-400 dark:text-slate-500"
-                              : up
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : "text-red-500 dark:text-red-400"
-                          }`}
-                        >
-                          {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
-                        </span>
-                      </div>
-                    ) : (
-                      // Decision 6, one rule no exceptions: your own numbers hide
-                      // too. Each run shows its TIER, with a movement marker only
-                      // when the tier actually changed between runs — "whether it
-                      // moved", since "how much" is the number we're not showing.
-                      (() => {
-                        const rowRung = rungFor(e.score, false, granularity);
-                        const prevRung = e.previous != null ? rungFor(e.previous, false, granularity) : null;
-                        const tierMoved = prevRung != null && prevRung.key !== rowRung.key;
-                        const tierUp = tierMoved && rowRung.rung > prevRung!.rung;
-                        return (
-                          <div className="flex shrink-0 items-center gap-2 sm:gap-3" data-testid="insights-row-tier">
-                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                              {rowRung.label}
-                            </span>
-                            <span
-                              className={`w-5 text-right text-xs font-semibold ${!tierMoved ? "text-slate-400 dark:text-slate-500" : tierUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}
-                            >
-                              {!tierMoved ? "—" : tierUp ? "▲" : "▼"}
-                            </span>
-                          </div>
-                        );
-                      })()
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
           )}
         </Card>
 

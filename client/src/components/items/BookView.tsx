@@ -24,8 +24,7 @@ import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
 import { useRankedReviews } from "@/components/items/PlaceReviews";
 import { BookReviews } from "@/components/items/BookReviews";
-import { ratingSummary } from "@/lib/commentReviews";
-import { useBookReviews } from "@/hooks/useBookReviews";
+import { useBookRating, useBookReviews } from "@/hooks/useBookReviews";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBookFacts } from "@/hooks/useBookFacts";
 import type { ReadyItemView } from "@/hooks/useItemView";
@@ -50,7 +49,8 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   const recommenders = network.ranked.filter((e) => e.group !== "other").length;
   // Stars alone are a rating; words are a review. Counted apart, as Open Library counts.
   const reviewCount = ranked.reviews.filter((r) => r.text).length;
-  const ours = ratingSummary(ranked.reviews);
+  // The star value through a lens, and whose (the books contract's section 8): never a plain average.
+  const rating = useBookRating(event, ranked.reviews);
   const me = useActiveAccountDisplay();
   const isAdmin = me?.isAdmin === true;
   // The rest of the list, read once: the author's other books, and the ones sharing its subjects.
@@ -145,8 +145,10 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
             <span className="text-slate-300 dark:text-slate-600"> · </span>
             <a href="#book-reviews" className="hover:text-brand-link">
               {[
-                ours
-                  ? `Rated ${ours.average.toFixed(1)} by ${ours.count} ${ours.count === 1 ? "person" : "people"}`
+                rating
+                  ? `Rated ${rating.value.toFixed(1)} by ${rating.counted} ${rating.counted === 1 ? "person" : "people"} ${
+                      rating.lens === "you" ? "you trust" : "the list's curator trusts"
+                    }`
                   : null,
                 reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : null,
               ]
@@ -196,7 +198,7 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
 
       <WhoStandsBehindIt network={network} noun="book" idPrefix="book" voice="recommend" />
 
-      <BookReviews item={event} ranked={ranked} />
+      <BookReviews item={event} title={book.title} ranked={ranked} />
 
       {byAuthor.length > 0 && (
         <Shelf id="book-by-author" heading={`More by ${book.author}`} items={byAuthor} definition={r.governing} />

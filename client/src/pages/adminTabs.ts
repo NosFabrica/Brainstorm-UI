@@ -1,6 +1,15 @@
 /** The admin page's sections, as `?tab=` names them. */
 export type AdminTab =
-  "overview" | "users" | "health" | "activity" | "assistants" | "scheduling" | "billing" | "trusted-lists" | "support";
+  | "overview"
+  | "users"
+  | "health"
+  | "activity"
+  | "assistants"
+  | "scheduling"
+  | "billing"
+  | "trusted-lists"
+  | "support"
+  | "growth";
 
 const ALWAYS: readonly AdminTab[] = [
   "users",
@@ -10,6 +19,7 @@ const ALWAYS: readonly AdminTab[] = [
   "billing",
   "trusted-lists",
   "support",
+  "growth",
 ];
 
 /**

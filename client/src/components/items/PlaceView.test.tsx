@@ -119,7 +119,7 @@ vi.mock("@/hooks/usePlaceReviews", () => ({
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.5 }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
 
-import { PlaceView, placeOf } from "./PlaceView";
+import { PlaceView, placeOf, placePresentation } from "./PlaceView";
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   id: pubkey.slice(0, 8).padEnd(64, "0"),
@@ -653,5 +653,22 @@ describe("PlaceView", () => {
     const review = within(screen.getByTestId("place-actions")).getByRole("link", { name: "Review" });
     await userEvent.click(review);
     expect(within(screen.getByTestId("place-review-composer")).getByRole("textbox")).toHaveFocus();
+  });
+});
+
+// How a place reads among many (ADR 0007): a results row, a card, a tile — its name, then what
+// it is and where, the way a map app lists one. Not the street address: that's the page's.
+describe("placePresentation", () => {
+  const definition = () => resolveConcept({ community, communityCoordinate: COMMUNITY, house: houseCopy })!.governing;
+
+  it("reads a place by its name, then its kind, its cuisine and its town", () => {
+    const shown = placePresentation(ilSole, definition(), { title: null, summary: "123 Main St" } as never);
+    expect(shown.title).toBe("Il Sole Italian Food");
+    expect(shown.summary).toBe("Restaurant · Italian · Sarasota");
+  });
+
+  it("leaves an item that isn't a place as the hints read it", () => {
+    const shown = { title: "As is", summary: "hints" } as never;
+    expect(placePresentation({ tags: [] }, definition(), shown)).toBe(shown);
   });
 });

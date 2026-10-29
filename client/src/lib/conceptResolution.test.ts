@@ -11,6 +11,7 @@ import {
   isSelfDeclared,
   pointsAt,
   resolveConcept,
+  versionOf,
   type HeaderEvent,
 } from "./conceptResolution";
 
@@ -62,6 +63,22 @@ describe("b links", () => {
     expect(isSelfDeclared(header(AVI, [["b", COMMUNITY]]))).toBe(true);
     expect(isSelfDeclared(community)).toBe(false);
     expect(pointsAt(copyBy(TA), COMMUNITY)).toBe(true);
+  });
+
+  it("knows the list a version is of, and that a list of its own is no one's version", () => {
+    expect(versionOf(copyBy(USER))).toBe(COMMUNITY);
+    // Its self-pointer is not a version of anything, before or after the other b.
+    expect(
+      versionOf(
+        header(USER, [
+          ["b", `39998:${USER}:github-accounts`],
+          ["b", COMMUNITY],
+        ]),
+      ),
+    ).toBe(COMMUNITY);
+    expect(versionOf(header(AVI, [["b", COMMUNITY]]))).toBeNull();
+    expect(versionOf(community)).toBeNull();
+    expect(versionOf(header(USER, [["b", B_DEFERRED]]))).toBeNull();
   });
 });
 

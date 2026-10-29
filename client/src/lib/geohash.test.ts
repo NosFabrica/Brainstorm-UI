@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeGeohash, isSpot, osmEmbedUrl, osmPageUrl } from "./geohash";
+import { cellsCovering, decodeGeohash, isSpot, osmEmbedUrl, osmPageUrl } from "./geohash";
 
 describe("decodeGeohash", () => {
   it("decodes to the cell's centre (Wikipedia's examples)", () => {
@@ -56,5 +56,35 @@ describe("the map of a cell", () => {
       [c.west, c.south, c.east, c.north].map((n) => n.toFixed(4)),
     );
     expect(osmPageUrl(c)).not.toContain("mlat");
+  });
+});
+
+// What a map's view asks a relay for (`#g`): a few cells, as fine as a few allow, that together
+// cover the view. Events tagged with a cell at that precision answer.
+describe("cellsCovering", () => {
+  const overlaps = (hash: string, b: { south: number; west: number; north: number; east: number }) => {
+    const c = decodeGeohash(hash)!;
+    return c.south < b.north && c.north > b.south && c.west < b.east && c.east > b.west;
+  };
+
+  it("covers downtown Austin with a cell an event on Sixth Street is tagged with", () => {
+    const downtown = { south: 30.26, west: -97.75, north: 30.28, east: -97.73 };
+    const cells = cellsCovering(downtown);
+    // A live event at Sixth Street and Congress carries g tags 9v6kpvc, 9v6kpv, 9v6kp, 9v6k…
+    expect(cells.some((c) => "9v6kpvc".startsWith(c))).toBe(true);
+    expect(cells.length).toBeLessThanOrEqual(8);
+    expect(cells.every((c) => overlaps(c, downtown))).toBe(true);
+  });
+
+  it("asks for coarser cells as the view widens, never more than eight, all the same size", () => {
+    const texas = { south: 26, west: -106, north: 36, east: -94 };
+    const cells = cellsCovering(texas);
+    expect(cells.length).toBeGreaterThan(0);
+    expect(cells.length).toBeLessThanOrEqual(8);
+    expect(new Set(cells.map((c) => c.length)).size).toBe(1);
+    expect(cells[0].length).toBeLessThan(
+      cellsCovering({ south: 30.26, west: -97.75, north: 30.28, east: -97.73 })[0].length,
+    );
+    expect(cells.every((c) => overlaps(c, texas))).toBe(true);
   });
 });

@@ -7,7 +7,7 @@
  * Lives in lib/ (not services/) for the same layering reason as relayPool:
  * nothing here may import upward.
  */
-import type { Relay } from "applesauce-relay";
+import { Relay } from "applesauce-relay";
 import { pool, warmRelay } from "./relayPool";
 import { env } from "./runtimeEnv";
 import { watchRelay } from "@/lib/serverStatus";
@@ -31,6 +31,18 @@ export function searchRelay(): Relay | null {
   unwatch?.();
   unwatch = watchRelay(cached);
   return cached;
+}
+
+/**
+ * A socket of its own for questions asked beside a search — the results page's tab counts —
+ * which the caller closes once they are answered. The relay works each socket's requests as a
+ * queue: seventeen COUNTs on the search's socket held the REQ behind them for 2,059ms against
+ * ~200ms alone, and on a second socket the same REQ took 326ms (probed 2026-10-22). Outside the
+ * pool on purpose: the pool keeps one socket per relay, which is the queue this avoids.
+ */
+export function openSideSearchRelay(): Relay | null {
+  const url = env.VITE_SEARCH_RELAY_URL.trim();
+  return url ? new Relay(url) : null;
 }
 
 /**

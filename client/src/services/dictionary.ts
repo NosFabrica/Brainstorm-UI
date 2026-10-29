@@ -19,6 +19,7 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import { dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
+import { fetchFromSearchRelayByFilters } from "@/services/nostr";
 import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
 import { DLIST_ITEM_KINDS, coordinateOf, headerReferenceOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
 import { pointsAt, resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
@@ -47,6 +48,19 @@ export interface DictionaryEntry {
   inDictionary: boolean;
   /** Distinct items, newest version of each, newest first. */
   items: DictionaryItem[];
+  /**
+   * What `resolved` was decided from, kept so a view can resolve the concept
+   * for someone else — Settings › Dictionary's "Managed by" (lib/managedDictionary).
+   * Absent where an entry is built by hand.
+   */
+  candidates?: EntryCandidates;
+}
+
+export interface EntryCandidates {
+  community: HeaderEvent | null;
+  house: HeaderEvent | null;
+  /** Each copy author's copy of the concept, by pubkey: the reader, their Assistant, every manager asked for. */
+  copies: Record<string, HeaderEvent>;
 }
 
 const TIMEOUT_MS = 8000;
@@ -171,10 +185,22 @@ export function filedItems<T extends DictionaryItem>(events: T[], headers: strin
   return distinctItems(events.filter(isDListItem).filter(isFiled));
 }
 
-/** The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. */
-export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
+/**
+ * The items filed under these headers, as a reader's page shows them: up to ITEM_LIMIT. `onFirst`
+ * is handed the first relay's items the moment they land (services/listReads), before the merge.
+ */
+export async function loadListItems(
+  headers: string[],
+  hubRelays: string[] = dictionaryRelays(),
+  onFirst?: (items: DictionaryItem[]) => void,
+): Promise<ListItems> {
   if (!headers.length) return { items: [], truncated: false };
-  const events = (await readListEvents(itemFilters(headers, ITEM_LIMIT), TIMEOUT_MS, hubRelays)) as DictionaryItem[];
+  const events = (await readListEvents(
+    itemFilters(headers, ITEM_LIMIT),
+    TIMEOUT_MS,
+    hubRelays,
+    onFirst && ((first) => onFirst(filedItems(first as DictionaryItem[], headers))),
+  )) as DictionaryItem[];
   // Index and hub answers arrive merged, so a full answer from either can't be told apart from two
   // partial ones adding up: this errs toward saying more may exist.
   return { items: filedItems(events, headers), truncated: events.length >= ITEM_LIMIT };
@@ -189,8 +215,31 @@ export async function loadListItems(headers: string[], hubRelays: string[] = dic
 export async function loadConceptItems(
   headers: string[],
   hubRelays: string[] = dictionaryRelays(),
+  onFirst?: (items: DictionaryItem[]) => void,
 ): Promise<DictionaryItem[]> {
-  return (await loadListItems(headers, hubRelays)).items;
+  return (await loadListItems(headers, hubRelays, onFirst)).items;
+}
+
+/** How many items a word search of one list asks the search relay for. */
+const MATCH_LIMIT = 200;
+
+/**
+ * The items filed under these headers whose text has these words, from the whole list: the search
+ * relay matches them over every item it holds, where a page's own read stops at ITEM_LIMIT.
+ * Food and Drink Places holds 7,954 items, and neither of its two named PubKey was among the first
+ * 500 either relay sent (2026-10-23); asked by the word, the relay finds both. The hub isn't
+ * asked: it has no full-text search. Every word must match, as on the page (lib/listSearch).
+ */
+export async function searchListItems(
+  headers: string[],
+  words: readonly string[],
+  limit = MATCH_LIMIT,
+): Promise<DictionaryItem[]> {
+  if (!headers.length || !words.length) return [];
+  const search = words.join(" ");
+  const filters = itemFilters(headers, limit).map((filter) => ({ ...filter, search }));
+  const events = (await fetchFromSearchRelayByFilters(filters, TIMEOUT_MS)) as DictionaryItem[];
+  return filedItems(events, headers);
 }
 
 /**
@@ -208,16 +257,24 @@ export async function houseCopyAuthors(): Promise<string[]> {
   return assistant && assistant !== house ? [house, assistant] : [house];
 }
 
+/**
+ * `managers` are more copy authors to read beside the reader's own: whoever
+ * else may manage their Dictionary (Settings › Dictionary's "Managed by").
+ * Their copies land in each entry's `candidates`; `resolved` keeps the
+ * reader's precedence all the same.
+ */
 export async function loadDictionary(
   reader: DictionaryReader,
   concepts: string[],
   hubRelays: string[] = dictionaryRelays(),
-  { items: withItems = true }: { items?: boolean } = {},
+  { items: withItems = true, managers = [] }: { items?: boolean; managers?: string[] } = {},
 ): Promise<DictionaryEntry[]> {
   concepts = concepts.filter((c) => parseCoordinate(c)?.kind === 39998);
   if (!concepts.length) return [];
   const house = await houseCopyAuthors();
-  const copyAuthors = [...new Set([reader.pubkey, reader.taPubkey, ...house].filter((a): a is string => !!a))];
+  const copyAuthors = [
+    ...new Set([reader.pubkey, reader.taPubkey, ...house, ...managers].filter((a): a is string => !!a)),
+  ];
 
   const headerEvents: HeaderEvent[] = [];
   for (let i = 0; i < concepts.length; i += CONCEPT_CHUNK) {
@@ -230,13 +287,23 @@ export async function loadDictionary(
     (h) => copyAuthors.includes(h.pubkey) && !conceptSet.has(coordinateOf(h) ?? ""),
   );
 
-  const resolved = concepts.map((coordinate) =>
+  const candidates = concepts.map((coordinate): EntryCandidates => ({
+    community: communityHeaders.get(coordinate) ?? null,
+    house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
+    copies: Object.fromEntries(
+      copyAuthors.flatMap((a) => {
+        const copy = copyBy(a, coordinate, copies);
+        return copy ? [[a, copy]] : [];
+      }),
+    ),
+  }));
+  const resolved = concepts.map((coordinate, i) =>
     resolveConcept({
-      community: communityHeaders.get(coordinate) ?? null,
+      community: candidates[i].community,
       communityCoordinate: coordinate,
-      personal: copyBy(reader.pubkey, coordinate, copies),
-      assistant: copyBy(reader.taPubkey, coordinate, copies),
-      house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
+      personal: reader.pubkey ? candidates[i].copies[reader.pubkey] : null,
+      assistant: reader.taPubkey ? candidates[i].copies[reader.taPubkey] : null,
+      house: candidates[i].house,
     }),
   );
 
@@ -252,6 +319,7 @@ export async function loadDictionary(
       resolved: r,
       inDictionary: r?.source === "personal" || r?.source === "assistant",
       items: items.filter((ev) => zValues(ev).some((z) => mine.has(z))),
+      candidates: candidates[i],
     };
   });
 }

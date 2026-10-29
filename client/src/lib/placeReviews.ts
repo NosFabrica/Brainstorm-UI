@@ -110,10 +110,17 @@ function readReview(event: EventLike): PlaceReview {
   };
 }
 
-/** Whether a record names this place: by its `a`, or by its `d` (the address, or `place:` and the address). */
-function namesPlace(event: EventLike, address: string): boolean {
+/**
+ * What a review is of: the mark it carries (`m`), the prefix its `d` gives
+ * the thing's address, and what a record calls one it has no name for. The
+ * rules are one set for every mark — places and books never drift apart.
+ */
+export type ReviewMark = "place" | "book";
+
+/** Whether a record names this thing: by its `a`, or by its `d` (the address, or the mark and the address). */
+function namesThing(event: EventLike, address: string, mark: ReviewMark): boolean {
   const d = tagOf(event.tags, "d");
-  return tagOf(event.tags, "a") === address || d === address || d === `place:${address}`;
+  return tagOf(event.tags, "a") === address || d === address || d === `${mark}:${address}`;
 }
 
 /** NIP-01's order for one address: the later wins; on a tie, the lower id. */
@@ -129,10 +136,15 @@ const isNewer = (a: EventLike, b: EventLike) =>
  * each person only their newest — one person, one voice, whichever `d` they
  * wrote it under — less any whose removal is among them.
  */
-export function standingReviews(events: EventLike[], address: string, now: number): PlaceReview[] {
+export function standingReviews(
+  events: EventLike[],
+  address: string,
+  now: number,
+  mark: ReviewMark = "place",
+): PlaceReview[] {
   const newest = new Map<string, EventLike>();
   for (const e of events) {
-    if (e.kind !== PLACE_REVIEW_KIND || !namesPlace(e, address)) continue;
+    if (e.kind !== PLACE_REVIEW_KIND || !namesThing(e, address, mark)) continue;
     // One from the future is ignored altogether: it must not replace the real review it would be newer than.
     if (e.created_at > now + MAX_AHEAD_S) continue;
     const held = newest.get(e.pubkey);
@@ -159,8 +171,16 @@ function removes(removal: EventLike, review: EventLike): boolean {
   );
 }
 
-/** The tags this page sets on a review; every other tag on a review it edits is carried over. */
-const OWN_TAGS = new Set(["d", "a", "m", "rating", "s", "alt", "price", "paid", "imeta"]);
+/**
+ * The tags a page sets on a review of each mark; every other tag on a review it edits is carried
+ * over — but never `client` and `nonce`, which belong to the app and the proof of work that signed
+ * the previous version, not to this one (the contracts' section 6).
+ */
+const OWN_TAGS: Record<ReviewMark, Set<string>> = {
+  place: new Set(["d", "a", "m", "rating", "s", "alt", "price", "paid", "imeta"]),
+  book: new Set(["d", "a", "m", "rating", "s", "alt"]),
+};
+const NOT_CARRIED = new Set(["client", "nonce"]);
 
 /** A review as the composer holds it, to be changed: whole stars, as the composer offers them. */
 export function draftOf(review: PlaceReview): Required<ReviewDraft> {
@@ -174,28 +194,27 @@ export function draftOf(review: PlaceReview): Required<ReviewDraft> {
 }
 
 /**
- * The record a reader signs to review a place (the contract's section 3),
- * or to change the review they have: `previous` is that record, whose `d`
- * the change is written at, whose `imeta` for a photo still shown is kept
- * as it was, and whose tags this page doesn't set are carried over,
- * unchanged and in their order — so neither app strips the other's fields.
- * A change is dated `now` (unix seconds), or a second after `previous` when
- * that one's clock ran ahead: it must be the newer to replace it.
+ * The record a reader signs to review a thing (the contracts' section 3), or
+ * to change the review they have: `previous` is that record, whose `d` the
+ * change is written at, whose `imeta` for a photo still shown is kept as it
+ * was, and whose tags this page doesn't set are carried over, unchanged and in
+ * their order — so neither app strips the other's fields. A change is dated
+ * `now` (unix seconds), or a second after `previous` when that one's clock ran
+ * ahead: it must be the newer to replace it. `hint`: the relay the `a` names
+ * the thing on.
  */
-export function placeReviewTemplate(
-  place: { address: string; name: string },
+export function reviewTemplate(
+  mark: ReviewMark,
+  thing: { address: string; name: string },
   draft: ReviewDraft,
   previous?: { tags: string[][]; created_at?: number },
   now = Math.floor(Date.now() / 1000),
+  hint?: string,
 ): { kind: typeof PLACE_REVIEW_KIND; content: string; tags: string[][]; created_at?: number } {
-  const d = (previous && tagOf(previous.tags, "d")) || `place:${place.address}`;
+  const d = (previous && tagOf(previous.tags, "d")) || `${mark}:${thing.address}`;
   const stars = draft.rating ?? null;
-  const name = place.name.trim() || "a place";
-  const tags: string[][] = [
-    ["d", d],
-    ["a", place.address],
-    ["m", "place"],
-  ];
+  const name = thing.name.trim() || `a ${mark}`;
+  const tags: string[][] = [["d", d], hint ? ["a", thing.address, hint] : ["a", thing.address], ["m", mark]];
   if (stars != null) tags.push(["rating", (stars / 5).toFixed(3)], ["s", String(stars)]);
   tags.push(["alt", stars != null ? `Review of ${name}: ${stars} of 5 stars` : `Review of ${name}`]);
   if (draft.price != null) tags.push(["price", String(draft.price)]);
@@ -203,10 +222,20 @@ export function placeReviewTemplate(
   const imetaOf = (url: string) =>
     previous?.tags.find((t) => t[0] === "imeta" && t.slice(1).some((part) => part === `url ${url}`));
   for (const url of draft.photos) tags.push(imetaOf(url) ?? ["imeta", `url ${url}`]);
-  for (const t of previous?.tags ?? []) if (!OWN_TAGS.has(t[0])) tags.push(t);
+  for (const t of previous?.tags ?? []) if (!OWN_TAGS[mark].has(t[0]) && !NOT_CARRIED.has(t[0])) tags.push(t);
   const content = [draft.text.trim(), ...draft.photos].filter(Boolean).join("\n");
   if (!previous) return { kind: PLACE_REVIEW_KIND, content, tags };
   return { kind: PLACE_REVIEW_KIND, content, tags, created_at: Math.max(now, (previous.created_at ?? 0) + 1) };
+}
+
+/** A place's review record (reviewTemplate, marked `place`). */
+export function placeReviewTemplate(
+  place: { address: string; name: string },
+  draft: ReviewDraft,
+  previous?: { tags: string[][]; created_at?: number },
+  now = Math.floor(Date.now() / 1000),
+): { kind: typeof PLACE_REVIEW_KIND; content: string; tags: string[][]; created_at?: number } {
+  return reviewTemplate("place", place, draft, previous, now);
 }
 
 /** The removal (NIP-09) a reviewer signs for their review: by id and by address, with the kind. */
@@ -300,4 +329,38 @@ export function placeRating(
     if (found) return { ...found, lens };
   }
   return null;
+}
+
+/** The ordering prior (the contract's section 8, as Regulars sets it): 1.5 of a vote of 3.5 stars. */
+const PRIOR_WEIGHT = 1.5;
+const PRIOR_MEAN = 3.5;
+
+/**
+ * The number a list of places is ordered by — never shown (the contract's
+ * section 8): the reviewers' stars weighted by their rank in a lens, as if
+ * the place also had 1.5 of a vote of 3.5 stars, so one five-star review
+ * doesn't top a list. A place nobody counted has rated scores 3.5.
+ */
+export function orderingScore(
+  reviews: { pubkey: string; rating: number | null }[],
+  rankOf: (pubkey: string) => number | null,
+): number {
+  let sum = PRIOR_WEIGHT * PRIOR_MEAN;
+  let weights = PRIOR_WEIGHT;
+  for (const r of reviews) {
+    const rank = rankOf(r.pubkey);
+    if (r.rating == null || rank == null || rank < MIN_RANK || rank > 100) continue;
+    sum += (rank / 100) * r.rating;
+    weights += rank / 100;
+  }
+  return sum / weights;
+}
+
+/** Each place's reviews that stand, from one batch of records and removals read for many places at once. */
+export function reviewsByPlace(
+  events: EventLike[],
+  addresses: readonly string[],
+  now: number,
+): Map<string, PlaceReview[]> {
+  return new Map(addresses.map((a) => [a, standingReviews(events, a, now)]));
 }

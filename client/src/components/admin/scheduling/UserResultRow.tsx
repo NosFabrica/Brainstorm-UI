@@ -83,10 +83,10 @@ export function UserResultRow({
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{name || "Unknown"}</p>
-        <p className="truncate font-mono text-[10px] text-slate-400 dark:text-slate-500" title={resolvedNpub}>
+        <p className="truncate font-mono text-[11px] text-slate-400 dark:text-slate-500" title={resolvedNpub}>
           {shortNpub(resolvedNpub)}
         </p>
-        {subtitle && <p className="truncate text-[10px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
       </div>
       {trailing && <div className="flex shrink-0 items-center gap-1">{trailing}</div>}
     </div>

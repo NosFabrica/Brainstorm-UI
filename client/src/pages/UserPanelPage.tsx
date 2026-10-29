@@ -9,7 +9,7 @@ import PageBackground from "@/components/PageBackground";
 import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_1775844197287.png";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ASSISTANT_UPDATED_EVENT, readPublishedAssistant } from "@/lib/assistantStorage";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +75,7 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { publicOrigin } from "@/lib/publicOrigin";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
@@ -381,8 +382,10 @@ export default function UserPanelPage() {
 
   // Hydrate agent state from lightweight one-click publish (BrainstormAssistantCard)
   // so users who published via Dashboard/Settings see "active" status here without re-publishing.
-  // Also re-syncs reactively when the lightweight card publishes in another tab/component
-  // via `storage` events and a same-tab `brainstorm-assistant-updated` custom event.
+  // The hook re-syncs when the lightweight card publishes in another tab/component, and
+  // counts only the server's `ta_pubkey`, never another deployment's publish (#269).
+  const { published: lightweightPublish } = useBrainstormAssistant();
+  const lwTs = lightweightPublish?.publishedAt;
   useEffect(() => {
     const STATUS_LEVEL: Record<AgentStatus, number> = {
       dormant: 0,
@@ -392,38 +395,20 @@ export default function UserPanelPage() {
       networked: 4,
       trusted: 5,
     };
-    const sync = () => {
-      try {
-        const lw = readPublishedAssistant();
-        if (!lw) return;
-        const lwTs = lw.publishedAt;
-        if (!lwTs || isNaN(lwTs)) return;
-        setAgentState((prev) => {
-          if (prev.publishedAt && prev.publishedAt >= lwTs) return prev;
-          const promotedStatus: AgentStatus = STATUS_LEVEL[prev.status] >= STATUS_LEVEL.active ? prev.status : "active";
-          const next: AgentState = {
-            ...prev,
-            status: promotedStatus,
-            publishedAt: lwTs,
-            activatedAt: prev.activatedAt || lwTs,
-          };
-          saveAgentState(next);
-          return next;
-        });
-      } catch {}
-    };
-    sync();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
-    };
-    const onCustom = () => sync();
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(ASSISTANT_UPDATED_EVENT, onCustom);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(ASSISTANT_UPDATED_EVENT, onCustom);
-    };
-  }, [user?.pubkey]);
+    if (!lwTs || isNaN(lwTs)) return;
+    setAgentState((prev) => {
+      if (prev.publishedAt && prev.publishedAt >= lwTs) return prev;
+      const promotedStatus: AgentStatus = STATUS_LEVEL[prev.status] >= STATUS_LEVEL.active ? prev.status : "active";
+      const next: AgentState = {
+        ...prev,
+        status: promotedStatus,
+        publishedAt: lwTs,
+        activatedAt: prev.activatedAt || lwTs,
+      };
+      saveAgentState(next);
+      return next;
+    });
+  }, [lwTs]);
 
   const { data: overviewData, isLoading: overviewLoading } = useSelfOverview(user?.pubkey);
   const { data: historyData, isLoading: historyLoading } = useSelfHistory(user?.pubkey);
@@ -799,7 +784,7 @@ export default function UserPanelPage() {
   };
 
   const handleCopyInviteLink = () => {
-    copyToClipboard(window.location.origin);
+    copyToClipboard(publicOrigin());
     toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
   };
 
@@ -1769,7 +1754,7 @@ export default function UserPanelPage() {
                       className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                       data-testid="text-invite-link"
                     >
-                      {window.location.origin}
+                      {publicOrigin()}
                     </div>
                     <Button
                       size="sm"

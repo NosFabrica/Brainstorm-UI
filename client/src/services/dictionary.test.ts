@@ -60,7 +60,15 @@ vi.mock("@/services/trustSource", () => ({
   resolveTrustSource: (pk: string) => trustSourceMock(pk),
 }));
 
-import { distinctItems, filedItems, itemIdentity, loadConceptItems, loadDictionary, loadListItems } from "./dictionary";
+import {
+  distinctItems,
+  filedItems,
+  itemIdentity,
+  loadConceptItems,
+  loadDictionary,
+  loadListItems,
+  searchListItems,
+} from "./dictionary";
 
 /** Answers each filter the way a relay would, from a fixed corpus. */
 /** One filter, as a relay matches it. */
@@ -121,6 +129,25 @@ describe("loadDictionary", () => {
     expect(fetchMock.mock.calls.every(([, relays]) => relays[0] === "wss://hub.example")).toBe(true);
   });
 
+  it("asks for the managers' copies too, and keeps each one's as a candidate without changing who governs", async () => {
+    const OTHER = "3".repeat(64);
+    const otherCopy = ev(OTHER, 39998, [
+      ["d", "github-accounts"],
+      ["names", "GitHub Account", "GitHub Accounts"],
+      ["required", "github-username"],
+      ["b", COMMUNITY, "pointer"],
+    ]);
+    relayWith([communityHeader, taCopy, otherCopy]);
+    const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, {
+      items: false,
+      managers: [OTHER, USER],
+    });
+    expect(sentFilters().find((f) => f["#b"])).toMatchObject({ authors: [USER, TA, OTHER] });
+    expect(Object.keys(entry.candidates?.copies ?? {}).sort()).toEqual([TA, OTHER].sort());
+    expect(entry.candidates?.community?.id).toBe(communityHeader.id);
+    expect(entry.resolved?.governing.coordinate).toBe(TA_COPY);
+  });
+
   it("an anonymous reader asks for no copies of their own", async () => {
     relayWith([communityHeader]);
     await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY]);
@@ -149,7 +176,13 @@ describe("loadDictionary", () => {
   it("a hub that fails is an empty entry, not an error", async () => {
     fetchMock.mockRejectedValue(new Error("down"));
     const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY]);
-    expect(entry).toEqual({ communityCoordinate: COMMUNITY, resolved: null, inDictionary: false, items: [] });
+    expect(entry).toEqual({
+      communityCoordinate: COMMUNITY,
+      resolved: null,
+      inDictionary: false,
+      items: [],
+      candidates: { community: null, house: null, copies: {} },
+    });
   });
 
   it("ignores a header that isn't a list item under any z it asked for", async () => {
@@ -390,5 +423,31 @@ describe("the items filed under a list", () => {
   it("loadListItems still asks for 500", async () => {
     await loadListItems([COORD]);
     expect(sentFilters().at(-1)).toMatchObject({ limit: 500 });
+  });
+});
+
+// A page reads a list's first 500 items; the words are found in the whole list by the search relay,
+// the only one of the two with full-text search.
+describe("finding words in a whole list", () => {
+  const elsewhere = ev(AVI, 39999, [
+    ["d", "elsewhere"],
+    ["z", `39998:${AVI}:other-list`],
+    ["github-username", "vcavallo"],
+  ]);
+
+  it("asks the search relay alone, for the list's items with the words, and keeps what is filed there", async () => {
+    indexMock.mockResolvedValue([original, elsewhere]);
+    const found = await searchListItems([COMMUNITY], ["vcavallo"]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(indexMock).toHaveBeenCalledTimes(1);
+    const [filters] = indexMock.mock.calls[0];
+    expect(filters).toEqual([{ kinds: [39999, 9999], "#z": [COMMUNITY], limit: 200, search: "vcavallo" }]);
+    expect(found.map((e) => e.id)).toEqual([original.id]);
+  });
+
+  it("asks nothing without words or a list", async () => {
+    expect(await searchListItems([COMMUNITY], [])).toEqual([]);
+    expect(await searchListItems([], ["vcavallo"])).toEqual([]);
+    expect(indexMock).not.toHaveBeenCalled();
   });
 });

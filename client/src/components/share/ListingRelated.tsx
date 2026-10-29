@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchSimilarListings } from "@/services/search";
-import { APP_TAGS, isSellable, parseListing } from "@/lib/listing";
+import { APP_TAGS, isListed, parseListing } from "@/lib/listing";
 import { cardGroupOf } from "@/lib/listingVariants";
 import { useListingShelf } from "@/hooks/useListingShelf";
 import type { SearchResult } from "@/lib/profileSearch";
@@ -15,7 +15,7 @@ const addressOf = (ev: ListingLike) => `${ev.kind}:${ev.pubkey}:${ev.tags.find((
 const sellable = (evs: NostrEvent[]) =>
   evs.filter((ev) => {
     const l = parseListing(ev);
-    return !!l && isSellable(l);
+    return !!l && isListed(l);
   });
 
 /**

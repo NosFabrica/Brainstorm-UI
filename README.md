@@ -53,7 +53,7 @@ prefers the runtime value and falls back to the build-time one.
 
 This repo uses a long-lived `staging` branch (the default branch) for the
 staging environment; `main` is production. Branch off `staging` and open PRs
-into it. The step-by-step flow (PR → merge → deploy) is in
+into it. The step-by-step flow (PR → merge, which deploys) is in
 [docs/agents/staging-deploy.md](docs/agents/staging-deploy.md).
 
 The core team promotes `staging` to `main` with a merge commit (never a
@@ -62,8 +62,8 @@ into `staging`.
 
 CI builds `ghcr.io/nosfabrica/brainstorm-ui:staging` from the branch; the
 [brainstorm-k8s](https://github.com/NosFabrica/brainstorm-k8s) charts pin
-`ui.image.tag: staging` and roll it out with `./deploy_staging.sh --ui`.
-Details in
+`ui.image.tag: staging`, and staging rolls each new build out automatically —
+there is no deploy script to run. Details in
 [brainstorm-k8s `docs/staging-workflow.md`](https://github.com/NosFabrica/brainstorm-k8s/blob/master/docs/staging-workflow.md).
 
 ## Documentation

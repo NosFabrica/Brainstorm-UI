@@ -7,12 +7,14 @@
  * undefined and the label could only ever say "In progress".
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 
 const PUBKEY = "a".repeat(64);
 const runMock = vi.fn<() => Promise<unknown>>();
 const triggerMock = vi.fn<() => Promise<unknown>>();
+/** What /user/history answers. */
+let selfHistory: Record<string, unknown> = {};
 vi.mock("@/services/api", () => ({
   apiClient: new Proxy(
     {},
@@ -35,19 +37,15 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 vi.mock("@/hooks/useSelf", () => ({
   useSelfOverview: () => ({ data: { data: { counts: {} } } }),
   useSelfStats: () => ({ data: { data: {} } }),
-  useSelfHistory: () => ({ data: { data: { last_time_calculated_graperank: "2026-09-30T00:10:00" } } }),
+  useSelfHistory: () => ({ data: { data: selfHistory } }),
 }));
 vi.mock("@/hooks/useTrustPresetSync", () => ({ useTrustPresetSync: () => ({ preset: null }) }));
+// The Assistant is `ta_pubkey` from the history above, asked only with a Session.
+vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/billing/PlanCard", () => ({ PlanCard: () => null }));
 vi.mock("@/components/DeferredSession", () => ({ DeferredSessionNotice: () => null }));
-// No published journal: hydrating keeps the local one, as the real merge does.
-// Resolving [] here would wipe a seeded journal whenever it lands after render.
-vi.mock("@/lib/scoreJournal", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/scoreJournal")>();
-  return { ...actual, hydrateScoreJournal: async (pubkey: string) => actual.getScoreJournal(pubkey) };
-});
 
 import InsightsPage from "./InsightsPage";
 
@@ -70,6 +68,7 @@ const cell = (label: string) => screen.getByText(label, { selector: "dt" }).next
 beforeEach(() => {
   runMock.mockReset();
   triggerMock.mockReset();
+  selfHistory = { last_time_calculated_graperank: "2026-09-30T00:10:00" };
   localStorage.clear();
 });
 
@@ -151,21 +150,6 @@ describe("Insights → Calculation", () => {
     expect(cell("Status")).not.toHaveTextContent("In progress");
   });
 
-  it("folds the runs that changed nothing into one line of the history", async () => {
-    const DAY = 86_400_000;
-    const t0 = Date.UTC(2026, 8, 1);
-    localStorage.setItem(
-      `brainstorm_score_journal:${PUBKEY}`,
-      JSON.stringify([0, 7, 14, 21].map((d) => ({ t: t0 + d * DAY, score: 0.5 }))),
-    );
-    runMock.mockResolvedValue(envelope(run()));
-    renderWithProviders(<InsightsPage />);
-    const fold = await screen.findByTestId("insights-score-fold");
-    expect(fold).toHaveTextContent(/2 runs, no change/);
-    // Newest and first stay as rows; the two between them are the fold.
-    expect(screen.getAllByTestId("insights-score-row").length).toBeGreaterThanOrEqual(2);
-  });
-
   it("reads a bare run too, as the page's own poll already does", async () => {
     runMock.mockResolvedValue(run());
     renderWithProviders(<InsightsPage />);
@@ -205,5 +189,31 @@ describe("Insights → Recalculate", () => {
     runMock.mockResolvedValue(envelope(run()));
     renderWithProviders(<InsightsPage />);
     expect(await screen.findByTestId("insights-preset-settings")).toHaveTextContent(/preset/i);
+  });
+});
+
+// The history is the server's run log. The browser keeps none of its own (#270).
+describe("Insights → Calculation history", () => {
+  it("lists the runs /user/history returns", async () => {
+    selfHistory = {
+      ...selfHistory,
+      items: [
+        run({ trigger_source: "manual" }),
+        run({ private_id: 6, created_at: "2026-09-01T00:00:00", trigger_source: "scheduled", status: "failure" }),
+      ],
+    };
+    runMock.mockResolvedValue(envelope(run()));
+    renderWithProviders(<InsightsPage />);
+    const [, newest, older] = within(await screen.findByRole("table")).getAllByRole("row");
+    expect(newest).toHaveTextContent(/manual\s*Complete/);
+    expect(older).toHaveTextContent(/scheduled\s*Failed/);
+    expect(screen.getByText("2 records")).toBeInTheDocument();
+  });
+
+  it("is left out while /user/history returns no runs", async () => {
+    runMock.mockResolvedValue(envelope(run()));
+    renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete"));
+    expect(screen.queryByText("Calculation history")).toBeNull();
   });
 });

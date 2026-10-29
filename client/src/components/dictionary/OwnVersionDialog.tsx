@@ -1,5 +1,5 @@
 /**
- * "Publish my own version" — a form for the reader's own copy of a community
+ * "Edit" on a Dictionary entry — a form for the reader's own copy of a community
  * concept (lib/conceptCopy), after dlist-ui's create-list: names,
  * description, and the fields its items carry, each required, recommended or
  * optional. The form itself is DefinitionForm, shared with List Management.
@@ -10,8 +10,9 @@
  * field" makes another. The preview is the tags as they'll be published,
  * so a demo can show exactly what changed.
  *
- * Offered on every Dictionary entry; it began as a demo and is likely the seed
- * of a general list header/item editor. It publishes with the reader's
+ * Offered once the reader holds a copy ("Add to my own Dictionary",
+ * components/dictionary/AddToDictionary); it began as a demo and is likely the
+ * seed of a general list header/item editor. It publishes with the reader's
  * own key, which outranks their Assistant's copy and the community's.
  */
 import { useEffect, useRef, useState } from "react";

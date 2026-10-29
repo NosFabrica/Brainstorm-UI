@@ -92,6 +92,10 @@ to see what a bulk publish did before you share the list.
   It takes the header's tags as a bare array or as `{ "d", "tags", "example", "notes" }`.
   Its **Copy instructions** button gives the tag grammar plus the URL templates that exist
   right now, with their ids. That's useful context to give Claude before step 1.
+- Importing into a list you've already published: the form takes the paste's definition. For
+  tags the form can't set (`license`, `r`, …), a name in the paste replaces the list's tags of
+  that name. A name the paste leaves out stays as the list had it. A tag carried twice is
+  published once.
 - Items go in one at a time, through the editor's item form. There's no bulk item import.
 
 **Doesn't depend on it:**

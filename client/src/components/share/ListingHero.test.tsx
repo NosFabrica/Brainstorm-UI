@@ -9,10 +9,15 @@ import { act, render, screen, within, fireEvent } from "@testing-library/react";
 
 // The seller's other listings, for a listing published outside Conduit whose seller sells on Conduit.
 const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: number) => [] as unknown[]);
+// Open Markets shipping options and collections, by address (`kind:pubkey:d` → event).
+const addressedMock = vi.fn(
+  async (_coords: { kind: number; pubkey: string; identifier: string }[]) => new Map<string, unknown>(),
+);
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit),
   fetchListingFamily: async () => [],
+  fetchAddressableEvents: (coords: { kind: number; pubkey: string; identifier: string }[]) => addressedMock(coords),
 }));
 
 // The "Followed by …" line is the profile's own component, tested where it
@@ -32,6 +37,8 @@ import { ListingHero } from "./ListingHero";
 beforeEach(() => {
   recentMock.mockReset();
   recentMock.mockResolvedValue([]);
+  addressedMock.mockReset();
+  addressedMock.mockResolvedValue(new Map());
 });
 
 const SELLER = "9".repeat(64);
@@ -158,22 +165,20 @@ describe("ListingHero", () => {
     expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
   });
 
-  it("a listing with no shop link and no marketplace we know still opens the seller's own website, when their profile names one", () => {
-    // The Bitcoin Shop UK's "The Cathedral" (2026-09-24): published through Gamma Markets, no link on the listing, thebitcoinshop.uk on the profile.
-    render(
-      <ListingHero
-        event={listing([["client", "gamma-markets-bulk-updater"]])}
-        sellerWebsite="https://thebitcoinshop.uk/"
-      />,
-    );
+  it("a listing with no shop link and no marketplace we know is bought on Conduit, at its own product page", () => {
+    // Orange Horizon's shoes (2026-10-19): no link on the listing; the profile's website was a storefront elsewhere, not this product.
+    render(<ListingHero event={listing([["client", "gamma-markets-bulk-updater"]])} />);
     const shop = screen.getByTestId("listing-hero-shop");
-    expect(shop).toHaveTextContent("Visit thebitcoinshop.uk");
-    expect(shop.getAttribute("href")).toBe("https://thebitcoinshop.uk/");
+    expect(shop).toHaveTextContent(/^Buy on Conduit$/);
+    expect(shop.getAttribute("href")).toMatch(
+      /^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/,
+    );
     expect(shop.getAttribute("target")).toBe("_blank");
   });
 
-  it("a listing with no shop link offers only the message, and a sold one says so", () => {
-    render(<ListingHero event={listing([["status", "sold"]])} />);
+  it("a listing with no address offers only the message, and a sold one says so", () => {
+    const sold = listing([["status", "sold"]]);
+    render(<ListingHero event={{ ...sold, tags: sold.tags.filter((t) => t[0] !== "d") }} />);
     expect(screen.queryByTestId("listing-hero-shop")).toBeNull();
     expect(screen.getByTestId("listing-hero-status")).toHaveTextContent(/Sold/i);
     expect(screen.getByTestId("listing-hero-message")).toBeInTheDocument();
@@ -445,7 +450,11 @@ describe("ListingHero", () => {
     });
 
     it("is not offered when there is nowhere to buy, or nothing for sale", () => {
-      const { unmount } = render(<ListingHero event={listing([])} />);
+      // No address: not even Conduit can open it.
+      const unaddressed = listing([]);
+      const { unmount } = render(
+        <ListingHero event={{ ...unaddressed, tags: unaddressed.tags.filter((t) => t[0] !== "d") }} />,
+      );
       act(() => report(false));
       expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
       unmount();
@@ -461,5 +470,102 @@ describe("ListingHero", () => {
       act(() => report(false));
       expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
     });
+  });
+});
+
+describe("ListingHero — Open Markets", () => {
+  it("a hidden listing says Unlisted, never the 'active' its status tag still carries", () => {
+    render(
+      <ListingHero
+        event={listing([
+          ["visibility", "hidden"],
+          ["status", "active"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("listing-hero-status")).toHaveTextContent("Unlisted");
+    expect(screen.getByTestId("listing-hero-status")).not.toHaveTextContent(/active/i);
+  });
+
+  it("a pre-order says so, and is still for sale", () => {
+    render(<ListingHero event={listing([["visibility", "pre-order"]])} />);
+    expect(screen.getByTestId("listing-hero-status")).toHaveTextContent("Pre-order");
+  });
+
+  it("an on-sale listing wears no status chip", () => {
+    render(<ListingHero event={listing([["visibility", "on-sale"]])} />);
+    expect(screen.queryByTestId("listing-hero-status")).toBeNull();
+  });
+
+  it("says how many are left and whether it is digital or physical; a parent's stock is not a count", () => {
+    const { unmount } = render(
+      <ListingHero
+        event={listing([
+          ["type", "simple", "physical"],
+          ["stock", "3"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("listing-hero-format")).toHaveTextContent("Physical");
+    expect(screen.getByTestId("listing-hero-stock")).toHaveTextContent("3 in stock");
+    unmount();
+    render(
+      <ListingHero
+        event={listing([
+          ["type", "variable", "digital"],
+          ["stock", "0"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("listing-hero-format")).toHaveTextContent("Digital");
+    expect(screen.queryByTestId("listing-hero-stock")).toBeNull();
+  });
+
+  it("prices a referenced shipping option at its own price plus the product's extra cost", async () => {
+    const address = `30406:${SELLER}:om-standard-1`;
+    addressedMock.mockResolvedValue(
+      new Map([
+        [
+          address,
+          {
+            id: "5".repeat(64),
+            kind: 30406,
+            pubkey: SELLER,
+            created_at: 1_788_000_000,
+            content: "",
+            sig: "",
+            tags: [
+              ["d", "om-standard-1"],
+              ["title", "Express Italia"],
+              ["price", "1000", "sats"],
+              ["country", "IT"],
+              ["service", "express"],
+            ],
+          },
+        ],
+      ]),
+    );
+    render(<ListingHero event={listing([["shipping_option", address, "500"]])} />);
+    const box = await screen.findByText("Express Italia");
+    const row = box.closest("[data-testid='listing-hero-shipping-row']") as HTMLElement;
+    expect(within(row).getByTestId("listing-hero-shipping-cost")).toHaveTextContent("1,500 sats");
+    expect(row).toHaveTextContent("Express");
+    expect(row).toHaveTextContent("IT");
+    expect(screen.getByTestId("listing-hero-shipping")).not.toHaveTextContent("30406:");
+  });
+
+  it("a referenced option not found still says there is one, with its extra — not its address, not '500 shipping'", async () => {
+    const address = `30406:${SELLER}:9ac5a9a316a647559a7597c2d6fdfb21`;
+    render(<ListingHero event={listing([["shipping_option", address, "500"]])} />);
+    const shipping = screen.getByTestId("listing-hero-shipping");
+    expect(shipping).toHaveTextContent("Shipping option");
+    expect(within(shipping).getByTestId("listing-hero-shipping-cost")).toHaveTextContent("+500 sats");
+    expect(shipping).not.toHaveTextContent(SELLER);
+    expect(await within(shipping).findByText(/details not found/)).toBeInTheDocument();
+  });
+
+  it("a reference with no extra cost is shown too — it used to vanish", () => {
+    render(<ListingHero event={listing([["shipping_option", `30406:${SELLER}:9ac5a9a316a647559a7597c2d6fdfb22`]])} />);
+    expect(screen.getByTestId("listing-hero-shipping")).toHaveTextContent("Shipping option");
   });
 });

@@ -43,6 +43,11 @@ const SECTIONS: Section[] = [
         type: "p",
         text: "We automatically collect certain information when you visit, use, or navigate the Services. This information does not reveal your specific identity (like your name or contact information) but may include device and usage information, such as your IP address, browser and device characteristics, operating system, language preferences, referring URLs, device name, country, location, information about how and when you use our Services, and other technical information. This information is primarily needed to maintain the security and operation of our Services, and for our internal analytics and reporting purposes.",
       },
+      { type: "p", text: "Where you are" },
+      {
+        type: "p",
+        text: "Search places results by four sources, in this order: the words you type (a town or a kind of place); your browser's language, read only to choose kilometres or miles and a currency; a rough guess from your network connection (a country or city), when our server can tell one, with nothing asked of your device; and your precise position only when you tap Near me, after your browser asks you — used for that search and not stored.",
+      },
       {
         type: "p",
         text: "Like many businesses, we also collect information through cookies and similar technologies.",
