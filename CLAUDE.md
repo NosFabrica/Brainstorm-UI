@@ -31,7 +31,8 @@ Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) 
 
 Locally against staging, for a browser check: `docs/agents/run-ui.md`. The installed app
 (PWA) — service worker, manifest, notifications — is in ARCHITECTURE.md; real-device
-checks: `docs/agents/pwa-checklist.md`.
+checks: `docs/agents/pwa-checklist.md`. Passkeys: every flow against the real backend
+with `npm run e2e:local`; what only a phone can tell: `docs/agents/passkey-checklist.md`.
 
 ### Shipping to staging
 
@@ -65,6 +66,7 @@ Playwright happy-path checks against **live staging**, not local — CI runs the
 - Locally, any staging account with follows and calculated scores works — the shared CI key isn't handed out. Use a throwaway, never your real nsec.
 - Specs select by `data-testid`; renaming one used under `e2e/` means updating the spec in the same change.
 - Scope is happy paths only: no onboarding, payments, admin, or flows that publish to relays.
+- `e2e/local/` is the exception, and never runs against staging: `npm run e2e:local` starts Postgres, Redis, a `brainstorm_server` checkout (`BRAINSTORM_SERVER_DIR`, default `../brainstorm_server`) and vite here, then drives every passkey flow — signup included, with all external hosts unresolvable. `-- --serve` keeps that stack up for a manual check.
 - The test account is an ordinary non-admin user; its nsec lives only in the `staging-e2e` GitHub environment — never in files or logs.
 - A failure can be staging (mid-deploy, relay/backend down) rather than the UI — check the trace before changing code.
 

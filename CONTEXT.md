@@ -71,6 +71,13 @@ Recovery password. Holds no authority the Backup does not already hold, and its
 absence costs convenience only.
 _Avoid_: vault, keystore, device key
 
+**Passkey**:
+A way to unlock an Account's key with Face ID, Touch ID or another device check
+instead of the Recovery password. It seals the key; it is not a copy of it, so it
+is never the Backup. Synced passkeys also sign the User in on a new device, from a
+sealed copy the backend keeps and cannot open.
+_Avoid_: biometric login, Face ID login, passwordless
+
 ### Sessions
 
 **Session**:

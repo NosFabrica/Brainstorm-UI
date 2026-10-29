@@ -18,6 +18,8 @@ import { HERO_SOLO } from "@/lib/heroScenes";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PasskeySignInButton } from "@/components/PasskeySignInButton";
+import { usePasskeySupport } from "@/hooks/usePasskeySupport";
 
 function getNextPath(): string {
   try {
@@ -78,6 +80,8 @@ export default function LoginPage() {
   // Installed to a phone's home screen with no extension in it: the signer app leads
   // instead of a button that can only fail. One that is there keeps its button.
   const installedApp = useExtensionUnreachable();
+  const passkey = usePasskeySupport();
+  const passkeyLeads = !!passkey.support?.supported;
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
@@ -261,11 +265,20 @@ export default function LoginPage() {
             )}
 
             <div className={hasAccounts ? "space-y-3" : "mt-6 space-y-3"}>
+              {/* A passkey leads wherever the browser can use one: one tap, on this
+                device or a brand-new one. It hides itself where it can't. */}
+              <PasskeySignInButton
+                primary
+                support={passkey.support}
+                method={passkey.method}
+                onSignedIn={routeAfterLogin}
+                onUseKey={openNsec}
+              />
               {!installedApp && (
                 <Button
                   onClick={onLogin}
                   disabled={loading}
-                  variant="neutral"
+                  variant={passkeyLeads ? "outline" : "neutral"}
                   size="lg"
                   className="w-full"
                   data-testid="button-signin-extension"
@@ -297,7 +310,7 @@ export default function LoginPage() {
                 choices there are. */}
               <Button
                 type="button"
-                variant={installedApp ? "neutral" : "outline"}
+                variant={installedApp && !passkeyLeads ? "neutral" : "outline"}
                 size="lg"
                 onClick={() => setRemoteOpen(true)}
                 className="w-full"

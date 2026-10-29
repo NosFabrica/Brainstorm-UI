@@ -167,6 +167,25 @@ screen size. `scripts/pwa-assets.mjs` draws all the raster art from `favicon.svg
 
 Real-device checks before shipping a change here: `docs/agents/pwa-checklist.md`.
 
+## Passkeys
+
+A passkey unlocks a key the app holds (a `LocalAccount`); it is not a Signer and
+never the Backup ([ADR 0009](docs/adr/0009-passkey-unlocks-a-held-key.md)). The key
+is sealed under the passkey's PRF output (`accounts/passkey.ts`) and kept on the
+Account as `LocalSignerData.passkeys`. The same seal goes to the backend
+(`/passkeyVault`, Session-gated writes) so a synced passkey can sign in on a new
+device: `loginWithPasskey` asks for a server challenge, the system sheet offers
+every passkey for this host, and the one picked is handed its seal only for an
+assertion over that challenge. The backend cannot open a seal.
+
+Surfaces: the login page's "Sign in with Face ID" (`PasskeySignInButton`, which
+prefetches the challenge so Safari's gesture survives), "Create with Face ID" in
+`CreateAccountModal`, the passkey pane of `UnlockModal`, the one-time offer after a
+password unlock (`PasskeyOffer`), and Settings › Account › Passkeys
+(`PasskeySettings`). Everything hides where `passkeySupport()` says the browser
+can't do PRF. `rp.id` is `location.hostname`: staging and production passkeys are
+separate, and a local UI needs its origin in the backend's `PASSKEY_ORIGINS`.
+
 ## External Dependencies
 
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.

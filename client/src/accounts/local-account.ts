@@ -2,6 +2,7 @@ import { BaseAccount, type SerializedAccount } from "applesauce-accounts";
 
 import type { AccountMetadata } from "./metadata";
 import { LocalSigner, NoUnlockPathError, type LocalSignerData, type LocalSignerOptions } from "./local-signer";
+import type { StoredPasskey } from "./passkey";
 
 /**
  * An Account whose key this app holds. Every sign, encrypt and decrypt routes
@@ -18,11 +19,11 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
   /**
    * Whether this Account survives a reload. False only in the window between a
    * key arriving and its first at-rest form being written — and permanently on a
-   * browser with no Unlock cache and no Backup, where writing the row would park
-   * an identity nothing can ever open.
+   * browser with no Unlock cache, no Backup and no passkey, where writing the row
+   * would park an identity nothing can ever open.
    */
   get persistable(): boolean {
-    return !!(this.signer.data.envelope || this.signer.data.ncryptsec);
+    return !!(this.signer.data.envelope || this.signer.data.ncryptsec || this.signer.hasPasskeys);
   }
 
   /** Unlock and populate the Unlock cache. The first unlock on a device writes it. */
@@ -81,6 +82,8 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
       logn?: number;
       /** The Backup this key was restored from, adopted at its own work factor. */
       ncryptsec?: string;
+      /** The passkey seals this key arrived with — a new device signing in with one. */
+      passkeys?: StoredPasskey[];
       /** Throw rather than hand back an Account nothing can store. On by default. */
       requirePersistable?: boolean;
     } = {},
@@ -92,7 +95,12 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     // No Unlock cache and no Backup means the key would exist only until this page
     // unloads, and would persist as a row nothing can ever open. Where the cache is
     // unavailable, a Recovery password is the only at-rest form there is.
-    if ((options.requirePersistable ?? true) && !signer.data.ncryptsec && !signer.data.envelope) {
+    if (
+      (options.requirePersistable ?? true) &&
+      !signer.data.ncryptsec &&
+      !signer.data.envelope &&
+      !signer.hasPasskeys
+    ) {
       throw new NoUnlockPathError("This browser cannot store a key without a recovery password");
     }
 

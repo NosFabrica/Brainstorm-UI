@@ -101,11 +101,14 @@ export function removalLosesKey(account: BrainstormAccount): boolean {
 }
 
 /**
- * A Backup means the row works — it just asks for a password. Only without one
- * does the Unlock cache decide, and only then is it opened.
+ * A Backup or a passkey means the row works — it just asks for a password or a
+ * face. Only without either does the Unlock cache decide, and only then is it
+ * opened.
  */
 export async function localKeyHealth(account: LocalAccount): Promise<RowHealth> {
   if (account.signer.data.ncryptsec) return "ok";
+  // A passkey opens it as surely as a password would — it just asks for a face.
+  if (account.signer.hasPasskeys) return isUnbackedUp(account) ? "no-backup" : "ok";
   if (!(await account.signer.probeUnlockCache())) return "key-unavailable";
   return isUnbackedUp(account) ? "no-backup" : "ok";
 }

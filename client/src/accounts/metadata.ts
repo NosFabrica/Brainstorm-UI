@@ -22,6 +22,8 @@ export type AccountMetadata = {
   backedUp?: boolean;
   /** When the recurring backup reminder was last snoozed. It returns; it never goes for good. */
   backupRemindedAt?: number;
+  /** Said "not now" to unlocking with a passkey. Settings still offers one; nothing asks again. */
+  passkeyOfferDeclined?: boolean;
   createdInApp?: boolean;
   initialSetupDone?: boolean;
   nip85Activated?: boolean;

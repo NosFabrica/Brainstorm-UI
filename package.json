@@ -14,6 +14,7 @@
     "test": "LC_ALL=en-US vitest run",
     "test:watch": "LC_ALL=en-US vitest",
     "e2e": "playwright test -c e2e/playwright.config.ts",
+    "e2e:local": "bash scripts/passkeys-local.sh",
     "lint": "eslint client/src",
     "lint:fix": "eslint client/src --fix",
     "format": "prettier --write .",
