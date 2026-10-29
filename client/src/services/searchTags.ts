@@ -15,8 +15,11 @@
 //
 // ## What the relay leaves to us
 //
-// - A lists-only ask comes back with EVERY observer's copy of a matching
-//   list, so we keep the ones made for the perspective we asked through.
+// - An ask can come back with other observers' copies of a matching list
+//   (every observer's, probed 2026-10-01; the asker's and the house's,
+//   2026-10-29), so we keep the ones made for the perspective we asked
+//   through. A reader with no list of their own for a tag gets the house's,
+//   asked beside theirs.
 // - One tag can arrive several times (more than one signer, and a "pinned"
 //   variant beside the full one): the full list wins, then the newest.
 // - Asked for profiles too (kinds 0 and 30392), each list's people follow it,
@@ -84,10 +87,21 @@ export function fetchSearchTags(query: string, lens: Lens, opts: { members?: boo
 }
 
 async function ask(words: string, lens: Lens, members: boolean): Promise<SearchTag[]> {
-  const observer = lens.pov === "mywot" && lens.userPubkey ? lens.userPubkey : await resolveHouseObserver();
-  if (!observer) return [];
-  const hits = await collect(words, lens, members ? [0, TAG_LIST_KIND] : [TAG_LIST_KIND]);
-  return tagsFromHits(hits, observer);
+  const kinds = members ? [0, TAG_LIST_KIND] : [TAG_LIST_KIND];
+  const house: Lens = { pov: "nosfabrica" };
+  const own = lens.pov === "mywot" && lens.userPubkey ? lens.userPubkey : null;
+  // Through the reader's own perspective, the house's is asked beside it: a tag the reader has no
+  // list of their own for is the house's, so curating one tag doesn't drop the rest (the team,
+  // 2026-10-29). Their own list, where they have one, is theirs.
+  const [houseObserver, ownHits, houseHits] = await Promise.all([
+    resolveHouseObserver(),
+    own ? collect(words, lens, kinds) : Promise.resolve([]),
+    collect(words, house, kinds),
+  ]);
+  const theirs = own ? tagsFromHits(ownHits, own) : [];
+  const houses = houseObserver ? tagsFromHits(houseHits, houseObserver) : [];
+  const held = new Set(theirs.map((t) => t.key));
+  return [...theirs, ...houses.filter((t) => !held.has(t.key))];
 }
 
 /** Everything the relay sends up to EOSE, an error or the deadline. */
