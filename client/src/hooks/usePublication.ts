@@ -4,18 +4,17 @@
  */
 import { useMemo, useRef } from "react";
 import type { NostrEvent } from "nostr-tools";
-import { fetchAddressableEvents, fetchEventsByIds, fetchIndexesListing } from "@/services/nostr";
+import { fetchIndexesListing } from "@/services/nostr";
 import { fetchRefBatched } from "@/services/refBatch";
 import { coordKey, newerEvent, useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
-import { PROFILE_RELAYS } from "@/lib/relays";
-import { eventStore } from "@/lib/eventStore";
+import { isAddressableKind } from "applesauce-core/helpers";
 import {
   BOOKSHELF_KIND,
   coordinateOf,
-  entryFallbackTitle,
+  entryTitle,
+  identifierOf,
   publicationSections,
-  publicationTitle,
   PUBLICATION_INDEX_KIND,
   sectionBookAddress,
   type SectionAddress,
@@ -28,48 +27,37 @@ export interface PublicationEntry {
   event?: NostrEvent;
 }
 
-/**
- * Past this many entries an index is asked on its own, in chunks: the page's
- * batch would put a whole book's `#d` list in one filter, past what a relay
- * answers in one go. Below it, entries join the page's batch, so the parts of
- * a book drawn together share one ask instead of one per part per relay.
- */
-const CHUNK = 100;
-
-const chunks = <T>(items: T[]): T[][] =>
-  Array.from({ length: Math.ceil(items.length / CHUNK) }, (_, i) => items.slice(i * CHUNK, (i + 1) * CHUNK));
-
 const NO_REFS: SectionRef[] = [];
 
-/** The entries a list of refs asks for: by address, by id, and the relays each is asked at. */
+/**
+ * How many relays an index's own hints may add to an ask. A hint is the
+ * publisher's to write, and a book of a thousand entries each naming its own
+ * relay would have every reader open a thousand sockets — each one learning
+ * who is reading. The page's own hints count first.
+ */
+const MAX_HINTS = 4;
+
+const hintOf = (ref: SectionRef): string | undefined => ref.relay ?? ref.address?.relays?.[0];
+
+/**
+ * The entries a list of refs asks for, in the page's batch (services/refBatch,
+ * which splits what it gathers into relay-sized asks): the parts of a book
+ * drawn together share one ask instead of one per part per relay.
+ */
 async function askEntries(refs: SectionRef[], relays: string[]): Promise<NostrEvent[]> {
-  if (refs.length <= CHUNK) {
-    const found = await Promise.all(
-      refs.map((ref) =>
-        fetchRefBatched({
-          addr: ref.address ? ref.key : undefined,
-          id: ref.address ? undefined : ref.eventId,
-          relay: ref.relay ?? ref.address?.relays?.[0] ?? relays[0],
-        }).catch(() => [] as NostrEvent[]),
-      ),
-    );
-    return found.flat();
-  }
-  const addresses = refs.flatMap((r) =>
-    r.address ? [{ ...r.address, relays: [...(r.address.relays ?? []), ...relays] }] : [],
+  const allowed = new Set<string>();
+  for (const hint of [...relays, ...refs.map(hintOf)]) if (hint && allowed.size < MAX_HINTS) allowed.add(hint);
+  const found = await Promise.all(
+    refs.map((ref) => {
+      const hint = hintOf(ref);
+      return fetchRefBatched({
+        addr: ref.address ? ref.key : undefined,
+        id: ref.address ? undefined : ref.eventId,
+        relay: hint && allowed.has(hint) ? hint : relays[0],
+      }).catch(() => [] as NostrEvent[]);
+    }),
   );
-  const ids = refs.flatMap((r) => (!r.address && r.eventId ? [r.eventId] : []));
-  const hints = refs.flatMap((r) => (r.relay ? [r.relay] : []));
-  const [byAddress, byId] = await Promise.all([
-    Promise.all(
-      chunks(addresses).map((part) => fetchAddressableEvents(part).catch(() => new Map<string, NostrEvent>())),
-    ),
-    // Hints beside the default relays, never instead of them.
-    ids.length
-      ? fetchEventsByIds(ids, [...new Set([...hints, ...relays, ...PROFILE_RELAYS])]).catch(() => [] as NostrEvent[])
-      : [],
-  ]);
-  return [...byAddress.flatMap((m) => [...m.values()]), ...byId];
+  return found.flat();
 }
 
 /**
@@ -79,8 +67,9 @@ async function askEntries(refs: SectionRef[], relays: string[]): Promise<NostrEv
  * one REQ per row or per part. `settled` once that ask has answered: an entry
  * still missing then is missing. `null` asks for nothing.
  *
- * An entry keeps its identity while its event does, so a memoized row
- * re-renders when its own section lands, not whenever any section does.
+ * An entry keeps its identity while its event does, so a memoized row's own
+ * props stay the same until its section lands; the list around it still
+ * re-renders, cheaply, once per arrival.
  */
 export function usePublicationEntries(
   index: { id: string; tags: string[][] } | null,
@@ -101,7 +90,7 @@ export function usePublicationEntries(
   const entries = useMemo(() => {
     const fetched = new Map<string, NostrEvent>();
     for (const e of asked.events) {
-      if (e.kind >= 30000 && e.kind < 40000) {
+      if (isAddressableKind(e.kind)) {
         const key = coordinateOf(e);
         fetched.set(key, newerEvent(fetched.get(key), e)!);
       }
@@ -152,12 +141,14 @@ export function usePrefetchedRefs(refs: SectionRef[], relays: string[] = []): Ma
 
 /**
  * The index a section or a part belongs to — or, for a shelf, the shelf it
- * sits on. A section that names its book
- * (`T`) is answered by address; any other is answered by who lists it: the
- * indexes whose contents name its coordinate, its own author's first.
+ * sits on. A section that names its book (`T`) is answered by address; any
+ * other by who lists it: its own author's indexes that name its coordinate.
+ * Only its own author's: anyone can publish a book listing anyone's chapter,
+ * and a stranger's would put their title over the chapter and their
+ * neighbours beside it.
  */
 export function usePublicationParent(
-  ev: { id: string; kind: number; pubkey: string; tags: string[][]; content: string } | null,
+  ev: { id: string; kind: number; pubkey: string; tags: string[][] } | null,
   relays: string[] = [],
 ): NostrEvent | undefined {
   const named: SectionAddress | null = useMemo(() => (ev ? sectionBookAddress(ev) : null), [ev]);
@@ -183,11 +174,14 @@ export function usePublicationParent(
       return newerEvent(held.get(coordKey(named)), fetched);
     }
     // Only an index that still lists it: a newer version may have dropped it.
-    const listing = asked.events.filter(
-      (e) => e.kind === parentKind && e.tags.some((t) => t[0] === "a" && t[1]?.trim() === coordinate),
-    );
-    const own = listing.filter((e) => e.pubkey === ev.pubkey);
-    return (own.length ? own : listing).sort((a, b) => b.created_at - a.created_at)[0];
+    return asked.events
+      .filter(
+        (e) =>
+          e.kind === parentKind &&
+          e.pubkey === ev.pubkey &&
+          e.tags.some((t) => t[0] === "a" && t[1]?.trim() === coordinate),
+      )
+      .sort((a, b) => b.created_at - a.created_at)[0];
   }, [ev, named, held, asked.events, coordinate, parentKind]);
 }
 
@@ -205,29 +199,28 @@ export function useBookScope(
   index: { id: string; kind: number; tags: string[][] } | null,
   relays: string[] = [],
 ): ReadonlyMap<string, string> | undefined {
-  const { entries, settled } = usePublicationEntries(index?.kind === PUBLICATION_INDEX_KIND ? index : null, relays);
+  const book = index?.kind === PUBLICATION_INDEX_KIND ? index : null;
+  const { entries, settled } = usePublicationEntries(book, relays);
+  // A part's own entries, named live: the section events land after the parts do.
+  const inner = useMemo(
+    () =>
+      entries.flatMap(({ event }) =>
+        event?.kind === PUBLICATION_INDEX_KIND
+          ? publicationSections(event).map((ref) => ({ ref, partD: identifierOf(event) }))
+          : [],
+      ),
+    [entries],
+  );
+  const innerAddresses = useMemo(() => inner.flatMap(({ ref }) => (ref.address ? [ref.address] : [])), [inner]);
+  const held = useHeldReplaceables(innerAddresses);
   return useMemo(() => {
-    if (!index || index.kind !== PUBLICATION_INDEX_KIND || !settled) return undefined;
+    if (!book || !settled) return undefined;
     const scope = new Map<string, string>();
-    const parentD = index.tags.find((t) => t[0] === "d")?.[1] ?? "";
-    const add = (ref: SectionRef, event: NostrEvent | undefined, parent: string) => {
-      if (!ref.address || scope.size >= SCOPE_CAP) return;
-      scope.set(
-        ref.key,
-        event ? publicationTitle(event) : (ref.title ?? entryFallbackTitle(ref.address.identifier, parent)),
-      );
+    const add = (ref: SectionRef, event: NostrEvent | undefined, parentD: string) => {
+      if (ref.address && scope.size < SCOPE_CAP) scope.set(ref.key, entryTitle(ref, event, parentD));
     };
-    for (const { ref, event } of entries) {
-      add(ref, event, parentD);
-      if (event?.kind !== PUBLICATION_INDEX_KIND) continue;
-      const partD = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
-      for (const inner of publicationSections(event)) {
-        const held = inner.address
-          ? eventStore.getReplaceable(inner.address.kind, inner.address.pubkey, inner.address.identifier)
-          : undefined;
-        add(inner, held, partD);
-      }
-    }
+    for (const { ref, event } of entries) add(ref, event, identifierOf(book));
+    for (const { ref, partD } of inner) add(ref, ref.address ? held.get(coordKey(ref.address)) : undefined, partD);
     return scope;
-  }, [index, entries, settled]);
+  }, [book, entries, inner, held, settled]);
 }

@@ -23,7 +23,7 @@ import { MentionChip } from "@/components/share/MentionChip";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
-import { publicationTitle, PUBLICATION_KINDS } from "@/lib/publication";
+import { articleTitle } from "@/lib/publication";
 
 /** The marked words, in the highlighter's colour — wrapped lines keep their ends. */
 export function HighlightMark({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -76,11 +76,8 @@ export function useHighlightSourceEvent(ref: ResultRef | null): NostrEvent | nul
   return events.length ? events.reduce((a, b) => (b.created_at > a.created_at ? b : a)) : null;
 }
 
-const titleOf = (ev: NostrEvent) =>
-  ev.tags.find((t) => t[0] === "title" && t[1]?.trim())?.[1].trim() ??
-  // A publication or section without a title is named by its slug, never by its AsciiDoc.
-  (PUBLICATION_KINDS.has(ev.kind) ? publicationTitle(ev) || null : null) ??
-  (clip(ev.content.replace(/\s+/g, " ").trim(), 80) || null);
+// A publication or section without a title is named by its slug, never by its AsciiDoc.
+const titleOf = (ev: NostrEvent) => articleTitle(ev) || clip(ev.content.replace(/\s+/g, " ").trim(), 80) || null;
 
 /**
  * Where a row's passage is from, in one quiet line: the article's title and

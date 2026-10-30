@@ -54,8 +54,8 @@ import {
   type RenderBody,
 } from "@/components/share/PublicationReader";
 import {
+  articleTitle,
   BOOKSHELF_KIND,
-  publicationTitle,
   PUBLICATION_INDEX_KIND,
   PUBLICATION_SECTION_KIND,
   sectionMarkdown,
@@ -63,6 +63,7 @@ import {
 } from "@/lib/publication";
 import { BookshelfContents, BookshelfHeader } from "@/components/share/BookshelfReader";
 import { useBookScope } from "@/hooks/usePublication";
+import { ARTICLE_PROSE_CLASS } from "@/lib/articleProse";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -104,6 +105,9 @@ function ArticleVideo({ url }: { url: string }) {
     />
   );
 }
+
+/** A path inside Brainstorm: one slash, then anything but another slash or a backslash. */
+const IN_APP_PATH = /^\/(?![/\\])/;
 
 /** Markdown's sanitizer, taught that a `nostr:` link is a link. */
 const SANITIZE_SCHEMA = {
@@ -165,7 +169,8 @@ const mdComponents: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
     // A link into Brainstorm itself (a wiki topic's articles search) stays here.
-    if (url.startsWith("/")) return <InAppLink href={url}>{children}</InAppLink>;
+    // Not `//host` or `/\host`: those leave the app while looking like they stay.
+    if (IN_APP_PATH.test(url)) return <InAppLink href={url}>{children}</InAppLink>;
     const text = Array.isArray(children)
       ? children.map((c) => (typeof c === "string" ? c : "")).join("")
       : String(children ?? "");
@@ -389,7 +394,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   const isPublication = isIndex || isSection || isShelf;
   // Comments on a book are mostly on its chapters; its thread shows those too.
   const bookScope = useBookScope(isIndex ? ev : null, ptr?.relays);
-  const title = isPublication ? publicationTitle(ev) || "Untitled" : tag("title") || "Untitled article";
+  const shelfFacts = useMemo(() => (isShelf ? shelfLine(ev) : ""), [ev, isShelf]);
+  const title = articleTitle(ev) || (isPublication ? "Untitled" : "Untitled article");
   // The page shows the title above the byline; a spec's `# Title` and its
   // `draft` `optional` status line leave the body and read as themselves.
   // Whatever the text came in: AsciiDoc (wiki) as markdown, HTML converted,
@@ -488,7 +494,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             (isIndex
               ? `A publication by ${tag("author") || authorName}.`
               : isShelf
-                ? `${authorName}'s bookshelf${shelfLine(ev) ? `: ${shelfLine(ev)}` : ""}.`
+                ? `${authorName}'s bookshelf${shelfFacts ? `: ${shelfFacts}` : ""}.`
                 : isSection
                   ? `A section of a publication by ${authorName}.`
                   : `A long-form article by ${authorName}.`),
@@ -694,10 +700,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           ) : isShelf ? (
             <BookshelfContents shelf={ev} relays={ptr?.relays} />
           ) : (
-            <div
-              className="article-prose prose prose-slate mt-6 max-w-none dark:prose-invert prose-headings:font-bold prose-a:text-brand-link prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-img:rounded-xl"
-              data-testid="article-body"
-            >
+            <div className={`${ARTICLE_PROSE_CLASS} mt-6`} data-testid="article-body">
               <ArticleBody body={prepared.body} fromHtml={fromHtml} tags={ev.tags} markdown={isSection} />
             </div>
           )}

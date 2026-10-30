@@ -89,4 +89,49 @@ describe("asciiDocToMarkdown", () => {
       "a [farmer](/e/x) and Fox",
     );
   });
+
+  it("a block anchor is a target, not a link above the heading", () => {
+    expect(asciiDocToMarkdown("[[the-preamble]]\n== Preamble", () => "/x")).toBe("## Preamble");
+    expect(asciiDocToMarkdown("[[sec-1,Section One]]\nText")).toBe("Text");
+  });
+
+  it("thematic and page breaks are rules, never a heading underline or bullets", () => {
+    expect(asciiDocToMarkdown("End of part.\n'''\nNext")).toBe("End of part.\n\n***\nNext");
+    expect(asciiDocToMarkdown("* * *")).toBe("***");
+    expect(asciiDocToMarkdown("<<<")).toBe("***");
+  });
+
+  it("a nested marker with no list above it is an item, not a code block; a lone `+` is dropped", () => {
+    expect(asciiDocToMarkdown("Para\n\n** orphan")).toBe("Para\n\n- orphan");
+    expect(asciiDocToMarkdown("* one\n+\n** two")).toBe("- one\n    - two");
+  });
+
+  it("`[NOTE]` over a paragraph quotes that paragraph, labelled", () => {
+    expect(asciiDocToMarkdown("[NOTE]\nKeep it.\nReally.\n\nAfter.")).toBe("> **NOTE:** Keep it.\n> Really.\n\nAfter.");
+  });
+
+  it("a `*` or `~` that is not AsciiDoc markup stays a character", () => {
+    expect(asciiDocToMarkdown("2*3*4 and H~2~O")).toBe("2\\*3\\*4 and H\\~2\\~O");
+    expect(asciiDocToMarkdown("**un**constrained and __this__")).toBe("**un**constrained and *this*");
+  });
+
+  it("text cannot forge the converter's placeholders", () => {
+    const forged = `see ${String.fromCharCode(0xe000)}0${String.fromCharCode(0xe001)} https://a.b/_x_`;
+    expect(asciiDocToMarkdown(forged)).toBe("see 0 https://a.b/_x_");
+  });
+
+  it("stays linear on hostile lines: no pattern rescans a long line from every character", () => {
+    const hostile = [
+      "image::a" + "[".repeat(100_000),
+      "https://".repeat(40_000),
+      "link:".repeat(40_000),
+      "image:".repeat(30_000),
+      "[[a".repeat(40_000),
+    ];
+    for (const line of hostile) {
+      const t = performance.now();
+      asciiDocToMarkdown(line);
+      expect(performance.now() - t).toBeLessThan(1000);
+    }
+  });
 });

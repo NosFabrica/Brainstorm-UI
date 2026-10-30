@@ -30,6 +30,7 @@ import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { CustomEmojiImg } from "@/components/ui/custom-emoji";
 import { emojiMap, splitCustomEmoji, type EmojiMap } from "@/lib/customEmoji";
+import { PUBLICATION_KINDS } from "@/lib/publication";
 
 export type ReadingSize = "post" | "body";
 
@@ -184,7 +185,7 @@ const SHARED_KINDS: ReadonlySet<number> = new Set([38000]);
 /** Addresses read as "📄 article", whose link is ours. Publications, their
  *  sections and bookshelves read on the article reader too, but keep their own
  *  name and the author's link: an unfound one is a publication, not an article. */
-const ARTICLE_LINK_KINDS = new Set([...READER_KINDS].filter((k) => k !== 30040 && k !== 30041 && k !== 30045));
+const ARTICLE_LINK_KINDS = new Set([...READER_KINDS].filter((k) => !PUBLICATION_KINDS.has(k)));
 
 /** What an address names, for its link: "📄 article", "↗ track". */
 export function addressLabel(bech32: string): string {

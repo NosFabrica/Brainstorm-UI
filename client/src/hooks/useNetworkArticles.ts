@@ -87,6 +87,18 @@ function looksLikeArticle(title: string, summary: string, content: string): bool
   return summary.trim().length + content.trim().length >= 400;
 }
 
+/**
+ * Whether an event is a piece to read. A book has no text of its own: it
+ * qualifies by being a book (not one of its parts), with a title and
+ * something in it.
+ */
+function qualifies(e: NostrEvent): boolean {
+  const title = tagVal(e, "title") ?? "";
+  return e.kind === PUBLICATION_INDEX_KIND
+    ? isBookIndex(e) && !!title.trim() && publicationSections(e).length > 0
+    : looksLikeArticle(title, tagVal(e, "summary") ?? "", e.content ?? "");
+}
+
 /** An extended-network author, with the trust context for "why am I seeing this". */
 export interface ArticleAuthor {
   pubkey: string;
@@ -230,7 +242,8 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
         { kinds: ARTICLE_KINDS, since: windows.freshSince, limit: 200 },
         { fallback: CONTENT_RELAYS },
       );
-      if (fresh.length >= 8) return fresh;
+      // Counted by what will show: a book's parts arrive with it and are dropped below.
+      if (fresh.filter(qualifies).length >= 8) return fresh;
       // UNION, not replace: the widened items merely join the pool and the
       // fresh tier keeps them below anything current.
       const wider = await fetchEventsByAuthors(
@@ -251,15 +264,7 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
     // so collapse to the newest per (author, d) or duplicates stack up.
     const newest = new Map<string, NostrEvent>();
     for (const e of events) {
-      const title = tagVal(e, "title") ?? "";
-      // A book has no text of its own: it qualifies by being a book (not one of
-      // its parts), with a title and something in it.
-      if (
-        e.kind === PUBLICATION_INDEX_KIND
-          ? !(isBookIndex(e) && title.trim() && publicationSections(e).length)
-          : !looksLikeArticle(title, tagVal(e, "summary") ?? "", e.content ?? "")
-      )
-        continue;
+      if (!qualifies(e)) continue;
       const key = `${e.pubkey}:${tagVal(e, "d") ?? e.id}`;
       const prev = newest.get(key);
       if (!prev || (e.created_at ?? 0) > (prev.created_at ?? 0)) newest.set(key, e);

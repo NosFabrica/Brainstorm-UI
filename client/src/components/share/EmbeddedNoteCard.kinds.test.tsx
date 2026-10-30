@@ -497,7 +497,7 @@ describe("references by address and from an article", () => {
         held(
           ev(30041, [["d", "article-iv-section-3"]], "== Section 3\n[NOTE]\n====\nNew States may be admitted.\n===="),
         ),
-        "Article Iv Section 3",
+        "Article IV Section 3",
         /New States may be admitted\./,
         "Read section",
       ],

@@ -185,3 +185,28 @@ describe("isBookIndex", () => {
     expect(isBookIndex({ kind: 30041, tags: [["author", "x"]] })).toBe(false);
   });
 });
+
+describe("slugs and excerpts, as readers see them", () => {
+  it("a Roman numeral in a slug reads as one; a word made of those letters does not", () => {
+    expect(humanizeIdentifier("article-iv-section-3")).toBe("Article IV Section 3");
+    expect(humanizeIdentifier("amendment-xviii")).toBe("Amendment XVIII");
+    expect(humanizeIdentifier("mix-and-civil-vivid")).toBe("Mix And Civil Vivid");
+  });
+
+  it("an excerpt takes markup off as tokens, leaving the characters of ordinary words", () => {
+    expect(
+      sectionPlainText({
+        tags: [],
+        content: "snake_case and 5 > 3, *bold* and _it_, image:x.png[a pic] and link:https://a.b[a link], `code`.",
+      }),
+    ).toBe("snake_case and 5 > 3, bold and it, and a link, code.");
+  });
+
+  it("an excerpt is worked out once per event", () => {
+    const ev = { tags: [], content: "Once." };
+    expect(sectionPlainText(ev)).toBe(sectionPlainText(ev));
+    ev.content = "Changed.";
+    // Events are immutable; the cache trusts that.
+    expect(sectionPlainText(ev)).toBe("Once.");
+  });
+});

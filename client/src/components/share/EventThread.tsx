@@ -141,32 +141,45 @@ export function EventThread({
       filters.push({ "#A": [addressCoord], kinds: NIP22_KINDS, limit: 150 });
       filters.push({ "#a": [addressCoord], kinds: NIP22_KINDS, limit: 150 });
     }
-    return [...filters, ...scopeFilters];
-  }, [eventId, addressCoord, scopeFilters]);
+    return filters;
+  }, [eventId, addressCoord]);
   const repliesQuery = useStoreEvents(
-    eventId ? `thread-replies:${eventId}:${addressCoord ?? ""}:${scopeKey}` : null,
+    eventId ? `thread-replies:${eventId}:${addressCoord ?? ""}` : null,
     eventId ? replyFilters : null,
     // The profile relays AND the search relay: marketplace apps publish
     // comments to their own relays, which the search relay indexes and the
     // profile relays never see. One conversation, deduped by id.
     async () => {
-      const [results, indexed, indexedScope] = await Promise.all([
+      const [results, indexed] = await Promise.all([
         Promise.all(replyFilters.map((f) => fetchEventsByFilter(f as Record<string, unknown>, relays, 7000))),
         fetchCommentsByAddress(addressCoord ?? null, eventId).catch(() => [] as MinimalEvent[]),
-        // A book's chapters' comments: the search relay holds most of them.
-        scopeFilters.length
-          ? fetchFromSearchRelayByFilters(scopeFilters as Record<string, unknown>[], 7000).catch(() => [])
-          : [],
       ]);
-      return [...results.flat(), ...indexed, ...indexedScope];
+      return [...results.flat(), ...indexed];
+    },
+    { minMs: 60_000 },
+  );
+  // A book's chapters' comments, asked on their own once the book knows its
+  // chapters: joining the thread's own ask would send it again, and bring its
+  // spinner back, when the scope arrives. The search relay holds most of them.
+  const scopeQuery = useStoreEvents(
+    eventId && scopeKey ? `thread-scope:${eventId}:${scopeKey}` : null,
+    scopeFilters.length ? scopeFilters : null,
+    async () => {
+      const [results, indexed] = await Promise.all([
+        Promise.all(scopeFilters.map((f) => fetchEventsByFilter(f as Record<string, unknown>, relays, 7000))),
+        fetchFromSearchRelayByFilters(scopeFilters as Record<string, unknown>[], 7000).catch(() => []),
+      ]);
+      return [...results.flat(), ...indexed];
     },
     { minMs: 60_000 },
   );
 
   const replies = useMemo(() => {
-    const evs = ((repliesQuery.events ?? []) as MinimalEvent[]).filter((e) => e.id !== eventId);
-    return evs.sort((a, b) => a.created_at - b.created_at);
-  }, [repliesQuery.events, eventId]);
+    const byId = new Map<string, MinimalEvent>();
+    for (const e of [...repliesQuery.events, ...scopeQuery.events] as MinimalEvent[])
+      if (e.id !== eventId) byId.set(e.id, e);
+    return [...byId.values()].sort((a, b) => a.created_at - b.created_at);
+  }, [repliesQuery.events, scopeQuery.events, eventId]);
 
   const refs = useMemo(() => collectRefs(replies), [replies]);
   const authorPubkeys = useMemo(

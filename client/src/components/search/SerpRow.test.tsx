@@ -899,7 +899,7 @@ describe("SerpRow", () => {
     } as NostrEvent;
     render(<SerpRow event={section} author={author} score={0.7} query="states" />);
     const row = screen.getByTestId(`serp-row-${section.id}`);
-    expect(row).toHaveTextContent("Article Iv Section 3");
+    expect(row).toHaveTextContent("Article IV Section 3");
     expect(row).toHaveTextContent("New States may be admitted by the Congress.");
     expect(row.textContent).not.toMatch(/==|\[NOTE\]|link:/);
   });

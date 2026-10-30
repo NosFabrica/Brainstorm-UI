@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EmojiText } from "@/components/ui/custom-emoji";
-import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
+import { decodeShareId, npubFromPubkey, eventPath, READER_KINDS } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { scopedSearchHref } from "@/lib/searchSyntax";
@@ -121,8 +121,7 @@ import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
-import { isBookIndex, PUBLICATION_KINDS } from "@/lib/publication";
-import { articleTitle } from "@/lib/wiki";
+import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 
 const NO_RELAYS: string[] = [];
 
@@ -377,12 +376,17 @@ export default function SharePage() {
 
   const photosQuery = useRecentByKinds(pubkey, [20], 12, relayHints);
 
-  // Articles and books. A book's parts are publications too (Alexandria's
-  // "Article 1"), so more are asked than shown and only the books kept.
-  const articlesQuery = useRecentByKinds(pubkey, [30023, 30040], 12, relayHints);
+  const articlesQuery = useRecentByKinds(pubkey, [30023], 5, relayHints);
+  // Books, asked apart: a book's parts are publications too (Alexandria's
+  // "Article 1"), published together, and asked with the articles they could
+  // fill every slot and push the essays out.
+  const booksQuery = useRecentByKinds(pubkey, [PUBLICATION_INDEX_KIND], 20, relayHints);
   const articleEvents = useMemo(
-    () => (articlesQuery.events ?? []).filter((e) => e.kind !== 30040 || isBookIndex(e)).slice(0, 5),
-    [articlesQuery.events],
+    () =>
+      [...(articlesQuery.events ?? []), ...(booksQuery.events ?? []).filter(isBookIndex)]
+        .sort((x, y) => y.created_at - x.created_at)
+        .slice(0, 5),
+    [articlesQuery.events, booksQuery.events],
   );
 
   // A wider net of recent notes used ONLY to harvest images for the photo grid,
@@ -469,6 +473,7 @@ export default function SharePage() {
       notesQuery.events,
       photosQuery.events,
       articlesQuery.events,
+      booksQuery.events,
       photoNotesQuery.events,
       videosQuery.events,
       musicQuery.events,
@@ -488,6 +493,7 @@ export default function SharePage() {
     notesQuery.events,
     photosQuery.events,
     articlesQuery.events,
+    booksQuery.events,
     photoNotesQuery.events,
     videosQuery.events,
     musicQuery.events,
@@ -1360,7 +1366,7 @@ export default function SharePage() {
               testId="share-block-featured"
               className={orderClass("featured")}
             >
-              {featured.kind === 30023 || PUBLICATION_KINDS.has(featured.kind) ? (
+              {READER_KINDS.has(featured.kind) ? (
                 <EmbeddedArticleCard
                   event={featured}
                   author={{

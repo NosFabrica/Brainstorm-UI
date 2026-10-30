@@ -1,9 +1,12 @@
 import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { nip19, type NostrEvent } from "nostr-tools";
+import type { NostrEvent } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronRight, Link2 } from "lucide-react";
 import { KindPill } from "@/components/ui/kind-pill";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   usePrefetchedRefs,
   usePublicationEntries,
@@ -11,11 +14,17 @@ import {
   type PublicationEntry,
 } from "@/hooks/usePublication";
 import { useNearViewport } from "@/hooks/useNearViewport";
-import { eventPath, neventFor } from "@/lib/shareId";
+import { eventPath } from "@/lib/shareId";
+import { topicPath } from "@/lib/topicQuery";
+import { ARTICLE_PROSE_CLASS } from "@/lib/articleProse";
 import { wikiToMarkdown } from "@/lib/wiki";
 import {
   coordinateOf,
-  entryFallbackTitle,
+  countOf,
+  entryHref,
+  entryTitle,
+  identifierOf,
+  NO_RELAYS,
   publicationMeta,
   publicationSections,
   publicationTitle,
@@ -44,8 +53,14 @@ type IndexLike = { id: string; kind: number; pubkey: string; created_at: number;
 /** Renders a markdown body as the article reader does (ArticleScreen's ArticleBody). */
 export type RenderBody = (markdown: string, tags: string[][]) => ReactNode;
 
-/** How deep the table of contents goes; the text below goes all the way. */
+/** How deep the table of contents goes. */
 const TOC_DEPTH = 2;
+/**
+ * How deep the text goes. Parts hold parts, and each level asks for the next
+ * as it is drawn, so a chain of indexes each listing a new one would ask
+ * forever; no real book nests deeper than this.
+ */
+const MAX_PART_DEPTH = 6;
 /** A book with more top-level entries than this lists its parts' contents on request: each one listed is an ask. */
 const TOC_OPEN_UP_TO = 12;
 /** How many books up the trail above a section climbs. */
@@ -55,8 +70,8 @@ const DRAW_AHEAD = "1500px 0px";
 /** How long a contents link keeps after its section, in frames: until it is drawn and the page around it settles. */
 const SCROLL_FRAMES = 120;
 
-/** One empty list, so a memoized row sees the same relays every render. */
-const NO_RELAYS: string[] = [];
+/** The top of the contents: no enclosing part. */
+const NO_PATH: string[] = [];
 
 /** The kinds an index may list that read as prose in place. */
 const PROSE_KINDS = new Set([PUBLICATION_SECTION_KIND, 30023, 30817, 30818]);
@@ -68,34 +83,23 @@ function anchorId(ref: SectionRef): string {
   return `sec-${(h >>> 0).toString(36)}`;
 }
 
-const identifierOf = (ev: { tags: string[][] }) => ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
-
-/** An entry's name: its event's title, the index's own for it, else its `d` humanized. */
-function entryTitle(entry: PublicationEntry, parentIdentifier: string): string {
-  const ev = entry.event;
-  if (ev) {
-    const title = ev.tags.find((t) => t[0] === "title")?.[1]?.trim();
-    if (title) return title;
-  }
-  if (entry.ref.title) return entry.ref.title;
-  if (entry.ref.address) return entryFallbackTitle(entry.ref.address.identifier, parentIdentifier);
-  return ev ? publicationTitle(ev) : "Untitled section";
+/** A publication's or a shelf's topics, each opening its topic page. */
+export function PublicationTopics({ topics }: { topics: string[] }) {
+  if (!topics.length) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5" data-testid="publication-topics">
+      {topics.map((t) => (
+        <Link
+          key={t}
+          href={topicPath(t)}
+          className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-brand-link hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+        >
+          #{t}
+        </Link>
+      ))}
+    </div>
+  );
 }
-
-/** An entry's own page: by its address when it has one, else by id. */
-function entryHref(ref: SectionRef, event?: NostrEvent): string {
-  if (event) return eventPath(event, ref.address?.relays ?? []);
-  if (ref.address) {
-    try {
-      return `/e/${nip19.naddrEncode(ref.address)}`;
-    } catch {
-      /* fall through */
-    }
-  }
-  return `/e/${neventFor(ref.eventId ?? "", ref.relay ? [ref.relay] : [])}`;
-}
-
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 /** The header of a publication: its cover beside its title, author and what the index says of the work. */
 export function PublicationHeader({ ev }: { ev: IndexLike }) {
@@ -110,8 +114,8 @@ export function PublicationHeader({ ev }: { ev: IndexLike }) {
   const facts = [
     meta.type.charAt(0).toUpperCase() + meta.type.slice(1),
     meta.version,
-    parts > 0 ? plural(parts, "part") : undefined,
-    sections > 0 ? plural(sections, "section") : undefined,
+    countOf(parts, "part", "parts"),
+    countOf(sections, "section", "sections"),
     meta.publishedOn
       ? `Published ${meta.publishedOn}${meta.publishedBy && meta.publishedBy !== meta.author ? ` by ${meta.publishedBy}` : ""}`
       : meta.publishedBy && meta.publishedBy !== meta.author
@@ -175,19 +179,7 @@ export function PublicationHeader({ ev }: { ev: IndexLike }) {
           ))}
         </div>
       )}
-      {meta.topics.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5" data-testid="publication-topics">
-          {meta.topics.map((t) => (
-            <Link
-              key={t}
-              href={`/t/${encodeURIComponent(t)}`}
-              className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-brand-link hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
-            >
-              #{t}
-            </Link>
-          ))}
-        </div>
-      )}
+      <PublicationTopics topics={meta.topics} />
     </header>
   );
 }
@@ -199,11 +191,16 @@ export function PublicationHeader({ ev }: { ev: IndexLike }) {
  * page's height as it goes, so it keeps the target aligned until it holds
  * still, rather than leaving the reader wherever the first jump landed.
  */
+/** The scroll under way: a newer click takes over from an older one rather than fighting it. */
+let scrolling = 0;
+
 function scrollToPath(path: string[]): void {
+  const mine = ++scrolling;
   let frames = 0;
   let still = 0;
   let lastTop: number | null = null;
   const step = () => {
+    if (mine !== scrolling) return;
     const target = document.getElementById(path[path.length - 1]);
     if (target) {
       const top = target.getBoundingClientRect().top;
@@ -240,36 +237,33 @@ export function PublicationContents({
   renderBody: RenderBody;
 }) {
   const ancestors = useMemo(() => new Set([coordinateOf(index)]), [index]);
-  const { entries, settled } = usePublicationEntries(index, relays);
+  // By value: a caller's `relays ?? []` is a new list each render, and every memoized row below would redraw.
+  const relaysKey = relays.join(",");
+  const stableRelays = useMemo(() => relays, [relaysKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { entries, settled } = usePublicationEntries(index, stableRelays);
   if (!entries.length) return null;
   const openParts = entries.length <= TOC_OPEN_UP_TO;
 
   return (
     <div className="mt-6">
-      <nav
-        className="rounded-2xl border border-slate-200 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:p-5"
-        aria-label="Contents"
-        data-testid="publication-toc"
-      >
-        <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          Contents
-        </p>
+      <Card className="p-4 sm:p-5" role="navigation" aria-label="Contents" data-testid="publication-toc">
+        <SectionHeader kicker="Contents" noRule className="mb-2" />
         <TocList
           parent={index}
           entries={entries}
-          relays={relays}
+          relays={stableRelays}
           depth={0}
           ancestors={ancestors}
-          path={[]}
+          path={NO_PATH}
           openParts={openParts}
         />
-      </nav>
+      </Card>
       <div className="mt-8" data-testid="publication-text">
         <PartText
           parent={index}
           entries={entries}
           settled={settled}
-          relays={relays}
+          relays={stableRelays}
           depth={0}
           ancestors={ancestors}
           renderBody={renderBody}
@@ -314,7 +308,7 @@ function TocList({
           key={entry.ref.key}
           entry={entry}
           number={i + 1}
-          title={entryTitle(entry, parentD)}
+          title={entryTitle(entry.ref, entry.event, parentD)}
           relays={relays}
           depth={depth}
           ancestors={ancestors}
@@ -326,7 +320,11 @@ function TocList({
   );
 }
 
-function TocEntry({
+/**
+ * One line of the contents. Memoized, its props all kept stable: a section
+ * landing in the store re-renders its own line, not all four hundred of them.
+ */
+const TocEntry = memo(function TocEntry({
   entry,
   number,
   title,
@@ -391,7 +389,7 @@ function TocEntry({
       )}
     </li>
   );
-}
+});
 
 const HEADING_CLS = [
   "text-2xl font-extrabold tracking-tight sm:text-3xl",
@@ -454,7 +452,7 @@ function PartText({
         <PublicationEntryView
           key={entry.ref.key}
           entry={entry}
-          title={entryTitle(entry, parentD)}
+          title={entryTitle(entry.ref, entry.event, parentD)}
           settled={settled}
           relays={relays}
           depth={depth}
@@ -499,7 +497,7 @@ const PublicationEntryView = memo(function PublicationEntryView({
   const { ref, event } = entry;
   const sectionRef = useRef<HTMLElement>(null);
   const near = useNearViewport(sectionRef, DRAW_AHEAD);
-  const href = useMemo(() => entryHref(ref, event), [ref, event]);
+  const href = useMemo(() => entryHref(ref, event) ?? "", [ref, event]);
   const markdown = useMemo(() => {
     if (!near || !event || !PROSE_KINDS.has(event.kind)) return "";
     if (event.kind === PUBLICATION_SECTION_KIND) return sectionMarkdown(event);
@@ -520,14 +518,19 @@ const PublicationEntryView = memo(function PublicationEntryView({
       </p>
     ) : (
       <div className="mt-3 space-y-2" aria-hidden data-testid="publication-loading">
-        <div className="h-3 w-full animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-        <div className="h-3 w-11/12 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-        <div className="h-3 w-2/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-11/12" />
+        <Skeleton className="h-3 w-2/3" />
       </div>
     );
   } else if (event.kind === PUBLICATION_INDEX_KIND) {
-    // An index that lists one of its own ancestors would draw forever.
-    body = ancestors.has(coordinate) ? null : near ? (
+    // An index that lists one of its own ancestors would draw forever, and so
+    // would a chain of new ones: past a real book's depth, a part is a link.
+    body = ancestors.has(coordinate) ? null : depth + 1 >= MAX_PART_DEPTH ? (
+      <Link href={href} className="mt-2 inline-block text-sm font-semibold text-brand-link hover:underline">
+        Open →
+      </Link>
+    ) : near ? (
       <PartOf index={event} relays={relays} depth={depth + 1} ancestors={childAncestors} renderBody={renderBody} />
     ) : (
       <NotYet />
@@ -535,11 +538,7 @@ const PublicationEntryView = memo(function PublicationEntryView({
   } else if (!near && PROSE_KINDS.has(event.kind) && event.content.trim()) {
     body = <NotYet chars={event.content.length} />;
   } else if (markdown.trim()) {
-    body = (
-      <div className="article-prose prose prose-slate mt-3 max-w-none dark:prose-invert prose-headings:font-bold prose-a:text-brand-link prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-img:rounded-xl">
-        {renderBody(markdown, event.tags)}
-      </div>
-    );
+    body = <div className={`${ARTICLE_PROSE_CLASS} mt-3`}>{renderBody(markdown, event.tags)}</div>;
   } else if (!PROSE_KINDS.has(event.kind)) {
     body = (
       <Link href={href} className="mt-2 inline-block text-sm font-semibold text-brand-link hover:underline">
@@ -626,10 +625,12 @@ export function PublicationPager({ ev, relays = NO_RELAYS }: { ev: IndexLike; re
   const side = (ref: SectionRef | undefined, back: boolean) => {
     if (!ref) return <span className="flex-1" />;
     const event = found.get(ref.key);
-    const title = entryTitle({ ref, event }, parentD);
+    const title = entryTitle(ref, event, parentD);
+    const href = entryHref(ref, event);
+    if (!href) return <span className="flex-1" />;
     return (
       <Link
-        href={entryHref(ref, event)}
+        href={href}
         className={`flex min-w-0 flex-1 flex-col gap-0.5 rounded-xl border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 ${back ? "items-start" : "items-end text-right"}`}
         data-testid={back ? "publication-previous" : "publication-next"}
       >

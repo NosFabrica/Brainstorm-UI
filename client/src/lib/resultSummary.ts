@@ -23,8 +23,8 @@ import { kindLabel } from "@/lib/kindLabel";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
 import {
+  articleTitle,
   BOOKSHELF_KIND,
-  publicationTitle,
   PUBLICATION_KINDS,
   PUBLICATION_SECTION_KIND,
   sectionPlainText,
@@ -86,7 +86,7 @@ function genericTitle(ev: SummaryEvent): string | null {
   const named = tagOf(ev, "title", "name", "subject");
   if (named) return named;
   // A publication, section or shelf without a title: its slug read as words ("Section 3").
-  if (PUBLICATION_KINDS.has(ev.kind)) return publicationTitle(ev) || null;
+  if (PUBLICATION_KINDS.has(ev.kind)) return articleTitle(ev) || null;
   // A NIP-53 room names itself in `room`; its `d` is a slug that only looks like a name.
   if (ev.kind === 30312) {
     const room = tagOf(ev, "room");

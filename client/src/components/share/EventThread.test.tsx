@@ -151,4 +151,26 @@ describe("EventThread", () => {
     expect(labels).toHaveLength(1);
     expect(labels[0]).toHaveTextContent("on Section 3");
   });
+
+  it("a book's chapters arriving later ask about the chapters only, not the thread again", async () => {
+    const BOOK = `30040:${SELLER}:late-book`;
+    const SECTION = `30041:${SELLER}:late-book-ch1`;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const thread = (scope?: Map<string, string>) => (
+      <QueryClientProvider client={qc}>
+        <EventThread eventId={"9".repeat(64)} addressCoord={BOOK} authorNpub="npub1a" relayHints={[]} scope={scope} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(thread());
+    await new Promise((r) => setTimeout(r, 20));
+    const asksBefore = byFilterMock.mock.calls.length;
+    const indexedBefore = indexedMock.mock.calls.length;
+    rerender(thread(new Map([[SECTION, "Chapter 1"]])));
+    await new Promise((r) => setTimeout(r, 20));
+    const newAsks = byFilterMock.mock.calls.slice(asksBefore).map((c) => c[0]);
+    expect(newAsks.length).toBeGreaterThan(0);
+    for (const f of newAsks) expect([...((f["#A"] ?? f["#a"]) as string[])]).toEqual([SECTION]);
+    expect(indexedMock.mock.calls.length).toBe(indexedBefore);
+    expect(searchMock).toHaveBeenCalled();
+  });
 });

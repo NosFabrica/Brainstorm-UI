@@ -83,7 +83,38 @@ const bigBook = ev(99, 30040, "big", [["title", "A long book"], ...bigParts.map(
 // Alexandria's shelves: `root` holds a reader's shelves, a shelf holds books.
 const shelf = ev(200, 30045, "my-book-collection", [["title", "My Book Collection"], a(30040, BOOK), a(30040, "big")]);
 const rootShelf = ev(201, 30045, "root", [a(30045, "my-book-collection"), a(30045, "gone-shelf")]);
-const ALL = [root, constitution, preamble, article4, section3, bigBook, ...bigParts, shelf, rootShelf];
+// A chain of indexes, each listing a new one: no real book, and it must not be followed forever.
+const chain = Array.from({ length: 12 }, (_, i) =>
+  ev(300 + i, 30040, `chain-${i}`, [["title", `Level ${i}`], a(30040, `chain-${i + 1}`)]),
+);
+// A stranger's book listing Laeserin's section: it must not become that section's book.
+const STRANGER = "5".repeat(64);
+const strangersBook = {
+  ...ev(400, 30040, "borrowed", [["title", "A stranger's anthology"]]),
+  pubkey: STRANGER,
+  tags: [
+    ["d", "borrowed"],
+    ["title", "A stranger's anthology"],
+    ["a", `30041:${PK}:${ART4}-section-3`, ""],
+    ["a", `30041:${PK}:loose-leaf`, ""],
+  ],
+};
+// A section of Laeserin's that no book of hers lists — only the stranger's does.
+const looseLeaf = ev(401, 30041, "loose-leaf", [["title", "A loose leaf"]], "Some words.");
+const ALL = [
+  root,
+  constitution,
+  preamble,
+  article4,
+  section3,
+  bigBook,
+  ...bigParts,
+  shelf,
+  rootShelf,
+  ...chain,
+  strangersBook,
+  looseLeaf,
+];
 /** Every `d` the relays were asked for. */
 const asked: string[] = [];
 const coord = (e: Ev) => `${e.kind}:${e.pubkey}:${e.tags[0][1]}`;
@@ -238,5 +269,23 @@ describe("a bookshelf", () => {
     expect(first.querySelector("a")?.getAttribute("href")).toMatch(/^\/e\/naddr1/);
     // No cover: the title on a plain jacket.
     expect(second).toHaveTextContent("A long book");
+  });
+});
+
+describe("hostile publications", () => {
+  it("a chain of parts is followed no deeper than a real book goes", async () => {
+    open(chain[0]);
+    await scrollThrough();
+    await scrollThrough();
+    expect(asked).toContain("chain-3");
+    expect(asked).not.toContain("chain-8");
+  });
+
+  it("a stranger's book listing a section is not that section's book", async () => {
+    open(looseLeaf);
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("A loose leaf");
+    await new Promise((r) => setTimeout(r, 150));
+    expect(screen.queryByTestId("publication-trail")).toBeNull();
+    expect(screen.queryByTestId("publication-pager")).toBeNull();
   });
 });

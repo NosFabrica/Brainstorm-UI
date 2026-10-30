@@ -9,6 +9,7 @@
  */
 import { nip19 } from "nostr-tools";
 import { asciiDocToMarkdown } from "@/lib/asciidoc";
+import { eventPath, neventFor } from "@/lib/shareId";
 
 export const PUBLICATION_INDEX_KIND = 30040;
 export const PUBLICATION_SECTION_KIND = 30041;
@@ -25,7 +26,10 @@ export const PUBLICATION_KINDS: ReadonlySet<number> = new Set([
   BOOKSHELF_KIND,
 ]);
 
-type EventLike = { kind: number; pubkey: string; tags: string[][]; content: string };
+type EventLike = { kind: number; pubkey: string; tags: string[][] };
+
+/** One empty relay list, so a memoized row sees the same one every render. */
+export const NO_RELAYS: string[] = [];
 
 /** The deepest nesting a contents entry may claim. */
 const MAX_LEVEL = 6;
@@ -37,12 +41,26 @@ const tagValue = (ev: { tags: string[][] }, name: string): string | undefined =>
 
 const HEX64 = /^[0-9a-f]{64}$/i;
 
-/** `wuthering-heights` → `Wuthering Heights`. Anything that is not a slug stays as it is. */
+/** A Roman numeral as slugs spell it (`iv`, `xviii`) — "mix" is one too, and a word. */
+const ROMAN = /^(?=[mdclxvi])m{0,3}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$/i;
+const NOT_ROMAN = new Set(["mix", "mid", "dim", "lid", "mild", "civil", "vivid", "di", "mi"]);
+
+/**
+ * `wuthering-heights` → `Wuthering Heights`, `article-iv` → `Article IV`.
+ * Anything that is not a slug stays as it is.
+ */
 export function humanizeIdentifier(d: string): string {
   const words = d.replace(/[-_]/g, " ").trim().split(/\s+/).filter(Boolean);
   if (!words.length) return d;
-  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return words
+    .map((w) =>
+      ROMAN.test(w) && !NOT_ROMAN.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1),
+    )
+    .join(" ");
 }
+
+/** An event's `d`, or "". */
+export const identifierOf = (ev: { tags: string[][] }): string => ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
 
 /**
  * A section's `d` names it under its book: `<book>-<part>-article-four-section-3`.
@@ -68,6 +86,16 @@ export function publicationTitle(ev: { kind?: number; tags: string[][] }): strin
 }
 
 /**
+ * A long-form event's title, or "" without one. A publication, section or
+ * shelf often has none, and its slug reads well enough to name it.
+ */
+export function articleTitle(event: { kind: number; tags: string[][] }): string {
+  const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();
+  if (title) return title;
+  return PUBLICATION_KINDS.has(event.kind) ? publicationTitle(event) : "";
+}
+
+/**
  * A book's own index, not one of its parts. Both are kind 30040; a part
  * (Alexandria's "Article 1") carries only a title and its contents, where
  * the book says what the work is — its author, summary, cover, date or
@@ -80,6 +108,10 @@ export function isBookIndex(ev: { kind: number; tags: string[][] }): boolean {
     (t) => ["author", "summary", "image", "published_on", "published_by", "t"].includes(t[0]) && !!t[1]?.trim(),
   );
 }
+
+/** "1 book", "3 shelves": a count and its noun, or "" for none. */
+export const countOf = (count: number, one: string, many: string): string =>
+  count ? `${count} ${count === 1 ? one : many}` : "";
 
 /** What a shelf holds, by kind: its books, and the shelves on it. */
 export function shelfCounts(ev: { tags: string[][] }): { books: number; shelves: number; other: number } {
@@ -97,8 +129,7 @@ export function shelfCounts(ev: { tags: string[][] }): { books: number; shelves:
 /** "12 books · 2 shelves", or "" for an empty shelf. */
 export function shelfLine(ev: { tags: string[][] }): string {
   const { books, shelves, other } = shelfCounts(ev);
-  const n = (count: number, one: string, many: string) => (count ? `${count} ${count === 1 ? one : many}` : "");
-  return [n(books, "book", "books"), n(shelves, "shelf", "shelves"), n(other, "item", "items")]
+  return [countOf(books, "book", "books"), countOf(shelves, "shelf", "shelves"), countOf(other, "item", "items")]
     .filter(Boolean)
     .join(" · ");
 }
@@ -231,6 +262,38 @@ export function coordinateOf(ev: { kind: number; pubkey: string; tags: string[][
   return `${ev.kind}:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
 }
 
+/**
+ * A contents entry's name: its event's title, then the one the index gives
+ * it, then its `d` with the parent's prefix taken off ("Section 3"). The same
+ * everywhere it is named — the contents, the text, a shelf, a comment's label.
+ */
+export function entryTitle(
+  ref: SectionRef,
+  event: { kind: number; tags: string[][] } | undefined,
+  parentD: string,
+): string {
+  const title = event && tagValue(event, "title");
+  if (title) return title;
+  if (ref.title) return ref.title;
+  if (ref.address?.kind === BOOKSHELF_KIND && ref.address.identifier === "root") return "Bookshelf";
+  if (ref.address) return entryFallbackTitle(ref.address.identifier, parentD);
+  return event ? publicationTitle(event) : "Untitled section";
+}
+
+/** An entry's own page: by its address when it has one, else by id; undefined when neither encodes. */
+export function entryHref(
+  ref: SectionRef,
+  event?: { id: string; kind: number; pubkey: string; tags: string[][] },
+): string | undefined {
+  if (event) return eventPath(event, ref.address?.relays ?? []);
+  try {
+    if (ref.address) return `/e/${nip19.naddrEncode(ref.address)}`;
+  } catch {
+    /* an address that won't encode falls through to its id */
+  }
+  return ref.eventId ? `/e/${neventFor(ref.eventId, ref.relay ? [ref.relay] : [])}` : undefined;
+}
+
 /** Whether a contents entry names this event: by its address, or by its id. */
 export function refMatches(ref: SectionRef, ev: { id: string; kind: number; pubkey: string; tags: string[][] }) {
   return ref.eventId === ev.id || (!!ref.address && ref.key === coordinateOf(ev));
@@ -263,20 +326,46 @@ function wikilinkResolver(ev: { tags: string[][] }) {
   };
 }
 
+type SectionLike = { tags: string[][]; content: string };
+
+/**
+ * Per event, the conversions below: an event never changes, and a card or a
+ * row asks again on every render — a chapter is tens of KB of AsciiDoc.
+ */
+const MARKDOWN = new WeakMap<SectionLike, string>();
+const PLAIN = new WeakMap<SectionLike, string>();
+
 /** A section's body as markdown. NKBIP-01 sections are AsciiDoc by their kind; no sniffing. */
-export function sectionMarkdown(ev: { tags: string[][]; content: string }): string {
-  return asciiDocToMarkdown(ev.content || "", wikilinkResolver(ev));
+export function sectionMarkdown(ev: SectionLike): string {
+  let md = MARKDOWN.get(ev);
+  if (md === undefined) MARKDOWN.set(ev, (md = asciiDocToMarkdown(ev.content || "", wikilinkResolver(ev))));
+  return md;
 }
 
-/** A section's words on one line, for a card or a search row. */
-export function sectionPlainText(ev: { tags: string[][]; content: string }): string {
-  return asciiDocToMarkdown(ev.content || "")
+/** How much of a section a one-line excerpt reads: a card shows two lines of it. */
+const PLAIN_TEXT_SOURCE = 8_000;
+
+/**
+ * A section's words on one line, for a card or a search row: markup taken off
+ * as tokens — a link reads as its label, emphasis as its words, an image not
+ * at all — and every other character, `snake_case` or `5 > 3`, left alone.
+ */
+export function sectionPlainText(ev: SectionLike): string {
+  const cached = PLAIN.get(ev);
+  if (cached !== undefined) return cached;
+  const text = asciiDocToMarkdown((ev.content || "").slice(0, PLAIN_TEXT_SOURCE))
     .split("\n")
-    .filter((line) => !/^\s*(?:#{1,6} |```|!\[)/.test(line))
-    .map((line) => line.replace(/^\s*(?:-|\d+\.) /, ""))
+    .filter((line) => !/^\s*(?:#{1,6} |```|\*\*\*$)/.test(line))
+    .map((line) => line.replace(/^\s*(?:>\s?)*(?:(?:-|\d+\.) )?/, ""))
     .join(" ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/[*_`>]/g, "")
+    .replace(/!\[[^\]\n]{0,1024}\]\([^)\s]{0,2048}\)/g, "")
+    .replace(/\[([^\]\n]{1,1024})\]\([^)\s]{0,2048}\)/g, "$1")
+    .replace(/\*\*([^*\n]{1,1024}?)\*\*/g, "$1")
+    .replace(/(?<![\w*\\])\*([^*\s][^*\n]{0,1024}?)\*(?![\w*])/g, "$1")
+    .replace(/`([^`\n]{1,1024})`/g, "$1")
+    .replace(/\\([*~])/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+  PLAIN.set(ev, text);
+  return text;
 }

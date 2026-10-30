@@ -18,6 +18,7 @@ import { eventPath } from "@/lib/shareId";
 import { hashtagShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
+import { PUBLICATION_INDEX_KIND } from "@/lib/publication";
 
 // Tag hygiene for the "related topics" row — mirror the profile "Posts about" rules.
 const VALID_TAG = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
@@ -125,7 +126,7 @@ export default function HashtagPage() {
   const [sort, setSort] = useState<SortMode>("latest");
   const [preset, setPreset] = useState<TrustPreset>(() => getActivePreset());
 
-  const hashtagFilter = useMemo(() => ({ kinds: [1, 30023, 30040], "#t": [tag], limit: 100 }), [tag]);
+  const hashtagFilter = useMemo(() => ({ kinds: [1, 30023, PUBLICATION_INDEX_KIND], "#t": [tag], limit: 100 }), [tag]);
   const notes = useStoreEvents(
     tag ? `hashtag:${tag}` : null,
     tag ? [hashtagFilter] : null,
@@ -305,7 +306,7 @@ export default function HashtagPage() {
                   </div>
                 )}
                 {events.map((ev) =>
-                  ev.kind === 30023 || ev.kind === 30040 ? (
+                  ev.kind === 30023 || ev.kind === PUBLICATION_INDEX_KIND ? (
                     <EmbeddedArticleCard key={ev.id} event={ev as MinimalEvent} author={profiles.get(ev.pubkey)} />
                   ) : (
                     <div

@@ -25,7 +25,8 @@ import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/sear
 import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
-import { articleBrief, articleTitle } from "@/lib/wiki";
+import { articleBrief } from "@/lib/wiki";
+import { articleTitle, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 import { Headline } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { SearchHit } from "@/services/search";
@@ -438,7 +439,7 @@ function articleShape(e: NostrEvent) {
     summary: articleBrief(e),
     image: tagVal(e, "image") ?? null,
     // A book's cover is a portrait jacket: shown whole, not cropped to its middle.
-    fit: e.kind === 30040 ? "object-contain" : "object-cover",
+    fit: e.kind === PUBLICATION_INDEX_KIND ? "object-contain" : "object-cover",
   };
 }
 

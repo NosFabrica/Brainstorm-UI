@@ -29,7 +29,7 @@ import { eventPath, READER_KINDS } from "@/lib/shareId";
 import { fetchEventsByIds } from "@/services/nostr";
 import { fetchRefBatched } from "@/services/refBatch";
 import { topicPath } from "@/lib/topicQuery";
-import { articleTitle } from "@/lib/wiki";
+import { articleTitle } from "@/lib/publication";
 
 /** A note on a list, found, with its author and the people it mentions, for its card. */
 export type ListNoteCard = { event: MinimalEvent; author?: ProfileLite; profiles: Map<string, ProfileLite> };

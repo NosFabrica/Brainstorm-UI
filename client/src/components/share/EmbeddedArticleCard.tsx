@@ -8,7 +8,13 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
-import { BOOKSHELF_KIND, publicationTitle, PUBLICATION_KINDS, shelfLine } from "@/lib/publication";
+import {
+  articleTitle,
+  BOOKSHELF_KIND,
+  PUBLICATION_INDEX_KIND,
+  PUBLICATION_SECTION_KIND,
+  shelfLine,
+} from "@/lib/publication";
 import articleDefault from "@/assets/article-default.webp";
 import specCover from "@/assets/nostr-implementation-decentralized-network-specs-cover.webp";
 import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
@@ -104,8 +110,8 @@ export function EmbeddedArticleCard(props: EmbeddedArticleCardProps) {
 /** The card's way in, named for what it opens: "Read spec", "Read section", "Open bookshelf". */
 function readLabel(event: MinimalEvent, isSpec: boolean, isWiki: boolean): string {
   if (event.kind === BOOKSHELF_KIND) return "Open bookshelf";
-  if (event.kind === 30040) return "Read publication";
-  if (event.kind === 30041) return "Read section";
+  if (event.kind === PUBLICATION_INDEX_KIND) return "Read publication";
+  if (event.kind === PUBLICATION_SECTION_KIND) return "Read section";
   return `Read ${isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()}`;
 }
 
@@ -129,8 +135,7 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   // A publication's or a section's title is often missing; its `d` is a readable slug.
-  const title =
-    tagVal(event, "title") || (PUBLICATION_KINDS.has(event.kind) ? publicationTitle(event) : "") || "Untitled article";
+  const title = articleTitle(event) || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
   const isWiki = event.kind === 30818;
   // A spec (kind 30817) says which event kinds it covers in `k` tags.
@@ -153,7 +158,7 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;
   // A book's cover is a portrait jacket: shown whole, not cropped to its middle by the 16:9 frame.
-  const jacket = event.kind === 30040 && coverSrc === image;
+  const jacket = event.kind === PUBLICATION_INDEX_KIND && coverSrc === image;
   const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);

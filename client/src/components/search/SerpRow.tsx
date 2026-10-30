@@ -38,14 +38,7 @@ import { wavlakeTrackId } from "@/lib/wavlake";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
 import { wikiPlainText } from "@/lib/wiki";
-import {
-  BOOKSHELF_KIND,
-  publicationTitle,
-  PUBLICATION_KINDS,
-  PUBLICATION_SECTION_KIND,
-  sectionPlainText,
-  shelfLine,
-} from "@/lib/publication";
+import { articleTitle, BOOKSHELF_KIND, PUBLICATION_SECTION_KIND, sectionPlainText, shelfLine } from "@/lib/publication";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { kindLabel } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -689,7 +682,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
     tagVal(event, "title") ??
     tagVal(event, "name") ??
     // An untitled publication, section or shelf reads by its slug ("Section 3"), not by nothing.
-    (PUBLICATION_KINDS.has(event.kind) ? publicationTitle(event) || undefined : undefined);
+    (articleTitle(event) || undefined);
   // The link is the point (a share, or a feed's headline-link-summary): the
   // row shows the page the way a search engine does, not a note with a URL.
   // A Primal/Habla/… link names a Nostr thing and resolves natively below, so it is never a page result.
