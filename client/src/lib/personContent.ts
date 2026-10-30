@@ -2,6 +2,7 @@ import type { Filter } from "nostr-tools";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { RECIPE_TAGS, publishedOnZapCooking } from "@/lib/sourceApp";
 import { liveStateOf } from "@/lib/liveStream";
+import { isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 
 /**
  * What a person publishes, as chips on their row in search.
@@ -75,15 +76,25 @@ export interface PersonContent {
 
 export const NO_PERSON_CONTENT: PersonContent = Object.freeze({ chips: [] }) as PersonContent;
 
-/** Six filters for one REQ: the newest event of each category, under the lens. */
+/**
+ * Books count as articles, but the newest publication index is as often one
+ * of a book's parts as the book (Alexandria publishes them together), so a few
+ * are asked for and any book among them answers.
+ */
+const BOOK_PROBE_LIMIT = 5;
+
+/** One filter per category for one REQ — the newest event of each, under the lens — and one for books. */
 export function personContentFilters(pubkey: string): Filter[] {
-  return PERSON_CONTENT_CATEGORIES.map((c) => ({
-    kinds: [...c.kinds],
-    authors: [pubkey],
-    limit: 1,
-    search: PERSON_CONTENT_LENS,
-    ...(c.tags ? { "#t": [...c.tags] } : {}),
-  }));
+  return [
+    ...PERSON_CONTENT_CATEGORIES.map((c) => ({
+      kinds: [...c.kinds],
+      authors: [pubkey],
+      limit: 1,
+      search: PERSON_CONTENT_LENS,
+      ...(c.tags ? { "#t": [...c.tags] } : {}),
+    })),
+    { kinds: [PUBLICATION_INDEX_KIND], authors: [pubkey], limit: BOOK_PROBE_LIMIT, search: PERSON_CONTENT_LENS },
+  ];
 }
 
 const chipFor = (key: PersonContentKey, liveNow = false): PersonContentChip => ({
@@ -99,7 +110,7 @@ export function categoriesOf(
   nowSec: number = Math.floor(Date.now() / 1000),
 ): PersonContentChip[] {
   const chips: PersonContentChip[] = [];
-  const isArticle = (e: MinimalEvent) => e.kind === 30023 || e.kind === 30818;
+  const isArticle = (e: MinimalEvent) => e.kind === 30023 || e.kind === 30818 || isBookIndex(e);
   const isRecipe = (e: MinimalEvent) => e.kind === 30023 && publishedOnZapCooking(e);
   for (const category of PERSON_CONTENT_CATEGORIES) {
     let sample: MinimalEvent | undefined;

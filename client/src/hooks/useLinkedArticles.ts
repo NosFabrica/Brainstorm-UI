@@ -15,9 +15,10 @@ import { fetchRefBatched } from "@/services/refBatch";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { mergeNewest } from "@/hooks/useNoteRefs";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { READER_KINDS } from "@/lib/shareId";
 
-/** Articles, wiki pages and specs — what `EmbeddedArticleCard` renders. */
-export const READER_KINDS: ReadonlySet<number> = new Set([30023, 30818, 30817]);
+/** Articles, wiki pages, specs and publications — what `EmbeddedArticleCard` renders; one list, in lib/shareId. */
+export { READER_KINDS };
 
 export function linkedArticleRefs(event: MinimalEvent): AddressRef[] {
   const seen = new Set<string>();

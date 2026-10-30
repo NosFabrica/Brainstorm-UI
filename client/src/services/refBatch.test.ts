@@ -50,3 +50,17 @@ describe("fetchRefBatched", () => {
     expect(fetchAddrs).not.toHaveBeenCalled();
   });
 });
+
+describe("fetchRefBatched — a page's worth at once", () => {
+  it("splits a thousand references into relay-sized asks, and dials a handful of hints, not a thousand", async () => {
+    fetchAddrs.mockClear();
+    await Promise.all(
+      Array.from({ length: 250 }, (_, i) =>
+        fetchRefBatched({ addr: `30041:${PK}:s${i}`, relay: `wss://r${i}.evil.example` }),
+      ),
+    );
+    expect(fetchAddrs.mock.calls.map((c) => c[0].length)).toEqual([100, 100, 50]);
+    const dialled = new Set(fetchAddrs.mock.calls.flatMap((c) => c[0].flatMap((x) => x.relays ?? [])));
+    expect(dialled.size).toBe(8);
+  });
+});

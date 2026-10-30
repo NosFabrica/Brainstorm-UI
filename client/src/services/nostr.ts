@@ -8,6 +8,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { PUBLICATION_INDEX_KIND } from "@/lib/publication";
 import { newestPerAddress } from "@/lib/newestPerAddress";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -872,6 +873,32 @@ export async function fetchCollectionProducts(
   return newestPerAddress(answers.flat());
 }
 
+/**
+ * The NKBIP-01 publication indexes (kind 30040) that list `coordinate` among
+ * their contents: a section's book, or a part's. Most sections name no book
+ * of their own, so their book is whoever lists them. With `kind` 30045, the
+ * bookshelves a shelf sits on. Asked of the search relay and the author's
+ * own relays together; never rejects.
+ */
+export async function fetchIndexesListing(
+  coordinate: string,
+  pubkey: string,
+  hints: string[] = [],
+  kind = PUBLICATION_INDEX_KIND,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const filter = { kinds: [kind], "#a": [coordinate], limit: 20 };
+  const searched = fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]);
+  // The address's own hints beside the author's outbox, never instead of it.
+  const outbox = await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS);
+  const relays = besidesSearchRelay(dedupeRelays([...hints, ...outbox]));
+  const answers = await Promise.all([
+    searched,
+    fetchEventsByFilter(filter, relays, timeoutMs).catch(() => [] as NostrEvent[]),
+  ]);
+  return newestPerAddress(answers.flat());
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
 export function fetchFromSearchRelayByFilters(
@@ -991,7 +1018,8 @@ export async function fetchEventsByAuthors(
 }
 
 /**
- * Fetch notes + long-form articles carrying a `#t` hashtag tag, newest first.
+ * Fetch notes, long-form articles and publications (NKBIP-01 books: their
+ * topics are on the book, not its chapters) carrying a `#t` hashtag tag, newest first.
  * Powers the `/t/:hashtag` content feed. Queries content relays only (not the
  * profile-only relay). The tag is lowercased — Nostr `t` tags are lowercase by
  * convention.
@@ -1003,7 +1031,7 @@ export async function fetchNotesByHashtag(
   const t = tag.toLowerCase().replace(/^#/, "").trim();
   if (!t) return [];
   const events = await fetchEventsByFilter(
-    { kinds: [1, 30023], "#t": [t], limit: opts.limit ?? 100 },
+    { kinds: [1, 30023, PUBLICATION_INDEX_KIND], "#t": [t], limit: opts.limit ?? 100 },
     CONTENT_RELAYS,
     opts.timeoutMs ?? 6000,
   );

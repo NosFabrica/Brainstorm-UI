@@ -96,7 +96,7 @@ describe("eventPath", () => {
     it("is not a reader kind: the address opens the video page, not the article reader", () => {
       expect(ADDRESS_LINK_KINDS.has(34235) && ADDRESS_LINK_KINDS.has(34236)).toBe(true);
       expect([...ADDRESS_LINK_KINDS].some((k) => READER_KINDS.has(k))).toBe(false);
-      expect([...READER_KINDS].sort()).toEqual([30023, 30817, 30818]);
+      expect([...READER_KINDS].sort()).toEqual([30023, 30040, 30041, 30045, 30817, 30818]);
     });
 
     it("without a d tag, or as a plain video (21, 22), it stays a link by id", () => {
