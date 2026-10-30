@@ -95,8 +95,17 @@ import {
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
-import { ListNarrowing, ListRibbon } from "@/components/search/ListRibbon";
 import { useListRibbon } from "@/hooks/useListRibbon";
+import {
+  belongsTo,
+  categoryTestId,
+  groupCategories,
+  pagedWords,
+  type Category,
+  type CategoryGroup,
+} from "@/lib/allCategories";
+import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
+import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -246,6 +255,7 @@ const LIST_KINDS = new Set([...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
+const NO_HITS: SearchHit[] = [];
 
 function profilesOf(hits: SearchHit[]) {
   const map = new Map<string, { name?: string; display_name?: string; picture?: string; nip05?: string }>();
@@ -277,6 +287,8 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "media", label: "Media" },
   { key: "shop", label: "Shop" },
 ];
+/** On All, how many of its categories stand in the row before More. */
+const CATEGORIES_IN_ROW = 4;
 /**
  * Behind More, grouped by what a person is doing — consumer things first,
  * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
@@ -326,6 +338,21 @@ const SOON_TABS: { key: string; label: string; title: string }[] = [
   { key: "agents", label: "Agents", title: "Verify and hire agents — coming to Brainstorm" },
 ];
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
+/**
+ * All's More, under Top's More headings: what is a tab of its own in Top's row (Notes, Media, Shop)
+ * heads its own group, and the rest sit where Top's More puts them. Lists and Other come from
+ * lib/allCategories.
+ */
+const ALL_MORE_GROUPS: { title: string; tabs: SearchTab[] }[] = [
+  { title: "Notes & people", tabs: ["notes", "people"] },
+  { title: "Media", tabs: ["media"] },
+  { title: "Shop", tabs: ["shop"] },
+  // Zap Store releases are a band on the home feed, not a tab: they are built things.
+  ...MORE_GROUPS.map((g) => ({
+    title: g.title ?? "Lists",
+    tabs: [...g.tabs.map((t) => t.key), ...(g.title === "Build" ? (["releases"] as SearchTab[]) : [])],
+  })),
+];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
 /** The tabs a search counts results for (hooks/useTabCounts): every vertical, the row's first. */
@@ -336,6 +363,9 @@ const tabClass = (active: boolean) =>
   (active
     ? "border-brand-primary text-brand-deep dark:text-brand-link"
     : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200");
+
+/** A category's tab on All: a long name ("Food and Drink Places") ends in an ellipsis, whole on hover. */
+const categoryTabClass = (active: boolean) => tabClass(active) + " max-w-[9.5rem] truncate";
 
 /** The More ▾ slot: names the folded vertical that is active (so the row
  *  always says where you are), otherwise "More". A plain disclosure, not a
@@ -506,6 +536,108 @@ function MoreTabs({
                     </span>
                   </div>
                 ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** On All, its categories past the row (hooks/useAllCategories) under MoreTabs' headings, most results first in each. */
+function MoreCategories({
+  groups,
+  pressed,
+  onPress,
+}: {
+  groups: readonly CategoryGroup[];
+  pressed: string | null;
+  onPress: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const active = groups.flatMap((g) => g.categories).find((c) => c.key === pressed);
+  // An open menu holds still, as MoreTabs does: counts that land while it is open wait for it to close.
+  const [held, setHeld] = useState<readonly CategoryGroup[] | null>(null);
+  const shown = open && held ? held : groups;
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  if (shown.length === 0) return null;
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={!!active}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) setHeld(groups);
+          setOpen(!open);
+        }}
+        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
+        title={active?.name}
+        data-testid="search-tab-more"
+      >
+        <span className="max-w-[8rem] truncate">{active ? active.name : "More"}</span>
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="More categories"
+          className="absolute right-0 top-full z-20 mt-1 max-h-[60vh] min-w-[9rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+        >
+          {shown.map((g, gi) => (
+            <div
+              key={g.title}
+              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
+              role="group"
+              aria-label={g.title}
+            >
+              <div
+                className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
+                data-testid={`search-category-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+              >
+                {g.title}
+              </div>
+              {g.categories.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  role="menuitem"
+                  aria-current={pressed === c.key ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onPress(c.key);
+                  }}
+                  className={
+                    "flex w-full items-center whitespace-nowrap rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                    (pressed === c.key
+                      ? "font-semibold text-brand-deep dark:text-brand-link"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`search-category-${categoryTestId(c.key)}`}
+                >
+                  {c.name}
+                </button>
+              ))}
             </div>
           ))}
         </div>
@@ -1112,28 +1244,36 @@ export function SearchResults({
   const effectiveQuery =
     !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
 
-  // On All, a pressed list (hooks/useListRibbon, below) narrows All to its items, for the words
-  // it was pressed on. The link holds it (`list`); a new search leaves it out (pages/landing), so
-  // words that change take the link's word again: none after a search, the list on Back.
+  // On All, the tab row holds All's categories (hooks/useAllCategories, below): a kind, or a
+  // Dictionary list. One pressed is a search of its own — All's, asked of that category alone, a
+  // page at a time — for the words it was pressed on. The link holds it (`list`: a coordinate, or
+  // `kind:Video`); a new search leaves it out (pages/landing), so words that change take the
+  // link's word again: none after a search, the category on Back.
   const onAll = tab === "all" && !activeKind;
-  const [listPressed, setListPressed] = useState<{ query: string; coordinate: string } | null>(() => {
-    const coordinate = urlList();
-    return coordinate ? { query: effectiveQuery, coordinate } : null;
+  const [categoryPressed, setCategoryPressed] = useState<{ query: string; key: string } | null>(() => {
+    const key = urlList();
+    return key ? { query: effectiveQuery, key } : null;
   });
   useEffect(() => {
-    setListPressed((pressed) => {
+    setCategoryPressed((pressed) => {
       if (pressed?.query === effectiveQuery) return pressed;
-      const coordinate = urlList();
-      return coordinate ? { query: effectiveQuery, coordinate } : null;
+      const key = urlList();
+      return key ? { query: effectiveQuery, key } : null;
     });
   }, [effectiveQuery]);
-  const pressList = useCallback(
-    (coordinate: string | null) => {
-      setListPressed(coordinate ? { query: effectiveQuery, coordinate } : null);
-      writeListToUrl(coordinate);
+  const pressCategory = useCallback(
+    (key: string | null) => {
+      setCategoryPressed(key ? { query: effectiveQuery, key } : null);
+      writeListToUrl(key);
     },
     [effectiveQuery],
   );
+  // The pressed category once it is known (set below, where the categories are): what the stream asks.
+  const [openCategory, setOpenCategory] = useState<{ query: string; category: Category } | null>(() => {
+    const known = categoryPressed && knownCategory(effectiveQuery, categoryPressed.key, { pov, userPubkey });
+    return known ? { query: effectiveQuery, category: known } : null;
+  });
+  const category = onAll && openCategory?.query === effectiveQuery ? openCategory.category : null;
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -1188,7 +1328,8 @@ export function SearchResults({
     // A search this tab ran before comes back with the pages it had, before
     // the relay answers — and, when the page itself is coming back (a reader
     // returning from a result), to where they were in it.
-    const key = rememberKey(effectiveQuery, tab, pov, userPubkey);
+    // A category of All's remembers its own pages.
+    const key = rememberKey(category ? `${effectiveQuery}\n${category.key}` : effectiveQuery, tab, pov, userPubkey);
     const remembered = recallSearch(key);
     const restoreScroll = firstRun.current && remembered ? remembered.scrollY : null;
     firstRun.current = false;
@@ -1200,12 +1341,21 @@ export function SearchResults({
     // first page follows that request rather than asking again — for the house's
     // Perspective, at the default depth, on a first visit to this search only.
     const firstPage =
-      tab === "all" && !remembered && !userPubkey && pov === "nosfabrica" && limit === undefined
+      tab === "all" && !category && !remembered && !userPubkey && pov === "nosfabrica" && limit === undefined
         ? (followHeadStart(effectiveQuery) ?? undefined)
         : undefined;
     const handle = searchStream(
       effectiveQuery,
-      { tab, pov, userPubkey, limit, seed: remembered?.hits, firstPage },
+      {
+        // A category of All's asks its kinds alone, or as its tab asks it (Events, Recipes).
+        tab: category?.tab ?? tab,
+        pov,
+        userPubkey,
+        limit,
+        seed: remembered?.hits,
+        firstPage,
+        ...(category && !category.tab ? { kinds: category.kinds, tags: category.tags } : {}),
+      },
       (snap) => {
         latest = snap;
         setSnapshot(snap);
@@ -1228,7 +1378,9 @@ export function SearchResults({
       // Followed, the stream closed it; cancelled before its first page, nobody did.
       firstPage?.release();
     };
-  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
+    // `category` by its key: the same category found again asks nothing new.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery, category?.key]);
 
   useEffect(() => {
     setMediaNotes(null);
@@ -1425,15 +1577,49 @@ export function SearchResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
-  // The Dictionary's lists the words find items on, and those with items among All's rows.
-  const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll, page: hits });
-  const listAsked = onAll && listPressed?.query === effectiveQuery;
-  const narrowedTo = listAsked ? (ribbon.lists.find((l) => l.coordinate === listPressed.coordinate) ?? null) : null;
-  // A list the link names waits for the ribbon rather than showing all of All first; one that
-  // doesn't come lets All show.
-  const listWaiting = listAsked && !narrowedTo && !ribbon.settled;
-  // A list narrowing All shows its own items, by authors the page's hits may not hold.
-  useAuthorScores(narrowedTo?.hits.map((h) => h.event.pubkey) ?? []);
+  // All's own rows, while it shows them: on a category's page the rows are that category's.
+  const allRows = onAll && !category ? hits : NO_HITS;
+  // The Dictionary's lists the words find items on, and those with items among All's rows;
+  // then every category, counted for the row.
+  const ribbon = useListRibbon(effectiveQuery, { pov, userPubkey, enabled: onAll, page: allRows });
+  const categories = useAllCategories(effectiveQuery, {
+    pov,
+    userPubkey,
+    enabled: onAll,
+    page: allRows,
+    lists: ribbon.lists,
+    ready: ribbon.settled && (!!snapshot?.eose || !!snapshot?.error),
+  });
+  const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
+  const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
+  useEffect(() => {
+    setOpenCategory((open) =>
+      !pressedCategory
+        ? null
+        : open?.query === effectiveQuery && open.category.key === pressedCategory.key
+          ? open
+          : { query: effectiveQuery, category: pressedCategory },
+    );
+  }, [pressedCategory, effectiveQuery]);
+  // The tab strip fades at an edge it scrolls past.
+  const [tabStripRef, tabStripEdges] = useScrollEdges();
+  // The row: the first few, the rest behind More — and the pressed one, counted or not yet.
+  const rowCategories = useMemo(() => {
+    const all =
+      pressedCategory && !categories.shown.some((c) => c.key === pressedCategory.key)
+        ? [...categories.shown, pressedCategory]
+        : categories.shown;
+    // A list a kind's page stands for sits under that page's heading: Places is Out & about.
+    const listGroups = new Map(kinds.map((k) => [k.community, k.group]));
+    return {
+      inRow: all.slice(0, CATEGORIES_IN_ROW),
+      behindMore: groupCategories(all.slice(CATEGORIES_IN_ROW), ALL_MORE_GROUPS, listGroups),
+    };
+  }, [categories.shown, pressedCategory, kinds]);
+  // A category the link names waits to be found — in All's first page, or the lists' answer —
+  // rather than showing all of All first; one that isn't found lets All show.
+  const categoryWaiting =
+    !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
   // What the floor held back, said once and quietly — Google's "some results
   // were removed" — with the one tap that lifts it. Rendered under the list,
@@ -1879,6 +2065,8 @@ export function SearchResults({
         ),
         ...shown.filter((h) => h.event.kind === CALENDAR_KIND),
       ];
+    // A kind of All's keeps the rows it names: a Recipe is an article's kind, and so are Articles.
+    if (category) shown = shown.filter((h) => belongsTo(category, h));
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
@@ -2097,6 +2285,7 @@ export function SearchResults({
     liveStates,
     effectiveShelf,
     proven,
+    category,
   ]);
 
   // The Events tab is a timeline: the first card of each day carries a header
@@ -2193,35 +2382,78 @@ export function SearchResults({
             }}
           >
             <div
+              ref={tabStripRef}
               role="tablist"
               aria-label="Result types"
               className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
+              style={edgeFade(tabStripEdges)}
               data-testid="search-tabs"
             >
-              {PRIMARY_TABS.filter((t) => offers(t.key)).map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={!activeKind && tab === t.key}
-                  onClick={() => changeTab(t.key)}
-                  className={tabClass(!activeKind && tab === t.key)}
-                  data-testid={`search-tab-${t.key}`}
+              {/* On All, its categories stand in for the other tabs: Top, All, then what the words find most. */}
+              {PRIMARY_TABS.filter((t) => (onAll ? t.key === "top" || t.key === "all" : offers(t.key))).map((t) => {
+                const selected = !activeKind && tab === t.key && !(t.key === "all" && categoryAsked);
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => (t.key === "all" && onAll ? pressCategory(null) : changeTab(t.key))}
+                    className={tabClass(selected)}
+                    data-testid={`search-tab-${t.key}`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+              {onAll &&
+                rowCategories.inRow.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={categoryAsked === c.key}
+                    onClick={() => pressCategory(c.key)}
+                    className={categoryTabClass(categoryAsked === c.key)}
+                    title={c.name}
+                    data-testid={`search-category-${categoryTestId(c.key)}`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              {/* Until the categories are counted, the row says they are coming — then they land at once. */}
+              {onAll && categories.loading && (
+                <span
+                  className="flex shrink-0 items-center gap-2 px-2"
+                  aria-label="Finding categories"
+                  role="status"
+                  data-testid="search-categories-loading"
                 >
-                  {t.label}
-                </button>
-              ))}
+                  {[14, 12, 16].map((w, i) => (
+                    <span
+                      key={i}
+                      className="h-2.5 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700"
+                      style={{ width: `${w * 4}px`, animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
+                </span>
+              )}
             </div>
             <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
-              <MoreTabs
-                tab={tab}
-                onChange={changeTab}
-                kinds={kinds}
-                kind={activeKind?.key ?? null}
-                onKind={openKind}
-                offers={offers}
-                counts={tabEvidence.counts}
-              />
+              {onAll && (
+                <MoreCategories groups={rowCategories.behindMore} pressed={categoryAsked} onPress={pressCategory} />
+              )}
+              {!onAll && (
+                <MoreTabs
+                  tab={tab}
+                  onChange={changeTab}
+                  kinds={kinds}
+                  kind={activeKind?.key ?? null}
+                  onKind={openKind}
+                  offers={offers}
+                  counts={tabEvidence.counts}
+                />
+              )}
               {perspective}
               {/* The syntax sheet, before the sorting: what can be typed into the box is the
               question people have first. The mark alone — a labelled button wraps this row
@@ -2351,20 +2583,12 @@ export function SearchResults({
                   })}
                 </FacetRow>
               )}
-              {onAll && serverStatus.search !== "down" && (
-                <ListRibbon lists={ribbon.lists} pressed={narrowedTo?.coordinate ?? null} onPress={pressList} />
-              )}
               {activeKind ? (
                 <activeKind.Page query={query} onTabChange={changeTab} />
               ) : serverStatus.search === "down" ? (
                 // The relay is the thing that is down: the results area says so, and
                 // the box, the tabs and Filters above stay usable.
                 <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
-              ) : narrowedTo ? (
-                <>
-                  <ListNarrowing list={narrowedTo} />
-                  <AllResults hits={narrowedTo.hits} settled scoreOf={scoreOf} query={query} />
-                </>
               ) : composed ? (
                 <ComposedResults
                   onOpenKind={openKind}
@@ -2387,7 +2611,7 @@ export function SearchResults({
                 >
                   {snapshot.error}
                 </div>
-              ) : searching || listWaiting ? (
+              ) : searching || categoryWaiting ? (
                 <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div
@@ -2795,6 +3019,15 @@ export function SearchResults({
                   {/* No count by default — Google dropped it from the default view too.
               The number does work only when a chip or a filter narrows the
               page: what matched, of how many. */}
+                  {/* A category's page says what it holds: all of it where its count is its page's,
+                  else what has come so far. More below turns the next page. */}
+                  {category && (
+                    <p className="mb-2 px-1 text-xs text-slate-500 dark:text-slate-400" data-testid="category-count">
+                      {categories.totals.has(category.key)
+                        ? pagedWords(category, categories.totals.get(category.key)!)
+                        : `${pagedWords(category, displayHits.length)}${snapshot?.exhausted ? "" : " so far"}`}
+                    </p>
+                  )}
                   {narrowed && totalCount > 0 && (
                     <div className="mb-2 px-1 sm:mb-3">
                       <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">

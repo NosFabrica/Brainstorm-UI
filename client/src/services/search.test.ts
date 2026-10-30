@@ -108,6 +108,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   searchStream,
+  countCategories,
   countTabs,
   suggestProfiles,
   suggestListings,
@@ -3314,5 +3315,38 @@ describe("countTabs", () => {
       await settle();
       expect([tab, tabAsks()[0]]).toEqual([tab, req]);
     }
+  });
+});
+
+describe("countCategories", () => {
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const PLACES = `39998:${"b".repeat(64)}:food-and-drink-places`;
+
+  it("counts each of All's categories as its page asks it — its kinds, a list's headers, in the page's own order", async () => {
+    sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) =>
+      of({ count: String(filters[0].kinds) === "21,22" ? 212 : 701 }),
+    );
+    let got: Map<string, number | null> | null = null;
+    countCategories(
+      "burger",
+      [
+        { key: "kind:Video", kinds: [21, 22] },
+        { key: PLACES, kinds: [39999, 9999], tags: { "#z": [PLACES] } },
+      ],
+      { pov: "nosfabrica" },
+      (counts) => (got = counts),
+    );
+    await settle();
+    // Best match, as All asks with words: no newest-first rewrite.
+    expect(sideCountMock.mock.calls.map(([f]) => f)).toEqual([
+      [{ kinds: [21, 22], search: `burger observer:${HOUSE}` }],
+      [{ kinds: [39999, 9999], "#z": [PLACES], search: `burger observer:${HOUSE}` }],
+    ]);
+    expect(got).toEqual(
+      new Map([
+        ["kind:Video", 212],
+        [PLACES, 701],
+      ]),
+    );
   });
 });
