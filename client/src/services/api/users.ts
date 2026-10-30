@@ -419,12 +419,16 @@ export const usersApi = {
   /**
    * What the caller's Assistant's Treasure Map should list now, and why. An
    * answer that isn't a check means no route, as for the Duty Menu
-   * (lib/assistantTreasureMap `parseTreasureMapCheck`).
+   * (lib/assistantTreasureMap `parseTreasureMapCheck`), and so does a 2xx that
+   * isn't JSON (a proxy's or an app's page).
    */
   async getAssistantTreasureMap(): Promise<TreasureMapCheck> {
-    const check = parseTreasureMapCheck(
-      await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map"),
+    const json = await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map").catch(
+      (e: unknown) => {
+        throw e instanceof SyntaxError ? new TreasureMapUnavailableError() : e;
+      },
     );
+    const check = parseTreasureMapCheck(json);
     if (!check) throw new TreasureMapUnavailableError();
     return check;
   },

@@ -12,7 +12,6 @@ import {
   readSelfEntries,
   selfMapButtons,
   selfMapStatus,
-  writerRelays,
   type DutyLine,
 } from "./assistantTreasureMap";
 
@@ -207,69 +206,90 @@ describe("the buttons", () => {
   });
 });
 
-describe("the relays a press reads", () => {
+describe("the relays a press reads, as the check names them", () => {
   const OUTBOX = "wss://outbox.example/";
-  const HINT = "wss://hint.example/";
+  const answer = {
+    assistant: BA,
+    on: true,
+    duties: [],
+    shouldSay: [["30382:rank", "wss://scores.example"]],
+    relays: ["wss://scores.example", OUTBOX, "wss://hint.example"],
+  };
 
-  const LISTS = "wss://lists.example/";
-  const lists = { key: "30392", relay: LISTS };
-
-  it("are the relays shouldSay names, and the scores relay when the check names it", () => {
-    expect(writerRelays({ on: true, relays: [SCORES, OUTBOX], shouldSay: [] }, "wss://SCORES.example")).toEqual([
-      SCORES,
-    ]);
-    expect(writerRelays({ on: true, relays: [OUTBOX], shouldSay: [] }, SCORES)).toEqual([]);
-    expect(writerRelays({ on: true, relays: [SCORES], shouldSay: [rank, lists] }, SCORES)).toEqual([SCORES, LISTS]);
+  it("are the server's writerRelays, each once, in one spelling", () => {
+    const check = parseTreasureMapCheck({
+      ...answer,
+      writerRelays: ["wss://SCORES.example", OUTBOX, "wss://scores.example/", "not a relay"],
+    });
+    expect(check?.writerRelays).toEqual([SCORES, OUTBOX]);
   });
 
-  it("while off, are the scores relay alone: Turn off reads only the outbox", () => {
-    expect(writerRelays({ on: false, relays: [SCORES], shouldSay: [rank, lists] }, SCORES)).toEqual([SCORES]);
-  });
-
-  it("never count the other relays the check names: a hint among them is never sent to", () => {
-    expect(writerRelays({ on: true, relays: [SCORES, OUTBOX, HINT], shouldSay: [rank] }, SCORES)).toEqual([SCORES]);
-  });
-
-  it("skip an entry that claims no relay, and an unset scores relay", () => {
-    expect(writerRelays({ on: true, relays: [SCORES], shouldSay: [{ key: "30382:rank", relay: "" }] }, "")).toEqual([]);
+  it("are unknown, not a reason to hide the step, in an answer from before the field", () => {
+    const check = parseTreasureMapCheck(answer);
+    expect(check).not.toBeNull();
+    expect(check?.writerRelays).toBeNull();
+    expect(parseTreasureMapCheck({ ...answer, writerRelays: "wss://scores.example" })?.writerRelays).toBeNull();
   });
 });
 
-describe("the relays a press re-sends to", () => {
+describe("the relays a press would send to (brainstorm_server publish_assistant_treasure_map)", () => {
   const A = "wss://a.example/";
   const B = "wss://b.example/";
   const C = "wss://c.example/";
-  const v1 = { id: "1".repeat(64), created_at: 100 };
-  const v2 = { id: "2".repeat(64), created_at: 200 };
-  const held = (relay: string, newest?: typeof v1, answered = true) => ({ relay, answered, newest });
+  const version = (n: number, entries: string[][], created_at = 100 * n) => ({
+    ...map(entries.map(([key, relay]) => [key, BA, relay])),
+    id: String(n).repeat(64),
+    created_at,
+  });
+  const listed = [["30382:rank", SCORES]];
+  const v1 = version(1, listed);
+  const v2 = version(2, listed);
+  const v2other = version(2, [["30382:followers", SCORES]]);
+  const empty = version(3, []);
+  const held = (relay: string, newest?: ReturnType<typeof version>, answered = true) => ({ relay, answered, newest });
 
-  it("are those that answered without the newest known", () => {
-    expect(missedRelays([held(A, v2), held(B, v1)], v1)).toEqual([B]);
-    expect(missedRelays([held(A, v2), held(B, v2)], v2)).toEqual([]);
+  it("are those that answered without the newest of their versions, when it lists the target (_missing)", () => {
+    expect(missedRelays([held(A, v2), held(B, v1)], [rank], BA)).toEqual([B]);
+    expect(missedRelays([held(A, v2), held(B)], [rank], BA)).toEqual([B]);
+    expect(missedRelays([held(A, v2), held(B, v2)], [rank], BA)).toEqual([]);
   });
 
-  it("count the store's version, which relays a press reads but nobody asked may hold", () => {
-    expect(missedRelays([held(A, v1)], v2)).toEqual([A]);
-    expect(missedRelays([held(A)], v2)).toEqual([A]);
+  it("are every relay that answered, when their newest doesn't list the target: a press signs one for them all", () => {
+    // What the store found elsewhere (a version at a hint, say) doesn't count; theirs is out of date.
+    expect(missedRelays([held(A, v2other), held(B, v1)], [rank], BA)).toEqual([A, B]);
+    // While off, a relay still serving the duties gets the version listing none.
+    expect(missedRelays([held(A, v1), held(B, v1)], [], BA)).toEqual([A, B]);
+    // None of them holds a version, and there is something to list.
+    expect(missedRelays([held(A), held(B)], [rank], BA)).toEqual([A, B]);
   });
 
-  it("let a relay's version newer than the store's win: a store that's behind isn't a miss", () => {
-    expect(missedRelays([held(A, v2)], v1)).toEqual([]);
-    expect(missedRelays([held(A, v2), held(B, v1)], v1)).toEqual([B]);
+  it("while off, are the relays still serving a version that lists duties, once one holds the empty version", () => {
+    expect(missedRelays([held(A, empty), held(B, v1)], [], BA)).toEqual([B]);
   });
 
-  it("leave alone a relay that didn't answer", () => {
-    expect(missedRelays([held(A, v2), held(B), held(C, undefined, false)], v2)).toEqual([B]);
-    expect(missedRelays([held(A, v1), held(B, v2, false)], undefined)).toEqual([]);
+  it("are none when none holds a version and there is nothing to list: a press finds nothing to change", () => {
+    expect(missedRelays([held(A), held(B)], [], BA)).toEqual([]);
   });
 
-  it("are none while no version is known", () => {
-    expect(missedRelays([held(A), held(B)], null)).toEqual([]);
-    expect(missedRelays([], v1)).toEqual([]);
+  it("leave alone a relay that didn't answer, as the press does", () => {
+    expect(missedRelays([held(A, v2), held(B), held(C, undefined, false)], [rank], BA)).toEqual([B]);
+    expect(missedRelays([held(A, v1, false), held(B, v2, false)], [rank], BA)).toEqual([]);
+    expect(missedRelays([], [rank], BA)).toEqual([]);
+  });
+
+  it("only grow as more relays answer, so each can be named as soon as its answer is in", () => {
+    const all = [held(A, v1), held(B, v2other), held(C)];
+    for (const target of [[rank], []]) {
+      for (let i = 0; i < all.length; i++) {
+        const some = all.slice(0, i + 1);
+        const named = missedRelays(some, target, BA);
+        expect(missedRelays(all, target, BA)).toEqual(expect.arrayContaining(named));
+      }
+    }
   });
 
   it("take the lower id when two versions share a second, as NIP-01 does", () => {
-    const twin = { id: "0".repeat(64), created_at: 200 };
-    expect(missedRelays([held(A, v2), held(B, twin)], undefined)).toEqual([A]);
+    const twin = { ...version(2, listed), id: "0".repeat(64) };
+    expect(missedRelays([held(A, v2), held(B, twin)], [rank], BA)).toEqual([A]);
   });
 });

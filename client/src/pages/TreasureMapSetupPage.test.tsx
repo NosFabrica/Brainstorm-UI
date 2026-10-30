@@ -5,7 +5,7 @@
  * nothing to press.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import type { AssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import type { DutyLine } from "@/lib/assistantTreasureMap";
@@ -159,7 +159,8 @@ describe("TreasureMapSetupPage", () => {
 
   it("asks the relays a press reads, and says so while they answer", () => {
     show({ on: true, status: "current", found: [rank], published: { kind: 10040 } as never, checkingRelays: true });
-    expect(h.args[1]).toEqual({ probeRelays: true });
+    // The page asks the relays, and asks again for a failing check as it opens.
+    expect(h.args[1]).toEqual({ probeRelays: true, askAgain: true });
     expect(screen.getByTestId("treasure-map-checking-relays")).toHaveTextContent(
       "Checking which relays have the newest version",
     );
@@ -183,6 +184,8 @@ describe("TreasureMapSetupPage", () => {
     show({ ...unchecked, error: new AssistantRouteError(TOO_MANY, 422, true), offUnchecked: true, set });
     expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(TOO_MANY);
     expect(screen.getByTestId("treasure-map-error")).not.toHaveTextContent("Couldn’t reach");
+    // No check was ever loaded, so nothing on the page is "from the last check".
+    expect(screen.queryByTestId("treasure-map-error-last")).toBeNull();
     expect(screen.queryByTestId("treasure-map-on")).toBeNull();
     expect(screen.queryByTestId("treasure-map-duties")).toBeNull();
     fireEvent.click(screen.getByTestId("treasure-map-off"));
@@ -198,15 +201,51 @@ describe("TreasureMapSetupPage", () => {
     expect(screen.queryByTestId("treasure-map-off")).toBeNull();
   });
 
+  it("when the server answered without its own sentence, says what failed and with what, not that it wasn't reached", () => {
+    show({
+      ...unchecked,
+      error: new AssistantRouteError("Couldn't check your Assistant's Treasure Map (500)", 500, false),
+    });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
+      /^Couldn't check your Assistant's Treasure Map \(500\)\.$/,
+    );
+  });
+
+  it("an answer that isn't the route's own, such as a 403, isn't 'couldn't reach' either", () => {
+    show({ ...unchecked, error: new Error("Request forbidden (403)") });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(/^Request forbidden \(403\)\.$/);
+  });
+
   it("with a check from before, a failed re-check keeps its panels, and the buttons follow them", () => {
     show({ error: new AssistantRouteError(TOO_MANY, 422, true), offUnchecked: true });
-    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
-      `${TOO_MANY} What follows is from the last check.`,
+    // The server's sentence as it came, then the line on what is from the check.
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(`${TOO_MANY} Your Assistant’s duties`);
+    // Only the duties and what it should list come from the check.
+    expect(screen.getByTestId("treasure-map-error-last")).toHaveTextContent(
+      "Your Assistant’s duties, and what its Treasure Map should list, are from the last check that worked.",
     );
     expect(screen.getByTestId("treasure-map-duties")).toBeInTheDocument();
     // Off with nothing listed: there's nothing to remove.
     expect(screen.queryByTestId("treasure-map-off")).toBeNull();
     expect(screen.getByTestId("treasure-map-on")).toBeEnabled();
+  });
+
+  it("with a check from before, a failure that ends without a full stop still reads as sentences", () => {
+    show({ error: new AssistantRouteError("Couldn't check your Assistant's Treasure Map (500)", 500, false) });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
+      "Couldn't check your Assistant's Treasure Map (500). Your Assistant’s duties, and what its Treasure Map should list, are from the last check that worked.",
+    );
+    cleanup();
+    show({ error: new TypeError("Failed to fetch") });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
+      "Couldn’t reach your Assistant right now. Failed to fetch. Your Assistant’s duties",
+    );
+    cleanup();
+    // The 15 s ran out: no answer either.
+    show({ error: new DOMException("signal timed out", "TimeoutError") });
+    expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(
+      "Couldn’t reach your Assistant right now. Signal timed out. Your Assistant’s duties",
+    );
   });
 
   it("on a server without the route, says it can't yet and offers nothing", () => {

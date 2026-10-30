@@ -23,7 +23,14 @@ vi.mock("./relayPool", () => ({
 const storeAdd = vi.fn((event: unknown) => event);
 vi.mock("./eventStore", () => ({ eventStore: { add: (event: unknown) => storeAdd(event) } }));
 
-import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach, requestOne } from "./relayRequest";
+import {
+  requestAll,
+  requestHeld,
+  requestNewest,
+  requestNewestRaw,
+  requestNewestWithReach,
+  requestOne,
+} from "./relayRequest";
 
 const RELAYS = ["wss://one", "wss://two"];
 /**
@@ -365,5 +372,79 @@ describe("asking the newest, and who answered", () => {
     await pending;
 
     expect(storeAdd).toHaveBeenCalledWith(expect.objectContaining({ id: "kept" }));
+  });
+});
+
+/**
+ * A probe asks what a relay holds. The store keeps one copy of a replaceable
+ * and `add` hands back the one it keeps, so `requestNewestWithReach`'s `newest`
+ * is the store's winner: a relay still serving an older version would read as
+ * holding the newer one. `requestHeld` keeps what the relay sent.
+ */
+describe("asking what a relay itself holds", () => {
+  const anything = () => true;
+
+  it("is the newest of the versions a relay sent, in whatever order", async () => {
+    const { subject } = messages();
+
+    const pending = requestHeld(["wss://one"], FILTER, 1000, anything);
+    subject.next(arrived("wss://one", event("newer", 50)));
+    subject.next(arrived("wss://one", event("older", 10)));
+    subject.next(eose("wss://one"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect((await pending).held?.id).toBe("newer");
+  });
+
+  it("is the event the relay sent, though the store holds a newer copy", async () => {
+    const { subject } = messages();
+    storeAdd.mockImplementation(() => event("store's newer", 50));
+
+    const pending = requestHeld(["wss://one"], FILTER, 1000, anything);
+    subject.next(arrived("wss://one", event("relay's older", 10)));
+    subject.next(eose("wss://one"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const { held, reach } = await pending;
+    expect(held?.id).toBe("relay's older");
+    expect(reach.answered).toEqual([REACHED[0]]);
+    // The store still learns it, and requestNewestWithReach's callers still get the store's copy.
+    expect(storeAdd).toHaveBeenCalledWith(expect.objectContaining({ id: "relay's older" }));
+    const again = messages();
+    const newest = requestNewestWithReach(["wss://one"], FILTER, 1000);
+    again.subject.next(arrived("wss://one", event("relay's older", 10)));
+    again.subject.next(eose("wss://one"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect((await newest).newest?.id).toBe("store's newer");
+    storeAdd.mockImplementation((e: unknown) => e);
+  });
+
+  it("counts only what `accept` passes, and adds only that to the store", async () => {
+    const { subject } = messages();
+
+    const pending = requestHeld(["wss://one"], FILTER, 1000, (e) => e.id !== "forged");
+    subject.next(arrived("wss://one", event("forged", 99)));
+    subject.next(arrived("wss://one", event("real", 10)));
+    subject.next(eose("wss://one"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect((await pending).held?.id).toBe("real");
+    expect(storeAdd).not.toHaveBeenCalledWith(expect.objectContaining({ id: "forged" }));
+  });
+
+  it("reads a relay that answered with nothing it accepts as holding none, and one that never answered as not answering", async () => {
+    const { subject } = messages();
+
+    const pending = requestHeld(RELAYS, FILTER, 1000, () => {
+      throw new Error("malformed");
+    });
+    subject.next(arrived("wss://one", event("odd", 10)));
+    subject.next(eose("wss://one"));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(pending).resolves.toMatchObject({
+      held: undefined,
+      reach: { answered: [REACHED[0]], asked: REACHED },
+    });
   });
 });

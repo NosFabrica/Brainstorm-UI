@@ -3,8 +3,8 @@
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-treasure-map`, 2026-10-27
 **Filed as:** the second item of [NosFabrica/brainstorm_server#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
-**Built in:** `1779d70` on that PR, with the fixes from the three rounds of its audit (2026-10-28 and 2026-10-29). It is
-in review and not deployed. This doc says what it does.
+**Built in:** `7388cbb` on that PR, with the fixes from the four rounds of its audit and the two reviews after the
+fourth (2026-10-28 and 2026-10-29). It is in review and not deployed. This doc says what it does.
 **Modelled on:** [DUTY-MENU-ASK.md](DUTY-MENU-ASK.md), and Tapestry's Your Assistant's Treasure Map
 (`src/api/assistant/selfMap.js`, `src/lib/self-map/index.js`, `POST /api/assistant/self-map`; ADRs
 `assistant-self-map/0001`–`0003`)
@@ -35,8 +35,10 @@ Assistant's key and knows what is live, so the server decides what to list and s
 version from relays (ADR 0005) and compares the two, as it does for the Duty Menu.
 
 The step is **hidden** while the GET is under way, and when the server doesn't support it: a 404 or 405 on
-`GET /user/assistantTreasureMap`, or an answer that isn't a check (below), means "not on this server yet". Any other
-error shows it, not counted, so its page's Turn off stays in reach.
+`GET /user/assistantTreasureMap`, or an answer that isn't a check (below), means "not on this server yet". Before any
+check has loaded, the GET's own 502s and its 422 show it, not counted, so its page's Turn off stays in reach, until a
+Turn off has answered; any other failure hides it, as no route does, since its page would have nothing to press. Once
+a check has loaded, a failed re-check keeps that check's status.
 
 ## What counts as live on Brainstorm
 
@@ -69,8 +71,9 @@ metric, `30382:rank` and the rest, never as a bare `30382`. For each key:
   `not-published-here`. A server with no Dictionary relay (`dictionary_relay` empty) doesn't offer them: a `39998:<d>`
   or `39999:<d>` key is then `not-offered`, and a bare `39998` or `39999` gets no line of its own.
 - **A key the check doesn't read**, such as `30392:tag:x` or `30382:tag:x`: any key but a kind slot alone (`30392`,
-  `3038x`, `*`), a Score kind with one metric (`30382:rank`) or a Concept key. It is never listed. Under a row that
-  offers its whole kind, as `30392` does, the line is `offered` with `unchecked`; otherwise it is `not-offered`.
+  `3038x`, `*`), a Score kind or `3038x` with one metric (`30382:rank`, `3038x:rank`; `tag`, `pin`, `dlist` and
+  `contexts` aren't metrics) or a Concept key. It is never listed. Under a row that offers its whole kind, as `30392`
+  does, the line is `offered` with `unchecked`; otherwise it is `not-offered`.
 - **Any other key**: another `30382` metric, `30383`…, or a kind the menu has no row for. No offer row covers it, so
   the line is `not-offered`. That includes the `30393` and `30394` rows the UI's activation writes, since the Duty
   Menu offers Trusted Lists as `30392` alone.
@@ -170,6 +173,7 @@ The check: what the Assistant's Treasure Map should list now, and why.
   ],
   "shouldSay": [["30382:rank", "wss://<scores relay>"] /* … */],
   "relays": ["wss://<scores relay>", "wss://relay.damus.io" /* … */],
+  "writerRelays": ["wss://<scores relay>", "wss://relay.damus.io" /* … */],
 }
 ```
 
@@ -189,6 +193,10 @@ The check: what the Assistant's Treasure Map should list now, and why.
   - every relay a `shouldSay` entry names;
   - element 3 of the reader's entries that name the Assistant: hints for readers. A press never reads or sends there
     (below).
+- **`writerRelays`**: the relays the press that keeps the current choice reads (step 2), and so every relay its repair
+  can reach: while on, Update now's (the outbox, then the relays `shouldSay` names); while off, Turn off's (the outbox
+  alone). Each once, at its public URL (the TA relay never at its internal one), never a hint. A server from before the
+  field (`ee749d6`) leaves it out: the answer is still a check, and the UI asks no relay (below).
 - **The reader's Map**: their newest kind 10040, as `designation_service` reads it. When none is found, `duties` and
   `shouldSay` are both `[]`.
 - **502** when the reader's Map can't be read (a relay error, or a `CLOSED`): "Couldn't read your Treasure Map, so your
@@ -214,16 +222,17 @@ says whose Assistant. A body whose `on` isn't a JSON boolean is a **422**. A sec
 one is under way is refused at once, nothing queued: **409**, "Your Assistant's Treasure Map is already being
 published. Try again in a moment."
 
-1. **Read the reader's Map**, and for Turn on the follow count alongside it, as the GET does. If the Map can't be read,
-   `{ "on": true }` answers 502, "Couldn't read your Treasure Map, so nothing was published." With more than 64 keys it
-   answers 422, "…too many to check, so nothing was published." A follow count it can't read answers the GET's 502.
-   Turn off goes ahead without the Map in both cases, and never reads the follow count: it lists nothing, and live
-   Scores would only add the scores relay, which the Assistant's outbox already names. So nothing is live for it, and
-   its step 2 reads the outbox alone.
-2. **Read the newest version**, strictly, from the writer's relays (§ 9.2): the Assistant's outbox and the relays
-   `shouldSay` names, the scores relay at its internal URL, as scores are. If no relay answers, publish nothing and
-   answer 502, "Couldn't read your Assistant's Treasure Map, so nothing was published." The reader's hints are never
-   read or sent to: the reader writes their own Map, so a hint can name any host, internal ones included.
+1. **Read the reader's Map** for `{ "on": true }`, and the follow count alongside it, as the GET does. If the Map can't
+   be read, it answers 502, "Couldn't read your Treasure Map, so nothing was published." With more than 64 keys it
+   answers 422, "…too many to check, so nothing was published." A follow count it can't read, when the GET would wait
+   for it (above), answers the GET's 502. **Turn off reads neither**: it lists nothing, so nothing in the Map can
+   change what it publishes. It never gets the Map's 502, the follow count's or the 422, and never waits for that read.
+2. **Read the newest version**, strictly, from the writer's relays (§ 9.2): the Assistant's outbox and the relays of
+   the self-entries this press lists, `shouldSay` when on and none when off, so Turn off reads the outbox alone. The
+   scores relay is read at its internal URL, as scores are. The GET names this set, for the press that keeps the
+   current choice, as `writerRelays`. If no relay answers, publish nothing and answer 502, "Couldn't read your
+   Assistant's Treasure Map, so nothing was published." The reader's hints are never read or sent to: the reader
+   writes their own Map, so a hint can name any host, internal ones included.
 3. **Nothing would change** when the newest version's self-entries already are the target (`shouldSay` when on, none
    when off), as sets of key and relay. Then nothing is signed. A relay that answered step 2 without the newest version,
    such as the scores relay after it was down, is sent that same version, already signed, and the answer is
@@ -237,9 +246,9 @@ published. Try again in a moment."
    press has succeeded: after the send, committed before the answer. Only this route writes it, and any error leaves it
    as it was.
 
-Synchronous, like the Duty Menu: the UI waits up to 30 seconds, and a press takes about 28 at worst. The reader's Map
-and the versions are read in up to 6 seconds each, the follow count alongside the Map in up to 5, the connect takes up
-to 4 and the send 12.
+Synchronous, like the Duty Menu: the UI waits up to 30 seconds. Turn on and Update now take about 28 at worst: the
+reader's Map and the versions are read in up to 6 seconds each, the follow count alongside the Map in up to 5, the
+connect takes up to 4 and the send 12. Turn off reads no Map, so it takes about 22.
 
 ```jsonc
 {
@@ -262,21 +271,33 @@ they took it. The version is already on a relay it was read from, so a failed li
 moment."
 
 The UI adds `event` to its store, so after Turn on or Update now the step turns done at once; after Turn off, only when
-`shouldSay` is empty (above). It shows the press's choice at once and asks for the check again. Its answer, one line
-per relay, shows when the check is back, or at once while the check is failing. The relays are asked again too
-(below), and the answer doesn't wait for them.
+`shouldSay` is empty (above). It then asks for the check again, since the choice and what is live can both have moved,
+first dropping a GET already out: that one was sent before the press and can carry the old choice. A 4xx isn't asked
+again unless the press was a Turn on or Update now that got through, since only those read the reader's Map. While the
+check stands, the press's answer, one line per relay, and its choice show when that check is back, the pressed button
+saying "Publishing…" until then; while it is failing, they show at once. Until a check asked after the press is back,
+every view shows the press's choice, and the page asks no relay which version it holds, since `writerRelays` are the
+choice's (below).
 
 ## What the UI shows
 
 - **404 or 405 on the GET, or an answer that isn't a check** (no 64-hex `assistant`, no boolean `on`, or no `duties`
-  and `shouldSay` arrays): the step is hidden, and `/setup` keeps its other steps. Opened directly, its page says "Your
-  Brainstorm server can't keep your Assistant's Treasure Map yet." in place of its panels and buttons.
+  and `shouldSay` arrays, or a 200 that isn't JSON at all): the step is hidden, and `/setup` keeps its other steps.
+  Opened directly, its page says "Your Brainstorm server can't keep your Assistant's Treasure Map yet." in place of its
+  panels and buttons.
 - **401**: as any other signed-in call.
-- **Any other error**: the server's sentence, or, for a request that got no answer, "Couldn't reach your Assistant
-  right now." and why. Before any check has loaded it takes the panels' place, with only Turn off, which needs no check
-  (step 1), and only for the GET's own 502s and its 422: anything else would fail the POST too. A 4xx isn't asked
-  again. With a check from before, it sits above that check's panels and buttons. `/setup` keeps the step's row while
-  the check fails, not counted, and links to this page. A press that failed, the 409 included, shows it alone.
+- **Any other error**: the server's sentence; ours with the status when it answered without one ("Couldn't check your
+  Assistant's Treasure Map (500)."); or, for a request that got no answer (no connection, or none within 15 seconds),
+  "Couldn't reach your Assistant right now." and why. Before any check has loaded it takes the panels' place, with
+  only Turn off, which needs no check (step 1), and only for the GET's own 502s and its 422, which Turn off never
+  meets: any other failure can't be told from one that would fail Turn off too. Once a Turn off has answered there,
+  it isn't offered again. A 4xx isn't retried. With a check from before, it sits above that check's panels and
+  buttons, saying that the duties and what the Map should list are from the last check that worked. A failure stands
+  until an answer arrives, on every view of it: this page and `/setup` ask again as they open, and a press asks again
+  (above), while the header, the account menu and the dashboard card show it as it stands. Before any check has
+  loaded, `/setup` keeps the step's row for the GET's own 502s and its 422, not counted, linking to this page, until a
+  Turn off has answered; once a check has loaded, it keeps that check's status. A press that failed, the 409 included,
+  shows it alone.
 - **It reads a version as the press does.** Self-entries are the tags whose key parses, naming the Assistant, each key
   and relay once, so a hand-made `3040x` entry is an ordinary tag to both. The step is done exactly when Turn on or
   Update now would sign nothing (step 3): the version's self-entries are `shouldSay`, whatever else it carries, whether
@@ -285,32 +306,36 @@ per relay, shows when the check is back, or at once while the check is failing. 
   none, so here it is the whole rule. A reader with nothing live and nothing published is done, and nobody is asked to
   publish an empty Map. After a Turn off, the step isn't done while `shouldSay` lists anything.
 - **Which relays hold the newest version** is a relay probe (ADR 0005), on this page only, asked while a press would
-  otherwise sign nothing: on and up to date, or off with nothing listed. Each relay a press reads (step 2) that the UI
-  can tell apart (below) is asked for its own newest version, as the press reads it:
-  - one that answers without the newest known, the newest of their answers and the store's version, has missed it,
-    and a press sends it there (step 3). The page names it, and offers the press, though the self-entries match;
-  - one that doesn't answer is left alone, as the press leaves it.
+  otherwise sign nothing (on and up to date, or off with nothing listed) and a version has been found. It asks exactly
+  the GET's `writerRelays`, each for its own newest version, as step 2 reads it, and counts only the Assistant's own
+  kind 10040 that verifies; anything else a relay sends is nothing it holds. From those answers alone it does what the
+  press would:
+  - when their newest version's self-entries are the target (`shouldSay` while on, none while off), each relay that
+    answered without that version is sent it (step 3): the page names it, and offers the press, though the
+    self-entries match;
+  - otherwise the press signs a new version for them all (step 4), and the page names every relay that answered;
+  - one that doesn't answer within 5 seconds, as the press gives up reading it, isn't named: step 3 leaves it alone,
+    and a version step 4 signs goes there anyway.
 
-  While they're asked the page says so, rather than that nothing was missed. An answer stands for a minute, and a
-  press asks again without its answer waiting.
+  The store's version isn't counted: it can come from anywhere, the reader's hints included, and one that no relay a
+  press reads holds would keep the press on offer while each press answers "Nothing changed". A check without
+  `writerRelays` asks no relay.
 
-  Those relays are the scores relay, which heads the Assistant's outbox, and while on the relays `shouldSay` names;
-  while off the press is Turn off, which reads the outbox alone (step 1). The UI knows the scores relay by its own
-  `VITE_NIP85_RELAY_URL`, so that has to be the server's `nostr_upload_ta_events_relay_public_url`. The reader's hints
-  name it too, since the UI's activation writes them there, so `relays` can't show that the two differ; if they did,
-  the UI would ask a hint. The GET's other `relays` are the outbox's other relays and the reader's hints, and the
-  answer doesn't say which is which. A hint must never be asked: a press never sends there, so the page would always
-  offer the press.
+  Each relay counts as it answers, since a later answer can only add one: the page names a relay as soon as its answer
+  shows the miss, and says it's still asking the others. An answer stands for a minute. A press asks nothing while it
+  is under way, and until it has answered the page shows the relays its button was offered for; then none until a
+  check asked after it is back, since the choice can change which relays a press reads. Then that check's
+  `writerRelays` are asked, and the press's answer doesn't wait for them.
 
   What that leaves out:
-  - A version only the outbox's other relays missed waits for the next press. That matters most when what was missed
-    is a removal (a Turn off, or an Update that drops a duty): that relay keeps serving the withdrawn self-entries,
-    and the page offers no press for it.
-  - The store's version stands in for the relays a press reads that aren't asked. One found only where a press never
-    reads, such as a relay an earlier version named, would keep the press on offer while each press answers "Nothing
-    changed".
-  - A relay that refuses kind 10040, storing only some kinds, would stay missed: each press re-sends there and is
-    refused. It can't happen yet, since only Scores can be live, at the scores relay.
+  - A relay that answers but doesn't keep the Assistant's kind 10040 stays named, and each press re-sends there to no
+    effect. The outbox's relays that answer keep it (on 2026-10-29 the TA relay and relay.primal.net served kind
+    10040; relay.damus.io, nos.lol and relay.nostr.band didn't answer, so they aren't named). The Dictionary relay
+    refuses it, so once Concepts are live there and `shouldSay` names it, Update now would stay on offer: that has to
+    be settled on the server before then.
+  - A relay outside the outbox that a duty was live at, and that missed the version dropping it, is never read again:
+    no later press reads there, so `writerRelays` doesn't name it, and it keeps serving the dropped self-entry. It can't
+    happen yet, since only Scores can be live, at the scores relay, which heads the outbox.
 
 - **The buttons** are Tapestry's `selfMapButtons`, with the repair:
   - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, or a relay missed the
@@ -335,9 +360,9 @@ per relay, shows when the check is back, or at once while the check is failing. 
 - **The server's own open points** are in PR 110:
   - one press at a time is held in-process only, so it needs Redis once the server runs more than one instance;
   - the POSTs have no rate limit;
-  - a relay that refused a removal keeps the old claim.
-- **The GET naming the relays a press reads**, beside `relays`. The UI could then ask the whole outbox for the newest
-  version, not only the scores relay and the relays `shouldSay` names.
+  - a relay that refused a removal keeps the old claim;
+  - a relay outside the outbox that missed a removal keeps the old claim too, and no press reads or sends there
+    again.
 - **The audit's follow-ups**, filed on brainstorm_server:
   - NosFabrica/brainstorm_server#117: `/{pubkey}` routes that take only hex, so these paths no longer depend on the
     order routes are mounted in;

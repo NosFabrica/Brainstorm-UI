@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
     status: null as string | null,
     settled: true,
     error: null as Error | null,
+    offUnchecked: false as boolean | undefined,
   },
 }));
 
@@ -36,7 +37,13 @@ vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => 3 }));
 vi.mock("@/lib/nip85Activation", () => ({ isNip85Activated: () => state.activated }));
 vi.mock("@/hooks/useDirectMessages", () => ({ useDmStatus: () => state.dm }));
 vi.mock("@/hooks/useAssistantDutyMenu", () => ({ useAssistantDutyMenu: () => state.menu }));
-vi.mock("@/hooks/useAssistantTreasureMap", () => ({ useAssistantTreasureMap: () => state.selfMap }));
+const selfMapArgs = vi.hoisted(() => ({ last: [] as unknown[] }));
+vi.mock("@/hooks/useAssistantTreasureMap", () => ({
+  useAssistantTreasureMap: (...args: unknown[]) => {
+    selfMapArgs.last = args;
+    return state.selfMap;
+  },
+}));
 
 import { useFinishSetup } from "./useFinishSetup";
 
@@ -245,22 +252,59 @@ describe("useFinishSetup — the Treasure Map step", () => {
     expect(result.current.remaining).toBe(0);
   });
 
-  it("a check that fails keeps the row, not counted, until it answers", () => {
+  it("before any check, a failure Turn off gets past keeps the row, not counted, from when it arrives", () => {
+    // Still being asked, with no failure yet: no row.
+    state.selfMap = { supported: undefined, status: null, settled: false, error: null, offUnchecked: false };
+    const { result, rerender } = renderHook(() => useFinishSetup());
+    expect(result.current.treasureMap).toBeUndefined();
+    // The GET's own 502 (or its 422) after the retry: only that moves.
     state.selfMap = {
       supported: undefined,
       status: null,
       settled: false,
       error: new Error("Couldn't read your Treasure Map."),
+      offUnchecked: true,
     };
-    const { result } = renderHook(() => useFinishSetup());
+    rerender();
     expect(result.current.treasureMap).toBe("failed");
     expect(result.current.totalSteps).toBe(4);
     expect(result.current.treasureMapPending).toBe(false);
     expect(result.current.remaining).toBe(0);
-    // Still being asked, with no failure yet: no row.
-    state.selfMap = { supported: undefined, status: null, settled: false, error: null };
-    const loading = renderHook(() => useFinishSetup());
-    expect(loading.result.current.treasureMap).toBeUndefined();
+  });
+
+  it("before any check, another failure hides the step: its page has nothing to press", () => {
+    state.selfMap = {
+      supported: undefined,
+      status: null,
+      settled: false,
+      error: new Error("signal timed out"),
+      offUnchecked: false,
+    };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.treasureMap).toBeUndefined();
+    expect(result.current.totalSteps).toBe(4);
+  });
+
+  it("a failed re-check keeps the last check's status, counted", () => {
+    state.selfMap = {
+      supported: true,
+      status: "out-of-date",
+      settled: true,
+      error: new Error("x"),
+      offUnchecked: true,
+    };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.treasureMap).toBe("out-of-date");
+    expect(result.current.totalSteps).toBe(5);
+    expect(result.current.remaining).toBe(1);
+    expect(result.current.allDone).toBe(false);
+  });
+
+  it("asks again for a failing check on mount only where it's asked to: the header, menu and card don't", () => {
+    renderHook(() => useFinishSetup());
+    expect(selfMapArgs.last[1]).toEqual({ askAgain: false });
+    renderHook(() => useFinishSetup({ askAgain: true }));
+    expect(selfMapArgs.last[1]).toEqual({ askAgain: true });
   });
 
   it("an up-to-date Map completes the five", () => {

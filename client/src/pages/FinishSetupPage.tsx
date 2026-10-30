@@ -133,6 +133,7 @@ function ScoresSwitchRow({ onSwitch }: { onSwitch: () => void }) {
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
+  // The checklist shows the Treasure Map step, so a failing check is asked again as it opens.
   const {
     followDone,
     followCount,
@@ -145,7 +146,7 @@ export default function FinishSetupPage() {
     totalSteps,
     allDone,
     messages,
-  } = useFinishSetup();
+  } = useFinishSetup({ askAgain: true });
   const { isCalculating } = useScoringStatus();
 
   if (!user) return null;

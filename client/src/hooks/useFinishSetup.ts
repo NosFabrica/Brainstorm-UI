@@ -31,8 +31,10 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * A fifth, the same way: the Assistant's own Treasure Map, listing exactly the
  * duties that are live now (hooks/useAssistantTreasureMap,
  * docs/assistant/TREASURE-MAP-ASK.md). Nothing live and nothing listed is done,
- * so nobody is asked to publish an empty Map. While its check fails, the row
- * stays, not counted, so its page and the Turn off there stay in reach.
+ * so nobody is asked to publish an empty Map. A check that fails after one has
+ * loaded keeps that one's status, as its page does. Before any has loaded, a
+ * failure the page's Turn off gets past keeps the row, not counted, so that
+ * Turn off stays in reach; any other failure hides the step, as no route does.
  *
  * /setup also offers optional extras outside the count: handing that rank duty
  * to their Brainstorm Assistant, and turning on private messages
@@ -84,8 +86,9 @@ export interface FinishSetupState {
   dutyMenuPending?: boolean;
   /**
    * The Treasure Map step, where the server supports it: the Assistant's own
-   * Treasure Map against the duties live now, or "checking". "failed" while the
-   * check fails: a row, not counted. Undefined: no such step here.
+   * Treasure Map against the duties live now, or "checking". "failed" before any
+   * check has loaded, while it fails in a way the page's Turn off gets past: a
+   * row, not counted. Undefined: no such step here, or none to offer.
    */
   treasureMap?: SelfMapStatus | "checking" | "failed";
   /** Relay-verified "the Assistant's Treasure Map is missing or out of date". */
@@ -99,7 +102,12 @@ export interface FinishSetupState {
   optionalRemaining: number;
 }
 
-export function useFinishSetup(): FinishSetupState {
+/**
+ * `askAgain`: this surface shows the Treasure Map step (/setup), so a failing
+ * check is asked again as it mounts. The header's banner, the account menu
+ * and the dashboard card only count it, and read the failure as it stands.
+ */
+export function useFinishSetup({ askAgain = false }: { askAgain?: boolean } = {}): FinishSetupState {
   const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
 
@@ -111,7 +119,7 @@ export function useFinishSetup(): FinishSetupState {
   const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
   const dmStatus = useDmStatus();
   const menu = useAssistantDutyMenu(pubkey);
-  const selfMap = useAssistantTreasureMap(pubkey);
+  const selfMap = useAssistantTreasureMap(pubkey, { askAgain });
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -136,12 +144,14 @@ export function useFinishSetup(): FinishSetupState {
     const dutyMenuDone = dutyMenu === "current";
     const dutyMenuPending = menuCounted && menu.settled && (dutyMenu === "missing" || dutyMenu === "out-of-date");
 
-    // The Treasure Map likewise, once the server has said what it should list.
-    // A check that fails keeps its row, uncounted: it leads to the page's Turn off.
+    // The Treasure Map likewise, once the server has said what it should list:
+    // a failed re-check keeps the last check's status, as its page does. Before
+    // any check, a failure Turn off gets past keeps the row, uncounted: it
+    // leads to the page's Turn off. Any other leads nowhere, so no row.
     const mapCounted = signedIn && selfMap.supported === true;
     const treasureMap: FinishSetupState["treasureMap"] = mapCounted
       ? (selfMap.status ?? "checking")
-      : signedIn && selfMap.error
+      : signedIn && selfMap.offUnchecked
         ? "failed"
         : undefined;
     const treasureMapDone = treasureMap === "current";
@@ -203,6 +213,6 @@ export function useFinishSetup(): FinishSetupState {
     selfMap.supported,
     selfMap.status,
     selfMap.settled,
-    selfMap.error,
+    selfMap.offUnchecked,
   ]);
 }

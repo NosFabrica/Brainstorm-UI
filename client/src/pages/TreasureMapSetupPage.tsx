@@ -22,7 +22,7 @@ import {
   type SelfMapStatus,
 } from "@/lib/assistantTreasureMap";
 import { categoryOf } from "@/lib/dutyMenu";
-import { AssistantRouteError, type TreasureMapPublishResult } from "@/services/api";
+import type { TreasureMapPublishResult } from "@/services/api";
 
 /**
  * /setup/treasure-map — the checklist's "Publish your Assistant's Treasure
@@ -56,6 +56,15 @@ const REASONS: Record<string, string> = {
   "not-scheduled": "Not kept up to date: no updates are scheduled.",
   unchecked: "Brainstorm can't check this key yet, so it isn't listed.",
 };
+
+/** A request that got no answer: the network failed (fetch's TypeError), or its 15 s ran out. */
+const unanswered = (err: Error) => err instanceof TypeError || err.name === "TimeoutError";
+
+/** A message as a sentence: ours with a status ("… (500)") and the browser's ("signal timed out") aren't. */
+function sentence(text: string): string {
+  const s = text.trim().replace(/^./, (c) => c.toUpperCase());
+  return /[.!?…]$/.test(s) ? s : `${s}.`;
+}
 
 /** A seconds timestamp as a plain date, e.g. "June 7, 2026"; null when there is none. */
 function dateOf(seconds: number | null): string | null {
@@ -189,7 +198,7 @@ function PanelHead({ title, explainer, children }: { title: string; explainer?: 
 export default function TreasureMapSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const map = useAssistantTreasureMap(user?.pubkey, { probeRelays: true });
+  const map = useAssistantTreasureMap(user?.pubkey, { probeRelays: true, askAgain: true });
   const [pressing, setPressing] = useState<"on" | "update" | "off" | null>(null);
   const [result, setResult] = useState<TreasureMapPublishResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -230,15 +239,22 @@ export default function TreasureMapSetupPage() {
       {label("off", "Remove your Assistant's duties from its Treasure Map")}
     </Button>
   );
-  // The server's sentence says what failed; a request that got no answer gets ours first.
+  // What failed: the server's sentence, or ours with its status when it sent
+  // none, with "Couldn't reach…" first only for a request that got no answer.
   const failed = map.error && (
     <Alert variant="destructive" data-testid="treasure-map-error">
       <AlertDescription>
-        {!(map.error instanceof AssistantRouteError && map.error.said) && (
-          <>Couldn&rsquo;t reach your Assistant right now. </>
+        {unanswered(map.error) && <>Couldn&rsquo;t reach your Assistant right now. </>}
+        {sentence(map.error.message)}
+        {/* Only these two panels come from the check: the version is read from relays, the choice can be a press's. */}
+        {map.assistant !== null && (
+          <>
+            {" "}
+            <span className="mt-1 block" data-testid="treasure-map-error-last">
+              Your Assistant&rsquo;s duties, and what its Treasure Map should list, are from the last check that worked.
+            </span>
+          </>
         )}
-        {map.error.message}
-        {map.assistant !== null && " What follows is from the last check."}
       </AlertDescription>
     </Alert>
   );
