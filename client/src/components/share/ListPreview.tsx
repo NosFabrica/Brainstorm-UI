@@ -29,6 +29,7 @@ import { eventPath, READER_KINDS } from "@/lib/shareId";
 import { fetchEventsByIds } from "@/services/nostr";
 import { fetchRefBatched } from "@/services/refBatch";
 import { topicPath } from "@/lib/topicQuery";
+import { articleTitle } from "@/lib/wiki";
 
 /** A note on a list, found, with its author and the people it mentions, for its card. */
 export type ListNoteCard = { event: MinimalEvent; author?: ProfileLite; profiles: Map<string, ProfileLite> };
@@ -179,7 +180,7 @@ export function ItemListPreview({ event }: { event: MinimalEvent }) {
     .map((q) => ({ q, text: noteLine(q.event.content) }))
     .filter((l) => l.text);
   const articleLines = articles
-    .map((ev) => ({ ev, title: ev.tags.find((t) => t[0] === "title")?.[1]?.trim() }))
+    .map((ev) => ({ ev, title: articleTitle(ev) }))
     .filter((l): l is { ev: MinimalEvent; title: string } => !!l.title);
 
   if (noteLines.length || articleLines.length)

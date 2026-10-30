@@ -177,11 +177,13 @@ describe("categoriesOf — a chip promises something you can act on now", () => 
 });
 
 describe("personContentFilters — one lensed filter per category, the newest one of each", () => {
-  it("asks seven questions under the include:spam lens — recipes get their own", () => {
+  it("asks eight questions under the include:spam lens — recipes get their own, and books", () => {
     const filters = personContentFilters(STACI);
-    expect(filters).toHaveLength(7);
-    for (const f of filters)
+    expect(filters).toHaveLength(8);
+    for (const f of filters.slice(0, 7))
       expect(f).toEqual(expect.objectContaining({ authors: [STACI], limit: 1, search: "include:spam" }));
+    // A book's parts are publications too: a few are asked, so the book is among them.
+    expect(filters[7]).toEqual({ kinds: [30040], authors: [STACI], limit: 5, search: "include:spam" });
     expect(filters.map((f) => f.kinds)).toEqual([
       [30402],
       [30023, 30818],
@@ -190,6 +192,7 @@ describe("personContentFilters — one lensed filter per category, the newest on
       [20, 21, 22, 34235, 34236],
       [30311],
       [30617],
+      [30040],
     ]);
     expect(filters[2]["#t"]).toEqual(["zapcooking", "nostrcooking"]);
   });
@@ -279,5 +282,17 @@ describe("shopWords — the words a shopping query is shopping for", () => {
   it("does not read a shop word inside another word", () => {
     expect(shopWords("bishop")).toBeNull();
     expect(shopWords("workshop notes")).toBeNull();
+  });
+});
+
+describe("categoriesOf — books", () => {
+  it("a book earns the Articles chip; one of its parts does not", () => {
+    const book = ev(30040, [
+      ["title", "The Constitution"],
+      ["author", "United States"],
+    ]);
+    const part = ev(30040, [["title", "Article 1"]]);
+    expect(categoriesOf([part], NOW).map((c) => c.key)).toEqual([]);
+    expect(categoriesOf([part, book], NOW).map((c) => c.key)).toEqual(["articles"]);
   });
 });

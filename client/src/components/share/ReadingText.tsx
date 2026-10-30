@@ -181,10 +181,10 @@ function addressKind(bech32: string): number | null {
 
 const SHARED_KINDS: ReadonlySet<number> = new Set([38000]);
 
-/** Addresses read as "📄 article", whose link is ours. Publications and their
- *  sections read on the article reader too, but keep their own name and the
- *  author's link: an unfound one is a publication, not an article. */
-const ARTICLE_LINK_KINDS = new Set([...READER_KINDS].filter((k) => k !== 30040 && k !== 30041));
+/** Addresses read as "📄 article", whose link is ours. Publications, their
+ *  sections and bookshelves read on the article reader too, but keep their own
+ *  name and the author's link: an unfound one is a publication, not an article. */
+const ARTICLE_LINK_KINDS = new Set([...READER_KINDS].filter((k) => k !== 30040 && k !== 30041 && k !== 30045));
 
 /** What an address names, for its link: "📄 article", "↗ track". */
 export function addressLabel(bech32: string): string {

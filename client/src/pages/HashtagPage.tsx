@@ -125,7 +125,7 @@ export default function HashtagPage() {
   const [sort, setSort] = useState<SortMode>("latest");
   const [preset, setPreset] = useState<TrustPreset>(() => getActivePreset());
 
-  const hashtagFilter = useMemo(() => ({ kinds: [1, 30023], "#t": [tag], limit: 100 }), [tag]);
+  const hashtagFilter = useMemo(() => ({ kinds: [1, 30023, 30040], "#t": [tag], limit: 100 }), [tag]);
   const notes = useStoreEvents(
     tag ? `hashtag:${tag}` : null,
     tag ? [hashtagFilter] : null,
@@ -305,7 +305,7 @@ export default function HashtagPage() {
                   </div>
                 )}
                 {events.map((ev) =>
-                  ev.kind === 30023 ? (
+                  ev.kind === 30023 || ev.kind === 30040 ? (
                     <EmbeddedArticleCard key={ev.id} event={ev as MinimalEvent} author={profiles.get(ev.pubkey)} />
                   ) : (
                     <div

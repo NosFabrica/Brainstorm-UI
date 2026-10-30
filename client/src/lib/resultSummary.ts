@@ -22,6 +22,14 @@ import { describeThing, THING_KINDS } from "@/lib/thing";
 import { kindLabel } from "@/lib/kindLabel";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
+import {
+  BOOKSHELF_KIND,
+  publicationTitle,
+  PUBLICATION_KINDS,
+  PUBLICATION_SECTION_KIND,
+  sectionPlainText,
+  shelfLine,
+} from "@/lib/publication";
 import { eventPath, profilePath } from "@/lib/shareId";
 import { OPAQUE_D, hostOf, readKind, tagValue, who, type ResultRef } from "@/lib/resultReaders";
 
@@ -77,6 +85,8 @@ const isHttp = (u: string | null | undefined): u is string => !!u && /^https?:\/
 function genericTitle(ev: SummaryEvent): string | null {
   const named = tagOf(ev, "title", "name", "subject");
   if (named) return named;
+  // A publication, section or shelf without a title: its slug read as words ("Section 3").
+  if (PUBLICATION_KINDS.has(ev.kind)) return publicationTitle(ev) || null;
   // A NIP-53 room names itself in `room`; its `d` is a slug that only looks like a name.
   if (ev.kind === 30312) {
     const room = tagOf(ev, "room");
@@ -160,8 +170,11 @@ function contentWords(ev: SummaryEvent): { body: string | null; shape: ResultSum
     const words = jsonWords(ev.content).body;
     return words ? { body: markdownExcerpt(words), shape: null } : { body: null, shape: "json" };
   }
-  if (shape.kind === "empty") return { body: null, shape: null };
+  // A shelf has no words; what is on it says what it is.
+  if (shape.kind === "empty") return { body: ev.kind === BOOKSHELF_KIND ? shelfLine(ev) || null : null, shape: null };
   if (ev.kind === 30818) return { body: wikiPlainText(ev.content), shape: null };
+  // A section is AsciiDoc: its words, not its `==` and `[NOTE]`.
+  if (ev.kind === PUBLICATION_SECTION_KIND) return { body: sectionPlainText(ev) || null, shape: null };
   // Notes are written in markdown too ("[Fiatjaf](https://…)"): every body is read as prose.
   return { body: markdownExcerpt(ev.content) || null, shape: null };
 }

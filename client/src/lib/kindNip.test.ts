@@ -20,4 +20,9 @@ describe("nipForKind", () => {
     expect(nipForKind(32267)).toBeUndefined();
     expect(nipForKind(12345)).toBeUndefined();
   });
+
+  it("names none for NKBIP-01 publications: GitCitadel's spec, not a NIP (NIP-62 is Request to Vanish)", () => {
+    expect(nipForKind(30040)).toBeUndefined();
+    expect(nipForKind(30041)).toBeUndefined();
+  });
 });

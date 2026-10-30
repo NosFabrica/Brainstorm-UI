@@ -34,6 +34,24 @@ describe("appLinksFor", () => {
     expect(links.every((l) => l.external)).toBe(true);
   });
 
+  it("a publication or a section opens in Alexandria, the NKBIP-01 reader; a shelf does not", () => {
+    const naddr = nip19.naddrEncode({ kind: 30040, pubkey: "a".repeat(64), identifier: "constitution" });
+    const book: OpenEntity = { kind: "article", eventKind: 30040, bech32: naddr, uri: `nostr:${naddr}` };
+    expect(appLinksFor(book, MAC)).toContainEqual({
+      id: "alexandria",
+      label: "Alexandria",
+      href: `https://alexandria.gitcitadel.eu/publication/naddr/${naddr}`,
+      external: true,
+    });
+    const section: OpenEntity = { kind: "event", eventKind: 30041, bech32: nevent, uri: `nostr:${nevent}` };
+    expect(appLinksFor(section, MAC).find((l) => l.id === "alexandria")?.href).toBe(
+      `https://alexandria.gitcitadel.eu/publication/nevent/${nevent}`,
+    );
+    const shelf: OpenEntity = { kind: "article", eventKind: 30045, bech32: naddr, uri: `nostr:${naddr}` };
+    expect(appLinksFor(shelf, MAC).some((l) => l.id === "alexandria")).toBe(false);
+    expect(appLinksFor(profile, MAC).some((l) => l.id === "alexandria")).toBe(false);
+  });
+
   it("a note never offers Nostria, and Primal takes its event path", () => {
     const links = appLinksFor(note, MAC);
     expect(links.map((l) => l.id)).toEqual(["ditto", "primal"]);

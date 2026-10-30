@@ -5,6 +5,7 @@ import { fetchEventsByAuthors } from "@/services/nostr";
 import { CONTENT_RELAYS } from "@/lib/relays";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { type NostrEvent } from "applesauce-core/helpers";
+import { isBookIndex, publicationSections, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 
 /**
  * Long-form articles from the observer's EXTENDED network — people they don't
@@ -27,7 +28,8 @@ import { type NostrEvent } from "applesauce-core/helpers";
  * card's "Followed by N accounts you trust" line claims, so the two can't drift.
  */
 
-const ARTICLE_KIND = 30023;
+/** Long-form articles, and books (NKBIP-01 publications — the book, never its parts). */
+const ARTICLE_KINDS = [30023, PUBLICATION_INDEX_KIND];
 const DAY = 24 * 60 * 60;
 /** Primary recency window. Long-form is low-frequency, so this is generous. */
 const FRESH_WINDOW_DAYS = 90;
@@ -117,8 +119,12 @@ function substanceScore(e: NostrEvent): number {
   const title = (tagVal(e, "title") ?? "").trim();
 
   // Saturating length: 400 chars is the qualifying floor, ~6k reads as a full
-  // essay. Past that, more words are not more value.
-  const depth = Math.min(1, Math.max(0, (summary.length + body.length - 400) / 5600));
+  // essay. Past that, more words are not more value. A book's depth is its
+  // contents: a dozen sections is a full one.
+  const depth =
+    e.kind === PUBLICATION_INDEX_KIND
+      ? Math.min(1, publicationSections(e).length / 12)
+      : Math.min(1, Math.max(0, (summary.length + body.length - 400) / 5600));
   // A written summary is the clearest signal of an author who is publishing, not
   // dumping — it's optional, so nobody fills it in by accident.
   const hasSummary = summary.length >= 40 ? 1 : 0;
@@ -204,7 +210,7 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
     return { freshSince: now - FRESH_WINDOW_DAYS * DAY, widerSince: now - FALLBACK_WINDOW_DAYS * DAY };
   }, [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const articlesFilter = useMemo(
-    () => ({ kinds: [ARTICLE_KIND], authors: authorKeys, since: windows.widerSince }),
+    () => ({ kinds: ARTICLE_KINDS, authors: authorKeys, since: windows.widerSince }),
     [authorsKey, windows], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const articlesQuery = useStoreEvents(
@@ -221,7 +227,7 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
       // own authors — and the authors nobody indexed are actually reachable.
       const fresh = await fetchEventsByAuthors(
         authorKeys,
-        { kinds: [ARTICLE_KIND], since: windows.freshSince, limit: 200 },
+        { kinds: ARTICLE_KINDS, since: windows.freshSince, limit: 200 },
         { fallback: CONTENT_RELAYS },
       );
       if (fresh.length >= 8) return fresh;
@@ -229,7 +235,7 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
       // fresh tier keeps them below anything current.
       const wider = await fetchEventsByAuthors(
         authorKeys,
-        { kinds: [ARTICLE_KIND], since: windows.widerSince, limit: 200 },
+        { kinds: ARTICLE_KINDS, since: windows.widerSince, limit: 200 },
         { fallback: CONTENT_RELAYS },
       );
       return [...fresh, ...wider];
@@ -246,7 +252,14 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
     const newest = new Map<string, NostrEvent>();
     for (const e of events) {
       const title = tagVal(e, "title") ?? "";
-      if (!looksLikeArticle(title, tagVal(e, "summary") ?? "", e.content ?? "")) continue;
+      // A book has no text of its own: it qualifies by being a book (not one of
+      // its parts), with a title and something in it.
+      if (
+        e.kind === PUBLICATION_INDEX_KIND
+          ? !(isBookIndex(e) && title.trim() && publicationSections(e).length)
+          : !looksLikeArticle(title, tagVal(e, "summary") ?? "", e.content ?? "")
+      )
+        continue;
       const key = `${e.pubkey}:${tagVal(e, "d") ?? e.id}`;
       const prev = newest.get(key);
       if (!prev || (e.created_at ?? 0) > (prev.created_at ?? 0)) newest.set(key, e);

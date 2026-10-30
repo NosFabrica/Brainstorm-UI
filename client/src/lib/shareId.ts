@@ -115,10 +115,11 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
 }
 
 /** Addressable kinds that read on the article reader: long-form (NIP-23),
- *  wiki pages (NIP-54), specs (30817) and NKBIP-01 publications with their
- *  sections (30040, 30041; components/share/PublicationReader). Opened as a bare event they
+ *  wiki pages (NIP-54), specs (30817), NKBIP-01 publications with their
+ *  sections (30040, 30041; components/share/PublicationReader) and the
+ *  bookshelves that hold them (30045; BookshelfReader). Opened as a bare event they
  *  rendered as a note, markup and all. */
-export const READER_KINDS = new Set([30023, 30818, 30817, 30040, 30041]);
+export const READER_KINDS = new Set([30023, 30818, 30817, 30040, 30041, 30045]);
 
 /** Addressable kinds linked by address that keep their own page: NIP-52's
  *  calendar events and calendars (31922, 31923, 31924), which a calendar

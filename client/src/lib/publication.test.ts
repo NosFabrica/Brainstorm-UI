@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   entryFallbackTitle,
   humanizeIdentifier,
+  isBookIndex,
   publicationMeta,
   publicationSections,
   publicationTitle,
@@ -165,5 +166,22 @@ describe("sections", () => {
       content: "the [[the Farmer]] and [[Fox]]",
     });
     expect(md).toMatch(/^the \[the Farmer\]\(\/e\/naddr1[a-z0-9]+\) and \[Fox\]\(\/\?q=Fox&t=articles\)$/);
+  });
+});
+
+describe("isBookIndex", () => {
+  it("a book says what the work is; a part only lists its contents", () => {
+    expect(isBookIndex(index)).toBe(true);
+    expect(
+      isBookIndex({
+        kind: 30040,
+        tags: [
+          ["title", "Article 1"],
+          ["d", "a1"],
+          ["a", `30041:${PK}:s1`],
+        ],
+      }),
+    ).toBe(false);
+    expect(isBookIndex({ kind: 30041, tags: [["author", "x"]] })).toBe(false);
   });
 });

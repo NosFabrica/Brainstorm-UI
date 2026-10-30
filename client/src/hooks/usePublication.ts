@@ -9,9 +9,13 @@ import { fetchRefBatched } from "@/services/refBatch";
 import { coordKey, newerEvent, useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { eventStore } from "@/lib/eventStore";
 import {
+  BOOKSHELF_KIND,
   coordinateOf,
+  entryFallbackTitle,
   publicationSections,
+  publicationTitle,
   PUBLICATION_INDEX_KIND,
   sectionBookAddress,
   type SectionAddress,
@@ -147,7 +151,8 @@ export function usePrefetchedRefs(refs: SectionRef[], relays: string[] = []): Ma
 }
 
 /**
- * The index a section or a part belongs to. A section that names its book
+ * The index a section or a part belongs to — or, for a shelf, the shelf it
+ * sits on. A section that names its book
  * (`T`) is answered by address; any other is answered by who lists it: the
  * indexes whose contents name its coordinate, its own author's first.
  */
@@ -159,14 +164,16 @@ export function usePublicationParent(
   const namedList = useMemo(() => (named ? [named] : []), [named]);
   const held = useHeldReplaceables(namedList);
   const coordinate = ev ? coordinateOf(ev) : "";
+  // A shelf sits on shelves; a book's part or section, in a book.
+  const parentKind = ev?.kind === BOOKSHELF_KIND ? BOOKSHELF_KIND : PUBLICATION_INDEX_KIND;
   const listing = useMemo(
-    () => (ev && !named ? [{ kinds: [PUBLICATION_INDEX_KIND], "#a": [coordinate] }] : null),
-    [ev, named, coordinate],
+    () => (ev && !named ? [{ kinds: [parentKind], "#a": [coordinate] }] : null),
+    [ev, named, coordinate, parentKind],
   );
   const asked = useStoreEvents(ev ? `publication-parent:${coordinate}` : null, listing, () =>
     named
       ? fetchRefBatched({ addr: coordKey(named), relay: relays[0] })
-      : fetchIndexesListing(coordinate, ev!.pubkey, relays),
+      : fetchIndexesListing(coordinate, ev!.pubkey, relays, parentKind),
   );
 
   return useMemo(() => {
@@ -177,9 +184,50 @@ export function usePublicationParent(
     }
     // Only an index that still lists it: a newer version may have dropped it.
     const listing = asked.events.filter(
-      (e) => e.kind === PUBLICATION_INDEX_KIND && e.tags.some((t) => t[0] === "a" && t[1]?.trim() === coordinate),
+      (e) => e.kind === parentKind && e.tags.some((t) => t[0] === "a" && t[1]?.trim() === coordinate),
     );
     const own = listing.filter((e) => e.pubkey === ev.pubkey);
     return (own.length ? own : listing).sort((a, b) => b.created_at - a.created_at)[0];
-  }, [ev, named, held, asked.events, coordinate]);
+  }, [ev, named, held, asked.events, coordinate, parentKind]);
+}
+
+/** How many coordinates a book's comment thread asks about: a REQ's `#a` list, not a whole library. */
+const SCOPE_CAP = 300;
+
+/**
+ * A book's parts and sections, as coordinates with their names: where its
+ * comments are. Readers comment on the chapter they are reading, so a book's
+ * thread holds those too. Taken from the book's own contents and the parts it
+ * holds, once those have answered — a scope that grew per arriving part would
+ * be a REQ per part (CODING_STANDARDS: settled before dependents).
+ */
+export function useBookScope(
+  index: { id: string; kind: number; tags: string[][] } | null,
+  relays: string[] = [],
+): ReadonlyMap<string, string> | undefined {
+  const { entries, settled } = usePublicationEntries(index?.kind === PUBLICATION_INDEX_KIND ? index : null, relays);
+  return useMemo(() => {
+    if (!index || index.kind !== PUBLICATION_INDEX_KIND || !settled) return undefined;
+    const scope = new Map<string, string>();
+    const parentD = index.tags.find((t) => t[0] === "d")?.[1] ?? "";
+    const add = (ref: SectionRef, event: NostrEvent | undefined, parent: string) => {
+      if (!ref.address || scope.size >= SCOPE_CAP) return;
+      scope.set(
+        ref.key,
+        event ? publicationTitle(event) : (ref.title ?? entryFallbackTitle(ref.address.identifier, parent)),
+      );
+    };
+    for (const { ref, event } of entries) {
+      add(ref, event, parentD);
+      if (event?.kind !== PUBLICATION_INDEX_KIND) continue;
+      const partD = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
+      for (const inner of publicationSections(event)) {
+        const held = inner.address
+          ? eventStore.getReplaceable(inner.address.kind, inner.address.pubkey, inner.address.identifier)
+          : undefined;
+        add(inner, held, partD);
+      }
+    }
+    return scope;
+  }, [index, entries, settled]);
 }

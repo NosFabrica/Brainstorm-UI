@@ -80,7 +80,7 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   // 30817 = specs (NIPs on Nostr): Markdown, addressable, indexed by the
   // search relay — read like an article, labelled "Spec".
   // 30142 = learning resources (lesson plans, courses), read like an article.
-  articles: [30023, 30024, 30818, 30040, 30041, 30817, 30142],
+  articles: [30023, 30024, 30818, 30040, 30041, 30045, 30817, 30142],
   // Specs alone, as their own vertical under More — "NIPs" is the word people
   // search (Benjamin, 2026-09-23). They stay in Articles too, labelled.
   nips: [30817],

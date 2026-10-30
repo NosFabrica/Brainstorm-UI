@@ -11,7 +11,7 @@
  * articles here: people stay, and any author's page on the topic can answer,
  * not only the one that happened to be linked.
  */
-import { PUBLICATION_SECTION_KIND, sectionPlainText } from "@/lib/publication";
+import { publicationTitle, PUBLICATION_KINDS, PUBLICATION_SECTION_KIND, sectionPlainText } from "@/lib/publication";
 
 const ASCIIDOC_SIGNS = /^={1,5} \S|^image::|^\[NOTE\]|link:https?:\/\/|footnote:\[/m;
 const MARKDOWN_HEADING = /^#{1,6} \S/m;
@@ -104,6 +104,16 @@ function markdownWords(md: string): string {
     .replace(/(\*\*|__|[*_`~]|\\)/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * A long-form event's title, or "" without one. A publication, section or
+ * shelf often has none, and its slug reads well enough to name it.
+ */
+export function articleTitle(event: { kind: number; tags: string[][] }): string {
+  const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();
+  if (title) return title;
+  return PUBLICATION_KINDS.has(event.kind) ? publicationTitle(event) : "";
 }
 
 /**

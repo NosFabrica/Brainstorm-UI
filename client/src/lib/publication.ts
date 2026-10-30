@@ -12,6 +12,18 @@ import { asciiDocToMarkdown } from "@/lib/asciidoc";
 
 export const PUBLICATION_INDEX_KIND = 30040;
 export const PUBLICATION_SECTION_KIND = 30041;
+/**
+ * A bookshelf (Alexandria, Bookshelf): an addressable list whose `a` tags
+ * name publications and other shelves, in the same grammar as an index's
+ * contents. Alexandria keeps one called `root` that lists a reader's shelves.
+ */
+export const BOOKSHELF_KIND = 30045;
+/** The kinds of the publishing family, as one: a book, its sections, a shelf of books. */
+export const PUBLICATION_KINDS: ReadonlySet<number> = new Set([
+  PUBLICATION_INDEX_KIND,
+  PUBLICATION_SECTION_KIND,
+  BOOKSHELF_KIND,
+]);
 
 type EventLike = { kind: number; pubkey: string; tags: string[][]; content: string };
 
@@ -44,9 +56,51 @@ export function entryFallbackTitle(identifier: string, parentIdentifier?: string
   return humanizeIdentifier(d);
 }
 
-/** A display name: the `title` tag (required, and missing in the wild), else the `d` humanized. */
-export function publicationTitle(ev: { tags: string[][] }): string {
-  return tagValue(ev, "title") ?? humanizeIdentifier(tagValue(ev, "d") ?? "");
+/**
+ * A display name: the `title` tag (required, and missing in the wild), else
+ * the `d` humanized. A shelf's `root` is the reader's whole bookshelf.
+ */
+export function publicationTitle(ev: { kind?: number; tags: string[][] }): string {
+  const title = tagValue(ev, "title");
+  if (title) return title;
+  const d = tagValue(ev, "d") ?? "";
+  return ev.kind === BOOKSHELF_KIND && d === "root" ? "Bookshelf" : humanizeIdentifier(d);
+}
+
+/**
+ * A book's own index, not one of its parts. Both are kind 30040; a part
+ * (Alexandria's "Article 1") carries only a title and its contents, where
+ * the book says what the work is — its author, summary, cover, date or
+ * topics. Where a list of someone's writing should show their books, this
+ * keeps a book of 30 parts from filling it with 30 entries.
+ */
+export function isBookIndex(ev: { kind: number; tags: string[][] }): boolean {
+  if (ev.kind !== PUBLICATION_INDEX_KIND) return false;
+  return ev.tags.some(
+    (t) => ["author", "summary", "image", "published_on", "published_by", "t"].includes(t[0]) && !!t[1]?.trim(),
+  );
+}
+
+/** What a shelf holds, by kind: its books, and the shelves on it. */
+export function shelfCounts(ev: { tags: string[][] }): { books: number; shelves: number; other: number } {
+  let books = 0;
+  let shelves = 0;
+  let other = 0;
+  for (const ref of publicationSections(ev)) {
+    if (ref.address?.kind === PUBLICATION_INDEX_KIND) books++;
+    else if (ref.address?.kind === BOOKSHELF_KIND) shelves++;
+    else other++;
+  }
+  return { books, shelves, other };
+}
+
+/** "12 books · 2 shelves", or "" for an empty shelf. */
+export function shelfLine(ev: { tags: string[][] }): string {
+  const { books, shelves, other } = shelfCounts(ev);
+  const n = (count: number, one: string, many: string) => (count ? `${count} ${count === 1 ? one : many}` : "");
+  return [n(books, "book", "books"), n(shelves, "shelf", "shelves"), n(other, "item", "items")]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export interface PublicationMeta {

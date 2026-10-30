@@ -25,7 +25,7 @@ import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/sear
 import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
-import { articleBrief } from "@/lib/wiki";
+import { articleBrief, articleTitle } from "@/lib/wiki";
 import { Headline } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { SearchHit } from "@/services/search";
@@ -434,9 +434,11 @@ export function hasCover(e: NostrEvent): boolean {
 
 function articleShape(e: NostrEvent) {
   return {
-    title: tagVal(e, "title") ?? "Untitled",
+    title: articleTitle(e) || "Untitled",
     summary: articleBrief(e),
     image: tagVal(e, "image") ?? null,
+    // A book's cover is a portrait jacket: shown whole, not cropped to its middle.
+    fit: e.kind === 30040 ? "object-contain" : "object-cover",
   };
 }
 
@@ -534,7 +536,7 @@ export function ArticlesBento({
       >
         <ArticlePicture
           src={leadShape.image}
-          className="aspect-[16/9] w-full bg-slate-100 object-cover dark:bg-slate-800"
+          className={`aspect-[16/9] w-full bg-slate-100 dark:bg-slate-800 ${leadShape.fit}`}
           placeholderClass="aspect-[16/9] w-full"
         />
         <div className="flex min-w-0 flex-1 flex-col p-3.5 sm:p-4">
@@ -560,7 +562,7 @@ export function ArticlesBento({
           >
             <ArticlePicture
               src={shape.image}
-              className="aspect-[16/10] w-full bg-slate-100 object-cover dark:bg-slate-800"
+              className={`aspect-[16/10] w-full bg-slate-100 dark:bg-slate-800 ${shape.fit}`}
               placeholderClass="aspect-[16/10] w-full"
             />
             <div className="flex min-w-0 flex-1 flex-col p-2.5">

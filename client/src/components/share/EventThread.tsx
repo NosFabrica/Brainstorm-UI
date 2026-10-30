@@ -3,7 +3,7 @@ import type { Filter } from "applesauce-core/helpers/filter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { Link } from "wouter";
 import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-react";
-import { fetchEventsByFilter } from "@/services/nostr";
+import { fetchEventsByFilter, fetchFromSearchRelayByFilters } from "@/services/nostr";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchCommentsByAddress } from "@/services/search";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -54,17 +54,34 @@ const SIMPLE_TRUST_FILTERS = [
  * game-changer: a decentralized, user-owned discussion filter). House scores
  * come from one batched lookup; personal scores are still per-pubkey.
  */
+/** The name of the scoped coordinate a comment is on — its parent's (`a`) before its root's (`A`) — unless it is on the page's own. */
+function scopeOf(reply: MinimalEvent, scope: ReadonlyMap<string, string>, own?: string): string | null {
+  for (const name of ["a", "A"]) {
+    for (const t of reply.tags) {
+      if (t[0] !== name || !t[1]) continue;
+      if (t[1] === own) return null;
+      const label = scope.get(t[1]);
+      if (label) return label;
+    }
+  }
+  return null;
+}
+
 export function EventThread({
   eventId,
   addressCoord,
   authorNpub,
   relayHints,
   onGateChange,
+  scope,
 }: {
   eventId: string;
   /** For addressable roots (e.g. NIP-23 articles): the `kind:pubkey:dtag`
       coordinate, so NIP-22 comments tagging `#A`/`#a` are fetched too. */
   addressCoord?: string;
+  /** More coordinates whose comments belong in this thread — a book's
+      sections and parts — each with the name it is shown under ("on Section 3"). */
+  scope?: ReadonlyMap<string, string>;
   authorNpub: string;
   relayHints: string[];
   /** Reports whether the anon signup gate is showing, so the page can hide its
@@ -99,6 +116,16 @@ export function EventThread({
   const [confirmCalc, setConfirmCalc] = useState(false);
 
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
+  // The scope as a value: a new Map with the same coordinates is the same ask.
+  const scopeKey = scope ? [...scope.keys()].sort().join("\n") : "";
+  const scopeFilters = useMemo((): Filter[] => {
+    if (!scopeKey) return [];
+    const coords = scopeKey.split("\n");
+    return [
+      { "#A": coords, kinds: NIP22_KINDS, limit: 150 },
+      { "#a": coords, kinds: NIP22_KINDS, limit: 150 },
+    ];
+  }, [scopeKey]);
 
   // kind-1 = NIP-10 replies (notes); kind-1111 = NIP-22 comments (pictures,
   // videos, articles, …); kind-1244 = voice replies (NIP-A0), which thread by
@@ -114,20 +141,24 @@ export function EventThread({
       filters.push({ "#A": [addressCoord], kinds: NIP22_KINDS, limit: 150 });
       filters.push({ "#a": [addressCoord], kinds: NIP22_KINDS, limit: 150 });
     }
-    return filters;
-  }, [eventId, addressCoord]);
+    return [...filters, ...scopeFilters];
+  }, [eventId, addressCoord, scopeFilters]);
   const repliesQuery = useStoreEvents(
-    eventId ? `thread-replies:${eventId}:${addressCoord ?? ""}` : null,
+    eventId ? `thread-replies:${eventId}:${addressCoord ?? ""}:${scopeKey}` : null,
     eventId ? replyFilters : null,
     // The profile relays AND the search relay: marketplace apps publish
     // comments to their own relays, which the search relay indexes and the
     // profile relays never see. One conversation, deduped by id.
     async () => {
-      const [results, indexed] = await Promise.all([
+      const [results, indexed, indexedScope] = await Promise.all([
         Promise.all(replyFilters.map((f) => fetchEventsByFilter(f as Record<string, unknown>, relays, 7000))),
         fetchCommentsByAddress(addressCoord ?? null, eventId).catch(() => [] as MinimalEvent[]),
+        // A book's chapters' comments: the search relay holds most of them.
+        scopeFilters.length
+          ? fetchFromSearchRelayByFilters(scopeFilters as Record<string, unknown>[], 7000).catch(() => [])
+          : [],
       ]);
-      return [...results.flat(), ...indexed];
+      return [...results.flat(), ...indexed, ...indexedScope];
     },
     { minMs: 60_000 },
   );
@@ -303,16 +334,26 @@ export function EventThread({
       )}
 
       <div className="space-y-2">
-        {shown.map((reply) => (
-          <EmbeddedNoteCard
-            key={reply.id}
-            event={reply}
-            author={profiles.get(reply.pubkey)}
-            profiles={profiles}
-            href={eventPath(reply, relayHints)}
-            trustScore01={scoreFor(reply.pubkey)}
-          />
-        ))}
+        {shown.map((reply) => {
+          // A comment left on one of the scope's parts says which.
+          const on = scope ? scopeOf(reply, scope, addressCoord) : null;
+          return (
+            <div key={reply.id}>
+              {on && (
+                <p className="mb-1 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-comment-on">
+                  on <span className="font-semibold text-slate-700 dark:text-slate-200">{on}</span>
+                </p>
+              )}
+              <EmbeddedNoteCard
+                event={reply}
+                author={profiles.get(reply.pubkey)}
+                profiles={profiles}
+                href={eventPath(reply, relayHints)}
+                trustScore01={scoreFor(reply.pubkey)}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {!loggedIn && gatedCount > 0 && (

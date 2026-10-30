@@ -157,6 +157,7 @@ import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { PUBLICATION_KINDS } from "@/lib/publication";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -215,10 +216,16 @@ const THING_TAB_DETAIL: Partial<Record<SearchTab, ThingDetail["type"]>> = {
 };
 
 /** What kind of article a hit is — the Articles tab's type chips narrow by this. */
-type ArticleType = "article" | "spec" | "wiki";
-const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = { article: "Articles", spec: "Specs", wiki: "Wiki" };
+type ArticleType = "article" | "spec" | "wiki" | "publication";
+const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = {
+  article: "Articles",
+  spec: "Specs",
+  wiki: "Wiki",
+  publication: "Publications",
+};
 function articleTypeOf(kind: number): ArticleType {
-  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : "article";
+  // A book, its chapters and the shelves that hold them read as one kind of thing.
+  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : PUBLICATION_KINDS.has(kind) ? "publication" : "article";
 }
 
 /**
@@ -1829,7 +1836,7 @@ export function SearchResults({
   const articleFacets = useMemo<ArticleType[]>(() => {
     if (tab !== "articles") return [];
     const present = new Set(hits.map((h) => articleTypeOf(h.event.kind)));
-    const types = (["article", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
+    const types = (["article", "publication", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
     return types.length > 1 ? types : [];
   }, [tab, hits]);
   // The recipes' own topics — chicken, soup — counted. zap.cooking's

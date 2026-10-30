@@ -53,7 +53,16 @@ import {
   PublicationTrail,
   type RenderBody,
 } from "@/components/share/PublicationReader";
-import { publicationTitle, PUBLICATION_INDEX_KIND, PUBLICATION_SECTION_KIND, sectionMarkdown } from "@/lib/publication";
+import {
+  BOOKSHELF_KIND,
+  publicationTitle,
+  PUBLICATION_INDEX_KIND,
+  PUBLICATION_SECTION_KIND,
+  sectionMarkdown,
+  shelfLine,
+} from "@/lib/publication";
+import { BookshelfContents, BookshelfHeader } from "@/components/share/BookshelfReader";
+import { useBookScope } from "@/hooks/usePublication";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -375,7 +384,11 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   // NKBIP-01: an index reads as a book, a section as one of its chapters (PublicationReader).
   const isIndex = ev.kind === PUBLICATION_INDEX_KIND;
   const isSection = ev.kind === PUBLICATION_SECTION_KIND;
-  const isPublication = isIndex || isSection;
+  // A shelf of books: covers, not text (BookshelfReader).
+  const isShelf = ev.kind === BOOKSHELF_KIND;
+  const isPublication = isIndex || isSection || isShelf;
+  // Comments on a book are mostly on its chapters; its thread shows those too.
+  const bookScope = useBookScope(isIndex ? ev : null, ptr?.relays);
   const title = isPublication ? publicationTitle(ev) || "Untitled" : tag("title") || "Untitled article";
   // The page shows the title above the byline; a spec's `# Title` and its
   // `draft` `optional` status line leave the body and read as themselves.
@@ -388,7 +401,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           ? wikiToMarkdown(ev.content || "")
           : ev.kind === PUBLICATION_SECTION_KIND
             ? sectionMarkdown(ev)
-            : ev.kind === PUBLICATION_INDEX_KIND
+            : ev.kind === PUBLICATION_INDEX_KIND || ev.kind === BOOKSHELF_KIND
               ? ""
               : ev.content || ""
         : "",
@@ -474,9 +487,11 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             summary ||
             (isIndex
               ? `A publication by ${tag("author") || authorName}.`
-              : isSection
-                ? `A section of a publication by ${authorName}.`
-                : `A long-form article by ${authorName}.`),
+              : isShelf
+                ? `${authorName}'s bookshelf${shelfLine(ev) ? `: ${shelfLine(ev)}` : ""}.`
+                : isSection
+                  ? `A section of a publication by ${authorName}.`
+                  : `A long-form article by ${authorName}.`),
           image,
           url: publicPageUrl(),
         }
@@ -487,7 +502,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     <ArticleShell title={`${title} — Brainstorm`} mint={mintShortUrl}>
       <ShareNavProvider>
         <article>
-          {/* The book a section or a part belongs to. */}
+          {/* The book a section or a part belongs to; the shelf a shelf sits on. */}
           {isPublication && (
             <div className="mb-4">
               <PublicationTrail ev={ev} relays={ptr?.relays} />
@@ -495,6 +510,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           )}
           {isIndex ? (
             <PublicationHeader ev={ev} />
+          ) : isShelf ? (
+            <BookshelfHeader ev={ev} />
           ) : (
             <>
               {image && (
@@ -674,6 +691,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           {isIndex ? (
             // A book: its contents, then every chapter in order.
             <PublicationContents index={ev} relays={ptr?.relays} renderBody={renderPublicationBody} />
+          ) : isShelf ? (
+            <BookshelfContents shelf={ev} relays={ptr?.relays} />
           ) : (
             <div
               className="article-prose prose prose-slate mt-6 max-w-none dark:prose-invert prose-headings:font-bold prose-a:text-brand-link prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-img:rounded-xl"
@@ -683,7 +702,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             </div>
           )}
           {/* A chapter's or a part's neighbours, in the book's order. */}
-          {isPublication && <PublicationPager ev={ev} relays={ptr?.relays} />}
+          {(isIndex || isSection) && <PublicationPager ev={ev} relays={ptr?.relays} />}
 
           {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}
           {ev && (
@@ -693,6 +712,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
               authorNpub={authorNpub}
               relayHints={ptr?.relays ?? []}
               onGateChange={setThreadGated}
+              scope={bookScope}
             />
           )}
 

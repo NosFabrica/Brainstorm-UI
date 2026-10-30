@@ -7,7 +7,7 @@
  * on the topic can answer, not just one.
  */
 import { describe, expect, it } from "vitest";
-import { articleBrief, articleSummary, wikiPlainText, wikiToMarkdown } from "./wiki";
+import { articleBrief, articleSummary, articleTitle, wikiPlainText, wikiToMarkdown } from "./wiki";
 
 describe("wikiToMarkdown", () => {
   it("a labelled wikilink reads as its label and searches the topic's articles here", () => {
@@ -111,5 +111,14 @@ describe("articleBrief — a publisher's placeholder is no summary", () => {
     expect(articleBrief(article("A day at the orphanage."))).toBe("A day at the orphanage.");
     expect(articleSummary(article("No description available"))).toBe("");
     expect(articleSummary(article("A day at the orphanage."))).toBe("A day at the orphanage.");
+  });
+});
+
+describe("articleTitle", () => {
+  it("is the title tag, else a publication's slug, else nothing", () => {
+    expect(articleTitle({ kind: 30023, tags: [["title", "Zaps"]] })).toBe("Zaps");
+    expect(articleTitle({ kind: 30041, tags: [["d", "article-iv-section-3"]] })).toBe("Article Iv Section 3");
+    expect(articleTitle({ kind: 30045, tags: [["d", "root"]] })).toBe("Bookshelf");
+    expect(articleTitle({ kind: 30023, tags: [["d", "zaps"]] })).toBe("");
   });
 });

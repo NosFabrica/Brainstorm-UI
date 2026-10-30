@@ -80,7 +80,10 @@ const bigParts = Array.from({ length: 13 }, (_, i) =>
   ev(100 + i, 30040, `big-part-${i}`, [["title", `Part ${i + 1}`], a(30041, `big-part-${i}-s`)]),
 );
 const bigBook = ev(99, 30040, "big", [["title", "A long book"], ...bigParts.map((p) => a(30040, p.tags[0][1]))]);
-const ALL = [root, constitution, preamble, article4, section3, bigBook, ...bigParts];
+// Alexandria's shelves: `root` holds a reader's shelves, a shelf holds books.
+const shelf = ev(200, 30045, "my-book-collection", [["title", "My Book Collection"], a(30040, BOOK), a(30040, "big")]);
+const rootShelf = ev(201, 30045, "root", [a(30045, "my-book-collection"), a(30045, "gone-shelf")]);
+const ALL = [root, constitution, preamble, article4, section3, bigBook, ...bigParts, shelf, rootShelf];
 /** Every `d` the relays were asked for. */
 const asked: string[] = [];
 const coord = (e: Ev) => `${e.kind}:${e.pubkey}:${e.tags[0][1]}`;
@@ -207,5 +210,33 @@ describe("a long publication", () => {
     fireEvent.click(toggles[0]);
     await waitFor(() => expect(asked).toContain("big-part-0-s"));
     expect(asked).not.toContain("big-part-1-s");
+  });
+});
+
+describe("a bookshelf", () => {
+  it("shows its shelves, then its books as covers with their authors", async () => {
+    open(rootShelf);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bookshelf");
+    expect(screen.getByTestId("bookshelf-facts")).toHaveTextContent("2 shelves");
+    const shelves = await screen.findAllByTestId("bookshelf-shelf");
+    await waitFor(() => expect(shelves[0]).toHaveTextContent("My Book Collection2 books"));
+    // A shelf the relays do not have says so, under the name its slug gives it.
+    await waitFor(() => expect(screen.getAllByTestId("bookshelf-shelf")[1]).toHaveTextContent("Gone ShelfNot found"));
+  });
+
+  it("a shelf of books: each a cover, its title and author, opening the book", async () => {
+    open(shelf);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("My Book Collection");
+    await waitFor(() => expect(screen.getAllByTestId("bookshelf-book")).toHaveLength(2));
+    const [first, second] = screen.getAllByTestId("bookshelf-book");
+    await waitFor(() => expect(first).toHaveTextContent("The United States Constitution and The Bill of Rights"));
+    expect(first).toHaveTextContent("United States");
+    expect(first.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://www.gutenberg.org/cache/epub/5/pg5.cover.medium.jpg",
+    );
+    expect(first.querySelector("a")?.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+    // No cover: the title on a plain jacket.
+    expect(second).toHaveTextContent("A long book");
   });
 });
