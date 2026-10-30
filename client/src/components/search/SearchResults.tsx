@@ -13,7 +13,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal, Tag as TagIcon } from "lucide-react";
 import {
   BROWSE_UNAVAILABLE_SORTS,
   activeFilterCount,
@@ -96,8 +96,12 @@ import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
-import { belongsTo, categoryTestId, pagedWords, type Category } from "@/lib/allCategories";
+import { belongsTo, categoryTestId, NOTES_KEY, pagedWords, PEOPLE_KEY, type Category } from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
+import { useResultTags } from "@/hooks/useResultTags";
+import { useNamedTags } from "@/hooks/useNamedTags";
+import { TagTabResults } from "@/components/search/TagTabResults";
+import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
@@ -282,6 +286,11 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 ];
 /** On All, how many of its categories stand in the row before More. */
 const CATEGORIES_IN_ROW = 4;
+/** On All, how many of the results' tags show as filters before "more tags". */
+const TAG_FILTERS_SHOWN = 6;
+/** A tag's tab in All's row, by key: `tag:<author>:<slug>`, as the link holds it. */
+const TAG_TAB = "tag:";
+const tagTabKeyOf = (tag: NamedTag) => `${TAG_TAB}${tag.authorPubkey}:${tag.slug}`;
 /**
  * Behind More, grouped by what a person is doing — consumer things first,
  * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
@@ -668,13 +677,34 @@ function writeListToUrl(coordinate: string | null) {
   }
 }
 
-/** A searched map area (`area`) is the Places page's, and a pressed list All's: another page or tab leaves them out of the link. */
+/** The tag narrowing All's results (`tagged`), by its `<author>|<slug>` key: kept in the link like a list. */
+function urlTagged(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("tagged");
+  } catch {
+    return null;
+  }
+}
+
+function writeTaggedToUrl(key: string | null) {
+  try {
+    const url = new URL(window.location.href);
+    if (key) url.searchParams.set("tagged", key);
+    else url.searchParams.delete("tagged");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
+/** A searched map area (`area`) is the Places page's, and a pressed list or tag All's: another page or tab leaves them out of the link. */
 function writeKindToUrl(key: string) {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("t", key);
     url.searchParams.delete("area");
     url.searchParams.delete("list");
+    url.searchParams.delete("tagged");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -688,6 +718,7 @@ function writeTabToUrl(tab: SearchTab) {
     else url.searchParams.set("t", tab);
     url.searchParams.delete("area");
     url.searchParams.delete("list");
+    url.searchParams.delete("tagged");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -1547,6 +1578,46 @@ export function SearchResults({
     lists: ribbon.lists,
     ready: ribbon.settled && (!!snapshot?.eose || !!snapshot?.error),
   });
+  // The tags the results carry, as filters over them: a pressed one keeps the rows carrying it.
+  // Only the loaded rows' (hooks/useResultTags). The link holds it (`tagged`), for the words it
+  // was pressed on, as it holds a category; a category pressed keeps it.
+  const resultTags = useResultTags(hits, {
+    observer: pov === "mywot" && userPubkey ? userPubkey : "house",
+    enabled: onAll,
+  });
+  const [tagPressed, setTagPressed] = useState<{ query: string; key: string } | null>(() => {
+    const key = urlTagged();
+    return key ? { query: effectiveQuery, key } : null;
+  });
+  useEffect(() => {
+    setTagPressed((pressed) => {
+      if (pressed?.query === effectiveQuery) return pressed;
+      const key = urlTagged();
+      return key ? { query: effectiveQuery, key } : null;
+    });
+  }, [effectiveQuery]);
+  const pressTag = useCallback(
+    (key: string | null) => {
+      setTagPressed(key ? { query: effectiveQuery, key } : null);
+      writeTaggedToUrl(key);
+    },
+    [effectiveQuery],
+  );
+  const tagFilter = onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
+  const [allTagsShown, setAllTagsShown] = useState(false);
+  useEffect(() => setAllTagsShown(false), [effectiveQuery]);
+  const tagFilters = useMemo(() => {
+    const { tags } = resultTags;
+    const shown = allTagsShown ? tags : tags.slice(0, TAG_FILTERS_SHOWN);
+    // The pressed one stays in sight, wherever the order puts it.
+    const pressed = tags.find((t) => t.key === tagFilter);
+    return {
+      shown: pressed && !shown.includes(pressed) ? [...shown, pressed] : shown,
+      more: allTagsShown
+        ? 0
+        : Math.max(0, tags.length - TAG_FILTERS_SHOWN - (pressed && !shown.includes(pressed) ? 1 : 0)),
+    };
+  }, [resultTags, allTagsShown, tagFilter]);
   const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
   const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
   useEffect(() => {
@@ -1561,17 +1632,27 @@ export function SearchResults({
   // The tab strip fades at an edge it scrolls past.
   const [tabStripRef, tabStripEdges] = useScrollEdges();
   // The row: the first few, the rest behind More — and the pressed one, counted or not yet.
+  // The tags the words name outright, each a tab of its own holding everything that carries it
+  // (services/namedTags): after Notes and People, before the lists. The row waits for them too,
+  // so it still lands whole. The link holds a pressed one as it holds a category (`list`).
+  const namedTags = useNamedTags(scopeOf(query) ? "" : query, { pov, userPubkey, enabled: onAll });
+  const tagTabKey = categoryAsked?.startsWith(TAG_TAB) ? categoryAsked : null;
+  const tagTab = tagTabKey ? (namedTags.tags.find((t) => tagTabKeyOf(t) === tagTabKey) ?? null) : null;
+  const rowLoading = categories.loading || !namedTags.settled;
   const rowCategories = useMemo(() => {
-    const all =
-      pressedCategory && !categories.shown.some((c) => c.key === pressedCategory.key)
-        ? [...categories.shown, pressedCategory]
-        : categories.shown;
+    const tabs: Category[] = namedTags.tags.map((t) => ({ key: tagTabKeyOf(t), name: t.name, kinds: [] }));
+    const lead = categories.shown.findIndex((c) => c.key !== NOTES_KEY && c.key !== PEOPLE_KEY);
+    const at = lead < 0 ? categories.shown.length : lead;
+    const found = rowLoading ? [] : [...categories.shown.slice(0, at), ...tabs, ...categories.shown.slice(at)];
+    const pressed = pressedCategory ?? tabs.find((t) => t.key === tagTabKey) ?? null;
+    const all = pressed && !found.some((c) => c.key === pressed.key) ? [...found, pressed] : found;
     return { inRow: all.slice(0, CATEGORIES_IN_ROW), behindMore: all.slice(CATEGORIES_IN_ROW) };
-  }, [categories.shown, pressedCategory]);
+  }, [categories.shown, namedTags.tags, rowLoading, pressedCategory, tagTabKey]);
   // A category the link names waits to be found — in All's first page, or the lists' answer —
-  // rather than showing all of All first; one that isn't found lets All show.
-  const categoryWaiting =
-    !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
+  // rather than showing all of All first; one that isn't found lets All show. So does a tag's.
+  const categoryWaiting = tagTabKey
+    ? !tagTab && !namedTags.settled
+    : !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
   // What the floor held back, said once and quietly — Google's "some results
   // were removed" — with the one tap that lifts it. Rendered under the list,
@@ -2019,6 +2100,8 @@ export function SearchResults({
       ];
     // A kind of All's keeps the rows it names: a Recipe is an article's kind, and so are Articles.
     if (category) shown = shown.filter((h) => belongsTo(category, h));
+    // A pressed tag keeps the rows known to carry it; one whose tags are still coming joins once they are.
+    if (tagFilter) shown = shown.filter((h) => resultTags.byHit.get(h.event.id)?.has(tagFilter));
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
@@ -2238,6 +2321,8 @@ export function SearchResults({
     effectiveShelf,
     proven,
     category,
+    tagFilter,
+    resultTags.byHit,
   ]);
 
   // The Events tab is a timeline: the first card of each day carries a header
@@ -2283,7 +2368,8 @@ export function SearchResults({
   }, [displayHits, tab, effectiveWhen]);
 
   // A chip or a Filters control has narrowed the page.
-  const narrowed =
+  // Narrowed by something besides a pressed tag, which says its own count.
+  const narrowedBesidesTag =
     activeFilters > 0 ||
     !!shopCategory ||
     !!shopPrice ||
@@ -2296,6 +2382,11 @@ export function SearchResults({
     !!repoLabel ||
     (tab === "events" && eventWhen !== "upcoming") ||
     (tab === "live" && liveShelf !== null);
+  const narrowed = narrowedBesidesTag || !!tagFilter;
+  const tagName =
+    resultTags.tags.find((t) => t.key === tagFilter)?.name ?? tagFilter?.slice(tagFilter.indexOf("|") + 1) ?? "";
+  // A tag the link names waits for the rows' tags rather than saying nothing carries it.
+  const tagWaiting = !!tagFilter && !resultTags.settled && displayHits.length === 0;
   const totalCount = rawHits.length + extraCount;
   const displayedCount = displayHits.length + extraCount;
 
@@ -2374,7 +2465,7 @@ export function SearchResults({
                   </button>
                 ))}
               {/* Until the categories are counted, the row says they are coming — then they land at once. */}
-              {onAll && categories.loading && (
+              {onAll && rowLoading && (
                 <span
                   className="flex shrink-0 items-center gap-2 px-2"
                   aria-label="Finding categories"
@@ -2535,6 +2626,36 @@ export function SearchResults({
                   })}
                 </FacetRow>
               )}
+              {/* The tags the results carry, most carried first: each a filter over them. */}
+              {onAll &&
+                !tagTabKey &&
+                serverStatus.search !== "down" &&
+                (tagFilters.shown.length > 0 || !!tagFilter) && (
+                  <FacetRow className="mb-2" testId="tag-facets">
+                    <TagIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                    {tagFilters.shown.map((t) => (
+                      <FacetChip
+                        key={t.key}
+                        pressed={tagFilter === t.key}
+                        onClick={() => pressTag(tagFilter === t.key ? null : t.key)}
+                        testId={`tag-facet-${t.slug}`}
+                      >
+                        {t.name}
+                      </FacetChip>
+                    ))}
+                    {/* A tag the link names that no loaded row carries: still pressed, so it can be let go. */}
+                    {tagFilter && resultTags.settled && !tagFilters.shown.some((t) => t.key === tagFilter) && (
+                      <FacetChip pressed onClick={() => pressTag(null)} testId="tag-facet-pressed">
+                        {tagFilter.slice(tagFilter.indexOf("|") + 1)}
+                      </FacetChip>
+                    )}
+                    {tagFilters.more > 0 && (
+                      <FacetChip pressed={false} onClick={() => setAllTagsShown(true)} testId="tag-facets-more">
+                        +{tagFilters.more} more
+                      </FacetChip>
+                    )}
+                  </FacetRow>
+                )}
               {activeKind ? (
                 <activeKind.Page query={query} onTabChange={changeTab} />
               ) : serverStatus.search === "down" ? (
@@ -2556,6 +2677,9 @@ export function SearchResults({
                   onOpenProfile={openProfile}
                   onQueryRewrite={onQueryRewrite}
                 />
+              ) : tagTab ? (
+                // A tag's tab holds what carries it, not a search of the words.
+                <TagTabResults tag={tagTab} scoreOf={scoreOf} query={query} />
               ) : snapshot?.error ? (
                 <div
                   className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
@@ -2563,7 +2687,7 @@ export function SearchResults({
                 >
                   {snapshot.error}
                 </div>
-              ) : searching || categoryWaiting ? (
+              ) : searching || categoryWaiting || tagWaiting ? (
                 <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div
@@ -2983,7 +3107,11 @@ export function SearchResults({
                   {narrowed && totalCount > 0 && (
                     <div className="mb-2 px-1 sm:mb-3">
                       <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                        {displayedCount} of {totalCount} match
+                        {/* A pressed tag says what it found, not "of" the rows loaded so far: those are a
+                        page of the search, not what the words match. */}
+                        {tagFilter && !narrowedBesidesTag
+                          ? `${displayedCount} ${displayedCount === 1 ? "result" : "results"} tagged ${tagName}${snapshot?.exhausted ? "" : " so far"}`
+                          : `${displayedCount} of ${totalCount} match`}
                       </p>
                     </div>
                   )}
