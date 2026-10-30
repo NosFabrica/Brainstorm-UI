@@ -5419,6 +5419,20 @@ describe("All's categories", () => {
         .getAllByRole("menuitem")
         .map((m) => m.textContent),
     ).toEqual(["Photos", "Wikis"]);
+    // Under Top's More headings: a photo is Media, a wiki is read.
+    expect(
+      within(screen.getByRole("menu"))
+        .getAllByRole("group")
+        .map((g) => [
+          g.getAttribute("aria-label"),
+          within(g)
+            .getAllByRole("menuitem")
+            .map((m) => m.textContent),
+        ]),
+    ).toEqual([
+      ["Media", ["Photos"]],
+      ["Read & listen", ["Wikis"]],
+    ]);
   });
 
   it("each is counted as its own page asks it: a kind by its kinds, a list by the headers its items are filed under", async () => {

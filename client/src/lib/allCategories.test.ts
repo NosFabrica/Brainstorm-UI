@@ -8,6 +8,7 @@ import {
   belongsTo,
   byResults,
   categoryTestId,
+  groupCategories,
   isKindKey,
   kindCategories,
   kindsLabelled,
@@ -16,6 +17,7 @@ import {
   pluralLabel,
   rowOrder,
   standingCategories,
+  tabOf,
 } from "./allCategories";
 
 let seq = 0;
@@ -148,6 +150,62 @@ describe("rowOrder", () => {
       "Videos",
       "Books",
       "People",
+    ]);
+  });
+});
+
+describe("tabOf", () => {
+  const standing = (key: string) => standingCategories().find((c) => c.key === key)!;
+  it("is the tab asking most of a kind's kinds, the narrowest on a tie, never one narrowed by tag", () => {
+    expect(tabOf(standing("kind:Video"))).toBe("media");
+    expect(tabOf(standing("kind:Article"))).toBe("articles");
+    expect(tabOf(standing("kind:Spec"))).toBe("nips");
+    expect(tabOf(standing("kind:Recipe"))).toBe("recipes");
+    expect(tabOf(standing("kind:Event"))).toBe("events");
+  });
+  it("is none for a list, or a kind no tab asks for", () => {
+    expect(tabOf(listCategory({ coordinate: BOOKS, name: "Books", headers: [BOOKS] }))).toBeNull();
+    expect(tabOf(kindCategories([hit(7)])[0])).toBeNull();
+  });
+});
+
+describe("groupCategories", () => {
+  const GROUPS = [
+    { title: "Notes & people", tabs: ["notes", "people"] as const },
+    { title: "Media", tabs: ["media"] as const },
+    { title: "Read & listen", tabs: ["articles", "music", "recipes"] as const },
+    { title: "Out & about", tabs: ["events", "live"] as const },
+    { title: "Build", tabs: ["repos", "nips"] as const },
+  ].map((g) => ({ ...g, tabs: [...g.tabs] }));
+  const PLACES = `39998:${"c".repeat(64)}:food-and-drink-places`;
+  const by = (key: string) => standingCategories().find((c) => c.key === key)!;
+  const list = (coordinate: string, name: string) => listCategory({ coordinate, name, headers: [coordinate] });
+
+  it("puts each kind under its tab's heading, in the headings' order, keeping the order each came in", () => {
+    const [reaction] = kindCategories([hit(7)]);
+    const groups = groupCategories(
+      [by("kind:Repo"), by("kind:Video"), reaction, by("kind:Article"), by("kind:Spec"), by("kind:Photo")],
+      GROUPS,
+    );
+    expect(groups.map((g) => [g.title, g.categories.map((c) => c.name)])).toEqual([
+      ["Media", ["Videos", "Photos"]],
+      ["Read & listen", ["Articles"]],
+      ["Build", ["Repos", "Specs"]],
+      ["Other", ["Reactions"]],
+    ]);
+  });
+
+  it("puts a list under its kind's page's heading, the rest under the Dictionary's, after the first heading", () => {
+    const groups = groupCategories(
+      [list(PLACES, "Food and Drink Places"), by("kind:Event"), list(BOOKS, "Books"), by("kind:Comment")],
+      GROUPS,
+      new Map([[BOOKS, "Read & listen"]]),
+    );
+    expect(groups.map((g) => [g.title, g.categories.map((c) => c.name)])).toEqual([
+      ["Notes & people", ["Comments"]],
+      ["Dictionary", ["Food and Drink Places"]],
+      ["Read & listen", ["Books"]],
+      ["Out & about", ["Events"]],
     ]);
   });
 });
