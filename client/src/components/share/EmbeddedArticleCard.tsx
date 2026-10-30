@@ -8,6 +8,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
+import { publicationTitle, PUBLICATION_INDEX_KIND, PUBLICATION_SECTION_KIND } from "@/lib/publication";
 import articleDefault from "@/assets/article-default.webp";
 import specCover from "@/assets/nostr-implementation-decentralized-network-specs-cover.webp";
 import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
@@ -119,7 +120,11 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
-  const title = tagVal(event, "title") || "Untitled article";
+  // A publication's or a section's title is often missing; its `d` is a readable slug.
+  const title =
+    tagVal(event, "title") ||
+    (event.kind === PUBLICATION_INDEX_KIND || event.kind === PUBLICATION_SECTION_KIND ? publicationTitle(event) : "") ||
+    "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
   const isWiki = event.kind === 30818;
   // A spec (kind 30817) says which event kinds it covers in `k` tags.

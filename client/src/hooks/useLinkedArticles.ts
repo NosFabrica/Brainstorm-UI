@@ -16,8 +16,8 @@ import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { mergeNewest } from "@/hooks/useNoteRefs";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 
-/** Articles, wiki pages and specs — what `EmbeddedArticleCard` renders. */
-export const READER_KINDS: ReadonlySet<number> = new Set([30023, 30818, 30817]);
+/** Articles, wiki pages, specs and publications — what `EmbeddedArticleCard` renders. */
+export const READER_KINDS: ReadonlySet<number> = new Set([30023, 30818, 30817, 30040, 30041]);
 
 export function linkedArticleRefs(event: MinimalEvent): AddressRef[] {
   const seen = new Set<string>();

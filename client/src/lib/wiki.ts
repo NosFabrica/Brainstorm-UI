@@ -11,6 +11,7 @@
  * articles here: people stay, and any author's page on the topic can answer,
  * not only the one that happened to be linked.
  */
+import { PUBLICATION_SECTION_KIND, sectionPlainText } from "@/lib/publication";
 
 const ASCIIDOC_SIGNS = /^={1,5} \S|^image::|^\[NOTE\]|link:https?:\/\/|footnote:\[/m;
 const MARKDOWN_HEADING = /^#{1,6} \S/m;
@@ -113,7 +114,12 @@ function markdownWords(md: string): string {
 export function articleBrief(event: { kind: number; content: string; tags: string[][] }, max = 220): string {
   const summary = articleSummary(event);
   if (summary) return summary;
-  let words = event.kind === 30818 ? wikiPlainText(event.content) : markdownWords(event.content);
+  let words =
+    event.kind === 30818
+      ? wikiPlainText(event.content)
+      : event.kind === PUBLICATION_SECTION_KIND
+        ? sectionPlainText(event)
+        : markdownWords(event.content);
   // A body that opens with its own title goes on from there; one that is
   // only the title has nothing to add under it.
   const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();

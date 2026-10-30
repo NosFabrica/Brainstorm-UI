@@ -872,6 +872,23 @@ export async function fetchCollectionProducts(
   return newestPerAddress(answers.flat());
 }
 
+/**
+ * The NKBIP-01 publication indexes (kind 30040) that list `coordinate` among
+ * their contents: a section's book, or a part's. Most sections name no book
+ * of their own, so their book is whoever lists them. Asked of the search
+ * relay and the author's own relays together; never rejects.
+ */
+export async function fetchIndexesListing(coordinate: string, pubkey: string, timeoutMs = 6000): Promise<NostrEvent[]> {
+  const filter = { kinds: [30040], "#a": [coordinate], limit: 20 };
+  const searched = fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]);
+  const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
+  const answers = await Promise.all([
+    searched,
+    fetchEventsByFilter(filter, relays, timeoutMs).catch(() => [] as NostrEvent[]),
+  ]);
+  return newestPerAddress(answers.flat());
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
 export function fetchFromSearchRelayByFilters(

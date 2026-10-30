@@ -181,10 +181,15 @@ function addressKind(bech32: string): number | null {
 
 const SHARED_KINDS: ReadonlySet<number> = new Set([38000]);
 
+/** Addresses read as "📄 article", whose link is ours. Publications and their
+ *  sections read on the article reader too, but keep their own name and the
+ *  author's link: an unfound one is a publication, not an article. */
+const ARTICLE_LINK_KINDS = new Set([...READER_KINDS].filter((k) => k !== 30040 && k !== 30041));
+
 /** What an address names, for its link: "📄 article", "↗ track". */
 export function addressLabel(bech32: string): string {
   const kind = addressKind(bech32);
-  if (kind === null || READER_KINDS.has(kind)) return "📄 article";
+  if (kind === null || ARTICLE_LINK_KINDS.has(kind)) return "📄 article";
   // A kind several apps share (38000: mint reviews, markets, ballots) has no one word to give.
   if (SHARED_KINDS.has(kind)) return "↗ linked post";
   const label = kindTypeLabel(kind);
@@ -196,7 +201,7 @@ export function addressLabel(bech32: string): string {
  *  article's, opens on /e/, which renders every kind. */
 export function addressLink(bech32: string, key: string | number, url?: string): ReactNode | null {
   const kind = addressKind(bech32);
-  if (!url || kind === null || READER_KINDS.has(kind)) return null;
+  if (!url || kind === null || ARTICLE_LINK_KINDS.has(kind)) return null;
   return <ReadingLink key={key} url={url} label={addressLabel(bech32)} />;
 }
 
