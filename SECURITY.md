@@ -55,16 +55,14 @@ Reports or questions are welcome through the contact above.
 | `brainstorm.nosfabrica.com`         | Production alias |
 | `brainstorm-staging.nosfabrica.com` | Staging          |
 
-### R&D UI — [`nous-clawds4/tapestry`](https://github.com/nous-clawds4/tapestry)
+### R&D UI — [`nousclawds4/tapestry`](https://github.com/nousclawds4/tapestry)
 
 | Host                            | Role                 |
 | ------------------------------- | -------------------- |
 | `tapestry.brainstorm.world`     | Reference deployment |
 | `staging.brainstorm.world`      | Pre-production       |
 | `tags.brainstorm.world`         | Feature sandbox      |
-| `communities.brainstorm.world`  | Feature sandbox      |
 | `magic-carpet.brainstorm.world` | Feature sandbox      |
-| `curate.brainstorm.world`       | Feature sandbox      |
 
 ### Backend APIs — [`NosFabrica/brainstorm_server`](https://github.com/NosFabrica/brainstorm_server)
 
