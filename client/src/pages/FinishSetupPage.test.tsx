@@ -31,9 +31,9 @@ const dm = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/useDirectMessages", () => ({ useDmEngine: () => dm.engine, useDmState: () => dm.state }));
 
-const setupState = vi.fn<() => FinishSetupState>();
+const setupState = vi.fn<(options?: { askAgain?: boolean }) => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
-  useFinishSetup: () => setupState(),
+  useFinishSetup: (options?: { askAgain?: boolean }) => setupState(options),
 }));
 
 function state(overrides: Partial<FinishSetupState>): FinishSetupState {
@@ -250,6 +250,23 @@ describe("FinishSetupPage — the Treasure Map step", () => {
     expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("4 of 5 complete");
     const row = screen.getByTestId("setup-row-treasure-map");
     expect(row).toHaveTextContent("Publish your Assistant's Treasure Map");
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
+  });
+
+  it("asks again for a failing check as it opens: it shows the step", () => {
+    setupState.mockReturnValue(state({}));
+    renderWithProviders(<FinishSetupPage />);
+    expect(setupState).toHaveBeenCalledWith({ askAgain: true });
+  });
+
+  it("a check that failed keeps the row, uncounted, leading to its page", () => {
+    setupState.mockReturnValue(state({ ...ready, treasureMap: "failed", doneCount: 4, totalSteps: 4, allDone: true }));
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-treasure-map");
+    expect(row).toHaveTextContent("Couldn't check");
+    expect(row).toHaveTextContent("this step isn't counted");
+    expect(screen.getByTestId("text-finish-setup-progress")).toHaveTextContent("4 of 4 complete");
     fireEvent.click(row);
     expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
   });

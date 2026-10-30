@@ -106,11 +106,17 @@ export class TreasureMapUnavailableError extends Error {
   }
 }
 
-/** What `POST /user/assistantTreasureMap` answers: the signed version, if one was published, and how each relay took it. */
+/** What `POST /user/assistantTreasureMap` answers: the version sent, if one was, and how each relay took it. */
 export interface TreasureMapPublishResult {
   on: boolean;
-  /** False when nothing would change, so nothing was signed. */
+  /**
+   * False when nothing would change and every relay that answered the read
+   * holds the newest version, so nothing was signed or sent. True for a new
+   * version, and for a repair: the newest found, sent unchanged to the relays
+   * that answered without it.
+   */
   published: boolean;
+  /** The version sent: signed now or, for a repair, the newest found. */
   event: NostrEvent | null;
   relays: { url: string; ok: boolean; message?: string }[];
 }
@@ -143,6 +149,21 @@ export interface AssistantDictionaryResult {
   concepts: AssistantConceptResult[];
 }
 
+/**
+ * One of the Assistant's routes answered an error: its status, and whether the
+ * message is the server's own sentence (`said`) rather than ours with the status.
+ */
+export class AssistantRouteError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly said: boolean,
+  ) {
+    super(message);
+    this.name = "AssistantRouteError";
+  }
+}
+
 /** One of the Assistant's routes under `/user`: a 404 or 405 is "not on this server yet". */
 async function assistantJson<T>(
   path: string,
@@ -156,7 +177,11 @@ async function assistantJson<T>(
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (response.status === 404 || response.status === 405) throw unavailable();
-  if (!response.ok) throw new Error((await extractApiError(response)) || `${failed} (${response.status})`);
+  if (!response.ok) {
+    const sentence = await extractApiError(response);
+    const said = typeof sentence === "string" && sentence !== "";
+    throw new AssistantRouteError(said ? sentence : `${failed} (${response.status})`, response.status, said);
+  }
   const json = await response.json();
   return json?.data ?? json;
 }
@@ -394,12 +419,16 @@ export const usersApi = {
   /**
    * What the caller's Assistant's Treasure Map should list now, and why. An
    * answer that isn't a check means no route, as for the Duty Menu
-   * (lib/assistantTreasureMap `parseTreasureMapCheck`).
+   * (lib/assistantTreasureMap `parseTreasureMapCheck`), and so does a 2xx that
+   * isn't JSON (a proxy's or an app's page).
    */
   async getAssistantTreasureMap(): Promise<TreasureMapCheck> {
-    const check = parseTreasureMapCheck(
-      await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map"),
+    const json = await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map").catch(
+      (e: unknown) => {
+        throw e instanceof SyntaxError ? new TreasureMapUnavailableError() : e;
+      },
     );
+    const check = parseTreasureMapCheck(json);
     if (!check) throw new TreasureMapUnavailableError();
     return check;
   },
