@@ -557,6 +557,9 @@ function MoreCategories({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const active = groups.flatMap((g) => g.categories).find((c) => c.key === pressed);
+  // An open menu holds still, as MoreTabs does: counts that land while it is open wait for it to close.
+  const [held, setHeld] = useState<readonly CategoryGroup[] | null>(null);
+  const shown = open && held ? held : groups;
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: PointerEvent) => {
@@ -572,7 +575,7 @@ function MoreCategories({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-  if (groups.length === 0) return null;
+  if (shown.length === 0) return null;
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
@@ -581,7 +584,10 @@ function MoreCategories({
         aria-selected={!!active}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!open) setHeld(groups);
+          setOpen(!open);
+        }}
         className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
         title={active?.name}
         data-testid="search-tab-more"
@@ -598,7 +604,7 @@ function MoreCategories({
           aria-label="More categories"
           className="absolute right-0 top-full z-20 mt-1 max-h-[60vh] min-w-[9rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {groups.map((g, gi) => (
+          {shown.map((g, gi) => (
             <div
               key={g.title}
               className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}

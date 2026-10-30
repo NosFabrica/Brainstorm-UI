@@ -5435,6 +5435,25 @@ describe("All's categories", () => {
     ]);
   });
 
+  it("an open More holds still while counts land, and settles when it closes", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({ hits: page, eose: true });
+    await answerCounts();
+    const menu = () =>
+      within(screen.getByRole("menu"))
+        .getAllByRole("menuitem")
+        .map((m) => m.textContent);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(menu()).toEqual(["Photos", "Wikis"]);
+    // Wikis now outnumber everything: they would take a place in the row, and Articles go behind More.
+    act(() => categoryCountAsks.forEach((a) => a.onCounts(new Map([...COUNTS, ["kind:Wiki", 5000]]))));
+    expect(menu()).toEqual(["Photos", "Wikis"]);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(menu()).toEqual(["Photos", "Articles"]);
+  });
+
   it("each is counted as its own page asks it: a kind by its kinds, a list by the headers its items are filed under", async () => {
     setUrlTab("all");
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
