@@ -142,6 +142,27 @@ describe("TreasureMapSetupPage's presses", () => {
     expect(buttons()).toEqual(["treasure-map-on:enabled:List your Assistant's live duties in its Treasure Map"]);
   });
 
+  it("while off, Turn off keeps its button and its Publishing… though its version empties the one found", async () => {
+    h.stored = signedMap(SHOULD);
+    h.getAssistantTreasureMap.mockResolvedValue(check(false));
+    mountPage();
+    await waitFor(() => expect(screen.getByTestId("treasure-map-off")).toBeEnabled());
+    const gets = holdGets();
+    h.setAssistantTreasureMap.mockResolvedValue({
+      on: false,
+      published: true,
+      event: signedMap([], 1_790_000_100),
+      relays: [{ url: SCORES, ok: true }],
+    });
+    fireEvent.click(screen.getByTestId("treasure-map-off"));
+    await waitFor(() => expect(gets).toHaveLength(1));
+    await waitFor(() => expect(screen.getByTestId("treasure-map-published-none")).toBeInTheDocument());
+    expect(buttons()).toContain(OFF);
+    await act(async () => gets[0].resolve(check(false)));
+    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("now lists none"));
+    expect(buttons()).toEqual(["treasure-map-on:enabled:List your Assistant's live duties in its Treasure Map"]);
+  });
+
   it("Turn on keeps its button and its Publishing… until the check after it is back", async () => {
     h.getAssistantTreasureMap.mockResolvedValue(check(false));
     mountPage();

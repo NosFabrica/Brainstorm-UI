@@ -219,6 +219,9 @@ export default function TreasureMapSetupPage() {
   };
 
   const buttons = selfMapButtons(map.on, map.status, map.found.length, map.missed.length);
+  // While off, Turn off follows the version found, which its own press empties
+  // before it settles: it stays till then, saying "Publishing…".
+  const offShown = buttons.turnOff || pressing === "off";
   // With a check, a press waits for the published version to be read: its base
   // is the newest one. Without one, Turn off needs neither.
   const busy = pressing !== null || (map.assistant !== null && map.status === null);
@@ -442,7 +445,7 @@ export default function TreasureMapSetupPage() {
                     {label("update", "Update your Assistant's Treasure Map now")}
                   </Button>
                 )}
-                {buttons.turnOff && turnOff}
+                {offShown && turnOff}
               </div>
               {outcome}
             </Card>
