@@ -5,14 +5,16 @@
  * reads on its own, with its book above it and its neighbours below. The
  * events are Alexandria's United States Constitution, as published.
  */
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
 import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
+import { __resetNearViewport } from "@/hooks/useNearViewport";
+import { stubControllableIntersectionObserver } from "@/test/controllableIntersectionObserver";
 
 const PK = "dd664d5e4016433a8cd69f005ae1480804351789b59de5af06276de65633d319";
 const BOOK = "the-united-states-constitution-and-the-bill-of-rights";
@@ -73,12 +75,20 @@ const section3 = ev(
   ],
   "New States may be admitted by the Congress into this Union;\nbut no new States shall be formed or erected within the Jurisdiction\nof any other State.",
 );
-const ALL = [root, constitution, preamble, article4, section3];
+// A book of 13 parts, each of one section: past what the contents open by themselves.
+const bigParts = Array.from({ length: 13 }, (_, i) =>
+  ev(100 + i, 30040, `big-part-${i}`, [["title", `Part ${i + 1}`], a(30041, `big-part-${i}-s`)]),
+);
+const bigBook = ev(99, 30040, "big", [["title", "A long book"], ...bigParts.map((p) => a(30040, p.tags[0][1]))]);
+const ALL = [root, constitution, preamble, article4, section3, bigBook, ...bigParts];
+/** Every `d` the relays were asked for. */
+const asked: string[] = [];
 const coord = (e: Ev) => `${e.kind}:${e.pubkey}:${e.tags[0][1]}`;
 
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchAddressableEvents: async (refs: { kind: number; pubkey: string; identifier: string }[]) =>
+    asked.push(...refs.map((r) => r.identifier)) &&
     new Map(
       refs.flatMap((r) => {
         const key = `${r.kind}:${r.pubkey}:${r.identifier}`;
@@ -102,6 +112,21 @@ vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => null }));
 
 import { ArticleScreen } from "./ArticleScreen";
 
+let io: ReturnType<typeof stubControllableIntersectionObserver>;
+beforeEach(() => {
+  __resetNearViewport();
+  io = stubControllableIntersectionObserver();
+});
+afterEach(() => vi.unstubAllGlobals());
+
+/** Brings every section waiting to be drawn into view until none is left: a part's sections appear as it draws. */
+async function scrollThrough() {
+  for (let round = 0; round < 6; round++) {
+    io.bringAllIntoView();
+    await new Promise((r) => setTimeout(r, 80));
+  }
+}
+
 const open = (e: Ev) => {
   const ptr = { kind: e.kind, pubkey: e.pubkey, identifier: e.tags[0][1] };
   return render(
@@ -122,7 +147,7 @@ describe("a publication index", () => {
     expect(header).toHaveTextContent("The United States Constitution and The Bill of Rights");
     expect(screen.getByTestId("publication-author")).toHaveTextContent("by United States");
     expect(screen.getByTestId("publication-facts")).toHaveTextContent(
-      "Document · 1st version · 2 sections · Published 15.12.1791",
+      "Document · 1st version · 2 parts · Published 15.12.1791",
     );
     expect(screen.getByTestId("publication-cover")).toHaveAttribute(
       "src",
@@ -137,6 +162,10 @@ describe("a publication index", () => {
     await waitFor(() => expect(toc).toHaveTextContent("ARTICLE FOUR"));
 
     const text = screen.getByTestId("publication-text");
+    // Nothing off screen is drawn: its heading is in place, its text waits.
+    await waitFor(() => expect(text).toHaveTextContent("THE CONSTITUTION OF THE UNITED STATES OF AMERICA, 1787"));
+    expect(text).not.toHaveTextContent("We the People");
+    await scrollThrough();
     await waitFor(() => expect(text).toHaveTextContent("We the People of the United States"));
     await waitFor(() => expect(text).toHaveTextContent("New States may be admitted by the Congress"));
     // The wrapped lines of a section are one paragraph.
@@ -162,5 +191,21 @@ describe("a publication section", () => {
 
     expect(await screen.findByTestId("publication-previous")).toHaveTextContent("Section 2");
     expect(screen.getByTestId("publication-next")).toHaveTextContent("Section 4");
+  });
+});
+
+describe("a long publication", () => {
+  it("lists its parts, and asks for a part's contents only once it is opened or read", async () => {
+    open(bigBook);
+    const toc = screen.getByTestId("publication-toc");
+    await waitFor(() => expect(within(toc).getAllByTestId("publication-toc-toggle")).toHaveLength(13));
+    const toggles = within(toc).getAllByTestId("publication-toc-toggle");
+    expect(toggles.every((t) => t.getAttribute("aria-expanded") === "false")).toBe(true);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(asked.filter((d) => /^big-part-\d+-s$/.test(d))).toEqual([]);
+
+    fireEvent.click(toggles[0]);
+    await waitFor(() => expect(asked).toContain("big-part-0-s"));
+    expect(asked).not.toContain("big-part-1-s");
   });
 });

@@ -53,13 +53,7 @@ import {
   PublicationTrail,
   type RenderBody,
 } from "@/components/share/PublicationReader";
-import {
-  publicationSections,
-  publicationTitle,
-  PUBLICATION_INDEX_KIND,
-  PUBLICATION_SECTION_KIND,
-  sectionMarkdown,
-} from "@/lib/publication";
+import { publicationTitle, PUBLICATION_INDEX_KIND, PUBLICATION_SECTION_KIND, sectionMarkdown } from "@/lib/publication";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -382,7 +376,6 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   const isIndex = ev.kind === PUBLICATION_INDEX_KIND;
   const isSection = ev.kind === PUBLICATION_SECTION_KIND;
   const isPublication = isIndex || isSection;
-  const sectionCount = useMemo(() => (isIndex ? publicationSections(ev).length : 0), [ev, isIndex]);
   const title = isPublication ? publicationTitle(ev) || "Untitled" : tag("title") || "Untitled article";
   // The page shows the title above the byline; a spec's `# Title` and its
   // `draft` `optional` status line leave the body and read as themselves.
@@ -501,7 +494,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             </div>
           )}
           {isIndex ? (
-            <PublicationHeader ev={ev} sections={sectionCount} />
+            <PublicationHeader ev={ev} />
           ) : (
             <>
               {image && (

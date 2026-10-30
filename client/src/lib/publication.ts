@@ -92,6 +92,8 @@ export interface SectionRef {
   address?: SectionAddress;
   /** The event it was listed by, if by id (or the revision an address pins). */
   eventId?: string;
+  /** Where the index says an entry listed by id lives. */
+  relay?: string;
   /** A title the index itself carries, readable before the section is fetched. */
   title?: string;
   /** Nesting depth, 1 at the top. */
@@ -144,6 +146,7 @@ export function publicationSections(ev: { tags: string[][] }): SectionRef[] {
       const id = tag[1].trim().toLowerCase();
       ref = {
         eventId: id,
+        relay: isRelayUrl(slot2) ? slot2 : undefined,
         title: slot2 && !looksLikeRelay(slot2) ? slot2 : undefined,
         level: levelOf(slot3),
         key: id,

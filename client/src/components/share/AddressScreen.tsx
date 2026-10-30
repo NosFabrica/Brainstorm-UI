@@ -52,7 +52,15 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
         <div className="py-20 text-center">
           <FileText className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
           <p className="mt-3 font-medium text-slate-600 dark:text-slate-300">
-            We couldn’t find this {READER_KINDS.has(ptr.kind) ? "article" : "post"} on the relays.
+            We couldn’t find this{" "}
+            {ptr.kind === 30040
+              ? "publication"
+              : ptr.kind === 30041
+                ? "section"
+                : READER_KINDS.has(ptr.kind)
+                  ? "article"
+                  : "post"}{" "}
+            on the relays.
           </p>
           {/* The naddr says which kind it is, so only clients that render it are offered. */}
           <OpenElsewhere
