@@ -47,10 +47,19 @@ person's web of trust says about them.
 
 ### 3. Write each part as one search
 
-- **Things:** words and the list's kind. `funchal kind:39999` matches the items whose fields mention Funchal.
+- **Things:** words, the list's kind, and `from:` the key that signs the list's items, since kind 39999 holds every
+  list's items. Food and Drink Places' items are signed by `npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8`
+  and Events' by Event Index, `npub1evntrs9lke80t8qrhtkvmnt36985w7nzjehjh7779se7lq8hvmwqg3n44p`. Neither is the key
+  that wrote the header. Words match an item's field values (its category, cuisine, town and `t` tags), so
+  `from:npub1f00dy… funchal restaurant kind:39999` finds Funchal's restaurants even where the name doesn't say so.
 - **What people wrote:** `from:` each person, as an npub.
 - **Records about things:** `to:` each thing, as its `naddr`. The box asks `#a` for it, which is how a review names its
   place.
+
+Put `kind:` in the query rather than in the tool's `kinds`: the `search_link` is built from the query, so a link without
+it opens a different search. Quote a word that must match whole (`"bar"`, `"ramen"`): unquoted, the relay forgives
+typos, and "bar" finds Barreirinha and "ramen" finds raven. A town is matched as a word in any field, so a book or an
+event can carry it too: say the town is matched by name, not checked.
 
 ### 4. Put the join in one search where the grammar allows it
 
@@ -91,6 +100,38 @@ What the grammar can't join, join from the answers:
   none, ask again with `include:spam` in the query, and say whose view each answer is (`ranked_through`).
 - **A review's mark has no token.** `kind:34259` brings reviews of books and profiles too. Asking by place (`to:`) keeps
   only places.
+- **Few records, then list them all.** When an act is rare, as place reviews are, `kind:34259 include:spam` lists every
+  one there is in a search or two. Decoding each link to its place is cheaper than a `to:` search per place.
+- **When the join is empty, still give the things.** Say first that nobody in the person's network did the act, then
+  offer what the list has, labelled as not from their network.
+- **`found` at the limit means there may be more.** The tool gives no next page, so narrow the query, by words, a
+  person or a kind, until `found` is under the limit.
+
+### Time, and what an event's result doesn't show
+
+`since:` and `until:` filter on when an event was written, not when it starts, so they can't answer "this weekend".
+Until the tool can filter by start, two things work:
+
+- **Event Index items** carry their date written out in a `when` field, which is searched as words: `"31 Oct 2026"`
+  picks one day, and `nashville "Oct 2026" -"26 Oct 2026" -"27 Oct 2026"` leaves the rest of a month out.
+- **A native calendar event** (kinds 31922 and 31923) shows no title, start or place in its result. Some publishers put
+  the date in the event's `d`, as `<series>:2026-11-07`, which decoding the link reveals. Otherwise its start can't be
+  checked: say so, and never list it as in the window.
+
+"My network" needs an act. For places the act is a review. Ranking alone changes nothing for a list item, which one
+curator signs. For events the act is an RSVP (kind 31925), but its result shows neither the event nor whether the
+person is going, so "events my friends are going to" can't be joined yet (A6.13.f). Say that rather than guess.
+
+### What a result doesn't carry
+
+A result gives an author's npub, a kind, a day, an excerpt and a link. It doesn't give:
+
+- a name: `from:<npub> kind:0` reads the profile;
+- an article's or a calendar event's title: the excerpt is its text;
+- a place's category, cuisine, town or opening hours, or a review's stars (A6.13.f).
+
+Matching `"23:00"` as words is not a check of opening hours. A word no field holds, like "cozy", is only in reviews and
+notes: with none, say it is unchecked.
 
 ## Worked example: "restaurants in Funchal rated by podcasters I trust"
 
