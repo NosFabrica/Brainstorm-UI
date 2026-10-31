@@ -87,7 +87,7 @@ What the grammar can't join, join from the answers:
 
 ### 6. Answer, and say where it came from
 
-- **Who wrote each result,** by name where the profile gives one, and its npub.
+- **Who wrote each result,** by its `author_name`, from their profile, and its npub.
 - **Who vouched:** the Trusted List and whose tag it is, the list and its curator, and the observer every ranking went
   through.
 - **Links the person can open:** each result's `link`, and each search's `search_link`, so the person can run it in
@@ -131,7 +131,8 @@ answered, and matching `fields.event` to events' addresses gives the ones they a
 
 ### What a result carries
 
-A result gives an author's npub, a kind, a day, an excerpt, a link, and an addressable event's `address`. For the
+A result gives an author's npub and, from their profile, `author_name`; a kind, a day, an excerpt, a link, and an
+addressable event's `address`. For the
 kinds an agent joins on it gives `fields`:
 
 - a Trusted List's `members`;
@@ -140,7 +141,8 @@ kinds an agent joins on it gives `fields`:
 - a calendar event's `title`, times and `location`;
 - an RSVP's `event` and `status`.
 
-It doesn't give a name: `from:<npub> kind:0` reads the profile. Opening hours come in OpenStreetMap's syntax
+A result with no `author_name` has a profile that is missing or gives no name: say so rather than invent one. Opening
+hours come in OpenStreetMap's syntax
 (`Mo-Sa 11:00-24:00`): read them against the time in the place's own time zone, and say that you did. A word no field
 holds, like "cozy", is only in reviews and notes: with none, say it is unchecked.
 
