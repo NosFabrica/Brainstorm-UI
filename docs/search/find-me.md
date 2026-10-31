@@ -30,7 +30,8 @@ A word in the question often names a list someone already keeps. Use it before m
 
 - **A kind of person:** the person's own Trusted List for that tag, kind 30392. Search `<tag> kind:30392`. Theirs is the
   one whose `d` starts `tl-tag-<the first 8 hex of their pubkey>-`, as `tl-tag-<observer>-<tagger>-<tag>`. Its members
-  are its `p` tags, already filtered through their web of trust (its `min-rank` tag says how far). It is published by the
+  are its `p` tags, which its result gives as npubs in `fields.members` (at most 100, with `members_total` past that),
+  already filtered through their web of trust (its `min-rank` tag says how far). It is published by the
   key their kind 10040 names for `30392`. Trusted Lists are in the Tapestry protocol's
   `protocols/trusted-lists` and `tapestry/docs/information-for-agents`.
 - **A kind of thing:** a DList. `tapestry_lists` with `read: "dictionary"` names the lists Brainstorm shows, and each
@@ -51,7 +52,9 @@ person's web of trust says about them.
   list's items. Food and Drink Places' items are signed by `npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8`
   and Events' by Event Index, `npub1evntrs9lke80t8qrhtkvmnt36985w7nzjehjh7779se7lq8hvmwqg3n44p`. Neither is the key
   that wrote the header. Words match an item's field values (its category, cuisine, town and `t` tags), so
-  `from:npub1f00dy… funchal restaurant kind:39999` finds Funchal's restaurants even where the name doesn't say so.
+  `from:npub1f00dy… funchal restaurant kind:39999` finds Funchal's restaurants even where the name doesn't say so. Each
+  item's result gives its fields in `fields`, as its header names them (a place's `category`, `locality`, `cuisine` and
+  `opening-hours`), and `fields.list` names the list.
 - **What people wrote:** `from:` each person, as an npub.
 - **Records about things:** `to:` each thing, as its `naddr`. The box asks `#a` for it, which is how a review names its
   place.
@@ -59,7 +62,8 @@ person's web of trust says about them.
 Put `kind:` in the query rather than in the tool's `kinds`: the `search_link` is built from the query, so a link without
 it opens a different search. Quote a word that must match whole (`"bar"`, `"ramen"`): unquoted, the relay forgives
 typos, and "bar" finds Barreirinha and "ramen" finds raven. A town is matched as a word in any field, so a book or an
-event can carry it too: say the town is matched by name, not checked.
+event can carry it too: check it against an item's `fields.locality` or an event's `fields.location` before you count
+it.
 
 ### 4. Put the join in one search where the grammar allows it
 
@@ -77,8 +81,8 @@ set into several such searches, rather than leaving the join to step 5.
 
 What the grammar can't join, join from the answers:
 
-- A result's `link` is its page on brainstorm.world. For an addressable event it is an `naddr`, and a review's `naddr`
-  carries its `d`, which is `place:` followed by the place's address. Decode it to match reviews to places.
+- Every addressable result gives its `address`, as `kind:pubkey:d`. A review's `fields.rates` is the address of what it
+  rates, so match reviews to places on it. Its `fields.stars` are read as the contract reads them.
 - Keep one review per person per thing: the newest. The contract says which reviews stand.
 
 ### 6. Answer, and say where it came from
@@ -101,37 +105,44 @@ What the grammar can't join, join from the answers:
 - **A review's mark has no token.** `kind:34259` brings reviews of books and profiles too. Asking by place (`to:`) keeps
   only places.
 - **Few records, then list them all.** When an act is rare, as place reviews are, `kind:34259 include:spam` lists every
-  one there is in a search or two. Decoding each link to its place is cheaper than a `to:` search per place.
+  one there is in a search or two. Matching each one's `fields.rates` to your places' addresses is cheaper than a `to:` search per
+  place.
 - **When the join is empty, still give the things.** Say first that nobody in the person's network did the act, then
   offer what the list has, labelled as not from their network.
-- **`found` at the limit means there may be more.** The tool gives no next page, so narrow the query, by words, a
-  person or a kind, until `found` is under the limit.
+- **`at_limit` means there may be more.** The tool gives no next page, so narrow the query, by words, a person or a
+  kind, until the answer no longer says it.
 
-### Time, and what an event's result doesn't show
+### Time
 
 `since:` and `until:` filter on when an event was written, not when it starts, so they can't answer "this weekend".
-Until the tool can filter by start, two things work:
+The tool can't filter by start yet, so search the place and filter what comes back:
 
-- **Event Index items** carry their date written out in a `when` field, which is searched as words: `"31 Oct 2026"`
+- **Event Index items** give their `start`, `end` and `location` in `fields`, and their date written out in `when`,
+  which is searched as words: `"31 Oct 2026"`
   picks one day, and `nashville "Oct 2026" -"26 Oct 2026" -"27 Oct 2026"` leaves the rest of a month out.
-- **A native calendar event** (kinds 31922 and 31923) shows no title, start or place in its result. Some publishers put
-  the date in the event's `d`, as `<series>:2026-11-07`, which decoding the link reveals. Otherwise its start can't be
-  checked: say so, and never list it as in the window.
+- **A calendar event** (kinds 31922 and 31923) gives `fields.title`, `start`, `end`, `start_tzid` and `location`, a
+  timed one's times as ISO UTC. Search `chicago kind:31922 kind:31923`, keep those whose start and end fall in the
+  window in the event's own time zone, and say how many you read when the answer is `at_limit`.
 
 "My network" needs an act. For places the act is a review. Ranking alone changes nothing for a list item, which one
-curator signs. For events the act is an RSVP (kind 31925), but its result shows neither the event nor whether the
-person is going, so "events my friends are going to" can't be joined yet (A6.13.f). Say that rather than guess.
+curator signs. For events the act is an RSVP (kind 31925): its `fields.event` is the event's address, and
+`fields.status` is `accepted`, `tentative` or `declined`. So `from:` each person with `kind:31925` gives what they
+answered, and matching `fields.event` to events' addresses gives the ones they are going to.
 
-### What a result doesn't carry
+### What a result carries
 
-A result gives an author's npub, a kind, a day, an excerpt and a link. It doesn't give:
+A result gives an author's npub, a kind, a day, an excerpt, a link, and an addressable event's `address`. For the
+kinds an agent joins on it gives `fields`:
 
-- a name: `from:<npub> kind:0` reads the profile;
-- an article's or a calendar event's title: the excerpt is its text;
-- a place's category, cuisine, town or opening hours, or a review's stars (A6.13.f).
+- a Trusted List's `members`;
+- a list item's fields and `list`;
+- a review's `rates`, `mark` and `stars`;
+- a calendar event's `title`, times and `location`;
+- an RSVP's `event` and `status`.
 
-Matching `"23:00"` as words is not a check of opening hours. A word no field holds, like "cozy", is only in reviews and
-notes: with none, say it is unchecked.
+It doesn't give a name: `from:<npub> kind:0` reads the profile. Opening hours come in OpenStreetMap's syntax
+(`Mo-Sa 11:00-24:00`): read them against the time in the place's own time zone, and say that you did. A word no field
+holds, like "cozy", is only in reviews and notes: with none, say it is unchecked.
 
 ## Worked example: "restaurants in Funchal rated by podcasters I trust"
 
@@ -144,11 +155,9 @@ counts are that day's, and will change as people write.
 person's own is `tl-tag-b83a28b7-e5272de9-podcaster`: their observer, a tag first written by `e5272de9…`, 33 members,
 `min-rank` 3, published by the key their kind 10040 names for `30392`. Each teammate has one, and so does the house.
 
-**Missing:** the tools can find this list but not read it. `brainstorm_search` gives the start of its content, not its
-33 members, and `tapestry_lists` reads only DLists (A6.13.f).
-
-The fallback: `podcaster kind:0` and `podcast host kind:0` give 88 profiles ranked through the person, podcast hosts
-among them. That is what each one says of themselves, so say so when you use it.
+Its result gives the 33 members as npubs in `fields.members`. With no Trusted List, the fallback would be
+`podcaster kind:0`: 88 profiles, ranked through the person, that call themselves podcasters. That is each one's own
+word, so say so when you use it.
 
 Other lists with the word don't help:
 
@@ -157,26 +166,21 @@ Other lists with the word don't help:
 
 ### The things: restaurants in Funchal
 
-Food and Drink Places (`39998:b83a28b7…:food-and-drink-places`) is the list for restaurants. Its items are signed by its
-curator, `4bded217…`, and carry `name`, `category`, `address` and `locality`. Three searches,
-`funchal kind:39999`, `funchal restaurant kind:39999` and `funchal madeira kind:39999`, give 53 places in and around
-Funchal.
-
-**Missing:** each result gives the place's name and page, not its `category`, so telling a restaurant from a café or a
-shop is a guess from the name (A6.13.f). Say it is.
+Food and Drink Places (`39998:b83a28b7…:food-and-drink-places`) is the list for restaurants. Its items are signed by
+`npub1f00dy…`. `from:npub1f00dy… funchal kind:39999`, and the same with `restaurant` and with `madeira`, give 51
+places, every one with `fields.locality` Funchal. Their `fields.category` says 26 are restaurants, and the rest are
+cafés, bakeries, bars and shops.
 
 ### The act: rated by
 
 A rating of a place is a kind 34259 review whose `a` is the place's address. Asked both ways:
 
-| Search                                    | Found                                     |
-| ----------------------------------------- | ----------------------------------------- |
-| `from:` each of the 88, `kind:34259`      | 21 reviews by one person, none in Funchal |
-| `to:` each of the 53 places, `kind:34259` | none, under the person's lens             |
-| the same with `include:spam`              | none                                      |
+| Search                                                             | Found                                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `from:` each of the 33 members, `kind:34259`                       | 21 reviews by three of them, seven of places, none in Funchal |
+| `kind:34259 include:spam`, every review, matched on `fields.rates` | none of the 51 places                                         |
 
-The one reviewer among the 88 was the teammate asking, whose own profile says podcaster: their reviews are of books and
-of places elsewhere.
+The three include the teammate asking, who is on their own list.
 
 **Missing:** the reviews themselves. The relay held nine reviews of places that day, by three people, and none of a
 place in Funchal. No list or tool change can answer the question until people review places there, in Brainstorm's
@@ -184,16 +188,16 @@ place view or in Regulars.
 
 ### Weaker evidence, labelled as such
 
-- `funchal` with `from:` each of the 88, kinds 1 and 30023: six notes, none naming a restaurant.
+- `funchal` with `from:` each of the 33, kinds 1 and 30023: five notes, none naming a restaurant.
 - `funchal restaurant`, anyone: notes from a Madeira merchants' account announcing places that take bitcoin, and a
   handful of recommendations. They are talk, not ratings, and none is by a podcaster on the list.
 
 ### The answer to give
 
-> No podcaster you trust has rated a place in Funchal on nostr yet. Brainstorm's food list has 53 places in and around
-> Funchal ([see them](https://brainstorm.world/?q=funchal%20kind%3A39999)), but the only reviews of places on the
-> relay are nine, none there. Your Podcaster Trusted List has 33 people, and I can't read who they are with these tools
-> yet; the 88 profiles that call themselves podcasters haven't reviewed any place there. A few notes mention Funchal, none a
+> No podcaster you trust has rated a place in Funchal on nostr yet. Your Podcaster list has 33 people; three of them
+> have written reviews, none of a place in Funchal. Brainstorm's food list has 26 restaurants in Funchal
+> ([see them](https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20funchal%20restaurant%20kind%3A39999)),
+> and the only reviews of places on the relay are nine, none there. A few of their notes mention Funchal, none a
 > restaurant. Reviews you or your circle write in Brainstorm's place view or in Regulars will show up here.
 
 ## Later
