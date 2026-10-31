@@ -1,0 +1,115 @@
+/**
+ * "Built on Brainstorm", the line apps built on Brainstorm carry at their foot: the element
+ * each app copies (client/public/built-on/built-on-brainstorm.js) and the look every copy loads
+ * (client/public/built-on/v1.css). docs/built-on-brainstorm.md is the contract these hold
+ * them to.
+ *
+ * The element is run from its file as a plain script, as a page with a classic <script> runs
+ * it: it has no imports or exports, and an app's bundler and a page's script tag both take it
+ * as it is. It lives under client/src/test because that is the only tree vitest includes.
+ */
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { render } from "@testing-library/react";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { BrainLogo } from "@/components/BrainLogo";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const ELEMENT = path.join(ROOT, "client/public/built-on/built-on-brainstorm.js");
+
+/** Runs the element's file, as a page's script tag would. */
+const runElement = () => new Function(fs.readFileSync(ELEMENT, "utf8"))();
+
+/** A line on the page, with `attributes` set before it is connected. */
+function line(attributes: Record<string, string> = {}) {
+  const host = document.createElement("built-on-brainstorm");
+  for (const [name, value] of Object.entries(attributes)) host.setAttribute(name, value);
+  document.body.append(host);
+  const root = host.shadowRoot!;
+  return { host, root, link: root.querySelector("a")! };
+}
+
+describe("the element", () => {
+  beforeAll(runElement);
+  afterEach(() => document.body.replaceChildren());
+
+  it("is one link to brainstorm.world, in a new tab, that tells it nothing", () => {
+    const { root, link } = line();
+    expect(root.querySelectorAll("a")).toHaveLength(1);
+    expect(link).toHaveAttribute("href", "https://brainstorm.world");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveAttribute("part", "link");
+  });
+
+  it("says Built on Brainstorm, and to a screen reader that it opens in a new tab", () => {
+    const { link } = line();
+    expect(link).toHaveAccessibleName("Built on Brainstorm (opens in a new tab)");
+    expect(link.querySelector('[part="words"]')).toHaveTextContent(/^Built on Brainstorm$/);
+    expect(link.querySelector(".unseen")).toHaveTextContent(/^\(opens in a new tab\)$/);
+  });
+
+  it("draws BrainLogo's mono mark before the words, hidden from a screen reader", () => {
+    const { link } = line();
+    const mark = link.firstElementChild!;
+    expect(mark.tagName.toLowerCase()).toBe("svg");
+    expect(mark).toHaveAttribute("part", "mark");
+    expect(mark).toHaveAttribute("viewBox", "0 0 71 73");
+    expect(mark).toHaveAttribute("fill", "currentColor");
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+    expect(mark).toHaveAttribute("focusable", "false");
+    expect(mark.children).toHaveLength(1);
+    const d = mark.querySelector("path")!.getAttribute("d")!;
+    const { container } = render(<BrainLogo mono />);
+    expect(d).toBe(container.querySelector("path")!.getAttribute("d"));
+    expect(d).toHaveLength(2280);
+    expect(createHash("sha256").update(d).digest("hex")).toBe(
+      "1cb58d464345120ce16678221fff92cb0f3f3dea709145d6c350143f0695b9f4",
+    );
+  });
+
+  it("loads the shared look from brainstorm.world, with no referrer and no cookies", () => {
+    const { root, link } = line();
+    const sheet = root.querySelector('link[rel="stylesheet"]')!;
+    expect(sheet).toHaveAttribute("href", "https://brainstorm.world/built-on/v1.css");
+    expect(sheet).toHaveAttribute("crossorigin", "anonymous");
+    expect(sheet).toHaveAttribute("referrerpolicy", "no-referrer");
+    expect(sheet.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("loads another copy of the look when told to", () => {
+    const { host, root } = line({ stylesheet: "./v1.css" });
+    const sheet = root.querySelector('link[rel="stylesheet"]')!;
+    expect(sheet).toHaveAttribute("href", "./v1.css");
+    host.setAttribute("stylesheet", "/x.css");
+    expect(sheet).toHaveAttribute("href", "/x.css");
+    host.removeAttribute("stylesheet");
+    expect(sheet).toHaveAttribute("href", "https://brainstorm.world/built-on/v1.css");
+  });
+
+  it("carries the launch look in a layer the shared look wins over", () => {
+    // jsdom cannot adopt a stylesheet, so the element writes its own look into a <style>.
+    const { root } = line();
+    const own = root.querySelector("style")!;
+    const sheet = root.querySelector('link[rel="stylesheet"]')!;
+    expect(own.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(own.textContent!.trim()).toMatch(/^@layer built-on-baseline \{/);
+    for (const hook of ["--built-on-color", "--built-on-hover-color", "--built-on-focus-color"])
+      expect(own.textContent).toContain(`var(${hook}`);
+  });
+
+  it("does nothing where there is no DOM, as when a server renders the app", () => {
+    const source = fs.readFileSync(ELEMENT, "utf8");
+    const noDom = new Function("customElements", "HTMLElement", "ShadowRoot", "CSSStyleSheet", "document", source);
+    expect(() => noDom(undefined, undefined, undefined, undefined, undefined)).not.toThrow();
+  });
+
+  it("can be defined twice without throwing", () => {
+    const first = customElements.get("built-on-brainstorm");
+    expect(first).toBeDefined();
+    expect(runElement).not.toThrow();
+    expect(customElements.get("built-on-brainstorm")).toBe(first);
+  });
+});
