@@ -113,3 +113,26 @@ describe("the element", () => {
     expect(customElements.get("built-on-brainstorm")).toBe(first);
   });
 });
+
+describe("the shared look", () => {
+  /** v1.css as a browser reads it: its comments are no part of it. */
+  const css = fs
+    .readFileSync(path.join(ROOT, "client/public/built-on/v1.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("asks for nothing: no import, no font, no address but a data: one", () => {
+    expect(css).not.toMatch(/@import/i);
+    expect(css).not.toMatch(/@font-face/i);
+    for (const [, target] of css.matchAll(/url\(\s*(['"]?[^)]*)\)/gi)) expect(target).toMatch(/^['"]?data:/i);
+  });
+
+  it("is unlayered, so it wins over the element's own look", () => {
+    expect(css).not.toMatch(/@layer/i);
+  });
+
+  it("honours the hooks apps set", () => {
+    expect(css).toContain(":host");
+    for (const hook of ["--built-on-color", "--built-on-hover-color", "--built-on-focus-color"])
+      expect(css).toContain(`var(${hook}`);
+  });
+});
