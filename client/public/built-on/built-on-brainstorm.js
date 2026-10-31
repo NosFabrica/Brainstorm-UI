@@ -107,7 +107,6 @@
 
     #sheet = el("link", {
       rel: "stylesheet",
-      href: STYLESHEET,
       crossorigin: "anonymous",
       referrerpolicy: "no-referrer",
     });
@@ -136,9 +135,23 @@
       root.append(this.#sheet, link);
     }
 
-    /** The stylesheet the line loads: v1.css, or the copy the `stylesheet` attribute names. */
+    /**
+     * The stylesheet the line loads: v1.css, or the copy the `stylesheet` attribute names. Set once
+     * the line is on the page or its attribute changes, never in the constructor: a line the page
+     * already holds is connected while it is upgraded, and a stylesheet link is fetched the moment
+     * its href is set, so naming v1.css first would ask brainstorm.world for nothing.
+     */
+    #load() {
+      const href = this.getAttribute("stylesheet") ?? STYLESHEET;
+      if (this.#sheet.getAttribute("href") !== href) this.#sheet.setAttribute("href", href);
+    }
+
+    connectedCallback() {
+      this.#load();
+    }
+
     attributeChangedCallback() {
-      this.#sheet.setAttribute("href", this.getAttribute("stylesheet") ?? STYLESHEET);
+      if (this.isConnected) this.#load();
     }
   }
 

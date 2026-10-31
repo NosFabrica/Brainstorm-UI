@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { BrainLogo } from "@/components/BrainLogo";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -87,6 +87,24 @@ describe("the element", () => {
     expect(sheet).toHaveAttribute("href", "/x.css");
     host.removeAttribute("stylesheet");
     expect(sheet).toHaveAttribute("href", "https://brainstorm.world/built-on/v1.css");
+  });
+
+  it("asks for one stylesheet only: a line on the page told to load another copy never names brainstorm.world's", () => {
+    // A line the page already holds when the element is defined is upgraded with its attribute,
+    // and is connected throughout: a stylesheet link's href is fetched the moment it is set.
+    const named: string[] = [];
+    const setAttribute = Element.prototype.setAttribute;
+    const spy = vi.spyOn(Element.prototype, "setAttribute").mockImplementation(function (this: Element, name, value) {
+      if (this.localName === "link" && name === "href") named.push(value);
+      return setAttribute.call(this, name, value);
+    });
+    try {
+      document.body.innerHTML =
+        '<built-on-brainstorm stylesheet="./v1.css"></built-on-brainstorm><built-on-brainstorm></built-on-brainstorm>';
+    } finally {
+      spy.mockRestore();
+    }
+    expect(named).toEqual(["./v1.css", "https://brainstorm.world/built-on/v1.css"]);
   });
 
   it("carries the launch look in a layer the shared look wins over", () => {
