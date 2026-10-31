@@ -28,32 +28,23 @@ a {
   text-decoration: none;
 }
 
-a:hover,
 a:focus-visible {
   color: var(--built-on-hover-color, var(--built-on-color, currentColor));
   text-decoration: underline;
-}
-
-a:focus-visible {
   outline: 2px solid var(--built-on-focus-color, currentColor);
   outline-offset: 2px;
+}
+
+/* Only where a pointer can hover: on a phone a tap leaves :hover set, and the line would stay dark. */
+@media (hover: hover) {
+  a:hover {
+    color: var(--built-on-hover-color, var(--built-on-color, currentColor));
+    text-decoration: underline;
+  }
 }
 
 [part="mark"] {
   flex: none;
   width: calc(1.08em * 71 / 73);
   height: 1.08em;
-}
-
-/* Words for a screen reader alone: "(opens in a new tab)". */
-.unseen {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
 }

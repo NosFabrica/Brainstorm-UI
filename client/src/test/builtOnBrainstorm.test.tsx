@@ -22,6 +22,19 @@ const ELEMENT = path.join(ROOT, "client/public/built-on/built-on-brainstorm.js")
 /** Runs the element's file, as a page's script tag would. */
 const runElement = () => new Function(fs.readFileSync(ELEMENT, "utf8"))();
 
+/**
+ * Whether `css` underlines and darkens the link on hover only where a pointer can hover: on a phone a
+ * tap leaves :hover set, and the line would stay dark after the person comes back from the new tab.
+ * Focus is outside the media query, since a keyboard focuses on every device.
+ */
+function hoversOnlyWhereAPointerCan(css: string) {
+  const media = /@media\s*\(hover:\s*hover\)\s*\{\s*a:hover\s*\{[^{}]*\}\s*\}/;
+  expect(css).toMatch(media);
+  const outside = css.replace(media, "");
+  expect(outside).not.toContain(":hover");
+  expect(outside).toMatch(/a:focus-visible\s*\{[^}]*text-decoration:\s*underline/);
+}
+
 /** A line on the page, with `attributes` set before it is connected. */
 function line(attributes: Record<string, string> = {}) {
   const host = document.createElement("built-on-brainstorm");
@@ -46,9 +59,11 @@ describe("the element", () => {
 
   it("says Built on Brainstorm, and to a screen reader that it opens in a new tab", () => {
     const { link } = line();
+    // Named by its label, so every browser gives the same name: the words, then the hint.
+    expect(link).toHaveAttribute("aria-label", "Built on Brainstorm (opens in a new tab)");
     expect(link).toHaveAccessibleName("Built on Brainstorm (opens in a new tab)");
     expect(link.querySelector('[part="words"]')).toHaveTextContent(/^Built on Brainstorm$/);
-    expect(link.querySelector(".unseen")).toHaveTextContent(/^\(opens in a new tab\)$/);
+    expect(link).toHaveTextContent(/^Built on Brainstorm$/);
   });
 
   it("draws BrainLogo's mono mark before the words, hidden from a screen reader", () => {
@@ -60,6 +75,9 @@ describe("the element", () => {
     expect(mark).toHaveAttribute("fill", "currentColor");
     expect(mark).toHaveAttribute("aria-hidden", "true");
     expect(mark).toHaveAttribute("focusable", "false");
+    // Its size in the markup too, the look's own, so with no stylesheet at all it is never drawn at the page's width.
+    expect(mark).toHaveAttribute("width", "1.05em");
+    expect(mark).toHaveAttribute("height", "1.08em");
     expect(mark.children).toHaveLength(1);
     const d = mark.querySelector("path")!.getAttribute("d")!;
     const { container } = render(<BrainLogo mono />);
@@ -124,6 +142,11 @@ describe("the element", () => {
     expect(() => noDom(undefined, undefined, undefined, undefined, undefined)).not.toThrow();
   });
 
+  it("underlines and darkens on hover only where a pointer can hover, and on keyboard focus everywhere", () => {
+    const { root } = line();
+    hoversOnlyWhereAPointerCan(root.querySelector("style")!.textContent!);
+  });
+
   it("can be defined twice without throwing", () => {
     const first = customElements.get("built-on-brainstorm");
     expect(first).toBeDefined();
@@ -146,6 +169,10 @@ describe("the shared look", () => {
 
   it("is unlayered, so it wins over the element's own look", () => {
     expect(css).not.toMatch(/@layer/i);
+  });
+
+  it("underlines and darkens on hover only where a pointer can hover, and on keyboard focus everywhere", () => {
+    hoversOnlyWhereAPointerCan(css);
   });
 
   it("honours the hooks apps set", () => {

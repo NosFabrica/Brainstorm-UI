@@ -40,30 +40,22 @@
     font: inherit;
     text-decoration: none;
   }
-  a:hover,
   a:focus-visible {
     color: var(--built-on-hover-color, var(--built-on-color, currentColor));
     text-decoration: underline;
-  }
-  a:focus-visible {
     outline: 2px solid var(--built-on-focus-color, currentColor);
     outline-offset: 2px;
+  }
+  @media (hover: hover) {
+    a:hover {
+      color: var(--built-on-hover-color, var(--built-on-color, currentColor));
+      text-decoration: underline;
+    }
   }
   [part="mark"] {
     flex: none;
     width: calc(1.08em * 71 / 73);
     height: 1.08em;
-  }
-  .unseen {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
   }
 }`;
 
@@ -91,6 +83,11 @@
     for (const [key, value] of Object.entries({
       part: "mark",
       viewBox: "0 0 71 73",
+      // The look's own size, in the markup too: with no stylesheet at all (an old browser that cannot
+      // adopt one, on a page that allows no inline styles, and v1.css not loaded) an unsized mark
+      // would be drawn at the page's width.
+      width: "1.05em",
+      height: "1.08em",
       fill: "currentColor",
       "aria-hidden": "true",
       focusable: "false",
@@ -123,15 +120,16 @@
       } else {
         root.append(el("style", {}, BASELINE));
       }
-      const link = el("a", { part: "link", href: SITE, target: "_blank", rel: "noopener noreferrer" });
-      // The space between the words and the hint is a node of its own, outside the hidden words, so
-      // the link's name reads "Built on Brainstorm (opens in a new tab)".
-      link.append(
-        mark(),
-        el("span", { part: "words" }, "Built on Brainstorm"),
-        " ",
-        el("span", { class: "unseen" }, "(opens in a new tab)"),
-      );
+      // Named by its label, the words it shows and then the hint every link that leaves an app gives,
+      // so every browser and screen reader gives it the same name.
+      const link = el("a", {
+        part: "link",
+        href: SITE,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        "aria-label": "Built on Brainstorm (opens in a new tab)",
+      });
+      link.append(mark(), el("span", { part: "words" }, "Built on Brainstorm"));
       root.append(this.#sheet, link);
     }
 
