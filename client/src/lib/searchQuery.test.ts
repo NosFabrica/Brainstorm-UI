@@ -121,6 +121,8 @@ describe("tokenize — what the box draws", () => {
 
   it("observer: takes an npub too, and hands the relay the hex it wants", () => {
     expect(parseQuery(`observer:${npub}`).observer).toBe(hex);
+    // In the search text too: the relay reads an npub there as no observer and refuses the read.
+    expect(parseQuery(`btc observer:${npub}`).terms).toBe(`btc observer:${hex}`);
   });
 
   it("a rank floor off the 0..100 scale is not the filter, so it stays text", () => {

@@ -537,7 +537,9 @@ export function parseQuery(text: string): ParsedQuery {
         break;
       case "observer":
         out.observer = seg.pubkey;
-        terms += seg.raw;
+        // As hex, whichever way it was typed: the relay reads an npub as no observer at all and
+        // refuses the read (`auth-required`), measured 2026-10-30.
+        terms += `observer:${seg.pubkey}`;
         break;
       case "lens":
         out.includeSpam = true;
