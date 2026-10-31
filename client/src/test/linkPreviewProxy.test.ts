@@ -9,28 +9,8 @@
  * client/src/test because that is the only tree vitest includes.
  */
 import { describe, expect, it, vi } from "vitest";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import config, { PREVIEW_DOWN } from "../../../vite.config";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const conf = fs.readFileSync(path.join(ROOT, "nginx.conf"), "utf8");
-
-/** Body of `location <matcher> {` … `}`, brace-counted so nested blocks survive. */
-function locationBody(matcher: string): string {
-  const header = `location ${matcher} {`;
-  const start = conf.indexOf(header);
-  if (start === -1) throw new Error(`no \`${header}\` in nginx.conf`);
-  let depth = 0;
-  for (let i = start + header.length - 1; i < conf.length; i++) {
-    if (conf[i] === "{") depth++;
-    else if (conf[i] === "}" && --depth === 0) {
-      return conf.slice(start + header.length, i);
-    }
-  }
-  throw new Error(`unterminated \`${header}\``);
-}
+import { locationBody, nginxConf as conf } from "./nginxConf";
 
 describe("nginx /link-preview", () => {
   it("is a `^~` prefix, so no regex location can outrank it", () => {
