@@ -2,7 +2,7 @@
  * The list code other programs use, as one module: the checks List Management
  * runs on a header and its items, the drafts it writes, the prompt it copies
  * for an AI, the import it reads JSON with, the URL templates links are
- * built from, and the Dictionary's concepts.
+ * built from, the Dictionary's concepts, and the search box's grammar.
  *
  * `npm run build:lists` builds this file and everything it imports into one
  * ES module that runs in Node (vite.lists.config.ts), so a program outside
@@ -19,6 +19,12 @@ export * from "@/lib/listImport";
 export * from "@/lib/dictionaryConcepts";
 export { similarTemplates, templateOf } from "@/lib/linkTemplates";
 export type { UrlTemplate } from "@/lib/linkTemplates";
+// The search box's grammar (A6.13.a), so a program outside the app asks the search relay as
+// the box does: the prefixes become NIP-01 filter fields, and the search text carries only
+// words and the relay's own tokens, with the lens the page reads through.
+export { buildFilters, parseQuery } from "@/lib/searchQuery";
+export type { BuildOptions, ParsedQuery } from "@/lib/searchQuery";
+export { withObserver } from "@/lib/searchSyntax";
 
 // The Dictionary's config, read from the JSON itself, as config/dictionary
 // reads it: that module also reads the tag relays from the env and the
