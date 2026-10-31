@@ -8,6 +8,8 @@ search can be judged by whether the numbers move.
 - `queries.json`: the labelled set (v1, 317 entries).
 - `../../../scripts/search-eval/baseline.mjs`: the runner. Node 22 or newer, no dependencies.
 - `baseline-YYYY-MM-DD.json` and `.md`: a run's results, and what they say.
+- `agent-YYYY-MM-DD.json` and `.md`: the `agent` entries answered by Claudes through the Brainstorm connector's
+  `brainstorm_search` and scored by hand against the set, with what failed and why (first run: Loom A6.13.d).
 - `../../../scripts/search-eval/checkSet.mjs`: what the set must keep as it grows, which `npm test` checks.
 
 ## The set

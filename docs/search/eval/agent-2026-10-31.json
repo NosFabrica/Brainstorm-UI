@@ -1,0 +1,2019 @@
+{
+  "meta": {
+    "run": "2026-10-31",
+    "asked_at": "2026-10-31T15:20:00-04:00",
+    "reader_timezone": "America/New_York",
+    "observer": "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450",
+    "connector_commit": "f962c43",
+    "relay": "wss://search.brainstorm.world",
+    "answered_by": "three fresh Claude sessions (Opus 5.5), one each for places, events and the rest, given each entry's interpretation and asked_as words, never the expectations",
+    "tools": [
+      "brainstorm_search (the connector's code at f962c43, run against the live relay as the observer)",
+      "tapestry_lists",
+      "brainstorm_guide",
+      "tapestry_guide"
+    ],
+    "windows": {
+      "today": "31 Oct, whole day",
+      "this weekend": "31 Oct and 1 Nov, whole days",
+      "this week": "26 Oct to 1 Nov",
+      "next 7 days": "from 15:20 on 31 Oct to 7 Nov",
+      "upcoming": "from 15:20 on 31 Oct"
+    },
+    "searches_run": 91
+  },
+  "summary": {
+    "entries": 19,
+    "category_hit_rate": 0.85,
+    "category_pairs": 20,
+    "all_categories_hit": 0.8421052631578947,
+    "recall_at_10": 0.9333333333333332,
+    "recall_entries": 6,
+    "filter_precision_at_10": 0.9009259259259259,
+    "precision_entries": 15,
+    "verdicts": {
+      "answered": 9,
+      "partly": 7,
+      "not": 3
+    },
+    "causes": {
+      "data": 3,
+      "tool": 8
+    }
+  },
+  "entries": [
+    {
+      "id": "m2-agent-restaurants-funchal",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Funchal",
+        "property": {
+          "category": "restaurant"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "funchal restaurant kind:39999 (run twice, the second to keep the output)",
+        "kind:34259 sort:recent (shared: the place reviews your lens reaches, to check these places against)"
+      ],
+      "missing": "The results give each place's name and page, not its category, so I can't confirm each one's category is 'restaurant'. The word matched somewhere in the item's fields. Category is one of those fields (it's in the item's t tags), which is why Kirita, Basalto and The Vanscape Gastrobar match without the word in their names. Still, a place whose name or description says restaurant but whose category is cafe or bar could match too. Town isn't shown either. 'Funchal' may come from the address rather than the locality, so a few places could be just outside the city (São Martinho, Palheiro). Loft Brunch & Cocktails appears three times (three OpenStreetMap entries), and I list it once. Only the first 10 of 26 are listed; the search link has them all. Your network has written no reviews of any of the 26 (the nine place reviews your lens reaches are all elsewhere).",
+      "answer": "Brainstorm's Food and Drink Places list (curated by Mise En Place) has 26 places in Funchal that match 'restaurant'. Among them: Atlantic Restaurant, Corner 205 International Restaurant, Jaket Restaurante, The Vanscape Gastrobar, Kirita, Indian Palace, Kampo by Chef Júlio Pereira, Basalto, Tranvía Food and Pátio Brunch & Bistro. Also in the 26: Theo's, Akua and Yuki (more Júlio Pereira places), Nomade, Novo Tahiti, Loft Brunch & Cocktails, Tapas y Copas, Le Bistrot Jacarandá, Central Grill, Palheiro Clubhouse, and Xarambinha and Ciao for pizza. All 26: https://brainstorm.world/?q=funchal%20restaurant%20kind%3A39999. Nobody in your network has reviewed any of them yet, so I can't rank them by reviews.",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzwpsxs6n2d3sxs6qph2kdp",
+          "label": "Atlantic Restaurant",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11804556044",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": ["mediterranean"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnyveexu6n2vp3xccsj7lnsx",
+          "label": "Corner 205 International Restaurant",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12397550161",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": ["portuguese"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995cngdejx5eryde5xgp0cul7",
+          "label": "Jaket Restaurante",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-1472522742",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzdenx5engwfsxceshqsyl7",
+          "label": "The Vanscape Gastrobar",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11735349063",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": ["snackbar", "snack"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzvek8qmrywf5xqmqmcl6j6",
+          "label": "Kirita",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11368629406",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": ["asian", "japanese", "noodles", "ramen"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995unwvfjxqcnyve3xuszrd7m",
+          "label": "Indian Palace",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9712012317",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzwpkxcurxv3n8q6q375jgh",
+          "label": "Kampo by Chef Júlio Pereira",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11866832384",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnywpnxqenxwfjxvmsfulwa3",
+          "label": "Basalto",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12830339237",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzd3exyunywph8qcsjrnhq4",
+          "label": "Tranvía Food",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11691928781",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnywfhxyerwdf48yusaqgm7t",
+          "label": "Pátio Brunch & Bistro",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12971275599",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 1
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "Ten restaurants in Funchal, all with category restaurant and locality Funchal. The Claude could not confirm either from the answer, and said so."
+    },
+    {
+      "id": "m2-agent-bars-new-york",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "New York",
+        "property": {
+          "category": "bar"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "\"new york\" \"bar\" kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"new york\" bar kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"new york\" kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 brooklyn kind:39999",
+        "kind:34259 sort:recent (shared with m2-agent-mexican-chicago-my-network: the place reviews your lens reaches)"
+      ],
+      "missing": "The list is thin in New York. Only 7 of its places mention 'New York' at all, and one mentions Brooklyn. Places in Manhattan, Astoria or Brooklyn whose fields don't say 'New York' would be missed. The results don't show category or address, so I can't confirm 'bar' matched each one's category rather than some other field. The other 11 kind 39999 hits for the same words were books and events from other lists (such as an event called Bar Lasso), not places, so I left them out. Your PubKey review's star count isn't in the excerpt.",
+      "answer": "Only two bars in New York are on Brainstorm's food list, and you've reviewed both. PubKey (your review: 'Epic smashburger!', https://brainstorm.world/e/naddr1qvzqqqy96vpzpwp69zm7fewjp0vkp306adnzt7249ytxhz7mq3w5yc629u6er9zsqpshqmrpvdjn5vee8yunjw35vfjx2epjxymnyvphx5eryvt9v9jrxwfnvycxyct9vvukxdfnxqerxwr9vvcnjvnrxfsnjcmyvf3xxdehx56xycfcvvenxdfhvgmrgwn0wdkj6mn0v3jj6vfsxg6r2dfc8y6rqdgt6el4h). The Expat (you gave it 5 of 5, https://brainstorm.world/e/naddr1qvzqqqy96vpzpwp69zm7fewjp0vkp306adnzt7249ytxhz7mq3w5yc629u6er9zsqps8qmrpvdjn5vee8yunjw35vfjx2epjxymnyvphx5eryvt9v9jrxwfnvycxyct9vvukxdfnxqerxwr9vvcnjvnrxfsnjcmyvf3xxdehx56xycfcvvenxdfhvgmrgwn0wdkj6mn0v3jj6v3hxcurgdf3xq6ny4nchpj). The list has only about 7 New York places in all, so this is far from every bar in the city. Search: https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20%22new%20york%22%20bar%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqv35x56nswf5xq6s5pvxdh",
+          "label": "PubKey",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10245589405",
+          "found": true,
+          "category": "places",
+          "locality": "New York",
+          "category_tag": ["bar"],
+          "cuisine": ["hot_dog", "sandwich", "chicken"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995erwd3cxs6nzvp4xg32ss7h",
+          "label": "The Expat",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2768451052",
+          "found": true,
+          "category": "places",
+          "locality": "New York",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": 1,
+      "expected_live": 1,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 1
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "PubKey, the expected bar, and The Expat, both bars in New York. Only seven places on the list name New York."
+    },
+    {
+      "id": "m2-agent-bubble-tea-san-francisco",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "San Francisco",
+        "property": {
+          "cuisine": "bubble_tea"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"san francisco\" kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"san francisco\" bubble_tea kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"san francisco\" \"bubble_tea\" kind:39999"
+      ],
+      "missing": "The results don't show cuisine, so I can't confirm each place's cuisine is bubble_tea. 'bubble_tea' matched somewhere in its fields, and cuisine values are among them. The quoted and unquoted searches gave the same 13. Town isn't shown either. The phrase 'san francisco' would also match an address in South San Francisco, and I can't tell which Little Sweet branches are inside the city. The 13 include 9 Little Sweet entries (some may be duplicates). I show 10. None has a review from your network.",
+      "answer": "13 places in San Francisco on Brainstorm's food list are listed as bubble tea. Most are Little Sweet branches (9 entries, including Little Sweet Go, Little Sweet at K-Box and Turn Café x Little Sweet). The others are Nameless Tea & Coffee, Kiss of Matcha and District Tea. Nobody in your network has reviewed any of them. All 13: https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20%22san%20francisco%22%20bubble_tea%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cngvfjx5mnxd3j8y6smzp3zg",
+          "label": "Little Sweet",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125736295",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnywfcxv6n2v33xgusymrzsz",
+          "label": "Nameless Tea & Coffee",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12983552129",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er9956nswfnxccr2de5x563vlmt",
+          "label": "Kiss of Matcha",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-5893605745",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnydeexsmnvd3sxumq4j5p3r",
+          "label": "District Tea",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12794766076",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cngvfj8y6nwdf48qeswu35pt",
+          "label": "Little Sweet Go",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14129575583",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqdfkxq6njdpkx5eq8wlvxj",
+          "label": "Turn Café x Little Sweet",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10560594652",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995unvdfhxqun2dfkxcg78xrs",
+          "label": "Little Sweet at K-Box",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9657095566",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995ungd3jxv6rxd34xvhpqnqj",
+          "label": "Little Sweet",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-9462343653",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnyvfsxy6nvd3k8ycsl95h0x",
+          "label": "Little Sweet",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12101566691",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cngvfjx5ersve58ymqd9nvmn",
+          "label": "Little Sweet",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-14125283496",
+          "found": true,
+          "category": "places",
+          "locality": "San Francisco",
+          "category_tag": ["cafe"],
+          "cuisine": ["bubble_tea"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": 1,
+      "expected_live": 7,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 1
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "All seven expected places, among ten results, each a bubble tea place in San Francisco."
+    },
+    {
+      "id": "m2-agent-coffee-nashville",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Nashville",
+        "property": {
+          "category": "cafe"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 nashville kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 nashville \"cafe\" kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 nashville coffee kind:39999"
+      ],
+      "missing": "The results don't show category or town. 'cafe' matched somewhere in each item's fields, so I can't confirm the category itself. Packhouse Coffee Company has 'coffee' in its name but didn't match 'cafe', so its category is probably something else; I list it last for that reason. I can't tell which Nashville each place is in, or whether 'Nashville' comes from an address in a nearby town. The four Prickly Pear Coffee Co. entries may be separate branches or duplicates. Brainstorm's food list has only about 12 places mentioning Nashville. None has a review from your network.",
+      "answer": "Brainstorm's food list has 5 cafes in Nashville: Wishing Town Bakery Cafe and Prickly Pear Coffee Co. (4 entries, likely separate locations). Packhouse Coffee Company also serves coffee, but it isn't listed as a cafe. That's thin: the list has only about 12 Nashville places in all, and nobody in your network has reviewed these. Search: https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20nashville%20%22cafe%22%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er9956rxveh8yunjdf5xgqk2rsz",
+          "label": "Wishing Town Bakery Cafe",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4337999542",
+          "found": true,
+          "category": "places",
+          "locality": "New Orleans",
+          "category_tag": ["restaurant"],
+          "cuisine": ["asian"],
+          "start": null,
+          "in_place": false,
+          "in_window": null,
+          "has_property": false
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3exsun2wp4xqesejzd4q",
+          "label": "Prickly Pear Coffee Co.",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294958503",
+          "found": true,
+          "category": "places",
+          "locality": "Nashville",
+          "category_tag": ["cafe"],
+          "cuisine": ["coffee_shop"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3exsunvwpcxuusnv4aa4",
+          "label": "Prickly Pear Coffee Co.",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294968879",
+          "found": true,
+          "category": "places",
+          "locality": "Nashville",
+          "category_tag": ["cafe"],
+          "cuisine": ["coffee_shop"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3exsunwvps8qus4ecc3r",
+          "label": "Prickly Pear Coffee Co.",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294970089",
+          "found": true,
+          "category": "places",
+          "locality": "Nashville",
+          "category_tag": ["cafe"],
+          "cuisine": ["coffee_shop"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3exsunvdp38qcqv78evh",
+          "label": "Prickly Pear Coffee Co.",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13294964180",
+          "found": true,
+          "category": "places",
+          "locality": "Nashville",
+          "category_tag": ["cafe"],
+          "cuisine": ["coffee_shop"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxde3xg6nydf4x56qvm9ag3",
+          "label": "Packhouse Coffee Company",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13712525554",
+          "found": true,
+          "category": "places",
+          "locality": "Nashville",
+          "category_tag": ["coffee"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": false
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": 1,
+      "expected_live": 2,
+      "expected_dropped": [],
+      "precision": {
+        "place": 0.8333333333333334,
+        "time": null,
+        "property": 0.6666666666666666
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "Both expected places. One result is outside Nashville and two are not tagged cafe, which the answer could not see."
+    },
+    {
+      "id": "m2-agent-middle-eastern-austin",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Austin",
+        "property": {
+          "cuisine": "middle_eastern"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"austin\" \"middle_eastern\" kind:39999",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 austin middle eastern kind:39999"
+      ],
+      "missing": "The results don't show cuisine or town. 'middle_eastern' matched somewhere in each item's fields, and both ways of writing it gave the same 4. 'austin' could also match a street or another town's address, so I can't confirm each place is in Austin, Texas. That's worth checking for Reem's in particular. The three Halal Bros entries may be separate branches or duplicates. None has a review from your network.",
+      "answer": "Two Middle Eastern names come up in Austin on Brainstorm's food list: Halal Bros (3 entries, likely three locations) and Reem's. Nobody in your network has reviewed them. Places listed only as Mediterranean or Lebanese wouldn't match this search. Search: https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20%22austin%22%20%22middle_eastern%22%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3e8qergwfcxycs47xm0c",
+          "label": "Halal Bros",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298249811",
+          "found": true,
+          "category": "places",
+          "locality": "Austin",
+          "category_tag": ["restaurant"],
+          "cuisine": ["middle_eastern"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3e8qersdek8q6svzsq62",
+          "label": "Halal Bros",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287685",
+          "found": true,
+          "category": "places",
+          "locality": "Austin",
+          "category_tag": ["restaurant"],
+          "cuisine": ["middle_eastern"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxwp3xserqv358qmsvclmay",
+          "label": "Reem's",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13814202487",
+          "found": true,
+          "category": "places",
+          "locality": "Austin",
+          "category_tag": ["fast_food"],
+          "cuisine": ["middle_eastern", "falafel", "shawarma"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3e8qersde3xcequl26j3",
+          "label": "Halal Bros",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13298287162",
+          "found": true,
+          "category": "places",
+          "locality": "Austin",
+          "category_tag": ["restaurant"],
+          "cuisine": ["middle_eastern"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": 1,
+      "expected_live": 2,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 1
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "Both expected places, Reem's and Halal Bros."
+    },
+    {
+      "id": "m2-agent-mexican-chicago-my-network",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Chicago",
+        "property": {
+          "cuisine": "mexican"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"chicago\" \"mexican\" kind:39999",
+        "to:<naddr of each of the 3 places> kind:34259",
+        "to:<naddr of each of the 3 places> include:spam",
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 \"chicago\" kind:39999 (run twice, the second to keep the output)",
+        "kind:34259 sort:recent (run twice, the second to keep the output; links decoded to match reviews to places)",
+        "\"chicago\" mexican kind:1 (run twice, the second to keep the output)",
+        "from:npub13q8evu294dnt20vacfuagj5hy2agwhfr93el8h68qlg708zrxm8qnd6vpv kind:0"
+      ],
+      "missing": "No one in your network has reviewed a Mexican place in Chicago. Nobody has reviewed or cited any of the three at all, even with the trust floor lifted. The nine place reviews your lens reaches include one in Chicago, your own of Fork & Coin, which is a restaurant with no cuisine set (per the 2026-10-22 data audit), so it isn't Mexican. The results don't show cuisine or town, so I can't confirm each match's cuisine. Lucky Dawgs, for one, could be a hot dog stand with Mexican as a second cuisine. Tacotlan, also on the list in Chicago, has a name that suggests Mexican food but didn't match 'mexican', so I left it out rather than guess. The only words from anyone your lens ranks are notes, not ratings, and they're weaker evidence. plebiANON (npub13q8evu294dnt20vacfuagj5hy2agwhfr93el8h68qlg708zrxm8qnd6vpv) posted in 2023 that Kie Gol Lanne was the best Mexican food they'd had in Chicago, and Kie Gol Lanne isn't on the list.",
+      "answer": "Nobody in your network has rated a Mexican place in Chicago yet. Brainstorm's food list has three Chicago places listed as Mexican: Pozoleria El Mexicano, Rubi's Tacos and Lucky Dawgs. None has a review from anyone, even with the trust floor lifted. Your network's only Chicago review is your own of Fork & Coin (not Mexican). A weaker lead: plebiANON's 2023 note calling Kie Gol Lanne the best Mexican food they'd had in Chicago (https://brainstorm.world/e/nevent1qvzqqqqqqypzpzq0jec5t2mxk57emsne639fwg46sawjxtrn7005wp73u7wyxdkwqqszw05crlsgd66dzhgxglxp2f5x2cw08g3tam7ek8y9zscvxk0ah5qc4ju3v). That's a note, not a rating, and the place isn't on the list. Search: https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20%22chicago%22%20%22mexican%22%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxv3cx5urywfcxsmsur08sf",
+          "label": "Pozoleria El Mexicano",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13285829847",
+          "found": true,
+          "category": "places",
+          "locality": "Chicago",
+          "category_tag": ["restaurant"],
+          "cuisine": ["mexican"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995mrywpsxqerwdf3xqpslxpm",
+          "label": "Rubi’s Tacos",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-6280027510",
+          "found": true,
+          "category": "places",
+          "locality": "Chicago",
+          "category_tag": ["restaurant"],
+          "cuisine": ["mexican"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxde4xucrgwp4x5cqpjetl0",
+          "label": "Lucky Dawgs",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13757048550",
+          "found": true,
+          "category": "places",
+          "locality": "Chicago",
+          "category_tag": ["fast_food"],
+          "cuisine": ["hot_dogs", "mexican"],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 1
+      },
+      "verdict": "partly",
+      "cause": "data",
+      "why": "The list's three Mexican places in Chicago, rightly, and that nobody in the reader's network has reviewed them: no reviews of them exist."
+    },
+    {
+      "id": "m2-agent-bars-funchal-open-now",
+      "journey": "M2",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Funchal",
+        "property": {
+          "category": "bar"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "from:npub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8 funchal \"bar\" kind:39999",
+        "kind:34259 sort:recent (shared: checked these places against the place reviews your lens reaches)"
+      ],
+      "missing": "I couldn't check which are open now, which is Saturday about 19:20 in Funchal (WET, UTC+0 since Portugal left summer time on 25 October). The search results don't carry a place's opening-hours field, and tapestry_lists can't fetch a single list item; it only pages through all 7,954 by date. The 2026-10-22 audit says about 73% of items have hours, so each place's page probably shows them. Category isn't in the results either. O Maltez, Joker and A casa da Levada match 'bar' with no 'bar' in their names, so that word likely comes from their category. Barreirinha Bar Café and A Carruagem Snack Bar may match on their names only, and A Carruagem also matches 'restaurant', so it may be a restaurant. None has a review from your network.",
+      "answer": "Brainstorm's food list has 5 places in Funchal that match 'bar': O Maltez, Joker, A casa da Levada, Barreirinha Bar Café and A Carruagem Snack Bar. A Carruagem may really be a restaurant. I can't tell you which are open right now (Saturday evening, about 19:20 there) because my tools don't show opening hours; open each place's page to check. Nobody in your network has reviewed them. Search: https://brainstorm.world/?q=from%3Anpub1f00dy9eqw53patfe8g96ajw9xq3casvjc25umw78w4963se40djqwxgrq8%20funchal%20%22bar%22%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqv3ex5cnsv348qeq9tzddy",
+          "label": "O Maltez",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10295182582",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzwp5xscnqvps8qesa9ep7z",
+          "label": "Joker",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11844100083",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995enjwfhxcmn2d3exqtk88km",
+          "label": "A casa da Levada",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3997675690",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er9956rxvfexgen2ve4xygdrr2v",
+          "label": "Barreirinha Bar Café",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4319235351",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzveexserwdeexqcqj0eyy0",
+          "label": "A Carruagem Snack Bar",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11394277900",
+          "found": true,
+          "category": "places",
+          "locality": "Funchal",
+          "category_tag": ["restaurant"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": false
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 0.8
+      },
+      "verdict": "partly",
+      "cause": "tool",
+      "why": "Five places in Funchal, four tagged bar. Whether each is open now could not be checked: results carry no opening-hours."
+    },
+    {
+      "id": "m3-agent-chicago-this-weekend",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "Chicago",
+        "time": "this weekend"
+      },
+      "answered": true,
+      "searches": [
+        "chicago [kinds 31922,31923,39999]",
+        "chicago \"31 Oct 2026\" [kinds 39999]",
+        "\"31 Oct 2026\" [kinds 39999] (check that an Events item's when text is searchable)",
+        "chicago \"1 Nov 2026\" [kinds 39999]",
+        "chicago \"Nov 2026\" [kinds 39999] (check that city plus date phrase finds Chicago items)",
+        "\"1 Nov 2026\" [kinds 39999] (check a one-digit day)",
+        "chicago sort:recent [kinds 31922,31923]",
+        "chicago \"october 31\" [kinds 31922,31923]",
+        "\"bottle theory\" halloween saturday [kinds 31923]"
+      ],
+      "missing": "No Chicago event is confirmed for Sat 31 Oct or Sun 1 Nov. Events-list items (Event Index, kind 39999) carry a written-out `when` that the relay indexes, so I matched the day as a phrase: Chicago has 38 items dated November (a few of them matched by typo and not in Chicago) but none dated 31 Oct or 1 Nov. An event that began before the weekend and runs through it, with `when` written as a range, would not match. Native NIP-52 events (31922/31923) carry their start in a `start` tag the tool doesn't show, so I can't check them: since:/until: filter on when an event was written, not when it starts. Three recently posted Chicago-area calendar events might fall this weekend, start unchecked: Bitcoin & Beers Halloween Party & Monthly Meetup at Bottle Theory, Elmhurst (posted 21 Oct) https://brainstorm.world/e/naddr1qvzqqqrukvpzqejwqu87yhnkmh8054yjnsx7gtk26zqspy6s0cjdu33zqagumda2qqvrvctyxa3xzd3cv4snwwfnvcex2vnxvserqd3kv54szpd7 ; live music with Big G and the Machine at Tannins (posted 22 Oct) https://brainstorm.world/e/naddr1qvzqqqrukvpzqhmx4sukj0puyve3du2pl79mmapkglzg2jkmg73d4986s4wh8plpqqlkx6rfvdskwmedv9ex2cfdd35hvefdd46hx6tr943xjeedvukkzmny946xsefdd4skx6rfdejj6cecxqen2vpcxqkkxctvv4hxgctjmgaj86 ; Members marketplace (Bitcoin Bodega) at the Chicago Bitcoin Collective (posted 28 Oct) https://brainstorm.world/e/naddr1qvzqqqrukgpzpz7t5fhc7eytsdxycc83ma26ewl5maz3gdxh6cqtnw2g0j928hd3qqsxy6t5vdhkjm3dvfhkget8vykk2eryv3nrge33943kzmr9dejxzusetl9fe . The Joanie's Pizza meetup says Saturday 7 November, so it's next weekend.",
+      "answer": "I can't find anything confirmed in Chicago this weekend. Brainstorm's Events list (Event Index's Luma and Meetup feeds) has nothing in Chicago dated Sat 31 Oct or Sun 1 Nov; its next Chicago items are in November. Three nostr calendar events from the Chicago bitcoin crowd might be this weekend, but I can't see their dates: a Bitcoin & Beers Halloween party at Bottle Theory in Elmhurst, live music with Big G and the Machine at Tannins, and a members' marketplace at the Chicago Bitcoin Collective. Open them to check. Search: https://brainstorm.world/?q=chicago",
+      "results": [],
+      "category_hit": 0,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [
+        "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6a7e1d3c4786851c33ad3d0c",
+        "31923:26c71ddc66f279347fb15bdcd18f385b5766a943e61cf82b5b64c3675e415997:chicago-bird-alliance:6aa3ea2f70b53a440355a2f0"
+      ],
+      "precision": {
+        "place": null,
+        "time": null,
+        "property": null
+      },
+      "verdict": "not",
+      "cause": "tool",
+      "why": "Nothing. The relay has three Chicago events this weekend, two of them native calendar events whose start a result does not show and since: and until: cannot filter.",
+      "census": [
+        "Nightmare on Fulton Street! (Event Index)",
+        "Wooded Island Birding Outing (31923)",
+        "Bitcoin Bodega (31922)"
+      ]
+    },
+    {
+      "id": "m3-agent-funchal-next-7-days",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "Funchal",
+        "time": "next 7 days"
+      },
+      "answered": true,
+      "searches": [
+        "funchal sort:recent [kinds 31922,31923,39999]",
+        "funchal from:npub1evntrs9lke80t8qrhtkvmnt36985w7nzjehjh7779se7lq8hvmwqg3n44p [kinds 39999] (Events-list items only)",
+        "funchal sort:recent [kinds 31922,31923]",
+        "madeira -funchal sort:recent [kinds 31922,31923]",
+        "bitcoinwalk funchal sort:recent [kinds 31922,31923] (shared with the bitcoin walk question)"
+      ],
+      "missing": "Start times aren't shown for native calendar events. The dates come from each event's d tag (`<series>:YYYY-MM-DD`), not from its start tag, and the times aren't there at all, so today's walks may already be over: it's about 19:20 in Funchal. Today's hike doesn't mention Funchal; I matched it on Madeira and haven't checked where it starts. An aggregator account (npub1ve8qwrl…) republished six Funchal BitcoinWalks on 20 Oct whose d tags carry no date, so I can't place them. They're probably copies of the walks above. Event Index has no Funchal items at all. The FREE Madeira Bitcoin Meetup meets on the last Wednesday of the month (next is 25 Nov), outside the window. I found nothing else dated in the window.",
+      "answer": "In the next 7 days in Funchal it's the Saturday BitcoinWalks. There's one today (Sat 31 Oct) in Funchal, possibly already over since I can't see the time, plus a 10-12 km BitcoinWalk mountain hike somewhere on Madeira today. The next walk is Sat 7 Nov. They're all posted on nostr by the same organizer (npub1wngvv89…). Brainstorm's Events list has nothing in Funchal this week. Search: https://brainstorm.world/?q=funchal",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xqknxvgkvnwgc",
+          "label": "BitcoinWalk, Funchal: Sat 31 Oct 2026 (today; date from the event's d tag, time not shown)",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-31",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793444400",
+          "in_place": true,
+          "in_window": false,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhnsvmxxy6n2vp595ukvcmp956xgdfe94snqe3k95mrzdnpx56njdf3xpjxvw3jxqervtf3xqknxvgedyk3k",
+          "label": "BitcoinWalk hike, out-and-back 10-12 km mountain trail, Madeira: Sat 31 Oct 2026 (today; date from d tag; doesn't name Funchal)",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-31",
+          "found": true,
+          "category": "events",
+          "locality": "Lombo do Urzal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793444400",
+          "in_place": false,
+          "in_window": false,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xyknqdc39mfru",
+          "label": "BitcoinWalk, Funchal: Sat 7 Nov 2026 (date from d tag)",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-07",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1794049200",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhnsvmxxy6n2vp595ukvcmp956xgdfe94snqe3k95mrzdnpx56njdf3xpjxvw3jxqervtf3xyknqdc7yv36j",
+          "label": "BitcoinWalk, same organizer's second series: Sat 7 Nov 2026 (date from d tag)",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-11-07",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1794049200",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [
+        "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615ceb9a1c1407de84bee",
+        "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6a932d5cb7fec64b1dbe50b8"
+      ],
+      "precision": {
+        "place": 0.75,
+        "time": 0.5,
+        "property": null
+      },
+      "verdict": "answered",
+      "cause": "tool",
+      "why": "The one event in the window, BitcoinWalk on 7 November, found. It also listed this morning's walk and a hike outside Funchal, with a caveat, because no result shows a start time.",
+      "census": ["BitcoinWalk Madeira, 7 Nov (31923)"]
+    },
+    {
+      "id": "m3-agent-san-francisco-hackathons-this-weekend",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "San Francisco",
+        "time": "this weekend"
+      },
+      "answered": true,
+      "searches": [
+        "hackathon \"san francisco\" \"31 Oct 2026\" [kinds 39999]",
+        "hackathon \"san francisco\" \"1 Nov 2026\" [kinds 39999]",
+        "hack \"san francisco\" \"31 Oct 2026\" [kinds 39999]",
+        "hack \"san francisco\" \"1 Nov 2026\" [kinds 39999]",
+        "hackathon \"31 Oct 2026\" [kinds 39999]",
+        "hackathon \"1 Nov 2026\" [kinds 39999]",
+        "hackathon \"31 Oct 2026\" \"sf\" [kinds 39999]",
+        "hackathon \"san francisco\" sort:recent [kinds 31922,31923]"
+      ],
+      "missing": "The result shows only the title. The day and the city come from the item matching the phrases \"31 Oct 2026\" (its `when`) and \"san francisco\". I didn't see its time or venue. Ten hackathons are listed worldwide this weekend. Three have no place in their title and don't mention San Francisco: Halloween Hackathon (supported by Lovable), STRANGER BUILDS Halloween hackathon, and Breast Cancer Awareness Hackathon. The only native nostr hackathon event in SF is a winners' ceremony on 4 December. Nothing is listed for Sunday.",
+      "answer": "One: Haunted Hacks: Real-Time AI Edition, Saturday 31 Oct in San Francisco, from Event Index's Luma feeds. Nothing else is listed for SF this weekend, and nothing on Sunday. Search: https://brainstorm.world/?q=hackathon%20%22san%20francisco%22%20%2231%20Oct%202026%22",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxjankweekw6nrxfm8ymm6vd6kzutj09hkyefnve5kcdmpd44kx6se330fl",
+          "label": "Haunted Hacks: Real-Time AI Edition: Sat 31 Oct 2026, San Francisco (Event Index; day and city from text matches on the item, not shown in the result)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:ivvvsgjc2vrozcuaqryobe3fil7amkcj",
+          "found": true,
+          "category": "events",
+          "locality": "Y Combinator, 560 20th St, San Francisco, CA 94107, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793466000",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [
+        "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3deu6jgkds3rtbvqljzbeclm6ftexywh",
+        "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:y6zui5cjsutcwsg2nnvsm2xjlgrotjep",
+        "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:4fttjsb5fkjuufhepefnbks2ge4bgsgx",
+        "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fymdzzmyuqhskvsbfpggzaowjrd7tmtk",
+        "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kcyoynyplshbbxmmyzwx2vikc3ah3ko6"
+      ],
+      "precision": {
+        "place": 1,
+        "time": 1,
+        "property": null
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "The one hackathon in San Francisco this weekend, Haunted Hacks. The expected five were last weekend.",
+      "census": ["Haunted Hacks: Real-Time AI Edition (Event Index)"]
+    },
+    {
+      "id": "m3-agent-nashville-this-week",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "Nashville",
+        "time": "this week"
+      },
+      "answered": true,
+      "searches": [
+        "nashville \"Oct 2026\" [kinds 39999]",
+        "nashville \"Oct 2026\" -\"26 Oct 2026\" -\"27 Oct 2026\" -\"28 Oct 2026\" -\"29 Oct 2026\" -\"30 Oct 2026\" -\"31 Oct 2026\" [kinds 39999]",
+        "nashville \"1 Nov 2026\" [kinds 39999]",
+        "nashville \"31 Oct 2026\" [kinds 39999]",
+        "nashville \"30 Oct 2026\" [kinds 39999]",
+        "nashville \"29 Oct 2026\" [kinds 39999]",
+        "nashville sort:recent [kinds 31922,31923]",
+        "nashville \"28 Oct 2026\" [kinds 39999]"
+      ],
+      "missing": "The days come from phrase matches on each item's `when`, which the result doesn't show, so I don't have the times. A nostr calendar copy of Agents Anonymous (\"last Saturday of each month at The AI Freedom Lab at Bitcoin Park\", posted 28 Oct by npub1ve8qwrl…) is probably the same event: https://brainstorm.world/e/naddr1qvzqqqrukvpzqejwqu87yhnkmh8054yjnsx7gtk26zqspy6s0cjdu33zqagumda2qqvrvct9xpnrgveexf3n2dejxg6kxetyv5ux2decv5mldltd . I can't see the start of native calendar events, so I can't check whether Bitcoin Park 102 (posted 12 Oct) or anything else falls this week. Nothing is listed for Sun 1 Nov.",
+      "answer": "Three in Nashville this week: She Runs the World Tour x Tennessee State (Wed 28 Oct), Philosophy for Freedom In the Age of AI (Thu 29 Oct), and Agents Anonymous at The AI Freedom Lab, Bitcoin Park (today, Sat 31 Oct). The first two have passed. Nothing is listed for Sunday. Search: https://brainstorm.world/?q=nashville%20%22Oct%202026%22",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsr27rrd3ckwum4w9kxjvntvv6nydnvxekkwupnwc6rgvn4wp3hg7qhw58lf",
+          "label": "Agents Anonymous: Sat 31 Oct 2026 (today), Nashville (Event Index; day from its when text)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:5xclqgsuqli2kc526l6mgp3v442upctx",
+          "found": true,
+          "category": "events",
+          "locality": "AI Freedom Lab, 1912 21st Ave S, Nashville, TN",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793455200",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqs8wdrg0fjrxaf40fhkcmfjx4m8gempd4hhy6mp09sn2at2v3u8jcsc8jzck",
+          "label": "Philosophy for Freedom In the Age of AI: Thu 29 Oct 2026, Nashville (Event Index; day from its when text)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:w4hzd3u5zolm25vtgamorkaya5ujdxyb",
+          "found": true,
+          "category": "events",
+          "locality": "AI Freedom Lab, 1912 21st Ave S, Nashville, TN",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793313000",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsrxat8d4ckxamf0f3ks6n2xfmkkenxwe6kyumkwpmxsdn9wf6xj7g925s24",
+          "label": "She Runs the World Tour x Tennessee State: Wed 28 Oct 2026, Nashville (Event Index; day from its when text)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:3ugmqcwizchjj2wkffvubsvpvh6ertiy",
+          "found": true,
+          "category": "events",
+          "locality": "Tennessee State University, 3500 John A Merritt Blvd, Nashville, TN 37209, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793228400",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": 0.6,
+      "expected_live": 5,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": 1,
+        "property": null
+      },
+      "verdict": "partly",
+      "cause": "tool",
+      "why": "Three of the five events this week, all Event Index items. It missed the two native calendar events, whose start a result does not show.",
+      "census": [
+        "Agents Anonymous (Event Index)",
+        "Philosophy for Freedom In the Age of AI (Event Index)",
+        "She Runs the World Tour x Tennessee State (Event Index)",
+        "October 2026 Executive Committee Meeting (31923)",
+        "Custody & Treasury Summit 2026 (31923)"
+      ]
+    },
+    {
+      "id": "m3-agent-funchal-bitcoin-walk",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "Funchal",
+        "time": "upcoming"
+      },
+      "answered": true,
+      "searches": [
+        "bitcoinwalk funchal sort:recent [kinds 31922,31923]",
+        "\"bitcoin walk\" funchal (all kinds)",
+        "bitcoinwalk funchal levada [kinds 31922,31923]",
+        "madeira -funchal sort:recent [kinds 31922,31923] (shared with the Funchal question)"
+      ],
+      "missing": "Every date comes from the event's d tag (`<series>:YYYY-MM-DD`), not its start tag, and the tool shows neither times nor meeting points. A 2024 post put the start at 10:00, so today's walk is probably over. The organizer (npub1wngvv89…) runs a second series (83f15504…) with walks on the same Saturdays, 7 to 28 Nov, that also match Funchal. Some of its dates are levada or mountain hikes, and I can't tell which from the excerpt. An aggregator (npub1ve8qwrl…) reposted six Funchal BitcoinWalks with undated d tags. Event Index lists no Funchal walks.",
+      "answer": "BitcoinWalk Funchal meets every Saturday. Today's (31 Oct) has probably happened; there's also a BitcoinWalk mountain hike on Madeira today. Upcoming dates: 7, 14, 21 and 28 Nov, then 5, 12 and 19 Dec, all posted on nostr by the same organizer. The listings don't show meeting time or place, so check the event page. Search: https://brainstorm.world/?q=bitcoinwalk%20funchal",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xqknxvgkvnwgc",
+          "label": "BitcoinWalk, Funchal: Sat 31 Oct 2026 (today; time not shown)",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-10-31",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793444400",
+          "in_place": true,
+          "in_window": false,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhnsvmxxy6n2vp595ukvcmp956xgdfe94snqe3k95mrzdnpx56njdf3xpjxvw3jxqervtf3xqknxvgedyk3k",
+          "label": "BitcoinWalk hike, mountain trail 10-12 km, Madeira: Sat 31 Oct 2026 (today)",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:83f15504-9fca-4d59-a0f6-616a559510df:2026-10-31",
+          "found": true,
+          "category": "events",
+          "locality": "Lombo do Urzal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793444400",
+          "in_place": false,
+          "in_window": false,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xyknqdc39mfru",
+          "label": "BitcoinWalk, Funchal: Sat 7 Nov 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-07",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1794049200",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xyknzdq7596nt",
+          "label": "BitcoinWalk, Funchal: Sat 14 Nov 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-14",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1794654000",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xyknyvgr339zj",
+          "label": "BitcoinWalk, Funchal: Sat 21 Nov 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-21",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1795258800",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhkxcfjxqunjvmp956kydmx956rgvm995unxvt995uxgcnpvymrzepsx4nx2w3jxqervtf3xyknywqrkt52r",
+          "label": "BitcoinWalk, Funchal: Sat 28 Nov 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:ca20993a-5b7f-443e-931e-8dbaa61d05fe:2026-11-28",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1795863600",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhnsv35xuurxenx94jrvefn956rjvek94skgcn995enjwp3v5ursd3kvv6rsw3jxqervtf3xgknqdg0v9xaw",
+          "label": "BitcoinWalk, Funchal: Sat 5 Dec 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-05",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1796464800",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhnsv35xuurxenx94jrvefn956rjvek94skgcn995enjwp3v5ursd3kvv6rsw3jxqervtf3xgknzvs0q50xl",
+          "label": "BitcoinWalk, Funchal: Sat 12 Dec 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-12",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1797069600",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqrukvpzqaxsccw2jymktsvgmlpzvhf8hj6qrgvsd67hnjgpmjth56dzrz0sqqhnsv35xuurxenx94jrvefn956rjvek94skgcn995enjwp3v5ursd3kvv6rsw3jxqervtf3xgknzwg6xxxma",
+          "label": "BitcoinWalk, Funchal: Sat 19 Dec 2026",
+          "id": "31923:74d0c61ca913765c188dfc2265d27bcb401a1906ebd79c901dc977a69a2189f0:824783ff-d6e3-4936-adbe-3981e8866c48:2026-12-19",
+          "found": true,
+          "category": "events",
+          "locality": "Funchal, Madeira, Portugal",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1797674400",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": 1,
+      "expected_live": 7,
+      "expected_dropped": [
+        "31923:664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa:6ad615deb9a1c1407de84c40"
+      ],
+      "precision": {
+        "place": 0.8888888888888888,
+        "time": 0.7777777777777778,
+        "property": null
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "All seven upcoming BitcoinWalks, dated from their d tags, plus this morning’s walk and a hike outside Funchal."
+    },
+    {
+      "id": "m3-agent-new-york-this-weekend-my-network",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "New York",
+        "time": "this weekend"
+      },
+      "answered": true,
+      "searches": [
+        "\"new york\" \"31 Oct 2026\" [kinds 39999]",
+        "\"new york\" \"1 Nov 2026\" [kinds 39999]",
+        "\"new york\" sort:recent [kinds 31922,31923]",
+        "to:<naddr> x11 (the New York weekend items), no kinds: anything citing them from Avi's web of trust",
+        "\"ny\" \"31 Oct 2026\" -\"new york\" [kinds 39999]",
+        "\"ny\" \"1 Nov 2026\" -\"new york\" [kinds 39999]",
+        "brooklyn \"31 Oct 2026\" -\"new york\" [kinds 39999]",
+        "brooklyn \"1 Nov 2026\" -\"new york\" [kinds 39999]"
+      ],
+      "missing": "Nothing this weekend is from Avi's network. Every Events-list item is signed by Event Index's key (npub1evntrs…), not by its organizer, and the organizer's own key (`p`, optional) isn't shown, so I can't tell whether anyone he trusts runs these. Nobody in his web of trust has RSVP'd to, reacted to or commented on any of the 11 New York weekend items. The native nostr New York calendar events I can see were mostly reposted by an aggregator (npub1ve8qwrl…), and none has a start I can check; COIN BASED at PubKey (posted 14 Oct) and the ETF Investor Forum (posted 26 Oct) have no visible date. Three items that matched \"new york\" are elsewhere (Claude SMB Workshops in Miami, Greeneville and Ottawa), and I left out Animation Nights New York, which is virtual. Days come from phrase matches on each item's `when` and aren't shown in the results. \"Through Avi's network\" here means his web-of-trust lens (rank 2 and up); the tools can't restrict to people he follows.",
+      "answer": "Nothing from your network in New York this weekend: nobody you trust has posted, RSVP'd to or commented on a New York event for Sat 31 Oct or Sun 1 Nov. For what's on generally, Event Index lists about ten New York events, such as the Pally Party Halloween pregame, Philosophy at the Met Cloisters and a 5K on Saturday, and a Day of the Dead parade and a writing club on Sunday. Those come from public Luma and Meetup calendars, not from people you know. Search: https://brainstorm.world/?q=%22new%20york%22%20%2231%20Oct%202026%22",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqs8sumhvsmkxer6dpekcdnx0948xufnwe4nyemedymkxem2d9chwusvnyarg",
+          "label": "The Pally Party NYC: Halloween pregame: Sat 31 Oct 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:xswd7cdzhsl6fyjsq3vk2gyi7cgjiqwr",
+          "found": true,
+          "category": "events",
+          "locality": "https://partiful.com/e/vowuBWTqgPTugfPlA9ZI",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793491200",
+          "in_place": false,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsx5an8v96xsetvvaskkarfw4sk77pjv36k56rdd45xgurcxe4xz6g8ew6p6",
+          "label": "Party Over Here!: Sat 31 Oct 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:jvgathelgaktiuaox2dujhmmhdpx6jai",
+          "found": true,
+          "category": "events",
+          "locality": "Harlem River Park, Harlem River Dr, New York, NY 10035, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793489400",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqs8wuty0pkxgenswe5hvan9vemhqenedakhgcnzdfuhymnh0qex6eclcpvyw",
+          "label": "Philosophy at the Museum: Medieval Art at The Met Cloisters: Sat 31 Oct 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:wqdxldfpvivvefwpfyomtbbjyrnwx2mg",
+          "found": true,
+          "category": "events",
+          "locality": "The Met Cloisters, 99 Margaret Corbin Dr, New York, NY 10040, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793469600",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxgur8xa5hxmn2x3mhz7t5wpk8wdthveek2mm4d93hsdm5d46xgmgzkuzxu",
+          "label": "Run for the Thrill 5K Community Run/Walk: Sat 31 Oct 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:dpg7isnj4wqytplw5wfseouicx7tmtdm",
+          "found": true,
+          "category": "events",
+          "locality": "https://www.eventbrite.com/e/run-for-the-thrill-5k-community-runwalk-tickets-2000017696770",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793449800",
+          "in_place": false,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxz6thvd5x2e3jx3nn2urx0f3xxamtdpch27tnv938wdphv56k6asqfjt6u",
+          "label": "Half-Day Meditation Retreat with David Slaymaker: Sat 31 Oct 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:aiwchef24g5pfzbcwkhquysabw47e5mv",
+          "found": true,
+          "category": "events",
+          "locality": "Dharma Drum Meditation Center, 122 W 26th St Ste 801, New York, NY 10001, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793453400",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxkmmjv3nhvdnzwf3hwcmtwpjk5ar2xa4h56tjvfux27n8d9nxz7s053ky6",
+          "label": "make your own cami tops w/ @misskennedyjune: Sat 31 Oct 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:kordgv6brcwckpejtj7kzirbxezgifaz",
+          "found": true,
+          "category": "events",
+          "locality": "haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793462400",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxkd3kwf3ksutrvdc8xd3nvf6ry6rwdehxzcm80pnngun509khydsrpmzje",
+          "label": "Bonjour Girls in NYC - 纽约植物园亡灵节游行 (Day of the Dead parade, NY Botanical Garden): Sun 1 Nov 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:k66rchqccps63bt2hnnnacgxg4rtymr6",
+          "found": true,
+          "category": "events",
+          "locality": "New York Botanical Garden, 2900 Southern Blvd, Bronx, NY 10458, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793552400",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxv6tc0y6xy7t3w5mxxcnnvgek7me4dfax7ur3wea8qerjdaknxac2l4vk3",
+          "label": "Laozi: The Art of Effortless Living: Sun 1 Nov 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fixy4byqu6cbsb3oo5jzopqvzpdrom3w",
+          "found": true,
+          "category": "events",
+          "locality": "167 E Broadway, New York, NY 10002, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793548800",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsrgmrjx34hydm4deeh5efhxd3k7un20p3xumfhw4nrwaehw9jhzaqtrlu69",
+          "label": "Olive Tree Writing Club Fall '26: Part V: Sun 1 Nov 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:4lr4kr7unsze73corjxbnm7uf7w7qeqt",
+          "found": true,
+          "category": "events",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793545200",
+          "in_place": false,
+          "in_window": true,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxvemnwa3nxamcxsmxxur8wfmx5atfvd4hsu3nvd5kxe3hxamrw6c3hl3d0",
+          "label": "Guided Meditation and Q&A with David Listen: Sun 1 Nov 2026 (Event Index; not from your network)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fgswc3wx46cpgrvjuickxr3cicf77v7k",
+          "found": true,
+          "category": "events",
+          "locality": "Dharma Drum Meditation Center, 122 W 26th St suite 801, New York, NY 10001, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793547000",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": 0.7,
+        "time": 1,
+        "property": null
+      },
+      "verdict": "partly",
+      "cause": "tool",
+      "why": "Ten New York events this weekend, seven placed in New York by their location. None is through the reader's network: an RSVP's event is not in a result, so the join could not be made.",
+      "census": [
+        "Laozi: The Art of Effortless Living (Event Index)",
+        "Party Over Here! (Event Index)",
+        "Philosophy at the Museum: Medieval Art at The Met (Event Index)"
+      ]
+    },
+    {
+      "id": "m3-agent-austin-today",
+      "journey": "M3",
+      "expected_categories": ["events"],
+      "filters": {
+        "place": "Austin",
+        "time": "today"
+      },
+      "answered": true,
+      "searches": [
+        "austin \"31 Oct 2026\" [kinds 39999]",
+        "austin sort:recent [kinds 31922,31923]",
+        "\"tx\" \"31 Oct 2026\" -austin [kinds 39999]",
+        "austin halloween [kinds 31922,31923]"
+      ],
+      "missing": "One Events-list item in Austin is dated today. A venue calendar (npub1gw32pny…, posted 13 Oct) has about 19 Austin shows, such as Producer Protocol, Cheetah Chic, Fultones, Emo Hero, Haaz and Fast Ronald Comedy Special, but their excerpts give only the act's name and the tool doesn't show a start, so I can't tell whether any is tonight. The AI Startup Rodeo was Friday 30 Oct, per its text. The Texas items for today that don't mention Austin (Houston Witch Paddle, a Kid & Me costume walk) aren't in Austin. Days come from phrase matches on each item's `when`.",
+      "answer": "Only one thing in Austin is confirmed for today: Founders Running Club (Sat 31 Oct), from Event Index. A local venue has posted a run of shows on nostr (Producer Protocol, Cheetah Chic, Fultones and others), but the listings don't show their dates, so I can't tell whether any is tonight. Search: https://brainstorm.world/?q=austin%20%2231%20Oct%202026%22",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzpjexk8qtldjw7kwq8whvehxhr520gaax99n090aautpna7q0wekuqqsxv6r3wuexyamwdeexs6ngd33hxdr30f5xsamgvyeky7fkxfmnvaceesd5z",
+          "label": "Founders Running Club: Sat 31 Oct 2026, Austin (Event Index; day and city from text matches, not shown)",
+          "id": "39999:cb26b1c0bfb64ef59c03baeccdcd71d14f477a62966f2bfbde2c33ef80f766dc:fhqw2bwnnrhjhlcs4qzhhwha3by62w6w",
+          "found": true,
+          "category": "events",
+          "locality": "Estacionamiento Edward Rendon Park, 1601-1999 Nash Hernandez Senior Rd, Austin, TX 78702, USA",
+          "category_tag": [],
+          "cuisine": [],
+          "start": "1793451600",
+          "in_place": true,
+          "in_window": true,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": 1,
+        "property": null
+      },
+      "verdict": "partly",
+      "cause": "tool",
+      "why": "One of the four events in Austin today, the only Event Index item. The three native calendar events have no visible start.",
+      "census": [
+        "Founders Running Club (Event Index)",
+        "Fultones (31923)",
+        "Hornsby Bend Work Day (31923)",
+        "Cheetah Chic (31923)"
+      ]
+    },
+    {
+      "id": "m4-agent-funchal-restaurants-my-network",
+      "journey": "M4",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Funchal",
+        "property": {
+          "category": "restaurant"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "funchal restaurant (kinds 39999)",
+        "to:<each of the 26 places found> include:spam (kinds 34259)",
+        "include:spam (kinds 34259): every review on the relay, to see which places have any",
+        "funchal (kinds 39999)"
+      ],
+      "missing": "Reviews. No kind 34259 review names any of the 26 Food and Drink Places items whose records mention both Funchal and restaurant. I checked with the trust floor lifted (include:spam), so nobody in your network or outside it has reviewed them. The relay has 9 place reviews by 3 people (7 by you, plus 1 each by npub1m2lrsz… and npub19ma2w9…). None of them is of any of the first 50 Funchal items. That search hit its 50-result limit, so a few Funchal items past it went unchecked. I also couldn't check each place's category: results give only the name and link, so restaurant versus café or snack bar is unconfirmed. The search_link the tool returned drops kind:39999.",
+      "answer": "Nobody in your network has rated a restaurant in Funchal yet. In fact nobody on the relay has reviewed any place there. Brainstorm's food list has 26 places in Funchal whose records say restaurant (https://brainstorm.world/?q=funchal%20restaurant%20kind%3A39999), for example Atlantic Restaurant, Kampo by Chef Júlio Pereira and Basalto. None of them has a review, even counting people outside your web of trust. The relay holds only 9 place reviews (7 of them yours), all of places elsewhere. If you or your circle review places in Funchal in Brainstorm's place view or in Regulars, they will show up here.",
+      "results": [],
+      "category_hit": 0,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": null,
+        "time": null,
+        "property": null
+      },
+      "verdict": "not",
+      "cause": "data",
+      "why": "Nothing, rightly: no review of any place in Funchal exists, from the reader's network or anyone. The guide does not say whether to offer the restaurants anyway, labelled."
+    },
+    {
+      "id": "m4-agent-events-this-weekend-my-network",
+      "journey": "M4",
+      "expected_categories": ["events"],
+      "filters": {
+        "time": "this weekend"
+      },
+      "answered": true,
+      "searches": [
+        "sort:recent [kinds 31925] (newest RSVPs from authors in Avi's web of trust)",
+        "from:<7 npubs whose events the RSVPs' d tags name> sort:recent [kinds 31922,31923]",
+        "to:<naddr> x5 (this weekend's dated or likely native events: Funchal BitcoinWalk 31 Oct, Nashville Agents Anonymous, three Chicago candidates) [kinds 31925]"
+      ],
+      "missing": "I can't answer this with these tools. The 50 newest RSVPs (kind 31925) from 25 people in Avi's web of trust came back, but each result shows only the RSVP's author, the day it was written and an empty excerpt, not which event it's for (`a`), whether it's a yes (`status`), or when the event starts. Where an RSVP's d tag happened to name its event, I followed seven: they're mostly people RSVPing to their own events (a Gespräch, a debrief, a birthday pin), TWENTY ONE Esports online tournaments, and Lugano's Plan B Forum, none with a start I can see. Nobody in his web of trust has RSVP'd to the weekend events I could date (Funchal BitcoinWalk, Nashville Agents Anonymous) or the Chicago candidates. \"Friends\" here can only mean his web-of-trust lens (rank 2 and up): reach:follows is applied only on brainstorm.world's page, and the relay ignores it.",
+      "answer": "I can't tell you yet. I can see that people in your web of trust RSVP'd to events this past week, but the search results don't say which event each RSVP is for, whether it's a yes, or when the event is, so I can't pick out this weekend's. None of them RSVP'd to the weekend events I could find (the Funchal BitcoinWalk, Agents Anonymous in Nashville, a few Chicago bitcoin meetups). RSVPs on brainstorm.world, once it shows them with their event, would answer this.",
+      "results": [],
+      "category_hit": 0,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": null,
+        "time": null,
+        "property": null
+      },
+      "verdict": "not",
+      "cause": "tool",
+      "why": "Nothing. RSVPs (kind 31925) are the act, but a result shows neither the RSVP's event nor its status, and the guide names no act for events."
+    },
+    {
+      "id": "m5-agent-self-custody",
+      "journey": "M5",
+      "expected_categories": ["articles", "notes"],
+      "filters": {},
+      "answered": true,
+      "searches": ["\"self custody\" (kinds 30023)", "\"self custody\" (kinds 1)"],
+      "missing": "The tool gives each article only an excerpt, not its title. The article labels here come from the slug in each naddr's d tag and the start of its text. They are not the titles exactly as published. Authors are shown only as npubs, so I can't name them, except Bitcoin Well, which signs its articles in the text. I didn't open the articles to check how much of each is about self custody.",
+      "answer": "Ranked through your web of trust, the strongest articles on self custody are Self-custody is Nonnegotiable, The Easy Way To Self Custody of Bitcoin, Keep your bitcoin: self custody, Bitcoin Well's Self-custody is still the point, a Marty's Bent piece on the Treasury and self custody, and Fermata 313 on Spark wallets. In the notes, the talk this week is about yesterday's reported Binance hack, plus Blink's new inactivity fee on custodial accounts pushing people to self custody. Run it yourself: https://brainstorm.world/?q=%22self%20custody%22%20kind%3A30023 (articles) and https://brainstorm.world/?q=%22self%20custody%22%20kind%3A1 (notes).",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqr4gupzqx67uaxlruf7hpw4f5mtcxdyrq85fn56em4696s3p7020xa34tnwqq3xvetjd4shgcfdxvcnxttnwpshy6edw4hxzttnv4kxvttrw4ehgmmy0yvvpd96",
+          "label": "Fermata 313: Spark, una self custody (article, 2026-08-31)",
+          "id": "30023:1b5ee74df1f13eb85d54d36bc19a4180f44ce9aceeba2ea110f9ea79bb1aae6e:fermata-313-spark-una-self-custody",
+          "found": true,
+          "category": "articles",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqr4gupzpgm8l843evazgxnlxer0x8xk6ktmhwlcat44e5h8qlgfkqrr8ml2qqj9xetvvckkxatnw3hkg7fdd9ej6nn0dehx2em0w35kzcnvv5kkxunrv5c8ycj7xa6",
+          "label": "Self-custody is Nonnegotiable (article, 2024-10-24)",
+          "id": "30023:a367f9eb1cb3a241a7f3646f31cd6d597bbbbf8eaeb5cd2e707d09b00633efea:Self-custody-is-Nonnegotiable-crce0r",
+          "found": true,
+          "category": "articles",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqr4gupzqadlydf3460e333fjkaqwxg7fz82636ew5m36c7hml2xhhsml2y4qq24yepjw4dyk7tgvevysun0de8rzkr42ag9xvzv6wq",
+          "label": "The Easy Way To Self Custody of Bitcoin (article, 2023-07-31)",
+          "id": "30023:75bf23531ae9f98c62995ba07191e488ead475975371d63d7dfd46bde1bfa895:Rd2uZKyhfXHronN1XuWPS",
+          "found": true,
+          "category": "articles",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqr4gupzq3e0gs8jnmued6f2rp4c6vs07xqvs4vs8zpwt82smcdch4txjvq7qpy8g6r99468yetpwd6hy7fdd9ej6etcwpskuerfdenj6argv5khqct5wf5k7apdv93hgtt5dukkzar5v93kkttzd96xxmmfdckhxetvvckkxatnw3hkg7gffevnj",
+          "label": "Marty's Bent: The Treasury is expanding the Patriot Act to attack bitcoin self custody (article, 2025-09-12)",
+          "id": "30023:472f440f29ef996e92a186b8d320ff180c855903882e59d50de1b8bd5669301e:the-treasury-is-expanding-the-patriot-act-to-attack-bitcoin-self-custody",
+          "found": true,
+          "category": "articles",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqr4gupzq2keruwu5twdtlyfuusg68jst8ct4sy8p43lcwavy8r6jwy05x8aqqj5k3292qk4jn642gk5yj25gd85jn3d2dz5c33dgd24x4z0g3vj6vej093rjwqgltwt5",
+          "label": "Keep your bitcoin: self custody (article, 2025-09-30)",
+          "id": "30023:2ad91f1dca2dcd5fc89e7208d1e5059f0bac0870d63fc3bac21c7a9388fa18fd:KEEP-YOUR-BITCOIN-SELF-CUSTODY-32yb98",
+          "found": true,
+          "category": "articles",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqr4gupzqtknt9htteh8crt0nts6q89dreqt45pwm83zy87ryvtzf2vtfnrcqq0hxetvvckkxatnw3hkg7fdd9ej6um5d9kxctt5dpjj6ur0d9h8gfgplx9",
+          "label": "Self-custody is still the point (article by Bitcoin Well, 2026-08-06)",
+          "id": "30023:2ed3596eb5e6e7c0d6f9ae1a01cad1e40bad02ed9e2221fc3231624a98b4cc78:self-custody-is-still-the-point",
+          "found": true,
+          "category": "articles",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/nevent1qvzqqqqqqypzp8zaph6ltx0e2lazkrffee7rd7ed6pgke044hjduffqhgaqcll95qqszx74gem6cr4c7r9zuac6rq9nh676wkr6hdzvxhj6pjvameh7kktcur77e8",
+          "label": "Note: Blink Wallet Adds Inactivity Fee to Custodial Accounts, Accelerating Migration to Self Custody (2026-10-26)",
+          "id": "237aa8cef581d71e1945cee34301677d7b4eb0f5768986bcb41933bbcdfd6b2f",
+          "found": true,
+          "category": "notes",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/nevent1qvzqqqqqqypzqxzwfzvcydu5y83rg7e2jlm7epm3lkm0lulyd2fhux8j39qhxthpqqsqq30jcqlg4gzvt69jhqrxf79flx0h27mejjrpfqs6jncmutekr4qg2ahzc",
+          "label": "Note: The Binance hack and the trust placed in centralized custody (2026-10-30)",
+          "id": "0045f2c03e8aa04c5e8b2b80664f8a9f99f757b79948614821a94f1be2f361d4",
+          "found": true,
+          "category": "notes",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/nevent1qvzqqqqqqypzpgm3sdufcde53pfmdtn7f7uvysdesvf5qmhzyh7nhlcuj8ax4ctwqqsgr7zhrurd07f3ktmkf4wlytltgmkyr6q40eh9dygq7s7eak3m0us7vyjp8",
+          "label": "Note: Perhaps a self-custody wallet on one's phone is actually more secure than we thought (2026-10-31)",
+          "id": "81f8571f06d7f931b2f764d5df22feb46ec41e8157e6e569100f43d9eda3b7f2",
+          "found": true,
+          "category": "notes",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        },
+        {
+          "link": "https://brainstorm.world/e/nevent1qvzqqqqqqypzqxpnaczyt8lt9jj2u6gdtucjdxk53rrfuhlfqwjzk5evva7y4qtsqqsf58509xmxm7ughknavuxqvhn2tcwrwl359sd6lqa8l5690nsqfdsgxwlq8",
+          "label": "Note: The crypto industry has seen countless hacks (2026-10-31)",
+          "id": "9a1e8f29b66dfb88bda7d670c065e6a5e1c377e342c1baf83a7fd3457ce004b6",
+          "found": true,
+          "category": "notes",
+          "locality": null,
+          "category_tag": [],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": null
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": null,
+        "time": null,
+        "property": null
+      },
+      "verdict": "answered",
+      "cause": null,
+      "why": "Six articles and four notes on self custody, ranked through the reader."
+    },
+    {
+      "id": "m7-agent-late-night-ramen",
+      "journey": "M7",
+      "expected_categories": ["places"],
+      "filters": {
+        "property": {
+          "cuisine": "ramen"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "ramen (kinds 39999)",
+        "\"ramen\" (kinds 39999)",
+        "\"ramen\" cozy (kinds 39999)",
+        "\"ramen\" \"23:00\" (kinds 39999)",
+        "\"ramen\" \"00:00\" (kinds 39999)",
+        "include:spam (kinds 34259), shared with m4: no review names any of the ramen places"
+      ],
+      "missing": "Opening hours. The list has an opening-hours field, but results give only a name and a link, so I couldn't read anyone's hours. These six are the ramen places whose records contain \"23:00\" (Neko Ramen & Rice also contains \"00:00\"). That is probably their closing time, but I can't see which field it's in or which days it applies to. Places that close at 22:30 or after midnight would be missed by these probes. Cozy: no list field carries it, and no one has reviewed any ramen place (no kind 34259 names one, even with include:spam), so nothing on nostr says any of them is cozy. Also unchecked: each place's town (you didn't name one, and results don't give locality) and its cuisine field. Seven other ramen places (Hanami Ramen, Katana Ramen Sushi Hibachi, Lamenaga, Kirita, Bao Wow, Tenmomi x2, Miso Hungry) have no late-hour hint in their records.",
+      "answer": "Six ramen places on Brainstorm's food list look like they stay open late: Neko Ramen & Rice, Ooink Ramen (two locations), Full Send Ramen, Kaiyo Rolls and 10 Mas Seis. Their records mention 23:00, and Neko's mentions 00:00 too. I can't read their actual hours or which town each is in with these tools, so check the place page before you go. Nobody has reviewed any of them yet, so I can't tell you which is cozy. All ramen places: https://brainstorm.world/?q=%22ramen%22%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxdpkxq6nqde3xguqtcpxr2",
+          "label": "Neko Ramen & Rice",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13460507128",
+          "found": true,
+          "category": "places",
+          "locality": "Denver",
+          "category_tag": ["restaurant"],
+          "cuisine": ["japanese"],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": false
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er9956rzvfj8q6rjvec8qxsgm6w",
+          "label": "Ooink Ramen",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4112849388",
+          "found": true,
+          "category": "places",
+          "locality": "Seattle",
+          "category_tag": ["restaurant"],
+          "cuisine": ["ramen"],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995erzve4x56rzwfkxcft9tz2",
+          "label": "Ooink Ramen (a second location)",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-2135541966",
+          "found": true,
+          "category": "places",
+          "locality": "Seattle",
+          "category_tag": ["restaurant"],
+          "cuisine": ["ramen"],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxwf4xvmrzdpex5msj46exu",
+          "label": "Full Send Ramen",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13953614957",
+          "found": true,
+          "category": "places",
+          "locality": "Traverse City",
+          "category_tag": ["fast_food"],
+          "cuisine": ["ramen"],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnyvekxvenxdfjxq6q770d9c",
+          "label": "Kaiyo Rolls - Sushi, Ramen & Cocktails",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-12363335204",
+          "found": true,
+          "category": "places",
+          "locality": "Miraflores",
+          "category_tag": ["cafe"],
+          "cuisine": ["japanese"],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": false
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnxwf3xqerqv3exveq2m3y0e",
+          "label": "10 Mas Seis",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13910202932",
+          "found": true,
+          "category": "places",
+          "locality": "McAllen",
+          "category_tag": ["fast_food"],
+          "cuisine": ["burger", "ramen", "hot_dog", "pizza"],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": null,
+        "time": null,
+        "property": 0.6666666666666666
+      },
+      "verdict": "partly",
+      "cause": "tool",
+      "why": "Six candidates, four tagged ramen. Opening hours could not be read, only matched as text (\"23:00\"), and nothing supports \"cozy\": no ramen place has a review."
+    },
+    {
+      "id": "m7-agent-cozy-bar-lugano",
+      "journey": "M7",
+      "expected_categories": ["places"],
+      "filters": {
+        "place": "Lugano",
+        "property": {
+          "category": "bar"
+        }
+      },
+      "answered": true,
+      "searches": [
+        "lugano bar (kinds 39999)",
+        "lugano (kinds 39999)",
+        "lugano \"bar\" (kinds 39999)",
+        "lugano \"bar\" cozy (kinds 39999)",
+        "to:<each of the 9 bars found> include:spam (kinds 34259)",
+        "lugano bar cozy (kinds 1,30023)"
+      ],
+      "missing": "Cozy. No list field carries it, and none of these nine places has a review (no kind 34259 names any of them, even with include:spam). No note or article on the relay calls a bar in Lugano cozy. Category isn't checked either: these nine have the exact word \"bar\" somewhere in their records (lugano \"bar\"), but results show only the name, so I can't confirm category=bar. The Trinity Irish Pub in Lugano didn't match \"bar\" and is probably tagged pub.",
+      "answer": "Brainstorm's food list has nine bars in Lugano: Wine Bar Lugano, Bar Apollo, The Market Lugano, La Dispensa, Sass Café Vineria, Shaker, Kream, El Cid and Class Café. Nobody has reviewed any of them yet, so nothing tells me which is cozy. You might also try The Trinity Irish Pub, which is listed as a Lugano place but didn't match \"bar\". See them: https://brainstorm.world/?q=lugano%20%22bar%22%20kind%3A39999",
+      "results": [
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnzdfj8qcrvvpkxv6q83xuzx",
+          "label": "Wine Bar Lugano",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-11528060634",
+          "found": true,
+          "category": "places",
+          "locality": null,
+          "category_tag": ["winery"],
+          "cuisine": [],
+          "start": null,
+          "in_place": null,
+          "in_window": null,
+          "has_property": false
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfx7umd94hx7er995enwve5xg6rwwpk6m2ym3",
+          "label": "Bar Apollo",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-373424786",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["cafe"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": false
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqwpcxu6rvdesxcmqrltef2",
+          "label": "The Market Lugano",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10887467066",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqvpsxs6rsdfnxymsuadcd2",
+          "label": "La Dispensa",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10004485317",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er9956rwdfs8qurywfjxs6trqud",
+          "label": "Sass Café Vineria",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-4750882924",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqv338qurxvpkxyeqa8jw48",
+          "label": "Shaker",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10218830612",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqqfk7umd94hx7er995enwd3sxv6nqd3nxsz4jlf4",
+          "label": "Kream",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-3760350634",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqv35xqurvvfkxueq6x2528",
+          "label": "El Cid",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10240861672",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        },
+        {
+          "link": "https://brainstorm.world/e/naddr1qvzqqqyu8upzqj776gtjqafzr6knjwst4myu2vpr3mqe9s4fekauwa2t4rpn27myqq2x7umd94hx7er995cnqdfexceryd3sxcmqrds2tr",
+          "label": "Class Café",
+          "id": "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-10596226066",
+          "found": true,
+          "category": "places",
+          "locality": "Lugano",
+          "category_tag": ["bar"],
+          "cuisine": [],
+          "start": null,
+          "in_place": true,
+          "in_window": null,
+          "has_property": true
+        }
+      ],
+      "category_hit": 1,
+      "recall_at_10": null,
+      "expected_live": 0,
+      "expected_dropped": [],
+      "precision": {
+        "place": 1,
+        "time": null,
+        "property": 0.7777777777777778
+      },
+      "verdict": "partly",
+      "cause": "data",
+      "why": "Nine places in Lugano, seven tagged bar. \"Cozy\" is unchecked: no review or note says it of any Lugano bar."
+    }
+  ]
+}
