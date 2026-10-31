@@ -34,8 +34,8 @@ strict Content Security Policy that lets in only their own scripts.
   (a new tab, `noopener noreferrer`), the words, the screen reader's "(opens in a new tab)"
   and the mark, drawn as `BrainLogo`'s `mono` mark. It draws them in a shadow root.
 - **The look is one stylesheet,** `https://brainstorm.world/built-on/v1.css`, which the
-  element loads inside its shadow root, so it styles the line and nothing else on the page,
-  and runs no code. A restyle is an edit to that file.
+  element loads inside its shadow root, so its rules reach the line and nothing else on the
+  page, and it runs no code. A restyle is an edit to that file.
 - **The element carries the launch look itself,** in a cascade layer the stylesheet always
   wins over, so a line whose stylesheet cannot load still looks right.
 - **Each app fits it to its page** through the colour and font it inherits, three custom
@@ -56,4 +56,15 @@ strict Content Security Policy that lets in only their own scripts.
 - Each app's Content Security Policy adds `https://brainstorm.world` to `style-src`, and no
   script source.
 - Every page view of every app makes one request to brainstorm.world for the stylesheet,
-  answered from the browser's cache within the hour.
+  answered from the browser's cache within the hour. It carries no referrer and no
+  cookies, but like any request it tells brainstorm.world the app's origin and the
+  reader's IP address.
+- The page's load event waits for the stylesheet, so a slow brainstorm.world keeps a
+  browser's loading indicator turning on a first visit within the hour. The page itself
+  draws and works meanwhile.
+- The shadow root bounds what the stylesheet can select, not what it can draw. A bad or
+  compromised deploy of `v1.css` cannot run code, read the page or send the person
+  anywhere but brainstorm.world, but it can lay the line over the whole of every app at
+  once, with words of its own, and ask for images each app's policy allows. That is far
+  less than a script could do, and not nothing. An app that wants the line bounded wraps
+  it in `contain: paint`, as the contract says.

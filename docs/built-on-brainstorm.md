@@ -40,7 +40,8 @@ These are the same in every app, and change only with a new version:
   brainstorm.world is told nothing of the page the person came from;
 - the words, "Built on Brainstorm";
 - the link's name for a screen reader, "Built on Brainstorm (opens in a new tab)": the
-  words, then what every link that leaves an app says;
+  words, then what every link that leaves an app says. It is the link's label
+  (`aria-label`), so every browser gives the same name;
 - the mark, drawn as `BrainLogo`'s `mono` mark (`client/src/components/BrainLogo.tsx`): the
   same path, in one colour, the text's, since the brand's two colours turn to mud at this
   size. A screen reader skips it: the words name it.
@@ -56,10 +57,25 @@ It draws them in an open shadow root:
     crossorigin="anonymous"
     referrerpolicy="no-referrer"
   />
-  <a part="link" href="https://brainstorm.world" target="_blank" rel="noopener noreferrer">
-    <svg part="mark" viewBox="0 0 71 73" fill="currentColor" aria-hidden="true" focusable="false">…</svg>
+  <a
+    part="link"
+    href="https://brainstorm.world"
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Built on Brainstorm (opens in a new tab)"
+  >
+    <svg
+      part="mark"
+      viewBox="0 0 71 73"
+      width="1.05em"
+      height="1.08em"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
+      …
+    </svg>
     <span part="words">Built on Brainstorm</span>
-    <span class="unseen">(opens in a new tab)</span>
   </a>
 </built-on-brainstorm>
 ```
@@ -101,9 +117,11 @@ a restyle here.
 
 `v1.css` owns everything the hooks do not: the layout of the mark and the words, the gap
 between them, the mark's size against the text, the underline when the link is pointed at
-or focused, the focus ring's shape, and the height a tap needs (44px).
+or focused, the focus ring's shape, and the height a tap needs (44px). Pointing at it
+changes the line only where a pointer can hover (`@media (hover: hover)`): on a phone a
+tap leaves `:hover` set, and the line would stay dark after the person comes back.
 
-The stylesheet is loaded inside the element's shadow root, so it styles the line and
+The stylesheet is loaded inside the element's shadow root, so its rules reach the line and
 nothing else on the page. Its rules:
 
 - **It asks for nothing.** No `@import`, no `@font-face` and no `url()` but a `data:` one:
@@ -115,6 +133,13 @@ nothing else on the page. Its rules:
 `client/src/test/builtOnBrainstorm.test.tsx` holds the stylesheet to these rules, and the
 element to what it owns.
 
+A shadow root bounds what a stylesheet can select, not what it can draw. A bad or
+compromised `v1.css` runs no code and reads nothing of the page, but it can lay the line
+over the whole app, still a link to brainstorm.world, with words of its own, and it can
+ask for any image the app's policy allows. An app that wants the line bounded puts it in
+an element of its own with `contain: paint` and a few pixels of padding, so the focus ring
+still shows: whatever the stylesheet draws then stays inside that box.
+
 ## When the stylesheet cannot load
 
 The element carries the look as it was when its version was cut, in a cascade layer
@@ -122,7 +147,8 @@ The element carries the look as it was when its version was cut, in a cascade la
 not allow brainstorm.world, or on a deploy that lost the file, the line keeps that look.
 Its own styles are set through the CSS object model (`adoptedStyleSheets`), which a
 Content Security Policy does not govern, and through a `<style>` element only where a
-browser cannot adopt a stylesheet.
+browser cannot adopt a stylesheet. The mark carries its size in its markup as well, so a
+line with no styles at all still draws it at the size of the text.
 
 ## Changing it
 
