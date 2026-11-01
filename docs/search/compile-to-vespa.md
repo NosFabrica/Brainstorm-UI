@@ -192,7 +192,7 @@ convention.
 2. Turn `radius_km` into a bounding box around that centre: Δlat = r ⁄ 111.32, Δlon = r ⁄ (111.32 · cos lat).
 3. Take the geohash cells that cover the box (`cellsCovering`) and ask for them as `"#g":[…]`. Values in one field
    are OR'd, so one filter asks for the whole area.
-4. **Clamp the precision to what the index holds** — see § 4.2, which is where the obvious path breaks.
+4. **Ask for every precision the target's sources use** — see § 4.2, which is where the obvious path breaks.
 5. The cells are a **superset** of the circle. Apply the true radius as a distance post-filter on the returned items,
    which carry `lat` and `lon` as their own fields, and pass the centre and radius out so it can be applied (§ 0.2).
    A compiler MUST NOT present the cell set as the constraint.
@@ -201,10 +201,11 @@ convention.
 A producer that means a city sends a radius; in this estate they are ADR 0008's, 25 km for places and 40 km for
 events, which is also where the spec's two examples get theirs.
 
-### 4.2 The precision floor, which the existing helper gets wrong
+### 4.2 The precisions asked for, which the existing helper gets wrong
 
 Items tag their spot at several precisions at once. A Food and Drink Place carries four `g` values — for example
-`["dp3wvjwb3","dp3wvj","dp3wv","dp3w"]`: 9, 6, 5 and 4 characters. **The coarsest is 4.** A `#g` filter is an exact
+`["dp3wvjwb3","dp3wvj","dp3wv","dp3w"]`: 9, 6, 5 and 4 characters. **The coarsest a place carries is 4**, though
+that is a fact about this one list and not about the index — see the ladders below. A `#g` filter is an exact
 tag match, so asking for a 3-character cell matches nothing at all, however well it covers the area:
 
 > `{"kinds":[39999],"#z":[FOOD],"#g":["dp3"],"search":"include:spam"}` → **0**
@@ -216,7 +217,10 @@ Chicago at 25 km — centre `dp3wjzt`, so 41.87782, −87.63039, a box of 41.653
 precision-4 grid needs 12 cells, over that budget, so the helper falls back to precision 3 and returns `["dp3"]`.
 **That query returns nothing.** The same at 40 km returns four 3-character cells, and also nothing.
 
-So the rule is not "fit a cell budget" but **"clamp to the precisions the index actually carries"**, 4 to 6 here:
+So the rule is not "fit a cell budget". Nor, as the first version of this document said, "clamp to a floor" — a
+floor still names one precision, and the ladders below show that no single precision reaches everything. The rule is
+**"ask for every precision the target's sources use, as one filter"**. For Food and Drink Places alone, that is
+precision 4:
 
 | Radius around `dp3wjzt` | Cells at precision 4                                               | COUNT of Food and Drink Places |
 | ----------------------- | ------------------------------------------------------------------ | ------------------------------ |
@@ -228,6 +232,33 @@ A precision-4 cell is ≈ 19.6 km × 29.1 km at this latitude, so 12 of them hol
 measured: about 1.8× too many, which the distance post-filter of step 5 removes. Twelve or twenty tag values is
 nothing to the relay — the 2026-10-22 audit found it drops a filter only around 5,000 — so precision 5 (168 and 414
 cells) is possible but pointless once the post-filter runs.
+
+**But a floor is the wrong shape, because sources tag on different ladders.** Calendar events around Chicago, counted
+by `g` tag length over the 65 that match `#g:["dp3"]` (2026-11-01):
+
+| `g` tag length      | 2   | 3   | 4   | 5   | 6   | 7   |
+| ------------------- | --- | --- | --- | --- | --- | --- |
+| events carrying one | 44  | 65  | 44  | 65  | 44  | 65  |
+
+Two populations: 44 events carry every precision from 2 to 7, and **21 carry only the odd ladder** — for example
+`["dp3","dp3wt","dp3wt7g"]`, with no 4-character tag at all. Counting only events whose finest `g` decodes inside the
+25 km box:
+
+| `#g` asked for                              | cells | events inside the box |
+| ------------------------------------------- | ----- | --------------------- |
+| `["dp3"]`, what `cellsCovering` sends today | 1     | **45**                |
+| the 12 precision-4 cells                    | 12    | **39**                |
+| the union of the precision-3 and -4 cells   | 13    | **45**                |
+
+So asking at precision 4 alone **loses six real results** here, and today's coarse single cell does not: it
+over-selects — `dp3` spans ≈ 155 km — but step 5's post-filter removes the excess, so recall is right. A compiler
+MUST therefore emit the union across precisions and let the post-filter trim, and MUST NOT pick one precision,
+however well chosen. Values in one `#g` field are OR'd (step 3), so a union costs one filter, not several.
+
+Which precisions a source writes is **data, not something a compiler can enforce**: `encodeGeohash` in Brainstorm-UI
+is module-private, so the client only ever reads `g`. Until the convention is uniform upstream — which is what
+[E1.7](https://loom.brainstorm.world/t/E1.7) proposes for the Event Index publisher — a compiler covers the ladders
+it has measured and says which it used. Tracked as [Brainstorm-UI#325](https://github.com/NosFabrica/Brainstorm-UI/issues/325).
 
 ### 4.3 Events lose recall that places do not
 
@@ -435,7 +466,8 @@ matching places and three reviewed by the asker's network — is there to fix, w
 
 ### 9.2 "what's on this weekend in chicago" (spec § 6.2)
 
-Three targets of two types, an empty `filters`, empty `residual_words`, a place and a time. One REQ, three filters:
+Three targets of two types, an empty `filters`, empty `residual_words`, a place and a time. One REQ, three
+filters. The cells are shown at a single precision for brevity; § 4.2's union rule applies:
 
 ```jsonc
 ["REQ","s",
@@ -476,10 +508,15 @@ search natively, and this estate uses almost none of it.
 | **G1** | **A NIP-73 match by type**, not only by exact identifier                                                                        | D4 widening       | `external` targets are dropped; the spec's sparse-index widening cannot be compiled (§ 2.4)       |
 | **G5** | **Scope narrowing** — rank or gate through a named group's members                                                              | G4.1's answer, M6 | `named-group` and `inferred-group` have no compilation (§ 6.2)                                    |
 
-Two smaller ones, both already handled by a client post-filter and neither worth an ask on its own: an exact radius
-rather than a cell superset (§ 4.2 — items carry `lat`/`lon`, so this costs recall nothing), and a cell-precision
-floor, which is a **bug in `cellsCovering`'s default `max` rather than an index gap** and should be fixed in
-`client/src/lib/geohash.ts` when E2.8 touches it (§ 4.2).
+One smaller one, already handled by a client post-filter and not worth an ask on its own: an exact radius rather
+than a cell superset (§ 4.2 — items carry `lat`/`lon`, so this costs recall nothing).
+
+And one that is **not** an index gap and **not** handled by a post-filter: which precisions a compiler asks for.
+`cellsCovering` picks a single precision, and § 4.2 shows that no single precision reaches every source — a
+post-filter can trim over-selection but cannot recover an event the filter never matched. That is a bug in
+`client/src/lib/geohash.ts`, tracked as
+[#325](https://github.com/NosFabrica/Brainstorm-UI/issues/325); the upstream half, making the convention uniform, is
+[E1.7](https://loom.brainstorm.world/t/E1.7).
 
 ## 11. What compiling found out about the schema
 
