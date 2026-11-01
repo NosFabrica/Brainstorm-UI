@@ -107,17 +107,34 @@ function encodeGeohash(lat: number, lon: number, precision: number): string {
 }
 
 /**
- * The cells that together cover a map's view, as fine as `max` of them allow
- * (6 characters at most: a neighbourhood): what a relay's `#g` filter asks for,
- * since events tag their spot at several precisions (NIP-52).
+ * The coarsest precision the index holds. Events and list items carry their spot at
+ * several precisions — a live Austin event carries `9v6kpvc`, `9v6kpv`, `9v6kp`, `9v6k`
+ * — and `#g` is an exact tag match, so a cell coarser than this matches nothing at all.
+ * A property of the data, written by importers and other clients rather than here
+ * (`encodeGeohash` is private), and specified as the floor by the compile rules
+ * (`docs/search/compile-to-vespa.md` § 4.2). Revisit it if what the index holds changes.
  */
-export function cellsCovering(view: { south: number; west: number; north: number; east: number }, max = 8): string[] {
-  for (let precision = 6; precision >= 1; precision--) {
+const COARSEST_PRECISION = 4;
+
+/** Finer cells only multiply the filter for no extra recall. */
+const FINEST_PRECISION = 6;
+
+/**
+ * The cells that together cover a map's view, as fine as `max` of them allow: what a
+ * relay's `#g` filter asks for, since events tag their spot at several precisions (NIP-52).
+ *
+ * Never coarser than {@link COARSEST_PRECISION}, because such a cell matches nothing.
+ * A view too wide for `max` cells at that precision therefore gets **no cells**, which
+ * means "no `#g` filter can serve this view" and never "no results" — a caller must drop
+ * the filter rather than send an empty one, which would itself match nothing.
+ */
+export function cellsCovering(view: { south: number; west: number; north: number; east: number }, max = 32): string[] {
+  for (let precision = FINEST_PRECISION; precision >= COARSEST_PRECISION; precision--) {
     const lonSpan = 360 / 2 ** Math.ceil((5 * precision) / 2);
     const latSpan = 180 / 2 ** Math.floor((5 * precision) / 2);
     const rows = [Math.floor((view.south + 90) / latSpan), Math.floor((Math.min(view.north, 89.999) + 90) / latSpan)];
     const cols = [Math.floor((view.west + 180) / lonSpan), Math.floor((Math.min(view.east, 179.999) + 180) / lonSpan)];
-    if ((rows[1] - rows[0] + 1) * (cols[1] - cols[0] + 1) > max && precision > 1) continue;
+    if ((rows[1] - rows[0] + 1) * (cols[1] - cols[0] + 1) > max) continue;
     const cells: string[] = [];
     for (let r = rows[0]; r <= rows[1]; r++)
       for (let c = cols[0]; c <= cols[1]; c++)

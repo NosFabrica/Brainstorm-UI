@@ -31,11 +31,19 @@ export async function fetchTownEvents(town: string): Promise<NostrEvent[]> {
  * (lib/geohash cellsCovering; many events tag their spot at several precisions),
  * and — for those tagged only at their exact spot — the town's, by its name.
  * The caller keeps the ones inside the area. None on failure.
+ *
+ * No cells means the view is too wide for a `#g` filter to serve, not that it holds
+ * nothing: the geo filters are left out so the town's name still answers, since
+ * `"#g": []` would be a filter matching nothing.
  */
 export async function fetchAreaEvents(cells: string[], town: string | null): Promise<NostrEvent[]> {
   const filters = [
-    { kinds: NIP52, "#g": cells, limit: 200 },
-    { kinds: [EVENT_ITEM_KIND], "#z": [...EVENT_LISTS], "#g": cells, limit: 200 },
+    ...(cells.length
+      ? [
+          { kinds: NIP52, "#g": cells, limit: 200 },
+          { kinds: [EVENT_ITEM_KIND], "#z": [...EVENT_LISTS], "#g": cells, limit: 200 },
+        ]
+      : []),
     ...(town
       ? [
           { kinds: NIP52, search: town, limit: 100 },
@@ -43,6 +51,7 @@ export async function fetchAreaEvents(cells: string[], town: string | null): Pro
         ]
       : []),
   ];
+  if (!filters.length) return [];
   const events = await fetchFromSearchRelayByFilters(filters, TIMEOUT_MS).catch(() => []);
   return dedupeEvents([...new Map(events.map((e) => [e.id, e])).values()]);
 }
