@@ -3,8 +3,8 @@
 **For:** brainstorm_server
 **From:** the UI, branch `feat/setup-treasure-map`, 2026-10-27
 **Filed as:** the second item of [NosFabrica/brainstorm_server#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
-**Built in:** `7388cbb` on that PR, with the fixes from the four rounds of its audit and the two reviews after the
-fourth (2026-10-28 and 2026-10-29). It is in review and not deployed. This doc says what it does.
+**Built in:** that PR, merged into brainstorm_server main as `3cf0aa5` on 2026-10-31, after the four rounds of its
+audit and the two reviews after the fourth. It is on staging, not yet in production. This doc says what it does.
 **Modelled on:** [DUTY-MENU-ASK.md](DUTY-MENU-ASK.md), and Tapestry's Your Assistant's Treasure Map
 (`src/api/assistant/selfMap.js`, `src/lib/self-map/index.js`, `POST /api/assistant/self-map`; ADRs
 `assistant-self-map/0001`–`0003`)
@@ -272,29 +272,36 @@ moment."
 
 The UI adds `event` to its store, so after Turn on or Update now the step turns done at once; after Turn off, only when
 `shouldSay` is empty (above). It then asks for the check again, since the choice and what is live can both have moved,
-first dropping a GET already out: that one was sent before the press and can carry the old choice. A 4xx isn't asked
-again unless the press was a Turn on or Update now that got through, since only those read the reader's Map. While the
-check stands, the press's answer, one line per relay, and its choice show when that check is back, the pressed button
-saying "Publishing…" until then; while it is failing, they show at once. Until a check asked after the press is back,
-every view shows the press's choice, and the page asks no relay which version it holds, since `writerRelays` are the
-choice's (below).
+first dropping a GET already out: that one was sent before the press and can carry the old choice, so one is asked
+after it in its place. Otherwise a 422 isn't asked again unless the press was a Turn on or Update now that got through,
+since only those read the reader's Map. While the check stands, the press's answer, one line per relay, and its choice
+show when that check is back, the pressed button saying "Publishing…" until then; while it is failing, they show at
+once. A press belongs to the account it was made for, not to the view that made it: it settles against that account
+whichever is active by then, and a view of the page opened while it's under way keeps its buttons busy, sends no second
+press, and shows its answer when it comes. Until a check asked after the press is back, every view shows the press's
+choice, and the page asks no relay which version it holds, since `writerRelays` are the choice's (below).
 
 ## What the UI shows
 
 - **404 or 405 on the GET, or an answer that isn't a check** (no 64-hex `assistant`, no boolean `on`, or no `duties`
-  and `shouldSay` arrays, or a 200 that isn't JSON at all): the step is hidden, and `/setup` keeps its other steps.
-  Opened directly, its page says "Your Brainstorm server can't keep your Assistant's Treasure Map yet." in place of its
-  panels and buttons.
+  and `shouldSay` arrays), **or a 2xx that isn't JSON at all**, asked once more first: the step is hidden, and `/setup`
+  keeps its other steps. Opened directly, its page says "Your Brainstorm server can't keep your Assistant's Treasure
+  Map yet." in place of its panels and buttons, with a press made before that still answering beneath. Over a check
+  from before, a 2xx that isn't JSON is a failure like any other (below): a proxy's page says nothing about the route.
 - **401**: as any other signed-in call.
-- **Any other error**: the server's sentence; ours with the status when it answered without one ("Couldn't check your
-  Assistant's Treasure Map (500)."); or, for a request that got no answer (no connection, or none within 15 seconds),
-  "Couldn't reach your Assistant right now." and why. Before any check has loaded it takes the panels' place, with
-  only Turn off, which needs no check (step 1), and only for the GET's own 502s and its 422, which Turn off never
-  meets: any other failure can't be told from one that would fail Turn off too. Once a Turn off has answered there,
-  it isn't offered again. A 4xx isn't retried. With a check from before, it sits above that check's panels and
-  buttons, saying that the duties and what the Map should list are from the last check that worked. A failure stands
-  until an answer arrives, on every view of it: this page and `/setup` ask again as they open, and a press asks again
-  (above), while the header, the account menu and the dashboard card show it as it stands. Before any check has
+- **Any other error**: the server's own sentence (FastAPI's `detail`: a gateway's or a limiter's `message` isn't
+  one); ours with the status when it answered without one ("Couldn't check your Assistant's Treasure Map (500).");
+  or, for a request that got no answer (no connection, or none within 15 seconds), "Couldn't reach your Assistant
+  right now." and why. Before any check has loaded it takes the panels' place, with only Turn off, which needs no
+  check (step 1), and only for the GET's own 502s and its 422, which Turn off never meets: any other failure can't be
+  told from one that would fail Turn off too. A Turn off under way keeps its place there, whatever the failure becomes
+  meanwhile, and once it has answered it isn't offered again. The 422 isn't asked again until the Map is edited; any
+  other failure is asked once more, a proxy's or a limiter's 408 or 429 included. With a check from before, it sits
+  above that check's panels and buttons, saying that the duties and what the Map should list are from the last check
+  that worked. A failure stands until an answer arrives, on every view of it, a re-ask waiting for the network
+  included: this page and `/setup` ask again as they open, and a press asks again (above), while the header, the
+  account menu and the dashboard card show it as it stands, asking again only as every query is, on a reconnect or
+  when the app comes back. Before any check has
   loaded, `/setup` keeps the step's row for the GET's own 502s and its 422, not counted, linking to this page, until a
   Turn off has answered; once a check has loaded, it keeps that check's status. A press that failed, the 409 included,
   shows it alone.
@@ -306,10 +313,12 @@ choice's (below).
   none, so here it is the whole rule. A reader with nothing live and nothing published is done, and nobody is asked to
   publish an empty Map. After a Turn off, the step isn't done while `shouldSay` lists anything.
 - **Which relays hold the newest version** is a relay probe (ADR 0005), on this page only, asked while a press would
-  otherwise sign nothing (on and up to date, or off with nothing listed) and a version has been found. It asks exactly
-  the GET's `writerRelays`, each for its own newest version, as step 2 reads it, and counts only the Assistant's own
-  kind 10040 that verifies; anything else a relay sends is nothing it holds. From those answers alone it does what the
-  press would:
+  otherwise sign nothing (on and up to date, or off with nothing listed) and a version has been found, and only from a
+  check that stands: answered by its last ask, and not being asked again, since another device may have changed the
+  choice and with it the relays a press reads. It asks exactly the GET's `writerRelays`, each for its own newest
+  version, as step 2 reads it: that counts only when it's the Assistant's own kind 10040 and verifies, and a newest
+  that isn't (a forged or a foreign copy) means the relay holds none, whatever older version it also sent. From those
+  answers alone it does what the press would:
   - when their newest version's self-entries are the target (`shouldSay` while on, none while off), each relay that
     answered without that version is sent it (step 3): the page names it, and offers the press, though the
     self-entries match;
@@ -322,7 +331,8 @@ choice's (below).
   `writerRelays` asks no relay.
 
   Each relay counts as it answers, since a later answer can only add one: the page names a relay as soon as its answer
-  shows the miss, and says it's still asking the others. An answer stands for a minute. A press asks nothing while it
+  shows the miss, and says it's still asking the others. An answer stands a minute for a page opened again on the same
+  check; each new answer to the check asks again. A press asks nothing while it
   is under way, and until it has answered the page shows the relays its button was offered for; then none until a
   check asked after it is back, since the choice can change which relays a press reads. Then that check's
   `writerRelays` are asked, and the press's answer doesn't wait for them.
@@ -336,6 +346,11 @@ choice's (below).
   - A relay outside the outbox that a duty was live at, and that missed the version dropping it, is never read again:
     no later press reads there, so `writerRelays` doesn't name it, and it keeps serving the dropped self-entry. It can't
     happen yet, since only Scores can be live, at the scores relay, which heads the outbox.
+  - The page predicts the press from the browser's own reads. The press reads the writer relays from the server: a
+    cold socket, one 5-second deadline, the server's own IP, and the TA relay at its internal URL. A relay the browser
+    sees answer without the newest version may be one the press doesn't hear from (a timeout, or a rate limit on the
+    server's IP), and the page then offers a press that answers "Nothing changed", round after round. Only the server
+    can say what its own reads find (below).
 
 - **The buttons** are Tapestry's `selfMapButtons`, with the repair:
   - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, or a relay missed the
@@ -357,6 +372,10 @@ choice's (below).
 - **Private duties** (NIP-85's encrypted `.content`): never in a self-Map's public tags.
 - **Trusted Lists and Concepts as live duties**: they become claimable once something publishes and keeps them up
   to date, at which point the list above gains a rule for each.
+- **Which writer relays miss the newest version, by the server's own reads**: the GET, or a dry run of the POST,
+  naming them would replace the page's probe and its guess (above).
+- **A machine-readable reason in the GET's error body**, beside its sentence, so the UI needn't read which failure it
+  was from the status alone.
 - **The server's own open points** are in PR 110:
   - one press at a time is held in-process only, so it needs Redis once the server runs more than one instance;
   - the POSTs have no rate limit;

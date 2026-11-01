@@ -41,6 +41,12 @@ invalidates, rollbacks).
   `useIsSearchObserver` (is My-WoT search ready on the search relay?) is the same
   kind of probe but cached: it gates every search. A "yes" holds for the session
   (re-asked when the Account's 10040 changes), a "no" is re-asked every minute.
+  `useAssistantTreasureMap`'s probe (which of the relays a press reads hold the
+  Assistant's newest Treasure Map?) is cached too, a minute per answer to the
+  server's check: it decides whether the Treasure Map page offers the repair,
+  so a page opened again on the same check doesn't ask the relays again, while
+  each new answer to the check, a press's included, asks them again, since a
+  press can change both what they hold and which relays they are.
 - **Tags (deferred).** `hooks/useTags.ts` still wraps relay reads in react-query.
   Its reads already merge store-held events, so our own tags show; what remains is
   optimistic patching and a 5–30 minute staleness. The catalogue is a costly
