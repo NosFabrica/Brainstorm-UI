@@ -134,10 +134,59 @@ export function requestNewestWithReach(
   filter: Filter,
   timeoutMs: number,
 ): Promise<{ newest: NostrEvent | undefined; reach: RelayReach }> {
+  let newest: NostrEvent | undefined;
+  return readWithReach(relays, filter, timeoutMs, (event) => {
+    const stored = (eventStore.add(event) ?? event) as NostrEvent;
+    if (beats(stored, newest)) newest = stored;
+  }).then((reach) => ({ newest, reach }));
+}
+
+/**
+ * What the relays themselves hold: the newest event they sent, when `accept`
+ * passes it, plus who answered. For a relay probe — which version is on that
+ * relay? — where `requestNewestWithReach`'s `newest` can't serve: it is the
+ * store's winner, and for a replaceable kind `add` hands back the newer copy
+ * the store already holds in place of an older one a relay sent. The newest
+ * is picked first, then judged, as brainstorm_server's read does: a newer
+ * event `accept` refuses (a forged or foreign copy) means the relay holds
+ * nothing, not the older one beside it. Only events `accept` passes join the
+ * store, so the store still learns what the relays hold.
+ */
+export function requestHeld(
+  relays: string[],
+  filter: Filter,
+  timeoutMs: number,
+  accept: (event: NostrEvent) => boolean,
+): Promise<{ held: NostrEvent | undefined; reach: RelayReach }> {
+  let newest: NostrEvent | undefined;
+  let newestPasses = false;
+  const accepts = (event: NostrEvent) => {
+    try {
+      return accept(event);
+    } catch {
+      return false; // malformed: nothing it holds
+    }
+  };
+  return readWithReach(relays, filter, timeoutMs, (event) => {
+    const passes = accepts(event);
+    if (passes) eventStore.add(event);
+    if (typeof event.created_at === "number" && beats(event, newest)) {
+      newest = event;
+      newestPasses = passes;
+    }
+  }).then((reach) => ({ held: newestPasses ? newest : undefined, reach }));
+}
+
+/** The read under both: each event as a relay sent it to `onEvent`, and who answered. */
+function readWithReach(
+  relays: string[],
+  filter: Filter,
+  timeoutMs: number,
+  onEvent: (event: NostrEvent) => void,
+): Promise<RelayReach> {
   const asked = dedupeRelays(relays);
   const answered = new Set<string>();
   const settled = new Set<string>();
-  let newest: NostrEvent | undefined;
   // The pool spells a relay its own way (a trailing slash it added, the host
   // lower-cased), so match on the same normalized form we asked with.
   const normalize = (url: unknown) => dedupeRelays([String(url ?? "")])[0] ?? "";
@@ -149,8 +198,7 @@ export function requestNewestWithReach(
       tap((message) => {
         const from = normalize(message?.from);
         if (message?.type === "EVENT" && message.event) {
-          const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
-          if (beats(stored, newest)) newest = stored;
+          onEvent(message.event as NostrEvent);
         } else if (message?.type === "EOSE") {
           answered.add(from);
           settled.add(from);
@@ -167,7 +215,7 @@ export function requestNewestWithReach(
       map(() => undefined),
     ),
     { defaultValue: undefined },
-  ).then(() => ({ newest, reach: { asked, answered: asked.filter((url) => answered.has(url)) } }));
+  ).then(() => ({ asked, answered: asked.filter((url) => answered.has(url)) }));
 }
 
 /**

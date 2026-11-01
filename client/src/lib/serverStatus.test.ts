@@ -11,6 +11,7 @@ import { BehaviorSubject } from "rxjs";
 import {
   __resetServerStatus,
   getServerStatus,
+  isNoAnswer,
   isTransportFailure,
   onRecover,
   reportApiFailure,
@@ -84,6 +85,14 @@ describe("the API's health", () => {
     expect(isTransportFailure(new Response("", { status: 401 }))).toBe(false);
     expect(isTransportFailure(Object.assign(new Error("aborted"), { name: "AbortError" }))).toBe(false);
     expect(isTransportFailure(new Error("Failed to fetch user data (404)"))).toBe(false);
+  });
+
+  it("a request that got no answer is the network or a timeout: a gateway's 502 is an answer", () => {
+    expect(isNoAnswer(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isNoAnswer(new DOMException("signal timed out", "TimeoutError"))).toBe(true);
+    expect(isNoAnswer(Object.assign(new Error("Bad gateway"), { status: 502 }))).toBe(false);
+    expect(isTransportFailure(Object.assign(new Error("Bad gateway"), { status: 502 }))).toBe(true);
+    expect(isNoAnswer(Object.assign(new Error("aborted"), { name: "AbortError" }))).toBe(false);
   });
 
   // Down is not forever: the store keeps asking, and the pages refill the

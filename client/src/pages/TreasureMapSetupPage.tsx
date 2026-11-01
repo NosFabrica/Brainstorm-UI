@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Check, Loader2, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -22,6 +22,7 @@ import {
   type SelfMapStatus,
 } from "@/lib/assistantTreasureMap";
 import { categoryOf } from "@/lib/dutyMenu";
+import { isNoAnswer } from "@/lib/serverStatus";
 import type { TreasureMapPublishResult } from "@/services/api";
 
 /**
@@ -56,6 +57,12 @@ const REASONS: Record<string, string> = {
   "not-scheduled": "Not kept up to date: no updates are scheduled.",
   unchecked: "Brainstorm can't check this key yet, so it isn't listed.",
 };
+
+/** A message as a sentence: ours with a status ("… (500)") and the browser's ("signal timed out") aren't. */
+function sentence(text: string): string {
+  const s = text.trim().replace(/^./, (c) => c.toUpperCase());
+  return /[.!?…]$/.test(s) ? s : `${s}.`;
+}
 
 /** A seconds timestamp as a plain date, e.g. "June 7, 2026"; null when there is none. */
 function dateOf(seconds: number | null): string | null {
@@ -189,33 +196,69 @@ function PanelHead({ title, explainer, children }: { title: string; explainer?: 
 export default function TreasureMapSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const map = useAssistantTreasureMap(user?.pubkey);
-  const [pressing, setPressing] = useState<"on" | "update" | "off" | null>(null);
-  const [result, setResult] = useState<TreasureMapPublishResult | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const map = useAssistantTreasureMap(user?.pubkey, { probeRelays: true, askAgain: true });
+  // A press, and its answer, belong to the account, not to this view: one
+  // opened while a press is under way shows it, and its answer when it comes.
+  const pressing = map.pressing;
+  const result = map.lastPress?.result ?? null;
+  const failure = map.lastPress?.error?.message ?? null;
 
   if (!user) return null;
 
-  const press = async (which: "on" | "update" | "off") => {
-    setResult(null);
-    setFailure(null);
-    setPressing(which);
-    try {
-      setResult(await map.set(which !== "off"));
-    } catch (e) {
-      setFailure(e instanceof Error ? e.message : String(e));
-    } finally {
-      setPressing(null);
-    }
-  };
+  // What it answers, or why it failed, shows from the press itself (`lastPress`).
+  const press = (which: "on" | "update" | "off") => void map.set(which !== "off").catch(() => undefined);
 
-  const buttons = selfMapButtons(map.on, map.status, map.found.length);
-  // A press waits for the published version to be read: its base is the newest one.
-  const busy = pressing !== null || map.status === null;
+  const buttons = selfMapButtons(map.on, map.status, map.found.length, map.missed.length);
+  // While off, Turn off follows the version found, which its own press empties
+  // before it settles: it stays till then, saying "Publishing…".
+  const offShown = buttons.turnOff || pressing === "off";
+  // With a check, a press waits for the published version to be read: its base
+  // is the newest one. Without one, Turn off needs neither.
+  const busy = pressing !== null || (map.assistant !== null && map.status === null);
   const label = (which: "on" | "update" | "off", words: string) => (
     <>
       {pressing === which && <Loader2 className="h-4 w-4 animate-spin" />}
       {pressing === which ? "Publishing…" : words}
+    </>
+  );
+  const turnOff = (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => void press("off")}
+      disabled={busy}
+      data-testid="treasure-map-off"
+    >
+      {label("off", "Remove your Assistant's duties from its Treasure Map")}
+    </Button>
+  );
+  // What failed: the server's sentence, or ours with its status when it sent
+  // none, with "Couldn't reach…" first only for a request that got no answer.
+  const failed = map.error && (
+    <Alert variant="destructive" data-testid="treasure-map-error">
+      <AlertDescription>
+        {isNoAnswer(map.error) && <>Couldn&rsquo;t reach your Assistant right now. </>}
+        {sentence(map.error.message)}
+        {/* Only these two panels come from the check: the version is read from relays, the choice can be a press's. */}
+        {map.assistant !== null && (
+          <>
+            {" "}
+            <span className="mt-1 block" data-testid="treasure-map-error-last">
+              Your Assistant&rsquo;s duties, and what its Treasure Map should list, are from the last check that worked.
+            </span>
+          </>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+  const outcome = (
+    <>
+      {result && <Report result={result} />}
+      {failure && (
+        <Alert variant="destructive">
+          <AlertDescription>{failure}</AlertDescription>
+        </Alert>
+      )}
     </>
   );
   const stateLine = map.on
@@ -260,19 +303,44 @@ export default function TreasureMapSetupPage() {
         </div>
 
         {map.supported === false ? (
-          <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-unavailable">
-            Your Brainstorm server can&rsquo;t keep your Assistant&rsquo;s Treasure Map yet.
-          </Card>
-        ) : map.error ? (
-          <Alert variant="destructive" data-testid="treasure-map-error">
-            <AlertDescription>Couldn&rsquo;t reach your Assistant right now. {map.error.message}</AlertDescription>
-          </Alert>
-        ) : !map.supported ? (
+          <>
+            <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-unavailable">
+              Your Brainstorm server can&rsquo;t keep your Assistant&rsquo;s Treasure Map yet.
+            </Card>
+            {/* A Turn off made before the server said so still answers here. */}
+            {(pressing === "off" || result || failure) && (
+              <Card className="space-y-3 p-5">
+                {pressing === "off" && <div className="flex flex-wrap gap-2">{turnOff}</div>}
+                {outcome}
+              </Card>
+            )}
+          </>
+        ) : map.assistant === null && map.error ? (
+          <>
+            {failed}
+            {/* No check to show: only a Turn off past this failure (the POST's step 1), kept while it runs. */}
+            {(map.offUnchecked || pressing === "off" || result || failure) && (
+              <Card className="space-y-3 p-5">
+                {(map.offUnchecked || pressing === "off") && (
+                  <>
+                    <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-off-unchecked">
+                      You can still remove your Assistant&rsquo;s duties from its Treasure Map: that doesn&rsquo;t need
+                      the check.
+                    </p>
+                    <div className="flex flex-wrap gap-2">{turnOff}</div>
+                  </>
+                )}
+                {outcome}
+              </Card>
+            )}
+          </>
+        ) : map.assistant === null ? (
           <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Asking your Assistant which duties are live…
           </p>
         ) : (
           <>
+            {failed}
             <Card className="space-y-3 p-5">
               <PanelHead
                 title="Your Assistant's duties"
@@ -336,6 +404,30 @@ export default function TreasureMapSetupPage() {
                   {stateLine}
                 </p>
               )}
+              {map.checkingRelays && (
+                <p
+                  className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
+                  data-testid="treasure-map-checking-relays"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking which relays have the newest version…
+                </p>
+              )}
+              {map.missed.length > 0 && (
+                <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-missed">
+                  The newest version hasn&rsquo;t reached{" "}
+                  {map.missed.map((relay, i) => (
+                    <Fragment key={relay}>
+                      {i > 0 && ", "}
+                      <Relay relay={relay} />
+                    </Fragment>
+                  ))}{" "}
+                  yet:{" "}
+                  {map.on
+                    ? "updating your Assistant's Treasure Map"
+                    : "removing your Assistant's duties from its Treasure Map"}{" "}
+                  sends it there.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {buttons.turnOn && (
                   <Button size="sm" onClick={() => void press("on")} disabled={busy} data-testid="treasure-map-on">
@@ -352,24 +444,9 @@ export default function TreasureMapSetupPage() {
                     {label("update", "Update your Assistant's Treasure Map now")}
                   </Button>
                 )}
-                {buttons.turnOff && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void press("off")}
-                    disabled={busy}
-                    data-testid="treasure-map-off"
-                  >
-                    {label("off", "Remove your Assistant's duties from its Treasure Map")}
-                  </Button>
-                )}
+                {offShown && turnOff}
               </div>
-              {result && <Report result={result} />}
-              {failure && (
-                <Alert variant="destructive">
-                  <AlertDescription>{failure}</AlertDescription>
-                </Alert>
-              )}
+              {outcome}
             </Card>
 
             {/* While off, the state line says it; the status line is for a Map that is meant to list. */}
