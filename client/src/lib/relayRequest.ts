@@ -142,13 +142,15 @@ export function requestNewestWithReach(
 }
 
 /**
- * What the relays themselves hold: the newest event they sent that `accept`
- * passes, plus who answered. For a relay probe — which version is on that
+ * What the relays themselves hold: the newest event they sent, when `accept`
+ * passes it, plus who answered. For a relay probe — which version is on that
  * relay? — where `requestNewestWithReach`'s `newest` can't serve: it is the
  * store's winner, and for a replaceable kind `add` hands back the newer copy
- * the store already holds in place of an older one a relay sent. Only events
- * `accept` passes count, and only they join the store, so the store still
- * learns what the relays hold.
+ * the store already holds in place of an older one a relay sent. The newest
+ * is picked first, then judged, as brainstorm_server's read does: a newer
+ * event `accept` refuses (a forged or foreign copy) means the relay holds
+ * nothing, not the older one beside it. Only events `accept` passes join the
+ * store, so the store still learns what the relays hold.
  */
 export function requestHeld(
   relays: string[],
@@ -156,7 +158,8 @@ export function requestHeld(
   timeoutMs: number,
   accept: (event: NostrEvent) => boolean,
 ): Promise<{ held: NostrEvent | undefined; reach: RelayReach }> {
-  let held: NostrEvent | undefined;
+  let newest: NostrEvent | undefined;
+  let newestPasses = false;
   const accepts = (event: NostrEvent) => {
     try {
       return accept(event);
@@ -165,10 +168,13 @@ export function requestHeld(
     }
   };
   return readWithReach(relays, filter, timeoutMs, (event) => {
-    if (!accepts(event)) return;
-    eventStore.add(event);
-    if (beats(event, held)) held = event;
-  }).then((reach) => ({ held, reach }));
+    const passes = accepts(event);
+    if (passes) eventStore.add(event);
+    if (typeof event.created_at === "number" && beats(event, newest)) {
+      newest = event;
+      newestPasses = passes;
+    }
+  }).then((reach) => ({ held: newestPasses ? newest : undefined, reach }));
 }
 
 /** The read under both: each event as a relay sent it to `onEvent`, and who answered. */

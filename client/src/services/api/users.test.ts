@@ -7,7 +7,12 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/services/api";
-import { AssistantRouteError, PathNetworkTooLargeError, TreasureMapUnavailableError } from "@/services/api/users";
+import {
+  AssistantRouteError,
+  DutyMenuUnavailableError,
+  PathNetworkTooLargeError,
+  TreasureMapUnavailableError,
+} from "@/services/api/users";
 
 const auth = vi.hoisted(() => ({ fetch: vi.fn<(url: string, init?: RequestInit) => Promise<Response>>() }));
 vi.mock("@/services/api/core", async (importOriginal) => ({
@@ -55,6 +60,32 @@ describe("the Assistant's routes, when they fail", () => {
       answer(status, "{}");
       expect(await failure(apiClient.getAssistantTreasureMap())).toBeInstanceOf(TreasureMapUnavailableError);
     }
+  });
+
+  it("a gateway's or a limiter's `message` isn't the route's own sentence: only FastAPI's `detail` is", async () => {
+    answer(502, JSON.stringify({ message: "An invalid response was received from the upstream server" }));
+    expect(await failure(apiClient.getAssistantTreasureMap())).toMatchObject({
+      status: 502,
+      said: false,
+      message: "Couldn't check your Assistant's Treasure Map (502)",
+    });
+    answer(429, JSON.stringify({ message: "API rate limit exceeded" }));
+    expect(await failure(apiClient.setAssistantTreasureMap(false))).toMatchObject({ status: 429, said: false });
+  });
+
+  it("a GET's 2xx that isn't JSON is no route here, for both GETs; a POST's is a failure", async () => {
+    answer(200, "<!doctype html><title>app</title>");
+    const page = await failure(apiClient.getAssistantTreasureMap());
+    expect(page).toBeInstanceOf(TreasureMapUnavailableError);
+    expect(page).toMatchObject({ notJson: true });
+    answer(200, "<!doctype html><title>app</title>");
+    expect(await failure(apiClient.getAssistantDutyMenu())).toBeInstanceOf(DutyMenuUnavailableError);
+    answer(200, "<!doctype html><title>app</title>");
+    const posted = await failure(apiClient.setAssistantTreasureMap(true));
+    expect(posted).toBeInstanceOf(SyntaxError);
+    // A 404 is no route, not a page.
+    answer(404, "{}");
+    expect(await failure(apiClient.getAssistantTreasureMap())).toMatchObject({ notJson: false });
   });
 });
 

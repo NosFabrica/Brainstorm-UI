@@ -23,7 +23,6 @@ const state = vi.hoisted(() => ({
     supported: false as boolean | undefined,
     status: null as string | null,
     settled: true,
-    error: null as Error | null,
     offUnchecked: false as boolean | undefined,
   },
 }));
@@ -254,17 +253,11 @@ describe("useFinishSetup — the Treasure Map step", () => {
 
   it("before any check, a failure Turn off gets past keeps the row, not counted, from when it arrives", () => {
     // Still being asked, with no failure yet: no row.
-    state.selfMap = { supported: undefined, status: null, settled: false, error: null, offUnchecked: false };
+    state.selfMap = { supported: undefined, status: null, settled: false, offUnchecked: false };
     const { result, rerender } = renderHook(() => useFinishSetup());
     expect(result.current.treasureMap).toBeUndefined();
-    // The GET's own 502 (or its 422) after the retry: only that moves.
-    state.selfMap = {
-      supported: undefined,
-      status: null,
-      settled: false,
-      error: new Error("Couldn't read your Treasure Map."),
-      offUnchecked: true,
-    };
+    // The GET's own 502 (or its 422) after the retry, which Turn off gets past: only that moves.
+    state.selfMap = { supported: undefined, status: null, settled: false, offUnchecked: true };
     rerender();
     expect(result.current.treasureMap).toBe("failed");
     expect(result.current.totalSteps).toBe(4);
@@ -273,26 +266,15 @@ describe("useFinishSetup — the Treasure Map step", () => {
   });
 
   it("before any check, another failure hides the step: its page has nothing to press", () => {
-    state.selfMap = {
-      supported: undefined,
-      status: null,
-      settled: false,
-      error: new Error("signal timed out"),
-      offUnchecked: false,
-    };
+    // A timeout, say: no Turn off gets past it.
+    state.selfMap = { supported: undefined, status: null, settled: false, offUnchecked: false };
     const { result } = renderHook(() => useFinishSetup());
     expect(result.current.treasureMap).toBeUndefined();
     expect(result.current.totalSteps).toBe(4);
   });
 
   it("a failed re-check keeps the last check's status, counted", () => {
-    state.selfMap = {
-      supported: true,
-      status: "out-of-date",
-      settled: true,
-      error: new Error("x"),
-      offUnchecked: true,
-    };
+    state.selfMap = { supported: true, status: "out-of-date", settled: true, offUnchecked: true };
     const { result } = renderHook(() => useFinishSetup());
     expect(result.current.treasureMap).toBe("out-of-date");
     expect(result.current.totalSteps).toBe(5);

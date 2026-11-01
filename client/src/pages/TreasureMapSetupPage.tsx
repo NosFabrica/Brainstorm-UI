@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Check, Loader2, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -22,6 +22,7 @@ import {
   type SelfMapStatus,
 } from "@/lib/assistantTreasureMap";
 import { categoryOf } from "@/lib/dutyMenu";
+import { isNoAnswer } from "@/lib/serverStatus";
 import type { TreasureMapPublishResult } from "@/services/api";
 
 /**
@@ -56,9 +57,6 @@ const REASONS: Record<string, string> = {
   "not-scheduled": "Not kept up to date: no updates are scheduled.",
   unchecked: "Brainstorm can't check this key yet, so it isn't listed.",
 };
-
-/** A request that got no answer: the network failed (fetch's TypeError), or its 15 s ran out. */
-const unanswered = (err: Error) => err instanceof TypeError || err.name === "TimeoutError";
 
 /** A message as a sentence: ours with a status ("… (500)") and the browser's ("signal timed out") aren't. */
 function sentence(text: string): string {
@@ -199,24 +197,16 @@ export default function TreasureMapSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
   const map = useAssistantTreasureMap(user?.pubkey, { probeRelays: true, askAgain: true });
-  const [pressing, setPressing] = useState<"on" | "update" | "off" | null>(null);
-  const [result, setResult] = useState<TreasureMapPublishResult | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  // A press, and its answer, belong to the account, not to this view: one
+  // opened while a press is under way shows it, and its answer when it comes.
+  const pressing = map.pressing;
+  const result = map.lastPress?.result ?? null;
+  const failure = map.lastPress?.error?.message ?? null;
 
   if (!user) return null;
 
-  const press = async (which: "on" | "update" | "off") => {
-    setResult(null);
-    setFailure(null);
-    setPressing(which);
-    try {
-      setResult(await map.set(which !== "off"));
-    } catch (e) {
-      setFailure(e instanceof Error ? e.message : String(e));
-    } finally {
-      setPressing(null);
-    }
-  };
+  // What it answers, or why it failed, shows from the press itself (`lastPress`).
+  const press = (which: "on" | "update" | "off") => void map.set(which !== "off").catch(() => undefined);
 
   const buttons = selfMapButtons(map.on, map.status, map.found.length, map.missed.length);
   // While off, Turn off follows the version found, which its own press empties
@@ -247,7 +237,7 @@ export default function TreasureMapSetupPage() {
   const failed = map.error && (
     <Alert variant="destructive" data-testid="treasure-map-error">
       <AlertDescription>
-        {unanswered(map.error) && <>Couldn&rsquo;t reach your Assistant right now. </>}
+        {isNoAnswer(map.error) && <>Couldn&rsquo;t reach your Assistant right now. </>}
         {sentence(map.error.message)}
         {/* Only these two panels come from the check: the version is read from relays, the choice can be a press's. */}
         {map.assistant !== null && (
@@ -313,16 +303,25 @@ export default function TreasureMapSetupPage() {
         </div>
 
         {map.supported === false ? (
-          <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-unavailable">
-            Your Brainstorm server can&rsquo;t keep your Assistant&rsquo;s Treasure Map yet.
-          </Card>
+          <>
+            <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-unavailable">
+              Your Brainstorm server can&rsquo;t keep your Assistant&rsquo;s Treasure Map yet.
+            </Card>
+            {/* A Turn off made before the server said so still answers here. */}
+            {(pressing === "off" || result || failure) && (
+              <Card className="space-y-3 p-5">
+                {pressing === "off" && <div className="flex flex-wrap gap-2">{turnOff}</div>}
+                {outcome}
+              </Card>
+            )}
+          </>
         ) : map.assistant === null && map.error ? (
           <>
             {failed}
-            {/* With no check to show, only a Turn off past this failure (TREASURE-MAP-ASK.md, the POST's step 1). */}
-            {(map.offUnchecked || result || failure) && (
+            {/* No check to show: only a Turn off past this failure (the POST's step 1), kept while it runs. */}
+            {(map.offUnchecked || pressing === "off" || result || failure) && (
               <Card className="space-y-3 p-5">
-                {map.offUnchecked && (
+                {(map.offUnchecked || pressing === "off") && (
                   <>
                     <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="treasure-map-off-unchecked">
                       You can still remove your Assistant&rsquo;s duties from its Treasure Map: that doesn&rsquo;t need

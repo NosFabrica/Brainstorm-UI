@@ -419,7 +419,7 @@ describe("asking what a relay itself holds", () => {
     storeAdd.mockImplementation((e: unknown) => e);
   });
 
-  it("counts only what `accept` passes, and adds only that to the store", async () => {
+  it("picks the newest before judging it, as the server's read does: a newer copy `accept` refuses means none held", async () => {
     const { subject } = messages();
 
     const pending = requestHeld(["wss://one"], FILTER, 1000, (e) => e.id !== "forged");
@@ -428,8 +428,24 @@ describe("asking what a relay itself holds", () => {
     subject.next(eose("wss://one"));
     await vi.advanceTimersByTimeAsync(0);
 
-    expect((await pending).held?.id).toBe("real");
+    const { held, reach } = await pending;
+    expect(held).toBeUndefined();
+    expect(reach.answered).toEqual(["wss://one/"]);
+    // Only what `accept` passes joins the store.
+    expect(storeAdd).toHaveBeenCalledWith(expect.objectContaining({ id: "real" }));
     expect(storeAdd).not.toHaveBeenCalledWith(expect.objectContaining({ id: "forged" }));
+  });
+
+  it("holds the newest when `accept` passes it, whatever older copy it refused", async () => {
+    const { subject } = messages();
+
+    const pending = requestHeld(["wss://one"], FILTER, 1000, (e) => e.id !== "forged");
+    subject.next(arrived("wss://one", event("real", 99)));
+    subject.next(arrived("wss://one", event("forged", 10)));
+    subject.next(eose("wss://one"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect((await pending).held?.id).toBe("real");
   });
 
   it("reads a relay that answered with nothing it accepts as holding none, and one that never answered as not answering", async () => {

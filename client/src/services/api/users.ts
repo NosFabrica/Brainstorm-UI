@@ -6,7 +6,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { parseTreasureMapCheck, type TreasureMapCheck } from "@/lib/assistantTreasureMap";
 import { parseDutyMenuOffer } from "@/lib/dutyMenu";
-import { authenticatedFetch, extractApiError, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
+import { authenticatedFetch, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
 
 /**
  * The Path network from `GET /shortestPath`: every Connector on any shortest
@@ -100,9 +100,16 @@ export interface DutyMenuPublishResult {
 
 /** This server can't keep Assistants' Treasure Maps yet (docs/assistant/TREASURE-MAP-ASK.md): the setup step stays hidden. */
 export class TreasureMapUnavailableError extends Error {
-  constructor() {
-    super("Your Assistant's Treasure Map isn't available on this server yet.");
+  /** The GET answered a 2xx that isn't JSON (a proxy's or an app's page), not a 404 or 405. */
+  readonly notJson: boolean;
+  constructor({ notJson = false }: { notJson?: boolean } = {}) {
+    super(
+      notJson
+        ? "Couldn't check your Assistant's Treasure Map: the server answered with a page, not a check."
+        : "Your Assistant's Treasure Map isn't available on this server yet.",
+    );
     this.name = "TreasureMapUnavailableError";
+    this.notJson = notJson;
   }
 }
 
@@ -164,10 +171,24 @@ export class AssistantRouteError extends Error {
   }
 }
 
-/** One of the Assistant's routes under `/user`: a 404 or 405 is "not on this server yet". */
+/**
+ * The server's own sentence: FastAPI's `detail`, as a string. A gateway's or a
+ * limiter's `message` isn't it, so it can't pass for one of the route's own
+ * failures.
+ */
+async function detailOf(response: Response): Promise<string> {
+  const body = await response.json().catch(() => null);
+  return typeof body?.detail === "string" ? body.detail : "";
+}
+
+/**
+ * One of the Assistant's routes under `/user`: a 404 or 405 is "not on this
+ * server yet", and so is a GET's 2xx that isn't JSON (a proxy's or an app's
+ * page). A POST's is a failure.
+ */
 async function assistantJson<T>(
   path: string,
-  unavailable: () => Error,
+  unavailable: (why?: { notJson: true }) => Error,
   init: RequestInit,
   timeoutMs: number,
   failed: string,
@@ -178,11 +199,13 @@ async function assistantJson<T>(
   });
   if (response.status === 404 || response.status === 405) throw unavailable();
   if (!response.ok) {
-    const sentence = await extractApiError(response);
-    const said = typeof sentence === "string" && sentence !== "";
+    const sentence = await detailOf(response);
+    const said = sentence !== "";
     throw new AssistantRouteError(said ? sentence : `${failed} (${response.status})`, response.status, said);
   }
-  const json = await response.json();
+  const json = await response.json().catch((e: unknown) => {
+    throw e instanceof SyntaxError && (init.method ?? "GET") === "GET" ? unavailable({ notJson: true }) : e;
+  });
   return json?.data ?? json;
 }
 
@@ -199,7 +222,7 @@ const assistantDictionaryJson = (path: string, concepts: string[], failed: strin
   );
 
 const treasureMapJson = <T>(init: RequestInit, timeoutMs: number, failed: string) =>
-  assistantJson<T>("assistantTreasureMap", () => new TreasureMapUnavailableError(), init, timeoutMs, failed);
+  assistantJson<T>("assistantTreasureMap", (why) => new TreasureMapUnavailableError(why), init, timeoutMs, failed);
 
 export const usersApi = {
   async getUserHistory() {
@@ -420,14 +443,10 @@ export const usersApi = {
    * What the caller's Assistant's Treasure Map should list now, and why. An
    * answer that isn't a check means no route, as for the Duty Menu
    * (lib/assistantTreasureMap `parseTreasureMapCheck`), and so does a 2xx that
-   * isn't JSON (a proxy's or an app's page).
+   * isn't JSON (`assistantJson`).
    */
   async getAssistantTreasureMap(): Promise<TreasureMapCheck> {
-    const json = await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map").catch(
-      (e: unknown) => {
-        throw e instanceof SyntaxError ? new TreasureMapUnavailableError() : e;
-      },
-    );
+    const json = await treasureMapJson<unknown>({}, 15000, "Couldn't check your Assistant's Treasure Map");
     const check = parseTreasureMapCheck(json);
     if (!check) throw new TreasureMapUnavailableError();
     return check;

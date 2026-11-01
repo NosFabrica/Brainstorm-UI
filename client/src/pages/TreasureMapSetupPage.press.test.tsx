@@ -72,7 +72,7 @@ vi.mock("@/lib/eventStore", () => ({
 vi.mock("@/lib/relayRequest", () => ({ requestHeld: h.reach }));
 
 import { parseTreasureMapCheck } from "@/lib/assistantTreasureMap";
-import { AssistantRouteError } from "@/services/api";
+import { AssistantRouteError, TreasureMapUnavailableError } from "@/services/api";
 import TreasureMapSetupPage from "./TreasureMapSetupPage";
 
 const check = (on: boolean) =>
@@ -89,8 +89,7 @@ const TOO_MANY =
 const SCORES_502 = "Couldn't check whether your Scores are kept up to date. Try again in a moment.";
 const KEY = ["assistant-treasure-map", "a".repeat(64)];
 
-function mountPage() {
-  const client = new QueryClient({ defaultOptions: { queries: { retryDelay: 20 } } });
+function mountPage(client = new QueryClient({ defaultOptions: { queries: { retryDelay: 20 } } })) {
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -236,5 +235,63 @@ describe("TreasureMapSetupPage's presses", () => {
     expect(buttons()).toEqual(["treasure-map-on:enabled:List your Assistant's live duties in its Treasure Map"]);
     const card = screen.getByTestId("treasure-map-on").closest(".space-y-3") as HTMLElement;
     expect(within(card).getByTestId("treasure-map-report")).toBe(report);
+  });
+
+  it("a page opened again while a press is under way keeps it busy, sends no second press, and shows its answer (A1)", async () => {
+    h.stored = signedMap(SHOULD);
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const first = mountPage();
+    await waitFor(() => expect(screen.getByTestId("treasure-map-off")).toBeEnabled());
+    let answer!: (v: unknown) => void;
+    h.setAssistantTreasureMap.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    fireEvent.click(screen.getByTestId("treasure-map-off"));
+    await waitFor(() => expect(buttons()).toContain(OFF));
+    // "Back to setup checklist", then the Treasure Map row again, before the POST answers.
+    first.unmount();
+    mountPage(first.client);
+    await waitFor(() => expect(buttons()).toContain(OFF));
+    expect(screen.getByTestId("treasure-map-update")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("treasure-map-off"));
+    expect(h.setAssistantTreasureMap).toHaveBeenCalledTimes(1);
+    h.getAssistantTreasureMap.mockResolvedValue(check(false));
+    await act(async () =>
+      answer({ on: false, published: true, event: signedMap([], 1_790_000_100), relays: [{ url: SCORES, ok: true }] }),
+    );
+    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("now lists none"));
+  });
+
+  it("with no check, Turn off's card and Publishing… stay while it runs, though the re-ask fails another way (A6)", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError(SCORES_502, 502, true));
+    const { client } = mountPage();
+    await waitFor(() => expect(screen.getByTestId("treasure-map-off")).toBeEnabled(), { timeout: 3000 });
+    let answer!: (v: unknown) => void;
+    h.setAssistantTreasureMap.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    fireEvent.click(screen.getByTestId("treasure-map-off"));
+    await waitFor(() => expect(buttons()).toContain(OFF));
+    // Asked again while the POST is out, the check now gets no answer at all: not one Turn off gets past.
+    h.getAssistantTreasureMap.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: KEY });
+    });
+    await waitFor(() => expect(screen.getByTestId("treasure-map-error")).toHaveTextContent("Couldn’t reach"));
+    expect(buttons()).toContain(OFF);
+    await act(async () => answer({ on: false, published: false, event: null, relays: [] }));
+    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed"));
+  });
+
+  it("with no check, a Turn off's answer stays when the check after it finds no route (A8)", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError(SCORES_502, 502, true));
+    mountPage();
+    await waitFor(() => expect(screen.getByTestId("treasure-map-off")).toBeEnabled(), { timeout: 3000 });
+    h.setAssistantTreasureMap.mockResolvedValue({
+      on: false,
+      published: true,
+      event: null,
+      relays: [{ url: SCORES, ok: true }],
+    });
+    h.getAssistantTreasureMap.mockRejectedValue(new TreasureMapUnavailableError());
+    fireEvent.click(screen.getByTestId("treasure-map-off"));
+    await waitFor(() => expect(screen.getByTestId("treasure-map-unavailable")).toBeInTheDocument());
+    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent(SCORES);
   });
 });

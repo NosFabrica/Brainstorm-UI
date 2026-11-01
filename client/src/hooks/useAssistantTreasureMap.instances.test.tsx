@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools";
 
 const sk = generateSecretKey();
@@ -66,11 +66,21 @@ import { useAssistantTreasureMap } from "./useAssistantTreasureMap";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
+// As a server since the field answers: the page's mounts probe when there's a version to ask about.
 const check = (on: boolean) =>
-  parseTreasureMapCheck({ assistant: ASSISTANT, on, duties: [], shouldSay: SHOULD, relays: [SCORES] });
+  parseTreasureMapCheck({
+    assistant: ASSISTANT,
+    on,
+    duties: [],
+    shouldSay: SHOULD,
+    relays: [SCORES],
+    writerRelays: [SCORES],
+  });
 const UNREAD =
   "Couldn't read your Treasure Map, so your Assistant's Treasure Map couldn't be checked. Try again in a moment.";
 const unread = () => new AssistantRouteError(UNREAD, 502, true);
+const TOO_MANY = "Your Treasure Map names more than 64 keys, too many to check.";
+const OFF = { on: false, published: true, event: null, relays: [{ url: SCORES, ok: true }] };
 
 let client: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -309,5 +319,145 @@ describe("a failing check, across instances", () => {
     await waitFor(() => expect(page.result.current.supported).toBe(true));
     expect(page.result.current.on).toBe(false);
     expect(setup.result.current.on).toBe(false);
+  });
+});
+
+describe("a press, across views and accounts", () => {
+  it("a press under way shows on every view, and its answer on a view opened after it (A1)", async () => {
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const page = mount({ askAgain: true, probeRelays: true });
+    await waitFor(() => expect(page.result.current.supported).toBe(true));
+    let answer!: (v: unknown) => void;
+    h.setAssistantTreasureMap.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    let pressed!: Promise<unknown>;
+    act(() => {
+      pressed = page.result.current.set(false);
+    });
+    // The page is left and opened again before the POST answers.
+    page.unmount();
+    const again = mount({ askAgain: true, probeRelays: true });
+    await waitFor(() => expect(again.result.current.pressing).toBe("off"));
+    expect(again.result.current.publishing).toBe(true);
+    expect(again.result.current.lastPress).toBeNull();
+    await act(async () => {
+      answer(OFF);
+      await pressed;
+    });
+    await waitFor(() => expect(again.result.current.pressing).toBeNull());
+    expect(again.result.current.lastPress).toEqual({ result: OFF, error: null });
+    expect(h.setAssistantTreasureMap).toHaveBeenCalledTimes(1);
+  });
+
+  it("a press settles against the account it was made for, not the one active when it answers (A2)", async () => {
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const hook = renderHook(({ pubkey }) => useAssistantTreasureMap(pubkey, { askAgain: true }), {
+      wrapper,
+      initialProps: { pubkey: A },
+    });
+    await waitFor(() => expect(hook.result.current.supported).toBe(true));
+    let answer!: (v: unknown) => void;
+    h.setAssistantTreasureMap.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    let pressed!: Promise<unknown>;
+    act(() => {
+      pressed = hook.result.current.set(false);
+    });
+    await waitFor(() => expect(hook.result.current.pressing).toBe("off"));
+    // The account menu switches to B before the POST answers.
+    hook.rerender({ pubkey: B });
+    await waitFor(() => expect(hook.result.current.supported).toBe(true));
+    expect(hook.result.current.pressing).toBeNull();
+    const before = gets();
+    await act(async () => {
+      answer(OFF);
+      await pressed;
+    });
+    // A's check is asked again (when it's next shown) and A keeps the choice; B is left as it was.
+    expect(client.getQueryState(["assistant-treasure-map", A])?.isInvalidated).toBe(true);
+    expect(client.getQueryData(["assistant-treasure-map-choice", A])).toMatchObject({ on: false });
+    expect(client.getQueryState(["assistant-treasure-map", B])?.isInvalidated).toBe(false);
+    expect(client.getQueryData(["assistant-treasure-map-choice", B])).toBeUndefined();
+    expect(gets()).toBe(before);
+    expect(hook.result.current.on).toBe(true);
+    expect(hook.result.current.lastPress).toBeNull();
+  });
+
+  it("a Turn off over a kept 422, made while a re-ask is out, asks again: a Map trimmed meanwhile loads (A3)", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new AssistantRouteError(TOO_MANY, 422, true));
+    const header = mount();
+    await waitFor(() => expect(header.result.current.error?.message).toBe(TOO_MANY));
+    // The reader trims their Map and opens the page: its re-ask is out when they press Turn off.
+    const pending = held();
+    const page = mount({ askAgain: true });
+    await waitFor(() => expect(pending).toHaveLength(1));
+    h.setAssistantTreasureMap.mockResolvedValue(OFF);
+    await act(async () => {
+      await page.result.current.set(false);
+    });
+    // The GET already out is dropped, and one asked after the press takes its place.
+    expect(pending).toHaveLength(2);
+    await act(async () => pending[1].answer(check(false)));
+    await waitFor(() => expect(page.result.current.assistant).toBe(ASSISTANT));
+    expect(page.result.current.error).toBeNull();
+    expect(header.result.current.error).toBeNull();
+  });
+
+  it("a re-ask that waits for the network keeps the failure on every view, its Turn off included (A4)", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(unread());
+    const header = mount();
+    await waitFor(() => expect(header.result.current.error?.message).toBe(UNREAD), { timeout: 3000 });
+    onlineManager.setOnline(false);
+    try {
+      const page = mount({ askAgain: true });
+      await waitFor(() => expect(fetchStatus()).toBe("paused"));
+      expect(page.result.current.error?.message).toBe(UNREAD);
+      expect(page.result.current.offUnchecked).toBe(true);
+      expect(header.result.current.error?.message).toBe(UNREAD);
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it("a 429 is asked once more, and a Turn off over it asks the check again: only the 422 lasts (A7)", async () => {
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const page = mount({ askAgain: true });
+    await waitFor(() => expect(page.result.current.supported).toBe(true));
+    const limited = new AssistantRouteError("Couldn't check your Assistant's Treasure Map (429)", 429, false);
+    h.getAssistantTreasureMap.mockRejectedValue(limited);
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["assistant-treasure-map", A] });
+    });
+    await waitFor(() => expect(page.result.current.error).toBe(limited));
+    expect(gets()).toBe(3);
+    h.setAssistantTreasureMap.mockResolvedValue(OFF);
+    h.getAssistantTreasureMap.mockResolvedValue(check(false));
+    await act(async () => {
+      await page.result.current.set(false);
+    });
+    await waitFor(() => expect(page.result.current.error).toBeNull());
+    expect(gets()).toBe(4);
+    expect(page.result.current.on).toBe(false);
+  });
+
+  it("a 2xx that isn't JSON, over a check from before, is a failure shown above it, not 'no route' (A8)", async () => {
+    h.getAssistantTreasureMap.mockResolvedValue(check(true));
+    const page = mount({ askAgain: true });
+    await waitFor(() => expect(page.result.current.supported).toBe(true));
+    h.getAssistantTreasureMap.mockRejectedValue(new TreasureMapUnavailableError({ notJson: true }));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["assistant-treasure-map", A] });
+    });
+    await waitFor(() => expect(page.result.current.error).toBeInstanceOf(TreasureMapUnavailableError));
+    expect(page.result.current.supported).toBe(true);
+    expect(page.result.current.assistant).toBe(ASSISTANT);
+    // Asked once more first: a proxy's page may pass.
+    expect(gets()).toBe(3);
+  });
+
+  it("with no check, a 2xx that isn't JSON is asked once more, then means no route (A8)", async () => {
+    h.getAssistantTreasureMap.mockRejectedValue(new TreasureMapUnavailableError({ notJson: true }));
+    const page = mount({ askAgain: true });
+    await waitFor(() => expect(page.result.current.supported).toBe(false));
+    expect(gets()).toBe(2);
+    expect(page.result.current.error).toBeNull();
   });
 });

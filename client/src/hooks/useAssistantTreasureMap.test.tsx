@@ -449,7 +449,7 @@ describe("useAssistantTreasureMap", () => {
     });
   }
 
-  it("with a check cached and a lasting 422, a Turn off made while a re-ask is out drops it too", async () => {
+  it("with a check cached and a lasting 422, a Turn off made while a re-ask is out drops it and asks again", async () => {
     const { client, wrapper } = shared();
     h.stored = signedMap(SHOULD);
     h.getAssistantTreasureMap.mockResolvedValue(check(true));
@@ -473,10 +473,14 @@ describe("useAssistantTreasureMap", () => {
     await act(async () => {
       await page.result.current.set(false);
     });
-    // The 422 isn't asked again, and the GET already out is dropped: its old choice can't undo the Turn off.
+    // The GET already out is dropped, so its old choice can't undo the Turn off, and one asked after the
+    // press takes its place: a 422 alone isn't asked again, but a re-ask someone wanted is.
+    expect(gets).toHaveLength(2);
     await act(async () => gets[0].resolve(check(true)));
     await new Promise((r) => setTimeout(r, 30));
-    expect(gets).toHaveLength(1);
+    expect(page.result.current.on).toBe(false);
+    await act(async () => gets[1].reject(new AssistantRouteError(TOO_MANY, 422, true)));
+    await waitFor(() => expect(page.result.current.error?.message).toBe(TOO_MANY));
     expect(page.result.current.on).toBe(false);
   });
 
@@ -540,7 +544,7 @@ describe("useAssistantTreasureMap", () => {
     await waitFor(() => expect(h.reach.mock.calls.map((c) => c[0])).toEqual([[SCORES]]));
   });
 
-  it("after a press whose re-check a lasting 422 skips, what the relays held before it doesn't count", async () => {
+  it("a re-check that fails stops the probe: what the relays held before it doesn't count, nor after a press it skips", async () => {
     const OUTBOX = "wss://outbox.example/";
     const empty = signedMap([], 1_790_000_100);
     h.stored = empty;
@@ -555,8 +559,9 @@ describe("useAssistantTreasureMap", () => {
       await client.refetchQueries({ queryKey: KEY });
     });
     await waitFor(() => expect(result.current.error?.message).toBe(TOO_MANY));
+    // Not invalidated, but no longer standing: its relays may be another choice's.
     expect(client.getQueryState(KEY)?.isInvalidated).toBe(false);
-    expect(result.current.missed).toEqual([SCORES]);
+    expect(result.current.missed).toEqual([]);
     const gets = h.getAssistantTreasureMap.mock.calls.length;
     // The repair: Turn off re-sends the empty version to the scores relay.
     h.setAssistantTreasureMap.mockResolvedValue({

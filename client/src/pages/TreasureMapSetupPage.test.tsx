@@ -5,7 +5,7 @@
  * nothing to press.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import type { AssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import type { DutyLine } from "@/lib/assistantTreasureMap";
@@ -64,6 +64,8 @@ function show(map: Partial<AssistantTreasureMap>) {
     checkingRelays: false,
     error: null,
     offUnchecked: false,
+    pressing: null,
+    lastPress: null,
     set: vi.fn(async (on: boolean) => ({ on, published: true, event: null, relays: [] })),
     publishing: false,
     ...map,
@@ -124,29 +126,52 @@ describe("TreasureMapSetupPage", () => {
     expect(screen.getByTestId("treasure-map-on")).toBeDisabled();
   });
 
-  it("Turn on sends on, and reports each relay", async () => {
-    const set = vi.fn(async (on: boolean) => ({
-      on,
+  it("Turn on sends on, and reports each relay", () => {
+    const result = {
+      on: true,
       published: true,
       event: null,
       relays: [
         { url: SCORES, ok: true },
         { url: "wss://slow.example", ok: false, message: "timeout" },
       ],
-    }));
+    };
+    const set = vi.fn(async () => result);
     show({ set });
     fireEvent.click(screen.getByTestId("treasure-map-on"));
-    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("wss://slow.example"));
-    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("timeout");
     expect(set).toHaveBeenCalledWith(true);
+    cleanup();
+    // Its answer is the press's own (`lastPress`), on any view of the page.
+    show({ on: true, lastPress: { result, error: null } });
+    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("wss://slow.example");
+    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("timeout");
   });
 
-  it("Turn off sends off; a press that changes nothing says so", async () => {
+  it("Turn off sends off; a press that changes nothing says so", () => {
     const set = vi.fn(async (on: boolean) => ({ on, published: false, event: null, relays: [] }));
     show({ on: true, status: "current", found: [rank], set });
     fireEvent.click(screen.getByTestId("treasure-map-off"));
-    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed"));
     expect(set).toHaveBeenCalledWith(false);
+    cleanup();
+    show({
+      status: "current",
+      lastPress: { result: { on: false, published: false, event: null, relays: [] }, error: null },
+    });
+    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed");
+  });
+
+  it("a press under way, from any view, keeps its button saying Publishing… and every button busy", () => {
+    show({
+      on: true,
+      status: "current",
+      found: [rank],
+      published: { kind: 10040 } as never,
+      pressing: "update",
+      publishing: true,
+    });
+    expect(screen.getByTestId("treasure-map-update")).toHaveTextContent("Publishing…");
+    expect(screen.getByTestId("treasure-map-update")).toBeDisabled();
+    expect(screen.getByTestId("treasure-map-off")).toBeDisabled();
   });
 
   it("says where the newest version is missing, and offers Update now though it's up to date", () => {
@@ -179,7 +204,7 @@ describe("TreasureMapSetupPage", () => {
   const unchecked = { supported: undefined, assistant: null, status: null, settled: false } as const;
   const TOO_MANY = "Your Treasure Map names more than 64 keys, too many to check.";
 
-  it("when the check fails in a way Turn off gets past, says the server's words and offers it", async () => {
+  it("when the check fails in a way Turn off gets past, says the server's words and offers it", () => {
     const set = vi.fn(async (on: boolean) => ({ on, published: false, event: null, relays: [] }));
     show({ ...unchecked, error: new AssistantRouteError(TOO_MANY, 422, true), offUnchecked: true, set });
     expect(screen.getByTestId("treasure-map-error")).toHaveTextContent(TOO_MANY);
@@ -189,8 +214,18 @@ describe("TreasureMapSetupPage", () => {
     expect(screen.queryByTestId("treasure-map-on")).toBeNull();
     expect(screen.queryByTestId("treasure-map-duties")).toBeNull();
     fireEvent.click(screen.getByTestId("treasure-map-off"));
-    await waitFor(() => expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed"));
     expect(set).toHaveBeenCalledWith(false);
+    cleanup();
+    // Answered, it isn't offered again, and its report stays in its card.
+    const answered = { result: { on: false, published: false, event: null, relays: [] }, error: null };
+    show({ ...unchecked, error: new AssistantRouteError(TOO_MANY, 422, true), lastPress: answered });
+    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent("Nothing changed");
+    expect(screen.queryByTestId("treasure-map-off")).toBeNull();
+  });
+
+  it("with no check, a Turn off under way keeps its card and button though the failure changes", () => {
+    show({ ...unchecked, error: new TypeError("Failed to fetch"), pressing: "off", publishing: true });
+    expect(screen.getByTestId("treasure-map-off")).toHaveTextContent("Publishing…");
   });
 
   it("when the request got no answer, says so, and offers nothing a press couldn't get past", () => {
@@ -254,5 +289,19 @@ describe("TreasureMapSetupPage", () => {
       "can’t keep your Assistant’s Treasure Map yet",
     );
     expect(screen.queryByTestId("treasure-map-on")).toBeNull();
+    expect(screen.queryByTestId("treasure-map-report")).toBeNull();
+  });
+
+  it("a Turn off made before the server said it has no route still shows, and then its answer", () => {
+    show({ ...unchecked, supported: false, pressing: "off", publishing: true });
+    expect(screen.getByTestId("treasure-map-off")).toHaveTextContent("Publishing…");
+    cleanup();
+    const answered = {
+      result: { on: false, published: true, event: null, relays: [{ url: SCORES, ok: true }] },
+      error: null,
+    };
+    show({ ...unchecked, supported: false, lastPress: answered });
+    expect(screen.getByTestId("treasure-map-unavailable")).toBeInTheDocument();
+    expect(screen.getByTestId("treasure-map-report")).toHaveTextContent(SCORES);
   });
 });

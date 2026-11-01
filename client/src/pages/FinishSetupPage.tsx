@@ -17,7 +17,7 @@ import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useFinishSetup } from "@/hooks/useFinishSetup";
+import { useFinishSetup, type FinishSetupState } from "@/hooks/useFinishSetup";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
@@ -41,6 +41,28 @@ import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
  * account menu's Account setup row leads, for the optional extras — and it's
  * titled for that, not still asking them to finish.
  */
+
+const PUBLISH_TREASURE_MAP =
+  "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once.";
+
+/** The Treasure Map step while it isn't done: its badge and detail, by where it stands. */
+const TREASURE_MAP_ROW: Record<
+  Exclude<FinishSetupState["treasureMap"], "current" | undefined>,
+  { badge: string; detail: string }
+> = {
+  checking: { badge: "Checking", detail: PUBLISH_TREASURE_MAP },
+  failed: {
+    badge: "Couldn't check",
+    detail:
+      "Your Assistant's Treasure Map couldn't be checked just now, so this step isn't counted. Open it to see why.",
+  },
+  "out-of-date": {
+    badge: "Out of date",
+    detail:
+      "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today.",
+  },
+  missing: { badge: "Required for other apps", detail: PUBLISH_TREASURE_MAP },
+};
 
 function DoneRow({ label, detail, testid }: { label: string; detail: ReactNode; testid: string }) {
   return (
@@ -331,22 +353,8 @@ export default function FinishSetupPage() {
             treasureMap && (
               <PendingRow
                 label="Publish your Assistant's Treasure Map"
-                badge={
-                  treasureMap === "checking"
-                    ? "Checking"
-                    : treasureMap === "failed"
-                      ? "Couldn't check"
-                      : treasureMap === "out-of-date"
-                        ? "Out of date"
-                        : "Required for other apps"
-                }
-                detail={
-                  treasureMap === "failed"
-                    ? "Your Assistant's Treasure Map couldn't be checked just now, so this step isn't counted. Open it to see why."
-                    : treasureMap === "out-of-date"
-                      ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
-                      : "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once."
-                }
+                badge={TREASURE_MAP_ROW[treasureMap].badge}
+                detail={TREASURE_MAP_ROW[treasureMap].detail}
                 icon={MapIcon}
                 onClick={() => navigate("/setup/treasure-map")}
                 testid="setup-row-treasure-map"

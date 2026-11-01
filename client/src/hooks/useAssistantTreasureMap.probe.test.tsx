@@ -79,6 +79,7 @@ const FOLLOWERS = ["30382:followers", SCORES];
 const SHOULD = [RANK, FOLLOWERS];
 const MAP_502 =
   "Couldn't read your Treasure Map, so your Assistant's Treasure Map couldn't be checked. Try again in a moment.";
+const TOO_MANY = "Your Treasure Map names more than 64 keys, too many to check.";
 const signed = (entries: string[][], at: number, key = sk) =>
   finalizeEvent(
     { kind: 10040, created_at: at, content: "", tags: entries.map(([k, r]) => [k, getPublicKey(key), r]) },
@@ -236,6 +237,18 @@ describe("only the Assistant's own kind 10040, verified, counts (V1-3)", () => {
     expect(eventStore.getEvent(forged.id)).toBeUndefined();
     expect(eventStore.getEvent(foreign.id)).toBeUndefined();
   });
+
+  it("a newer forged copy beside the genuine one: the relay holds none, as is_own reads its newest (B11)", async () => {
+    const v = signed(SHOULD, t);
+    eventStore.add(v);
+    // v's signature over a later time: the relay's newest, and not the Assistant's own.
+    const forged = { ...copy(v), created_at: t + 50 };
+    h.held = { [SCORES]: [v, forged], [OUTBOX]: [v] };
+    h.getAssistantTreasureMap.mockResolvedValue(check(true, [SCORES, OUTBOX]));
+    const { result } = await settledProbe();
+    // The press reads the scores relay's newest, finds it isn't the Assistant's own, and re-sends v there.
+    expect(result.current.missed).toEqual([SCORES]);
+  });
 });
 
 describe("when the probe asks", () => {
@@ -291,7 +304,7 @@ describe("when the probe asks", () => {
     expect(result.current.missed).toEqual([]);
   });
 
-  it("an answer being asked again doesn't count till it's back (the app's resume, say)", async () => {
+  it("an answer being asked again doesn't count till it's back (on a page opened after its minute, say)", async () => {
     const v = signed(SHOULD, t);
     eventStore.add(v);
     h.held = { [OUTBOX]: [v] };
@@ -308,6 +321,29 @@ describe("when the probe asks", () => {
     expect(result.current.missed).toEqual([]);
     await waitFor(() => expect(result.current.checkingRelays).toBe(false));
     expect(result.current.missed).toEqual([]);
+  });
+
+  it("asks nothing, and counts no miss, while the check is asked again, nor after that fails (A5)", async () => {
+    const v = signed(SHOULD, t);
+    eventStore.add(v);
+    h.held = { [OUTBOX]: [v] };
+    h.getAssistantTreasureMap.mockResolvedValue(check(true, [SCORES, OUTBOX]));
+    const qc = client();
+    const { result } = await settledProbe(qc);
+    expect(result.current.missed).toEqual([SCORES]);
+    const asked = h.asked.length;
+    // Asked again without an invalidation, as a mount after its 10 minutes or a reconnect asks it:
+    // another device may have changed the choice, and with it the relays a press reads.
+    let fail!: (e: unknown) => void;
+    h.getAssistantTreasureMap.mockImplementation(() => new Promise((_, reject) => (fail = reject)));
+    act(() => {
+      void qc.refetchQueries({ queryKey: ["assistant-treasure-map", "a".repeat(64)] });
+    });
+    await waitFor(() => expect(result.current.missed).toEqual([]));
+    await act(async () => fail(new AssistantRouteError(TOO_MANY, 422, true)));
+    await waitFor(() => expect(result.current.error?.message).toBe(TOO_MANY));
+    expect(result.current.missed).toEqual([]);
+    expect(h.asked).toHaveLength(asked);
   });
 
   it("an answer stands a minute: a second visit asks again only after it (H2-12)", async () => {
