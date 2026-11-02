@@ -7,6 +7,9 @@
  * naive re-hydration duplicates every Account. Storage stays the source of truth
  * at tab *start*; from then on the messages are.
  *
+ * Passkey seals are, though: they are ciphertext, already in the blob, and a tab
+ * that never heard of a new one would drop it the next time it saves.
+ *
  * The unlocked key is deliberately not among them. It lives in per-tab module
  * memory and putting it on a channel would put a plaintext key there, so a
  * following tab arrives Locked. The one thing that *must* propagate is the
@@ -19,6 +22,7 @@ import { EMPTY, map, merge, Subject, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
+import type { StoredPasskey } from "./passkey";
 import type { Persistence } from "./persist";
 
 export const CHANNEL_NAME = "brainstorm_accounts";
@@ -31,7 +35,8 @@ export type CrossTabMessage =
   | { type: "account-added"; accountId: string }
   | { type: "account-removed"; accountId: string }
   | { type: "session-updated"; accountId: string; session: SessionRecord | null }
-  | { type: "perspective-changed"; accountId: string; perspective: Perspective | null };
+  | { type: "perspective-changed"; accountId: string; perspective: Perspective | null }
+  | { type: "passkeys-changed"; accountId: string; passkeys: StoredPasskey[] | null };
 
 export interface TabChannel {
   post(message: CrossTabMessage): void;
@@ -46,6 +51,7 @@ const MESSAGE_TYPES: CrossTabMessage["type"][] = [
   "account-removed",
   "session-updated",
   "perspective-changed",
+  "passkeys-changed",
 ];
 
 function isCrossTabMessage(value: unknown): value is CrossTabMessage {
@@ -134,6 +140,7 @@ export function createMirror({ manager, channel = browserChannel(), persistence 
   let known = new Set(manager.accounts.map((account) => account.id));
   const announcedSessions = new Map<string, string | undefined>();
   const announcedPerspectives = new Map<string, Perspective | undefined>();
+  const announcedPasskeys = new Map<string, StoredPasskey[] | undefined>();
 
   const subscription = manager.active$.subscribe((active) => {
     const id = active?.id ?? null;
@@ -149,6 +156,7 @@ export function createMirror({ manager, channel = browserChannel(), persistence 
         if (ids.has(id)) continue;
         announcedSessions.delete(id);
         announcedPerspectives.delete(id);
+        announcedPasskeys.delete(id);
         post({ type: "account-removed", accountId: id });
       }
       // Additions travelled as a side effect of `active-changed` adopting them
@@ -203,6 +211,30 @@ export function createMirror({ manager, channel = browserChannel(), persistence 
       }),
   );
 
+  // Seals live on the signer, not metadata. The signer replaces the array on every
+  // passkey change, so a reference that moved is a change worth telling; an
+  // envelope or Backup write leaves it as it was and says nothing.
+  subscription.add(
+    manager.accounts$
+      .pipe(
+        switchMap((accounts) => {
+          const local = accounts.filter((account): account is LocalAccount => account instanceof LocalAccount);
+          for (const account of local) {
+            if (!announcedPasskeys.has(account.id)) announcedPasskeys.set(account.id, account.signer.data.passkeys);
+          }
+          return local.length
+            ? merge(...local.map((account) => account.signer.changed$.pipe(map(() => account))))
+            : EMPTY;
+        }),
+      )
+      .subscribe((account) => {
+        const passkeys = account.signer.data.passkeys;
+        if (announcedPasskeys.get(account.id) === passkeys) return;
+        announcedPasskeys.set(account.id, passkeys);
+        post({ type: "passkeys-changed", accountId: account.id, passkeys: passkeys ?? null });
+      }),
+  );
+
   /** Held already, or restorable from the blob. `adopt` answers both. */
   function held(id: string): BrainstormAccount | null {
     return (persistence?.adopt(id) ?? manager.getAccount(id) ?? null) as BrainstormAccount | null;
@@ -252,6 +284,15 @@ export function createMirror({ manager, channel = browserChannel(), persistence 
     updateMetadata(account, { perspective: perspective ?? undefined });
   }
 
+  function applyPasskeys(accountId: string, passkeys: StoredPasskey[] | null): void {
+    const account = manager.getAccount(accountId);
+    if (!(account instanceof LocalAccount)) return;
+    // Recorded before applying, so the change this causes isn't announced back.
+    announcedPasskeys.set(accountId, passkeys ?? undefined);
+    account.signer.setPasskeys(passkeys ?? undefined);
+    announcedPasskeys.set(accountId, account.signer.data.passkeys);
+  }
+
   function applySession(accountId: string, session: SessionRecord | null): void {
     const account = manager.getAccount(accountId) as BrainstormAccount | undefined;
     if (!account) return;
@@ -277,6 +318,9 @@ export function createMirror({ manager, channel = browserChannel(), persistence 
           break;
         case "perspective-changed":
           applyPerspective(message.accountId, message.perspective);
+          break;
+        case "passkeys-changed":
+          applyPasskeys(message.accountId, message.passkeys);
           break;
       }
     } catch (err) {

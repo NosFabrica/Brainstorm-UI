@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Built on Brainstorm</title>
+    <!-- The line on several grounds, drawn with this deployment's own v1.css, so a restyle can
+         be checked on staging before it reaches every app (docs/built-on-brainstorm.md). -->
+    <script src="./built-on-brainstorm.js" defer></script>
+    <style>
+      body {
+        margin: 0;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        color: #0a0e18;
+        background: #f2f3f0;
+      }
+      header,
+      section {
+        padding: 24px 16px;
+      }
+      header p,
+      h2 {
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.7;
+      }
+      .ink {
+        color: #f2f3f0;
+        background: #0a0e18;
+      }
+      .caption {
+        background: #ffffff;
+      }
+      .caption built-on-brainstorm {
+        font-size: 13px;
+        --built-on-color: #64738a;
+        --built-on-hover-color: #10161f;
+      }
+      .other {
+        color: #5a3e2b;
+        background: #f6f1e7;
+        font:
+          17px/1.5 Georgia,
+          serif;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p><strong>Built on Brainstorm</strong>, version 1, drawn with this deployment's <code>v1.css</code>.</p>
+      <p>Point at a line to see it underlined, and tab to it to see its focus ring.</p>
+    </header>
+    <section>
+      <h2>Balanced White, the text's own colour</h2>
+      <built-on-brainstorm stylesheet="./v1.css"></built-on-brainstorm>
+    </section>
+    <section class="ink">
+      <h2>Brainstorm Ink</h2>
+      <built-on-brainstorm stylesheet="./v1.css"></built-on-brainstorm>
+    </section>
+    <section class="caption">
+      <h2>A caption, muted until pointed at</h2>
+      <built-on-brainstorm stylesheet="./v1.css"></built-on-brainstorm>
+    </section>
+    <section class="other">
+      <h2>Another app's look: its font, its colours</h2>
+      <built-on-brainstorm stylesheet="./v1.css"></built-on-brainstorm>
+    </section>
+  </body>
+</html>

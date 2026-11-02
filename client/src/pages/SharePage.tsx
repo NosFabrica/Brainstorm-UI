@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EmojiText } from "@/components/ui/custom-emoji";
-import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
+import { decodeShareId, npubFromPubkey, eventPath, READER_KINDS } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { scopedSearchHref } from "@/lib/searchSyntax";
@@ -121,6 +121,7 @@ import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
+import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 
 const NO_RELAYS: string[] = [];
 
@@ -376,6 +377,17 @@ export default function SharePage() {
   const photosQuery = useRecentByKinds(pubkey, [20], 12, relayHints);
 
   const articlesQuery = useRecentByKinds(pubkey, [30023], 5, relayHints);
+  // Books, asked apart: a book's parts are publications too (Alexandria's
+  // "Article 1"), published together, and asked with the articles they could
+  // fill every slot and push the essays out.
+  const booksQuery = useRecentByKinds(pubkey, [PUBLICATION_INDEX_KIND], 20, relayHints);
+  const articleEvents = useMemo(
+    () =>
+      [...(articlesQuery.events ?? []), ...(booksQuery.events ?? []).filter(isBookIndex)]
+        .sort((x, y) => y.created_at - x.created_at)
+        .slice(0, 5),
+    [articlesQuery.events, booksQuery.events],
+  );
 
   // A wider net of recent notes used ONLY to harvest images for the photo grid,
   // so it can fill 3/6/9 even when the latest 5 notes happen to be text-only.
@@ -461,6 +473,7 @@ export default function SharePage() {
       notesQuery.events,
       photosQuery.events,
       articlesQuery.events,
+      booksQuery.events,
       photoNotesQuery.events,
       videosQuery.events,
       musicQuery.events,
@@ -480,6 +493,7 @@ export default function SharePage() {
     notesQuery.events,
     photosQuery.events,
     articlesQuery.events,
+    booksQuery.events,
     photoNotesQuery.events,
     videosQuery.events,
     musicQuery.events,
@@ -558,17 +572,17 @@ export default function SharePage() {
 
   const articles = useMemo(
     () =>
-      (articlesQuery.events ?? []).map((ev) => {
+      articleEvents.map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
         return {
           id: ev.id,
-          title: tag("title") || "Untitled",
+          title: articleTitle(ev) || "Untitled",
           summary: tag("summary") || "",
           image: tag("image"),
           ts: ev.created_at,
         };
       }),
-    [articlesQuery.events],
+    [articleEvents],
   );
 
   const videos = useMemo(
@@ -1352,7 +1366,7 @@ export default function SharePage() {
               testId="share-block-featured"
               className={orderClass("featured")}
             >
-              {featured.kind === 30023 ? (
+              {READER_KINDS.has(featured.kind) ? (
                 <EmbeddedArticleCard
                   event={featured}
                   author={{
@@ -1419,7 +1433,7 @@ export default function SharePage() {
               className={orderClass("articles")}
             >
               <div className="space-y-3">
-                {(articlesQuery.events ?? []).map((ev) => (
+                {articleEvents.map((ev) => (
                   <EmbeddedArticleCard
                     key={ev.id}
                     event={ev as MinimalEvent}

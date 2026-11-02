@@ -96,7 +96,16 @@ import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
-import { belongsTo, categoryTestId, NOTES_KEY, pagedWords, PEOPLE_KEY, type Category } from "@/lib/allCategories";
+import {
+  belongsTo,
+  categoryTestId,
+  groupCategories,
+  NOTES_KEY,
+  pagedWords,
+  PEOPLE_KEY,
+  type Category,
+  type CategoryGroup,
+} from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
 import { useNamedTags } from "@/hooks/useNamedTags";
@@ -163,6 +172,7 @@ import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { PUBLICATION_KINDS } from "@/lib/publication";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -221,10 +231,16 @@ const THING_TAB_DETAIL: Partial<Record<SearchTab, ThingDetail["type"]>> = {
 };
 
 /** What kind of article a hit is — the Articles tab's type chips narrow by this. */
-type ArticleType = "article" | "spec" | "wiki";
-const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = { article: "Articles", spec: "Specs", wiki: "Wiki" };
+type ArticleType = "article" | "spec" | "wiki" | "publication";
+const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = {
+  article: "Articles",
+  spec: "Specs",
+  wiki: "Wiki",
+  publication: "Publications",
+};
 function articleTypeOf(kind: number): ArticleType {
-  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : "article";
+  // A book, its chapters and the shelves that hold them read as one kind of thing.
+  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : PUBLICATION_KINDS.has(kind) ? "publication" : "article";
 }
 
 /**
@@ -340,6 +356,21 @@ const SOON_TABS: { key: string; label: string; title: string }[] = [
   { key: "agents", label: "Agents", title: "Verify and hire agents — coming to Brainstorm" },
 ];
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
+/**
+ * All's More, under Top's More headings: what is a tab of its own in Top's row (Notes, Media, Shop)
+ * heads its own group, and the rest sit where Top's More puts them. Lists and Other come from
+ * lib/allCategories.
+ */
+const ALL_MORE_GROUPS: { title: string; tabs: SearchTab[] }[] = [
+  { title: "Notes & people", tabs: ["notes", "people"] },
+  { title: "Media", tabs: ["media"] },
+  { title: "Shop", tabs: ["shop"] },
+  // Zap Store releases are a band on the home feed, not a tab: they are built things.
+  ...MORE_GROUPS.map((g) => ({
+    title: g.title ?? "Lists",
+    tabs: [...g.tabs.map((t) => t.key), ...(g.title === "Build" ? (["releases"] as SearchTab[]) : [])],
+  })),
+];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
 /** The tabs a search counts results for (hooks/useTabCounts): every vertical, the row's first. */
@@ -531,19 +562,22 @@ function MoreTabs({
   );
 }
 
-/** On All, its categories past the row (hooks/useAllCategories), most results first — MoreTabs' look. */
+/** On All, its categories past the row (hooks/useAllCategories) under MoreTabs' headings, most results first in each. */
 function MoreCategories({
-  categories,
+  groups,
   pressed,
   onPress,
 }: {
-  categories: readonly Category[];
+  groups: readonly CategoryGroup[];
   pressed: string | null;
   onPress: (key: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const active = categories.find((c) => c.key === pressed);
+  const active = groups.flatMap((g) => g.categories).find((c) => c.key === pressed);
+  // An open menu holds still, as MoreTabs does: counts that land while it is open wait for it to close.
+  const [held, setHeld] = useState<readonly CategoryGroup[] | null>(null);
+  const shown = open && held ? held : groups;
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: PointerEvent) => {
@@ -559,7 +593,7 @@ function MoreCategories({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-  if (categories.length === 0) return null;
+  if (shown.length === 0) return null;
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
@@ -568,7 +602,10 @@ function MoreCategories({
         aria-selected={!!active}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!open) setHeld(groups);
+          setOpen(!open);
+        }}
         className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
         title={active?.name}
         data-testid="search-tab-more"
@@ -585,26 +622,41 @@ function MoreCategories({
           aria-label="More categories"
           className="absolute right-0 top-full z-20 mt-1 max-h-[60vh] min-w-[9rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {categories.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              role="menuitem"
-              aria-current={pressed === c.key ? "true" : undefined}
-              onClick={() => {
-                setOpen(false);
-                onPress(c.key);
-              }}
-              className={
-                "flex w-full items-center whitespace-nowrap rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                (pressed === c.key
-                  ? "font-semibold text-brand-deep dark:text-brand-link"
-                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-              }
-              data-testid={`search-category-${categoryTestId(c.key)}`}
+          {shown.map((g, gi) => (
+            <div
+              key={g.title}
+              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
+              role="group"
+              aria-label={g.title}
             >
-              {c.name}
-            </button>
+              <div
+                className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
+                data-testid={`search-category-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+              >
+                {g.title}
+              </div>
+              {g.categories.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  role="menuitem"
+                  aria-current={pressed === c.key ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onPress(c.key);
+                  }}
+                  className={
+                    "flex w-full items-center whitespace-nowrap rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                    (pressed === c.key
+                      ? "font-semibold text-brand-deep dark:text-brand-link"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`search-category-${categoryTestId(c.key)}`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -1646,8 +1698,14 @@ export function SearchResults({
     const found = rowLoading ? [] : [...categories.shown.slice(0, at), ...tabs, ...categories.shown.slice(at)];
     const pressed = pressedCategory ?? tabs.find((t) => t.key === tagTabKey) ?? null;
     const all = pressed && !found.some((c) => c.key === pressed.key) ? [...found, pressed] : found;
-    return { inRow: all.slice(0, CATEGORIES_IN_ROW), behindMore: all.slice(CATEGORIES_IN_ROW) };
-  }, [categories.shown, namedTags.tags, rowLoading, pressedCategory, tagTabKey]);
+    // A list a kind's page stands for sits under that page's heading: Places is Out & about. A tag's
+    // tab follows Notes and People, so it is always in the row, never behind More.
+    const listGroups = new Map(kinds.map((k) => [k.community, k.group]));
+    return {
+      inRow: all.slice(0, CATEGORIES_IN_ROW),
+      behindMore: groupCategories(all.slice(CATEGORIES_IN_ROW), ALL_MORE_GROUPS, listGroups),
+    };
+  }, [categories.shown, namedTags.tags, rowLoading, pressedCategory, tagTabKey, kinds]);
   // A category the link names waits to be found — in All's first page, or the lists' answer —
   // rather than showing all of All first; one that isn't found lets All show. So does a tag's.
   const categoryWaiting = tagTabKey
@@ -2048,7 +2106,7 @@ export function SearchResults({
   const articleFacets = useMemo<ArticleType[]>(() => {
     if (tab !== "articles") return [];
     const present = new Set(hits.map((h) => articleTypeOf(h.event.kind)));
-    const types = (["article", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
+    const types = (["article", "publication", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
     return types.length > 1 ? types : [];
   }, [tab, hits]);
   // The recipes' own topics — chicken, soup — counted. zap.cooking's
@@ -2484,7 +2542,7 @@ export function SearchResults({
             </div>
             <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
               {onAll && (
-                <MoreCategories categories={rowCategories.behindMore} pressed={categoryAsked} onPress={pressCategory} />
+                <MoreCategories groups={rowCategories.behindMore} pressed={categoryAsked} onPress={pressCategory} />
               )}
               {!onAll && (
                 <MoreTabs

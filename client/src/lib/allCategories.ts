@@ -7,7 +7,7 @@
  */
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
 import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
-import { TAB_KINDS, type CategoryAsk, type SearchHit } from "@/services/search";
+import { TAB_KINDS, tagsForTab, type CategoryAsk, type SearchHit, type SearchTab } from "@/services/search";
 
 export interface Category extends CategoryAsk {
   /** Its key in the row and in the link: a list's coordinate, or `kind:` and the rows' label. */
@@ -160,4 +160,62 @@ export function categoryTestId(key: string): string {
 /** What a category's page says it holds so far: "1 Video", "40 Food and Drink Places". */
 export function pagedWords(category: Category, n: number): string {
   return `${n} ${n === 1 && category.label ? category.label : category.name}`;
+}
+
+/** A heading in All's More menu and the categories under it. */
+export interface CategoryGroup {
+  title: string;
+  categories: Category[];
+}
+
+/** Dictionary lists no kind's page places (hooks/useListKinds), and kinds no tab asks for. */
+export const DICTIONARY_GROUP = "Dictionary";
+export const OTHER_GROUP = "Other";
+
+/**
+ * The tab a kind category is asked like: its own, or the tab asking most of its kinds — the
+ * narrowest on a tie, so Specs are NIPs' — past the tabs that narrow a kind by tag (Recipes
+ * are one kind of Articles).
+ */
+export function tabOf(category: Category): SearchTab | null {
+  if (category.tab) return category.tab;
+  if (!isKindKey(category.key)) return null;
+  let best: { tab: SearchTab; shared: number; size: number } | null = null;
+  for (const [tab, kinds] of Object.entries(TAB_KINDS) as [SearchTab, number[]][]) {
+    if (tagsForTab(tab)) continue;
+    const shared = category.kinds.filter((k) => kinds.includes(k)).length;
+    if (!shared) continue;
+    if (!best || shared > best.shared || (shared === best.shared && kinds.length < best.size))
+      best = { tab, shared, size: kinds.length };
+  }
+  return best?.tab ?? null;
+}
+
+/**
+ * All's categories behind More under Top's More headings, in `groups`' order, each keeping the
+ * order it came in: a kind under its tab's heading, a list under its kind's page's (`listGroups`,
+ * by its coordinate: Places is Out & about) or the Dictionary's, which follows the first heading as
+ * lists follow Notes and People in the row. A kind no tab asks for is Other, last. Headings with
+ * nothing under them go.
+ */
+export function groupCategories(
+  categories: readonly Category[],
+  groups: readonly { title: string; tabs: readonly SearchTab[] }[],
+  listGroups: ReadonlyMap<string, string> = new Map(),
+): CategoryGroup[] {
+  const titles = [...groups.map((g) => g.title)];
+  titles.splice(1, 0, DICTIONARY_GROUP);
+  titles.push(OTHER_GROUP);
+  const under = new Map<string, Category[]>(titles.map((t) => [t, []]));
+  for (const c of categories) {
+    const tab = tabOf(c);
+    const title = isKindKey(c.key)
+      ? (groups.find((g) => tab && g.tabs.includes(tab))?.title ?? OTHER_GROUP)
+      : (listGroups.get(c.key) ?? DICTIONARY_GROUP);
+    (under.get(title) ?? under.get(OTHER_GROUP)!).push(c);
+  }
+  return titles.flatMap((title) => {
+    const held = under.get(title)!;
+    return held.length ? [{ title, categories: held }] : [];
+  });
 }

@@ -5440,6 +5440,39 @@ describe("All's categories", () => {
         .getAllByRole("menuitem")
         .map((m) => m.textContent),
     ).toEqual(["Photos", "Wikis"]);
+    // Under Top's More headings: a photo is Media, a wiki is read.
+    expect(
+      within(screen.getByRole("menu"))
+        .getAllByRole("group")
+        .map((g) => [
+          g.getAttribute("aria-label"),
+          within(g)
+            .getAllByRole("menuitem")
+            .map((m) => m.textContent),
+        ]),
+    ).toEqual([
+      ["Media", ["Photos"]],
+      ["Read & listen", ["Wikis"]],
+    ]);
+  });
+
+  it("an open More holds still while counts land, and settles when it closes", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({ hits: page, eose: true });
+    await answerCounts();
+    const menu = () =>
+      within(screen.getByRole("menu"))
+        .getAllByRole("menuitem")
+        .map((m) => m.textContent);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(menu()).toEqual(["Photos", "Wikis"]);
+    // Wikis now outnumber everything: they would take a place in the row, and Articles go behind More.
+    act(() => categoryCountAsks.forEach((a) => a.onCounts(new Map([...COUNTS, ["kind:Wiki", 5000]]))));
+    expect(menu()).toEqual(["Photos", "Wikis"]);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(menu()).toEqual(["Photos", "Articles"]);
   });
 
   it("each is counted as its own page asks it: a kind by its kinds, a list by the headers its items are filed under", async () => {

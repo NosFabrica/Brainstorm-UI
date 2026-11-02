@@ -19,6 +19,7 @@ vite.config.ts.*
 * 2.json
 test-results
 playwright-report
+__pycache__/
 
 # pakstr APK output
 build/

@@ -55,8 +55,8 @@ export type EmbedShape =
   /** A NIP-34 repo, patch, pull request or issue (RepoCard). */
   | "repo";
 
-/** Long-form kinds drawn as the article teaser: article, draft, publication, section, spec, wiki. */
-export const ARTICLE_EMBED_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30041, 30817, 30818]);
+/** Long-form kinds drawn as the article teaser: article, draft, publication, section, bookshelf, spec, wiki. */
+export const ARTICLE_EMBED_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30041, 30045, 30817, 30818]);
 /** Lists of people, drawn as their faces. */
 export const PEOPLE_LIST_KINDS: ReadonlySet<number> = new Set([30000, 39089, TRUSTED_PEOPLE_KIND]);
 export const LIVE_EMBED_KINDS: ReadonlySet<number> = new Set([30311]);

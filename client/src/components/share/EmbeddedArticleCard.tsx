@@ -8,6 +8,13 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
+import {
+  articleTitle,
+  BOOKSHELF_KIND,
+  PUBLICATION_INDEX_KIND,
+  PUBLICATION_SECTION_KIND,
+  shelfLine,
+} from "@/lib/publication";
 import articleDefault from "@/assets/article-default.webp";
 import specCover from "@/assets/nostr-implementation-decentralized-network-specs-cover.webp";
 import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
@@ -100,6 +107,14 @@ export function EmbeddedArticleCard(props: EmbeddedArticleCardProps) {
   return <EmbeddedNoteCard event={props.event} author={props.author} href={eventHref(props.event)} nested />;
 }
 
+/** The card's way in, named for what it opens: "Read spec", "Read section", "Open bookshelf". */
+function readLabel(event: MinimalEvent, isSpec: boolean, isWiki: boolean): string {
+  if (event.kind === BOOKSHELF_KIND) return "Open bookshelf";
+  if (event.kind === PUBLICATION_INDEX_KIND) return "Read publication";
+  if (event.kind === PUBLICATION_SECTION_KIND) return "Read section";
+  return `Read ${isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()}`;
+}
+
 function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = true }: EmbeddedArticleCardProps) {
   // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
   // The hooks still run for it — an article overwritten while its card is on
@@ -119,7 +134,8 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
-  const title = tagVal(event, "title") || "Untitled article";
+  // A publication's or a section's title is often missing; its `d` is a readable slug.
+  const title = articleTitle(event) || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
   const isWiki = event.kind === 30818;
   // A spec (kind 30817) says which event kinds it covers in `k` tags.
@@ -133,13 +149,16 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const lead = allKinds.filter((k) => leadKinds.includes(k.kind));
   const coveredKinds = [...lead, ...allKinds.filter((k) => !lead.includes(k))].slice(0, KIND_CHIPS_SHOWN);
   const moreKinds = allKinds.length - coveredKinds.length;
-  const summary = articleBrief(event);
+  // A shelf has no words of its own; what it holds says what it is.
+  const summary = articleBrief(event) || (event.kind === BOOKSHELF_KIND ? shelfLine(event) : "");
   const image = tagVal(event, "image");
   // Whatever its kind, one its creator marked sensitive (NIP-36) shows no cover picture: its page asks first.
   const sensitive = !!contentWarningOf(event);
   // A spec wears the NIP cover, a recipe the recipe cover, the rest the article one.
   const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;
+  // A book's cover is a portrait jacket: shown whole, not cropped to its middle by the 16:9 frame.
+  const jacket = event.kind === PUBLICATION_INDEX_KIND && coverSrc === image;
   const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
@@ -180,7 +199,8 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
             loading="lazy"
             decoding="async"
             onError={() => setImgBroken(true)}
-            className="aspect-video w-full shrink-0 bg-slate-100 object-cover @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg dark:bg-slate-800"
+            className={`aspect-video w-full shrink-0 bg-slate-100 @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg dark:bg-slate-800 ${jacket ? "object-contain" : "object-cover"}`}
+            data-cover-fit={jacket ? "contain" : "cover"}
           />
         )}
 
@@ -247,8 +267,7 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"
                 data-testid="article-read"
               >
-                Read {isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()}{" "}
-                <ArrowRight className="h-3.5 w-3.5" />
+                {readLabel(event, isSpec, isWiki)} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           )}

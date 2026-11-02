@@ -31,6 +31,20 @@ export const BACKUP_MESSAGE: Record<BackupNeed, { title: string; body: string }>
 };
 
 /**
+ * The ask for an Account that already unlocks with a passkey. It isn't
+ * browser-bound — the passkey travels with its provider — so "only exists in
+ * this browser" would be false; what it lacks is a copy that doesn't depend on
+ * that provider.
+ */
+export function backupMessage(need: BackupNeed, passkey?: string): { title: string; body: string } {
+  if (need !== "recovery-password" || !passkey) return BACKUP_MESSAGE[need];
+  return {
+    title: "Keep a copy that's only yours",
+    body: `${passkey} signs you in wherever your passkeys sync. A backup file works everywhere else: another browser, another kind of phone, or if you ever leave your password manager.`,
+  };
+}
+
+/**
  * The ask itself, wherever the chain makes it — the post-signup card and the
  * recurring reminder both render this, so they are one sequence rather than two
  * places offering the same button.

@@ -164,3 +164,15 @@ describe("the article reader — a stub whose summary is a link to a note", () =
     expect(screen.getAllByTestId("embedded-note")).toHaveLength(1);
   });
 });
+
+describe("the article reader — links that only look like they stay", () => {
+  it("a `//host` link is an outside link, never the in-app kind", async () => {
+    open("# Zap week\n\n- [home](//evil.example/x)\n- [inside](/t/zaps)\n- a list");
+    const body = screen.getByTestId("article-body");
+    const outside = body.querySelector('a[href="//evil.example/x"]');
+    expect(outside).not.toBeNull();
+    expect(outside).not.toHaveAttribute("data-testid", "article-wikilink");
+    expect(outside).toHaveAttribute("target", "_blank");
+    expect(body.querySelector('a[href="/t/zaps"]')).toHaveAttribute("data-testid", "article-wikilink");
+  });
+});
