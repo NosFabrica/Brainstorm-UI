@@ -18,6 +18,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
+import { useRankProvider } from "@/hooks/useRankProvider";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
@@ -106,7 +107,7 @@ function PendingRow({
  * Assistant: hand it to their Brainstorm Assistant. /setup/activate does the
  * publish, behind its "replace" warning.
  */
-function ScoresSwitchRow({ onSwitch }: { onSwitch: () => void }) {
+function ScoresSwitchRow({ onSwitch, providerName }: { onSwitch: () => void; providerName: string }) {
   return (
     <Card
       className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-3.5"
@@ -120,7 +121,7 @@ function ScoresSwitchRow({ onSwitch }: { onSwitch: () => void }) {
           Use your Brainstorm Assistant for scores
         </span>
         <span className="mt-1 block text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-          Another Assistant publishes your rank. One signature hands that duty to your Brainstorm Assistant.
+          Your scores come from {providerName} today. One signature moves that to your Brainstorm Assistant.
         </span>
       </span>
       <Button size="sm" onClick={onSwitch} data-testid="setup-scores-switch">
@@ -133,6 +134,9 @@ function ScoresSwitchRow({ onSwitch }: { onSwitch: () => void }) {
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
+  // Named wherever another Assistant holds the rank duty; "an Assistant" until known.
+  const rankProvider = useRankProvider(user?.pubkey);
+  const providerName = rankProvider?.name ?? "an Assistant";
   const {
     followDone,
     followCount,
@@ -249,7 +253,7 @@ export default function FinishSetupPage() {
               label="Activate your Brainstorm account"
               detail={
                 scoresElsewhere
-                  ? "Your Treasure Map already names an Assistant for your scores."
+                  ? `Your Treasure Map names ${providerName} for your scores.`
                   : "Other apps can now find your scores."
               }
               testid="setup-row-activate-done"
@@ -258,7 +262,7 @@ export default function FinishSetupPage() {
             <PendingRow
               label="Activate your Brainstorm account"
               badge="Required for other apps"
-              detail="One signature publishes your Treasure Map so other apps know where to find your scores. Takes a few seconds."
+              detail="Your Treasure Map tells other apps where to find your scores. You sign it — one signature."
               icon={PenLine}
               onClick={() => navigate("/setup/activate")}
               testid="setup-row-activate"
@@ -299,7 +303,7 @@ export default function FinishSetupPage() {
                 detail={
                   dutyMenu === "out-of-date"
                     ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
-                    : "Let other clients, apps and Assistants know which duties your Assistant can take on, and which relay each one is published to."
+                    : "Your Assistant's Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap."
                 }
                 icon={ListChecks}
                 onClick={() => navigate("/setup/duty-menu")}
@@ -340,7 +344,7 @@ export default function FinishSetupPage() {
                 detail={
                   treasureMap === "out-of-date"
                     ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
-                    : "Let other clients and apps know which duties your Assistant is publishing right now, so a switch to it takes effect at once."
+                    : "Your Assistant's Treasure Map tells other apps what it's doing for you right now. Your Assistant signs it — one tap."
                 }
                 icon={MapIcon}
                 onClick={() => navigate("/setup/treasure-map")}
@@ -356,7 +360,9 @@ export default function FinishSetupPage() {
           <section className="mt-8" data-testid="setup-optional">
             <SectionHeader kicker="Optional" className="mb-3" />
             <div className="flex flex-col gap-3">
-              {scoresElsewhere && <ScoresSwitchRow onSwitch={() => navigate("/setup/activate")} />}
+              {scoresElsewhere && (
+                <ScoresSwitchRow onSwitch={() => navigate("/setup/activate")} providerName={providerName} />
+              )}
               <MessagesSetupRow />
             </div>
           </section>
@@ -375,7 +381,7 @@ export default function FinishSetupPage() {
             </h2>
             <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
               {scoresElsewhere
-                ? "Other apps find your scores through the Assistant your Treasure Map names."
+                ? `Other apps find your scores through ${providerName}.`
                 : isCalculating
                   ? "Your scores are calculating — usually about 5 minutes — and other apps can find them as soon as they're published."
                   : "Other apps can now find your Brainstorm scores."}
