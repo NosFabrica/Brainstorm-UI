@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const triggerGrapeRank = vi.fn(async () => ({}));
 const getUserHistory = vi.fn(async () => ({ data: {} }));
 const signNip85 = vi.fn(async () => ({ id: "e".repeat(64), pubkey: "a".repeat(64) }));
+const signNip85Deactivation = vi.fn(async (..._a: unknown[]) => ({ id: "d".repeat(64), pubkey: "a".repeat(64) }));
 const publishToRelays = vi.fn(async () => ({ success: true }));
 const fetchTrustProviderList = vi.fn(async (): Promise<{ tags: string[][] } | undefined> => undefined);
 const fetchOutboxRelayList = vi.fn(async () => undefined);
@@ -37,6 +38,7 @@ vi.mock("./nostr", () => ({
   getNip85RelayUrl: () => "wss://nip85.example",
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
+  signNip85Deactivation: (...a: unknown[]) => signNip85Deactivation(...a),
 }));
 vi.mock("./trustLists", () => ({
   checkUserLists: (...a: unknown[]) => checkUserLists(...a),
@@ -60,6 +62,7 @@ vi.mock("@/lib/nip85Activation", () => ({
 
 import {
   checkExistingTrustProvider,
+  deactivateBrainstormTrustAnchor,
   ensureBrainstormTrustAnchor,
   publishBrainstormTrustAnchor,
   shouldAutoPublishNip85,
@@ -305,5 +308,54 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
 
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
+  });
+});
+
+describe("deactivateBrainstormTrustAnchor — stop naming Brainstorm, keep everyone else", () => {
+  it("signs their 10040 minus our rows, publishes with the quorum, clears the flag", async () => {
+    const tags = [
+      ["30382:rank", TA, "wss://nip85.example"],
+      ["30383:rank", "b".repeat(64), "wss://elsewhere.example"],
+    ];
+    fetchTrustProviderList.mockResolvedValueOnce({ tags });
+    const phases: string[] = [];
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA, (p) => phases.push(p));
+
+    expect(res).toEqual({ status: "success" });
+    expect(signNip85Deactivation).toHaveBeenCalledWith(TA, tags);
+    expect(publishToRelays).toHaveBeenCalledWith(expect.anything(), undefined, { need: 2, timeoutMs: 8000 });
+    expect(clearNip85Activated).toHaveBeenCalledWith(ME);
+    expect(phases).toEqual(["signing", "publishing"]);
+  });
+
+  // "Not loaded" and "declared nothing" look the same; publishing on a guess
+  // would wipe rows declared elsewhere.
+  it("refuses when the current 10040 can't be read", async () => {
+    fetchTrustProviderList.mockResolvedValueOnce(undefined);
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA);
+
+    expect(res).toMatchObject({ status: "error" });
+    expect(signNip85Deactivation).not.toHaveBeenCalled();
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(clearNip85Activated).not.toHaveBeenCalled();
+  });
+
+  it("a failed publish offers a retry of the same signed event and keeps the flag", async () => {
+    fetchTrustProviderList.mockResolvedValueOnce({ tags: [["30382:rank", TA, "wss://nip85.example"]] });
+    publishToRelays
+      .mockResolvedValueOnce({ success: false, error: "all relays refused" } as never)
+      .mockResolvedValueOnce({ success: true } as never);
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA);
+    expect(res.status).toBe("error");
+    expect(clearNip85Activated).not.toHaveBeenCalled();
+    const again = await (res as { retry: () => Promise<unknown> }).retry();
+
+    expect(again).toEqual({ status: "success" });
+    expect(signNip85Deactivation).toHaveBeenCalledTimes(1);
+    expect(publishToRelays.mock.calls[1][0]).toBe(publishToRelays.mock.calls[0][0]);
+    expect(clearNip85Activated).toHaveBeenCalledWith(ME);
   });
 });

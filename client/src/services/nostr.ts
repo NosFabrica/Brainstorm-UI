@@ -5,6 +5,7 @@ import {
   listRows,
   mergeDesignation,
   signalRows,
+  withoutProvider,
   type ListDesignation,
 } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
@@ -1561,8 +1562,12 @@ export async function signNip85(
   });
 }
 
-export async function signNip85Deactivation(): Promise<NostrEvent> {
-  return signAs(requireActiveAccount(), { kind: 10040, tags: [], content: "" });
+export async function signNip85Deactivation(serviceKey: string, existing: string[][]): Promise<NostrEvent> {
+  return signAs(requireActiveAccount(), {
+    kind: 10040,
+    tags: withoutProvider(existing, serviceKey),
+    content: "",
+  });
 }
 
 export interface ReportMetadata {

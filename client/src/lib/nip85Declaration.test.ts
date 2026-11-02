@@ -10,6 +10,7 @@ import {
   missingSignals,
   rankProviderOf,
   signalRows,
+  withoutProvider,
 } from "./nip85Declaration";
 
 const TA = "a".repeat(64);
@@ -183,6 +184,19 @@ describe("listRows / mergeDesignation", () => {
     expect(merged).not.toContainEqual(["30382:rank", OTHER_TA, RELAY]);
     expect(merged.filter((t) => t[0] === "30382:rank")).toHaveLength(1);
     expect(merged).toContainEqual(["30394", LISTS.key, LISTS.relay]);
+  });
+});
+
+// Deactivating used to sign an empty 10040, wiping every provider the user had.
+describe("withoutProvider", () => {
+  it("drops only the rows naming our key", () => {
+    const theirs = [
+      ["30382:rank", OTHER_TA, "wss://elsewhere.example"],
+      ["30392", "e".repeat(64), "wss://lists.example"],
+    ];
+    const existing = [["30382:rank", TA, RELAY], ["30382:followers", TA, RELAY], ...theirs];
+
+    expect(withoutProvider(existing, TA)).toEqual(theirs);
   });
 });
 

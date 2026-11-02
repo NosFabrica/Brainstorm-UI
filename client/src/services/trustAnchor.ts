@@ -9,7 +9,14 @@
  * effect all call.
  */
 import { apiClient } from "./api";
-import { fetchOutboxRelayList, fetchTrustProviderList, getNip85RelayUrl, publishToRelays, signNip85 } from "./nostr";
+import {
+  fetchOutboxRelayList,
+  fetchTrustProviderList,
+  getNip85RelayUrl,
+  publishToRelays,
+  signNip85,
+  signNip85Deactivation,
+} from "./nostr";
 import { activeAccount, canSignSilently } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { identityHas } from "@/accounts/display";
@@ -125,19 +132,18 @@ export type TrustAnchorPublishResult =
 const ANCHOR_PUBLISH = { need: 2, timeoutMs: 8000 } as const;
 
 async function publishSignedAnchor(
-  pubkey: string,
   signed: Awaited<ReturnType<typeof signNip85>>,
-  lists: ListDesignation | null,
+  onSuccess: () => void,
 ): Promise<TrustAnchorPublishResult> {
   const result = await publishToRelays(signed, undefined, ANCHOR_PUBLISH);
   if (result.success) {
-    markNip85Activated(pubkey);
+    onSuccess();
     return { status: "success" };
   }
   return {
     status: "error",
     message: result.error || "Failed to publish to relays. Please try again.",
-    retry: () => publishSignedAnchor(pubkey, signed, lists),
+    retry: () => publishSignedAnchor(signed, onSuccess),
   };
 }
 
@@ -188,7 +194,41 @@ export async function publishBrainstormTrustAnchor(
   }
 
   onPhase?.("publishing");
-  return publishSignedAnchor(pubkey, signed, lists);
+  return publishSignedAnchor(signed, () => markNip85Activated(pubkey));
+}
+
+/**
+ * Stop naming Brainstorm in the user's 10040: re-sign it without the rows naming
+ * their assistant, keeping every other provider's. Refuses when the current
+ * 10040 can't be read: "not loaded" and "declared nothing" look the same here,
+ * and publishing on a guess would wipe rows declared elsewhere.
+ */
+export async function deactivateBrainstormTrustAnchor(
+  pubkey: string,
+  taPubkey: string,
+  onPhase?: (phase: "signing" | "publishing") => void,
+): Promise<TrustAnchorPublishResult> {
+  let existing: string[][] | undefined;
+  try {
+    existing = (await fetchTrustProviderList(pubkey))?.tags;
+  } catch {}
+  if (!existing) {
+    return {
+      status: "error",
+      message: "Couldn't read your current declaration from your relays. Nothing was changed.",
+    };
+  }
+
+  onPhase?.("signing");
+  let signed;
+  try {
+    signed = await signNip85Deactivation(taPubkey, existing);
+  } catch (err) {
+    return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
+  }
+
+  onPhase?.("publishing");
+  return publishSignedAnchor(signed, () => clearNip85Activated(pubkey));
 }
 
 /**
