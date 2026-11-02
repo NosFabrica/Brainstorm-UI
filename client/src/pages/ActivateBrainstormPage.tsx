@@ -10,10 +10,8 @@ import { SUPPORTED_CLIENTS } from "@/config/supportedClients";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { useTrustProviderList, useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
-import { useLiveProfile } from "@/hooks/useLiveProfile";
-import { rankProviderOf } from "@/lib/nip85Declaration";
-import { shortNpub } from "@/components/messages/people";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useRankProvider } from "@/hooks/useRankProvider";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
 
@@ -47,12 +45,9 @@ export default function ActivateBrainstormPage() {
   const hasOtherProvider = useTrustProviderStatus(user?.pubkey, taPubkey).data === "other";
   // Who publishes their scores today, by name: "another provider" is never
   // nameless — often it is Brainstorm's own Assistant on another deployment.
-  const provider = rankProviderOf(useTrustProviderList(hasOtherProvider ? user?.pubkey : null).event);
-  const providerProfile = useLiveProfile(provider?.pubkey).profile;
-  const providerName =
-    (providerProfile?.display_name || providerProfile?.name || "").trim() ||
-    (provider ? shortNpub(provider.pubkey) : "your current Assistant");
-  const providerHost = provider?.relay.replace(/^wss?:\/\//, "").replace(/\/+$/, "") ?? "";
+  const provider = useRankProvider(hasOtherProvider ? user?.pubkey : null);
+  const providerName = provider?.name ?? "your current Assistant";
+  const providerHost = provider?.host ?? "";
   // A first activation names their Trusted Lists too, when they have some —
   // one signature rather than an update later.
   const lists = useTrustListsStatus(user?.pubkey, taPubkey).data;
@@ -169,18 +164,9 @@ export default function ActivateBrainstormPage() {
                   className="mt-5 flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"
                   data-testid="activate-page-provider"
                 >
-                  {providerProfile?.picture ? (
-                    <img
-                      src={providerProfile.picture}
-                      alt=""
-                      className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-white object-cover dark:border-slate-700"
-                      draggable={false}
-                    />
-                  ) : (
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-900">
-                      <Bot className="h-5 w-5" />
-                    </span>
-                  )}
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-900">
+                    <Bot className="h-5 w-5" />
+                  </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{providerName}</p>
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">
