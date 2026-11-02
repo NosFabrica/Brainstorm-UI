@@ -5,8 +5,8 @@ import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { Loader2, Users, SlidersHorizontal } from "lucide-react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { Loader2, Search, Users, SlidersHorizontal, X } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchReportsForPubkey, reportAbout, type ReportMetadata } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
@@ -21,6 +21,7 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { personMatches } from "@/lib/personMatch";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -65,6 +66,8 @@ const TYPE_MAP: Record<
 };
 
 const PAGE = 20;
+/** A search reads the whole list: the backend's largest page, so a few hundred people is a few requests. */
+const SEARCH_PAGE = 200;
 
 export default function ConnectionListPage() {
   const goBack = useGoBack();
@@ -103,6 +106,12 @@ export default function ConnectionListPage() {
   // coins already show the bucket.
   const [granularity] = useTierGranularity();
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  // Keyword search through the list (issue #310): the backend has no search
+  // for these, so the rows loaded here are matched in the browser by name,
+  // handle or key — the way to find someone followed minutes ago who scores
+  // too low for the site's search to surface yet.
+  const [query, setQuery] = useState("");
+  const searching = query.trim().length > 0;
 
   // Subject profile — reuse SharePage's cache key so a click from /p/:id is warm.
   const liveSubject = useLiveProfile(pubkey, relayHints).profile;
@@ -136,11 +145,49 @@ export default function ConnectionListPage() {
     retry: false,
   });
 
-  const items = useMemo(() => (connQuery.data?.pages ?? []).flatMap((pg) => pg.items), [connQuery.data]);
+  // A search covers the whole list: the person wanted may be on page eleven,
+  // so while a query is typed every page is read, cursor after cursor, under
+  // the same filters. Its own query, apart from the paged one, so browsing
+  // without a query still pages by hand and nothing is re-fetched on clear.
+  const wholeList = useQuery({
+    queryKey: ["share-conn-all", pubkey, cfg?.kind, type, myPov, tierFilter, sortOrder],
+    queryFn: async () => {
+      const all: GraphEntry[] = [];
+      let cursor: string | undefined;
+      do {
+        const res = await apiClient.getUserConnections(pubkey, cfg!.kind, {
+          limit: SEARCH_PAGE,
+          cursor,
+          order: sortOrder,
+          tier: tierFilter === "all" ? undefined : tierFilter,
+          verified_only: cfg!.verifiedOnly,
+          house: !myPov,
+        });
+        all.push(...((res?.data?.items ?? []) as GraphEntry[]));
+        cursor = (res?.data?.next_cursor as string | null | undefined) || undefined;
+      } while (cursor);
+      return all;
+    },
+    enabled: searching && !!pubkey && !!cfg,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const loaded = useMemo(() => (connQuery.data?.pages ?? []).flatMap((pg) => pg.items), [connQuery.data]);
+  // Under a search, the whole list once it's read; the pages so far meanwhile.
+  const items = searching && wholeList.data ? wholeList.data : loaded;
+  const readingRest = searching && !wholeList.data;
   const pubkeys = useMemo(() => toPubkeys(items), [items]);
   const influence = useMemo(() => toInfluenceMap(items), [items]);
 
   const profileMap = useLiveProfiles(pubkeys);
+  const shown = useMemo(() => {
+    if (!searching) return items;
+    return items.filter((entry) => {
+      const pk = typeof entry === "string" ? entry : entry.pubkey;
+      return personMatches(query, { pubkey: pk, ...(profileMap?.get(pk) ?? {}) });
+    });
+  }, [items, searching, query, profileMap]);
 
   // For the "reporters" view, fetch the actual NIP-56 (kind 1984) reports from
   // relays so each row can show the report's type, time, and reason — the same
@@ -317,6 +364,31 @@ export default function ConnectionListPage() {
             </button>
           </div>
 
+          <label className="relative mt-3 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search this list by name or key"
+              aria-label="Search this list"
+              autoComplete="off"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-primary/40 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+              data-testid="conn-search"
+            />
+            {searching && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                data-testid="conn-search-clear"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </label>
+
           {filtersOpen && (
             <div
               className="mt-3 space-y-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
@@ -400,8 +472,22 @@ export default function ConnectionListPage() {
             <p className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="conn-empty">
               {cfg.empty}
             </p>
+          ) : shown.length === 0 && !readingRest ? (
+            <p
+              className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500"
+              data-testid="conn-search-empty"
+            >
+              No one matching “{query.trim()}” in this list.
+            </p>
+          ) : shown.length === 0 ? (
+            <p
+              className="flex items-center justify-center gap-2 px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500"
+              data-testid="conn-search-reading"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" /> Reading the rest of the list…
+            </p>
           ) : (
-            items.map((entry) => {
+            shown.map((entry) => {
               const pk = typeof entry === "string" ? entry : entry.pubkey;
               const inf = influence.get(pk) ?? null;
               const p = profileMap?.get(pk);
@@ -454,7 +540,15 @@ export default function ConnectionListPage() {
           )}
         </div>
 
-        {connQuery.hasNextPage && (
+        {readingRest && shown.length > 0 && (
+          <p
+            className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500"
+            data-testid="conn-search-reading"
+          >
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading the rest of the list…
+          </p>
+        )}
+        {!searching && connQuery.hasNextPage && (
           <button
             type="button"
             onClick={() => connQuery.fetchNextPage()}
