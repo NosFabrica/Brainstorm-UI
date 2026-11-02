@@ -52,6 +52,7 @@ import {
 import type { AppKey } from "@/components/AppsLauncher";
 import { Nip05Handle } from "@/components/Nip05Check";
 import { useInstallApp } from "@/components/InstallApp";
+import { hasOwnScores } from "@/lib/ownScores";
 
 /**
  * Where "add another account" goes. Adding one is an errand, not a destination, so
@@ -266,13 +267,7 @@ export function AccountMenuBody({
   // Same gate every other PovToggle uses: you need a finished calculation
   // before "my perspective" means anything. Without it the control renders as
   // an honest single Brainstorm chip rather than a switch that does nothing.
-  const calcDone = (() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  })();
+  const calcDone = hasOwnScores(user.pubkey);
   const canPersonalize = !!user.pubkey && calcDone;
 
   if (pane === "switcher") {

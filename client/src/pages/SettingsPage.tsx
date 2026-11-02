@@ -117,6 +117,7 @@ import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
+import { markOwnScores } from "@/lib/ownScores";
 
 type SettingsTab = SettingsTabKey;
 
@@ -524,11 +525,8 @@ export default function SettingsPage() {
 
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   useEffect(() => {
-    if (calcDoneNow)
-      try {
-        localStorage.setItem("brainstorm_calc_completed", "true");
-      } catch {}
-  }, [calcDoneNow]);
+    if (calcDoneNow) markOwnScores(user?.pubkey);
+  }, [calcDoneNow, user?.pubkey]);
   const isRecalcInProgress =
     grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
   const isGrapeRankFailedState =
