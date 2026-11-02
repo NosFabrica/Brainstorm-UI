@@ -106,6 +106,42 @@ const SIGNAL_LABEL: Record<string, string> = {
   "30382:muters": "Muters",
   "30382:hops": "Hops",
 };
+
+/**
+ * Every assertion signal the Assistant publishes, in the order the spec lists
+ * them. A Treasure Map gives the Assistant all five (issue #313): one naming
+ * rank and followers alone left the other three with no provider.
+ */
+export const BRAINSTORM_SIGNALS = Object.keys(SIGNAL_LABEL);
+
+/** A signal's name for people: `30382:hops` is "Hops". Unknown keys read as they are. */
+export function signalLabel(signal: string): string {
+  return SIGNAL_LABEL[signal] ?? signal;
+}
+
+/** The 10040 rows naming the assistant for every signal it publishes. */
+export function signalRows(key: string, relay: string): string[][] {
+  return BRAINSTORM_SIGNALS.map((signal) => [signal, key, relay]);
+}
+
+/**
+ * The signals a Map leaves without a provider, when it gives the rank duty to
+ * `taPubkey` on `relayUrl`: the ones among BRAINSTORM_SIGNALS that don't name
+ * it there. A Map that gives rank to another Assistant is that service's to
+ * complete, so nothing is missing from ours; no Map, no Assistant — nothing.
+ * The remedy is a re-sign (useFinishSetup counts it as the Activate step).
+ */
+export function missingSignals(
+  event: Pick<NostrEvent, "tags"> | null | undefined,
+  taPubkey: string | null | undefined,
+  relayUrl: string,
+): string[] {
+  if (!event || !taPubkey || !relayUrl) return [];
+  const names = (signal: string) =>
+    event.tags.some((t) => t[0] === signal && t[1] === taPubkey && sameRelay(t[2], relayUrl));
+  if (!names("30382:rank")) return [];
+  return BRAINSTORM_SIGNALS.filter((signal) => !names(signal));
+}
 const LIST_KIND_SET = new Set<string>(LIST_KINDS);
 const isBrainstormRelay = (relay: string) => /(^|\.)brainstorm\.world\/?$/.test(relay.replace(/^wss?:\/\//, ""));
 

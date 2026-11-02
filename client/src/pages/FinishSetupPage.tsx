@@ -20,6 +20,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
+import { signalLabel } from "@/lib/nip85Declaration";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
 
 /**
@@ -60,6 +61,12 @@ function DoneRow({ label, detail, testid }: { label: string; detail: ReactNode; 
       </Chip>
     </div>
   );
+}
+
+/** "Reporters, Muters and Hops" — a list as a sentence says it. */
+function listOf(names: string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 function PendingRow({
@@ -138,6 +145,8 @@ export default function FinishSetupPage() {
     followCount,
     activateDone,
     scoresElsewhere,
+    signalsPending,
+    missingSignals,
     listsPending,
     dutyMenu,
     treasureMap,
@@ -253,6 +262,17 @@ export default function FinishSetupPage() {
                   : "Other apps can now find your scores."
               }
               testid="setup-row-activate-done"
+            />
+          ) : signalsPending ? (
+            // Their Map names their Assistant, but not for every score it
+            // publishes (#313): the same signature, worded as the update it is.
+            <PendingRow
+              label="Update your Treasure Map"
+              badge="Required for other apps"
+              detail={`Your Treasure Map doesn't name your Assistant for ${listOf(missingSignals.map(signalLabel))} yet, so other apps can't find those scores. One signature adds them.`}
+              icon={PenLine}
+              onClick={() => navigate("/setup/activate")}
+              testid="setup-row-activate"
             />
           ) : (
             <PendingRow
