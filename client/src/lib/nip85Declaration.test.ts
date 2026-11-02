@@ -7,6 +7,7 @@ import {
   describeDesignation,
   listRows,
   mergeDesignation,
+  signalRows,
 } from "./nip85Declaration";
 
 const TA = "a".repeat(64);
@@ -86,6 +87,30 @@ describe("declaresTrustProvider", () => {
 // Trusted Lists are published by the same Brainstorm assistant; other apps find
 // them through the 10040. Adding them must not cost the user anything already
 // in their 10040 — another provider's rows included.
+/**
+ * Issue #313: the Assistant signs five assertion signals, and the Treasure Map
+ * must give it every one — a Map of rank and followers alone left reporters,
+ * muters and hops with no provider, so other apps couldn't find them.
+ */
+describe("signalRows", () => {
+  it("gives the assistant every signal it publishes, on the relay it publishes to", () => {
+    expect(signalRows(TA, RELAY)).toEqual([
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+      ["30382:reporters", TA, RELAY],
+      ["30382:muters", TA, RELAY],
+      ["30382:hops", TA, RELAY],
+    ]);
+  });
+
+  it("merged over a Map naming another provider, that provider's row survives", () => {
+    const theirs = [["30382:something-else", OTHER_TA, "wss://elsewhere.example.com"]];
+    const merged = mergeDesignation(theirs, signalRows(TA, RELAY));
+    expect(merged).toContainEqual(theirs[0]);
+    expect(merged).toHaveLength(6);
+  });
+});
+
 describe("listRows / mergeDesignation", () => {
   const LISTS = { key: "e".repeat(64), relay: "wss://nip85-staging.example" };
 

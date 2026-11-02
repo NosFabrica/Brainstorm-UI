@@ -106,6 +106,18 @@ const SIGNAL_LABEL: Record<string, string> = {
   "30382:muters": "Muters",
   "30382:hops": "Hops",
 };
+
+/**
+ * Every assertion signal the Assistant publishes, in the order the spec lists
+ * them. A Treasure Map gives the Assistant all five (issue #313): one naming
+ * rank and followers alone left the other three with no provider.
+ */
+export const BRAINSTORM_SIGNALS = Object.keys(SIGNAL_LABEL);
+
+/** The 10040 rows naming the assistant for every signal it publishes. */
+export function signalRows(key: string, relay: string): string[][] {
+  return BRAINSTORM_SIGNALS.map((signal) => [signal, key, relay]);
+}
 const LIST_KIND_SET = new Set<string>(LIST_KINDS);
 const isBrainstormRelay = (relay: string) => /(^|\.)brainstorm\.world\/?$/.test(relay.replace(/^wss?:\/\//, ""));
 
