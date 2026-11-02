@@ -15,8 +15,9 @@
  * (docs/assistant/TREASURE-MAP-ASK.md); this compares the two, as lib/dutyMenu
  * does for the Duty Menu. It reads a version as the server's press does
  * (brainstorm_server `app/services/self_map_build.py`), so "up to date" here is
- * the press's "nothing to change", and Update now is enabled exactly when a
- * press would sign a new version.
+ * the press's "nothing to change", and Update now is enabled when a press
+ * would send something: a new version, or the newest one to a relay it reads
+ * that missed it (the check's `writerRelays`).
  */
 import { menuKey, menuRelay } from "@/lib/dutyMenu";
 
@@ -68,6 +69,16 @@ export interface TreasureMapCheck {
    * for the Assistant, where it never does.
    */
   relays: string[];
+  /**
+   * Where the press that keeps the current choice reads, and so every relay
+   * its repair can reach (brainstorm_server `writer_relays`): while on, Update
+   * now's (the outbox, then the relays `shouldSay` names); while off, Turn
+   * off's (the outbox alone). Each once, at its public address, never a
+   * reader's hint. Null when the answer doesn't name them, from a server
+   * before the field: nothing then says which relays a press reads, so none
+   * is asked.
+   */
+  writerRelays: string[] | null;
 }
 
 /** Up to date; not published yet (nothing listed); or out of date. */
@@ -109,12 +120,16 @@ function pairs(value: unknown): SelfEntry[] {
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
+/** Relays in their one spelling, each once; what isn't a relay is dropped. */
+const relayList = (value: unknown[]) => [...new Set(value.map(menuRelay).filter((r): r is string => !!r))];
+
 /**
  * `GET /user/assistantTreasureMap`'s answer when it is one: a 64-hex
  * `assistant`, a boolean `on`, and `duties` and `shouldSay` arrays. Anything
  * else is null. A server without the route still answers 200 here, because
  * `GET /user/{pubkey}` takes the path for a pubkey, so the shape is the test
- * (as lib/dutyMenu `parseDutyMenuOffer`).
+ * (as lib/dutyMenu `parseDutyMenuOffer`). `writerRelays` isn't part of it: a
+ * server from before the field still answers a check.
  */
 export function parseTreasureMapCheck(json: unknown): TreasureMapCheck | null {
   const o = json as Record<string, unknown> | null;
@@ -142,13 +157,13 @@ export function parseTreasureMapCheck(json: unknown): TreasureMapCheck | null {
       entries: d.status === "live" ? pairs(d.entries) : [],
     });
   }
-  const relays = (Array.isArray(o.relays) ? o.relays : []).map(menuRelay).filter((r): r is string => !!r);
   return {
     assistant: o.assistant.toLowerCase(),
     on: o.on,
     duties,
     shouldSay: pairs(o.shouldSay),
-    relays: [...new Set(relays)],
+    relays: relayList(Array.isArray(o.relays) ? o.relays : []),
+    writerRelays: Array.isArray(o.writerRelays) ? relayList(o.writerRelays) : null,
   };
 }
 
@@ -192,7 +207,9 @@ export function hasEntry(entries: readonly SelfEntry[], entry: SelfEntry): boole
  *
  * A press that changes nothing still re-sends the newest version to a relay it
  * reads that answered without it, such as the scores relay while it was down.
- * Which relays hold it isn't known here, so that waits for the next press.
+ * That isn't a status: the version is right, and the relays the press reads
+ * (the check's `writerRelays`) are asked what they hold (`missedRelays`,
+ * hooks/useAssistantTreasureMap).
  */
 export function selfMapStatus(
   shouldSay: readonly SelfEntry[],
@@ -219,6 +236,53 @@ export function isFalseClaim(entry: SelfEntry, shouldSay: readonly SelfEntry[]):
   return entry.relay !== "" && !hasEntry(shouldSay, entry);
 }
 
+type Version = Ev & { id: string; created_at: number };
+
+/**
+ * One relay a press reads, asked what it holds: whether it answered, and its
+ * newest version as it sent it: the Assistant's own kind 10040, verified, as
+ * the press reads one (brainstorm_server `is_own`). Anything else it sent is
+ * nothing it holds.
+ */
+export interface RelayHolding {
+  relay: string;
+  answered: boolean;
+  newest: Version | undefined;
+}
+
+/** NIP-01: newer wins, and on a tie the lower id. */
+const newer = (a: Version, b: Version | undefined) =>
+  !b || a.created_at > b.created_at || (a.created_at === b.created_at && a.id < b.id);
+
+/**
+ * The relays a press would send a version to, of those asked
+ * (brainstorm_server `publish_assistant_treasure_map`): it reads the relays it
+ * reads alone and takes their newest version. When that version's self-entries
+ * aren't `target` (`shouldSay` while on, none while off) it signs a new one
+ * and sends it to them all, so every one that answered is named, as when they
+ * all lack a version the store found where a press never reads. Otherwise it
+ * sends that version, unchanged, to each that answered without it
+ * (`_missing`). One that didn't answer is left alone, and with nothing held
+ * and nothing to list nothing is sent.
+ *
+ * The store's version isn't in it: it holds copies from anywhere, the reader's
+ * hints included, so one newer than every answer would name relays a press
+ * leaves alone ("Nothing changed"), press after press.
+ */
+export function missedRelays(
+  holdings: readonly RelayHolding[],
+  target: readonly SelfEntry[],
+  author: string | null | undefined,
+): string[] {
+  const answered = holdings.filter((h) => h.answered);
+  const latest = answered.reduce<Version | undefined>(
+    (best, h) => (h.newest && newer(h.newest, best) ? h.newest : best),
+    undefined,
+  );
+  if (selfMapStatus(target, latest, author) !== "current") return answered.map((h) => h.relay);
+  return latest ? answered.filter((h) => h.newest?.id !== latest.id).map((h) => h.relay) : [];
+}
+
 export interface SelfMapButtons {
   turnOn: boolean;
   update: { shown: boolean; enabled: boolean };
@@ -226,12 +290,21 @@ export interface SelfMapButtons {
 }
 
 /**
- * Which buttons the page shows, as Tapestry's `selfMapButtons`. On: Update now
- * (enabled unless up to date) and Turn off. Off: Turn on, and Turn off too
- * while the published version still lists some of the Assistant's duties, so
- * no claim is stuck.
+ * Which buttons the page shows, as Tapestry's `selfMapButtons`, with the
+ * server's repair: a press would send a version to `missedCount` relays it
+ * reads, though the version found is right (`missedRelays`). On: Update now
+ * (enabled unless up to date and no relay asked has missed it) and Turn off.
+ * Off: Turn on, and Turn off too while the published version still lists some
+ * of the Assistant's duties, or a relay missed it, so a claim the page can see
+ * can be taken off.
  */
-export function selfMapButtons(on: boolean, status: SelfMapStatus | null, foundCount: number): SelfMapButtons {
-  if (on) return { turnOn: false, update: { shown: true, enabled: status !== "current" }, turnOff: true };
-  return { turnOn: true, update: { shown: false, enabled: false }, turnOff: foundCount > 0 };
+export function selfMapButtons(
+  on: boolean,
+  status: SelfMapStatus | null,
+  foundCount: number,
+  missedCount: number,
+): SelfMapButtons {
+  const missed = missedCount > 0;
+  if (on) return { turnOn: false, update: { shown: true, enabled: status !== "current" || missed }, turnOff: true };
+  return { turnOn: true, update: { shown: false, enabled: false }, turnOff: foundCount > 0 || missed };
 }

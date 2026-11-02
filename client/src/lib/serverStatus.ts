@@ -105,6 +105,11 @@ export function isTransportFailure(x: unknown): boolean {
     const s = (x as { status: number }).status;
     return s === 502 || s === 503 || s === 504;
   }
+  return isNoAnswer(x);
+}
+
+/** A request that got no answer at all: the network failed (fetch's TypeError), or its timeout ran out. */
+export function isNoAnswer(x: unknown): boolean {
   if (x instanceof TypeError) return true;
   const name = typeof x === "object" && x !== null ? (x as { name?: unknown }).name : undefined;
   return name === "TypeError" || name === "TimeoutError";
