@@ -114,6 +114,11 @@ const SIGNAL_LABEL: Record<string, string> = {
  */
 export const BRAINSTORM_SIGNALS = Object.keys(SIGNAL_LABEL);
 
+/** A signal's name for people: `30382:hops` is "Hops". Unknown keys read as they are. */
+export function signalLabel(signal: string): string {
+  return SIGNAL_LABEL[signal] ?? signal;
+}
+
 /** The 10040 rows naming the assistant for every signal it publishes. */
 export function signalRows(key: string, relay: string): string[][] {
   return BRAINSTORM_SIGNALS.map((signal) => [signal, key, relay]);

@@ -45,6 +45,8 @@ function state(overrides: Partial<FinishSetupState>): FinishSetupState {
     activateDone: false,
     activatePending: true,
     scoresElsewhere: false,
+    signalsPending: false,
+    missingSignals: [],
     remaining: 2,
     doneCount: 1,
     totalSteps: 3,
@@ -134,6 +136,35 @@ describe("FinishSetupPage", () => {
   });
 
   // Activated, lists waiting: the step stays done, the update sits under it.
+  /**
+   * Issue #313: a Map that gives their Assistant rank but not every signal is
+   * the Activate step again — worded as the update it is, naming what the
+   * re-sign adds, on the same page that signs it.
+   */
+  it("asks for the Treasure Map again when it is short of signals, naming them", () => {
+    setupState.mockReturnValue(
+      state({
+        followDone: true,
+        followPending: false,
+        followCount: 12,
+        activateDone: false,
+        activatePending: false,
+        signalsPending: true,
+        missingSignals: ["30382:reporters", "30382:muters", "30382:hops"],
+        remaining: 1,
+        doneCount: 2,
+      }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+
+    const row = screen.getByTestId("setup-row-activate");
+    expect(row).toHaveTextContent("Update your Treasure Map");
+    expect(row).toHaveTextContent("Reporters, Muters and Hops");
+    expect(screen.queryByTestId("setup-row-activate-done")).toBeNull();
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/activate");
+  });
+
   it("keeps Activate done and offers the lists update beneath it", () => {
     setupState.mockReturnValue(
       state({
