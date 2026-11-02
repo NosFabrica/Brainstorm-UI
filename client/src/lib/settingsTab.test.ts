@@ -56,10 +56,12 @@ describe("settingsTargetFor — the Assistants tab and its views", () => {
     });
   });
 
-  it("keeps the admin-only views from everyone else — they land on 'yours'", () => {
+  // The Treasure Map is every user's (issue #11): a reader's own Map, which they
+  // sign — never kept from them. The list and duties are operators' surfaces.
+  it("keeps the admin-only views from everyone else — they land on 'yours' — but the Map is theirs", () => {
     expect(settingsTargetFor({ tab: "treasure-map", view: null, focus: null }, all, { admin: false })).toEqual({
       tab: "assistants",
-      view: "yours",
+      view: "map",
     });
     expect(settingsTargetFor({ tab: "assistants", view: "all", focus: null }, all, { admin: false })).toEqual({
       tab: "assistants",
@@ -80,7 +82,7 @@ describe("settingsTargetFor — the Assistants tab and its views", () => {
 });
 
 // The bar an admin sees and the one everyone else sees: the internal pages
-// (the Dictionary; the Assistants tab's list, duties and map) are admins' only,
+// (the Dictionary; the Assistants tab's list and duties) are admins' only,
 // marked so an admin knows what regular users don't see.
 describe("settingsTabsFor / assistantViewsFor", () => {
   it("gives everyone five tabs and admins the Dictionary too, marked internal", () => {
@@ -93,10 +95,10 @@ describe("settingsTabsFor / assistantViewsFor", () => {
     expect(admin.find((t) => t.key === "assistants")?.internal).toBe(false);
   });
 
-  it("gives everyone the 'yours' view of Assistants, and admins the list, duties and map, marked internal", () => {
-    expect(assistantViewsFor({ admin: false }).map((v) => v.key)).toEqual(["yours"]);
+  it("gives everyone 'yours' and the Treasure Map, and admins the list and duties too, marked internal", () => {
+    expect(assistantViewsFor({ admin: false }).map((v) => v.key)).toEqual(["yours", "map"]);
     const admin = assistantViewsFor({ admin: true });
     expect(admin.map((v) => v.key)).toEqual(["yours", "all", "duties", "map"]);
-    expect(admin.filter((v) => v.internal).map((v) => v.key)).toEqual(["all", "duties", "map"]);
+    expect(admin.filter((v) => v.internal).map((v) => v.key)).toEqual(["all", "duties"]);
   });
 });

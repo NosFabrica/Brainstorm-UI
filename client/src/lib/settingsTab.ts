@@ -9,9 +9,10 @@
  * Assistants & Duties, Treasure Map — with views: `yours` (the Assistant this
  * deployment hosts for the reader), `all` (every Assistant they've tagged,
  * across sites), `duties` (what each does) and `map` (the Treasure Map that
- * hands the duties out). The old tabs' links land on their views. The list,
- * duties and map are internal for now — admins only, as the Dictionary is —
- * so anyone else lands on `yours`.
+ * hands the duties out). The old tabs' links land on their views. The list
+ * and duties are internal for now — admins only, as the Dictionary is — so
+ * anyone else lands on `yours`. The Map is every reader's own (issue #11):
+ * what they sign, never kept from them.
  */
 export type AssistantView = "yours" | "all" | "duties" | "map";
 
@@ -43,7 +44,7 @@ const ASSISTANT_VIEWS: readonly AssistantViewEntry[] = [
   { key: "yours", label: "Yours", internal: false },
   { key: "all", label: "All", internal: true },
   { key: "duties", label: "Duties", internal: true },
-  { key: "map", label: "Treasure Map", internal: true },
+  { key: "map", label: "Treasure Map", internal: false },
 ];
 
 /** The tabs a reader has, in order. */
