@@ -21,15 +21,17 @@ function fold(s: string): string {
 
 /**
  * Keyword search through a follow or follower list (issue #310): every word of
- * the query has to appear in the person's display name, name, NIP-05, npub or
- * hex key, case and accents aside. A blank query matches everyone, so the
- * list reads unfiltered until something is typed.
+ * the query has to appear in the person's display name, name or NIP-05 — or
+ * start their npub or hex key, since nearly every key contains every hex
+ * letter somewhere — case and accents aside. A blank query matches everyone,
+ * so the list reads unfiltered until something is typed.
  */
 export function personMatches(query: string, person: MatchablePerson): boolean {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (words.length === 0) return true;
-  const haystack = [person.display_name, person.name, person.nip05, person.pubkey, npubFromPubkey(person.pubkey)]
+  const names = [person.display_name, person.name, person.nip05]
     .filter((s): s is string => typeof s === "string" && s.length > 0)
     .map(fold);
-  return words.every((w) => haystack.some((h) => h.includes(w)));
+  const keys = [person.pubkey, npubFromPubkey(person.pubkey)].map(fold);
+  return words.every((w) => names.some((n) => n.includes(w)) || keys.some((k) => k.startsWith(w)));
 }

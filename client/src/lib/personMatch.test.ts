@@ -39,6 +39,14 @@ describe("personMatches", () => {
     expect(personMatches("lira zebra", lira)).toBe(false);
   });
 
+  // Nearly every key contains an "e": a letter that merely occurs inside one
+  // must not match, or one keystroke lights up the whole list.
+  it("matches a key only from its start, never by a letter inside it", () => {
+    expect(personMatches("e", { pubkey: PUBKEY })).toBe(false);
+    expect(personMatches("38191", { pubkey: PUBKEY })).toBe(false);
+    expect(personMatches("d57e", { pubkey: PUBKEY })).toBe(true);
+  });
+
   it("matches nobody on nothing but their key when they have no profile yet", () => {
     const bare = { pubkey: PUBKEY };
     expect(personMatches("lira", bare)).toBe(false);
