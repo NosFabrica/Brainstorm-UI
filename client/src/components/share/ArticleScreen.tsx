@@ -46,6 +46,24 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
 import { publicPageUrl } from "@/lib/publicOrigin";
+import {
+  PublicationContents,
+  PublicationHeader,
+  PublicationPager,
+  PublicationTrail,
+  type RenderBody,
+} from "@/components/share/PublicationReader";
+import {
+  articleTitle,
+  BOOKSHELF_KIND,
+  PUBLICATION_INDEX_KIND,
+  PUBLICATION_SECTION_KIND,
+  sectionMarkdown,
+  shelfLine,
+} from "@/lib/publication";
+import { BookshelfContents, BookshelfHeader } from "@/components/share/BookshelfReader";
+import { useBookScope } from "@/hooks/usePublication";
+import { ARTICLE_PROSE_CLASS } from "@/lib/articleProse";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -87,6 +105,9 @@ function ArticleVideo({ url }: { url: string }) {
     />
   );
 }
+
+/** A path inside Brainstorm: one slash, then anything but another slash or a backslash. */
+const IN_APP_PATH = /^\/(?![/\\])/;
 
 /** Markdown's sanitizer, taught that a `nostr:` link is a link. */
 const SANITIZE_SCHEMA = {
@@ -148,7 +169,8 @@ const mdComponents: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
     // A link into Brainstorm itself (a wiki topic's articles search) stays here.
-    if (url.startsWith("/")) return <InAppLink href={url}>{children}</InAppLink>;
+    // Not `//host` or `/\host`: those leave the app while looking like they stay.
+    if (IN_APP_PATH.test(url)) return <InAppLink href={url}>{children}</InAppLink>;
     const text = Array.isArray(children)
       ? children.map((c) => (typeof c === "string" ? c : "")).join("")
       : String(children ?? "");
@@ -215,15 +237,18 @@ export const ArticleBody = memo(function ArticleBody({
   body,
   fromHtml,
   tags,
+  markdown = false,
 }: {
   body: string;
   fromHtml: boolean;
   /** The article's tags: its NIP-30 emoji are drawn in the text. */
   tags?: string[][];
+  /** Markdown whatever it looks like: converted from AsciiDoc, its plain paragraphs are still paragraphs. */
+  markdown?: boolean;
 }) {
   // An article without emoji tags keeps the module-level plugins and components.
   const { remarkPlugins, components, tags: emoji } = useMarkdownEmoji(tags, REMARK_PLUGINS, mdComponents);
-  return !fromHtml && isMarkdown(body) ? (
+  return markdown || (!fromHtml && isMarkdown(body)) ? (
     // `nostr:` references stay links (the sanitizer would strip the scheme), and
     // bare ones in the text are linked first — feat/client-links-native.
     <ReactMarkdown
@@ -301,6 +326,11 @@ export type ArticleEvent = {
   sig?: string;
 };
 
+/** A publication's chapters, each read as an article body. */
+const renderPublicationBody: RenderBody = (markdown, tags) => (
+  <ArticleBody body={markdown} fromHtml={false} tags={tags} markdown />
+);
+
 /** The article layout's page: header, column, footer. */
 export function ArticleShell({
   title,
@@ -356,18 +386,37 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   // Where this piece lives, when an app we know published it (a zap.cooking recipe).
   const sourceApp = ev ? sourceAppFor(ev) : null;
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
-  const title = tag("title") || "Untitled article";
+  // NKBIP-01: an index reads as a book, a section as one of its chapters (PublicationReader).
+  const isIndex = ev.kind === PUBLICATION_INDEX_KIND;
+  const isSection = ev.kind === PUBLICATION_SECTION_KIND;
+  // A shelf of books: covers, not text (BookshelfReader).
+  const isShelf = ev.kind === BOOKSHELF_KIND;
+  const isPublication = isIndex || isSection || isShelf;
+  // Comments on a book are mostly on its chapters; its thread shows those too.
+  const bookScope = useBookScope(isIndex ? ev : null, ptr?.relays);
+  const shelfFacts = useMemo(() => (isShelf ? shelfLine(ev) : ""), [ev, isShelf]);
+  const title = articleTitle(ev) || (isPublication ? "Untitled" : "Untitled article");
   // The page shows the title above the byline; a spec's `# Title` and its
   // `draft` `optional` status line leave the body and read as themselves.
   // Whatever the text came in: AsciiDoc (wiki) as markdown, HTML converted,
   // stray HTML in markdown cleaned.
   const source = useMemo(
-    () => (ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : ""),
+    () =>
+      ev
+        ? ev.kind === 30818
+          ? wikiToMarkdown(ev.content || "")
+          : ev.kind === PUBLICATION_SECTION_KIND
+            ? sectionMarkdown(ev)
+            : ev.kind === PUBLICATION_INDEX_KIND || ev.kind === BOOKSHELF_KIND
+              ? ""
+              : ev.content || ""
+        : "",
     [ev],
   );
   // HTML converted to text is text: its decoded "<div>" and "2*3*4" must
   // not be read again as markdown, so it goes to the reading renderer.
-  const fromHtml = useMemo(() => looksLikeHtml(source), [source]);
+  // A section's AsciiDoc was made markdown already.
+  const fromHtml = useMemo(() => !isSection && looksLikeHtml(source), [source, isSection]);
   const prepared = useMemo(
     () => prepareArticleBody(fromHtml ? htmlToText(source) : stripStrayHtml(source), title, { identifier: tag("d") }),
     [source, fromHtml, title], // eslint-disable-line react-hooks/exhaustive-deps
@@ -440,7 +489,15 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     ev
       ? {
           title: `${title} — Brainstorm`,
-          description: summary || `A long-form article by ${authorName}.`,
+          description:
+            summary ||
+            (isIndex
+              ? `A publication by ${tag("author") || authorName}.`
+              : isShelf
+                ? `${authorName}'s bookshelf${shelfFacts ? `: ${shelfFacts}` : ""}.`
+                : isSection
+                  ? `A section of a publication by ${authorName}.`
+                  : `A long-form article by ${authorName}.`),
           image,
           url: publicPageUrl(),
         }
@@ -451,31 +508,48 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     <ArticleShell title={`${title} — Brainstorm`} mint={mintShortUrl}>
       <ShareNavProvider>
         <article>
-          {image && (
-            <img
-              src={image}
-              alt=""
-              className="max-h-80 w-full rounded-2xl border border-slate-200 object-cover dark:border-slate-800"
-            />
-          )}
-          {/* A spec says so before its title (Benjamin, 2026-09-24: only a spec —
-                an essay, a wiki page or a recipe looks like what it is). */}
-          <KindPill event={ev} mixed={ev.kind === 30817} className="mt-5" />
-          <h1
-            className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            <EmojiText text={title} tags={ev} />
-          </h1>
-          {summaryEmbed ? (
-            <div className="mt-3" data-testid="article-summary">
-              <NostrRef bech32={summaryEmbed} url={summary} />
+          {/* The book a section or a part belongs to; the shelf a shelf sits on. */}
+          {isPublication && (
+            <div className="mb-4">
+              <PublicationTrail ev={ev} relays={ptr?.relays} />
             </div>
-          ) : summary ? (
-            <p className="mt-2 text-lg leading-snug text-slate-500 dark:text-slate-400" data-testid="article-summary">
-              <EmojiText text={summary} tags={ev} />
-            </p>
-          ) : null}
+          )}
+          {isIndex ? (
+            <PublicationHeader ev={ev} />
+          ) : isShelf ? (
+            <BookshelfHeader ev={ev} />
+          ) : (
+            <>
+              {image && (
+                <img
+                  src={image}
+                  alt=""
+                  className="max-h-80 w-full rounded-2xl border border-slate-200 object-cover dark:border-slate-800"
+                />
+              )}
+              {/* A spec says so before its title (Benjamin, 2026-09-24: only a spec —
+                an essay, a wiki page or a recipe looks like what it is). */}
+              <KindPill event={ev} mixed={ev.kind === 30817} className="mt-5" />
+              <h1
+                className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                <EmojiText text={title} tags={ev} />
+              </h1>
+              {summaryEmbed ? (
+                <div className="mt-3" data-testid="article-summary">
+                  <NostrRef bech32={summaryEmbed} url={summary} />
+                </div>
+              ) : summary ? (
+                <p
+                  className="mt-2 text-lg leading-snug text-slate-500 dark:text-slate-400"
+                  data-testid="article-summary"
+                >
+                  <EmojiText text={summary} tags={ev} />
+                </p>
+              ) : null}
+            </>
+          )}
           {/* A spec's details, read out of its front matter and tags: its
                 standing, the kinds it defines (each a search for that kind),
                 and the tags it defines. */}
@@ -620,12 +694,18 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           {/* Full article body — Brainstorm is the reading destination. */}
           {/* Inline code wears no decorative backticks (the typography plugin's
                 default) and wraps — a spec's example URIs used to push the page sideways. */}
-          <div
-            className="article-prose prose prose-slate mt-6 max-w-none dark:prose-invert prose-headings:font-bold prose-a:text-brand-link prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-img:rounded-xl"
-            data-testid="article-body"
-          >
-            <ArticleBody body={prepared.body} fromHtml={fromHtml} tags={ev.tags} />
-          </div>
+          {isIndex ? (
+            // A book: its contents, then every chapter in order.
+            <PublicationContents index={ev} relays={ptr?.relays} renderBody={renderPublicationBody} />
+          ) : isShelf ? (
+            <BookshelfContents shelf={ev} relays={ptr?.relays} />
+          ) : (
+            <div className={`${ARTICLE_PROSE_CLASS} mt-6`} data-testid="article-body">
+              <ArticleBody body={prepared.body} fromHtml={fromHtml} tags={ev.tags} markdown={isSection} />
+            </div>
+          )}
+          {/* A chapter's or a part's neighbours, in the book's order. */}
+          {(isIndex || isSection) && <PublicationPager ev={ev} relays={ptr?.relays} />}
 
           {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}
           {ev && (
@@ -635,6 +715,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
               authorNpub={authorNpub}
               relayHints={ptr?.relays ?? []}
               onGateChange={setThreadGated}
+              scope={bookScope}
             />
           )}
 

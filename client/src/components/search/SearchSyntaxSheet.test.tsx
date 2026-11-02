@@ -9,6 +9,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "./SearchSyntaxSheet";
 import { parseQuery } from "@/lib/searchQuery";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 beforeEach(cleanup);
 
@@ -17,39 +19,42 @@ const sheetText = () => {
   return screen.getByTestId("search-syntax-sheet").textContent ?? "";
 };
 
+/** Every prefix the parser lifts out of a query, and the word-level syntax: what the sheet and docs/search/syntax.md both document. */
+const TOKENS = [
+  "from:",
+  "to:",
+  "since:",
+  "until:",
+  "label:",
+  "group:",
+  "site:",
+  "isbn:",
+  "doi:",
+  "geo:",
+  "isan:",
+  "podcast:guid:",
+  "podcast:item:guid:",
+  "podcast:publisher:",
+  "sort:recent",
+  "sort:rank",
+  "sort:followers",
+  "sort:text",
+  "observer:",
+  "include:spam",
+  "filter:rank:gte:",
+  "trust:verified",
+  "reach:follows",
+  "kind:",
+  "spec:",
+  "kind:video",
+  '"exact phrase"',
+  "-word",
+];
+
 describe("the syntax sheet", () => {
   it("documents every prefix the parser lifts out of a query", () => {
     const text = sheetText();
-    for (const token of [
-      "from:",
-      "to:",
-      "since:",
-      "until:",
-      "label:",
-      "group:",
-      "site:",
-      "isbn:",
-      "doi:",
-      "geo:",
-      "isan:",
-      "podcast:guid:",
-      "podcast:item:guid:",
-      "podcast:publisher:",
-      "sort:recent",
-      "sort:rank",
-      "sort:followers",
-      "sort:text",
-      "observer:",
-      "include:spam",
-      "filter:rank:gte:",
-      "trust:verified",
-      "reach:follows",
-      "kind:",
-      "spec:",
-      "kind:video",
-      '"exact phrase"',
-      "-word",
-    ]) {
+    for (const token of TOKENS) {
       expect(text).toContain(token);
     }
   });
@@ -116,5 +121,21 @@ describe("the ? shortcut", () => {
     fireEvent.keyDown(screen.getByTestId("an-input"), { key: "?" });
     fireEvent.keyDown(screen.getByTestId("a-box"), { key: "?" });
     expect(open).not.toHaveBeenCalled();
+  });
+});
+
+describe("docs/search/syntax.md, the sheet's written twin", () => {
+  const doc = readFileSync(join(__dirname, "../../../../docs/search/syntax.md"), "utf8");
+
+  it("documents every token the sheet does", () => {
+    for (const token of TOKENS) expect(doc).toContain(token);
+  });
+
+  it("lists in its search-box tables only examples the sheet prints", () => {
+    const box = doc.slice(doc.indexOf("## In the search box"), doc.indexOf("## For an agent"));
+    const examples = [...box.matchAll(/^\| `([^`]+)` +\|/gm)].map((m) => m[1]);
+    expect(examples.length).toBeGreaterThan(25);
+    const text = sheetText();
+    for (const example of examples) expect(text).toContain(example);
   });
 });

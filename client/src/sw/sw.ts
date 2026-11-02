@@ -36,7 +36,7 @@ declare const __SW_ROUTES__: string[];
 export type Strategy = "shell" | "cache-first" | "network-first" | "stale-while-revalidate";
 
 /** Paths nginx answers itself (crawler cards, proxies, files with no SPA behind them). */
-const PASSTHROUGH = ["/og/", "/img/", "/link-preview", "/.well-known/", "/bot", "/robots.txt"];
+const PASSTHROUGH = ["/og/", "/img/", "/link-preview", "/.well-known/", "/bot", "/robots.txt", "/built-on/"];
 
 /** Hashed asset types worth keeping; video is left to the network (range requests). */
 const CACHEABLE_ASSET = /\.(?:js|css|woff2?|webp|png|jpe?g|gif|svg|avif)$/i;

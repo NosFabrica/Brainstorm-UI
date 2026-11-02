@@ -22,6 +22,8 @@ describe("what the worker does with a request", () => {
       "/.well-known/nostr.json",
       "/bot",
       "/robots.txt",
+      "/built-on/v1.css",
+      "/built-on/",
     ]) {
       expect(strategyFor(at(path), page, ORIGIN)).toBeNull();
       expect(strategyFor(at(path), fetch, ORIGIN)).toBeNull();

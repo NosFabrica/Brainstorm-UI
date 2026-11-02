@@ -74,6 +74,7 @@ import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { PasskeySettings } from "@/components/PasskeySettings";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { deliverBackup } from "@/lib/accountBackup";
@@ -694,6 +695,8 @@ export default function SettingsPage() {
             <Copy className="h-3.5 w-3.5" /> Copy
           </button>
         </div>
+
+        <PasskeySettings />
 
         {canBackUp() && (
           <div

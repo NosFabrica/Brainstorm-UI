@@ -65,7 +65,16 @@ const WEB_KINDS: Record<"ditto" | "primal", ReadonlySet<number>> = {
   primal: new Set([1, 30023]),
 };
 
-export type AppLinkId = "ditto" | "nostria" | "primal" | "nostrband" | "amethyst" | "default" | "origin";
+export type AppLinkId = "ditto" | "nostria" | "primal" | "nostrband" | "amethyst" | "alexandria" | "default" | "origin";
+
+/**
+ * Alexandria (GitCitadel), the NKBIP-01 reader: its `/publication/<naddr|nevent>/…`
+ * page opens a book or one of its sections, and is the link its own pages
+ * share. Not a shelf (30045): that route reads a publication only.
+ */
+const ALEXANDRIA_KINDS: ReadonlySet<number> = new Set([30040, 30041]);
+const alexandriaUrl = (bech32: string) =>
+  `https://alexandria.gitcitadel.eu/publication/${bech32.startsWith("naddr") ? "naddr" : "nevent"}/${bech32}`;
 export type AppLink = {
   id: AppLinkId;
   label: string;
@@ -143,6 +152,8 @@ export function appLinksFor(entity: OpenEntity, ua?: string): AppLink[] {
   if (entity.kind === "profile")
     links.push({ id: "nostria", label: "Nostria", href: `https://nostria.app/p/${entity.bech32}`, external: true });
   if (renders("primal")) links.push({ id: "primal", label: "Primal", href: primalUrl(entity), external: true });
+  if (entity.kind !== "profile" && ALEXANDRIA_KINDS.has(entity.eventKind))
+    links.push({ id: "alexandria", label: "Alexandria", href: alexandriaUrl(entity.bech32), external: true });
   // Nothing native can open a thing with no nostr: URI. The native handoffs
   // are not gated by kind: the OS opens the app the user chose, and Amethyst
   // renders far more kinds than any web client.

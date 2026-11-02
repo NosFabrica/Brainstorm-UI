@@ -28,6 +28,7 @@ import {
   extensionAccount,
   forgetAccount,
   localAccount,
+  localAccountWithPasskey,
   signOutActiveAccount,
 } from "@/accounts/login";
 import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
@@ -37,6 +38,16 @@ import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
+import { passkeyVaultApi, PasskeyNotReadyError } from "@/services/api/passkeyVault";
+import {
+  assertPasskey,
+  credentialIdHash,
+  openSealedKey,
+  parseSealedKey,
+  PasskeyMismatchError,
+  type StoredPasskey,
+} from "@/accounts/passkey";
+import { keepPasskey, makePasskey, syncPendingPasskeys } from "@/accounts/passkey-flow";
 
 export type LoginErrorCode =
   "NO_EXTENSION" | "EXTENSION_FAILED" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "INVALID_NSEC" | "SERVER_ERROR";
@@ -383,21 +394,33 @@ export async function runInitialSetup(
  */
 export async function createAccount(
   displayName: string,
-  opts: { inviterPubkey?: string; password?: string } = {},
+  opts: { inviterPubkey?: string; password?: string; passkey?: boolean; secretKey?: Uint8Array } = {},
 ): Promise<NostrUser> {
   const name = displayName.trim();
-  const sk = generateSecretKey();
+  // A key the caller kept from an earlier attempt: retrying a passkey signup
+  // under the same key makes the provider overwrite the passkey that attempt
+  // left behind, rather than collect one dead passkey per try.
+  const sk = opts.secretKey ?? generateSecretKey();
   const pubkey = getPublicKey(sk);
+
+  // A passkey instead of a password, made first — straight off the tap, before
+  // any key work spends the gesture — and before the Account is adopted, so a
+  // cancelled sheet leaves no row and no Session. Its seal is the at-rest form a
+  // reload opens; the server's copy follows the Session.
+  const passkey = opts.passkey ? await makePasskey(pubkey, name, []) : null;
   const account = await localAccount(sk, { password: opts.password });
+  if (passkey) await keepPasskey(account, passkey);
 
   let user: NostrUser;
   try {
     // A brand-new key exists only in this browser, so it is emphatically not
-    // backed up — `createdInApp` is what points the onboarding nags at it.
+    // backed up — `createdInApp` is what points the onboarding nags at it. A
+    // passkey doesn't change that: it opens the key, it isn't a copy of it.
     user = await signIn(account, { remembered: true, createdInApp: true });
   } catch (err) {
     throw asLoginError(err);
   }
+  if (opts.passkey) void syncPendingPasskeys(account);
 
   // A brand-new account has no kind-0 on relays yet, so completeLogin returns a
   // nameless user (its profile fetch finds nothing). Apply the name the user
@@ -411,4 +434,60 @@ export async function createAccount(
   // Don't block the UI on relay/scoring work.
   void runInitialSetup(pubkey, { name }, { inviterPubkey: opts.inviterPubkey }).catch(() => {});
   return user;
+}
+
+/**
+ * Sign in with a passkey, on this device or a new one: the system sheet offers
+ * every passkey this site has, and the one picked names its account (`user.id`
+ * is the pubkey).
+ *
+ * An Account this device already holds a seal for is opened where it stands and
+ * signed in as itself — no network for the key, and no replacing the row under
+ * other tabs. Otherwise the server's copy is fetched, which it hands over only
+ * for an assertion over its own challenge.
+ *
+ * `challenge` is the server's, fetched ahead of the tap — Safari only lets a
+ * passkey sheet open from a gesture, and a round-trip between the tap and the
+ * sheet can spend it. Throws what the ceremony throws (a cancel is
+ * `isPasskeyCancelled`), `PasskeyNotReadyError` when no copy is held anywhere.
+ */
+export async function loginWithPasskey(challenge?: string): Promise<NostrUser> {
+  // The server only matters for a passkey this device doesn't know; one it does
+  // still opens with the server down.
+  const serverChallenge = challenge ?? (await passkeyVaultApi.passkeyVaultChallenge().catch(() => undefined));
+  const answer = await assertPasskey({ challenge: serverChallenge });
+
+  const local = localAccountWithPasskey(answer.credentialId);
+  if (local) {
+    const key = await openSealedKey(local.sealed, answer.prf);
+    if (answer.pubkey && answer.pubkey !== local.account.pubkey) throw new PasskeyMismatchError();
+    local.account.signer.unlockWithKey(key);
+    await local.account.signer.cache();
+    try {
+      return await signInWithAccount(local.account);
+    } catch (err) {
+      throw asLoginError(err);
+    }
+  }
+
+  if (!serverChallenge) throw new Error("Couldn't reach Brainstorm. Check your connection and try again.");
+  const blob = await passkeyVaultApi.openPasskeyVault(await credentialIdHash(answer.credentialId), answer.wire);
+  const sealed = parseSealedKey(blob);
+  if (!sealed || sealed.credentialId !== answer.credentialId) throw new PasskeyNotReadyError();
+  const key = await openSealedKey(sealed, answer.prf);
+  const pubkey = getPublicKey(key);
+  if (pubkey !== sealed.pubkey || (answer.pubkey && answer.pubkey !== pubkey)) throw new PasskeyMismatchError();
+
+  // A new device starts with the one seal it opened, which the server already holds.
+  const passkeys: StoredPasskey[] = [
+    { ...sealed, provider: "Passkey", device: "another device", addedAt: Date.now(), synced: true },
+  ];
+  const account = await localAccount(key, { passkeys });
+  try {
+    // Remembered: a passkey sign-in exists to keep you signed in. Not backed up:
+    // the passkey opens the key, and losing the provider would lose both.
+    return await signIn(account, { remembered: true });
+  } catch (err) {
+    throw asLoginError(err);
+  }
 }

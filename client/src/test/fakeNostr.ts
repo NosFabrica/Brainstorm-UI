@@ -16,6 +16,7 @@ export const nostrReadDefaults = {
   fetchEventsByAuthors: async () => [],
   fetchAddressableEvents: async () => new Map(),
   fetchCollectionProducts: async () => [],
+  fetchIndexesListing: async () => [],
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
   fetchNotesByHashtag: async () => [],

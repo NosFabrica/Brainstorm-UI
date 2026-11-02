@@ -3,7 +3,9 @@ import { ShieldCheck, X } from "lucide-react";
 import { useActiveAccount } from "applesauce-react/hooks";
 
 import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/metadata";
-import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
+import { backupMessage, BackupPrompt } from "@/components/BackupPrompt";
+import { hasPasskey } from "@/accounts/passkey-flow";
+import { passkeyMethod } from "@/accounts/passkey";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
@@ -45,7 +47,7 @@ export function BackupReminder() {
     setHidden(true);
   };
 
-  const message = need ? BACKUP_MESSAGE[need] : null;
+  const message = need ? backupMessage(need, hasPasskey(account) ? passkeyMethod().label : undefined) : null;
 
   return (
     // Stacked, not one row: at 375px the icon, CTA and dismiss ate everything and

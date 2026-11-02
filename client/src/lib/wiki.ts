@@ -10,7 +10,11 @@
  * another. Read on Brainstorm, a wikilink is a search for that topic's
  * articles here: people stay, and any author's page on the topic can answer,
  * not only the one that happened to be linked.
+ *
+ * Every pattern that scans for a closing bracket is bounded: a page is
+ * anyone's text, and an unbounded scan of a long line is quadratic.
  */
+import { PUBLICATION_SECTION_KIND, sectionPlainText } from "@/lib/publication";
 
 const ASCIIDOC_SIGNS = /^={1,5} \S|^image::|^\[NOTE\]|link:https?:\/\/|footnote:\[/m;
 const MARKDOWN_HEADING = /^#{1,6} \S/m;
@@ -21,11 +25,14 @@ export function looksAsciiDoc(content: string): boolean {
 }
 
 function wikilinksToMarkdown(content: string): string {
-  return content.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, (_m, target: string, label?: string) => {
-    const topic = target.trim();
-    const text = (label ?? topic).trim();
-    return `[${text}](/?q=${encodeURIComponent(topic)}&t=articles)`;
-  });
+  return content.replace(
+    /\[\[([^\]|\n]{1,512}?)(?:\|([^\]\n]{1,512}?))?\]\]/g,
+    (_m, target: string, label?: string) => {
+      const topic = target.trim();
+      const text = (label ?? topic).trim();
+      return `[${text}](/?q=${encodeURIComponent(topic)}&t=articles)`;
+    },
+  );
 }
 
 function asciiDocToMarkdown(content: string): string {
@@ -45,10 +52,10 @@ function asciiDocToMarkdown(content: string): string {
       // *bold* → **bold**; a "* " at the start of a line is a list bullet, not bold.
       .replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, (_m, before: string, text: string) => `${before}**${text}**`)
       // image::url[alt] → ![alt](url)
-      .replace(/^image::(\S+?)\[([^\]]*)\]/gm, (_m, url: string, alt: string) => `![${alt}](${url})`)
+      .replace(/^image::([^\s[]{1,2048})\[([^\]\n]{0,1024})\]/gm, (_m, url: string, alt: string) => `![${alt}](${url})`)
       // link:url[label] and url[label] → [label](url); a bare URL is left alone.
       .replace(
-        /(?:link:)?(https?:\/\/[^\s[\]]+)\[([^\]]+)\]/g,
+        /(?:link:)?(https?:\/\/[^\s[\]]{1,2048})\[([^\]\n]{1,1024})\]/g,
         (_m, url: string, label: string) => `[${label}](${url})`,
       )
   );
@@ -70,8 +77,8 @@ export function wikiPlainText(content: string): string {
     .filter((line) => !/^\s*(?:#{1,6} |> |!\[)/.test(line))
     .map((line) => line.replace(/^\s*(?:[*\-+]|\d+\.) /, ""))
     .join(" ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/!\[[^\]\n]{0,1024}\]\([^)\s]{0,2048}\)/g, "")
+    .replace(/\[([^\]\n]{1,1024})\]\([^)\s]{0,2048}\)/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/(^|[^\w*])\*([^*]+)\*(?![\w*])/g, "$1$2")
     .replace(/(^|[^\w_])_([^_]+)_(?![\w_])/g, "$1$2")
@@ -113,7 +120,12 @@ function markdownWords(md: string): string {
 export function articleBrief(event: { kind: number; content: string; tags: string[][] }, max = 220): string {
   const summary = articleSummary(event);
   if (summary) return summary;
-  let words = event.kind === 30818 ? wikiPlainText(event.content) : markdownWords(event.content);
+  let words =
+    event.kind === 30818
+      ? wikiPlainText(event.content)
+      : event.kind === PUBLICATION_SECTION_KIND
+        ? sectionPlainText(event)
+        : markdownWords(event.content);
   // A body that opens with its own title goes on from there; one that is
   // only the title has nothing to add under it.
   const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();
