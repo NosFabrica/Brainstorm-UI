@@ -162,7 +162,7 @@ const inputCls =
 // Trust & search.
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
-  { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  { key: "trust", label: "Trust & Search", icon: ShieldCheck },
   // The reader's Assistants (2026-10-23, one tab since 2026-11-02): the one Brainstorm
   // hosts for them; every one they've tagged and what each does (Tapestry's My
   // Assistants); and the Treasure Map that hands out the duties — as views
