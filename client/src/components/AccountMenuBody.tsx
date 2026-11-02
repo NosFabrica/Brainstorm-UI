@@ -215,6 +215,8 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
 interface AccountMenuBodyProps {
   user: AccountDisplay;
   isAdmin: boolean;
+  /** The four destination tiles. The phone's sheet leaves them out: its bottom bar has them. */
+  tiles?: boolean;
   active?: AppKey;
   onNavigate: (path: string) => void;
   onInvite: () => void;
@@ -237,6 +239,7 @@ interface AccountMenuBodyProps {
 export function AccountMenuBody({
   user,
   isAdmin,
+  tiles = true,
   active,
   onNavigate,
   onInvite,
@@ -406,41 +409,43 @@ export function AccountMenuBody({
       </div>
 
       {/* Primary destinations as tiles */}
-      <div className="grid grid-cols-4 gap-2 px-3 pb-3">
-        {NAV_TILES.map((t) => {
-          const Icon = t.icon;
-          const isActive = active === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => onNavigate(t.path)}
-              className={
-                "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
-                (isActive
-                  ? "border-brand-accent/40 bg-brand-primary/[0.10] ring-1 ring-inset ring-brand-primary/25 dark:bg-brand-primary/25"
-                  : "border-white/60 bg-white/[0.55] hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]")
-              }
-              data-testid={`account-nav-${t.key}`}
-            >
-              <Icon
+      {tiles && (
+        <div className="grid grid-cols-4 gap-2 px-3 pb-3">
+          {NAV_TILES.map((t) => {
+            const Icon = t.icon;
+            const isActive = active === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => onNavigate(t.path)}
                 className={
-                  "h-5 w-5 " +
-                  (isActive ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-300")
+                  "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
+                  (isActive
+                    ? "border-brand-accent/40 bg-brand-primary/[0.10] ring-1 ring-inset ring-brand-primary/25 dark:bg-brand-primary/25"
+                    : "border-white/60 bg-white/[0.55] hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]")
                 }
-              />
-              <span
-                className={
-                  "text-[11px] font-medium leading-none " +
-                  (isActive ? "text-brand-deep dark:text-brand-link" : "text-slate-600 dark:text-slate-200")
-                }
+                data-testid={`account-nav-${t.key}`}
               >
-                {t.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                <Icon
+                  className={
+                    "h-5 w-5 " +
+                    (isActive ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-300")
+                  }
+                />
+                <span
+                  className={
+                    "text-[11px] font-medium leading-none " +
+                    (isActive ? "text-brand-deep dark:text-brand-link" : "text-slate-600 dark:text-slate-200")
+                  }
+                >
+                  {t.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <MenuDivider />
 

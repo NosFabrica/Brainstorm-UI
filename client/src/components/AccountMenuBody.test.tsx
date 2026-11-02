@@ -60,13 +60,22 @@ const USER: AccountDisplay = {
 const account = { id: "bob-key", pubkey: "b".repeat(64) } as unknown as BrainstormAccount;
 
 /** The panel as a host renders it: the body, plus the modals that live outside it. */
-function Panel({ onLogout = () => {}, close = () => {} }: { onLogout?: () => void; close?: () => void }) {
+function Panel({
+  onLogout = () => {},
+  close = () => {},
+  tiles,
+}: {
+  onLogout?: () => void;
+  close?: () => void;
+  tiles?: boolean;
+}) {
   const menu = useAccountMenu(USER, onLogout, close);
   return (
     <>
       <AccountMenuBody
         user={USER}
         isAdmin={false}
+        tiles={tiles}
         onNavigate={menu.onNavigate}
         onInvite={menu.onInvite}
         onRequestLogout={menu.onRequestLogout}
@@ -283,5 +292,19 @@ describe("AccountMenuBody — no Appearance row", () => {
     renderWithProviders(<Panel close={vi.fn()} />);
     expect(screen.queryByText(/^appearance$/i)).toBeNull();
     expect(screen.queryByTestId("dropdown-appearance")).toBeNull();
+  });
+});
+
+// The phone's bottom bar already has Search · Dashboard · Network · Messages, a
+// thumb away, so the phone's sheet leaves the four tiles out; the desktop menu,
+// with no bar beneath it, keeps them.
+describe("AccountMenuBody — the destination tiles", () => {
+  it("shows them by default, and leaves them out when told the bar has them", () => {
+    const { unmount } = renderWithProviders(<Panel close={vi.fn()} />);
+    expect(screen.getByTestId("account-nav-dashboard")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<Panel close={vi.fn()} tiles={false} />);
+    expect(screen.queryByTestId("account-nav-dashboard")).toBeNull();
+    expect(screen.getByTestId("dropdown-insights")).toBeInTheDocument();
   });
 });
