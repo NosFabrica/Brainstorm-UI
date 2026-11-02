@@ -27,6 +27,7 @@ export function MobileAccountSheetBody({ user, onLogout }: { user: AccountDispla
             <AccountMenuBody
               user={user}
               isAdmin={isAdmin}
+              tiles={false}
               active={undefined}
               onNavigate={onNavigate}
               onInvite={onInvite}
