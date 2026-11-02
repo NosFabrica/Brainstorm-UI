@@ -10,25 +10,36 @@ import { ChevronDown, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
 import { publicOrigin } from "@/lib/publicOrigin";
 
-// Agent prompts (the dev team will supply the final, working copy).
-const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
-web-of-trust search engine for Nostr.
+// Agent prompts. Every step names something that exists today: the README's
+// Develop and Configuration sections, the brainstorm_server repo, the protocols
+// spec, and this deployment's /developers pages.
+const SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
+web-of-trust search engine for Nostr. The UI is one part of a stack:
+it needs a running brainstorm_server API and Nostr relays behind it.
 
-1. Clone the repo: https://github.com/NosFabrica/Brainstorm-UI
-2. Install dependencies and start the dev server (see the README).
-3. Point it at the Brainstorm backend / relays as the docs describe.
-4. Open the app, let me sign in, and confirm search works.
+1. Clone the UI: https://github.com/NosFabrica/Brainstorm-UI
+2. Follow the README's "Develop" section (nvm use, npm ci, npm run dev).
+3. Read the README's "Configuration" section: six VITE_* variables name
+   the API and relays the UI talks to. Set VITE_API_URL to a
+   brainstorm_server you run: https://github.com/NosFabrica/brainstorm_server
+4. Open the app, let me sign in, and confirm search returns results.
 
-If anything fails, check the README's troubleshooting section, tell me
-what to fix, and explain each step as you go. Keep it simple.`;
+Explain each step as you go and tell me what to fix if a step fails.
+Keep it simple.`;
 
-const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-trust scores to my own
+const integratePrompt = (origin: string) => `You're helping me add Brainstorm's web-of-trust scores to my own
 Nostr client so my users see personalized trust.
 
-1. Read Brainstorm's developer guide (I'll give you the link).
-2. Fetch personalized scores from the Brainstorm relay / API.
-3. Read kind 30382 "Trusted Assertions" (NIP-85) for each user.
-4. Honor the kind 10040 service-provider pointer so scores resolve per user.
+1. Read the developer pages:
+   ${origin}/developers/nip-50
+   ${origin}/developers/open-ranking
+   ${origin}/developers/trusted-assertions
+2. Read the wire spec for kind 30382 "Trusted Assertions" (NIP-85) and
+   the kind 10040 pointer that names a user's trust provider:
+   https://github.com/NosFabrica/protocols/blob/main/specs/trusted-assertions.md
+3. Fetch personalized scores over NIP-50 search or the Open Ranking API.
+4. Resolve each user's provider from their kind 10040 before reading
+   their kind 30382 assertions.
 5. Verify a sample user's Brainstorm Verification Score renders in my client.
 
 Explain each step, note anything I need to configure, and keep it simple.`;
@@ -158,7 +169,7 @@ export function AgentSetupCard() {
               Copy this prompt into your agent
             </p>
             <CodeBlock
-              code={agentPath === "selfhost" ? AGENT_SELFHOST_PROMPT : AGENT_INTEGRATE_PROMPT}
+              code={agentPath === "selfhost" ? SELFHOST_PROMPT : integratePrompt(publicOrigin())}
               testId={`agent-prompt-${agentPath}`}
             />
           </div>
