@@ -13,6 +13,8 @@ const TA = "b".repeat(64);
 const LISTS = { key: TA, relay: "wss://nip85-staging.example" };
 const state = vi.hoisted(() => ({
   provider: "brainstorm" as string | undefined,
+  /** The signals the Map leaves without a provider; undefined until the relays answer. */
+  missing: [] as string[] | undefined,
   activated: true,
   lists: undefined as undefined | { status: string; designation: unknown },
   dm: "stopped" as string,
@@ -25,7 +27,9 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64) }) }));
 vi.mock("@/hooks/useVerifiedNoFollows", () => ({ useVerifiedNoFollows: () => "has-follows" }));
 vi.mock("@/hooks/useSelf", () => ({ useSelfHistory: () => ({ data: { data: { ta_pubkey: "b".repeat(64) } } }) }));
-vi.mock("@/hooks/useTrustProviderStatus", () => ({ useTrustProviderStatus: () => ({ data: state.provider }) }));
+vi.mock("@/hooks/useTrustProviderStatus", () => ({
+  useTrustProviderStatus: () => ({ data: state.provider, missingSignals: state.missing }),
+}));
 vi.mock("@/hooks/useTrustListsStatus", () => ({ useTrustListsStatus: () => ({ data: state.lists }) }));
 vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => 3 }));
 vi.mock("@/lib/nip85Activation", () => ({ isNip85Activated: () => state.activated }));
@@ -38,6 +42,7 @@ import { useFinishSetup } from "./useFinishSetup";
 describe("useFinishSetup — the Activate step and Trusted Lists", () => {
   beforeEach(() => {
     state.provider = "brainstorm";
+    state.missing = [];
     state.activated = true;
     state.lists = undefined;
     state.dm = "stopped";
@@ -101,6 +106,58 @@ describe("useFinishSetup — the Activate step and Trusted Lists", () => {
     expect(result.current.activateDone).toBe(true);
     expect(result.current.activatePending).toBe(false);
     expect(result.current.listsPending).toBe(false);
+  });
+});
+
+/**
+ * Issue #313: a Map that gives your own Assistant the rank duty but not every
+ * signal it publishes is asked for again — as the Activate step, counted and
+ * nagged from the header, not as a quiet update: other apps can't find three
+ * of your five scores until it's signed.
+ */
+describe("useFinishSetup — a Treasure Map short of signals", () => {
+  const SHORT = ["30382:reporters", "30382:muters", "30382:hops"];
+
+  beforeEach(() => {
+    state.provider = "brainstorm";
+    state.missing = [];
+    state.activated = true;
+    state.lists = undefined;
+    state.dm = "stopped";
+    state.menu = { supported: false, status: null, settled: true };
+    state.selfMap = { supported: false, status: null, settled: true };
+  });
+
+  it("makes Activate a step again, counted in what's left, and names the signals", () => {
+    state.missing = SHORT;
+    const { result } = renderHook(() => useFinishSetup());
+
+    expect(result.current.activateDone).toBe(false);
+    expect(result.current.signalsPending).toBe(true);
+    expect(result.current.missingSignals).toEqual(SHORT);
+    expect(result.current.remaining).toBe(1);
+    expect(result.current.doneCount).toBe(2);
+    expect(result.current.allDone).toBe(false);
+  });
+
+  it("leaves another Assistant's rank duty alone: their service completes their Map", () => {
+    state.provider = "other";
+    state.activated = false;
+    state.missing = [];
+    const { result } = renderHook(() => useFinishSetup());
+
+    expect(result.current.activateDone).toBe(true);
+    expect(result.current.signalsPending).toBe(false);
+    expect(result.current.remaining).toBe(0);
+  });
+
+  it("doesn't nag before the relays have answered", () => {
+    state.missing = undefined;
+    const { result } = renderHook(() => useFinishSetup());
+
+    expect(result.current.activateDone).toBe(true);
+    expect(result.current.signalsPending).toBe(false);
+    expect(result.current.remaining).toBe(0);
   });
 });
 
