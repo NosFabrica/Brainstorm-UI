@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { AlertCircle, Check, Loader2, Lock } from "lucide-react";
+import { AlertCircle, Bot, Check, Loader2, Lock } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BrainLogo } from "@/components/BrainLogo";
 import { Card } from "@/components/ui/card";
@@ -10,7 +10,10 @@ import { SUPPORTED_CLIENTS } from "@/config/supportedClients";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useTrustProviderList, useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
+import { rankProviderOf } from "@/lib/nip85Declaration";
+import { shortNpub } from "@/components/messages/people";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
 
@@ -42,6 +45,14 @@ export default function ActivateBrainstormPage() {
   // Warn before a silent overwrite: a kind-10040 naming a different provider
   // already exists, and continuing replaces it (same bar as the modal).
   const hasOtherProvider = useTrustProviderStatus(user?.pubkey, taPubkey).data === "other";
+  // Who publishes their scores today, by name: "another provider" is never
+  // nameless — often it is Brainstorm's own Assistant on another deployment.
+  const provider = rankProviderOf(useTrustProviderList(hasOtherProvider ? user?.pubkey : null).event);
+  const providerProfile = useLiveProfile(provider?.pubkey).profile;
+  const providerName =
+    (providerProfile?.display_name || providerProfile?.name || "").trim() ||
+    (provider ? shortNpub(provider.pubkey) : "your current Assistant");
+  const providerHost = provider?.relay.replace(/^wss?:\/\//, "").replace(/\/+$/, "") ?? "";
   // A first activation names their Trusted Lists too, when they have some —
   // one signature rather than an update later.
   const lists = useTrustListsStatus(user?.pubkey, taPubkey).data;
@@ -148,9 +159,36 @@ export default function ActivateBrainstormPage() {
               </h1>
               <p className="mt-2.5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
                 {hasOtherProvider
-                  ? "Sign a note that tells other apps to take your scores from your Brainstorm Assistant."
-                  : "Sign a note that tells other apps where to find your Brainstorm scores."}
+                  ? "One signature moves your scores to your Brainstorm Assistant."
+                  : "Your Treasure Map tells other apps where to find your scores. You sign it — one signature."}
               </p>
+
+              {/* Who holds the rank duty today: a named thing, not "another provider". */}
+              {hasOtherProvider && provider && (
+                <div
+                  className="mt-5 flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"
+                  data-testid="activate-page-provider"
+                >
+                  {providerProfile?.picture ? (
+                    <img
+                      src={providerProfile.picture}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-white object-cover dark:border-slate-700"
+                      draggable={false}
+                    />
+                  ) : (
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-900">
+                      <Bot className="h-5 w-5" />
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{providerName}</p>
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                      publishes your scores today{providerHost ? ` · ${providerHost}` : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Another Assistant's scores already reach these apps: nothing to show locked. */}
               {!hasOtherProvider && (
@@ -186,9 +224,8 @@ export default function ActivateBrainstormPage() {
                 >
                   <AlertCircle className="mt-px h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-                    Another provider is already publishing your scores. Continuing will{" "}
-                    <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going
-                    forward.
+                    This <strong className="font-bold">replaces {providerName}</strong> for your scores. Everything else
+                    in your Treasure Map stays as it is.
                   </p>
                 </div>
               )}
@@ -242,7 +279,7 @@ export default function ActivateBrainstormPage() {
                   data-testid="button-activate-page-later"
                 >
                   {hasOtherProvider
-                    ? "Maybe later — keep my current Assistant"
+                    ? `Maybe later — keep ${providerName}`
                     : "Maybe later — my scores stay invisible in other apps for now"}
                 </button>
               </div>
