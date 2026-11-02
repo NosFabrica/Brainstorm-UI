@@ -83,20 +83,12 @@ describe("settingsTargetFor — the Assistants tab and its views", () => {
 // (the Dictionary; the Assistants tab's list, duties and map) are admins' only,
 // marked so an admin knows what regular users don't see.
 describe("settingsTabsFor / assistantViewsFor", () => {
-  it("gives everyone seven tabs and admins the Dictionary too, marked internal", () => {
+  it("gives everyone five tabs and admins the Dictionary too, marked internal", () => {
     const everyone = settingsTabsFor({ admin: false });
-    expect(everyone.map((t) => t.key)).toEqual(["profile", "trust", "assistants", "messages", "billing", "about"]);
+    expect(everyone.map((t) => t.key)).toEqual(["profile", "trust", "assistants", "messages", "billing"]);
     expect(everyone.some((t) => t.internal)).toBe(false);
     const admin = settingsTabsFor({ admin: true });
-    expect(admin.map((t) => t.key)).toEqual([
-      "profile",
-      "trust",
-      "assistants",
-      "messages",
-      "dictionary",
-      "billing",
-      "about",
-    ]);
+    expect(admin.map((t) => t.key)).toEqual(["profile", "trust", "assistants", "messages", "dictionary", "billing"]);
     expect(admin.find((t) => t.key === "dictionary")?.internal).toBe(true);
     expect(admin.find((t) => t.key === "assistants")?.internal).toBe(false);
   });

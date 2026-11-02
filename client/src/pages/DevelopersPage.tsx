@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { AgentSetupCard } from "@/components/settings/AgentSetupCard";
 import { ArrowRight, BadgeCheck } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection } from "@/components/developers/DevShared";
@@ -136,6 +137,7 @@ export default function DevelopersPage() {
           </div>
 
           <OpenSourceSection />
+          <AgentSetupCard />
         </div>
       </div>
     </InfoPageLayout>

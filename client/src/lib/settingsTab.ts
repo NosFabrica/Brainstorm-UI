@@ -35,7 +35,6 @@ const ALL_TABS = [
   { key: "messages", internal: false },
   { key: "dictionary", internal: true },
   { key: "billing", internal: false },
-  { key: "about", internal: false },
 ] as const;
 
 export type SettingsTabKey = (typeof ALL_TABS)[number]["key"];
