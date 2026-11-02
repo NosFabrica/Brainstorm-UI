@@ -23,7 +23,6 @@ import {
   ListChecks,
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
@@ -463,7 +462,7 @@ export function AccountMenuBody({
           4. Account setup, Settings, then Help — utilities live at the bottom
              by convention, ordered by frequency. Account setup sits with
              Settings: both are about the account itself, and it's the way back
-             to /setup once the header pill has gone. */}
+             to /setup once the header pill has gone — until nothing remains. */}
       <div className="p-1.5">
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
         {isFree && billingAvailable !== false && (
@@ -500,13 +499,8 @@ export function AccountMenuBody({
         />
       </div>
 
-      {/* Appearance — compact full-width segmented row */}
-      <div className="px-3 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          Appearance
-        </p>
-        <ThemeToggle size="sm" className="w-full" />
-      </div>
+      {/* Theme lives on Settings › Profile › Appearance, with every other setting;
+          the menu's duplicate row went (2026-11-02), a band shorter on a phone. */}
 
       {isAdmin && (
         <div className="px-3 pb-2 pt-1">
@@ -546,6 +540,9 @@ function MenuDivider() {
  */
 function AccountSetupRow({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { remaining, optionalRemaining } = useFinishSetup();
+  // A to-do, not a fixture: once nothing remains, required or optional, the row
+  // goes, as the header pill, the dashboard card and the count do. /setup stays.
+  if (remaining <= 0 && optionalRemaining <= 0) return null;
   const count =
     remaining > 0 ? (
       <Chip tone="amber" size="sm" className="tabular-nums" data-testid="dropdown-account-setup-count">

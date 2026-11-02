@@ -261,13 +261,27 @@ describe("the Account setup row", () => {
     expect(screen.getByTestId("dropdown-account-setup-count")).toHaveTextContent("1 optional step");
   });
 
-  it("is a plain way back to /setup once everything is done", () => {
-    const close = vi.fn();
-    renderWithProviders(<Panel close={close} />);
+  // The row is a to-do, not a fixture: once nothing remains, required or optional,
+  // it goes — as the header pill, the dashboard card and the count already do.
+  // The checklist stays at /setup for anyone who wants it.
+  it("goes once everything is done, optional included", () => {
+    renderWithProviders(<Panel close={vi.fn()} />);
+    expect(screen.queryByTestId("dropdown-account-setup")).toBeNull();
+  });
 
-    expect(screen.queryByTestId("dropdown-account-setup-count")).toBeNull();
-    fireEvent.click(screen.getByTestId("dropdown-account-setup"));
-    expect(close).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith("/setup");
+  it("stays, uncounted on the avatar, while an optional step remains", () => {
+    setup.optionalRemaining = 1;
+    renderWithProviders(<Panel close={vi.fn()} />);
+    expect(screen.getByTestId("dropdown-account-setup")).toBeInTheDocument();
+  });
+});
+
+// Theme lives on Settings › Profile › Appearance, where every other setting is;
+// the menu's duplicate row went (2026-11-02), a band shorter on a phone.
+describe("AccountMenuBody — no Appearance row", () => {
+  it("has no theme control of its own", () => {
+    renderWithProviders(<Panel close={vi.fn()} />);
+    expect(screen.queryByText(/^appearance$/i)).toBeNull();
+    expect(screen.queryByTestId("dropdown-appearance")).toBeNull();
   });
 });
