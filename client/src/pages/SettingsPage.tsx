@@ -51,8 +51,6 @@ import {
   BookOpen,
   MessageCircle,
   Bot,
-  Map as MapIcon,
-  Sparkles,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -116,23 +114,20 @@ import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
-import { settingsTabFor } from "@/lib/settingsTab";
+import {
+  assistantViewsFor,
+  settingsTabsFor,
+  settingsTargetFor,
+  type AssistantView,
+  type SettingsTabKey,
+} from "@/lib/settingsTab";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
 
-type SettingsTab =
-  | "profile"
-  | "trust"
-  | "brainstorm-assistant"
-  | "assistants"
-  | "treasure-map"
-  | "messages"
-  | "dictionary"
-  | "billing"
-  | "about";
+type SettingsTab = SettingsTabKey;
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -168,12 +163,11 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
-  // The reader's Assistants (2026-10-23): the one Brainstorm hosts for them, out of
-  // Trust & search into a tab of its own; every one they've tagged and what each does
-  // (Tapestry's My Assistants); and the Treasure Map that hands out the duties.
-  { key: "brainstorm-assistant", label: "Brainstorm Assistant", icon: Sparkles },
-  { key: "assistants", label: "Assistants & Duties", icon: Bot },
-  { key: "treasure-map", label: "Treasure Map", icon: MapIcon },
+  // The reader's Assistants (2026-10-23, one tab since 2026-11-02): the one Brainstorm
+  // hosts for them; every one they've tagged and what each does (Tapestry's My
+  // Assistants); and the Treasure Map that hands out the duties — as views
+  // (lib/settingsTab assistantViewsFor), the last three admins' only for now.
+  { key: "assistants", label: "Assistants", icon: Bot },
   // Its own tab (2026-10-05), out of Trust & search: a reader looks for message settings
   // under "Messages". Where the inbox's "Manage" (and its settings icon) lands.
   { key: "messages", label: "Messages", icon: MessageCircle },
@@ -189,13 +183,22 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "about", label: "About", icon: Info },
 ];
 
-/**
- * Tabs only an admin sees, and only an admin can open by URL — anyone else
- * lands on Profile. The Dictionary (2026-10-05): still an internal demo, kept
- * from regular users until it's settled. Its renderers, on list items' pages,
- * cards and search rows, are for everyone; only the page about them is hidden.
- */
-const ADMIN_ONLY_TABS: ReadonlySet<SettingsTab> = new Set(["dictionary"]);
+// Which tabs an admin has and everyone else has — and which are internal, said
+// so on the tab — is lib/settingsTab (settingsTabsFor). The Dictionary
+// (2026-10-05): still an internal demo. Its renderers, on list items' pages,
+// cards and search rows, are for everyone; only the page about them is hidden.
+
+/** "internal" on a tab or view only admins have — what regular users don't see yet. */
+function InternalChip() {
+  return (
+    <span
+      className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-px align-middle text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+      data-testid="chip-internal"
+    >
+      internal
+    </span>
+  );
+}
 
 export default function SettingsPage() {
   const [, navigate] = useLocation();
@@ -203,15 +206,19 @@ export default function SettingsPage() {
   // Live identity: the header avatar updates the moment a profile save lands.
   const user = useActiveAccountDisplay();
   const isAdmin = user?.isAdmin === true;
-  const tabs = TABS.filter((t) => isAdmin || !ADMIN_ONLY_TABS.has(t.key));
-  const tabParam = new URLSearchParams(search).get("tab");
-  const focusOf = new URLSearchParams(search).get("focus");
-  // Old `?tab=trust&focus=messages` links land on the Messages tab (lib/settingsTab).
-  const activeTab: SettingsTab = settingsTabFor(
-    tabParam,
-    focusOf,
+  const entries = settingsTabsFor({ admin: isAdmin });
+  const tabs = entries.map((e) => ({ ...TABS.find((t) => t.key === e.key)!, internal: e.internal }));
+  const params = new URLSearchParams(search);
+  // Old links — `?tab=trust&focus=messages`, the three old Assistant tabs — land
+  // where they pointed (lib/settingsTab); a view the reader doesn't have is "yours".
+  const target = settingsTargetFor(
+    { tab: params.get("tab"), view: params.get("view"), focus: params.get("focus") },
     tabs.map((t) => t.key),
+    { admin: isAdmin },
   );
+  const activeTab: SettingsTab = target.tab;
+  const assistantView: AssistantView = target.view ?? "yours";
+  const assistantViews = assistantViewsFor({ admin: isAdmin });
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -2410,6 +2417,7 @@ export default function SettingsPage() {
                     data-testid={`tab-${tab.key}`}
                   >
                     {tab.label}
+                    {tab.internal && <InternalChip />}
                   </button>
                 );
               })}
@@ -2434,21 +2442,44 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === "brainstorm-assistant" && (
-            <div className="space-y-6" data-testid="tab-content-brainstorm-assistant">
-              <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
-            </div>
-          )}
-
           {activeTab === "assistants" && (
             <div className="space-y-6" data-testid="tab-content-assistants">
-              <AssistantsTab viewer={user?.pubkey} />
-            </div>
-          )}
-
-          {activeTab === "treasure-map" && (
-            <div className="space-y-6" data-testid="tab-content-treasure-map">
-              <TreasureMapTab viewer={user?.pubkey} />
+              {/* The views, for a reader who has more than one: Yours for everyone; the list,
+                  the duties and the map for admins while they're internal. */}
+              {assistantViews.length > 1 && (
+                <div
+                  className="inline-flex gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900"
+                  role="tablist"
+                  aria-label="Assistants view"
+                  data-testid="assistants-views"
+                >
+                  {assistantViews.map((v) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={assistantView === v.key}
+                      onClick={() =>
+                        navigate(
+                          v.key === "yours" ? "/settings?tab=assistants" : `/settings?tab=assistants&view=${v.key}`,
+                        )
+                      }
+                      className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-bold transition-all active:scale-95 ${assistantView === v.key ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                      data-testid={`assistants-view-${v.key}`}
+                    >
+                      {v.label}
+                      {v.internal && <InternalChip />}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {assistantView === "yours" && (
+                <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+              )}
+              {(assistantView === "all" || assistantView === "duties") && (
+                <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />
+              )}
+              {assistantView === "map" && <TreasureMapTab viewer={user?.pubkey} />}
             </div>
           )}
 
