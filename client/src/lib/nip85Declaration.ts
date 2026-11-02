@@ -39,6 +39,19 @@ export function trustProviderStatusOf(
 }
 
 /**
+ * Who publishes the reader's scores today: the Assistant their Map gives the
+ * rank duty to, and the relay it names. Null when no rank duty is given — no
+ * Map, or a deactivation. The Activate page names this Assistant, so "another
+ * provider" never goes nameless.
+ */
+export function rankProviderOf(
+  event: Pick<NostrEvent, "tags"> | null | undefined,
+): { pubkey: string; relay: string } | null {
+  const row = event?.tags.find((t) => t[0] === "30382:rank" && t[1]);
+  return row ? { pubkey: row[1], relay: String(row[2] ?? "") } : null;
+}
+
+/**
  * The Trusted List kinds Brainstorm's assistant publishes for a user: 30392
  * (pubkeys), 30393 (events), 30394 (addressable events). Other apps find a
  * user's lists through their 10040, one row per kind.

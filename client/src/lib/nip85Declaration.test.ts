@@ -8,6 +8,7 @@ import {
   listRows,
   mergeDesignation,
   missingSignals,
+  rankProviderOf,
   signalRows,
 } from "./nip85Declaration";
 
@@ -207,6 +208,33 @@ describe("declaresLists", () => {
  * rendered as a blank "Post" row and an empty page (Benjamin, 2026-09-23,
  * `kind:10040` on Everything). The description is what a row and a page say.
  */
+/**
+ * Who publishes the reader's scores today: the Assistant their Map gives the
+ * rank duty to, and where. The Activate page names it, so "another provider"
+ * is never nameless — in practice it is often Brainstorm's own Assistant on
+ * another deployment.
+ */
+describe("rankProviderOf", () => {
+  it("names the Assistant holding the rank duty, and its relay", () => {
+    const event = event10040([
+      ["30392", OTHER_TA, "wss://lists.example.com"],
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+    ]);
+    expect(rankProviderOf(event)).toEqual({ pubkey: TA, relay: RELAY });
+  });
+
+  it("is null with no rank row, a deactivation, or no Map", () => {
+    expect(rankProviderOf(event10040([["30392", TA, RELAY]]))).toBeNull();
+    expect(rankProviderOf(event10040([]))).toBeNull();
+    expect(rankProviderOf(null)).toBeNull();
+  });
+
+  it("reads a rank row with no relay hint as a provider with no relay", () => {
+    expect(rankProviderOf(event10040([["30382:rank", TA]]))).toEqual({ pubkey: TA, relay: "" });
+  });
+});
+
 describe("describeDesignation", () => {
   it("names the signals, the lists, and the provider, for an activation of ours", () => {
     const d = describeDesignation(
