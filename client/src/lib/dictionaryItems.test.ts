@@ -7,10 +7,10 @@ import { describe, expect, it } from "vitest";
 import { definitionOf, type HeaderEvent } from "./conceptResolution";
 import { filterItems, sortItems } from "./dictionaryItems";
 
-const AVI = "b".repeat(64);
+const CURATOR = "b".repeat(64);
 const header: HeaderEvent = {
   id: "1".repeat(64),
-  pubkey: AVI,
+  pubkey: CURATOR,
   kind: 39998,
   created_at: 1_790_000_000,
   tags: [
@@ -27,7 +27,7 @@ const places = definitionOf(header);
 
 const place = (id: string, created_at: number, fields: Record<string, string>) => ({
   id: id.padEnd(64, "0"),
-  pubkey: AVI,
+  pubkey: CURATOR,
   kind: 39999,
   created_at,
   content: "",

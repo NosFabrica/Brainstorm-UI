@@ -1,8 +1,7 @@
 /**
  * A reader's own version of a community concept, as a draft and as the
  * event it becomes — the grammar behind a Dictionary entry's "Add to my own
- * Dictionary" and "Edit" (components/dictionary/AddToDictionary; begun
- * 2026-10-01 as a demo, likely the seed of a general list editor).
+ * Dictionary" and "Edit" (components/dictionary/AddToDictionary).
  *
  * The event is a local copy (lib/conceptResolution): a kind-39998 at the
  * community concept's `d`, signed by the reader, pointing back with
