@@ -70,6 +70,9 @@ function listOf(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
+/** A task the app is doing by itself (components/AutoAssistantSetup): the row stays, with nothing to do. */
+const PUBLISHING_FOR_YOU = "Your Assistant is publishing it for you now — nothing for you to do.";
+
 function PendingRow({
   label,
   badge,
@@ -153,7 +156,9 @@ export default function FinishSetupPage() {
     missingSignals,
     listsPending,
     dutyMenu,
+    dutyMenuAuto,
     treasureMap,
+    treasureMapAuto,
     doneCount,
     totalSteps,
     allDone,
@@ -314,16 +319,20 @@ export default function FinishSetupPage() {
               <PendingRow
                 label="Publish your Assistant's Duty Menu"
                 badge={
-                  dutyMenu === "checking"
-                    ? "Checking"
-                    : dutyMenu === "out-of-date"
-                      ? "Out of date"
-                      : "Required for other apps"
+                  dutyMenuAuto
+                    ? "Publishing"
+                    : dutyMenu === "checking"
+                      ? "Checking"
+                      : dutyMenu === "out-of-date"
+                        ? "Out of date"
+                        : "Required for other apps"
                 }
                 detail={
-                  dutyMenu === "out-of-date"
-                    ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
-                    : "Your Assistant's Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap."
+                  dutyMenuAuto
+                    ? PUBLISHING_FOR_YOU
+                    : dutyMenu === "out-of-date"
+                      ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
+                      : "Your Assistant's Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap."
                 }
                 icon={ListChecks}
                 onClick={() => navigate("/setup/duty-menu")}
@@ -355,16 +364,20 @@ export default function FinishSetupPage() {
               <PendingRow
                 label="Publish your Assistant's Treasure Map"
                 badge={
-                  treasureMap === "checking"
-                    ? "Checking"
-                    : treasureMap === "out-of-date"
-                      ? "Out of date"
-                      : "Required for other apps"
+                  treasureMapAuto
+                    ? "Publishing"
+                    : treasureMap === "checking"
+                      ? "Checking"
+                      : treasureMap === "out-of-date"
+                        ? "Out of date"
+                        : "Required for other apps"
                 }
                 detail={
-                  treasureMap === "out-of-date"
-                    ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
-                    : "Your Assistant's Treasure Map tells other apps what it's doing for you right now. Your Assistant signs it — one tap."
+                  treasureMapAuto
+                    ? PUBLISHING_FOR_YOU
+                    : treasureMap === "out-of-date"
+                      ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
+                      : "Your Assistant's Treasure Map tells other apps what it's doing for you right now. Your Assistant signs it — one tap."
                 }
                 icon={MapIcon}
                 onClick={() => navigate("/setup/treasure-map")}
