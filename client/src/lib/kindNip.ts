@@ -82,8 +82,6 @@ const NIP_BY_KIND: Record<number, string> = {
   34550: "NIP-72",
   38000: "NIP-87",
   39000: "NIP-29",
-  30040: "NIP-62",
-  30041: "NIP-62",
 };
 
 export function nipForKind(kind: number): string | undefined {

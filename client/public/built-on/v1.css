@@ -1,0 +1,50 @@
+/*
+ * Built on Brainstorm, version 1: the look of every copy of <built-on-brainstorm>, loaded inside
+ * its shadow root, so it styles the line and nothing else on the page. A restyle here reaches every
+ * app within an hour of its production deploy.
+ *
+ * Its rules (docs/built-on-brainstorm.md, "The look"): it asks for nothing (no @import, no
+ * @font-face, no url() but a data: one); it honours --built-on-color, --built-on-hover-color and
+ * --built-on-focus-color with their defaults, and the parts link, mark and words; it is unlayered,
+ * so it wins over the look the element carries itself.
+ */
+
+:host {
+  display: inline-flex;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.46em;
+  min-height: 44px;
+  color: var(--built-on-color, currentColor);
+  font: inherit;
+  text-decoration: none;
+}
+
+a:focus-visible {
+  color: var(--built-on-hover-color, var(--built-on-color, currentColor));
+  text-decoration: underline;
+  outline: 2px solid var(--built-on-focus-color, currentColor);
+  outline-offset: 2px;
+}
+
+/* Only where a pointer can hover: on a phone a tap leaves :hover set, and the line would stay dark. */
+@media (hover: hover) {
+  a:hover {
+    color: var(--built-on-hover-color, var(--built-on-color, currentColor));
+    text-decoration: underline;
+  }
+}
+
+[part="mark"] {
+  flex: none;
+  width: calc(1.08em * 71 / 73);
+  height: 1.08em;
+}

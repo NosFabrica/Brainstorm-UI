@@ -537,7 +537,9 @@ export function parseQuery(text: string): ParsedQuery {
         break;
       case "observer":
         out.observer = seg.pubkey;
-        terms += seg.raw;
+        // As hex, whichever way it was typed: the relay reads an npub as no observer at all and
+        // refuses the read (`auth-required`), measured 2026-10-30.
+        terms += `observer:${seg.pubkey}`;
         break;
       case "lens":
         out.includeSpam = true;
@@ -664,6 +666,9 @@ export const KIND_NOUNS: Record<number, string> = {
   10040: "trust providers",
   30000: "follow sets",
   30023: "articles",
+  30040: "publications",
+  30041: "publication sections",
+  30045: "bookshelves",
   30063: "releases",
   30311: "live streams",
   30382: "trusted assertions",

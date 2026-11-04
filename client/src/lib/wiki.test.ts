@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { articleBrief, articleSummary, wikiPlainText, wikiToMarkdown } from "./wiki";
+import { articleTitle } from "./publication";
 
 describe("wikiToMarkdown", () => {
   it("a labelled wikilink reads as its label and searches the topic's articles here", () => {
@@ -111,5 +112,25 @@ describe("articleBrief — a publisher's placeholder is no summary", () => {
     expect(articleBrief(article("A day at the orphanage."))).toBe("A day at the orphanage.");
     expect(articleSummary(article("No description available"))).toBe("");
     expect(articleSummary(article("A day at the orphanage."))).toBe("A day at the orphanage.");
+  });
+});
+
+describe("articleTitle", () => {
+  it("is the title tag, else a publication's slug, else nothing", () => {
+    expect(articleTitle({ kind: 30023, tags: [["title", "Zaps"]] })).toBe("Zaps");
+    expect(articleTitle({ kind: 30041, tags: [["d", "article-iv-section-3"]] })).toBe("Article IV Section 3");
+    expect(articleTitle({ kind: 30045, tags: [["d", "root"]] })).toBe("Bookshelf");
+    expect(articleTitle({ kind: 30023, tags: [["d", "zaps"]] })).toBe("");
+  });
+});
+
+describe("hostile pages", () => {
+  it("stays linear on a long line of would-be links", () => {
+    for (const line of ["https://".repeat(40_000), "[[a".repeat(40_000), "image::a" + "[".repeat(100_000)]) {
+      const t = performance.now();
+      wikiToMarkdown(`== Title\n${line}`);
+      wikiPlainText(`== Title\n${line}`);
+      expect(performance.now() - t).toBeLessThan(1500);
+    }
   });
 });

@@ -20,12 +20,12 @@ import {
   undeclaredFields,
 } from "./dlistFields";
 
-const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
-const GITHUB_ACCOUNTS = `39998:${AVI}:github-accounts`;
+const CURATOR = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
+const GITHUB_ACCOUNTS = `39998:${CURATOR}:github-accounts`;
 
 const header = {
   id: "db25cec521257c27c8693a47a79ab62387f8736421e19568c309244947929674",
-  pubkey: AVI,
+  pubkey: CURATOR,
   kind: 39998,
   tags: [
     ["d", "github-accounts"],
@@ -38,42 +38,42 @@ const header = {
 
 const item = {
   id: "9f4be9d49d734495b740198cef2aedd996cbc3f88e79a7c1c2d8224743dd492e",
-  pubkey: AVI,
+  pubkey: CURATOR,
   kind: 39999,
   tags: [
-    ["d", "vcavallo-1i6dn0p"],
+    ["d", "octocat-1i6dn0p"],
     ["z", GITHUB_ACCOUNTS],
-    ["description", "Vinney Cavallo"],
-    ["github-username", "vcavallo"],
+    ["description", "The Octocat"],
+    ["github-username", "octocat"],
   ],
 };
 
 describe("coordinates", () => {
   it("splits at the first two colons only — a d may hold colons", () => {
-    expect(parseCoordinate(`39998:${AVI}:a:b:c`)).toEqual({ kind: 39998, pubkey: AVI, d: "a:b:c" });
-    expect(parseCoordinate(GITHUB_ACCOUNTS)).toEqual({ kind: 39998, pubkey: AVI, d: "github-accounts" });
+    expect(parseCoordinate(`39998:${CURATOR}:a:b:c`)).toEqual({ kind: 39998, pubkey: CURATOR, d: "a:b:c" });
+    expect(parseCoordinate(GITHUB_ACCOUNTS)).toEqual({ kind: 39998, pubkey: CURATOR, d: "github-accounts" });
   });
 
   it("lowercases the pubkey, as relays index it", () => {
-    expect(parseCoordinate(`39998:${AVI.toUpperCase()}:x`)?.pubkey).toBe(AVI);
+    expect(parseCoordinate(`39998:${CURATOR.toUpperCase()}:x`)?.pubkey).toBe(CURATOR);
   });
 
   it("refuses what isn't one", () => {
     expect(parseCoordinate("39998:nothex:x")).toBeNull();
-    expect(parseCoordinate(`list:${AVI}:x`)).toBeNull();
-    expect(parseCoordinate(`39998:${AVI}`)).toBeNull();
+    expect(parseCoordinate(`list:${CURATOR}:x`)).toBeNull();
+    expect(parseCoordinate(`39998:${CURATOR}`)).toBeNull();
     expect(parseCoordinate(undefined)).toBeNull();
   });
 
   it("an empty d is still an address", () => {
-    expect(parseCoordinate(`39998:${AVI}:`)).toEqual({ kind: 39998, pubkey: AVI, d: "" });
+    expect(parseCoordinate(`39998:${CURATOR}:`)).toEqual({ kind: 39998, pubkey: CURATOR, d: "" });
   });
 
   it("names an event by its coordinate, and an item its header by z", () => {
     expect(coordinateOf(header)).toBe(GITHUB_ACCOUNTS);
     expect(headerReference(header)).toBe(GITHUB_ACCOUNTS);
     expect(headerReferenceOf(item)).toBe(GITHUB_ACCOUNTS);
-    expect(coordinateOf({ kind: 1, pubkey: AVI, tags: [] })).toBeNull();
+    expect(coordinateOf({ kind: 1, pubkey: CURATOR, tags: [] })).toBeNull();
   });
 
   it("a 9998 header is named by id, and its items join with e", () => {
@@ -91,7 +91,7 @@ describe("header or item", () => {
   it("a 39999 is an item unless it declares itself a header", () => {
     expect(isDListItem(item)).toBe(true);
     expect(isDListHeader({ kind: 39999, tags: [["z", "list"]] })).toBe(true);
-    expect(isDListHeader({ kind: 39999, tags: [["z", `39998:${AVI}:concept-header`]] })).toBe(true);
+    expect(isDListHeader({ kind: 39999, tags: [["z", `39998:${CURATOR}:concept-header`]] })).toBe(true);
     expect(isDListItem({ kind: 39999, tags: [["z", "list"]] })).toBe(false);
   });
 
@@ -159,7 +159,7 @@ describe("fieldCell", () => {
 
   it("reads the item's value for a declared field", () => {
     expect(fieldCell(item, username)).toEqual({
-      value: "vcavallo",
+      value: "octocat",
       extra: 0,
       missing: false,
       href: null,
@@ -194,14 +194,14 @@ describe("fieldCell", () => {
 
 describe("undeclaredFields", () => {
   it("is what the item carries beyond its header's fields", () => {
-    expect(undeclaredFields(item, parseFieldDecls(header))).toEqual([{ name: "description", value: "Vinney Cavallo" }]);
+    expect(undeclaredFields(item, parseFieldDecls(header))).toEqual([{ name: "description", value: "The Octocat" }]);
   });
 
   it("skips protocol tags, metadata and empty values", () => {
     const extra = undeclaredFields(
       {
         tags: [
-          ["p", AVI],
+          ["p", CURATOR],
           ["alt", "A GitHub account"],
           ["client", "Brainstorm"],
           ["note", ""],
@@ -214,13 +214,13 @@ describe("undeclaredFields", () => {
 });
 
 describe("address fields (provisional)", () => {
-  const coord = `39998:${AVI}:divine-videos`;
+  const coord = `39998:${CURATOR}:divine-videos`;
 
   it("reads a coordinate or an naddr as the address it names, and nothing else", () => {
     expect(addressOf(` ${coord} `)).toBe(coord);
-    expect(addressOf(nip19.naddrEncode({ kind: 39998, pubkey: AVI, identifier: "divine-videos" }))).toBe(coord);
-    expect(addressOf(`nostr:${nip19.naddrEncode({ kind: 30023, pubkey: AVI, identifier: "a:b" })}`)).toBe(
-      `30023:${AVI}:a:b`,
+    expect(addressOf(nip19.naddrEncode({ kind: 39998, pubkey: CURATOR, identifier: "divine-videos" }))).toBe(coord);
+    expect(addressOf(`nostr:${nip19.naddrEncode({ kind: 30023, pubkey: CURATOR, identifier: "a:b" })}`)).toBe(
+      `30023:${CURATOR}:a:b`,
     );
     expect(addressOf("divine-videos")).toBeNull();
     expect(addressOf("naddr1nonsense")).toBeNull();

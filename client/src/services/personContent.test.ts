@@ -65,14 +65,13 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("fetchPersonContent", () => {
-  it("asks once, with seven lensed filters for the person", () => {
+  it("asks once, with eight lensed filters for the person", () => {
     controllable();
     fetchPersonContent(STACI).catch(() => {});
     expect(reqMock).toHaveBeenCalledTimes(1);
     const filters = reqMock.mock.calls[0][0] as Record<string, unknown>[];
-    expect(filters).toHaveLength(7);
-    for (const f of filters)
-      expect(f).toEqual(expect.objectContaining({ authors: [STACI], limit: 1, search: "include:spam" }));
+    expect(filters).toHaveLength(8);
+    for (const f of filters) expect(f).toEqual(expect.objectContaining({ authors: [STACI], search: "include:spam" }));
   });
 
   it("settles on EOSE with what arrived, and lets the subscription go", async () => {

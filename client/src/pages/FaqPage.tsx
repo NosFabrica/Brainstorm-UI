@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AboutCard, ContactCard } from "@/components/settings/AboutCards";
 import { useLocation } from "wouter";
 import { HelpCircle, ChevronDown, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -274,6 +275,9 @@ export default function FaqPage() {
               </AnimatePresence>
             </div>
           </Card>
+
+          <ContactCard />
+          <AboutCard />
 
           {/* Cross-link */}
           <button

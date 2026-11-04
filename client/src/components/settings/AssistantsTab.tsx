@@ -32,7 +32,14 @@ import { dutiesOf, mapOnlyAssistants } from "@/lib/treasureMap";
 type View = "assistants" | "duties";
 
 /** `viewer`: whose Assistants — the signed-in reader on Settings. */
-export function AssistantsTab({ viewer }: { viewer: string | null | undefined }) {
+export function AssistantsTab({
+  viewer,
+  view: given,
+}: {
+  viewer: string | null | undefined;
+  /** The view the Settings page's Assistants views chose; from `?view=` when absent. */
+  view?: View;
+}) {
   const { rows, settled, definitions, duties, mapStatus } = useMyAssistants(viewer);
   const actions = useAssistantActions(definitions);
   // A tag is offered once its definition is found (Tapestry's rule): until the read settles, quietly not yet.
@@ -47,9 +54,10 @@ export function AssistantsTab({ viewer }: { viewer: string | null | undefined })
     [definitions, settled],
   );
   const [, navigate] = useLocation();
-  const view: View = new URLSearchParams(useSearch()).get("view") === "duties" ? "duties" : "assistants";
+  const fromUrl: View = new URLSearchParams(useSearch()).get("view") === "duties" ? "duties" : "assistants";
+  const view: View = given ?? fromUrl;
   const choose = (next: View) =>
-    navigate(next === "duties" ? "/settings?tab=assistants&view=duties" : "/settings?tab=assistants", {
+    navigate(next === "duties" ? "/settings?tab=assistants&view=duties" : "/settings?tab=assistants&view=all", {
       replace: true,
     });
 
@@ -87,18 +95,21 @@ export function AssistantsTab({ viewer }: { viewer: string | null | undefined })
           </div>
         </div>
 
-        <div className="border-b border-border px-5 py-3">
-          <Tabs value={view} onValueChange={(v) => choose(v as View)}>
-            <TabsList aria-label="View">
-              <TabsTrigger value="assistants" data-testid="assistants-view-assistants">
-                Assistants
-              </TabsTrigger>
-              <TabsTrigger value="duties" data-testid="assistants-view-duties">
-                Duties
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        {/* Its own toggle only when the page gave no view (the Settings page's views do). */}
+        {given === undefined && (
+          <div className="border-b border-border px-5 py-3">
+            <Tabs value={view} onValueChange={(v) => choose(v as View)}>
+              <TabsList aria-label="View">
+                <TabsTrigger value="assistants" data-testid="assistants-view-assistants">
+                  Assistants
+                </TabsTrigger>
+                <TabsTrigger value="duties" data-testid="assistants-view-duties">
+                  Duties
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
 
         {view === "duties" ? (
           <DutiesView

@@ -13,6 +13,9 @@ import { AlertTriangle, Chrome, KeyRound, Radio, ShieldAlert, Smartphone } from 
 import type { PickerIdentity, PickerRow, RowHealth, SignerKind } from "@/accounts/picker";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
+import { passkeyIconComponent } from "@/components/PasskeyIcon";
+import { passkeyMethod } from "@/accounts/passkey";
+import { hasPasskey } from "@/accounts/passkey-flow";
 import { cn } from "@/lib/utils";
 
 const SIGNERS: Record<
@@ -54,8 +57,20 @@ export function AccountNames({ identity }: { identity: PickerIdentity }) {
   );
 }
 
+/**
+ * A key that opens with a passkey wears the passkey's name instead of "Key": it
+ * is what the person will do to use it, and the one thing that tells two rows of
+ * theirs apart.
+ */
+function signerChip(row: PickerRow) {
+  if (row.signer === "key" && hasPasskey(row.account)) {
+    return { label: passkeyMethod().label, icon: passkeyIconComponent(), tone: "violet" as const };
+  }
+  return SIGNERS[row.signer];
+}
+
 export function AccountRowChips({ row }: { row: PickerRow }) {
-  const signer = SIGNERS[row.signer];
+  const signer = signerChip(row);
   const health = HEALTH[row.health];
   return (
     <>

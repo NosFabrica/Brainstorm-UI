@@ -22,6 +22,8 @@ export interface RibbonList {
   more: boolean;
   /** The list's own page. */
   href: string;
+  /** The headers its items are filed under (`#z`): its own, and its copies'. */
+  headers: string[];
 }
 
 /** The most items asked of each list. */
@@ -139,6 +141,7 @@ export function useListRibbon(
         hits: items.map((item) => ({ event: item as NostrEvent, author: null, rank: null })),
         more: answer?.full ?? false,
         href: eventPath(resolved.community?.event ?? definition.event, dictionaryRelays()),
+        headers,
       });
     }
     return found.sort(

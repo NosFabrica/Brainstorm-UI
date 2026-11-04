@@ -8,6 +8,7 @@ import { mkdtempSync, readdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+import { nip19 } from "nostr-tools";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { build } from "vite";
 import * as source from "./listTools";
@@ -162,5 +163,45 @@ describe("the built list module", () => {
     expect(built.listAuthoringPrompt(templates as never, relay)).toEqual(
       source.listAuthoringPrompt(templates as never, relay),
     );
+  });
+});
+
+// A6.13.a: the connector's brainstorm_search runs the box's own grammar from this bundle, so a
+// Claude's query reaches the search relay as the box would send it.
+describe("the built search grammar", () => {
+  const AUTHOR = "7".repeat(64);
+  const READER = "8".repeat(64);
+  const author = nip19.npubEncode(AUTHOR);
+  const reader = nip19.npubEncode(READER);
+  const opts = (m: typeof source) => ({ limit: 20, searchString: (terms: string) => m.withObserver(terms, READER) });
+
+  it.each([
+    ["words alone", "bitcoin mining"],
+    ["a person's own notes", `from:${author} lora`],
+    ["a mention, a kind and a phrase with a word left out", `to:${author} kind:1 "lightning network" -scam`],
+    ["a hashtag between two days", "#nostr since:2026-01-01 until:2026-02-01"],
+    ["the relay's own ranking tokens", "relays sort:rank filter:rank:gte:10"],
+  ])("parses and builds %s as the source does", (_name, query) => {
+    expect(built.parseQuery(query)).toEqual(source.parseQuery(query));
+    expect(built.buildFilters(query, opts(built))).toEqual(source.buildFilters(query, opts(source)));
+  });
+
+  it("keeps the box's prefixes out of the search text, as filter fields, and reads through the person asking", () => {
+    const filters = built.buildFilters(`from:${author} since:2026-01-01 lora`, opts(built));
+    expect(filters).toHaveLength(1);
+    expect(filters[0].authors).toEqual([AUTHOR]);
+    expect(filters[0].since).toBe(source.parseQuery("since:2026-01-01").since);
+    expect(filters[0].search).toBe(`lora observer:${READER}`);
+  });
+
+  it("hands the relay an observer typed as an npub as the hex it reads", () => {
+    const [filter] = built.buildFilters(`lora observer:${reader}`, opts(built));
+    expect(filter.search).toBe(`lora observer:${READER}`);
+  });
+
+  it("waives the lens when there is no one to read through, rather than be refused", () => {
+    expect(built.withObserver("lora", null)).toBe("lora include:spam");
+    expect(built.withObserver("lora include:spam", READER)).toBe("lora include:spam");
+    expect(built.withObserver(`lora observer:${AUTHOR}`, READER)).toBe(`lora observer:${AUTHOR}`);
   });
 });

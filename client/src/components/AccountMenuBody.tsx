@@ -23,7 +23,6 @@ import {
   ListChecks,
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { profileShortLink, useShortLink } from "@/hooks/useShortLink";
@@ -216,6 +215,8 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
 interface AccountMenuBodyProps {
   user: AccountDisplay;
   isAdmin: boolean;
+  /** The four destination tiles. The phone's sheet leaves them out: its bottom bar has them. */
+  tiles?: boolean;
   active?: AppKey;
   onNavigate: (path: string) => void;
   onInvite: () => void;
@@ -238,6 +239,7 @@ interface AccountMenuBodyProps {
 export function AccountMenuBody({
   user,
   isAdmin,
+  tiles = true,
   active,
   onNavigate,
   onInvite,
@@ -407,41 +409,43 @@ export function AccountMenuBody({
       </div>
 
       {/* Primary destinations as tiles */}
-      <div className="grid grid-cols-4 gap-2 px-3 pb-3">
-        {NAV_TILES.map((t) => {
-          const Icon = t.icon;
-          const isActive = active === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => onNavigate(t.path)}
-              className={
-                "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
-                (isActive
-                  ? "border-brand-accent/40 bg-brand-primary/[0.10] ring-1 ring-inset ring-brand-primary/25 dark:bg-brand-primary/25"
-                  : "border-white/60 bg-white/[0.55] hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]")
-              }
-              data-testid={`account-nav-${t.key}`}
-            >
-              <Icon
+      {tiles && (
+        <div className="grid grid-cols-4 gap-2 px-3 pb-3">
+          {NAV_TILES.map((t) => {
+            const Icon = t.icon;
+            const isActive = active === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => onNavigate(t.path)}
                 className={
-                  "h-5 w-5 " +
-                  (isActive ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-300")
+                  "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
+                  (isActive
+                    ? "border-brand-accent/40 bg-brand-primary/[0.10] ring-1 ring-inset ring-brand-primary/25 dark:bg-brand-primary/25"
+                    : "border-white/60 bg-white/[0.55] hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]")
                 }
-              />
-              <span
-                className={
-                  "text-[11px] font-medium leading-none " +
-                  (isActive ? "text-brand-deep dark:text-brand-link" : "text-slate-600 dark:text-slate-200")
-                }
+                data-testid={`account-nav-${t.key}`}
               >
-                {t.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                <Icon
+                  className={
+                    "h-5 w-5 " +
+                    (isActive ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-300")
+                  }
+                />
+                <span
+                  className={
+                    "text-[11px] font-medium leading-none " +
+                    (isActive ? "text-brand-deep dark:text-brand-link" : "text-slate-600 dark:text-slate-200")
+                  }
+                >
+                  {t.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <MenuDivider />
 
@@ -463,7 +467,7 @@ export function AccountMenuBody({
           4. Account setup, Settings, then Help — utilities live at the bottom
              by convention, ordered by frequency. Account setup sits with
              Settings: both are about the account itself, and it's the way back
-             to /setup once the header pill has gone. */}
+             to /setup once the header pill has gone — until nothing remains. */}
       <div className="p-1.5">
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
         {isFree && billingAvailable !== false && (
@@ -500,13 +504,8 @@ export function AccountMenuBody({
         />
       </div>
 
-      {/* Appearance — compact full-width segmented row */}
-      <div className="px-3 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          Appearance
-        </p>
-        <ThemeToggle size="sm" className="w-full" />
-      </div>
+      {/* Theme lives on Settings › Profile › Appearance, with every other setting;
+          the menu's duplicate row went (2026-11-02), a band shorter on a phone. */}
 
       {isAdmin && (
         <div className="px-3 pb-2 pt-1">
@@ -546,6 +545,9 @@ function MenuDivider() {
  */
 function AccountSetupRow({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { remaining, optionalRemaining } = useFinishSetup();
+  // A to-do, not a fixture: once nothing remains, required or optional, the row
+  // goes, as the header pill, the dashboard card and the count do. /setup stays.
+  if (remaining <= 0 && optionalRemaining <= 0) return null;
   const count =
     remaining > 0 ? (
       <Chip tone="amber" size="sm" className="tabular-nums" data-testid="dropdown-account-setup-count">

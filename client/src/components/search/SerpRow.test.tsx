@@ -889,6 +889,21 @@ describe("SerpRow", () => {
     expect(row).toHaveTextContent("Wiki");
   });
 
+  // A publication's section is AsciiDoc too, and often untitled: its slug names it.
+  it("a publication section's row reads its words under its slug, not its markup", () => {
+    const section = {
+      ...note("== Article IV\n[NOTE]\n====\nNew States may be admitted by link:https://x.org[the Congress].\n====", [
+        ["d", "article-iv-section-3"],
+      ]),
+      kind: 30041,
+    } as NostrEvent;
+    render(<SerpRow event={section} author={author} score={0.7} query="states" />);
+    const row = screen.getByTestId(`serp-row-${section.id}`);
+    expect(row).toHaveTextContent("Article IV Section 3");
+    expect(row).toHaveTextContent("New States may be admitted by the Congress.");
+    expect(row.textContent).not.toMatch(/==|\[NOTE\]|link:/);
+  });
+
   // A quote arrived as its raw "nostr:nevent1…" token in the row (megistus,
   // 2026-09-07). The token leaves the text and the quoted post shows beneath,
   // the way the first web link earns its card.

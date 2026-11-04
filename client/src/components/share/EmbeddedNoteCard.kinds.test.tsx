@@ -474,6 +474,60 @@ describe("references by address and from an article", () => {
     expect(await screen.findByTestId("embedded-article")).toHaveTextContent("Chapter one");
   });
 
+  // A book, one of its sections and a shelf, quoted by address the way a note,
+  // a comment or an article body links them: each is its own card, named and
+  // read as what it is — never "Untitled article", raw AsciiDoc or "Read article".
+  it("an naddr to a publication, a section or a bookshelf is a card that says what it is", async () => {
+    const cases: [MinimalEvent, string, RegExp, string][] = [
+      [
+        held(
+          ev(30040, [
+            ["d", "constitution"],
+            ["title", "The Constitution"],
+            ["summary", "The 1787 frame of the federal government."],
+            ["image", "https://example.com/cover.jpg"],
+            ["a", `30041:${PK}:preamble`],
+          ]),
+        ),
+        "The Constitution",
+        /The 1787 frame of the federal government\./,
+        "Read publication",
+      ],
+      [
+        held(
+          ev(30041, [["d", "article-iv-section-3"]], "== Section 3\n[NOTE]\n====\nNew States may be admitted.\n===="),
+        ),
+        "Article IV Section 3",
+        /New States may be admitted\./,
+        "Read section",
+      ],
+      [
+        held(
+          ev(30045, [
+            ["d", "root"],
+            ["a", `30040:${PK}:constitution`],
+            ["a", `30045:${PK}:poetry`],
+          ]),
+        ),
+        "Bookshelf",
+        /1 book · 1 shelf/,
+        "Open bookshelf",
+      ],
+    ];
+    for (const [event, title, brief, button] of cases) {
+      const { unmount } = renderWithProviders(<NostrRef bech32={naddrOf(event)} />);
+      const card = await screen.findByTestId("embedded-article");
+      expect(card).toHaveTextContent(title);
+      expect(card).toHaveTextContent(brief);
+      expect(card.textContent).not.toMatch(/==|\[NOTE\]|Untitled article/);
+      expect(screen.getByTestId("article-read")).toHaveTextContent(button);
+      // A book's portrait cover shows whole in the 16:9 frame.
+      if (event.kind === 30040)
+        expect(card.querySelector("img[data-cover-fit]")).toHaveAttribute("data-cover-fit", "contain");
+      unmount();
+    }
+  });
+
   // Audit: a draft, publication or section the lookup did not find lost the author's own link.
   it("an unfound draft or publication keeps the author's link around it", async () => {
     for (const kind of [30024, 30040, 30041]) {

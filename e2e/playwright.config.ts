@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
+  // The local real-stack check has its own config and stack (`npm run e2e:local`).
+  testIgnore: ["local/**"],
   timeout: 60_000,
   expect: { timeout: 20_000 },
   retries: process.env.CI ? 1 : 0,

@@ -32,4 +32,16 @@ describe("ErrorBoundary", () => {
     expect(screen.getByTestId("fine")).toBeInTheDocument();
     expect(screen.queryByTestId("sorry-app")).toBeNull();
   });
+
+  it("a dev build says what crashed, once, under the sorry page — a phone has no console to read it in", () => {
+    render(
+      <ErrorBoundary resetKey="/a">
+        <Bomb live />
+      </ErrorBoundary>,
+    );
+    const details = screen.getByTestId("crash-details");
+    expect(details).toHaveTextContent("Error: kaboom");
+    expect(details.textContent!.split("kaboom")).toHaveLength(2);
+    expect(details).toHaveTextContent("Bomb");
+  });
 });

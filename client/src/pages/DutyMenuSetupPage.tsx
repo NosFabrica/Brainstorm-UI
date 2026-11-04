@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Check, Loader2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Loader2, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
-import { categoryOf, type MenuRow, type MenuStatus } from "@/lib/dutyMenu";
+import { categoryOf, offerSummary, type MenuRow, type MenuStatus } from "@/lib/dutyMenu";
 import type { DutyMenuPublishResult } from "@/services/api";
 
 /**
@@ -70,6 +70,7 @@ export default function DutyMenuSetupPage() {
   const menu = useAssistantDutyMenu(user?.pubkey);
   const [result, setResult] = useState<DutyMenuPublishResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [details, setDetails] = useState(false);
 
   if (!user) return null;
 
@@ -110,9 +111,9 @@ export default function DutyMenuSetupPage() {
           >
             Duty Menu
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            Let other clients, apps and Assistants know which duties your Assistant can take on, and which relay each
-            one is published to. Your Assistant&rsquo;s Duty Menu is one item on the shared list of Duty Menus.
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-testid="duty-menu-intro">
+            Your Assistant&rsquo;s Duty Menu tells other apps what it can do for you. Your Assistant signs it &mdash;
+            one tap.
           </p>
         </div>
 
@@ -132,12 +133,30 @@ export default function DutyMenuSetupPage() {
           <>
             <Card className="space-y-3 p-5">
               <div>
-                <h2 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">What your Assistant offers</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Duties this server offers for your Assistant, and the relay where each is published.
-                </p>
+                <h2 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">What your Assistant can do</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">What it will publish for you, by category.</p>
               </div>
-              <Rows rows={menu.offer} testid="duty-menu-offer" />
+              {/* Plain words first; the keys and relays one tap away, for whoever wants them. */}
+              <ul className="space-y-1.5" data-testid="duty-menu-offer">
+                {offerSummary(menu.offer).map(({ category, what }) => (
+                  <li key={category} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{category}</span>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-slate-600 dark:text-slate-300">{what}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => setDetails((d) => !d)}
+                aria-expanded={details}
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand-link hover:underline"
+                data-testid="duty-menu-offer-details"
+              >
+                {details ? "Hide details" : "Show details"}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${details ? "rotate-180" : ""}`} />
+              </button>
+              {details && <Rows rows={menu.offer} testid="duty-menu-offer-rows" />}
             </Card>
 
             <Card className="space-y-3 p-5">
@@ -165,7 +184,7 @@ export default function DutyMenuSetupPage() {
                 data-testid="duty-menu-publish"
               >
                 {menu.publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Have your Assistant publish its Duty Menu
+                Publish Duty Menu
               </Button>
               {result && <Report result={result} />}
               {failure && (

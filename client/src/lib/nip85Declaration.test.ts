@@ -7,6 +7,9 @@ import {
   describeDesignation,
   listRows,
   mergeDesignation,
+  missingSignals,
+  rankProviderOf,
+  signalRows,
 } from "./nip85Declaration";
 
 const TA = "a".repeat(64);
@@ -86,6 +89,71 @@ describe("declaresTrustProvider", () => {
 // Trusted Lists are published by the same Brainstorm assistant; other apps find
 // them through the 10040. Adding them must not cost the user anything already
 // in their 10040 — another provider's rows included.
+/**
+ * Issue #313: the Assistant signs five assertion signals, and the Treasure Map
+ * must give it every one — a Map of rank and followers alone left reporters,
+ * muters and hops with no provider, so other apps couldn't find them.
+ */
+describe("signalRows", () => {
+  it("gives the assistant every signal it publishes, on the relay it publishes to", () => {
+    expect(signalRows(TA, RELAY)).toEqual([
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+      ["30382:reporters", TA, RELAY],
+      ["30382:muters", TA, RELAY],
+      ["30382:hops", TA, RELAY],
+    ]);
+  });
+
+  it("merged over a Map naming another provider, that provider's row survives", () => {
+    const theirs = [["30382:something-else", OTHER_TA, "wss://elsewhere.example.com"]];
+    const merged = mergeDesignation(theirs, signalRows(TA, RELAY));
+    expect(merged).toContainEqual(theirs[0]);
+    expect(merged).toHaveLength(6);
+  });
+});
+
+/**
+ * The other half of #313: a Map that gives your own Assistant the rank duty but
+ * not every signal is asked for again. One that gives rank to another
+ * Assistant is that service's to complete, so nothing is missing from ours.
+ */
+describe("missingSignals", () => {
+  it("names the signals a rank-and-followers Map leaves without a provider", () => {
+    const event = event10040([
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+    ]);
+    expect(missingSignals(event, TA, RELAY)).toEqual(["30382:reporters", "30382:muters", "30382:hops"]);
+  });
+
+  it("is nothing when the Map gives the Assistant every signal", () => {
+    expect(missingSignals(event10040(signalRows(TA, RELAY)), TA, RELAY)).toEqual([]);
+  });
+
+  it("is nothing when another Assistant has the rank duty, whatever else is missing", () => {
+    const event = event10040([["30382:rank", OTHER_TA, RELAY]]);
+    expect(missingSignals(event, TA, RELAY)).toEqual([]);
+  });
+
+  it("is nothing with no Map, a deactivation, or no Assistant to name", () => {
+    expect(missingSignals(null, TA, RELAY)).toEqual([]);
+    expect(missingSignals(event10040([]), TA, RELAY)).toEqual([]);
+    expect(missingSignals(event10040([["30382:rank", "", RELAY]]), "", RELAY)).toEqual([]);
+  });
+
+  it("a signal naming the Assistant on another relay still counts as missing here", () => {
+    const event = event10040([
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+      ["30382:reporters", TA, "wss://elsewhere.example.com"],
+      ["30382:muters", TA, RELAY],
+      ["30382:hops", TA, RELAY],
+    ]);
+    expect(missingSignals(event, TA, RELAY)).toEqual(["30382:reporters"]);
+  });
+});
+
 describe("listRows / mergeDesignation", () => {
   const LISTS = { key: "e".repeat(64), relay: "wss://nip85-staging.example" };
 
@@ -140,6 +208,33 @@ describe("declaresLists", () => {
  * rendered as a blank "Post" row and an empty page (Benjamin, 2026-09-23,
  * `kind:10040` on Everything). The description is what a row and a page say.
  */
+/**
+ * Who publishes the reader's scores today: the Assistant their Map gives the
+ * rank duty to, and where. The Activate page names it, so "another provider"
+ * is never nameless — in practice it is often Brainstorm's own Assistant on
+ * another deployment.
+ */
+describe("rankProviderOf", () => {
+  it("names the Assistant holding the rank duty, and its relay", () => {
+    const event = event10040([
+      ["30392", OTHER_TA, "wss://lists.example.com"],
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+    ]);
+    expect(rankProviderOf(event)).toEqual({ pubkey: TA, relay: RELAY });
+  });
+
+  it("is null with no rank row, a deactivation, or no Map", () => {
+    expect(rankProviderOf(event10040([["30392", TA, RELAY]]))).toBeNull();
+    expect(rankProviderOf(event10040([]))).toBeNull();
+    expect(rankProviderOf(null)).toBeNull();
+  });
+
+  it("reads a rank row with no relay hint as a provider with no relay", () => {
+    expect(rankProviderOf(event10040([["30382:rank", TA]]))).toEqual({ pubkey: TA, relay: "" });
+  });
+});
+
 describe("describeDesignation", () => {
   it("names the signals, the lists, and the provider, for an activation of ours", () => {
     const d = describeDesignation(

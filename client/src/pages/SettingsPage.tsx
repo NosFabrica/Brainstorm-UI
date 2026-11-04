@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
-import { Redirect, useLocation, useSearch } from "wouter";
+import { Link, Redirect, useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -33,13 +33,9 @@ import {
   RefreshCw,
   Info,
   CreditCard,
-  Code2,
-  Mail,
-  ExternalLink,
   Copy,
   User,
   ShieldCheck,
-  Sun,
   Download,
   ChevronDown,
   Key,
@@ -51,16 +47,12 @@ import {
   BookOpen,
   MessageCircle,
   Bot,
-  Map as MapIcon,
-  Sparkles,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
-import { publicOrigin } from "@/lib/publicOrigin";
-import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
 import {
   signNip85,
@@ -74,6 +66,7 @@ import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { PasskeySettings } from "@/components/PasskeySettings";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { deliverBackup } from "@/lib/accountBackup";
@@ -85,7 +78,6 @@ import {
   revealSecretKey,
   setRecoveryPassword,
 } from "@/accounts/backup";
-import { CodeBlock } from "@/components/CodeBlock";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
@@ -109,52 +101,24 @@ const SCORE_DISPLAY_CHOICES: { key: ScoreDisplayMode; label: string; desc: strin
 ];
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
-import nostrLogo from "@assets/download_1774042580188.png";
 import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
-import { settingsTabFor } from "@/lib/settingsTab";
+import {
+  assistantViewsFor,
+  settingsTabsFor,
+  settingsTargetFor,
+  type AssistantView,
+  type SettingsTabKey,
+} from "@/lib/settingsTab";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
 
-type SettingsTab =
-  | "profile"
-  | "trust"
-  | "brainstorm-assistant"
-  | "assistants"
-  | "treasure-map"
-  | "messages"
-  | "dictionary"
-  | "billing"
-  | "about";
-
-// Placeholder agent prompts (the dev team will supply the final, working copy).
-const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
-web-of-trust search engine for Nostr.
-
-1. Clone the repo: https://github.com/NosFabrica/Brainstorm-UI
-2. Install dependencies and start the dev server (see the README).
-3. Point it at the Brainstorm backend / relays as the docs describe.
-4. Open the app, let me sign in, and confirm search works.
-
-If anything fails, check the README's troubleshooting section, tell me
-what to fix, and explain each step as you go. Keep it simple.`;
-
-const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-trust scores to my own
-Nostr client so my users see personalized trust.
-
-1. Read Brainstorm's developer guide (I'll give you the link).
-2. Fetch personalized scores from the Brainstorm relay / API.
-3. Read kind 30382 "Trusted Assertions" (NIP-85) for each user.
-4. Honor the kind 10040 service-provider pointer so scores resolve per user.
-5. Verify a sample user's Brainstorm Verification Score renders in my client.
-
-Explain each step, note anything I need to configure, and keep it simple.`;
+type SettingsTab = SettingsTabKey;
 
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
@@ -166,13 +130,12 @@ const inputCls =
 // Trust & search.
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
-  { key: "trust", label: "Trust & search", icon: ShieldCheck },
-  // The reader's Assistants (2026-10-23): the one Brainstorm hosts for them, out of
-  // Trust & search into a tab of its own; every one they've tagged and what each does
-  // (Tapestry's My Assistants); and the Treasure Map that hands out the duties.
-  { key: "brainstorm-assistant", label: "Brainstorm Assistant", icon: Sparkles },
-  { key: "assistants", label: "Assistants & Duties", icon: Bot },
-  { key: "treasure-map", label: "Treasure Map", icon: MapIcon },
+  { key: "trust", label: "Trust & Search", icon: ShieldCheck },
+  // The reader's Assistants (2026-10-23, one tab since 2026-11-02): the one Brainstorm
+  // hosts for them; every one they've tagged and what each does (Tapestry's My
+  // Assistants); and the Treasure Map that hands out the duties — as views
+  // (lib/settingsTab assistantViewsFor), the last three admins' only for now.
+  { key: "assistants", label: "Assistants", icon: Bot },
   // Its own tab (2026-10-05), out of Trust & search: a reader looks for message settings
   // under "Messages". Where the inbox's "Manage" (and its settings icon) lands.
   { key: "messages", label: "Messages", icon: MessageCircle },
@@ -185,16 +148,24 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   // belongs next to the other irreversible ones rather than on a status page
   // someone lands on while checking a date. The read-only half is on /insights.
   { key: "billing", label: "Billing", icon: CreditCard },
-  { key: "about", label: "About", icon: Info },
 ];
 
-/**
- * Tabs only an admin sees, and only an admin can open by URL — anyone else
- * lands on Profile. The Dictionary (2026-10-05): still an internal demo, kept
- * from regular users until it's settled. Its renderers, on list items' pages,
- * cards and search rows, are for everyone; only the page about them is hidden.
- */
-const ADMIN_ONLY_TABS: ReadonlySet<SettingsTab> = new Set(["dictionary"]);
+// Which tabs an admin has and everyone else has — and which are internal, said
+// so on the tab — is lib/settingsTab (settingsTabsFor). The Dictionary
+// (2026-10-05): still an internal demo. Its renderers, on list items' pages,
+// cards and search rows, are for everyone; only the page about them is hidden.
+
+/** "internal" on a tab or view only admins have — what regular users don't see yet. */
+function InternalChip() {
+  return (
+    <span
+      className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-px align-middle text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+      data-testid="chip-internal"
+    >
+      internal
+    </span>
+  );
+}
 
 export default function SettingsPage() {
   const [, navigate] = useLocation();
@@ -202,15 +173,19 @@ export default function SettingsPage() {
   // Live identity: the header avatar updates the moment a profile save lands.
   const user = useActiveAccountDisplay();
   const isAdmin = user?.isAdmin === true;
-  const tabs = TABS.filter((t) => isAdmin || !ADMIN_ONLY_TABS.has(t.key));
-  const tabParam = new URLSearchParams(search).get("tab");
-  const focusOf = new URLSearchParams(search).get("focus");
-  // Old `?tab=trust&focus=messages` links land on the Messages tab (lib/settingsTab).
-  const activeTab: SettingsTab = settingsTabFor(
-    tabParam,
-    focusOf,
+  const entries = settingsTabsFor({ admin: isAdmin });
+  const tabs = entries.map((e) => ({ ...TABS.find((t) => t.key === e.key)!, internal: e.internal }));
+  const params = new URLSearchParams(search);
+  // Old links — `?tab=trust&focus=messages`, the three old Assistant tabs — land
+  // where they pointed (lib/settingsTab); a view the reader doesn't have is "yours".
+  const target = settingsTargetFor(
+    { tab: params.get("tab"), view: params.get("view"), focus: params.get("focus") },
     tabs.map((t) => t.key),
+    { admin: isAdmin },
   );
+  const activeTab: SettingsTab = target.tab;
+  const assistantView: AssistantView = target.view ?? "yours";
+  const assistantViews = assistantViewsFor({ admin: isAdmin });
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -242,8 +217,6 @@ export default function SettingsPage() {
       clearTimeout(off);
     };
   }, [focusParam]);
-  const [agentSetupOpen, setAgentSetupOpen] = useState(false);
-  const [agentPath, setAgentPath] = useState<"selfhost" | "integrate">("selfhost");
   const goTab = (t: SettingsTab) => {
     navigate(t === "profile" ? "/settings" : `/settings?tab=${t}`);
   };
@@ -602,35 +575,6 @@ export default function SettingsPage() {
     </div>
   );
 
-  const appearanceCard = (
-    <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid="card-settings-appearance"
-    >
-      <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-            <Sun className="h-4 w-4 text-brand-deep" />
-          </div>
-          <div className="min-w-0">
-            <h2
-              className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-appearance-title"
-            >
-              Appearance
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Theme for this device</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-4 p-5">
-        <p className="text-sm text-slate-600 dark:text-slate-300">Choose Light, Dark, or follow your system.</p>
-        <ThemeToggle />
-      </div>
-    </div>
-  );
-
   const accountCard = (
     <div
       className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
@@ -694,6 +638,8 @@ export default function SettingsPage() {
             <Copy className="h-3.5 w-3.5" /> Copy
           </button>
         </div>
+
+        <PasskeySettings />
 
         {canBackUp() && (
           <div
@@ -1640,15 +1586,10 @@ export default function SettingsPage() {
       </div>
       <div className="space-y-4 p-5">
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-testid="text-presets-desc">
-          How strict your network is. This sets which accounts count as "verified" followers, muters and reporters on
-          Dashboard, Network, and Profile pages — the counts update as soon as you switch.
-        </p>
-        <p
-          className="text-xs leading-relaxed text-slate-500 dark:text-slate-400"
-          data-testid="text-presets-persistence"
-        >
-          Saved to your account, so it follows you across devices. Your published Trusted Assertions keep the old
-          numbers until your next calculation.
+          How strict your network is — who counts as verified. Counts update when you switch; saved to your account.{" "}
+          <Link href="/faq" className="font-medium text-brand-link hover:underline" data-testid="link-presets-faq">
+            What changes?
+          </Link>
         </p>
 
         {presetLoading && !serverPreset ? (
@@ -1718,8 +1659,7 @@ export default function SettingsPage() {
             className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
             data-testid="text-tier-granularity-desc"
           >
-            Simple answers the only question that matters — is this account verified, unknown, or flagged? Detailed
-            shows the full ladder underneath. Saved on this device.
+            Simple: verified, unknown or flagged. Detailed: the full ladder. This device only.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="row-tier-granularity">
             {TIER_GRANULARITY_CHOICES.map((choice) => {
@@ -1763,9 +1703,7 @@ export default function SettingsPage() {
             className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
             data-testid="text-score-display-desc"
           >
-            Some people prefer not to see others as a number. This changes how it's shown to you, everywhere in
-            Brainstorm — the same standing, drawn your way, or not at all. Flag warnings stay either way. Saved on this
-            device.
+            How a person's standing is drawn for you, everywhere — or not at all. Flag warnings stay. This device only.
           </p>
           {/* Five options, one row on desktop; stacked full-width rows on
               mobile (label left, description right) — five centered columns
@@ -1822,7 +1760,7 @@ export default function SettingsPage() {
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-personalization-title"
               >
-                Personalization
+                Preferences
               </h2>
               <span
                 className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-700"
@@ -1856,6 +1794,18 @@ export default function SettingsPage() {
           featured. Open the customizer to edit it live; your choices are published to Nostr, so you own them across
           every client. Tags are separate: add those from your profile, and anyone can add one to you.
         </p>
+        <div
+          className="flex items-center justify-between gap-4 border-t border-slate-100 pt-4 dark:border-slate-800/60"
+          data-testid="row-appearance"
+        >
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Theme</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Light, Dark, or your system's. This device only.
+            </p>
+          </div>
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );
@@ -1959,406 +1909,6 @@ export default function SettingsPage() {
   // ─────────────────────────────────────────────────────────────────────────
   // ABOUT TAB
   // ─────────────────────────────────────────────────────────────────────────
-  const agentSetupCard = (
-    <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid="section-agent-setup"
-    >
-      {" "}
-      <button
-        type="button"
-        onClick={() => setAgentSetupOpen((v) => !v)}
-        aria-expanded={agentSetupOpen}
-        className={`flex w-full items-center justify-between gap-3 bg-slate-50 px-5 py-4 text-left transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:bg-slate-900 dark:hover:bg-slate-800 ${agentSetupOpen ? "border-b border-slate-200 dark:border-slate-800" : ""}`}
-        data-testid="button-agent-setup-toggle"
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-brand-deep" aria-hidden="true">
-              <path
-                d="M13.16 12.88V17.42"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M10.3 17.42L8.09 12.88L5.88 17.42"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M6.43 16.38H9.76"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M22.14 9.96999V15.04C22.14 20.11 20.11 22.14 15.04 22.14H8.96C3.89 22.14 1.86 20.11 1.86 15.04V8.95999C1.86 3.88999 3.89 1.85999 8.96 1.85999H14.03"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M22.14 9.96999H18.08C15.04 9.96999 14.02 8.95999 14.02 5.90999V1.85999L22.13 9.96999H22.14Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2
-                className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-agent-setup-title"
-              >
-                Set up with your AI agent
-              </h2>
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-brand-accent/20 bg-brand-accent/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-brand-deep"
-                data-testid="badge-agent-preview"
-              >
-                <span className="h-1 w-1 rounded-full bg-brand-accent" /> Preview · coming soon
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-agent-setup-subtitle">
-              Let an AI agent run Brainstorm for you — or wire it into your own client
-            </p>
-          </div>
-        </div>
-        <ChevronDown
-          className={`h-5 w-5 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${agentSetupOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-      {agentSetupOpen && (
-        <div className="space-y-4 p-5">
-          {/* Path toggle */}
-          <div
-            className="border-brand-accent/12 inline-flex rounded-full border bg-white/70 p-1 shadow-sm backdrop-blur-sm dark:bg-slate-900/70"
-            data-testid="agent-path-toggle"
-          >
-            {[
-              { key: "selfhost" as const, label: "Self-host" },
-              { key: "integrate" as const, label: "Integrate into your client" },
-            ].map((opt) => {
-              const active = agentPath === opt.key;
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setAgentPath(opt.key)}
-                  aria-current={active ? "true" : undefined}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:text-sm ${
-                    active
-                      ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
-                      : "text-slate-500 hover:text-brand-deep dark:text-slate-400"
-                  }`}
-                  data-testid={`agent-path-${opt.key}`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-testid="text-agent-setup-desc">
-            {agentPath === "selfhost"
-              ? "Brainstorm is open-source. Instead of following technical steps yourself, hand them to your AI agent — copy the prompt below, or point your agent at our guide."
-              : "Already run a Nostr client? Have your AI agent connect Brainstorm's web-of-trust scores and Trusted Assertions (NIP-85) so your users see personalized trust."}
-          </p>
-
-          {/* The prompt to paste into the agent */}
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Copy this prompt into your agent
-            </p>
-            <CodeBlock
-              code={agentPath === "selfhost" ? AGENT_SELFHOST_PROMPT : AGENT_INTEGRATE_PROMPT}
-              testId={`agent-prompt-${agentPath}`}
-            />
-          </div>
-
-          {/* Point the agent at the guide */}
-          <div className="flex flex-col gap-2 rounded-xl border border-brand-accent/15 bg-white/70 px-3.5 py-3 dark:bg-slate-900/70 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1">
-              <p className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Or point your agent here
-              </p>
-              <p className="truncate font-mono text-xs text-slate-600 dark:text-slate-300">{`${publicOrigin()}/developers`}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `${publicOrigin()}/developers`;
-                  copyToClipboard(url);
-                  toast({ title: "Copied!", description: "Guide link copied to clipboard" });
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                data-testid="button-agent-copy-guide"
-              >
-                <Copy className="h-3.5 w-3.5" /> Copy link
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/developers")}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"
-                data-testid="button-agent-view-guide"
-              >
-                View the guide <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-
-          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-agent-footer">
-            Works with Claude, ChatGPT, or any capable agent. Want early access or to help shape this?{" "}
-            <a
-              href={`mailto:support@nosfabrica.com?subject=${agentPath === "integrate" ? "NIP-85%20Client%20Integration" : "Brainstorm%20Agent%20Setup"}`}
-              className="font-semibold text-brand-deep transition-colors hover:text-brand-accent"
-              data-testid="link-agent-contact"
-            >
-              Get in touch
-            </a>
-            .
-          </p>
-        </div>
-      )}
-    </div>
-  );
-
-  const contactCard = (
-    <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid="section-contact-support"
-    >
-      {" "}
-      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-            <Mail className="h-4 w-4 text-brand-deep" />
-          </div>
-          <div>
-            <h2
-              className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-contact-support-title"
-            >
-              Contact & Support
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-contact-support-subtitle">
-              Developer outreach and general inquiries
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="p-5">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div
-            className="rounded-xl border border-brand-accent/15 bg-white/80 p-5 backdrop-blur-sm transition-all duration-300 hover:border-brand-accent/30 hover:shadow-sm dark:bg-slate-900/80"
-            data-testid="card-list-your-client"
-          >
-            <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-                <Code2 className="h-4 w-4 text-brand-deep" />
-              </div>
-              <div>
-                <h3
-                  className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-                  style={{ fontFamily: "var(--font-display)" }}
-                  data-testid="text-list-client-title"
-                >
-                  List Your Client
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-list-client-subtitle">
-                  Get featured on Brainstorm
-                </p>
-              </div>
-            </div>
-            <p
-              className="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-              data-testid="text-list-client-description"
-            >
-              Built a Nostr client that supports NIP-85? Get your app featured on our Supported Clients showcase — free
-              promotion to our growing user base.
-            </p>
-            <a
-              href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-deep transition-colors hover:text-brand-accent"
-              data-testid="link-list-client-email"
-            >
-              <Mail className="h-4 w-4" />
-              support@nosfabrica.com
-            </a>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="text-list-client-helper">
-              Include your client name, platform, and a brief description
-            </p>
-          </div>
-
-          <div
-            className="rounded-xl border border-brand-accent/15 bg-white/80 p-5 backdrop-blur-sm transition-all duration-300 hover:border-brand-accent/30 hover:shadow-sm dark:bg-slate-900/80"
-            data-testid="card-get-in-touch"
-          >
-            <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
-                <Mail className="h-4 w-4 text-brand-deep" />
-              </div>
-              <div>
-                <h3
-                  className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-                  style={{ fontFamily: "var(--font-display)" }}
-                  data-testid="text-get-in-touch-title"
-                >
-                  Get in Touch
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-get-in-touch-subtitle">
-                  Questions, feedback, or support
-                </p>
-              </div>
-            </div>
-            <p
-              className="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-              data-testid="text-get-in-touch-description"
-            >
-              Have questions, feedback, or need help with Brainstorm? We'd love to hear from you.
-            </p>
-            <a
-              href="mailto:support@nosfabrica.com?subject=Brainstorm%20Support"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-deep transition-colors hover:text-brand-accent"
-              data-testid="link-get-in-touch-email"
-            >
-              <Mail className="h-4 w-4" />
-              support@nosfabrica.com
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const aboutCard = (
-    <div
-      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid="section-about"
-    >
-      {" "}
-      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-900 shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:ring-slate-800/60">
-            <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
-          </div>
-          <div>
-            <h2
-              className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-about-title"
-            >
-              NosFabrica
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-about-subtitle">
-              Weaving the fabric of Nostr
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="p-5">
-        <p
-          className="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-          data-testid="text-about-description"
-        >
-          NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze
-          raw network signals and turn them into clear, reliable scores.
-        </p>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <a
-            href="https://github.com/NosFabrica"
-            target="_blank"
-            rel="noopener"
-            className="group/link flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 px-4 py-3.5 backdrop-blur-sm transition-all duration-300 hover:border-brand-accent/30 hover:shadow-sm dark:bg-slate-900/80"
-            data-testid="link-github"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 transition-colors group-hover/link:bg-slate-800">
-              <SiGithub className="h-4 w-4 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span
-                className="block text-sm font-bold text-slate-900 dark:text-slate-100"
-                data-testid="text-github-label"
-              >
-                GitHub
-              </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">Open-source projects</span>
-            </div>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-colors group-hover/link:text-brand-accent dark:text-slate-600" />
-          </a>
-
-          <a
-            href="https://njump.me/npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p"
-            target="_blank"
-            rel="noopener"
-            className="group/link flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 px-4 py-3.5 backdrop-blur-sm transition-all duration-300 hover:border-brand-accent/30 hover:shadow-sm dark:bg-slate-900/80"
-            data-testid="link-nostr"
-          >
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl">
-              <img src={nostrLogo} alt="Nostr" className="h-full w-full object-cover" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span
-                className="block text-sm font-bold text-slate-900 dark:text-slate-100"
-                data-testid="text-nostr-label"
-              >
-                Nostr
-              </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">Follow on Nostr</span>
-            </div>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-colors group-hover/link:text-brand-accent dark:text-slate-600" />
-          </a>
-
-          <a
-            href="https://nosfabrica.com"
-            target="_blank"
-            rel="noopener"
-            className="group/link flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 px-4 py-3.5 backdrop-blur-sm transition-all duration-300 hover:border-brand-accent/30 hover:shadow-sm dark:bg-slate-900/80"
-            data-testid="link-website"
-          >
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-slate-900 transition-colors group-hover/link:bg-slate-800">
-              <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span
-                className="block text-sm font-bold text-slate-900 dark:text-slate-100"
-                data-testid="text-website-label"
-              >
-                Website
-              </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">nosfabrica.com</span>
-            </div>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-colors group-hover/link:text-brand-accent dark:text-slate-600" />
-          </a>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800/60">
-          <p className="text-[11px] text-slate-500 dark:text-slate-400" data-testid="text-about-copyright">
-            <span className="font-semibold text-slate-500 dark:text-slate-400">Brainstorm</span> by NosFabrica —
-            open-source under AGPL-3.0 license
-          </p>
-          <span
-            className="rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-300 dark:border-slate-800/60 dark:bg-slate-900 dark:text-slate-600"
-            data-testid="text-about-version"
-          >
-            v1.0
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div
@@ -2407,6 +1957,7 @@ export default function SettingsPage() {
                     data-testid={`tab-${tab.key}`}
                   >
                     {tab.label}
+                    {tab.internal && <InternalChip />}
                   </button>
                 );
               })}
@@ -2418,7 +1969,6 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-profile">
               {profileCard}
               {personalizationCard}
-              {appearanceCard}
               {accountCard}
             </div>
           )}
@@ -2431,21 +1981,44 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === "brainstorm-assistant" && (
-            <div className="space-y-6" data-testid="tab-content-brainstorm-assistant">
-              <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
-            </div>
-          )}
-
           {activeTab === "assistants" && (
             <div className="space-y-6" data-testid="tab-content-assistants">
-              <AssistantsTab viewer={user?.pubkey} />
-            </div>
-          )}
-
-          {activeTab === "treasure-map" && (
-            <div className="space-y-6" data-testid="tab-content-treasure-map">
-              <TreasureMapTab viewer={user?.pubkey} />
+              {/* The views, for a reader who has more than one: Yours for everyone; the list,
+                  the duties and the map for admins while they're internal. */}
+              {assistantViews.length > 1 && (
+                <div
+                  className="inline-flex gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900"
+                  role="tablist"
+                  aria-label="Assistants view"
+                  data-testid="assistants-views"
+                >
+                  {assistantViews.map((v) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={assistantView === v.key}
+                      onClick={() =>
+                        navigate(
+                          v.key === "yours" ? "/settings?tab=assistants" : `/settings?tab=assistants&view=${v.key}`,
+                        )
+                      }
+                      className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-bold transition-all active:scale-95 ${assistantView === v.key ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
+                      data-testid={`assistants-view-${v.key}`}
+                    >
+                      {v.label}
+                      {v.internal && <InternalChip />}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {assistantView === "yours" && (
+                <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+              )}
+              {(assistantView === "all" || assistantView === "duties") && (
+                <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />
+              )}
+              {assistantView === "map" && <TreasureMapTab viewer={user?.pubkey} />}
             </div>
           )}
 
@@ -2464,14 +2037,6 @@ export default function SettingsPage() {
           {activeTab === "billing" && (
             <div className="space-y-6" data-testid="tab-content-billing">
               <BillingCard />
-            </div>
-          )}
-
-          {activeTab === "about" && (
-            <div className="space-y-6" data-testid="tab-content-about">
-              {agentSetupCard}
-              {contactCard}
-              {aboutCard}
             </div>
           )}
         </div>

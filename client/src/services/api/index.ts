@@ -5,6 +5,7 @@ import { schedulingApi } from "./scheduling";
 import { billingApi } from "./billing";
 import { grapeRankApi } from "./graperank";
 import { adminApi } from "./admin";
+import { passkeyVaultApi } from "./passkeyVault";
 
 // Only the two session facts callers outside this folder read; the transport
 // helpers stay internal to the folder rather than becoming public surface.
@@ -16,6 +17,7 @@ export * from "./scheduling";
 export * from "./billing";
 export * from "./graperank";
 export * from "./admin";
+export * from "./passkeyVault";
 
 /**
  * Every domain's calls under the one name 90-odd modules already import.
@@ -30,4 +32,5 @@ export const apiClient = {
   ...billingApi,
   ...grapeRankApi,
   ...adminApi,
+  ...passkeyVaultApi,
 };

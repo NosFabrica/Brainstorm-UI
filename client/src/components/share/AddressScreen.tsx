@@ -8,6 +8,7 @@ import { OpenElsewhere } from "@/components/share/OpenElsewhere";
 import { ArticleScreen, ArticleShell, type AddressPointer, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { EventScreen } from "@/components/share/EventScreen";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { BOOKSHELF_KIND, PUBLICATION_INDEX_KIND, PUBLICATION_SECTION_KIND } from "@/lib/publication";
 
 /**
  * An `naddr`: whatever its author last published at the address. The
@@ -52,7 +53,17 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
         <div className="py-20 text-center">
           <FileText className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
           <p className="mt-3 font-medium text-slate-600 dark:text-slate-300">
-            We couldn’t find this {READER_KINDS.has(ptr.kind) ? "article" : "post"} on the relays.
+            We couldn’t find this{" "}
+            {ptr.kind === PUBLICATION_INDEX_KIND
+              ? "publication"
+              : ptr.kind === PUBLICATION_SECTION_KIND
+                ? "section"
+                : ptr.kind === BOOKSHELF_KIND
+                  ? "bookshelf"
+                  : READER_KINDS.has(ptr.kind)
+                    ? "article"
+                    : "post"}{" "}
+            on the relays.
           </p>
           {/* The naddr says which kind it is, so only clients that render it are offered. */}
           <OpenElsewhere

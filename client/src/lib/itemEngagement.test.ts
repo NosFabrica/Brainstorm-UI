@@ -45,16 +45,16 @@ describe("githubClaimantsOf", () => {
   it("keeps only profiles whose claim really is this GitHub handle, newest profile per person, however the relay matched", () => {
     const out = githubClaimantsOf(
       [
-        profile(A, 10, [["i", "github:VitorPamplona", "cf19e2d1"]]),
-        profile(B, 10, [["i", "twitter:vitorpamplona", "160375"]]),
-        profile(C, 10, [["i", "github:vitorpamplona-fan", ""]]),
-        profile(A, 20, [["i", "github:vitorpamplona", "new-proof"]]),
+        profile(A, 10, [["i", "github:OctoCat", "cf19e2d1"]]),
+        profile(B, 10, [["i", "twitter:octocat", "160375"]]),
+        profile(C, 10, [["i", "github:octocat-fan", ""]]),
+        profile(A, 20, [["i", "github:octocat", "new-proof"]]),
         profile("d".repeat(64), 10, [
           ["i", "github:other"],
-          ["i", "github:vitorpamplona", "p2"],
+          ["i", "github:octocat", "p2"],
         ]),
       ],
-      "vitorpamplona",
+      "octocat",
     );
     expect(out).toEqual([
       { pubkey: A, proof: "new-proof" },
@@ -65,13 +65,13 @@ describe("githubClaimantsOf", () => {
 
 describe("endorsementTemplate", () => {
   it("is a NIP-25 '+' on the item: by id and by address, with its author and kind, each pointing at the hub", () => {
-    const item = { id: "1".repeat(64), kind: 39999, pubkey: B, tags: [["d", "nous-clawds4-1vk793p"]] };
+    const item = { id: "1".repeat(64), kind: 39999, pubkey: B, tags: [["d", "octocat-1vk793p"]] };
     expect(endorsementTemplate(item, "wss://dcosl.brainstorm.world")).toEqual({
       kind: 7,
       content: "+",
       tags: [
         ["e", "1".repeat(64), "wss://dcosl.brainstorm.world"],
-        ["a", `39999:${B}:nous-clawds4-1vk793p`, "wss://dcosl.brainstorm.world"],
+        ["a", `39999:${B}:octocat-1vk793p`, "wss://dcosl.brainstorm.world"],
         ["p", B],
         ["k", "39999"],
       ],

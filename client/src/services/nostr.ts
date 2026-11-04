@@ -1,6 +1,12 @@
 import { nip19, finalizeEvent, generateSecretKey, verifyEvent, type EventTemplate } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
-import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
+import {
+  declaresTrustProvider,
+  listRows,
+  mergeDesignation,
+  signalRows,
+  type ListDesignation,
+} from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
@@ -8,6 +14,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { PUBLICATION_INDEX_KIND } from "@/lib/publication";
 import { newestPerAddress } from "@/lib/newestPerAddress";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -872,6 +879,32 @@ export async function fetchCollectionProducts(
   return newestPerAddress(answers.flat());
 }
 
+/**
+ * The NKBIP-01 publication indexes (kind 30040) that list `coordinate` among
+ * their contents: a section's book, or a part's. Most sections name no book
+ * of their own, so their book is whoever lists them. With `kind` 30045, the
+ * bookshelves a shelf sits on. Asked of the search relay and the author's
+ * own relays together; never rejects.
+ */
+export async function fetchIndexesListing(
+  coordinate: string,
+  pubkey: string,
+  hints: string[] = [],
+  kind = PUBLICATION_INDEX_KIND,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const filter = { kinds: [kind], "#a": [coordinate], limit: 20 };
+  const searched = fetchFromSearchRelayByFilters([filter], timeoutMs).catch(() => [] as NostrEvent[]);
+  // The address's own hints beside the author's outbox, never instead of it.
+  const outbox = await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS);
+  const relays = besidesSearchRelay(dedupeRelays([...hints, ...outbox]));
+  const answers = await Promise.all([
+    searched,
+    fetchEventsByFilter(filter, relays, timeoutMs).catch(() => [] as NostrEvent[]),
+  ]);
+  return newestPerAddress(answers.flat());
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
 export function fetchFromSearchRelayByFilters(
@@ -991,7 +1024,8 @@ export async function fetchEventsByAuthors(
 }
 
 /**
- * Fetch notes + long-form articles carrying a `#t` hashtag tag, newest first.
+ * Fetch notes, long-form articles and publications (NKBIP-01 books: their
+ * topics are on the book, not its chapters) carrying a `#t` hashtag tag, newest first.
  * Powers the `/t/:hashtag` content feed. Queries content relays only (not the
  * profile-only relay). The tag is lowercased — Nostr `t` tags are lowercase by
  * convention.
@@ -1003,7 +1037,7 @@ export async function fetchNotesByHashtag(
   const t = tag.toLowerCase().replace(/^#/, "").trim();
   if (!t) return [];
   const events = await fetchEventsByFilter(
-    { kinds: [1, 30023], "#t": [t], limit: opts.limit ?? 100 },
+    { kinds: [1, 30023, PUBLICATION_INDEX_KIND], "#t": [t], limit: opts.limit ?? 100 },
     CONTENT_RELAYS,
     opts.timeoutMs ?? 6000,
   );
@@ -1508,21 +1542,18 @@ export async function announceRelayList(): Promise<PublishOutcome> {
 }
 
 /**
- * The user's kind-10040 naming Brainstorm: rank and followers, plus every
- * Trusted List kind when they have lists — merged into the tags they already
- * have (`existing`), so another provider's rows survive. It used to be rebuilt
- * from our two rows alone, dropping everything else.
+ * The user's kind-10040 naming Brainstorm: every signal the Assistant publishes
+ * (`signalRows`), plus every Trusted List kind when they have lists — merged
+ * into the tags they already have (`existing`), so another provider's rows
+ * survive. It used to be rebuilt from our two rows alone, dropping everything
+ * else; and until #313 it named rank and followers only.
  */
 export async function signNip85(
   serviceKey: string,
   relayHint: string,
   opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
 ): Promise<NostrEvent> {
-  const ours = [
-    ["30382:rank", serviceKey, relayHint],
-    ["30382:followers", serviceKey, relayHint],
-    ...(opts.lists ? listRows(opts.lists) : []),
-  ];
+  const ours = [...signalRows(serviceKey, relayHint), ...(opts.lists ? listRows(opts.lists) : [])];
   return signAs(requireActiveAccount(), {
     kind: 10040,
     tags: mergeDesignation(opts.existing ?? [], ours),

@@ -11,7 +11,7 @@
  * nothing they didn't start can raise a password box.
  */
 import { npubEncode } from "nostr-tools/nip19";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Subject } from "rxjs";
 
 import {
   setRecoveryPasswordPrompt,
@@ -24,11 +24,19 @@ export type UnlockPrompt = {
   pubkey: string;
   /** Which Account is being unlocked — the modal names it, since the copy can't. */
   npub: string;
+  /** Whether a Recovery password can open it at all. A passkey-only Account can't. */
+  hasPassword: boolean;
   /**
    * Try a password. When it opens the Backup the waiting action resumes and this
    * prompt closes; otherwise the reason comes back for the modal to show.
    */
   submit(password: string): Promise<UnlockAttemptResult>;
+  /**
+   * Unlock with one of the Account's passkeys, when it has any. On success the
+   * waiting action resumes and this prompt closes; a failure — a cancelled
+   * system sheet included — throws, and the prompt stays up.
+   */
+  passkey?: () => Promise<void>;
   /** A deliberate no: the waiting action rejects with `UnlockCancelled`. */
   cancel(): void;
 };
@@ -38,6 +46,12 @@ export type UnlockPrompt = {
  * still sees a request already in flight.
  */
 export const unlockPrompt$ = new BehaviorSubject<UnlockPrompt | null>(null);
+
+/**
+ * An Account the user just opened by typing its Recovery password — the moment
+ * offering a passkey is worth an interruption (`PasskeyOffer`).
+ */
+export const unlockedByPassword$ = new Subject<string>();
 
 /**
  * One prompt at a time, in arrival order. Concurrent signs on one Account already
@@ -63,16 +77,26 @@ function npubOf(pubkey: string): string {
   }
 }
 
-function show({ signer, attempt }: RecoveryPasswordRequest): Promise<void> {
+function show({ signer, attempt, hasPassword, passkey }: RecoveryPasswordRequest): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     unlockPrompt$.next({
       pubkey: signer.pubkey,
       npub: npubOf(signer.pubkey),
+      hasPassword,
       submit: async (password) => {
         const result = await attempt(password);
-        if (result.ok) resolve();
+        if (result.ok) {
+          resolve();
+          unlockedByPassword$.next(signer.pubkey);
+        }
         return result;
       },
+      passkey: passkey
+        ? async () => {
+            await passkey();
+            resolve();
+          }
+        : undefined,
       cancel: () => reject(new UnlockCancelled()),
     });
   }).finally(() => unlockPrompt$.next(null));

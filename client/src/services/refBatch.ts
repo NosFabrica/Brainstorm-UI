@@ -26,6 +26,22 @@ export function coordOfAddr(addr: string): Omit<Coord, "relays"> | null {
 }
 
 const WINDOW_MS = 50;
+/**
+ * At most this many references go in one ask: a `#d` or `ids` list a relay
+ * takes, answered under its result cap. A book's contents drawn together can
+ * gather a thousand in one window.
+ */
+const ASK_SIZE = 100;
+/**
+ * At most this many distinct relay hints are dialled per flush. A hint is
+ * whoever published the reference's to write; a page of them, each naming
+ * its own relay, would open a socket per reference — each one learning who
+ * is reading.
+ */
+const MAX_HINTS = 8;
+
+const inAsks = <T>(items: T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / ASK_SIZE) }, (_, i) => items.slice(i * ASK_SIZE, (i + 1) * ASK_SIZE));
 
 let ids = new Map<string, string | undefined>();
 let coords = new Map<string, Coord>();
@@ -43,14 +59,19 @@ async function flush(): Promise<void> {
   coords = new Map();
   waiting = [];
   timer = undefined;
-  const hints = [...new Set([...askIds.values()].filter(isRelay))];
-  const [byIds, byCoords] = await Promise.allSettled([
-    askIds.size ? fetchEventsByIds([...askIds.keys()], [...hints, ...PROFILE_RELAYS]) : [],
-    askCoords.size ? fetchAddressableEvents([...askCoords.values()]) : new Map<string, NostrEvent>(),
+  const allowed = new Set<string>();
+  for (const hint of [...askIds.values(), ...[...askCoords.values()].flatMap((c) => c.relays ?? [])])
+    if (isRelay(hint) && allowed.size < MAX_HINTS) allowed.add(hint);
+  // Each ask is sent to its own references' hints, among those allowed.
+  const hints = [...new Set([...askIds.values()].filter((r): r is string => !!r && allowed.has(r)))];
+  const capped = [...askCoords.values()].map((c) => ({ ...c, relays: c.relays?.filter((r) => allowed.has(r)) }));
+  const [byIds, byCoords] = await Promise.all([
+    Promise.allSettled(inAsks([...askIds.keys()]).map((part) => fetchEventsByIds(part, [...hints, ...PROFILE_RELAYS]))),
+    Promise.allSettled(inAsks(capped).map((part) => fetchAddressableEvents(part))),
   ]);
   const answer: Answer = {
-    byId: new Map(byIds.status === "fulfilled" ? byIds.value.map((e) => [e.id, e]) : []),
-    byCoord: byCoords.status === "fulfilled" ? byCoords.value : new Map(),
+    byId: new Map(byIds.flatMap((r) => (r.status === "fulfilled" ? r.value.map((e) => [e.id, e] as const) : []))),
+    byCoord: new Map(byCoords.flatMap((r) => (r.status === "fulfilled" ? [...r.value] : []))),
   };
   done.forEach((resolve) => resolve(answer));
 }

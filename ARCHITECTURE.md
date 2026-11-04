@@ -167,10 +167,29 @@ screen size. `scripts/pwa-assets.mjs` draws all the raster art from `favicon.svg
 
 Real-device checks before shipping a change here: `docs/agents/pwa-checklist.md`.
 
+## Passkeys
+
+A passkey unlocks a key the app holds (a `LocalAccount`); it is not a Signer and
+never the Backup ([ADR 0009](docs/adr/0009-passkey-unlocks-a-held-key.md)). The key
+is sealed under the passkey's PRF output (`accounts/passkey.ts`) and kept on the
+Account as `LocalSignerData.passkeys`. The same seal goes to the backend
+(`/passkeyVault`, Session-gated writes) so a synced passkey can sign in on a new
+device: `loginWithPasskey` asks for a server challenge, the system sheet offers
+every passkey for this host, and the one picked is handed its seal only for an
+assertion over that challenge. The backend cannot open a seal.
+
+Surfaces: the login page's "Sign in with Face ID" (`PasskeySignInButton`, which
+prefetches the challenge so Safari's gesture survives), "Create with Face ID" in
+`CreateAccountModal`, the passkey pane of `UnlockModal`, the one-time offer after a
+password unlock (`PasskeyOffer`), and Settings › Account › Passkeys
+(`PasskeySettings`). Everything hides where `passkeySupport()` says the browser
+can't do PRF. `rp.id` is `location.hostname`: staging and production passkeys are
+separate, and a local UI needs its origin in the backend's `PASSKEY_ORIGINS`.
+
 ## External Dependencies
 
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
-- **Brainstorm Backend API:** Switchable between Staging (`brainstormserver-staging.nosfabrica.com`) and Production (`brainstormserver.nosfabrica.com`) via admin environment selector. Selection persisted in `localStorage` key `brainstorm_api_env`. Dynamic URL resolution in `client/src/services/api.ts` via `getApiEnvironment()`/`setApiEnvironment()`/`getApiBaseUrl()`. Admin dashboard shows environment badge and requires confirmation dialog before switching (with extra warning for Production).
+- **Brainstorm Backend API:** Each deployment talks to one API, named by `VITE_API_URL`: staging's UI to `brainstormserver-staging.nosfabrica.com`, production's to `api.brainstorm.world`. `docker-entrypoint.sh` writes it into `config.js` (`window.__ENV__`) when the container starts. `client/src/lib/runtimeEnv.ts` reads it from there, or from the build while `config.js` still holds the placeholder: that's how `npm run dev` gets it (`docs/agents/run-ui.md`) and how the Android build carries production's. The API calls get it from `getBrainstormApi()` in `client/src/services/api/core.ts`. There is no in-app switch: the staging/production toggle was dropped on 2026-04-21 (`c66e8e2a`), and `core.ts` only clears its old `brainstorm_api_env` key.
 - **Nostr HTTP APIs:** `api.nostr.band` and `purplepag.es` serve as HTTP fallback for profile fetching.
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
 

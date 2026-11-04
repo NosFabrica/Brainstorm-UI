@@ -301,3 +301,30 @@ describe("summarizeResult — a video marked sensitive", () => {
     expect(summarizeResult(ev(16, [], JSON.stringify(short()))).sensitive).toBeUndefined();
   });
 });
+
+describe("NKBIP-01 publications as rows", () => {
+  const section = ev(
+    30041,
+    [["d", "constitution-article-i-section-1"]],
+    "== Article I\n[NOTE]\n====\nAll legislative Powers herein granted shall be vested in a link:https://x.org[Congress].\n====\n. one\n. two",
+  );
+
+  it("an untitled section is named by its slug and reads as words, not AsciiDoc", () => {
+    const s = summarizeResult(section);
+    expect(s.title).toBe("Constitution Article I Section 1");
+    expect(s.body).toContain("All legislative Powers herein granted shall be vested in a Congress.");
+    expect(s.body).not.toMatch(/==|\[NOTE\]|link:|====/);
+  });
+
+  it("a bookshelf says what is on it", () => {
+    const shelf = ev(30045, [
+      ["d", "root"],
+      ["a", `30040:${PK}:a-book`],
+      ["a", `30040:${PK}:another`],
+      ["a", `30045:${PK}:poetry`],
+    ]);
+    const s = summarizeResult(shelf);
+    expect(s.title).toBe("Bookshelf");
+    expect(s.body).toBe("2 books · 1 shelf");
+  });
+});

@@ -30,6 +30,9 @@ const dm = vi.hoisted(() => ({
   state: { status: "stopped", inboxRelays: [] as string[] },
 }));
 vi.mock("@/hooks/useDirectMessages", () => ({ useDmEngine: () => dm.engine, useDmState: () => dm.state }));
+// Who holds the rank duty today, by name — null when nobody or not yet known.
+const rankProvider = vi.hoisted(() => ({ value: null as null | { name: string; host: string } }));
+vi.mock("@/hooks/useRankProvider", () => ({ useRankProvider: () => rankProvider.value }));
 
 const setupState = vi.fn<() => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -45,6 +48,8 @@ function state(overrides: Partial<FinishSetupState>): FinishSetupState {
     activateDone: false,
     activatePending: true,
     scoresElsewhere: false,
+    signalsPending: false,
+    missingSignals: [],
     remaining: 2,
     doneCount: 1,
     totalSteps: 3,
@@ -59,6 +64,30 @@ describe("FinishSetupPage", () => {
     vi.clearAllMocks();
     dm.engine = null;
     dm.state = { status: "stopped", inboxRelays: [] };
+  });
+
+  /**
+   * One frame for every step — what it is, what it does for you, who signs it —
+   * so "Activate", "Publish" and "Use" stop reading as three different rituals.
+   */
+  it("says who signs each step, in the same words", () => {
+    setupState.mockReturnValue(
+      state({
+        followDone: true,
+        followPending: false,
+        dutyMenu: "missing",
+        dutyMenuPending: true,
+        treasureMap: "missing",
+        treasureMapPending: true,
+        remaining: 3,
+        doneCount: 2,
+        totalSteps: 5,
+      }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.getByTestId("setup-row-activate")).toHaveTextContent("You sign it — one signature.");
+    expect(screen.getByTestId("setup-row-duty-menu")).toHaveTextContent("Your Assistant signs it — one tap.");
+    expect(screen.getByTestId("setup-row-treasure-map")).toHaveTextContent("Your Assistant signs it — one tap.");
   });
 
   it("shows both pending steps and routes each to its surface", () => {
@@ -134,6 +163,35 @@ describe("FinishSetupPage", () => {
   });
 
   // Activated, lists waiting: the step stays done, the update sits under it.
+  /**
+   * Issue #313: a Map that gives their Assistant rank but not every signal is
+   * the Activate step again — worded as the update it is, naming what the
+   * re-sign adds, on the same page that signs it.
+   */
+  it("asks for the Treasure Map again when it is short of signals, naming them", () => {
+    setupState.mockReturnValue(
+      state({
+        followDone: true,
+        followPending: false,
+        followCount: 12,
+        activateDone: false,
+        activatePending: false,
+        signalsPending: true,
+        missingSignals: ["30382:reporters", "30382:muters", "30382:hops"],
+        remaining: 1,
+        doneCount: 2,
+      }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+
+    const row = screen.getByTestId("setup-row-activate");
+    expect(row).toHaveTextContent("Update your Treasure Map");
+    expect(row).toHaveTextContent("Reporters, Muters and Hops");
+    expect(screen.queryByTestId("setup-row-activate-done")).toBeNull();
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/activate");
+  });
+
   it("keeps Activate done and offers the lists update beneath it", () => {
     setupState.mockReturnValue(
       state({
@@ -156,7 +214,8 @@ describe("FinishSetupPage", () => {
 
   // Another Assistant has the rank duty: their choice, so Activate is done and
   // says why; handing the duty to Brainstorm waits under Optional.
-  it("counts another Assistant on rank as done, and offers the switch as optional", () => {
+  it("counts another Assistant on rank as done, names it, and offers the switch as optional", () => {
+    rankProvider.value = { name: "Pip's Brainstorm Assistant", host: "scores.brainstorm.world" };
     setupState.mockReturnValue(
       state({
         followDone: true,
@@ -173,15 +232,15 @@ describe("FinishSetupPage", () => {
     renderWithProviders(<FinishSetupPage />);
 
     expect(screen.getByTestId("setup-row-activate-done")).toHaveTextContent(
-      "Your Treasure Map already names an Assistant for your scores.",
+      "Your Treasure Map names Pip's Brainstorm Assistant for your scores.",
     );
     expect(screen.getByTestId("card-setup-all-done")).toHaveTextContent(
-      "Other apps find your scores through the Assistant your Treasure Map names.",
+      "Other apps find your scores through Pip's Brainstorm Assistant.",
     );
     const optional = screen.getByTestId("setup-optional");
-    expect(within(optional).getByTestId("setup-row-scores-switch")).toHaveTextContent(
-      "Use your Brainstorm Assistant for scores",
-    );
+    const switchRow = within(optional).getByTestId("setup-row-scores-switch");
+    expect(switchRow).toHaveTextContent("Use your Brainstorm Assistant for scores");
+    expect(switchRow).toHaveTextContent("Your scores come from Pip's Brainstorm Assistant today.");
 
     fireEvent.click(screen.getByTestId("setup-scores-switch"));
     expect(navigate).toHaveBeenCalledWith("/setup/activate");

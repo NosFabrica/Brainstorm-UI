@@ -73,6 +73,8 @@ export function kindTypeLabel(kind: number): string {
       return "Publication";
     case 30041:
       return "Section";
+    case 30045:
+      return "Bookshelf";
     case 30818:
       return "Wiki";
     case 30142:

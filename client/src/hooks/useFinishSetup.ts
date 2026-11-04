@@ -55,7 +55,10 @@ export interface FinishSetupState {
   /** Relay-verified "this account really follows nobody". */
   followPending: boolean;
   followCount: number;
-  /** Brainstorm's Assistant has the rank duty — or another Assistant does (`scoresElsewhere`). */
+  /**
+   * Brainstorm's Assistant has the rank duty and every signal it publishes —
+   * or another Assistant has rank (`scoresElsewhere`).
+   */
   activateDone: boolean;
   /** Relay-verified "their Treasure Map gives no Assistant the rank duty". */
   activatePending: boolean;
@@ -64,6 +67,15 @@ export interface FinishSetupState {
    * done, and handing that duty to their Brainstorm Assistant is an optional extra.
    */
   scoresElsewhere: boolean;
+  /**
+   * Their Treasure Map gives their Brainstorm Assistant the rank duty but not
+   * every signal it publishes (#313): the Activate step again, counted in
+   * `remaining`, until a re-sign names them all. Never when another Assistant
+   * has rank — that Map is theirs to complete.
+   */
+  signalsPending: boolean;
+  /** The `30382:*` signals that re-sign would add; empty when none. */
+  missingSignals: string[];
   /**
    * Activated, but they have Trusted Lists their 10040 doesn't name yet: an
    * update to publish (ListsUpdate), NOT a setup step — never counted in
@@ -104,7 +116,9 @@ export function useFinishSetup(): FinishSetupState {
   const followVerdict = useVerifiedNoFollows(pubkey);
   const historyQuery = useSelfHistory(pubkey);
   const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
-  const providerStatus = useTrustProviderStatus(pubkey, taPubkey).data;
+  const provider = useTrustProviderStatus(pubkey, taPubkey);
+  const providerStatus = provider.data;
+  const missing = provider.missingSignals;
   const locallyActivated = isNip85Activated(pubkey);
   const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
   const dmStatus = useDmStatus();
@@ -122,7 +136,11 @@ export function useFinishSetup(): FinishSetupState {
     // Another Assistant has the rank duty: their choice, so the step is done —
     // the same respect the automatic publish shows it (ensureBrainstormTrustAnchor).
     const scoresElsewhere = signedIn && providerStatus === "other";
-    const activateDone = brainstormActive || scoresElsewhere;
+    // Theirs, but short of a signal: the step comes back until they re-sign.
+    // Only once the relays have answered (`missing` defined), never on a guess.
+    const missingSignals = signedIn && brainstormActive && !scoresElsewhere ? (missing ?? []) : [];
+    const signalsPending = missingSignals.length > 0;
+    const activateDone = (brainstormActive && !signalsPending) || scoresElsewhere;
     const activatePending = signedIn && !activateDone && providerStatus === "none";
     // Their Trusted Lists exist but the 10040 doesn't name them: an update,
     // flagged apart from the steps — only where Brainstorm's Assistant is theirs.
@@ -142,7 +160,10 @@ export function useFinishSetup(): FinishSetupState {
       mapCounted && selfMap.settled && (treasureMap === "missing" || treasureMap === "out-of-date");
 
     const remaining =
-      (followPending ? 1 : 0) + (activatePending ? 1 : 0) + (dutyMenuPending ? 1 : 0) + (treasureMapPending ? 1 : 0);
+      (followPending ? 1 : 0) +
+      (activatePending || signalsPending ? 1 : 0) +
+      (dutyMenuPending ? 1 : 0) +
+      (treasureMapPending ? 1 : 0);
     // The counted steps: account (done once signed in), follow list, activation, then the Duty Menu and Treasure Map where offered.
     const steps = [
       true,
@@ -171,6 +192,8 @@ export function useFinishSetup(): FinishSetupState {
       activateDone,
       activatePending,
       scoresElsewhere,
+      signalsPending,
+      missingSignals,
       listsPending,
       dutyMenu,
       dutyMenuPending,
@@ -187,6 +210,7 @@ export function useFinishSetup(): FinishSetupState {
     pubkey,
     followVerdict,
     providerStatus,
+    missing,
     locallyActivated,
     listsStatus,
     dmStatus,

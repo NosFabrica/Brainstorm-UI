@@ -209,10 +209,7 @@ export default function DashboardPage() {
         title: `${name} is live on Nostr!`,
         description: "Speaking your scores to compatible Nostr apps.",
         action: (
-          <ToastAction
-            altText="Customize your assistant"
-            onClick={() => navigate("/settings?tab=brainstorm-assistant")}
-          >
+          <ToastAction altText="Customize your assistant" onClick={() => navigate("/settings?tab=assistants")}>
             Customize
           </ToastAction>
         ),
