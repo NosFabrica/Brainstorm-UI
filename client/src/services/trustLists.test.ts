@@ -78,6 +78,23 @@ describe("checkUserLists", () => {
     expect((await checkUserLists(ME, TA)).status).toBe("none");
   });
 
+  /**
+   * Fill empty, never take: lists another Assistant holds — another
+   * deployment's, or an external service's — are theirs. They read as
+   * "elsewhere", never "missing", so no update offers to take them.
+   */
+  it("a 10040 naming another Assistant for the lists reads as elsewhere, not missing", async () => {
+    requestAll.mockResolvedValue([list()]);
+    fetchTrustProviderList.mockResolvedValue({
+      tags: [
+        ["30382:rank", TA, "wss://nip85.example"],
+        ["30392", "e".repeat(64), "wss://other-deployment.example"],
+      ],
+    });
+    const res = await checkUserLists(ME, TA);
+    expect(res.status).toBe("elsewhere");
+  });
+
   it("a 10040 that already names them is declared", async () => {
     fetchTrustProviderList.mockResolvedValue({
       tags: [["30382:rank", TA, "wss://nip85.example"], ...listRows({ key: LIST_KEY, relay: LIST_RELAY })],

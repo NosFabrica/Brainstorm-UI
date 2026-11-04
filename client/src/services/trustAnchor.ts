@@ -17,6 +17,7 @@ import { accountKey } from "@/lib/accountStorage";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
 import { declaresTrustProvider, trustProviderStatusOf, type ListDesignation } from "@/lib/nip85Declaration";
+import type { MapCategory } from "@/lib/treasureMapCards";
 import { checkUserLists, listsToName } from "./trustLists";
 
 /**
@@ -157,7 +158,12 @@ export async function publishBrainstormTrustAnchor(
   pubkey: string,
   taPubkey: string,
   onPhase?: (phase: "signing" | "publishing") => void,
-  opts: { lists?: ListDesignation | null } = {},
+  /**
+   * `take`: the duty categories this publish may move away from another
+   * Assistant — the Activate page's "Switch" chooses Scores. Nothing by
+   * default: fill empty, never take.
+   */
+  opts: { lists?: ListDesignation | null; take?: readonly MapCategory[] } = {},
 ): Promise<TrustAnchorPublishResult> {
   let nip85Relay: string;
   try {
@@ -182,7 +188,7 @@ export async function publishBrainstormTrustAnchor(
   onPhase?.("signing");
   let signed;
   try {
-    signed = await signNip85(taPubkey, nip85Relay, { lists, existing });
+    signed = await signNip85(taPubkey, nip85Relay, { lists, existing, take: opts.take ?? [] });
   } catch (err) {
     return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
   }
@@ -226,7 +232,7 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
     if (found.status === "missing") lists = found.designation;
   } catch {}
   try {
-    const signed = await signNip85(taPubkey, getNip85RelayUrl(), { lists, existing: [] });
+    const signed = await signNip85(taPubkey, getNip85RelayUrl(), { lists, existing: [], take: [] });
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);

@@ -8,6 +8,7 @@ import {
   listRows,
   mergeDesignation,
   missingSignals,
+  planDesignation,
   rankProviderOf,
   signalRows,
 } from "./nip85Declaration";
@@ -183,6 +184,68 @@ describe("listRows / mergeDesignation", () => {
     expect(merged).not.toContainEqual(["30382:rank", OTHER_TA, RELAY]);
     expect(merged.filter((t) => t[0] === "30382:rank")).toHaveLength(1);
     expect(merged).toContainEqual(["30394", LISTS.key, LISTS.relay]);
+  });
+});
+
+/**
+ * Fill empty, never take. A path adding this deployment's Assistant to a Map
+ * fills a slot nobody holds, or one this Assistant already holds; it never
+ * replaces a row naming another Assistant — another deployment's or an
+ * external service's — unless that row's category is one the person chose to
+ * move. Rows it isn't setting are kept as they are.
+ */
+describe("planDesignation", () => {
+  const ELSEWHERE = "wss://elsewhere.example.com";
+  const LISTS = { key: TA, relay: RELAY };
+
+  it("fills slots nobody holds", () => {
+    const plan = planDesignation([], signalRows(TA, RELAY), { self: TA });
+    expect(plan).toEqual(signalRows(TA, RELAY));
+  });
+
+  it("replaces a slot this deployment's Assistant already holds", () => {
+    const plan = planDesignation([["30382:rank", TA, ELSEWHERE]], [["30382:rank", TA, RELAY]], { self: TA });
+    expect(plan).toEqual([["30382:rank", TA, RELAY]]);
+  });
+
+  it("never takes a slot another Assistant holds, in any category it wasn't asked to move", () => {
+    const existing = [
+      ["30382:rank", OTHER_TA, ELSEWHERE],
+      ["30392", OTHER_TA, ELSEWHERE],
+    ];
+    const plan = planDesignation(existing, [...signalRows(TA, RELAY), ...listRows(LISTS)], { self: TA });
+    expect(plan).toContainEqual(["30382:rank", OTHER_TA, ELSEWHERE]);
+    expect(plan).not.toContainEqual(["30382:rank", TA, RELAY]);
+    expect(plan).toContainEqual(["30392", OTHER_TA, ELSEWHERE]);
+    expect(plan).not.toContainEqual(["30392", TA, RELAY]);
+    // The empty slots beside them are still filled.
+    expect(plan).toContainEqual(["30382:followers", TA, RELAY]);
+    expect(plan).toContainEqual(["30393", TA, RELAY]);
+  });
+
+  it("takes another Assistant's slots only in the categories it was asked to move", () => {
+    const existing = [
+      ["30382:rank", OTHER_TA, ELSEWHERE],
+      ["30392", OTHER_TA, ELSEWHERE],
+    ];
+    const plan = planDesignation(existing, [...signalRows(TA, RELAY), ...listRows(LISTS)], {
+      self: TA,
+      take: ["scores"],
+    });
+    expect(plan).toContainEqual(["30382:rank", TA, RELAY]);
+    expect(plan).not.toContainEqual(["30382:rank", OTHER_TA, ELSEWHERE]);
+    expect(plan).toContainEqual(["30392", OTHER_TA, ELSEWHERE]);
+    expect(plan).not.toContainEqual(["30392", TA, RELAY]);
+  });
+
+  it("keeps every row it isn't setting", () => {
+    const unrelated = [
+      ["39998", OTHER_TA, ELSEWHERE],
+      ["client", "Brainstorm"],
+    ];
+    const plan = planDesignation(unrelated, signalRows(TA, RELAY), { self: TA, take: ["scores"] });
+    expect(plan).toContainEqual(unrelated[0]);
+    expect(plan).toContainEqual(unrelated[1]);
   });
 });
 

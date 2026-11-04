@@ -126,9 +126,25 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     const phases: string[] = [];
     const res = await publishBrainstormTrustAnchor(ME, TA, (p) => phases.push(p));
     expect(res).toEqual({ status: "success" });
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
     expect(phases).toEqual(["signing", "publishing"]);
+  });
+
+  /**
+   * Fill empty, never take: a publish moves a duty away from another Assistant
+   * only in the categories its caller chose — the Activate page's "Switch"
+   * chooses Scores; the lists update and everything else choose nothing.
+   */
+  it("takes only the categories its caller chose, and nothing by default", async () => {
+    await publishBrainstormTrustAnchor(ME, TA, undefined, { take: ["scores"] });
+    expect(signNip85).toHaveBeenLastCalledWith(
+      TA,
+      "wss://nip85.example",
+      expect.objectContaining({ take: ["scores"] }),
+    );
+    await publishBrainstormTrustAnchor(ME, TA);
+    expect(signNip85).toHaveBeenLastCalledWith(TA, "wss://nip85.example", expect.objectContaining({ take: [] }));
   });
 
   // Adding the list rows must not cost the user anything already in their 10040.
@@ -140,7 +156,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     const res = await publishBrainstormTrustAnchor(ME, TA, undefined, { lists: LISTS });
 
     expect(res).toEqual({ status: "success" });
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: theirs });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: theirs, take: [] });
   });
 
   /**
@@ -155,7 +171,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     const res = await publishBrainstormTrustAnchor(ME, TA);
 
     expect(res).toEqual({ status: "success" });
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: [] });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: [], take: [] });
   });
 
   it("a caller that says null means it — no lists, no lookup", async () => {
@@ -163,7 +179,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
 
     expect(res).toEqual({ status: "success" });
     expect(listsToName).not.toHaveBeenCalled();
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
   });
 
   it("a refused signature is cancelled, not an error", async () => {
@@ -303,7 +319,7 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
   it("publishes when relays hold no declaration at all", async () => {
     await ensureBrainstormTrustAnchor(ME, TA);
 
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
 });

@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle } from "lucide-react";
 import { checkExistingTrustProvider, publishBrainstormTrustAnchor } from "@/services/trustAnchor";
+import { useRankProvider } from "@/hooks/useRankProvider";
+import { useVerifiedHost } from "@/hooks/useVerifiedHost";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { nip85ExplainerSections } from "@/components/nip85Explainer";
 
@@ -24,6 +26,10 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   // WoT provider (a kind-10040 whose rank target isn't Brainstorm's). If so, we
   // warn that continuing replaces it — informed consent, not a silent overwrite.
   const [hasOtherProvider, setHasOtherProvider] = useState(false);
+  // Who holds the rank duty today, by name, and the site its NIP-05 verifies on.
+  const holder = useRankProvider(hasOtherProvider ? user?.pubkey : null);
+  const holderSite = useVerifiedHost(holder?.pubkey);
+  const holderLabel = holder ? `${holder.name}${holderSite ? ` (${holderSite})` : ""}` : "your current Assistant";
 
   useEffect(() => {
     // Cleared on every run, not only on close. Now that the Account is a
@@ -71,7 +77,8 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
-    const result = await publishBrainstormTrustAnchor(user.pubkey, serviceKey, setActivateState);
+    // Activating moves Scores and only Scores; lists another Assistant holds stay theirs.
+    const result = await publishBrainstormTrustAnchor(user.pubkey, serviceKey, setActivateState, { take: ["scores"] });
 
     if (result.status === "success") {
       setActivateState("success");
@@ -279,9 +286,8 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                       >
                         <AlertCircle className="mt-px h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                         <p className="text-[12px] leading-relaxed text-amber-800 dark:text-amber-200">
-                          Another provider is already publishing your scores. Continuing will{" "}
-                          <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions
-                          going forward.
+                          This <strong className="font-bold">replaces {holderLabel}</strong> for your scores. Only your
+                          scores move: lists and concepts another Assistant keeps stay with it.
                         </p>
                       </div>
                     ) : (

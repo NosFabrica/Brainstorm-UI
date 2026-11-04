@@ -1,4 +1,5 @@
 import type { NostrEvent } from "applesauce-core/helpers";
+import { appliesTo, CATEGORIES, entryOf, type MapCategory } from "@/lib/treasureMapCards";
 
 /**
  * Does this kind-10040 declare `taPubkey` (publishing on `relayUrl`) as the
@@ -77,6 +78,36 @@ export function listRows({ key, relay }: ListDesignation): string[][] {
 export function mergeDesignation(existing: string[][], rows: string[][]): string[][] {
   const ours = new Set(rows.map((r) => r[0]));
   return [...existing.filter((t) => !ours.has(t[0])), ...rows];
+}
+
+/** The duty category a row's key falls in, as the Treasure Map reads it; null for a key that isn't a duty. */
+function categoryOfKey(key: string): MapCategory | null {
+  const entry = entryOf([key, "0".repeat(64)]);
+  return entry ? (CATEGORIES.find((c) => appliesTo(c, entry)) ?? null) : null;
+}
+
+/**
+ * Fill empty, never take. The user's 10040 tags with this deployment's
+ * Assistant (`self`) set in `rows` — but a row is only set where nobody holds
+ * that slot, or `self` already does. A slot another Assistant holds (another
+ * deployment's, or an external service's) is kept as it is unless its duty
+ * category is in `take`: the categories the person chose to move. Rows it
+ * isn't setting are kept. Compares keys, never hosts.
+ */
+export function planDesignation(
+  existing: string[][],
+  rows: string[][],
+  { self, take = [] }: { self: string; take?: readonly MapCategory[] },
+): string[][] {
+  const me = self.toLowerCase();
+  const heldElsewhere = (label: string) =>
+    existing.some((t) => t[0] === label && typeof t[1] === "string" && t[1].toLowerCase() !== me);
+  const mine = rows.filter((r) => {
+    if (!heldElsewhere(r[0])) return true;
+    const category = categoryOfKey(r[0]);
+    return category !== null && take.includes(category);
+  });
+  return mergeDesignation(existing, mine);
 }
 
 const sameRelay = (a: unknown, b: string) =>

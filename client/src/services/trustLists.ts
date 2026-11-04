@@ -17,7 +17,12 @@ import { eventStore } from "@/lib/eventStore";
 import { lastAnswer } from "@/lib/askOnce";
 
 /** "missing": lists exist and the 10040 doesn't name them — ask the user to publish again. */
-export type UserListsStatus = "none" | "declared" | "missing";
+/**
+ * `elsewhere`: the 10040 names another Assistant for the lists — another
+ * deployment's, or an external service's. Theirs to keep: fill empty, never
+ * take, so nothing offers to move them.
+ */
+export type UserListsStatus = "none" | "declared" | "missing" | "elsewhere";
 
 export interface UserLists {
   status: UserListsStatus;
@@ -56,7 +61,7 @@ export const listsFilter = LIST_FILTER;
 export const askLists = (designation: ListDesignation) =>
   requestAll([designation.relay], LIST_FILTER(designation), 8000);
 
-/** Given the 10040 and the lists found: are there live lists it doesn't name? */
+/** Given the 10040 and the lists found: are there live lists it doesn't name — and may name? */
 export function listsStatusOf(
   declaration: { tags: string[][] } | null | undefined,
   designation: ListDesignation,
@@ -65,7 +70,14 @@ export function listsStatusOf(
   if (declaresLists(declaration, designation)) return "declared";
   // A retraction is an empty list; only a live one is worth a signature.
   const live = lists.some((e) => !e.tags.some((t) => t[0] === "status" && t[1] === "retracted"));
-  return live ? "missing" : "none";
+  if (!live) return "none";
+  // Another Assistant holds the list slots: theirs, so nothing here to fill.
+  const kinds = new Set<string>(LIST_KINDS);
+  const key = designation.key.toLowerCase();
+  const heldElsewhere = (declaration?.tags ?? []).some(
+    (t) => kinds.has(t[0]) && typeof t[1] === "string" && t[1].toLowerCase() !== key,
+  );
+  return heldElsewhere ? "elsewhere" : "missing";
 }
 
 export async function checkUserLists(pubkey: string, taPubkey: string): Promise<UserLists> {
