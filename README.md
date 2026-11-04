@@ -81,7 +81,7 @@ there is no deploy script to run. Details in
 
 ## The wider estate
 
-This repository is the production UI of a two-organization estate operated by one team. Protocols and features are piloted in the R&D counterpart, [`nous-clawds4/tapestry`](https://github.com/nous-clawds4/tapestry), then adopted here. The canonical map of the estate — every repository, deployment, and role — is [ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md) in [`NosFabrica/protocols`](https://github.com/NosFabrica/protocols), which also houses the wire-format specifications this UI consumes.
+This repository is the production UI of a two-organization estate operated by one team. Protocols and features are piloted in the R&D counterpart, [`nousclawds4/tapestry`](https://github.com/nousclawds4/tapestry), then adopted here. The canonical map of the estate — every repository, deployment, and role — is [ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md) in [`NosFabrica/protocols`](https://github.com/NosFabrica/protocols), which also houses the wire-format specifications this UI consumes.
 
 ## License
 
