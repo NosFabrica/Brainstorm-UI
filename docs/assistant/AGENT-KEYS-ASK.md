@@ -14,9 +14,10 @@ Today there is no way: the server has no key routes, and the only "keys" it know
 payment provider's credentials. (Admin › Users already promises "Developer API keys are not
 affected" by Sign out everywhere — this is what that sentence will describe.)
 
-The flow was prototyped on `prototype/assistant-ux`, `?variant=KA`: Settings › Assistants ›
-**Connected agents**, a list of agents with **Connect an agent** → name it → choose what it may
-do → copy its key, shown once.
+The flow was prototyped on `prototype/assistant-ux`, `?variant=KA` (chosen over a one-page
+form, `KB`): a list of connected agents, and **Connect an agent** → name it → choose what it may
+do → copy its key, shown once. Three steps, so publishing is a choice of its own and the key
+has its own screen.
 
 ## The permissions
 
@@ -89,8 +90,10 @@ Every use updates `last_used_at`. Rate limits are per key.
 
 ## What the UI shows
 
-- Settings › Assistants › **Connected agents**, for everyone: each key's name, permission chips,
-  created and last used, and **Revoke** behind an in-page confirmation.
+- **Connected agents** on Settings › Assistants › Yours, for everyone, below _Also working for
+  you_ — one place for everything working for the person. It appears once they have a key; until
+  then, a single **Connect an agent**. Each key: name, permission chips, created and last used,
+  and **Revoke** behind an in-page confirmation.
 - **Connect an agent**: name → permissions (`publish` off, marked "Signs as your Assistant") →
   the key, shown once with a copy button and a ready prompt — the same prompt the Developers
   page's "Set up with your AI agent" card offers, with the key in it.

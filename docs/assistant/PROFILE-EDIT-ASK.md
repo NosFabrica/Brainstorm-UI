@@ -16,8 +16,10 @@ picture, banner and bio. Today the server writes it and the person can't change 
 fields to it (`publishBrainstormAssistantProfile`), and they are dropped.
 
 The Assistant card's **Customize › Name, picture & bio** is waiting on this, shown and marked
-"soon". The flow it will open was prototyped on `prototype/assistant-ux`, `?variant=PA`: a side
-sheet of fields over a live preview of the card, "Reset to default" per field, one Publish.
+"soon". The flow it will open was prototyped on `prototype/assistant-ux`, `?variant=PB` (chosen
+over a side sheet, `PA`): the Assistant card turns into its own form in place, as Settings ›
+Profile's **Edit** does for the person's own profile — fields beside a live preview of the card,
+"Reset to default" per field, one Publish.
 
 ## The endpoints
 
@@ -79,8 +81,9 @@ server alone knows.
 
 - **Customize › Name, picture & bio** turns on when `GET` answers; on a server without it, it stays
   "soon".
-- The sheet: fields from the current profile, defaults from `GET`, a live preview, one **Publish**
-  ("Your Assistant signs it — one tap"), then the relay report and _View on Nostr_.
+- Edit in place, on the Assistant card itself — the same gesture as editing your own profile:
+  fields from the current profile, defaults from `GET`, a live preview, one **Publish** ("Your
+  Assistant signs it — one tap") and Cancel, then the relay report and _View on Nostr_.
 - Only this deployment's Assistant is editable here. Another deployment's Assistant, in
   _Your Assistants_, links out to that site — only its server holds its key.
 
