@@ -117,6 +117,7 @@ import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
+import { InternalChip } from "@/components/InternalChip";
 
 type SettingsTab = SettingsTabKey;
 
@@ -154,18 +155,6 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
 // so on the tab — is lib/settingsTab (settingsTabsFor). The Dictionary
 // (2026-10-05): still an internal demo. Its renderers, on list items' pages,
 // cards and search rows, are for everyone; only the page about them is hidden.
-
-/** "internal" on a tab or view only admins have — what regular users don't see yet. */
-function InternalChip() {
-  return (
-    <span
-      className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-px align-middle text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-      data-testid="chip-internal"
-    >
-      internal
-    </span>
-  );
-}
 
 export default function SettingsPage() {
   const [, navigate] = useLocation();

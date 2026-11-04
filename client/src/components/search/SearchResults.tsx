@@ -12,6 +12,7 @@ import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import {
@@ -808,6 +809,7 @@ function FiltersPanel({
   tab: SearchTab;
   onQueryRewrite: (next: string) => void;
 }) {
+  const loginHref = useLoginHref();
   const sortOptions = tab === "shop" ? [...SORT_OPTIONS, ...PRICE_SORTS] : SORT_OPTIONS;
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
@@ -861,7 +863,7 @@ function FiltersPanel({
       {!userPubkey && (
         <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
           Sign in to rank through your own network.{" "}
-          <Link href="/login" className="font-medium text-brand-link hover:underline">
+          <Link href={loginHref} className="font-medium text-brand-link hover:underline">
             Sign in →
           </Link>
         </p>
