@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assistantsOf, dutiesSummary } from "./assistantDuties";
+import { assistantsOf, dutiesSummary, sidekickLine } from "./assistantDuties";
 
 /**
  * "Your Assistants" on Settings › Assistants › Yours: which Assistant holds each
@@ -81,5 +81,30 @@ describe("dutiesSummary", () => {
         name,
       ),
     ).toBe("Scores and Lists come from Pip's Assistant. Nobody has Concepts yet.");
+  });
+});
+
+/**
+ * The line under "Your Brainstorm Assistant": what this deployment's Assistant
+ * publishes for the User — the Duty categories their Treasure Map gives it.
+ * It said "publishing your scores" whenever its profile was out, true or not.
+ */
+describe("sidekickLine", () => {
+  it("names what this site's Assistant publishes", () => {
+    expect(sidekickLine(["scores"])).toBe("Your sidekick is publishing your scores.");
+    expect(sidekickLine(["lists", "concepts"])).toBe("Your sidekick is publishing your lists and concepts.");
+    expect(sidekickLine(["scores", "lists", "concepts"])).toBe(
+      "Your sidekick is publishing your scores, lists and concepts.",
+    );
+  });
+
+  it("says so when the Treasure Map gives it nothing here", () => {
+    expect(sidekickLine([])).toBe(
+      "Your sidekick is set up, but your Treasure Map gives it nothing to publish here yet.",
+    );
+  });
+
+  it("claims nothing before the Treasure Map is read", () => {
+    expect(sidekickLine(null)).toBe("Your sidekick is set up.");
   });
 });

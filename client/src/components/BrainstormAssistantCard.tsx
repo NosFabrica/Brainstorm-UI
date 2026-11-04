@@ -7,6 +7,8 @@ import { nip19 } from "nostr-tools";
 import { motion } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
+import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
+import { assistantsOf, sidekickLine } from "@/lib/assistantDuties";
 import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/profile";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -261,6 +263,11 @@ export function BrainstormAssistantCard({
   const isPending = publishMutation.isPending;
   const isActive = !!published;
   const isHighlighted = prominence === "highlighted" && !isActive;
+  // What the User's Treasure Map gives this Assistant — its line says that, not
+  // "publishing your scores" whenever its profile is out. Null until read.
+  const ownMap = useTrustProviderList(isActive ? userPubkey : null);
+  const ownDuties =
+    taPubkey && (ownMap.event || ownMap.settled) ? assistantsOf(ownMap.event, taPubkey)[0].categories : null;
 
   return (
     <div
@@ -437,7 +444,7 @@ export function BrainstormAssistantCard({
           }
           data-testid={`text-assistant-tagline-${variant}`}
         >
-          {isActive ? "Your sidekick is publishing your scores." : "Give your scores a voice — one click."}
+          {isActive ? sidekickLine(ownDuties) : "Give your scores a voice — one click."}
         </p>
 
         {isActive ? (

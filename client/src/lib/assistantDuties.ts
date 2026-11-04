@@ -58,3 +58,16 @@ export function dutiesSummary(
   if (nobody.length) sentences.push(`Nobody has ${and(nobody.map((c) => LABEL[c]))} yet.`);
   return sentences.join(" ");
 }
+
+/**
+ * The line under "Your Brainstorm Assistant": what this deployment's Assistant
+ * publishes for the User — the Duty categories their Treasure Map gives it, or
+ * that it gives it nothing here. Null categories: the Map isn't read yet, so
+ * the line claims nothing.
+ */
+export function sidekickLine(categories: MapCategory[] | null): string {
+  if (categories === null) return "Your sidekick is set up.";
+  if (categories.length === 0)
+    return "Your sidekick is set up, but your Treasure Map gives it nothing to publish here yet.";
+  return `Your sidekick is publishing your ${and(categories.map((c) => LABEL[c].toLowerCase()))}.`;
+}

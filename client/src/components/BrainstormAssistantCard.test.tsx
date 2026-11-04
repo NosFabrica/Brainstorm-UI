@@ -33,7 +33,10 @@ const h = vi.hoisted(() => ({
   publishDefaultAssistantProfile: vi.fn(async () => ({})),
   followUser: vi.fn(async () => {}),
   refreshProfileEvent: vi.fn(async () => null),
+  /** The User's Treasure Map; unread unless a test says otherwise. */
+  map: { event: undefined as undefined | { tags: string[][] }, settled: false },
 }));
+vi.mock("@/hooks/useTrustProviderStatus", () => ({ useTrustProviderList: () => h.map }));
 vi.mock("@/accounts/display", () => ({ activePubkey: () => ME }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => h.mywot }));
@@ -69,6 +72,7 @@ function show() {
 beforeEach(() => {
   localStorage.clear();
   h.live = {};
+  h.map = { event: undefined, settled: false };
   Object.assign(h.mywot, { taPubkey: OURS, hasMywot: true, known: true, isLoading: false });
   h.publishBrainstormAssistantProfile.mockClear();
   h.followUser.mockClear();
@@ -140,6 +144,32 @@ describe("BrainstormAssistantCard", () => {
 
     await waitFor(() => expect(h.publishBrainstormAssistantProfile).toHaveBeenCalledTimes(1));
     expect(h.followUser).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Its line says what the User's Treasure Map gives it — not "publishing your
+   * scores" whenever its profile is out: scores another deployment's Assistant
+   * holds are not this one's to claim.
+   */
+  it("says what this site's Assistant publishes, as the Treasure Map has it", async () => {
+    const live = kind0(OURS, "d".repeat(64), 3, { name: "puzzle_speed_05db" });
+    liveKind0(live);
+    h.map = {
+      settled: true,
+      event: {
+        tags: [
+          ["30382:rank", "f".repeat(64), "wss://scores.example"],
+          ["30392", OURS, "wss://nip85.example"],
+          ["39998", OURS, "wss://dcosl.example"],
+        ],
+      },
+    };
+
+    show();
+
+    expect(await screen.findByTestId("text-assistant-tagline-settings")).toHaveTextContent(
+      "Your sidekick is publishing your lists and concepts.",
+    );
   });
 
   it("can't publish before the server has said which Assistant is ours", () => {
