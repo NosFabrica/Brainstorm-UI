@@ -31,13 +31,20 @@ const signNip85 = vi.fn(async () => ({
   created_at: 0,
 }));
 const publishToRelays = vi.fn(async () => ({ success: true, relay: "wss://relay" }));
+// The user's 10040 on the relays; none unless a test says whose rank duty it names.
+const relayMap = vi.hoisted(() => ({ value: undefined as undefined | { tags: string[][] } }));
+// Who holds the rank duty, by name, and the site its NIP-05 verifies on.
+const holder = vi.hoisted(() => ({ value: null as null | { pubkey: string; name: string; host: string } }));
+const holderSite = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("@/hooks/useRankProvider", () => ({ useRankProvider: () => holder.value }));
+vi.mock("@/hooks/useVerifiedHost", () => ({ useVerifiedHost: () => holderSite.value }));
 
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   getNip85RelayUrl: () => "wss://nip85-staging.example",
-  fetchTrustProviderList: async () => undefined,
+  fetchTrustProviderList: async () => relayMap.value,
   fetchOutboxRelayList: async () => [],
 }));
 
@@ -51,6 +58,28 @@ describe("activating Brainstorm from the dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient.clear();
+    relayMap.value = undefined;
+    holder.value = null;
+    holderSite.value = null;
+  });
+
+  /**
+   * The modal is the dashboard's way to the same Switch as /setup/activate, so
+   * it says the same thing: who holds your scores today and which site they're
+   * verified on, and that only your scores move.
+   */
+  it("names who it replaces, where they're verified, and that only your scores move", async () => {
+    const OTHER = "d".repeat(64);
+    relayMap.value = { tags: [["30382:rank", OTHER, "wss://scores.brainstorm.world"]] };
+    holder.value = { pubkey: OTHER, name: "Pip's Brainstorm Assistant", host: "scores.brainstorm.world" };
+    holderSite.value = "brainstorm.nosfabrica.com";
+
+    render(<ActivateBrainstormModal open onOpenChange={() => {}} serviceKey={TA} onActivated={() => {}} />);
+
+    const warning = await screen.findByTestId("text-activate-replace-warning");
+    expect(warning).toHaveTextContent("replaces Pip's Brainstorm Assistant (brainstorm.nosfabrica.com)");
+    expect(warning).toHaveTextContent("Only your scores move");
+    expect(warning).not.toHaveTextContent("Another provider");
   });
 
   it("names the Trusted Lists the user has, so nothing asks them to sign again", async () => {

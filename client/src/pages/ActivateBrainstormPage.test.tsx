@@ -40,6 +40,9 @@ vi.mock("@/hooks/useTrustProviderStatus", () => ({
   useTrustProviderStatus: () => ({ data: page.provider }),
   useTrustProviderList: () => ({ event: page.map, settled: true }),
 }));
+// The holder's NIP-05-verified host; null until it verifies, or when it doesn't.
+const verifiedHost = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("@/hooks/useVerifiedHost", () => ({ useVerifiedHost: () => verifiedHost.value }));
 vi.mock("@/hooks/useLiveProfile", () => ({
   useLiveProfile: () => ({ profile: page.providerProfile, event: undefined, loading: false }),
 }));
@@ -140,15 +143,38 @@ describe("ActivateBrainstormPage — naming the Assistant that holds the rank du
     page.providerProfile = { display_name: "Pip's Brainstorm Assistant" };
   });
 
-  it("names the provider and its relay in the lead, the warning, and the way out", () => {
+  /**
+   * Which Brainstorm it belongs to, proven: its NIP-05-verified host, not the
+   * relay it publishes to — "your Brainstorm Assistant on another site" is what
+   * the person needs to know before switching.
+   */
+  it("names the provider and the site it's verified on, in the lead, the warning, and the way out", () => {
+    verifiedHost.value = "brainstorm.nosfabrica.com";
     renderWithProviders(<ActivateBrainstormPage />);
     const provider = screen.getByTestId("activate-page-provider");
     expect(provider).toHaveTextContent("Pip's Brainstorm Assistant");
-    expect(provider).toHaveTextContent("scores.brainstorm.world");
+    expect(provider).toHaveTextContent("brainstorm.nosfabrica.com");
+    expect(provider).not.toHaveTextContent("scores.brainstorm.world");
     expect(screen.getByTestId("text-activate-page-replace-warning")).toHaveTextContent(
       "replaces Pip's Brainstorm Assistant",
     );
     expect(screen.getByTestId("button-activate-page-later")).toHaveTextContent("keep Pip's Brainstorm Assistant");
+  });
+
+  it("shows the name alone when its NIP-05 doesn't verify — no unproven site", () => {
+    verifiedHost.value = null;
+    renderWithProviders(<ActivateBrainstormPage />);
+    const provider = screen.getByTestId("activate-page-provider");
+    expect(provider).toHaveTextContent("Pip's Brainstorm Assistant");
+    expect(provider).not.toHaveTextContent("brainstorm.nosfabrica.com");
+    expect(provider).not.toHaveTextContent("scores.brainstorm.world");
+  });
+
+  it("says Switch moves your scores and nothing else", () => {
+    renderWithProviders(<ActivateBrainstormPage />);
+    expect(screen.getByTestId("text-activate-page-replace-warning")).toHaveTextContent(
+      "Only your scores move: lists and concepts another Assistant keeps stay with it.",
+    );
   });
 
   it("falls back to the provider's short npub until its profile loads", () => {
