@@ -108,6 +108,33 @@ The UI says who reported it — people the User follows, verified accounts,
 unverified ones — never what the account is.
 _Avoid_: scammer, bad actor, dangerous
 
+### Assistants and the Treasure Map
+
+**Deployment**:
+One running Brainstorm — staging, production — with its own backend and its
+own Assistant for each User. Named to people by the host its Assistant's NIP-05
+verifies on (`brainstorm.nosfabrica.com`), never by "staging"/"production".
+_Avoid_: environment, instance, server
+
+**This deployment's Assistant**:
+The Assistant this Deployment runs for the User: `ta_pubkey`, its one source.
+Another Deployment's Assistant for the same User is a different key — "another
+Assistant", exactly like an external service's.
+_Avoid_: the Assistant, your bot, service provider
+
+**Duty**:
+One row of the User's Treasure Map (kind 10040): a key such as `30382:rank`,
+the Assistant given it, and the relay it publishes to. Fill empty, never take: a
+path adding this Deployment's Assistant fills a Duty nobody holds, and moves one
+another Assistant holds only in a Duty category the User chose to move.
+_Avoid_: tag, row, designation, assertion
+
+**Duty category**:
+Scores, Lists or Concepts — how the Treasure Map groups Duties (kinds
+30380–30389, 30390–30399, 39998/39999), and the unit a User moves from one
+Assistant to another.
+_Avoid_: type, kind, role
+
 ### Concepts and the Dictionary
 
 **Concept**:
