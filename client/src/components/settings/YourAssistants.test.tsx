@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
   map: undefined as undefined | { tags: string[][] },
 }));
 const NAMES: Record<string, string> = {
-  [HERE]: "Relay Op's Brainstorm Assistant",
+  [HERE]: "This site's Brainstorm Assistant",
   [PROD]: "Pip's Brainstorm Assistant",
 };
 const SITES: Record<string, string> = {
