@@ -1,7 +1,8 @@
 /**
  * Set up an agent to run your own Brainstorm, or to add its scores to your
  * client: two prompts a reader copies into an AI agent. Developer material,
- * so it lives on /developers (it was Settings › About until 2026-11-02).
+ * so it lives on /developers (it was Settings › About until 2026-11-02) —
+ * for admins only for now, marked internal there (2026-11-04).
  */
 import { useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -9,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
 import { publicOrigin } from "@/lib/publicOrigin";
+import { InternalChip } from "@/components/InternalChip";
 
 // Agent prompts. Every step names something that exists today: the README's
 // Develop and Configuration sections, the brainstorm_server repo, the protocols
@@ -44,7 +46,8 @@ Nostr client so my users see personalized trust.
 
 Explain each step, note anything I need to configure, and keep it simple.`;
 
-export function AgentSetupCard() {
+/** `internal`: shown only to admins, and says so, as Settings does. */
+export function AgentSetupCard({ internal = false }: { internal?: boolean }) {
   const { toast } = useToast();
   const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const [agentPath, setAgentPath] = useState<"selfhost" | "integrate">("selfhost");
@@ -109,6 +112,7 @@ export function AgentSetupCard() {
                 data-testid="text-agent-setup-title"
               >
                 Set up with your AI agent
+                {internal && <InternalChip />}
               </h2>
               <span
                 className="inline-flex items-center gap-1 rounded-full border border-brand-accent/20 bg-brand-accent/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-brand-deep"
