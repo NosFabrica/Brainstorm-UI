@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { TagTarget } from "@/lib/tagTarget";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchProfileTags,
@@ -331,7 +332,7 @@ export function useTagNotes(authorPubkey: string | undefined, slug: string | und
  * the assertion landed would be claiming something we don't know. The refetch
  * below is the honest version, and the caller shows pending state meanwhile.
  */
-export function useApplyEventTag(eventId: string | undefined, relayHint?: string) {
+export function useApplyEventTag(eventId: string | undefined, relayHint?: string, target?: TagTarget) {
   const queryClient = useQueryClient();
   const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
@@ -343,7 +344,8 @@ export function useApplyEventTag(eventId: string | undefined, relayHint?: string
     }) =>
       applyTagToEvent({
         tag: args.tag,
-        eventId: eventId!,
+        // An addressable event by its coordinate, a note by its id (#334).
+        target: target ?? { id: eventId! },
         relayHint,
         polarity: args.polarity ?? 1,
       }),

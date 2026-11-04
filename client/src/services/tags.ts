@@ -13,6 +13,7 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
+import type { TagTarget } from "@/lib/tagTarget";
 import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
 import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -2437,12 +2438,13 @@ export async function fetchTagNotes(
  */
 export async function applyTagToEvent({
   tag,
-  eventId,
+  target,
   relayHint,
   polarity = 1,
 }: {
   tag: { authorPubkey: string; slug: string } | { name: string; description?: string };
-  eventId: string;
+  /** What the tagging names (`tagTargetOf`): a note by id, an addressable event by coordinate (#334). */
+  target: TagTarget;
   relayHint?: string;
   polarity?: Polarity;
 }) {
@@ -2451,7 +2453,7 @@ export async function applyTagToEvent({
 
   return applyEventTagging({
     tagInput: tag,
-    target: { id: eventId, ...(relayHint ? { relays: [relayHint] } : {}) },
+    target: { ...target, ...(relayHint ? { relays: [relayHint] } : {}) },
     polarity,
     asserterPubkey: user.pubkey,
     taPubkeys: Z_HANDLE_PUBKEYS,
