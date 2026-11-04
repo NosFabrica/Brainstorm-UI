@@ -2013,11 +2013,11 @@ export default function SettingsPage() {
                   ))}
                 </div>
               )}
+              {/* One card while everything happens on this site; the others join it once there are some. */}
               {assistantView === "yours" && (
-                <div className="space-y-6">
-                  <YourAssistants viewer={user?.pubkey} />
+                <YourAssistants viewer={user?.pubkey}>
                   <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
-                </div>
+                </YourAssistants>
               )}
               {(assistantView === "all" || assistantView === "duties") && (
                 <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />

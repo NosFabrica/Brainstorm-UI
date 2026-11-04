@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { Bot } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -7,18 +8,20 @@ import { useHasMywot } from "@/hooks/useHasMywot";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
 import { useVerifiedHost } from "@/hooks/useVerifiedHost";
-import { assistantsOf, dutiesSummary, type AssistantDuties } from "@/lib/assistantDuties";
+import { assistantsOf, dutiesSummary, othersOf, type AssistantDuties } from "@/lib/assistantDuties";
 import type { MapCategory } from "@/lib/treasureMapCards";
 
 const LABEL: Record<MapCategory, string> = { scores: "Scores", lists: "Lists", concepts: "Concepts" };
 
 /**
- * Settings › Assistants › Yours: the Assistants the User's Treasure Map uses,
- * one card each — this deployment's first — with the site each is verified on
- * and the Duty categories it holds, under one sentence saying where the Duties
- * live. Read-only: who does what is changed in the Treasure Map editor.
+ * Settings › Assistants › Yours, growing with the User. While everything
+ * happens on this site it is one card: `children`, this site's Assistant (the
+ * big card, whose onboarding also carries a User with no Assistant yet). Once
+ * another Assistant holds a Duty: one sentence saying where the Duties live,
+ * the card, then "Also working for you" with the others only — this site's is
+ * never repeated — and a link to change who does what in the Treasure Map.
  */
-export function YourAssistants({ viewer }: { viewer: string | undefined }) {
+export function YourAssistants({ viewer, children }: { viewer: string | undefined; children: ReactNode }) {
   const { taPubkey } = useHasMywot();
   const map = useTrustProviderList(viewer ?? null).event;
   const assistants = taPubkey ? assistantsOf(map, taPubkey) : [];
@@ -31,28 +34,33 @@ export function YourAssistants({ viewer }: { viewer: string | undefined }) {
     useVerifiedHost(assistants[2]?.pubkey),
     useVerifiedHost(assistants[3]?.pubkey),
   ];
-  if (!taPubkey) return null;
+  const others = othersOf(assistants);
+  if (!taPubkey || others.length === 0) return <>{children}</>;
 
   const siteOf = (pubkey: string) => sites[assistants.findIndex((a) => a.pubkey === pubkey)] ?? null;
   const name = (pubkey: string) => nameOf(pubkey, profiles);
 
   return (
-    <section className="space-y-3" data-testid="your-assistants">
+    <section className="space-y-5" data-testid="your-assistants">
       <p className="text-[15px] font-semibold text-slate-900 dark:text-slate-100" data-testid="your-assistants-summary">
         {dutiesSummary(assistants, siteOf, name)}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {assistants.map((a, i) => (
-          <AssistantCard key={a.pubkey} assistant={a} site={sites[i]} profiles={profiles} />
-        ))}
+      {children}
+      <div className="space-y-3" data-testid="also-working-for-you">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Also working for you</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {others.map((a) => (
+            <AssistantCard key={a.pubkey} assistant={a} site={siteOf(a.pubkey)} profiles={profiles} />
+          ))}
+        </div>
+        <Link
+          href="/settings?tab=assistants&view=map"
+          className="inline-block text-xs font-medium text-brand-link hover:underline"
+          data-testid="your-assistants-change"
+        >
+          Change who does what in your Treasure Map →
+        </Link>
       </div>
-      <Link
-        href="/settings?tab=assistants&view=map"
-        className="inline-block text-xs font-medium text-brand-link hover:underline"
-        data-testid="your-assistants-change"
-      >
-        Change who does what in your Treasure Map →
-      </Link>
     </section>
   );
 }

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
- * Settings › Assistants › Yours: the Assistants the User's Treasure Map uses,
- * one card each — this deployment's first — with the site each is verified
- * on and the Duty categories it holds, under one sentence saying where the
- * Duties live. Changing who does what stays in the Treasure Map editor.
+ * Settings › Assistants › Yours grows with the User. While everything happens
+ * on this site it is one card — this site's Assistant, the big card passed in
+ * as the child. Once another Assistant holds a Duty: a sentence saying where
+ * the Duties live, the card, then "Also working for you" with the others only.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -42,6 +42,14 @@ vi.mock("@/hooks/useVerifiedHost", () => ({
 
 import { YourAssistants } from "./YourAssistants";
 
+const Card = () => <div data-testid="this-site-card">This site's Assistant card</div>;
+const show = () =>
+  render(
+    <YourAssistants viewer={ME}>
+      <Card />
+    </YourAssistants>,
+  );
+
 describe("YourAssistants", () => {
   beforeEach(() => {
     h.taPubkey = HERE;
@@ -54,45 +62,48 @@ describe("YourAssistants", () => {
     };
   });
 
-  it("says where the Duties live, then one card per Assistant, this site's first", () => {
-    render(<YourAssistants viewer={ME} />);
-    expect(screen.getByTestId("your-assistants-summary")).toHaveTextContent(
-      "Scores come from brainstorm.nosfabrica.com. Lists and Concepts come from this site.",
-    );
-    const cards = screen.getAllByTestId(/^assistant-card-/);
-    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([
-      `assistant-card-${HERE.slice(0, 8)}`,
-      `assistant-card-${PROD.slice(0, 8)}`,
-    ]);
-
-    const here = cards[0];
-    expect(here).toHaveTextContent("Relay Op's Brainstorm Assistant");
-    expect(here).toHaveTextContent("This site");
-    expect(within(here).getByText("Lists")).toBeInTheDocument();
-    expect(within(here).getByText("Concepts")).toBeInTheDocument();
-
-    const prod = cards[1];
-    expect(prod).toHaveTextContent("Pip's Brainstorm Assistant");
-    expect(prod).toHaveTextContent("brainstorm.nosfabrica.com");
-    expect(within(prod).getByText("Scores")).toBeInTheDocument();
+  it("is just this site's card while everything happens here", () => {
+    h.map = {
+      tags: [
+        ["30382:rank", HERE, "wss://nip85.example"],
+        ["30392", HERE, "wss://nip85.example"],
+      ],
+    };
+    show();
+    expect(screen.getByTestId("this-site-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("your-assistants-summary")).toBeNull();
+    expect(screen.queryByTestId("also-working-for-you")).toBeNull();
+    expect(screen.queryByTestId("your-assistants-change")).toBeNull();
   });
 
-  it("shows this site's Assistant holding nothing when the Map gives it nothing", () => {
-    h.map = { tags: [["30382:rank", PROD, "wss://scores.example"]] };
-    render(<YourAssistants viewer={ME} />);
-    expect(screen.getByTestId(`assistant-card-${HERE.slice(0, 8)}`)).toHaveTextContent(
-      "Holds nothing on your Treasure Map yet.",
+  it("is just the card before this site's Assistant is known — its onboarding carries the page", () => {
+    h.taPubkey = null;
+    show();
+    expect(screen.getByTestId("this-site-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("your-assistants-summary")).toBeNull();
+  });
+
+  it("once another Assistant holds a Duty: where the Duties live, the card, then the others", () => {
+    show();
+    const summary = screen.getByTestId("your-assistants-summary");
+    const card = screen.getByTestId("this-site-card");
+    const also = screen.getByTestId("also-working-for-you");
+    expect(summary).toHaveTextContent(
+      "Scores come from brainstorm.nosfabrica.com. Lists and Concepts come from this site.",
     );
+    expect(summary.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(also) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(also).toHaveTextContent("Also working for you");
+    const cards = within(also).getAllByTestId(/^assistant-card-/);
+    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([`assistant-card-${PROD.slice(0, 8)}`]);
+    expect(cards[0]).toHaveTextContent("Pip's Brainstorm Assistant");
+    expect(cards[0]).toHaveTextContent("brainstorm.nosfabrica.com");
+    expect(within(cards[0]).getByText("Scores")).toBeInTheDocument();
   });
 
   it("points to the Treasure Map editor for changing who does what", () => {
-    render(<YourAssistants viewer={ME} />);
+    show();
     expect(screen.getByTestId("your-assistants-change")).toHaveAttribute("href", "/settings?tab=assistants&view=map");
-  });
-
-  it("renders nothing until this deployment's Assistant is known", () => {
-    h.taPubkey = null;
-    const { container } = render(<YourAssistants viewer={ME} />);
-    expect(container).toBeEmptyDOMElement();
   });
 });
