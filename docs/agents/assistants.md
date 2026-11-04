@@ -7,12 +7,12 @@ Deployment, this deployment's Assistant, Duty, Duty category — are defined in
 
 ## The four events
 
-| Event                            | Kind                 | Signed by                         | Code                                                                                                                             |
-| -------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| The User's Treasure Map          | 10040                | the User                          | `lib/nip85Declaration`, `lib/treasureMapCards`; written by `services/nostr` `signNip85` and the editor's `services/treasureMap`  |
-| The Assistant's own Treasure Map | 10040                | the Assistant, through the server | `lib/assistantTreasureMap`, `hooks/useAssistantTreasureMap`; server ask: [TREASURE-MAP-ASK.md](../assistant/TREASURE-MAP-ASK.md) |
-| The Assistant's Duty Menu        | 39999, `d=duty-menu` | the Assistant, through the server | `lib/dutyMenu`, `hooks/useAssistantDutyMenu`; server ask: [DUTY-MENU-ASK.md](../assistant/DUTY-MENU-ASK.md)                      |
-| The Assistant's profile          | 0                    | the Assistant, through the server | `services/api/admin.ts` `publishDefaultAssistantProfile` (a default; no editing yet)                                             |
+| Event                            | Kind                 | Signed by                         | Code                                                                                                                                           |
+| -------------------------------- | -------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| The User's Treasure Map          | 10040                | the User                          | `lib/nip85Declaration`, `lib/treasureMapCards`; written by `services/nostr` `signNip85` and the editor's `services/treasureMap`                |
+| The Assistant's own Treasure Map | 10040                | the Assistant, through the server | `lib/assistantTreasureMap`, `hooks/useAssistantTreasureMap`; server ask: [TREASURE-MAP-ASK.md](../assistant/TREASURE-MAP-ASK.md)               |
+| The Assistant's Duty Menu        | 39999, `d=duty-menu` | the Assistant, through the server | `lib/dutyMenu`, `hooks/useAssistantDutyMenu`; server ask: [DUTY-MENU-ASK.md](../assistant/DUTY-MENU-ASK.md)                                    |
+| The Assistant's profile          | 0                    | the Assistant, through the server | `services/api/admin.ts` `publishDefaultAssistantProfile` (a default; editing waits on [PROFILE-EDIT-ASK.md](../assistant/PROFILE-EDIT-ASK.md)) |
 
 Only the server holds an Assistant's key, so the UI asks the server for the
 three Assistant-signed events and signs the User's Treasure Map itself, through
@@ -70,3 +70,5 @@ so nothing offers to move them.
   [duty-menus.md](https://github.com/nous-clawds4/tapestry/blob/main/protocols/drafts/duty-menus.md),
   [assistant-designation.md](https://github.com/nous-clawds4/tapestry/blob/main/protocols/drafts/assistant-designation.md).
   Read them on GitHub: a local Tapestry checkout can lag the drafts.
+- Agent keys for external agents: unbuilt; [AGENT-KEYS-ASK.md](../assistant/AGENT-KEYS-ASK.md)
+  is what the UI needs from the server.

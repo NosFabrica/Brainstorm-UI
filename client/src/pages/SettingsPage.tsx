@@ -117,6 +117,7 @@ import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
+import { YourAssistants } from "@/components/settings/YourAssistants";
 
 type SettingsTab = SettingsTabKey;
 
@@ -2012,8 +2013,11 @@ export default function SettingsPage() {
                   ))}
                 </div>
               )}
+              {/* One card while everything happens on this site; the others join it once there are some. */}
               {assistantView === "yours" && (
-                <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+                <YourAssistants viewer={user?.pubkey}>
+                  <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+                </YourAssistants>
               )}
               {(assistantView === "all" || assistantView === "duties") && (
                 <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />
