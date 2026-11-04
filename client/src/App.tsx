@@ -15,6 +15,7 @@ import { trackHistoryEntry } from "@/lib/historyState";
 import { AutoScoreReturning } from "@/components/AutoScoreReturning";
 import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
+import { AutoAssistantSetup } from "@/components/AutoAssistantSetup";
 import NotFound from "@/pages/not-found";
 import ShortLinkPage from "@/pages/ShortLinkPage";
 import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
@@ -344,6 +345,7 @@ function App() {
                 <AutoScoreReturning />
                 <AutoActivateBrainstorm />
                 <AutoPublishAssistant />
+                <AutoAssistantSetup />
                 <LightboxProvider>
                   <Router />
                 </LightboxProvider>

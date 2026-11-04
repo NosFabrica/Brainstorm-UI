@@ -276,6 +276,17 @@ describe("FinishSetupPage — the Duty Menu step", () => {
     expect(screen.getByTestId("setup-row-duty-menu")).toHaveTextContent("differs from what your Assistant offers now");
   });
 
+  it("a menu the app is publishing by itself says so, with nothing for them to do", () => {
+    setupState.mockReturnValue(
+      state({ ...ready, dutyMenu: "missing", dutyMenuAuto: true, doneCount: 3, totalSteps: 4 }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-duty-menu");
+    expect(row).toHaveTextContent("Publishing");
+    expect(row).toHaveTextContent("Your Assistant is publishing it for you now");
+    expect(row).not.toHaveTextContent("Required for other apps");
+  });
+
   it("an up-to-date menu is done, with a way to see it", () => {
     setupState.mockReturnValue(state({ ...ready, dutyMenu: "current", doneCount: 4, totalSteps: 4, allDone: true }));
     renderWithProviders(<FinishSetupPage />);
@@ -318,6 +329,17 @@ describe("FinishSetupPage — the Treasure Map step", () => {
     renderWithProviders(<FinishSetupPage />);
     expect(screen.getByTestId("setup-row-treasure-map")).toHaveTextContent("Out of date");
     expect(screen.getByTestId("setup-row-treasure-map")).toHaveTextContent("differs from the duties that are live now");
+  });
+
+  it("a Map the app is publishing by itself says so, with nothing for them to do", () => {
+    setupState.mockReturnValue(
+      state({ ...ready, treasureMap: "out-of-date", treasureMapAuto: true, doneCount: 4, totalSteps: 5 }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-treasure-map");
+    expect(row).toHaveTextContent("Publishing");
+    expect(row).toHaveTextContent("Your Assistant is publishing it for you now");
+    expect(row).not.toHaveTextContent("Out of date");
   });
 
   it("an up-to-date Map is done, with a way to see it", () => {

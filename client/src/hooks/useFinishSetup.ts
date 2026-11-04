@@ -3,11 +3,13 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
 import { useAssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import { useDmStatus } from "@/hooks/useDirectMessages";
+import { useHasSession } from "@/hooks/useHasSession";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { knownFollowCount } from "@/lib/followStore";
+import { autoSetupTasks } from "@/lib/assistantSetupAuto";
 import type { SelfMapStatus } from "@/lib/assistantTreasureMap";
 import type { MenuStatus } from "@/lib/dutyMenu";
 import { isNip85Activated } from "@/lib/nip85Activation";
@@ -32,6 +34,12 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * duties that are live now (hooks/useAssistantTreasureMap,
  * docs/assistant/TREASURE-MAP-ASK.md). Nothing live and nothing listed is done,
  * so nobody is asked to publish an empty Map.
+ *
+ * With a Brainstorm session the app does those two itself, from any page
+ * (components/AutoAssistantSetup). One it is doing, or about to, is not a step
+ * left (`dutyMenuAuto` / `treasureMapAuto`): nothing nags about work under way.
+ * One whose publish failed, or went through and still reads out of date, is a
+ * step again, for /setup to do by hand.
  *
  * /setup also offers optional extras outside the count: handing that rank duty
  * to their Brainstorm Assistant, and turning on private messages
@@ -91,15 +99,19 @@ export interface FinishSetupState {
    * the offer, or "checking" while either is read. Undefined: no such step here.
    */
   dutyMenu?: MenuStatus | "checking";
-  /** Relay-verified "the Assistant's Duty Menu is missing or out of date". */
+  /** Relay-verified "the Assistant's Duty Menu is missing or out of date", and the app isn't publishing it. */
   dutyMenuPending?: boolean;
+  /** The app is publishing the Duty Menu by itself, or about to. */
+  dutyMenuAuto?: boolean;
   /**
    * The Treasure Map step, where the server supports it: the Assistant's own
    * Treasure Map against the duties live now, or "checking". Undefined: no such step here.
    */
   treasureMap?: SelfMapStatus | "checking";
-  /** Relay-verified "the Assistant's Treasure Map is missing or out of date". */
+  /** Relay-verified "the Assistant's Treasure Map is missing or out of date", and the app isn't publishing it. */
   treasureMapPending?: boolean;
+  /** The app is publishing the Treasure Map by itself, or about to. */
+  treasureMapAuto?: boolean;
   /** How many steps are counted: account, follow list, activation, the Duty Menu and Treasure Map where offered — never optional extras. */
   totalSteps: number;
   allDone: boolean;
@@ -124,6 +136,7 @@ export function useFinishSetup(): FinishSetupState {
   const dmStatus = useDmStatus();
   const menu = useAssistantDutyMenu(pubkey);
   const selfMap = useAssistantTreasureMap(pubkey);
+  const hasSession = useHasSession();
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -146,18 +159,39 @@ export function useFinishSetup(): FinishSetupState {
     // flagged apart from the steps — only where Brainstorm's Assistant is theirs.
     const listsPending = signedIn && brainstormActive && listsStatus === "missing";
 
+    // What the app publishes by itself (AutoAssistantSetup): due, and not yet
+    // tried or under way. A failure, or a publish that still reads out of date,
+    // hands the step back to /setup.
+    const autoDue =
+      signedIn && hasSession
+        ? autoSetupTasks(
+            { supported: menu.supported, status: menu.status, settled: menu.settled },
+            {
+              supported: selfMap.supported,
+              status: selfMap.status,
+              settled: selfMap.settled,
+              on: selfMap.on,
+              published: selfMap.published,
+            },
+          )
+        : [];
+    const handling = (outcome: string | null | undefined) => outcome == null || outcome === "pending";
+    const dutyMenuAuto = autoDue.includes("duty-menu") && handling(menu.lastPublish);
+    const treasureMapAuto = autoDue.includes("treasure-map") && handling(selfMap.lastPublish);
+
     // The Duty Menu is a step only once the server has said what it offers.
     const menuCounted = signedIn && menu.supported === true;
     const dutyMenu: FinishSetupState["dutyMenu"] = menuCounted ? (menu.status ?? "checking") : undefined;
     const dutyMenuDone = dutyMenu === "current";
-    const dutyMenuPending = menuCounted && menu.settled && (dutyMenu === "missing" || dutyMenu === "out-of-date");
+    const dutyMenuPending =
+      menuCounted && menu.settled && (dutyMenu === "missing" || dutyMenu === "out-of-date") && !dutyMenuAuto;
 
     // The Treasure Map likewise, once the server has said what it should list.
     const mapCounted = signedIn && selfMap.supported === true;
     const treasureMap: FinishSetupState["treasureMap"] = mapCounted ? (selfMap.status ?? "checking") : undefined;
     const treasureMapDone = treasureMap === "current";
     const treasureMapPending =
-      mapCounted && selfMap.settled && (treasureMap === "missing" || treasureMap === "out-of-date");
+      mapCounted && selfMap.settled && (treasureMap === "missing" || treasureMap === "out-of-date") && !treasureMapAuto;
 
     const remaining =
       (followPending ? 1 : 0) +
@@ -197,8 +231,10 @@ export function useFinishSetup(): FinishSetupState {
       listsPending,
       dutyMenu,
       dutyMenuPending,
+      dutyMenuAuto,
       treasureMap,
       treasureMapPending,
+      treasureMapAuto,
       remaining,
       doneCount,
       totalSteps: steps.length,
@@ -214,11 +250,16 @@ export function useFinishSetup(): FinishSetupState {
     locallyActivated,
     listsStatus,
     dmStatus,
+    hasSession,
     menu.supported,
     menu.status,
     menu.settled,
+    menu.lastPublish,
     selfMap.supported,
     selfMap.status,
     selfMap.settled,
+    selfMap.on,
+    selfMap.published,
+    selfMap.lastPublish,
   ]);
 }
