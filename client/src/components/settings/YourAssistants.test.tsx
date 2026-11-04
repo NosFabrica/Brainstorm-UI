@@ -102,6 +102,31 @@ describe("YourAssistants", () => {
     expect(within(cards[0]).getByText("Scores")).toBeInTheDocument();
   });
 
+  /**
+   * Only an Assistant's own site holds its key, so another site's Assistant is
+   * changed there: its card links to that site's Assistants page — but only to
+   * a site its NIP-05 proves; an unverified Assistant has nowhere proven to go.
+   */
+  it("links each verified other-site Assistant to its own site, and an unverified one nowhere", () => {
+    const EXT = "c".repeat(64);
+    h.map = {
+      tags: [
+        ["30382:rank", PROD, "wss://scores.example"],
+        ["30392", EXT, "wss://lists.example"],
+      ],
+    };
+    show();
+    const prod = screen.getByTestId(`assistant-card-${PROD.slice(0, 8)}`);
+    const open = within(prod).getByTestId("assistant-open-site");
+    expect(open).toHaveTextContent("Open on brainstorm.nosfabrica.com");
+    expect(open).toHaveAttribute("href", "https://brainstorm.nosfabrica.com/settings?tab=assistants&view=yours");
+    expect(open).toHaveAttribute("target", "_blank");
+
+    const ext = screen.getByTestId(`assistant-card-${EXT.slice(0, 8)}`);
+    expect(ext).toHaveTextContent("Unverified");
+    expect(within(ext).queryByTestId("assistant-open-site")).toBeNull();
+  });
+
   it("points to the Treasure Map editor for changing who does what", () => {
     show();
     expect(screen.getByTestId("your-assistants-change")).toHaveAttribute("href", "/settings?tab=assistants&view=map");

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
-import { Bot } from "lucide-react";
+import { Bot, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { nameOf, type Profiles } from "@/components/messages/people";
@@ -104,6 +104,18 @@ function AssistantCard({
           )}
         </div>
       </div>
+      {/* Only its own site holds its key: change it there — and only at a site its NIP-05 proves. */}
+      {!assistant.here && site && (
+        <a
+          href={`https://${site}/settings?tab=assistants&view=yours`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-brand-link hover:underline"
+          data-testid="assistant-open-site"
+        >
+          Open on {site} <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
       {assistant.categories.length ? (
         <div className="flex flex-wrap gap-1.5">
           {assistant.categories.map((c) => (
