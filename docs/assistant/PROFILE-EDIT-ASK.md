@@ -19,7 +19,7 @@ The Assistant card's **Customize › Name, picture & bio** is waiting on this, s
 "soon". The flow it will open was prototyped on `prototype/assistant-ux`, `?variant=PB` (chosen
 over a side sheet, `PA`): the Assistant card turns into its own form in place, as Settings ›
 Profile's **Edit** does for the person's own profile — fields beside a live preview of the card,
-"Reset to default" per field, one Publish.
+picture and banner as file uploads, "Reset to default" per field, one Publish.
 
 ## The endpoints
 
@@ -84,11 +84,17 @@ server alone knows.
 - Edit in place, on the Assistant card itself — the same gesture as editing your own profile:
   fields from the current profile, defaults from `GET`, a live preview, one **Publish** ("Your
   Assistant signs it — one tap") and Cancel, then the relay report and _View on Nostr_.
+- **Picture and banner are files, not URLs to type** — uploaded exactly as the person's own
+  profile images are (`ImageUpload` → their Blossom server, BUD-02, the upload signed by the
+  person). The server receives the resulting `https` URLs in `content`; nothing new is needed on
+  the server for images.
 - Only this deployment's Assistant is editable here. Another deployment's Assistant, in
   _Your Assistants_, links out to that site — only its server holds its key.
 
 ## Not asked for (yet)
 
-- Uploading images; the fields take URLs.
 - Editing another deployment's Assistant from here.
+- Uploading the Assistant's images under the Assistant's own key or the server's media storage —
+  the person's Blossom server, as for their own profile, is enough to start. Say if you want it
+  otherwise.
 - An "Assistant DMs me when scores recalculate" switch (issue #12) — a separate ask once the profile exists.
