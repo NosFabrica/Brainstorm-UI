@@ -7,7 +7,7 @@
  * Assistant's live kind 0, not from what was cached.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { nip19, type NostrEvent } from "nostr-tools";
 
@@ -169,6 +169,33 @@ describe("BrainstormAssistantCard", () => {
 
     expect(await screen.findByTestId("text-assistant-tagline-settings")).toHaveTextContent(
       "Your sidekick is publishing your lists and concepts.",
+    );
+  });
+
+  /**
+   * "Customize" is live, and only offers what's real: choosing what the
+   * Assistant does (the Treasure Map editor) works today; its name, picture
+   * and bio wait for the server to accept them, and say so.
+   */
+  it("Customize opens a menu: what it does is live, its name and picture are soon", async () => {
+    liveKind0(kind0(OURS, "d".repeat(64), 3, { name: "puzzle_speed_05db" }));
+    show();
+
+    const trigger = await screen.findByTestId("button-assistant-customize-settings");
+    expect(trigger).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    const menu = await screen.findByRole("menu");
+
+    const profile = within(menu).getByTestId("menu-assistant-profile");
+    expect(profile).toHaveTextContent("Name, picture & bio");
+    expect(profile).toHaveTextContent("soon");
+    expect(profile).toHaveAttribute("aria-disabled", "true");
+
+    const duties = within(menu).getByTestId("menu-assistant-duties");
+    expect(duties).toHaveTextContent("Choose what it does");
+    fireEvent.click(duties);
+    await waitFor(() =>
+      expect(window.location.pathname + window.location.search).toBe("/settings?tab=assistants&view=map"),
     );
   });
 
