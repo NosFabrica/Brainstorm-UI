@@ -71,7 +71,8 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
-    const result = await publishBrainstormTrustAnchor(user.pubkey, serviceKey, setActivateState);
+    // Activating moves Scores and only Scores; lists another Assistant holds stay theirs.
+    const result = await publishBrainstormTrustAnchor(user.pubkey, serviceKey, setActivateState, { take: ["scores"] });
 
     if (result.status === "success") {
       setActivateState("success");

@@ -89,5 +89,11 @@ describe("activating Brainstorm from the dashboard", () => {
 
     await waitFor(() => expect(signNip85).toHaveBeenCalled());
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85-staging.example", expect.objectContaining({ lists: null }));
+    // Activating is the explicit choice to move Scores, and only Scores.
+    expect(signNip85).toHaveBeenCalledWith(
+      TA,
+      "wss://nip85-staging.example",
+      expect.objectContaining({ take: ["scores"] }),
+    );
   });
 });

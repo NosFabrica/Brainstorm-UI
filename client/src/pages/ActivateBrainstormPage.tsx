@@ -64,7 +64,11 @@ export default function ActivateBrainstormPage() {
   const handleActivate = async () => {
     if (phase !== "idle" || !user.pubkey || !taPubkey) return;
     setError("");
-    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, { lists: listsToName });
+    // "Switch" moves Scores and only Scores; lists another Assistant holds stay theirs.
+    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, {
+      lists: listsToName,
+      take: ["scores"],
+    });
     setPhase("idle");
     if (result.status === "success") {
       setJustActivated(true);

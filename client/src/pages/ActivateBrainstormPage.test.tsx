@@ -77,7 +77,9 @@ describe("ActivateBrainstormPage — Trusted Lists", () => {
 
     fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
 
-    await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS }));
+    await waitFor(() =>
+      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS, take: ["scores"] }),
+    );
   });
 });
 
@@ -109,7 +111,10 @@ describe("ActivateBrainstormPage — another Assistant on rank", () => {
 
     fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
 
-    await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: null }));
+    // "Switch" is the explicit choice to move Scores — and only Scores.
+    await waitFor(() =>
+      expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: null, take: ["scores"] }),
+    );
     expect(await screen.findByTestId("text-activate-page-success")).toBeInTheDocument();
   });
 });
