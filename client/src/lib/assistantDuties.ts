@@ -30,6 +30,15 @@ export function assistantsOf(map: { tags?: unknown } | null | undefined, self: s
   return [...byKey.values()];
 }
 
+/**
+ * The Assistants other than this deployment's that hold at least one Duty
+ * category — what "Also working for you" lists. Empty while everything happens
+ * on this site, so the Yours view stays one card.
+ */
+export function othersOf(assistants: AssistantDuties[]): AssistantDuties[] {
+  return assistants.filter((a) => !a.here && a.categories.length > 0);
+}
+
 const and = (words: string[]) =>
   words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 

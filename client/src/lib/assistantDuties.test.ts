@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assistantsOf, dutiesSummary, sidekickLine } from "./assistantDuties";
+import { assistantsOf, dutiesSummary, othersOf, sidekickLine } from "./assistantDuties";
 
 /**
  * "Your Assistants" on Settings › Assistants › Yours: which Assistant holds each
@@ -106,5 +106,26 @@ describe("sidekickLine", () => {
 
   it("claims nothing before the Treasure Map is read", () => {
     expect(sidekickLine(null)).toBe("Your sidekick is set up.");
+  });
+});
+
+/**
+ * The Yours view grows with the User: one card while everything happens on
+ * this site, and "Also working for you" only once another Assistant holds a
+ * Duty — this site's Assistant is the big card above, never repeated.
+ */
+describe("othersOf", () => {
+  it("is the other Assistants holding a Duty, never this site's", () => {
+    expect(
+      othersOf([
+        { pubkey: HERE, here: true, categories: ["lists"] },
+        { pubkey: PROD, here: false, categories: ["scores"] },
+      ]),
+    ).toEqual([{ pubkey: PROD, here: false, categories: ["scores"] }]);
+  });
+
+  it("is empty when everything happens on this site", () => {
+    expect(othersOf([{ pubkey: HERE, here: true, categories: ["scores", "lists", "concepts"] }])).toEqual([]);
+    expect(othersOf([{ pubkey: HERE, here: true, categories: [] }])).toEqual([]);
   });
 });
