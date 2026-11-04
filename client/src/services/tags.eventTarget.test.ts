@@ -25,7 +25,17 @@ vi.mock("./nostr", () => ({
       return relays.map((from) => ({ ok: true, from }));
     },
   },
-  fetchEventsByFilter: async () => [],
+  // A relay that serves back what was published, filtered as a relay would.
+  fetchEventsByFilter: async (filter: Record<string, unknown>) =>
+    h.published.filter((e) =>
+      Object.entries(filter).every(([k, v]) => {
+        if (k === "kinds") return (v as number[]).includes(e.kind);
+        if (k === "authors") return (v as string[]).includes(e.pubkey);
+        if (k === "ids") return (v as string[]).includes(e.id);
+        if (k.startsWith("#")) return e.tags.some((t) => t[0] === k.slice(1) && (v as string[]).includes(t[1]));
+        return true;
+      }),
+    ),
   fetchTrustProviderList: async () => undefined,
   loadOutboxRelayListFromDb: (_pk: string, seeds: string[]) => seeds,
   publishToRelays: async () => ({ success: true }),
@@ -64,5 +74,31 @@ describe("applyTagToEvent", () => {
 
     const tagging = taggingOf(h.published);
     expect(tagging!.tags).toContainEqual(expect.arrayContaining(["e", NOTE_ID]));
+  });
+});
+
+/**
+ * Reading an addressable item's tags asks for both: taggings by its coordinate
+ * (what is written now) and by its id (what was written before #334), counted
+ * as one item — so nothing tagged the old way disappears.
+ */
+describe("fetchEventTags for an addressable item", () => {
+  const ITEM_ID = "7".repeat(64);
+
+  it("finds a tagging by its coordinate", async () => {
+    const tags = await import("./tags");
+    await tags.applyTagToEvent({ tag: { name: "Bitcoin" }, target: { address: LISTING } });
+
+    const read = await tags.fetchEventTags(ITEM_ID, VIEWER, "house", LISTING);
+    expect(read.mine.map((m) => m.key)).toContain(`${VIEWER}|bitcoin`);
+  });
+
+  it("still finds one made by its id, before #334, under the same item", async () => {
+    const tags = await import("./tags");
+    await tags.applyTagToEvent({ tag: { name: "Bitcoin" }, target: { address: LISTING } });
+    await tags.applyTagToEvent({ tag: { name: "Hoodies" }, target: { id: ITEM_ID } });
+
+    const read = await tags.fetchEventTags(ITEM_ID, VIEWER, "house", LISTING);
+    expect(read.mine.map((m) => m.key).sort()).toEqual([`${VIEWER}|bitcoin`, `${VIEWER}|hoodies`]);
   });
 });

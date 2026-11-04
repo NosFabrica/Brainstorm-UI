@@ -2153,6 +2153,12 @@ function targetIdOf(ev: NostrEvent): string | null {
   return e?.[1] ?? null;
 }
 
+/** The coordinate a tagging names in its `a` tag, when it names one. */
+function targetAddressOf(ev: NostrEvent): string | null {
+  const a = (ev.tags || []).find((t) => t[0] === "a");
+  return a?.[1] ?? null;
+}
+
 /**
  * Every tag applied to each of N notes, in ONE pass (ACCEPTANCE C2).
  *
@@ -2172,10 +2178,21 @@ export async function fetchEventTagsBatch(
   eventIds: string[],
   viewerPubkey?: string,
   observer: TrustObserver = "house",
+  /**
+   * An addressable event's coordinate, by its id (#334): its taggings are read
+   * by coordinate as well as by id — what is written now, and what was written
+   * before — and counted under the id.
+   */
+  addresses: Record<string, string> = {},
 ): Promise<Map<string, NoteTagsResult>> {
   const out = new Map<string, NoteTagsResult>();
   const ids = Array.from(new Set(eventIds.filter(Boolean)));
   if (!ids.length) return out;
+  const idByAddress = new Map(
+    Object.entries(addresses)
+      .filter(([id, address]) => ids.includes(id) && address)
+      .map(([id, address]) => [address, id]),
+  );
 
   // One REQ per chunk, never per note. 200 keeps the filter under the size
   // most relays accept while still collapsing any realistic page to one query.
@@ -2192,6 +2209,16 @@ export async function fetchEventTagsBatch(
       // no chips, which is what an untagged note looks like anyway.
     }
   }
+  const coords = Array.from(idByAddress.keys());
+  for (let i = 0; i < coords.length; i += 200) {
+    const chunk = coords.slice(i, i + 200);
+    const filter = filterTagsAppliedToEvent({ target: { address: chunk[0] } }) as Record<string, unknown>;
+    try {
+      candidates.push(...(await fetchTagEvents({ ...filter, "#a": chunk })));
+    } catch {
+      // As above: an item we couldn't ask about by coordinate keeps what its id found.
+    }
+  }
   if (!candidates.length) return out;
 
   const deduped = latestByReplaceableKey(candidates);
@@ -2204,7 +2231,9 @@ export async function fetchEventTagsBatch(
 
   const byTarget = new Map<string, NostrEvent[]>();
   for (const ev of deduped) {
-    const target = targetIdOf(ev);
+    // By id, or by coordinate filed under the item's id.
+    const byId = targetIdOf(ev);
+    const target = byId && ids.includes(byId) ? byId : idByAddress.get(targetAddressOf(ev) ?? "");
     if (!target || !ids.includes(target)) continue;
     if (!byTarget.has(target)) byTarget.set(target, []);
     byTarget.get(target)!.push(ev);
@@ -2302,8 +2331,10 @@ export async function fetchEventTags(
   eventId: string,
   viewerPubkey?: string,
   observer: TrustObserver = "house",
+  /** The event's coordinate, when it is addressable (#334). */
+  address?: string,
 ): Promise<NoteTagsResult> {
-  const batch = await fetchEventTagsBatch([eventId], viewerPubkey, observer);
+  const batch = await fetchEventTagsBatch([eventId], viewerPubkey, observer, address ? { [eventId]: address } : {});
   return batch.get(eventId) ?? EMPTY_NOTE_TAGS;
 }
 
