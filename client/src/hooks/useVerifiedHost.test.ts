@@ -22,7 +22,7 @@ import { useVerifiedHost } from "./useVerifiedHost";
 
 describe("useVerifiedHost", () => {
   beforeEach(() => {
-    h.profile = { nip05: "hill_bean_be5b@brainstorm.nosfabrica.com", website: "https://brainstorm.nosfabrica.com" };
+    h.profile = { nip05: "assistant@brainstorm.nosfabrica.com", website: "https://brainstorm.nosfabrica.com" };
     h.status = "verified";
   });
 
