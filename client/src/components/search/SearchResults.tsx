@@ -58,14 +58,8 @@ import { MoreResults } from "./MoreResults";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import {
-  fetchEventRsvps,
-  fetchGitCommentCounts,
-  fetchGitStatuses,
-  fetchGoalProgress,
-  type EventRsvps,
-  type GoalProgress,
-} from "@/services/search";
+import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
+import { useEventRsvps } from "@/hooks/useEventRsvps";
 import {
   GIT_STATE_LABEL,
   foldForks,
@@ -1827,7 +1821,6 @@ export function SearchResults({
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   // Events tab: who is going — one request per page, keyed by event coordinate.
-  const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
   // Fundraisers tab: what each zap goal has raised. Like the git counts
   // below, each streamed snapshot or "more" page asks only after the goals
   // it adds, and a generation drops answers that land after the page emptied.
@@ -1888,20 +1881,7 @@ export function SearchResults({
         : [],
     [hits, tab],
   );
-  const eventAddrKey = eventAddresses.join(",");
-  useEffect(() => {
-    if (!eventAddrKey) {
-      setEventRsvps(new Map());
-      return;
-    }
-    let alive = true;
-    void fetchEventRsvps(eventAddrKey.split(",")).then((m) => {
-      if (alive) setEventRsvps(m);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [eventAddrKey]);
+  const eventRsvps = useEventRsvps(eventAddresses);
   const rsvpsOf = (e: NostrEvent) =>
     eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(

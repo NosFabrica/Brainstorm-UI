@@ -1003,6 +1003,33 @@ describe("SearchResults", () => {
       expect(tonight).toHaveTextContent(/By\s*club/);
     });
 
+    // The results arrive in bursts; asking RSVPs on each one sent a request per
+    // burst for the same page. One ask, for the list it settles on.
+    it("asks for RSVPs once the result list settles, not per burst", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      const tonight = {
+        event: cal("e-tonight", "Bitcoin Liverpool Meetup", nowSec + 5 * 3600),
+        author: author("c".repeat(64), "club"),
+        rank: null,
+      };
+      const nextMonth = {
+        event: cal("e-next-month", "Bitcoin Liverpool Conference", nowSec + 20 * DAY, [], "d".repeat(64)),
+        author: author("d".repeat(64), "conf"),
+        rank: null,
+      };
+      emit({ hits: [tonight] });
+      await screen.findByTestId("event-card-e-tonight");
+      emit({ hits: [tonight, nextMonth], eose: true, timeMs: 300 });
+      await screen.findByTestId("event-card-e-next-month");
+      await vi.waitFor(
+        () =>
+          expect(eventRsvpsMock).toHaveBeenCalledWith(expect.arrayContaining([expect.anything(), expect.anything()])),
+        { timeout: 2000 },
+      );
+      expect(eventRsvpsMock).toHaveBeenCalledTimes(1);
+    });
+
     // Luma's list is a timeline: a header per day, cards under it that lead
     // with the start time — the date is said once — and the guests who said
     // they are going, as faces with a count.
@@ -1023,7 +1050,7 @@ describe("SearchResults", () => {
       );
       // The date is in the header, not repeated on every card.
       expect(within(screen.getByTestId("event-card-e-tonight")).queryByTestId("event-date-tile")).toBeNull();
-      expect(eventRsvpsMock).toHaveBeenCalledWith(expect.arrayContaining([addr]));
+      await vi.waitFor(() => expect(eventRsvpsMock).toHaveBeenCalledWith(expect.arrayContaining([addr])));
       const going = await within(screen.getByTestId("event-card-e-tonight")).findByTestId("event-going-e-tonight");
       expect(going).toHaveTextContent("3 going");
       expect(going.querySelectorAll('[data-testid^="event-going-face-"]')).toHaveLength(3);
