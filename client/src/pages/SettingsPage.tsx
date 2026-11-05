@@ -53,7 +53,6 @@ import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
-import type { NostrEvent } from "applesauce-core/helpers";
 import {
   deactivateBrainstormTrustAnchor,
   publishBrainstormTrustAnchor,
