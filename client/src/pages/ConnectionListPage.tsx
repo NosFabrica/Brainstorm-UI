@@ -22,6 +22,7 @@ import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { personMatches } from "@/lib/personMatch";
+import { hasOwnScores } from "@/lib/ownScores";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -84,13 +85,7 @@ export default function ConnectionListPage() {
   // viewer with calculated scores; otherwise (or when the viewer chose Global)
   // the house perspective serves — `house: true` forces the unauthenticated view.
   const signedIn = useHasSession();
-  const calcDone = (() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  })();
+  const calcDone = hasOwnScores(me?.pubkey);
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
   const myPov = signedIn && calcDone && scorePov === "personalized";
