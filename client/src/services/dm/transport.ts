@@ -24,7 +24,7 @@ import {
   type Observable,
 } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
-import { pool, wakeableBackoff } from "@/lib/relayPool";
+import { isAuthRequiredReason, pool, wakeableBackoff } from "@/lib/relayPool";
 import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
@@ -46,11 +46,9 @@ export const poolTransport: DmTransport = {
     // Reconnects for as long as it lives, waiting at most 30s between tries — and
     // not at all once the app comes back to the foreground (lib/relayPool).
     const reconnect = { count: Infinity, delay: wakeableBackoff(), resetOnSuccess: true };
-    // A relay that CLOSEs the REQ is asked again, but never at once: whatever the
-    // reason, an immediate resubscribe repeats as fast as the relay can refuse it.
-    const backoff = wakeableBackoff();
-    const resubscribe = { count: Infinity, delay: (count: number) => backoff(undefined, count) };
-    const sub = relay.subscription([f], { reconnect, resubscribe }).subscribe({
+    // Asked again whenever the relay CLOSEs it, on lib/relayPool's rules: after a
+    // login when it wanted one, else backing off — never at once.
+    const sub = relay.subscription([f], { reconnect, resubscribe: Infinity }).subscribe({
       next: (message) => (message === "EOSE" ? handlers.onEose() : handlers.onEvent(message as NostrEvent)),
       error: () => handlers.onAuthRequired(false),
     });
@@ -87,13 +85,17 @@ export const poolTransport: DmTransport = {
             handlers.onEose();
           } else if (message.type === "CLOSED") {
             finished = true;
-            handlers.onClosed(message.reason, message.reason.startsWith("auth-required"));
+            handlers.onClosed(message.reason, isAuthRequiredReason(message.reason));
           }
         },
         error: (error: unknown) => {
           if (finished) return;
           finished = true;
-          handlers.onClosed(reasonOf(error), error instanceof AuthRequiredError);
+          handlers.onClosed(
+            reasonOf(error),
+            error instanceof AuthRequiredError ||
+              isAuthRequiredReason(error instanceof RelayClosedError ? error.reason : undefined),
+          );
         },
       });
     return () => sub.unsubscribe();
