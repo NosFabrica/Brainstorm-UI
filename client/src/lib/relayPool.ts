@@ -21,7 +21,7 @@
  */
 import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { Subject, filter, isObservable, map, race, scan, take, timer, type Observable } from "rxjs";
+import { Subject, filter, isObservable, map, race, scan, take, tap, timer, type Observable } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
 import { SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
@@ -57,10 +57,39 @@ export function withSearchToken(filters: ReqFilters): ReqFilters {
   return (Array.isArray(filters) ? (filters as OneFilter[]).map(one) : one(filters as OneFilter)) as ReqFilters;
 }
 
+/**
+ * An `auth-required:` refusal anywhere in a CLOSED reason, not only at its start.
+ * strfry sends `ERROR: auth-required: requested filter requires authentication`
+ * (relay.mwaters.net, 2026-11-08); the library only reads the prefix at index 0,
+ * so it took that for a clean close, and a live subscription resubscribed on
+ * every answer — thousands of REQs a minute from one open tab, and no login ever
+ * attempted, because nothing flagged the relay as wanting one.
+ */
+const AUTH_REQUIRED_ANYWHERE = /(^|[\s:])auth-required:/i;
+
+/** Whether `reason` is an auth-required refusal the library did not recognise as one. */
+export function isBuriedAuthRequired(reason: string): boolean {
+  return !reason.startsWith("auth-required:") && AUTH_REQUIRED_ANYWHERE.test(reason);
+}
+
 class ReadFirstRelay extends Relay {
   /** Every read — `request` and `subscription` included — comes through here. */
   req(filters: ReqFilters, opts?: Parameters<Relay["req"]>[1]): ReturnType<Relay["req"]> {
-    return super.req(this.url === SEARCH_RELAY ? withSearchToken(filters) : filters, { waitForAuth: false, ...opts });
+    return super
+      .req(this.url === SEARCH_RELAY ? withSearchToken(filters) : filters, { waitForAuth: false, ...opts })
+      .pipe(
+        // Flagged as the library flags a well-formed refusal: services/relayAuth
+        // answers the challenge, and a resubscribing REQ waits for that login
+        // (waitForAuth) instead of asking again at once.
+        tap((message) => {
+          if (
+            message.type === "CLOSED" &&
+            isBuriedAuthRequired(message.reason) &&
+            !this.receivedAuthRequiredForReq.value
+          )
+            this.receivedAuthRequiredForReq.next(true);
+        }),
+      );
   }
 
   subscription(

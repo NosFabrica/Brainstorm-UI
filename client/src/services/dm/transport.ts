@@ -46,7 +46,11 @@ export const poolTransport: DmTransport = {
     // Reconnects for as long as it lives, waiting at most 30s between tries — and
     // not at all once the app comes back to the foreground (lib/relayPool).
     const reconnect = { count: Infinity, delay: wakeableBackoff(), resetOnSuccess: true };
-    const sub = relay.subscription([f], { reconnect, resubscribe: Infinity }).subscribe({
+    // A relay that CLOSEs the REQ is asked again, but never at once: whatever the
+    // reason, an immediate resubscribe repeats as fast as the relay can refuse it.
+    const backoff = wakeableBackoff();
+    const resubscribe = { count: Infinity, delay: (count: number) => backoff(undefined, count) };
+    const sub = relay.subscription([f], { reconnect, resubscribe }).subscribe({
       next: (message) => (message === "EOSE" ? handlers.onEose() : handlers.onEvent(message as NostrEvent)),
       error: () => handlers.onAuthRequired(false),
     });
