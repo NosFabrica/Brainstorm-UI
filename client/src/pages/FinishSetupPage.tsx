@@ -139,6 +139,7 @@ function ScoresSwitchRow({ onSwitch, providerName }: { onSwitch: () => void; pro
  */
 function AccountIdentity({
   pubkey,
+  loaded,
   name,
   picture,
   banner,
@@ -147,6 +148,8 @@ function AccountIdentity({
   onEdit,
 }: {
   pubkey: string;
+  /** Their profile has arrived (or there is none): only then is anything known to be missing. */
+  loaded: boolean;
   name: string;
   picture?: string;
   banner?: string;
@@ -191,11 +194,15 @@ function AccountIdentity({
     }
   };
 
-  const missing = [
-    !shown.picture && { label: "Add photo", onClick: () => photoInput.current?.click() },
-    !shown.banner && { label: "Add banner", onClick: () => bannerInput.current?.click() },
-    !shown.about && !writingBio && { label: "Add bio", onClick: () => setWritingBio(true) },
-  ].filter((m): m is { label: string; onClick: () => void } => !!m);
+  const missing = (
+    !loaded
+      ? []
+      : [
+          !shown.picture && { label: "Add photo", onClick: () => photoInput.current?.click() },
+          !shown.banner && { label: "Add banner", onClick: () => bannerInput.current?.click() },
+          !shown.about && !writingBio && { label: "Add bio", onClick: () => setWritingBio(true) },
+        ]
+  ).filter((m): m is { label: string; onClick: () => void } => !!m);
 
   return (
     <Card className="overflow-hidden p-0" data-testid="account-identity">
@@ -321,12 +328,15 @@ function AccountTile({
   value,
   label,
   action,
+  secondary,
   testid,
 }: {
   icon: ComponentType<{ className?: string }>;
   value: string;
   label: string;
   action?: { label: string; onClick: () => void };
+  /** A second, quieter action beside the first. */
+  secondary?: { label: string; onClick: () => void };
   testid: string;
 }) {
   return (
@@ -334,14 +344,27 @@ function AccountTile({
       <Icon className="h-4 w-4 text-brand-primary dark:text-brand-link" />
       <span className="mt-1 truncate text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{value}</span>
       <span className="text-[12px] text-slate-500 dark:text-slate-400">{label}</span>
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="mt-1 self-start text-[12px] font-semibold text-brand-link hover:underline"
-        >
-          {action.label}
-        </button>
+      {(action || secondary) && (
+        <span className="mt-1 flex gap-3">
+          {action && (
+            <button
+              type="button"
+              onClick={action.onClick}
+              className="text-[12px] font-semibold text-brand-link hover:underline"
+            >
+              {action.label}
+            </button>
+          )}
+          {secondary && (
+            <button
+              type="button"
+              onClick={secondary.onClick}
+              className="text-[12px] font-medium text-slate-500 hover:text-slate-700 hover:underline dark:text-slate-400"
+            >
+              {secondary.label}
+            </button>
+          )}
+        </span>
       )}
     </Card>
   );
@@ -405,7 +428,8 @@ export default function FinishSetupPage() {
   const [showDone, setShowDone] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   // Who they are, and their Assistant as the identity it is: both read live.
-  const own = useLiveProfile(user?.pubkey).profile;
+  const ownProfile = useLiveProfile(user?.pubkey);
+  const own = ownProfile.profile;
   const { taPubkey } = useBrainstormAssistant();
   const assistant = useLiveProfile(taPubkey ?? undefined).profile;
 
@@ -481,6 +505,7 @@ export default function FinishSetupPage() {
           <div className="flex flex-col gap-4" data-testid="card-account-status">
             <AccountIdentity
               pubkey={user.pubkey}
+              loaded={!ownProfile.loading}
               name={own?.display_name || own?.name || user.displayName || "You"}
               picture={own?.picture || user.picture}
               banner={own?.banner}
@@ -494,7 +519,8 @@ export default function FinishSetupPage() {
                 icon={Users}
                 value={followCount.toLocaleString()}
                 label="People you follow"
-                action={{ label: "Edit", onClick: goFollow }}
+                action={{ label: "Manage", onClick: () => navigate("/network") }}
+                secondary={{ label: "Find people", onClick: goFollow }}
                 testid="tile-network"
               />
               <AccountTile

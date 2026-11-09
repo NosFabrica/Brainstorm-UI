@@ -35,9 +35,16 @@ const rankProvider = vi.hoisted(() => ({ value: null as null | { name: string; h
 vi.mock("@/hooks/useRankProvider", () => ({ useRankProvider: () => rankProvider.value }));
 // Profiles by pubkey: the user's own, and their Assistant's.
 const TA = "b".repeat(64);
-const profiles = vi.hoisted(() => ({ byPubkey: {} as Record<string, Record<string, string> | undefined> }));
+const profiles = vi.hoisted(() => ({
+  byPubkey: {} as Record<string, Record<string, string> | undefined>,
+  /** Still being asked for: nothing held yet. */
+  loading: false,
+}));
 vi.mock("@/hooks/useLiveProfile", () => ({
-  useLiveProfile: (pk: string | undefined) => ({ profile: pk ? profiles.byPubkey[pk] : undefined, loading: false }),
+  useLiveProfile: (pk: string | undefined) => ({
+    profile: pk && !profiles.loading ? profiles.byPubkey[pk] : undefined,
+    loading: profiles.loading,
+  }),
 }));
 vi.mock("@/hooks/useBrainstormAssistant", () => ({
   useBrainstormAssistant: () => ({ taPubkey: TA, published: null }),
@@ -231,6 +238,7 @@ describe("FinishSetupPage — what's left, then your account", () => {
   };
   beforeEach(() => {
     profiles.byPubkey = { [PUBKEY]: FULL, [TA]: ASSISTANT };
+    profiles.loading = false;
   });
 
   // Once nothing is left: who they are, what their account is for, their
@@ -252,7 +260,10 @@ describe("FinishSetupPage — what's left, then your account", () => {
 
     expect(screen.getByTestId("tile-network")).toHaveTextContent("6");
     expect(screen.getByTestId("tile-network")).toHaveTextContent("People you follow");
-    fireEvent.click(within(screen.getByTestId("tile-network")).getByRole("button", { name: "Edit" }));
+    // Their existing follows are managed on /network; /welcome only adds people.
+    fireEvent.click(within(screen.getByTestId("tile-network")).getByRole("button", { name: "Manage" }));
+    expect(navigate).toHaveBeenCalledWith("/network");
+    fireEvent.click(within(screen.getByTestId("tile-network")).getByRole("button", { name: "Find people" }));
     expect(navigate).toHaveBeenCalledWith("/welcome?next=/setup");
     expect(screen.getByTestId("tile-scores")).toHaveTextContent("Calculating");
     expect(screen.getByTestId("tile-sharing")).toHaveTextContent("On");
@@ -327,6 +338,15 @@ describe("FinishSetupPage — what's left, then your account", () => {
       fireEvent.click(within(screen.getByTestId("account-identity")).getByRole("button", { name: "Edit profile" }));
       expect(screen.getByTestId("profile-editor")).toBeInTheDocument();
     });
+  });
+
+  // Their profile hasn't arrived yet: nothing is known to be missing, so
+  // nothing is offered — the line never flashes over a complete profile.
+  it("offers nothing while their profile is still loading", () => {
+    profiles.loading = true;
+    setupState.mockReturnValue(state(everythingDone));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.queryByTestId("profile-nudge")).toBeNull();
   });
 
   it("says nothing about the profile once it's complete", () => {
