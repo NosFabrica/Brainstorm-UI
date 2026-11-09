@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeftRight,
   ArrowRight,
+  Bot,
   Check,
   ChevronRight,
   ListChecks,
@@ -69,6 +70,15 @@ function listOf(names: string[]): string {
   if (names.length <= 1) return names.join("");
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
+
+/** A task the app is doing by itself (components/AutoAssistantSetup): the row stays, with nothing to do. */
+/** Settings › Assistants, Yours: the card that publishes the Assistant by hand. */
+const YOUR_ASSISTANT_PATH = "/settings?tab=assistants";
+
+const ACCOUNT_COMES_WITH =
+  "Your account comes with your own Brainstorm Assistant: a nostr identity Brainstorm holds for you, which signs and publishes on your behalf.";
+
+const PUBLISHING_FOR_YOU = "Your Assistant is publishing it for you now — nothing for you to do.";
 
 function PendingRow({
   label,
@@ -145,6 +155,8 @@ export default function FinishSetupPage() {
   const rankProvider = useRankProvider(user?.pubkey);
   const providerName = rankProvider?.name ?? "an Assistant";
   const {
+    accountDone,
+    accountAuto,
     followDone,
     followCount,
     activateDone,
@@ -153,7 +165,9 @@ export default function FinishSetupPage() {
     missingSignals,
     listsPending,
     dutyMenu,
+    dutyMenuAuto,
     treasureMap,
+    treasureMapAuto,
     doneCount,
     totalSteps,
     allDone,
@@ -222,11 +236,29 @@ export default function FinishSetupPage() {
         </div>
 
         <div className="mt-5 flex flex-col gap-3">
-          <DoneRow
-            label="Create your account"
-            detail={`You're signed in as ${user.displayName || "yourself"}.`}
-            testid="setup-row-account"
-          />
+          {accountDone ? (
+            <DoneRow
+              label="Create your account"
+              detail={`You're signed in as ${user.displayName || "yourself"}. Your Brainstorm Assistant is live.`}
+              testid="setup-row-account"
+            />
+          ) : (
+            // The account comes with its own Assistant, which the app brings to
+            // life by itself (AutoAssistantSetup); a failed publish is theirs,
+            // on the Assistant's own page.
+            <PendingRow
+              label="Create your account"
+              badge={accountAuto ? "Publishing" : "Start here"}
+              detail={
+                accountAuto
+                  ? `${ACCOUNT_COMES_WITH} It's going live now — nothing for you to do.`
+                  : `${ACCOUNT_COMES_WITH} Bring it to life on its page — one tap.`
+              }
+              icon={Bot}
+              onClick={() => navigate(YOUR_ASSISTANT_PATH)}
+              testid="setup-row-account-pending"
+            />
+          )}
 
           {followDone ? (
             <DoneRow
@@ -314,16 +346,20 @@ export default function FinishSetupPage() {
               <PendingRow
                 label="Publish your Assistant's Duty Menu"
                 badge={
-                  dutyMenu === "checking"
-                    ? "Checking"
-                    : dutyMenu === "out-of-date"
-                      ? "Out of date"
-                      : "Required for other apps"
+                  dutyMenuAuto
+                    ? "Publishing"
+                    : dutyMenu === "checking"
+                      ? "Checking"
+                      : dutyMenu === "out-of-date"
+                        ? "Out of date"
+                        : "Required for other apps"
                 }
                 detail={
-                  dutyMenu === "out-of-date"
-                    ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
-                    : "Your Assistant's Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap."
+                  dutyMenuAuto
+                    ? PUBLISHING_FOR_YOU
+                    : dutyMenu === "out-of-date"
+                      ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
+                      : "Your Assistant's Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap."
                 }
                 icon={ListChecks}
                 onClick={() => navigate("/setup/duty-menu")}
@@ -355,16 +391,20 @@ export default function FinishSetupPage() {
               <PendingRow
                 label="Publish your Assistant's Treasure Map"
                 badge={
-                  treasureMap === "checking"
-                    ? "Checking"
-                    : treasureMap === "out-of-date"
-                      ? "Out of date"
-                      : "Required for other apps"
+                  treasureMapAuto
+                    ? "Publishing"
+                    : treasureMap === "checking"
+                      ? "Checking"
+                      : treasureMap === "out-of-date"
+                        ? "Out of date"
+                        : "Required for other apps"
                 }
                 detail={
-                  treasureMap === "out-of-date"
-                    ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
-                    : "Your Assistant's Treasure Map tells other apps what it's doing for you right now. Your Assistant signs it — one tap."
+                  treasureMapAuto
+                    ? PUBLISHING_FOR_YOU
+                    : treasureMap === "out-of-date"
+                      ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
+                      : "Your Assistant's Treasure Map tells other apps what it's doing for you right now. Your Assistant signs it — one tap."
                 }
                 icon={MapIcon}
                 onClick={() => navigate("/setup/treasure-map")}
