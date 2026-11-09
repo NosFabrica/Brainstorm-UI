@@ -438,7 +438,8 @@ export default function SettingsPage() {
       setTimeout(() => setRepublishState("idle"), 3000);
     } else if (result.status === "cancelled") {
       setRepublishState("idle");
-      if (!result.unlockDeclined) toast({ variant: "destructive", title: "Couldn't sign", duration: 3000 });
+      if (result.message)
+        toast({ variant: "destructive", title: "Couldn't sign", description: result.message, duration: 3000 });
     } else {
       setRepublishState("error");
       setRepublishError(result.message);
@@ -487,7 +488,8 @@ export default function SettingsPage() {
       }, 2000);
     } else if (result.status === "cancelled") {
       setDeactivateState("idle");
-      if (!result.unlockDeclined) toast({ variant: "destructive", title: "Couldn't sign", duration: 3000 });
+      if (result.message)
+        toast({ variant: "destructive", title: "Couldn't sign", description: result.message, duration: 3000 });
     } else {
       setDeactivateState("error");
       setDeactivateError(result.message);

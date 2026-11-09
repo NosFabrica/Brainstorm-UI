@@ -13,12 +13,13 @@ import {
   fetchOutboxRelayList,
   fetchTrustProviderList,
   getNip85RelayUrl,
+  probeTrustProviderList,
   publishToRelays,
   signNip85,
   signNip85Deactivation,
 } from "./nostr";
 import { activeAccount, canSignSilently } from "@/accounts/signing";
-import { isUnlockCancelled } from "@/accounts/local-signer";
+import { keyAccessMessage } from "@/accounts/backup";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
@@ -116,13 +117,19 @@ export async function checkExistingTrustProvider(
 
 export type TrustAnchorPublishResult =
   | { status: "success" }
-  | { status: "cancelled"; unlockDeclined: boolean }
+  /** `message` is why signing failed; null when the user declined. */
+  | { status: "cancelled"; unlockDeclined: boolean; message: string | null }
   | {
       status: "error";
       message: string;
       /** Re-send the SAME signed update — no second signature. */
       retry?: () => Promise<TrustAnchorPublishResult>;
     };
+
+const cancelled = (err: unknown): TrustAnchorPublishResult => {
+  const message = keyAccessMessage(err);
+  return { status: "cancelled", unlockDeclined: message === null, message };
+};
 
 /**
  * The 10040 goes out without waiting on the slowest relay: two confirmations,
@@ -190,7 +197,7 @@ export async function publishBrainstormTrustAnchor(
   try {
     signed = await signNip85(taPubkey, nip85Relay, { lists, existing });
   } catch (err) {
-    return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
+    return cancelled(err);
   }
 
   onPhase?.("publishing");
@@ -208,11 +215,13 @@ export async function deactivateBrainstormTrustAnchor(
   taPubkey: string,
   onPhase?: (phase: "signing" | "publishing") => void,
 ): Promise<TrustAnchorPublishResult> {
-  let existing: string[][] | undefined;
-  try {
-    existing = (await fetchTrustProviderList(pubkey))?.tags;
-  } catch {}
-  if (!existing) {
+  const { event, provenAbsent } = await probeTrustProviderList(pubkey);
+  if (!event) {
+    // No 10040 anywhere: nothing names Brainstorm, so only the local flag is left.
+    if (provenAbsent) {
+      clearNip85Activated(pubkey);
+      return { status: "success" };
+    }
     return {
       status: "error",
       message: "Couldn't read your current declaration from your relays. Nothing was changed.",
@@ -222,9 +231,9 @@ export async function deactivateBrainstormTrustAnchor(
   onPhase?.("signing");
   let signed;
   try {
-    signed = await signNip85Deactivation(taPubkey, existing);
+    signed = await signNip85Deactivation(taPubkey, event.tags);
   } catch (err) {
-    return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
+    return cancelled(err);
   }
 
   onPhase?.("publishing");
