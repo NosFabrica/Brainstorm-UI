@@ -9,8 +9,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const triggerGrapeRank = vi.fn(async () => ({}));
 const getUserHistory = vi.fn(async () => ({ data: {} }));
 const signNip85 = vi.fn(async () => ({ id: "e".repeat(64), pubkey: "a".repeat(64) }));
+const signNip85Deactivation = vi.fn(async (..._a: unknown[]) => ({ id: "d".repeat(64), pubkey: "a".repeat(64) }));
 const publishToRelays = vi.fn(async () => ({ success: true }));
 const fetchTrustProviderList = vi.fn(async (): Promise<{ tags: string[][] } | undefined> => undefined);
+const probeTrustProviderList = vi.fn(
+  async (..._a: unknown[]): Promise<{ event: { tags: string[][] } | undefined; provenAbsent: boolean }> => ({
+    event: undefined,
+    provenAbsent: false,
+  }),
+);
 const fetchOutboxRelayList = vi.fn(async () => undefined);
 const isUnlockCancelled = vi.fn(() => false);
 const identityHas = vi.fn(() => false);
@@ -35,8 +42,10 @@ vi.mock("./nostr", () => ({
   fetchOutboxRelayList: (...a: unknown[]) => fetchOutboxRelayList(...(a as [])),
   fetchTrustProviderList: (...a: unknown[]) => fetchTrustProviderList(...(a as [])),
   getNip85RelayUrl: () => "wss://nip85.example",
+  probeTrustProviderList: (...a: unknown[]) => probeTrustProviderList(...a),
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
+  signNip85Deactivation: (...a: unknown[]) => signNip85Deactivation(...a),
 }));
 vi.mock("./trustLists", () => ({
   checkUserLists: (...a: unknown[]) => checkUserLists(...a),
@@ -46,8 +55,8 @@ vi.mock("@/accounts/signing", () => ({
   activeAccount: () => activeAccount(),
   canSignSilently: () => canSignSilently(),
 }));
-vi.mock("@/accounts/local-signer", () => ({
-  isUnlockCancelled: (e: unknown) => isUnlockCancelled(e),
+vi.mock("@/accounts/backup", () => ({
+  keyAccessMessage: (e: unknown) => (isUnlockCancelled(e) ? null : "Please try again."),
 }));
 vi.mock("@/accounts/display", () => ({
   identityHas: (...a: unknown[]) => identityHas(...(a as [])),
@@ -60,6 +69,7 @@ vi.mock("@/lib/nip85Activation", () => ({
 
 import {
   checkExistingTrustProvider,
+  deactivateBrainstormTrustAnchor,
   ensureBrainstormTrustAnchor,
   publishBrainstormTrustAnchor,
   shouldAutoPublishNip85,
@@ -185,7 +195,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
   it("a refused signature is cancelled, not an error", async () => {
     signNip85.mockRejectedValueOnce(new Error("nope"));
     const res = await publishBrainstormTrustAnchor(ME, TA);
-    expect(res).toEqual({ status: "cancelled", unlockDeclined: false });
+    expect(res).toEqual({ status: "cancelled", unlockDeclined: false, message: "Please try again." });
     expect(markNip85Activated).not.toHaveBeenCalled();
   });
 
@@ -193,7 +203,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     signNip85.mockRejectedValueOnce(new Error("locked"));
     isUnlockCancelled.mockReturnValueOnce(true);
     const res = await publishBrainstormTrustAnchor(ME, TA);
-    expect(res).toEqual({ status: "cancelled", unlockDeclined: true });
+    expect(res).toEqual({ status: "cancelled", unlockDeclined: true, message: null });
   });
 
   it("relay rejection surfaces the message and does not mark activated", async () => {
@@ -321,5 +331,79 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
 
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
+  });
+});
+
+describe("deactivateBrainstormTrustAnchor — stop naming Brainstorm, keep everyone else", () => {
+  it("signs their 10040 minus our rows, publishes with the quorum, clears the flag", async () => {
+    const tags = [
+      ["30382:rank", TA, "wss://nip85.example"],
+      ["30383:rank", "b".repeat(64), "wss://elsewhere.example"],
+    ];
+    probeTrustProviderList.mockResolvedValueOnce({ event: { tags }, provenAbsent: false });
+    const phases: string[] = [];
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA, (p) => phases.push(p));
+
+    expect(res).toEqual({ status: "success" });
+    expect(signNip85Deactivation).toHaveBeenCalledWith(TA, tags);
+    expect(publishToRelays).toHaveBeenCalledWith(expect.anything(), undefined, { need: 2, timeoutMs: 8000 });
+    expect(clearNip85Activated).toHaveBeenCalledWith(ME);
+    expect(phases).toEqual(["signing", "publishing"]);
+  });
+
+  // "Not loaded" and "declared nothing" look the same; publishing on a guess
+  // would wipe rows declared elsewhere.
+  it("refuses when the current 10040 can't be read", async () => {
+    probeTrustProviderList.mockResolvedValueOnce({ event: undefined, provenAbsent: false });
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA);
+
+    expect(res).toMatchObject({ status: "error" });
+    expect(signNip85Deactivation).not.toHaveBeenCalled();
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(clearNip85Activated).not.toHaveBeenCalled();
+  });
+
+  it("relays proving there is no 10040 clear the flag without signing anything", async () => {
+    probeTrustProviderList.mockResolvedValueOnce({ event: undefined, provenAbsent: true });
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA);
+
+    expect(res).toEqual({ status: "success" });
+    expect(signNip85Deactivation).not.toHaveBeenCalled();
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(clearNip85Activated).toHaveBeenCalledWith(ME);
+  });
+
+  it("a signing failure carries its reason", async () => {
+    probeTrustProviderList.mockResolvedValueOnce({ event: { tags: [] }, provenAbsent: false });
+    signNip85Deactivation.mockRejectedValueOnce(new Error("bunker unreachable"));
+
+    expect(await deactivateBrainstormTrustAnchor(ME, TA)).toEqual({
+      status: "cancelled",
+      unlockDeclined: false,
+      message: "Please try again.",
+    });
+  });
+
+  it("a failed publish offers a retry of the same signed event and keeps the flag", async () => {
+    probeTrustProviderList.mockResolvedValueOnce({
+      event: { tags: [["30382:rank", TA, "wss://nip85.example"]] },
+      provenAbsent: false,
+    });
+    publishToRelays
+      .mockResolvedValueOnce({ success: false, error: "all relays refused" } as never)
+      .mockResolvedValueOnce({ success: true } as never);
+
+    const res = await deactivateBrainstormTrustAnchor(ME, TA);
+    expect(res.status).toBe("error");
+    expect(clearNip85Activated).not.toHaveBeenCalled();
+    const again = await (res as { retry: () => Promise<unknown> }).retry();
+
+    expect(again).toEqual({ status: "success" });
+    expect(signNip85Deactivation).toHaveBeenCalledTimes(1);
+    expect(publishToRelays.mock.calls[1][0]).toBe(publishToRelays.mock.calls[0][0]);
+    expect(clearNip85Activated).toHaveBeenCalledWith(ME);
   });
 });

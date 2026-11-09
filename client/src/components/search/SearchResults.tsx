@@ -12,6 +12,7 @@ import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import {
@@ -58,14 +59,8 @@ import { MoreResults } from "./MoreResults";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import {
-  fetchEventRsvps,
-  fetchGitCommentCounts,
-  fetchGitStatuses,
-  fetchGoalProgress,
-  type EventRsvps,
-  type GoalProgress,
-} from "@/services/search";
+import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
+import { useEventRsvps } from "@/hooks/useEventRsvps";
 import {
   GIT_STATE_LABEL,
   foldForks,
@@ -808,6 +803,7 @@ function FiltersPanel({
   tab: SearchTab;
   onQueryRewrite: (next: string) => void;
 }) {
+  const loginHref = useLoginHref();
   const sortOptions = tab === "shop" ? [...SORT_OPTIONS, ...PRICE_SORTS] : SORT_OPTIONS;
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
@@ -861,7 +857,7 @@ function FiltersPanel({
       {!userPubkey && (
         <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
           Sign in to rank through your own network.{" "}
-          <Link href="/login" className="font-medium text-brand-link hover:underline">
+          <Link href={loginHref} className="font-medium text-brand-link hover:underline">
             Sign in →
           </Link>
         </p>
@@ -1827,7 +1823,6 @@ export function SearchResults({
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   // Events tab: who is going — one request per page, keyed by event coordinate.
-  const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
   // Fundraisers tab: what each zap goal has raised. Like the git counts
   // below, each streamed snapshot or "more" page asks only after the goals
   // it adds, and a generation drops answers that land after the page emptied.
@@ -1888,20 +1883,7 @@ export function SearchResults({
         : [],
     [hits, tab],
   );
-  const eventAddrKey = eventAddresses.join(",");
-  useEffect(() => {
-    if (!eventAddrKey) {
-      setEventRsvps(new Map());
-      return;
-    }
-    let alive = true;
-    void fetchEventRsvps(eventAddrKey.split(",")).then((m) => {
-      if (alive) setEventRsvps(m);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [eventAddrKey]);
+  const eventRsvps = useEventRsvps(eventAddresses);
   const rsvpsOf = (e: NostrEvent) =>
     eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(

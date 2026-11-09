@@ -62,6 +62,7 @@ import { countValuesOf } from "@/lib/networkReach";
 import { networkPerspective } from "@/lib/networkPerspective";
 import { presetDisplayLabel } from "@/services/trustThreshold";
 import { UNKNOWN_EXPLAINER, ladderFor } from "@/lib/trustLadder";
+import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
 
 /**
  * The Network row expander now uses the lightweight `/user/:pk/overview`
@@ -193,17 +194,11 @@ export default function NetworkPage() {
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   const hadPreviousCalc = useMemo(() => {
     if (calcDoneNow) {
-      try {
-        localStorage.setItem("brainstorm_calc_completed", "true");
-      } catch {}
+      markOwnScores(user?.pubkey);
       return true;
     }
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  }, [calcDoneNow]);
+    return hasOwnScores(user?.pubkey);
+  }, [calcDoneNow, user?.pubkey]);
   const calcDone = calcDoneNow || hadPreviousCalc;
 
   const PAGE_SIZE = 100;

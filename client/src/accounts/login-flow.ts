@@ -326,13 +326,6 @@ export function logout() {
   // The cached events go too: which profiles someone looked at is a browsing
   // trail, and it should not outlive the session on a shared device.
   clearHydratedStore();
-  // Not per-Account: this one says "somebody has scored on this browser", which is
-  // what the public pages render, so it must not survive into an anonymous visit.
-  try {
-    localStorage.removeItem("brainstorm_calc_completed");
-  } catch {
-    /* ignore */
-  }
 }
 
 /**

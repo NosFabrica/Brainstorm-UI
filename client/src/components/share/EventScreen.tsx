@@ -23,6 +23,7 @@ import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
+import { tagTargetOf } from "@/lib/tagTarget";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
@@ -742,7 +743,15 @@ function EventView({
                 the note itself, where a reader has just finished it and a
                 tagger has the content in view. Reads from relays only, so it
                 renders for logged-out visitors too. */}
-            {!activityPage && <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />}
+            {!activityPage && (
+              <NoteTagChips
+                eventId={note.id}
+                // A listing, an article, a DList item: tagged by coordinate, so a tag survives its next edit (#334).
+                address={tagAddressOf(note)}
+                relayHint={relayHints[0]}
+                canTag={canTagNote}
+              />
+            )}
 
             {/* Reply thread — teaser-gated for anon, trust-filterable for members.
                 Not under a zap, a reaction or a report: nobody replies to those,
@@ -835,4 +844,10 @@ function EventView({
       </main>
     </div>
   );
+}
+
+/** The event's coordinate when it is addressable, as its tags are read and written (#334). */
+function tagAddressOf(event: { id: string; pubkey: string; kind: number; tags?: string[][] }): string | undefined {
+  const target = tagTargetOf(event);
+  return "address" in target ? target.address : undefined;
 }

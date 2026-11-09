@@ -11,6 +11,7 @@ import {
   planDesignation,
   rankProviderOf,
   signalRows,
+  withoutProvider,
 } from "./nip85Declaration";
 
 const TA = "a".repeat(64);
@@ -246,6 +247,19 @@ describe("planDesignation", () => {
     const plan = planDesignation(unrelated, signalRows(TA, RELAY), { self: TA, take: ["scores"] });
     expect(plan).toContainEqual(unrelated[0]);
     expect(plan).toContainEqual(unrelated[1]);
+  });
+});
+
+// Deactivating used to sign an empty 10040, wiping every provider the user had.
+describe("withoutProvider", () => {
+  it("drops only the rows naming our key", () => {
+    const theirs = [
+      ["30382:rank", OTHER_TA, "wss://elsewhere.example"],
+      ["30392", "e".repeat(64), "wss://lists.example"],
+    ];
+    const existing = [["30382:rank", TA, RELAY], ["30382:followers", TA, RELAY], ...theirs];
+
+    expect(withoutProvider(existing, TA)).toEqual(theirs);
   });
 });
 
