@@ -19,8 +19,8 @@ import {
   Users,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ToastAction } from "@/components/ui/toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
 import { useAssistantProfile } from "@/hooks/useAssistantProfile";
@@ -33,7 +33,7 @@ import { recordNip85Consent } from "@/lib/nip85Consent";
 import { PRESELECTED_PER_TOPIC, type SuggestedPerson } from "@/lib/onboardingPeople";
 import { ONBOARDING_TOPICS, type OnboardingTopicKey } from "@/lib/onboardingTopics";
 import { cn } from "@/lib/utils";
-import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
+import { followPubkeys, type FollowOutcome } from "@/services/socialActions";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 
 const TOPIC_ICONS: Record<OnboardingTopicKey, ComponentType<{ className?: string }>> = {
@@ -74,7 +74,8 @@ function nextPath(): string {
  * may use their trust scores — on by default; for an account made here the
  * declaration then goes out by itself, and an extension asks once. Finishing
  * publishes one follow list (services/socialActions, merged into any they
- * have) and starts their scores; search works while those calculate.
+ * have) and starts their scores — in the background, after they've gone
+ * to search: one that couldn't be saved says so, pointing to /setup.
  * Skipping publishes nothing. Either way the first run isn't offered again
  * (lib/firstRun). Decided 2026-11-08: plain words, nothing about the
  * protocol — the Assistant's own setup happens out of sight.
@@ -99,10 +100,6 @@ export default function FirstRunPage() {
   const [picked, setPicked] = useState<OnboardingTopicKey[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [share, setShare] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
-  const confirmPksRef = useRef<string[] | null>(null);
-  confirmPksRef.current = confirmPks;
   const { byTopic, loading } = useOnboardingPeople(picked);
   // The Assistant's own setup runs in the background (AutoAssistantSetup); the
   // last step only reports it, in plain words.
@@ -166,55 +163,51 @@ export default function FirstRunPage() {
     navigate(nextPath(), { replace: true });
   };
 
-  // Their network is in (or they kept the one they had): start their scores
-  // with the sharing choice, and go to search while they calculate.
-  const finishWith = (published: boolean) => {
-    if (pubkey) {
-      if (published || returning) void triggerScoringAndAnchor(pubkey, { nip85Consent: share }).catch(() => {});
-      else recordNip85Consent(pubkey, share);
-    }
-    if (published) {
-      toast({ title: "You're all set", description: "Your trust scores are calculating — search works right away." });
-    }
-    leave();
-  };
-
-  const commitFollows = async (pks: string[], opts?: FollowOptions) => {
-    setSubmitting(true);
-    const res = await followPubkeys(pks, opts);
-    setSubmitting(false);
-    if (res.cancelled) return;
-    if (res.needsBaseConfirmation) {
-      setConfirmPks(pks);
-      return;
-    }
-    if (!res.success) {
+  // The follow list saves after they've left for search: reading their old
+  // list, signing it (an extension asks, over the search page), publishing
+  // and the server taking it in can take seconds. This touches no state of
+  // this page — only toasts and navigation — so leaving doesn't cut it short.
+  const saveInBackground = (pks: string[]) => {
+    if (!pubkey) return;
+    const consent = share;
+    const people = `${pks.length} ${pks.length === 1 ? "person" : "people"}`;
+    void (async () => {
+      const res: FollowOutcome = await followPubkeys(pks).catch(() => ({ success: false }));
+      if (res.success && !res.cancelled && !res.needsBaseConfirmation) {
+        void triggerScoringAndAnchor(pubkey, { nip85Consent: consent }).catch(() => {});
+        toast({
+          title: `You're following ${people}`,
+          description: "Your trust scores are calculating — about 5 minutes.",
+        });
+        return;
+      }
+      // Declined, failed, or a list on the relays to confirm before changing it
+      // (the follow picker asks that): /setup has the step, and the header's
+      // pill counts it once the relays confirm there's no list.
+      recordNip85Consent(pubkey, consent);
       toast({
-        variant: "destructive",
-        title: "Couldn't save your follows",
-        description: res.error || "Please try again.",
+        title: "Your follows weren't saved",
+        description: "Finish it from your account setup — it takes a moment.",
+        action: (
+          <ToastAction altText="Finish setup" onClick={() => navigate("/setup")}>
+            Finish setup
+          </ToastAction>
+        ),
       });
-      return;
-    }
-    finishWith(true);
-  };
-
-  const searchRelay = async (url: string) => {
-    if (!pubkey) return { found: false as const, error: "Not signed in" };
-    const res = await recoverFollowListFromRelay(pubkey, url);
-    if (res.found) {
-      const pks = confirmPksRef.current;
-      setConfirmPks(null);
-      if (pks) void commitFollows(pks, { cachedBase: res.event });
-    }
-    return res;
+    })();
   };
 
   const onNext = () => {
     if (step !== "done") return setIndex((i) => i + 1);
-    if (submitting) return;
-    if (!returning && following.size > 0) void commitFollows([...following]);
-    else finishWith(false);
+    if (!returning && following.size > 0) {
+      saveInBackground([...following]);
+    } else if (pubkey) {
+      // A returning key keeps the network it has: start its scores. Nobody
+      // picked: nothing to score yet, so only the sharing choice is kept.
+      if (returning) void triggerScoringAndAnchor(pubkey, { nip85Consent: share }).catch(() => {});
+      else recordNip85Consent(pubkey, share);
+    }
+    leave();
   };
 
   const nextLabel =
@@ -440,28 +433,15 @@ export default function FirstRunPage() {
           <button
             type="button"
             onClick={onNext}
-            disabled={(step === "topics" && picked.length === 0) || submitting}
+            disabled={step === "topics" && picked.length === 0}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary py-3.5 font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-40"
             data-testid="first-run-next"
           >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {nextLabel}
-            {!submitting && <ArrowRight className="h-4 w-4" />}
+            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </footer>
-
-      <ConfirmNewFollowListDialog
-        open={confirmPks !== null}
-        busy={submitting}
-        onSearchRelay={searchRelay}
-        onCancel={() => setConfirmPks(null)}
-        onConfirm={() => {
-          const pks = confirmPks;
-          setConfirmPks(null);
-          if (pks) void commitFollows(pks, { allowFromScratch: true });
-        }}
-      />
     </div>
   );
 }

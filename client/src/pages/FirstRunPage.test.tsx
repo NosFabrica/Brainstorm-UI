@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   navigate: vi.fn(),
   followPubkeys: vi.fn(),
   trigger: vi.fn(),
+  toast: vi.fn(),
   byTopic: {} as Record<string, unknown[]>,
   /** The Assistant's own setup, which the app does in the background. */
   assistant: { live: true, publishing: false },
@@ -43,7 +44,7 @@ vi.mock("@/services/socialActions", () => ({
   recoverFollowListFromRelay: vi.fn(),
 }));
 vi.mock("@/services/trustAnchor", () => ({ triggerScoringAndAnchor: (...a: unknown[]) => h.trigger(...a) }));
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useAssistantProfile", () => ({ useAssistantProfile: () => h.assistant }));
 vi.mock("@/hooks/useAssistantDutyMenu", () => ({ useAssistantDutyMenu: () => ({ publishing: h.menuPublishing }) }));
 vi.mock("@/hooks/useAssistantTreasureMap", () => ({
@@ -179,6 +180,52 @@ describe("FirstRunPage", () => {
       for (const name of ["Ann", "Ben", "Cal"]) fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
       next();
       expect(screen.queryByTestId("ready-follows")).toBeNull();
+    });
+  });
+
+  /**
+   * Start searching doesn't wait for the follow list: reading the old one,
+   * signing (an extension asks), publishing and the server taking it in can
+   * take seconds. They go to search at once; the list saves in the
+   * background, and one that couldn't be saved says so and points to setup —
+   * where the header's pill already counts it as a step left.
+   */
+  describe("Start searching", () => {
+    const finish = () => {
+      pick("Music");
+      next();
+      next();
+      fireEvent.click(screen.getByTestId("first-run-next"));
+    };
+
+    it("goes to search at once, while the follows save in the background", () => {
+      h.followPubkeys.mockReturnValue(new Promise(() => {}));
+      render(<FirstRunPage />);
+      finish();
+      expect(h.navigate).toHaveBeenCalledWith("/", { replace: true });
+      expect(h.followPubkeys).toHaveBeenCalledTimes(1);
+    });
+
+    it("once saved, starts their scores with their sharing choice and says so", async () => {
+      render(<FirstRunPage />);
+      finish();
+      await waitFor(() => expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: true }));
+      expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "You're following 3 people" }));
+    });
+
+    it.each([
+      ["a declined signature", { cancelled: true }],
+      ["a failed publish", { success: false, error: "relay down" }],
+      ["a list on the relays that needs confirming first", { needsBaseConfirmation: true }],
+    ])("%s says the follows weren't saved, and points to setup", async (_case, outcome) => {
+      h.followPubkeys.mockResolvedValue(outcome);
+      render(<FirstRunPage />);
+      finish();
+      await waitFor(() =>
+        expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your follows weren't saved" })),
+      );
+      expect(h.toast.mock.calls.at(-1)[0].action).toBeTruthy();
+      expect(h.trigger).not.toHaveBeenCalled();
     });
   });
 });
