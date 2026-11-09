@@ -1,16 +1,6 @@
-import type { ComponentType, ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import {
-  ArrowLeftRight,
-  ArrowRight,
-  Bot,
-  Check,
-  ChevronRight,
-  ListChecks,
-  Map as MapIcon,
-  PenLine,
-  UserPlus,
-} from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Bot, Check, ChevronRight, PenLine, UserPlus } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,44 +16,23 @@ import { signalLabel } from "@/lib/nip85Declaration";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
 
 /**
- * /setup — the "Finish setting up your account" checklist hub. Replaces the
- * linear Profile → Follow → Backup wizard: the two things that actually gate a
- * working Brainstorm account (a follow list to score, a kind-10040 so other
- * apps can find the scores) are surfaced as jump-off cards, and everything
- * else (profile photo, backup) lives on in Settings and its own prompts,
- * off the critical path.
+ * /setup, in two moods (2026-11-09):
  *
- * Where the server can publish it, a fourth step: the Brainstorm Assistant's
- * Duty Menu, published and up to date (/setup/duty-menu does the publish).
- * And a fifth, the same way: the Assistant's own Treasure Map, listing the
- * duties live now (/setup/treasure-map).
+ * - **While something's left**, a checklist of only that: the follow list and
+ *   activation, the two things the user does. What's done folds into one
+ *   "N done" line instead of a wall of grey cards.
+ * - **Once nothing is**, "Your account": plain status lines — signed in, your
+ *   network, sharing your scores, your Assistant, private messages — one
+ *   action each, no badges, no progress bar.
  *
- * Every "Finish setup" surface (header banner, dashboard card) lands here, and
- * both action rows come back here when they're done, so progress is always
- * visible in one place. Once the required steps are done it's where the
- * account menu's Account setup row leads, for the optional extras — and it's
- * titled for that, not still asking them to finish.
+ * The Assistant's own steps (its profile, Duty Menu and Treasure Map) are the
+ * app's to do (components/AutoAssistantSetup) and never rows: one it couldn't
+ * finish is a single line to finish it by hand. Their details live behind
+ * "Advanced", in Settings › Assistants.
+ *
+ * Every "Finish setup" surface (header banner, dashboard card, account menu)
+ * lands here.
  */
-
-function DoneRow({ label, detail, testid }: { label: string; detail: ReactNode; testid: string }) {
-  return (
-    <div
-      className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
-      data-testid={testid}
-    >
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500">
-        <Check className="h-4 w-4 text-white" strokeWidth={3} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-semibold text-slate-400 dark:text-slate-500">{label}</div>
-        <div className="mt-0.5 text-[13px] text-slate-400 dark:text-slate-500">{detail}</div>
-      </div>
-      <Chip tone="success" size="sm" className="shrink-0 uppercase tracking-wide">
-        Done
-      </Chip>
-    </div>
-  );
-}
 
 /** "Reporters, Muters and Hops" — a list as a sentence says it. */
 function listOf(names: string[]): string {
@@ -71,14 +40,8 @@ function listOf(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-/** A task the app is doing by itself (components/AutoAssistantSetup): the row stays, with nothing to do. */
-/** Settings › Assistants, Yours: the card that publishes the Assistant by hand. */
+/** Settings › Assistants, Yours: the Assistant's card, and the way into its details. */
 const YOUR_ASSISTANT_PATH = "/settings?tab=assistants";
-
-const ACCOUNT_COMES_WITH =
-  "Your account comes with your own Brainstorm Assistant: a nostr identity Brainstorm holds for you, which signs and publishes on your behalf.";
-
-const PUBLISHING_FOR_YOU = "Your Assistant is publishing it for you now — nothing for you to do.";
 
 function PendingRow({
   label,
@@ -148,6 +111,37 @@ function ScoresSwitchRow({ onSwitch, providerName }: { onSwitch: () => void; pro
   );
 }
 
+/** One line of "Your account": what it is, its state, and at most one action. */
+function StatusLine({
+  label,
+  value,
+  action,
+  testid,
+}: {
+  label: string;
+  value: ReactNode;
+  action?: { label: string; onClick: () => void };
+  testid: string;
+}) {
+  return (
+    <div className="flex items-center gap-4 px-5 py-4" data-testid={testid}>
+      <span className="w-36 shrink-0 text-[13px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-slate-900 dark:text-slate-100">
+        {value}
+      </span>
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="shrink-0 text-[13px] font-semibold text-brand-link hover:underline"
+        >
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
@@ -156,7 +150,7 @@ export default function FinishSetupPage() {
   const providerName = rankProvider?.name ?? "an Assistant";
   const {
     accountDone,
-    accountAuto,
+    accountPending,
     followDone,
     followCount,
     activateDone,
@@ -165,20 +159,18 @@ export default function FinishSetupPage() {
     missingSignals,
     listsPending,
     dutyMenu,
-    dutyMenuAuto,
+    dutyMenuPending,
     treasureMap,
-    treasureMapAuto,
-    doneCount,
-    totalSteps,
+    treasureMapPending,
     allDone,
     messages,
   } = useFinishSetup();
   const { isCalculating } = useScoringStatus();
+  const [showDone, setShowDone] = useState(false);
 
   if (!user) return null;
 
-  // A value gate can thread its destination through login → here (LoginPage
-  // sends new accounts to /setup?next=…); honour it once everything's done.
+  // A value gate can thread its destination through login → here; honour it once everything's done.
   const nextPath = (() => {
     try {
       const n = new URLSearchParams(window.location.search).get("next");
@@ -190,6 +182,28 @@ export default function FinishSetupPage() {
   })();
 
   const goFollow = () => navigate("/welcome?next=/setup");
+  const goActivate = () => navigate("/setup/activate");
+
+  // An Assistant step the app couldn't finish (a failed publish, or one that
+  // still reads out of date after it): one line, to the page that does it by hand.
+  const unfinished = accountPending
+    ? YOUR_ASSISTANT_PATH
+    : dutyMenuPending
+      ? "/setup/duty-menu"
+      : treasureMapPending
+        ? "/setup/treasure-map"
+        : null;
+
+  // What's done, folded into one line while something is left.
+  const doneSteps = [
+    accountDone && "Create your account",
+    followDone && `Create your follow list · ${followCount} followed`,
+    activateDone && "Activate your Brainstorm account",
+    (dutyMenu === "current" || !dutyMenu) &&
+      (treasureMap === "current" || !treasureMap) &&
+      (dutyMenu || treasureMap) &&
+      "Your Assistant is set up",
+  ].filter((s): s is string => !!s);
 
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
@@ -203,7 +217,7 @@ export default function FinishSetupPage() {
       />
 
       <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
-        <SectionHeader kicker={allDone ? "Account setup" : "Finish setting up"} className="mb-4" />
+        <SectionHeader kicker={allDone ? "Account" : "Finish setting up"} className="mb-4" />
         <h1
           className="text-3xl font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
           style={{ fontFamily: "var(--font-display)" }}
@@ -211,7 +225,7 @@ export default function FinishSetupPage() {
         >
           {allDone ? (
             <>
-              Your account is <span className="text-brand-link">set up</span>.
+              Your <span className="text-brand-link">account</span>.
             </>
           ) : (
             <>
@@ -220,242 +234,156 @@ export default function FinishSetupPage() {
           )}
         </h1>
 
-        <div className="mt-7">
-          <span
-            className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300"
-            data-testid="text-finish-setup-progress"
-          >
-            {doneCount} of {totalSteps} complete
-          </span>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-accent transition-all duration-500"
-              style={{ width: `${Math.round((doneCount / totalSteps) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-5 flex flex-col gap-3">
-          {accountDone ? (
-            <DoneRow
-              label="Create your account"
-              detail={`You're signed in as ${user.displayName || "yourself"}. Your Brainstorm Assistant is live.`}
-              testid="setup-row-account"
-            />
-          ) : (
-            // The account comes with its own Assistant, which the app brings to
-            // life by itself (AutoAssistantSetup); a failed publish is theirs,
-            // on the Assistant's own page.
-            <PendingRow
-              label="Create your account"
-              badge={accountAuto ? "Publishing" : "Start here"}
-              detail={
-                accountAuto
-                  ? `${ACCOUNT_COMES_WITH} It's going live now — nothing for you to do.`
-                  : `${ACCOUNT_COMES_WITH} Bring it to life on its page — one tap.`
-              }
-              icon={Bot}
-              onClick={() => navigate(YOUR_ASSISTANT_PATH)}
-              testid="setup-row-account-pending"
-            />
-          )}
-
-          {followDone ? (
-            <DoneRow
-              label="Create your follow list"
-              detail={
-                <>
-                  {followCount} {followCount === 1 ? "account" : "accounts"} followed ·{" "}
-                  <button
-                    type="button"
-                    onClick={goFollow}
-                    className="font-semibold text-brand-link hover:underline"
-                    data-testid="setup-edit-follows"
-                  >
-                    Edit list
-                  </button>
-                </>
-              }
-              testid="setup-row-follow-done"
-            />
-          ) : (
-            <PendingRow
-              label="Create your follow list"
-              badge="Required for scoring"
-              detail="Your trust scores are built from who you follow — without at least one follow, there's nothing to calculate."
-              icon={UserPlus}
-              onClick={goFollow}
-              testid="setup-row-follow"
-            />
-          )}
-
-          {activateDone ? (
-            <DoneRow
-              label="Activate your Brainstorm account"
-              detail={
-                scoresElsewhere
-                  ? `Your Treasure Map names ${providerName} for your scores.`
-                  : "Other apps can now find your scores."
-              }
-              testid="setup-row-activate-done"
-            />
-          ) : signalsPending ? (
-            // Their Map names their Assistant, but not for every score it
-            // publishes (#313): the same signature, worded as the update it is.
-            <PendingRow
-              label="Update your Treasure Map"
-              badge="Required for other apps"
-              detail={`Your Treasure Map doesn't name your Assistant for ${listOf(missingSignals.map(signalLabel))} yet, so other apps can't find those scores. One signature adds them.`}
-              icon={PenLine}
-              onClick={() => navigate("/setup/activate")}
-              testid="setup-row-activate"
-            />
-          ) : (
-            <PendingRow
-              label="Activate your Brainstorm account"
-              badge="Required for other apps"
-              detail="Your Treasure Map tells other apps where to find your scores. You sign it — one signature."
-              icon={PenLine}
-              onClick={() => navigate("/setup/activate")}
-              testid="setup-row-activate"
-            />
-          )}
-          {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
-          {activateDone && listsPending && <ListsUpdateLine />}
-
-          {dutyMenu === "current" ? (
-            <DoneRow
-              label="Publish your Assistant's Duty Menu"
-              detail={
-                <>
-                  Your Brainstorm Assistant's Duty Menu is up to date ·{" "}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/setup/duty-menu")}
-                    className="font-semibold text-brand-link hover:underline"
-                    data-testid="setup-view-duty-menu"
-                  >
-                    View
-                  </button>
-                </>
-              }
-              testid="setup-row-duty-menu-done"
-            />
-          ) : (
-            dutyMenu && (
-              <PendingRow
-                label="Publish your Assistant's Duty Menu"
-                badge={
-                  dutyMenuAuto
-                    ? "Publishing"
-                    : dutyMenu === "checking"
-                      ? "Checking"
-                      : dutyMenu === "out-of-date"
-                        ? "Out of date"
-                        : "Required for other apps"
-                }
-                detail={
-                  dutyMenuAuto
-                    ? PUBLISHING_FOR_YOU
-                    : dutyMenu === "out-of-date"
-                      ? "Your Assistant's Duty Menu differs from what your Assistant offers now. Publish it again so other apps see the duties it takes on today."
-                      : "Your Assistant's Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap."
-                }
-                icon={ListChecks}
-                onClick={() => navigate("/setup/duty-menu")}
-                testid="setup-row-duty-menu"
+        {allDone ? (
+          <>
+            <Card
+              className="mt-7 divide-y divide-slate-100 p-0 dark:divide-slate-800"
+              data-testid="card-account-status"
+            >
+              <StatusLine label="Account" value={`Signed in as ${user.displayName || "you"}`} testid="status-account" />
+              <StatusLine
+                label="Your network"
+                value={`${followCount.toLocaleString()} ${followCount === 1 ? "person" : "people"}`}
+                action={{ label: "Edit", onClick: goFollow }}
+                testid="status-network"
               />
-            )
-          )}
-
-          {treasureMap === "current" ? (
-            <DoneRow
-              label="Publish your Assistant's Treasure Map"
-              detail={
-                <>
-                  Your Brainstorm Assistant's Treasure Map is up to date ·{" "}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/setup/treasure-map")}
-                    className="font-semibold text-brand-link hover:underline"
-                    data-testid="setup-view-treasure-map"
-                  >
-                    View
-                  </button>
-                </>
-              }
-              testid="setup-row-treasure-map-done"
-            />
-          ) : (
-            treasureMap && (
-              <PendingRow
-                label="Publish your Assistant's Treasure Map"
-                badge={
-                  treasureMapAuto
-                    ? "Publishing"
-                    : treasureMap === "checking"
-                      ? "Checking"
-                      : treasureMap === "out-of-date"
-                        ? "Out of date"
-                        : "Required for other apps"
+              <StatusLine
+                label="Sharing your scores"
+                value={
+                  scoresElsewhere
+                    ? `From ${providerName}`
+                    : isCalculating
+                      ? "On · calculating"
+                      : "On · other apps can use them"
                 }
-                detail={
-                  treasureMapAuto
-                    ? PUBLISHING_FOR_YOU
-                    : treasureMap === "out-of-date"
-                      ? "Your Assistant's Treasure Map differs from the duties that are live now. Update it so other apps know which duties your Assistant is publishing today."
-                      : "Your Assistant's Treasure Map tells other apps what it's doing for you right now. Your Assistant signs it — one tap."
-                }
-                icon={MapIcon}
-                onClick={() => navigate("/setup/treasure-map")}
-                testid="setup-row-treasure-map"
+                action={scoresElsewhere ? { label: "Switch", onClick: goActivate } : undefined}
+                testid="status-sharing"
               />
-            )
-          )}
-        </div>
-
-        {/* Below the counted steps, under their own heading: the count above is of
-            them alone. Only with a row to show — messages once its engine has looked. */}
-        {(scoresElsewhere || messages) && (
-          <section className="mt-8" data-testid="setup-optional">
-            <SectionHeader kicker="Optional" className="mb-3" />
-            <div className="flex flex-col gap-3">
-              {scoresElsewhere && (
-                <ScoresSwitchRow onSwitch={() => navigate("/setup/activate")} providerName={providerName} />
+              <StatusLine
+                label="Your Assistant"
+                value="Live"
+                action={{ label: "Manage", onClick: () => navigate(YOUR_ASSISTANT_PATH) }}
+                testid="status-assistant"
+              />
+              {messages === "on" && <StatusLine label="Private messages" value="On" testid="status-messages" />}
+            </Card>
+            {/* New Trusted Lists their Treasure Map doesn't name yet: an update, never a step. */}
+            {listsPending && (
+              <div className="mt-3">
+                <ListsUpdateLine />
+              </div>
+            )}
+            {messages === "off" && (
+              <div className="mt-3">
+                <MessagesSetupRow />
+              </div>
+            )}
+            <div className="mt-6 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => navigate(YOUR_ASSISTANT_PATH)}
+                className="text-[13px] font-medium text-slate-500 hover:text-slate-700 hover:underline dark:text-slate-400"
+                data-testid="setup-advanced"
+              >
+                Advanced settings for your Assistant →
+              </button>
+              {nextPath && (
+                <button
+                  type="button"
+                  onClick={() => navigate(nextPath)}
+                  className="inline-flex items-center gap-1.5 text-[13px] font-bold text-brand-link"
+                  data-testid="button-setup-done"
+                >
+                  Continue <ArrowRight className="h-4 w-4" />
+                </button>
               )}
-              <MessagesSetupRow />
             </div>
-          </section>
-        )}
+          </>
+        ) : (
+          <>
+            <div className="mt-7 flex flex-col gap-3">
+              {!followDone && (
+                <PendingRow
+                  label="Create your follow list"
+                  badge="Required for scoring"
+                  detail="Your trust scores are built from who you follow — without at least one follow, there's nothing to calculate."
+                  icon={UserPlus}
+                  onClick={goFollow}
+                  testid="setup-row-follow"
+                />
+              )}
 
-        {allDone && (
-          <Card accent className="mt-5 p-6 text-center" data-testid="card-setup-all-done">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500">
-              <Check className="h-6 w-6 text-white" strokeWidth={3} />
-            </span>
-            <h2
-              className="mt-3 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              You're all set!
-            </h2>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-              {scoresElsewhere
-                ? `Other apps find your scores through ${providerName}.`
-                : isCalculating
-                  ? "Your scores are calculating — usually about 5 minutes — and other apps can find them as soon as they're published."
-                  : "Other apps can now find your Brainstorm scores."}
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate(nextPath ?? "/dashboard")}
-              className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-brand-primary px-6 text-[13px] font-bold text-white shadow-lg shadow-brand-primary/20 transition-colors hover:bg-brand-primary-hover"
-              data-testid="button-setup-done"
-            >
-              {nextPath ? "Continue" : "Go to your dashboard"}
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </Card>
+              {!activateDone &&
+                (signalsPending ? (
+                  // Their Map names their Assistant, but not for every score it
+                  // publishes (#313): the same signature, worded as the update it is.
+                  <PendingRow
+                    label="Update your Treasure Map"
+                    badge="Required for other apps"
+                    detail={`Your Treasure Map doesn't name your Assistant for ${listOf(missingSignals.map(signalLabel))} yet, so other apps can't find those scores. One signature adds them.`}
+                    icon={PenLine}
+                    onClick={goActivate}
+                    testid="setup-row-activate"
+                  />
+                ) : (
+                  <PendingRow
+                    label="Activate your Brainstorm account"
+                    badge="Required for other apps"
+                    detail="Your Treasure Map tells other apps where to find your scores. You sign it — one signature."
+                    icon={PenLine}
+                    onClick={goActivate}
+                    testid="setup-row-activate"
+                  />
+                ))}
+              {/* Activated already: new lists are an update, never a step to redo. */}
+              {activateDone && listsPending && <ListsUpdateLine />}
+
+              {unfinished && (
+                <Card className="flex items-center gap-3 p-4" data-testid="setup-assistant-retry">
+                  <Bot className="h-5 w-5 shrink-0 text-amber-500" />
+                  <span className="min-w-0 flex-1 text-[13px] text-slate-600 dark:text-slate-300">
+                    We couldn't finish setting up your Assistant.
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => navigate(unfinished)}>
+                    Finish it
+                  </Button>
+                </Card>
+              )}
+
+              {doneSteps.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDone((v) => !v)}
+                    aria-expanded={showDone}
+                    className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                    data-testid="setup-done-summary"
+                  >
+                    <Check className="h-4 w-4 text-emerald-500" strokeWidth={3} />
+                    {doneSteps.length} done · {showDone ? "hide" : "show"}
+                  </button>
+                  {showDone && (
+                    <ul className="mt-2 space-y-1.5 pl-6 text-[13px] text-slate-400 dark:text-slate-500">
+                      {doneSteps.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Below the steps, under their own heading: the count above is of them alone. */}
+            {(scoresElsewhere || messages) && (
+              <section className="mt-8" data-testid="setup-optional">
+                <SectionHeader kicker="Optional" className="mb-3" />
+                <div className="flex flex-col gap-3">
+                  {scoresElsewhere && <ScoresSwitchRow onSwitch={goActivate} providerName={providerName} />}
+                  <MessagesSetupRow />
+                </div>
+              </section>
+            )}
+          </>
         )}
       </main>
     </div>
