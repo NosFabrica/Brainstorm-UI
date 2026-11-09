@@ -33,6 +33,18 @@ vi.mock("@/hooks/useDirectMessages", () => ({ useDmEngine: () => dm.engine, useD
 // Who holds the rank duty today, by name — null when nobody or not yet known.
 const rankProvider = vi.hoisted(() => ({ value: null as null | { name: string; host: string } }));
 vi.mock("@/hooks/useRankProvider", () => ({ useRankProvider: () => rankProvider.value }));
+// Profiles by pubkey: the user's own, and their Assistant's.
+const TA = "b".repeat(64);
+const profiles = vi.hoisted(() => ({ byPubkey: {} as Record<string, Record<string, string> | undefined> }));
+vi.mock("@/hooks/useLiveProfile", () => ({
+  useLiveProfile: (pk: string | undefined) => ({ profile: pk ? profiles.byPubkey[pk] : undefined, loading: false }),
+}));
+vi.mock("@/hooks/useBrainstormAssistant", () => ({
+  useBrainstormAssistant: () => ({ taPubkey: TA, published: null }),
+}));
+vi.mock("@/components/ProfileEditModal", () => ({
+  ProfileEditModal: ({ open }: { open: boolean }) => (open ? <div data-testid="profile-editor" /> : null),
+}));
 
 const setupState = vi.fn<() => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -198,33 +210,82 @@ describe("FinishSetupPage — what's left, then your account", () => {
     allDone: true,
   };
 
-  it("once everything's done it's 'Your account': status lines, no DONE badges, no progress, no protocol rows", () => {
+  const FULL = {
+    name: "Lira",
+    picture: "https://img.example/lira.png",
+    banner: "https://img.example/banner.png",
+    about: "Builds trust tools.",
+    nip05: "lira@example.com",
+  };
+  const ASSISTANT = {
+    name: "Lira's Brainstorm Assistant",
+    picture: "https://img.example/ta.png",
+    nip05: "lira@brainstorm.world",
+  };
+  beforeEach(() => {
+    profiles.byPubkey = { [PUBKEY]: FULL, [TA]: ASSISTANT };
+  });
+
+  // Once nothing is left: who they are, what their account is for, their
+  // Assistant as the identity it is — no DONE badges, progress or protocol rows.
+  it("once everything's done it's 'Your account': who they are, their network, scores and Assistant", () => {
     setupState.mockReturnValue(state(everythingDone));
     renderWithProviders(<FinishSetupPage />);
 
-    expect(screen.getByTestId("text-finish-setup-title")).toHaveTextContent("Your account.");
     expect(screen.queryByText(/^Done$/i)).toBeNull();
     expect(screen.queryByTestId("text-finish-setup-progress")).toBeNull();
     expect(screen.queryByText(/Duty Menu|Treasure Map/)).toBeNull();
 
-    expect(screen.getByTestId("status-account")).toHaveTextContent("Signed in as Lira");
-    expect(screen.getByTestId("status-network")).toHaveTextContent("6 people");
-    expect(screen.getByTestId("status-sharing")).toHaveTextContent("On");
-    expect(screen.getByTestId("status-assistant")).toHaveTextContent("Live");
+    const identity = screen.getByTestId("account-identity");
+    expect(identity).toHaveTextContent("Lira");
+    expect(identity).toHaveTextContent("Builds trust tools.");
+    expect(identity).toHaveTextContent("Account ready");
+    fireEvent.click(within(identity).getByRole("button", { name: "Edit profile" }));
+    expect(screen.getByTestId("profile-editor")).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByTestId("status-network")).getByRole("button", { name: "Edit" }));
+    expect(screen.getByTestId("tile-network")).toHaveTextContent("6");
+    expect(screen.getByTestId("tile-network")).toHaveTextContent("People you follow");
+    fireEvent.click(within(screen.getByTestId("tile-network")).getByRole("button", { name: "Edit" }));
     expect(navigate).toHaveBeenCalledWith("/welcome?next=/setup");
-    fireEvent.click(within(screen.getByTestId("status-assistant")).getByRole("button", { name: "Manage" }));
+    expect(screen.getByTestId("tile-scores")).toHaveTextContent("Calculating");
+    expect(screen.getByTestId("tile-sharing")).toHaveTextContent("On");
+
+    const assistant = screen.getByTestId("account-assistant");
+    expect(assistant).toHaveTextContent("Lira's Brainstorm Assistant");
+    expect(assistant).toHaveTextContent("lira@brainstorm.world");
+    expect(assistant).toHaveTextContent("Live");
+    fireEvent.click(within(assistant).getByRole("button", { name: "Manage" }));
     expect(navigate).toHaveBeenCalledWith("/settings?tab=assistants");
+
     fireEvent.click(screen.getByTestId("setup-advanced"));
-    expect(navigate).toHaveBeenCalledTimes(3);
+    expect(navigate).toHaveBeenLastCalledWith("/settings?tab=assistants");
+  });
+
+  // Optional, never a step: a gentle line while their profile lacks a photo,
+  // banner or bio, one button per missing piece, gone once all three are in.
+  it("invites them to finish their profile, only for what's missing", () => {
+    profiles.byPubkey = { [PUBKEY]: { name: "Lira" }, [TA]: ASSISTANT };
+    setupState.mockReturnValue(state(everythingDone));
+    renderWithProviders(<FinishSetupPage />);
+    const nudge = screen.getByTestId("profile-nudge");
+    for (const label of ["Add photo", "Add banner", "Add bio"]) {
+      expect(within(nudge).getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    fireEvent.click(within(nudge).getByRole("button", { name: "Add banner" }));
+    expect(screen.getByTestId("profile-editor")).toBeInTheDocument();
+  });
+
+  it("says nothing about the profile once it's complete", () => {
+    setupState.mockReturnValue(state(everythingDone));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.queryByTestId("profile-nudge")).toBeNull();
   });
 
   it("names who has their scores when another Assistant does, with the switch as its action", () => {
     rankProvider.value = { name: "Primal", host: "primal.net" };
     setupState.mockReturnValue(state({ ...everythingDone, scoresElsewhere: true }));
     renderWithProviders(<FinishSetupPage />);
-    const sharing = screen.getByTestId("status-sharing");
+    const sharing = screen.getByTestId("tile-sharing");
     expect(sharing).toHaveTextContent("From Primal");
     fireEvent.click(within(sharing).getByRole("button", { name: "Switch" }));
     expect(navigate).toHaveBeenCalledWith("/setup/activate");

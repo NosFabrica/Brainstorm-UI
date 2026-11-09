@@ -1,14 +1,30 @@
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeftRight, ArrowRight, Bot, Check, ChevronRight, PenLine, UserPlus } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ArrowRight,
+  BarChart3,
+  Bot,
+  Check,
+  ChevronRight,
+  PenLine,
+  Share2,
+  Sparkles,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { ProfileEditModal } from "@/components/ProfileEditModal";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useRankProvider } from "@/hooks/useRankProvider";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
@@ -111,6 +127,120 @@ function ScoresSwitchRow({ onSwitch, providerName }: { onSwitch: () => void; pro
   );
 }
 
+/**
+ * Who they are, at the top of "Your account": banner (or the Aurora gradient
+ * until they add one), photo, name, verified handle and bio, with "Edit
+ * profile" always there. While a photo, banner or bio is missing, one gentle
+ * optional line offers each — never a step, never counted.
+ */
+function AccountIdentity({
+  name,
+  picture,
+  banner,
+  about,
+  nip05,
+  onEdit,
+}: {
+  name: string;
+  picture?: string;
+  banner?: string;
+  about?: string;
+  nip05?: string;
+  onEdit: () => void;
+}) {
+  const missing = [!picture && "Add photo", !banner && "Add banner", !about && "Add bio"].filter(
+    (m): m is string => !!m,
+  );
+  return (
+    <Card className="overflow-hidden p-0" data-testid="account-identity">
+      <div
+        className="h-24 bg-gradient-to-r from-brand-primary/80 to-brand-accent/70 bg-cover bg-center"
+        style={banner ? { backgroundImage: `url(${JSON.stringify(banner)})` } : undefined}
+        aria-hidden="true"
+      />
+      <div className="px-5 pb-5">
+        <div className="-mt-8 flex items-end justify-between gap-3">
+          <Avatar className="h-16 w-16 ring-4 ring-white dark:ring-slate-900">
+            <AvatarImage src={picture} alt="" />
+            <AvatarFallback className="text-lg">{name.slice(0, 1).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <Button size="sm" variant="outline" onClick={onEdit}>
+            Edit profile
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span
+            className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {name}
+          </span>
+          <Chip tone="success" size="sm" dot>
+            Account ready
+          </Chip>
+        </div>
+        {nip05 && (
+          <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">{nip05.replace(/^_@/, "")}</div>
+        )}
+        {about && <p className="mt-2 line-clamp-2 text-[14px] text-slate-600 dark:text-slate-300">{about}</p>}
+        {missing.length > 0 && (
+          <div
+            className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-3 dark:bg-slate-800/50"
+            data-testid="profile-nudge"
+          >
+            <Sparkles className="h-4 w-4 shrink-0 text-brand-accent" />
+            <span className="mr-1 text-[13px] text-slate-600 dark:text-slate-300">
+              So people recognise you <span className="text-slate-400">· optional</span>
+            </span>
+            {missing.map((label) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onEdit}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] font-semibold text-slate-700 hover:border-brand-accent/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** One of the three things the account is for, as a tile: a value, what it is, one action. */
+function AccountTile({
+  icon: Icon,
+  value,
+  label,
+  action,
+  testid,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  value: string;
+  label: string;
+  action?: { label: string; onClick: () => void };
+  testid: string;
+}) {
+  return (
+    <Card className="flex flex-col gap-1 p-4" data-testid={testid}>
+      <Icon className="h-4 w-4 text-brand-primary dark:text-brand-link" />
+      <span className="mt-1 truncate text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{value}</span>
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">{label}</span>
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="mt-1 self-start text-[12px] font-semibold text-brand-link hover:underline"
+        >
+          {action.label}
+        </button>
+      )}
+    </Card>
+  );
+}
+
 /** One line of "Your account": what it is, its state, and at most one action. */
 function StatusLine({
   label,
@@ -167,6 +297,11 @@ export default function FinishSetupPage() {
   } = useFinishSetup();
   const { isCalculating } = useScoringStatus();
   const [showDone, setShowDone] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  // Who they are, and their Assistant as the identity it is: both read live.
+  const own = useLiveProfile(user?.pubkey).profile;
+  const { taPubkey } = useBrainstormAssistant();
+  const assistant = useLiveProfile(taPubkey ?? undefined).profile;
 
   if (!user) return null;
 
@@ -219,14 +354,16 @@ export default function FinishSetupPage() {
       <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
         <SectionHeader kicker={allDone ? "Account" : "Finish setting up"} className="mb-4" />
         <h1
-          className="text-3xl font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
+          className={
+            allDone
+              ? "sr-only"
+              : "text-3xl font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
+          }
           style={{ fontFamily: "var(--font-display)" }}
           data-testid="text-finish-setup-title"
         >
           {allDone ? (
-            <>
-              Your <span className="text-brand-link">account</span>.
-            </>
+            "Your account."
           ) : (
             <>
               Finish setting up <span className="text-brand-link">your account</span>.
@@ -235,70 +372,108 @@ export default function FinishSetupPage() {
         </h1>
 
         {allDone ? (
-          <>
-            <Card
-              className="mt-7 divide-y divide-slate-100 p-0 dark:divide-slate-800"
-              data-testid="card-account-status"
-            >
-              <StatusLine label="Account" value={`Signed in as ${user.displayName || "you"}`} testid="status-account" />
-              <StatusLine
-                label="Your network"
-                value={`${followCount.toLocaleString()} ${followCount === 1 ? "person" : "people"}`}
+          <div className="flex flex-col gap-4" data-testid="card-account-status">
+            <AccountIdentity
+              name={own?.display_name || own?.name || user.displayName || "You"}
+              picture={own?.picture || user.picture}
+              banner={own?.banner}
+              about={own?.about}
+              nip05={own?.nip05}
+              onEdit={() => setEditingProfile(true)}
+            />
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <AccountTile
+                icon={Users}
+                value={followCount.toLocaleString()}
+                label="People you follow"
                 action={{ label: "Edit", onClick: goFollow }}
-                testid="status-network"
+                testid="tile-network"
               />
-              <StatusLine
-                label="Sharing your scores"
-                value={
-                  scoresElsewhere
-                    ? `From ${providerName}`
-                    : isCalculating
-                      ? "On · calculating"
-                      : "On · other apps can use them"
-                }
+              <AccountTile
+                icon={BarChart3}
+                value={isCalculating ? "Calculating" : "Ready"}
+                label="Trust scores"
+                action={{ label: "View insights", onClick: () => navigate("/network") }}
+                testid="tile-scores"
+              />
+              <AccountTile
+                icon={Share2}
+                value={scoresElsewhere ? `From ${providerName}` : "On"}
+                label={scoresElsewhere ? "Your scores" : "Shared with other apps"}
                 action={scoresElsewhere ? { label: "Switch", onClick: goActivate } : undefined}
-                testid="status-sharing"
+                testid="tile-sharing"
               />
-              <StatusLine
-                label="Your Assistant"
-                value="Live"
-                action={{ label: "Manage", onClick: () => navigate(YOUR_ASSISTANT_PATH) }}
-                testid="status-assistant"
-              />
-              {messages === "on" && <StatusLine label="Private messages" value="On" testid="status-messages" />}
-            </Card>
+            </div>
             {/* New Trusted Lists their Treasure Map doesn't name yet: an update, never a step. */}
-            {listsPending && (
-              <div className="mt-3">
-                <ListsUpdateLine />
-              </div>
-            )}
-            {messages === "off" && (
-              <div className="mt-3">
-                <MessagesSetupRow />
-              </div>
-            )}
-            <div className="mt-6 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => navigate(YOUR_ASSISTANT_PATH)}
-                className="text-[13px] font-medium text-slate-500 hover:text-slate-700 hover:underline dark:text-slate-400"
-                data-testid="setup-advanced"
-              >
-                Advanced settings for your Assistant →
-              </button>
-              {nextPath && (
+            {listsPending && <ListsUpdateLine />}
+
+            <section>
+              <SectionHeader kicker="Your Assistant" className="mb-3" />
+              <Card className="flex items-center gap-3.5 p-4" data-testid="account-assistant">
+                <Avatar className="h-11 w-11">
+                  <AvatarImage src={assistant?.picture} alt="" />
+                  <AvatarFallback>
+                    <Bot className="h-5 w-5 text-brand-primary" />
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+                    {assistant?.display_name || assistant?.name || "Your Brainstorm Assistant"}
+                  </span>
+                  <span className="block truncate text-[13px] text-slate-500 dark:text-slate-400">
+                    {assistant?.nip05 ? `${assistant.nip05} · ` : ""}Publishes your trust scores to other apps.
+                  </span>
+                </span>
+                <Chip tone="success" size="sm" dot className="shrink-0">
+                  Live
+                </Chip>
                 <button
                   type="button"
-                  onClick={() => navigate(nextPath)}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-bold text-brand-link"
-                  data-testid="button-setup-done"
+                  onClick={() => navigate(YOUR_ASSISTANT_PATH)}
+                  className="shrink-0 text-[13px] font-semibold text-brand-link hover:underline"
                 >
-                  Continue <ArrowRight className="h-4 w-4" />
+                  Manage
                 </button>
-              )}
-            </div>
-          </>
+              </Card>
+            </section>
+
+            <section>
+              <SectionHeader kicker="Privacy & messages" className="mb-3" />
+              <div className="flex flex-col gap-3">
+                {messages === "off" && <MessagesSetupRow />}
+                <Card className="divide-y divide-slate-100 p-0 dark:divide-slate-800">
+                  {messages === "on" && <StatusLine label="Private messages" value="On" testid="status-messages" />}
+                  <button
+                    type="button"
+                    onClick={() => navigate(YOUR_ASSISTANT_PATH)}
+                    className="flex w-full items-center gap-4 px-5 py-4 text-left"
+                    data-testid="setup-advanced"
+                  >
+                    <span className="w-36 shrink-0 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                      Advanced
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] text-slate-700 dark:text-slate-300">
+                      Your Assistant's settings
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                  </button>
+                </Card>
+              </div>
+            </section>
+
+            {nextPath && (
+              <button
+                type="button"
+                onClick={() => navigate(nextPath)}
+                className="inline-flex items-center gap-1.5 self-end text-[13px] font-bold text-brand-link"
+                data-testid="button-setup-done"
+              >
+                Continue <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
+            <ProfileEditModal open={editingProfile} onOpenChange={setEditingProfile} />
+          </div>
         ) : (
           <>
             <div className="mt-7 flex flex-col gap-3">
