@@ -27,7 +27,7 @@ import { relativeTime } from "@/lib/relativeTime";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
-import { liveStateOf } from "@/lib/liveStream";
+import { profileLiveStreams, profileTracks } from "@/lib/profileShelves";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { wavlakeSongHref } from "@/lib/upNext";
 import { WavlakeSongCard } from "@/components/search/cards";
@@ -50,13 +50,12 @@ import { FollowedByRow } from "@/components/share/FollowedByRow";
 import { TrustReviews } from "@/components/share/TrustReviews";
 import { PanelIdentityChip } from "@/components/search/EndorsementLine";
 import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
-import { nip19 } from "nostr-tools";
 import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
-import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
+import { setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
 import { ProfileTagChips } from "@/components/share/ProfileTagChips";
@@ -65,7 +64,7 @@ import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
 import { ProfileBio } from "@/components/share/ProfileBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
-import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { parseCalendarEvent } from "@/lib/calendarEvent";
 import { videoItemOf, type VideoItem } from "@/components/share/VideoGrid";
 import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
@@ -585,27 +584,7 @@ export default function SharePage() {
     [videosQuery.events],
   );
 
-  const tracks = useMemo(
-    () =>
-      (musicQuery.events ?? []).map((ev) => {
-        const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-        const genres = ev.tags
-          .filter((t) => t[0] === "t")
-          .map((t) => t[1])
-          .filter((g) => g && g.toLowerCase() !== "music");
-        const genre = genres[0] ? genres[0].charAt(0).toUpperCase() + genres[0].slice(1) : undefined;
-        return {
-          id: ev.id,
-          title: tag("title") || tag("subject") || "Track",
-          artist: tag("artist") || tag("creator") || tag("c"),
-          cover: tag("image") || tag("cover"),
-          audio: audioUrlFromEvent(ev),
-          genre,
-          ts: ev.created_at,
-        };
-      }),
-    [musicQuery.events],
-  );
+  const tracks = useMemo(() => profileTracks(musicQuery.events ?? []), [musicQuery.events]);
 
   // The person's Wavlake catalogue beside their relay tracks: Joe Martin
   // publishes one track to relays and six to Wavlake (2026-09-05). The artist
@@ -634,42 +613,7 @@ export default function SharePage() {
   }, [audio]);
 
   // NIP-53 live streams (kind 30311) → live now + upcoming only (no replays).
-  const liveStreams = useMemo(() => {
-    const evs = (liveQuery.events ?? []) as MinimalEvent[];
-    const nowSec = Math.floor(Date.now() / 1000);
-    const parsed = evs.map((ev) => {
-      const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-      const starts = Number(tag("starts")) || 0;
-      let watchUrl: string | undefined;
-      try {
-        watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: ev.pubkey, identifier: tag("d") || "", relays: [] })}`;
-      } catch {
-        /* skip */
-      }
-      return {
-        id: ev.id,
-        authorPubkey: ev.pubkey,
-        title: tag("title") || tag("summary") || "Live stream",
-        image: tag("image"),
-        status: (tag("status") || "").toLowerCase(),
-        starts,
-        watchUrl,
-        // Forward-looking label only when the start is actually in the future.
-        timing: starts && starts >= nowSec ? `Starts ${relativeEventTime(starts).toLowerCase()}` : "Planned",
-      };
-    });
-    // Which shelf each stream is on by the Live tab's rule (liveStateOf): a
-    // "live" nobody updated for a week is over — no badge on the avatar, no
-    // "Live now" block (Benjamin, over a months-old LIVE badge: "deceiving").
-    // Replays are not this page's business; the Live tab has them.
-    const stateById = new Map(evs.map((ev) => [ev.id, liveStateOf(ev, nowSec)]));
-    const liveNow = parsed.filter((s) => stateById.get(s.id) === "live");
-    const upcoming = parsed
-      .filter((s) => stateById.get(s.id) === "upcoming")
-      .sort((a, b) => a.starts - b.starts)
-      .slice(0, 2);
-    return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
-  }, [liveQuery.events]);
+  const liveStreams = useMemo(() => profileLiveStreams(liveQuery.events ?? []), [liveQuery.events]);
 
   // NIP-38 status: latest non-expired "general" line + optional "music" now-playing.
   const status = useMemo(() => {
@@ -1026,7 +970,7 @@ export default function SharePage() {
                 {liveStreams.liveNow[0] && (
                   <Link
                     href={eventPath(
-                      { id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].authorPubkey },
+                      { id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].pubkey },
                       relayHints,
                     )}
                     className="absolute -bottom-1 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border-2 border-white bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:border-slate-900"
@@ -1552,7 +1496,7 @@ export default function SharePage() {
             >
               <div className="space-y-2">
                 {[...liveStreams.liveNow, ...liveStreams.upcoming].map((s) => {
-                  const isLive = s.status === "live";
+                  const isLive = s.live;
                   const body = (
                     <>
                       <img
@@ -1584,7 +1528,7 @@ export default function SharePage() {
                   return (
                     <Link
                       key={s.id}
-                      href={eventPath({ id: s.id, pubkey: s.authorPubkey }, [
+                      href={eventPath({ id: s.id, pubkey: s.pubkey }, [
                         "wss://relay.zap.stream",
                         "wss://relay.nostr.band",
                       ])}
