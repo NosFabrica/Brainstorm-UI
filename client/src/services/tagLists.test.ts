@@ -12,7 +12,7 @@ vi.mock("@/services/searchTags", () => ({
 const HOUSE = "be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a";
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => HOUSE }));
 
-import { fetchTagLists, forgetTagLists, mergePerspectives, tagListsFromHits, tagNameOf } from "./tagLists";
+import { fetchTagLists, forgetTagLists, membersOf, mergePerspectives, tagListsFromHits, tagNameOf } from "./tagLists";
 
 const TAG_AUTHOR = "2efaa715".padEnd(64, "0");
 const READER = "dabe380b".padEnd(64, "0");
@@ -145,5 +145,27 @@ describe("fetchTagLists", () => {
     const lists = await fetchTagLists("stoicism", { pov: "mywot", userPubkey: READER });
     expect(relay.asked.map((a) => a.pov)).toEqual(["mywot", "nosfabrica"]);
     expect(lists.map((l) => l.observer)).toEqual([READER]);
+  });
+});
+
+describe("membersOf", () => {
+  it("is everything the tag's own lists hold, by kind of thing, best first", () => {
+    const more = list({
+      kind: 30394,
+      title: "Verified Human Articles",
+      target: "30023",
+      members: [{ address: "30023:x:y", endorsements: 3, disputes: 0, score: 90 }],
+    });
+    const lists = tagListsFromHits([people(), accounts(), more, notes()], HOUSE);
+    expect(membersOf(lists, `${TAG_AUTHOR}|verified-human`)).toEqual({
+      pubkeys: [PERSON],
+      ids: [],
+      addresses: ["30023:x:y", ITEM],
+    });
+    expect(membersOf(lists, `${TAG_AUTHOR}|stoicism`)).toEqual({ pubkeys: [], ids: [NOTE], addresses: [] });
+  });
+
+  it("is nothing for a tag with no list", () => {
+    expect(membersOf(tagListsFromHits([people()], HOUSE), `${TAG_AUTHOR}|artist`)).toBeNull();
   });
 });

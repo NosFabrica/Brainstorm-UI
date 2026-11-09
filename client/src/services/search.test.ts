@@ -108,6 +108,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   searchStream,
+  narrowToMembers,
   countCategories,
   countTabs,
   suggestProfiles,
@@ -164,7 +165,56 @@ const asked = (call = 0) => askedFilters(call)[0];
 
 beforeEach(() => vi.clearAllMocks());
 
+describe("narrowToMembers", () => {
+  const PERSON = "1".repeat(64);
+  const NOTE = "2".repeat(64);
+  const AUTHOR = "3".repeat(64);
+  const members = {
+    pubkeys: [PERSON],
+    ids: [NOTE],
+    addresses: [`39999:${AUTHOR}:cafe`, `30023:${AUTHOR}:a:b`],
+  };
+
+  it("asks each filter once for the people, once by id and once by author and d", () => {
+    expect(narrowToMembers([{ search: "coffee", limit: 100 }], members)).toEqual([
+      { search: "coffee", limit: 100, kinds: [0], authors: [PERSON] },
+      { search: "coffee", limit: 100, ids: [NOTE] },
+      { search: "coffee", limit: 100, kinds: [39999, 30023], authors: [AUTHOR], "#d": ["cafe", "a:b"] },
+    ]);
+  });
+
+  it("keeps a filter's own kinds and authors, and drops a part none of them fit", () => {
+    expect(narrowToMembers([{ search: "coffee", kinds: [1, 30023] }], members)).toEqual([
+      { search: "coffee", kinds: [1, 30023], ids: [NOTE] },
+      { search: "coffee", kinds: [30023], authors: [AUTHOR], "#d": ["cafe", "a:b"] },
+    ]);
+  });
+});
+
 describe("searchStream", () => {
+  it("narrowed to members, keeps only them: not another author's item under a d it asked", async () => {
+    const { subject } = controllable();
+    const AUTHOR = "3".repeat(64);
+    const snaps: SearchSnapshot[] = [];
+    searchStream(
+      "coffee",
+      {
+        tab: "all",
+        pov: "nosfabrica",
+        members: { pubkeys: [], ids: [], addresses: [`39999:${AUTHOR}:cafe`, `39999:${"4".repeat(64)}:bar`] },
+      },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    expect(askedFilters()).toEqual([expect.objectContaining({ kinds: [39999], "#d": ["cafe", "bar"] })]);
+    const item = (id: string, pubkey: string, d: string) => ({ ...ev(id, 39999, pubkey), tags: [["d", d]] });
+    subject.next(frame(item("a".repeat(64), AUTHOR, "cafe")));
+    subject.next(frame(item("b".repeat(64), AUTHOR, "bar")));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a".repeat(64)]);
+  });
+
   it("a typed kind narrows the tab it is on — spec: on Articles asks for specs alone", async () => {
     controllable();
 

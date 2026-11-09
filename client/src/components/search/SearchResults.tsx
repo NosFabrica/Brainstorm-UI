@@ -47,6 +47,7 @@ import {
   isKindlessTab,
   searchStream,
   TAB_KINDS,
+  type Members,
   type SearchHit,
   type SearchPov,
   type SearchSnapshot,
@@ -109,6 +110,8 @@ import {
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
 import { useNamedTags } from "@/hooks/useNamedTags";
+import { useTagMembers } from "@/hooks/useTagMembers";
+import { carriersOf, joinMembers } from "@/lib/resultTags";
 import { TagTabResults } from "@/components/search/TagTabResults";
 import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
@@ -1314,6 +1317,50 @@ export function SearchResults({
     return known ? { query: effectiveQuery, category: known } : null;
   });
   const category = onAll && openCategory?.query === effectiveQuery ? openCategory.category : null;
+  // A pressed tag narrows All to what carries it: the search asked again of the tag's Trusted Lists'
+  // members (hooks/useTagMembers), with the loaded rows it was pressed on that carry it, so none of
+  // those goes. The link holds it (`tagged`), for the words it was pressed on, as it holds a
+  // category; a category pressed keeps it.
+  const [tagPressed, setTagPressed] = useState<{
+    query: string;
+    key: string;
+    name?: string;
+    carriers?: Members;
+  } | null>(() => {
+    const key = urlTagged();
+    return key ? { query: effectiveQuery, key } : null;
+  });
+  useEffect(() => {
+    setTagPressed((pressed) => {
+      if (pressed?.query === effectiveQuery) return pressed;
+      const key = urlTagged();
+      return key ? { query: effectiveQuery, key } : null;
+    });
+  }, [effectiveQuery]);
+  const pressTag = useCallback(
+    (tag: { key: string; name: string; carriers: Members } | null) => {
+      setTagPressed(tag ? { query: effectiveQuery, ...tag } : null);
+      writeTaggedToUrl(tag?.key ?? null);
+    },
+    [effectiveQuery],
+  );
+  const tagFilter = onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
+  // A tag the link names comes without its name: its slug's words find its lists as well.
+  const tagMembers = useTagMembers(
+    tagFilter
+      ? { key: tagFilter, name: tagPressed?.name ?? tagFilter.slice(tagFilter.indexOf("|") + 1).replace(/-/g, " ") }
+      : null,
+    { pov, userPubkey },
+  );
+  const tagCarriers = tagPressed?.carriers;
+  const narrowTo = useMemo(
+    () => (tagMembers.members && tagCarriers ? joinMembers(tagMembers.members, tagCarriers) : tagMembers.members),
+    [tagMembers.members, tagCarriers],
+  );
+  const narrowKey = tagFilter && narrowTo ? tagFilter : null;
+  // Which tag the stream's rows were asked for, set beside them: until the narrowed answer is in,
+  // the rows on hand are All's, which the tag thins.
+  const [streamTag, setStreamTag] = useState<string | null>(null);
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -1369,7 +1416,12 @@ export function SearchResults({
     // the relay answers — and, when the page itself is coming back (a reader
     // returning from a result), to where they were in it.
     // A category of All's remembers its own pages.
-    const key = rememberKey(category ? `${effectiveQuery}\n${category.key}` : effectiveQuery, tab, pov, userPubkey);
+    const key = rememberKey(
+      [effectiveQuery, category?.key, narrowKey].filter(Boolean).join("\n"),
+      tab,
+      pov,
+      userPubkey,
+    );
     const remembered = recallSearch(key);
     const restoreScroll = firstRun.current && remembered ? remembered.scrollY : null;
     firstRun.current = false;
@@ -1377,11 +1429,18 @@ export function SearchResults({
       ? { hits: remembered.hits, eose: false, timeMs: null, error: null }
       : null;
     setSnapshot(latest);
+    setStreamTag(narrowKey);
     // All's question was asked while the bundle loaded (index.html, lib/headStart): its
     // first page follows that request rather than asking again — for the house's
     // Perspective, at the default depth, on a first visit to this search only.
     const firstPage =
-      tab === "all" && !category && !remembered && !userPubkey && pov === "nosfabrica" && limit === undefined
+      tab === "all" &&
+      !category &&
+      !narrowKey &&
+      !remembered &&
+      !userPubkey &&
+      pov === "nosfabrica" &&
+      limit === undefined
         ? (followHeadStart(effectiveQuery) ?? undefined)
         : undefined;
     const handle = searchStream(
@@ -1395,6 +1454,7 @@ export function SearchResults({
         seed: remembered?.hits,
         firstPage,
         ...(category && !category.tab ? { kinds: category.kinds, tags: category.tags } : {}),
+        ...(narrowKey && narrowTo ? { members: narrowTo } : {}),
       },
       (snap) => {
         latest = snap;
@@ -1418,9 +1478,9 @@ export function SearchResults({
       // Followed, the stream closed it; cancelled before its first page, nobody did.
       firstPage?.release();
     };
-    // `category` by its key: the same category found again asks nothing new.
+    // `category` by its key: the same category found again asks nothing new; a tag likewise.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery, category?.key]);
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery, category?.key, narrowKey]);
 
   useEffect(() => {
     setMediaNotes(null);
@@ -1630,32 +1690,13 @@ export function SearchResults({
     lists: ribbon.lists,
     ready: ribbon.settled && (!!snapshot?.eose || !!snapshot?.error),
   });
-  // The tags the results carry, as filters over them: a pressed one keeps the rows carrying it.
-  // Only the loaded rows' (hooks/useResultTags). The link holds it (`tagged`), for the words it
-  // was pressed on, as it holds a category; a category pressed keeps it.
+  // The tags the loaded results carry, offered as filters (hooks/useResultTags). A pressed one
+  // narrows the search itself where the tag has lists (above); until they answer, or where it has
+  // none, it keeps the loaded rows carrying it.
   const resultTags = useResultTags(hits, {
     observer: pov === "mywot" && userPubkey ? userPubkey : "house",
     enabled: onAll,
   });
-  const [tagPressed, setTagPressed] = useState<{ query: string; key: string } | null>(() => {
-    const key = urlTagged();
-    return key ? { query: effectiveQuery, key } : null;
-  });
-  useEffect(() => {
-    setTagPressed((pressed) => {
-      if (pressed?.query === effectiveQuery) return pressed;
-      const key = urlTagged();
-      return key ? { query: effectiveQuery, key } : null;
-    });
-  }, [effectiveQuery]);
-  const pressTag = useCallback(
-    (key: string | null) => {
-      setTagPressed(key ? { query: effectiveQuery, key } : null);
-      writeTaggedToUrl(key);
-    },
-    [effectiveQuery],
-  );
-  const tagFilter = onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
   const [allTagsShown, setAllTagsShown] = useState(false);
   useEffect(() => setAllTagsShown(false), [effectiveQuery]);
   const tagFilters = useMemo(() => {
@@ -2158,8 +2199,10 @@ export function SearchResults({
       ];
     // A kind of All's keeps the rows it names: a Recipe is an article's kind, and so are Articles.
     if (category) shown = shown.filter((h) => belongsTo(category, h));
-    // A pressed tag keeps the rows known to carry it; one whose tags are still coming joins once they are.
-    if (tagFilter) shown = shown.filter((h) => resultTags.byHit.get(h.event.id)?.has(tagFilter));
+    // A pressed tag the stream wasn't asked for keeps the rows known to carry it; one whose tags
+    // are still coming joins once they are. The tag's own answer is all carriers.
+    if (tagFilter && streamTag !== tagFilter)
+      shown = shown.filter((h) => resultTags.byHit.get(h.event.id)?.has(tagFilter));
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
@@ -2380,6 +2423,7 @@ export function SearchResults({
     proven,
     category,
     tagFilter,
+    streamTag,
     resultTags.byHit,
   ]);
 
@@ -2444,7 +2488,10 @@ export function SearchResults({
   const tagName =
     resultTags.tags.find((t) => t.key === tagFilter)?.name ?? tagFilter?.slice(tagFilter.indexOf("|") + 1) ?? "";
   // A tag the link names waits for the rows' tags rather than saying nothing carries it.
-  const tagWaiting = !!tagFilter && !resultTags.settled && displayHits.length === 0;
+  const tagWaiting =
+    !!tagFilter &&
+    displayHits.length === 0 &&
+    (streamTag === tagFilter ? !snapshot?.eose : !tagMembers.settled || !!narrowKey || !resultTags.settled);
   const totalCount = rawHits.length + extraCount;
   const displayedCount = displayHits.length + extraCount;
 
@@ -2695,7 +2742,13 @@ export function SearchResults({
                       <FacetChip
                         key={t.key}
                         pressed={tagFilter === t.key}
-                        onClick={() => pressTag(tagFilter === t.key ? null : t.key)}
+                        onClick={() =>
+                          pressTag(
+                            tagFilter === t.key
+                              ? null
+                              : { key: t.key, name: t.name, carriers: carriersOf(hits, resultTags.byHit, t.key) },
+                          )
+                        }
                         testId={`tag-facet-${t.slug}`}
                       >
                         {t.name}

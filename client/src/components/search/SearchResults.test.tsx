@@ -305,6 +305,17 @@ vi.mock("@/services/tags", async (orig) => ({
   fetchEventTagsBatch: (targets: string[]) => resultTagsMock.events(targets),
   fetchProfileTagsBatch: (pubkeys: string[]) => resultTagsMock.people(pubkeys),
 }));
+// Who and what a pressed tag's Trusted Lists say carry it (services/tagLists): no list, unless a test says.
+const tagMembersMock = vi.hoisted(() =>
+  vi.fn(
+    async (_tag: { key: string; name: string }) =>
+      null as null | { pubkeys: string[]; ids: string[]; addresses: string[] },
+  ),
+);
+vi.mock("@/services/tagLists", async (orig) => ({
+  ...(await orig<typeof import("@/services/tagLists")>()),
+  fetchTagMembers: (tag: { key: string; name: string }) => tagMembersMock(tag),
+}));
 // The tags the words name, each a tab in All's row (services/namedTags): none, unless a test says.
 const namedTagsMock = vi.hoisted(() => ({
   tags: vi.fn(async (_query: string) => [] as unknown[]),
@@ -5804,7 +5815,8 @@ describe("All's tag filters", () => {
         ]),
     );
   });
-  afterEach(() => resultTagsMock.events.mockReset());
+  // Back to none, not to nothing: a page still asking after the test gets an answer.
+  afterEach(() => resultTagsMock.events.mockImplementation(async () => new Map()));
 
   it("offers the results' tags, most carried first; pressing one keeps the results carrying it", async () => {
     setUrlTab("all");
@@ -5846,6 +5858,54 @@ describe("All's tag filters", () => {
     expect(screen.queryByTestId("container-search-results")).not.toBeInTheDocument();
     await waitFor(() => expect(resultRows()).toBe(1));
     expect(screen.getByTestId("tag-facet-artist")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a tag with lists asks the search again, of everything carrying it, and shows that answer", async () => {
+    const PERSON = "d".repeat(64);
+    const PLACE = `39999:${"e".repeat(64)}:cafe`;
+    tagMembersMock.mockImplementation(async () => ({ pubkeys: [PERSON], ids: ["9".repeat(64)], addresses: [PLACE] }));
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+    await screen.findByTestId("tag-facets");
+    const asked = allStreams.length;
+
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    expect(tagMembersMock).toHaveBeenCalledWith({ key: stoicism.key, name: "Stoicism" });
+    await waitFor(() => expect(allStreams.length).toBeGreaterThan(asked));
+    const narrowed = allStreams[allStreams.length - 1].params as { members?: unknown };
+    // The lists' members, and the loaded rows that carried it when pressed.
+    expect(narrowed.members).toEqual({
+      pubkeys: [PERSON],
+      ids: ["9".repeat(64), note.event.id, article.event.id],
+      addresses: [PLACE],
+    });
+    // The relay's answer is the tag's: not thinned again by what the loaded rows were tagged.
+    const place = row("4", 39999, [["d", "cafe"]]);
+    emit({ hits: [place, note], eose: true, exhausted: true });
+    await waitFor(() => expect(resultRows()).toBe(2));
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^2 results tagged Stoicism$/);
+
+    // Let go, All's own search again.
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    await waitFor(() =>
+      expect((allStreams[allStreams.length - 1].params as { members?: unknown }).members).toBeUndefined(),
+    );
+    tagMembersMock.mockReset();
+    tagMembersMock.mockImplementation(async () => null);
+  });
+
+  it("a tag with no list keeps thinning the loaded rows, and asks nothing again", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+    await screen.findByTestId("tag-facets");
+    const asked = allStreams.length;
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    await waitFor(() => expect(tagMembersMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(allStreams.length).toBe(asked);
+    expect(resultRows()).toBe(2);
   });
 
   it("shows the first few, and the rest on asking", async () => {

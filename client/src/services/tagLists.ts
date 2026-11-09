@@ -19,7 +19,7 @@
 // Which perspective: the reader's own lists of a tag, when they have any; otherwise the house's,
 // asked beside theirs (services/searchTags does the same for people).
 
-import type { SearchHit } from "@/services/search";
+import type { Members, SearchHit } from "@/services/search";
 import { collect, type Lens } from "@/services/searchTags";
 import { resolveHouseObserver } from "@/services/trustSource";
 
@@ -27,6 +27,12 @@ export const PEOPLE_LIST_KIND = 30392;
 export const EVENT_LIST_KIND = 30393;
 export const ADDRESS_LIST_KIND = 30394;
 export const TAG_LIST_KINDS = [PEOPLE_LIST_KIND, EVENT_LIST_KIND, ADDRESS_LIST_KIND];
+
+/**
+ * How many of a tag's people, events or addresses a search narrowed to it asks for, best first:
+ * a REQ of 514 ids was answered whole (probed 2026-11-09), and the relay's answer is what counts.
+ */
+const MEMBERS_ASKED = 500;
 
 /** Lists to ask for: a few tags, times the kinds of thing each is on, times the copies each can arrive in. */
 const LISTS_LIMIT = 40;
@@ -168,4 +174,30 @@ async function ask(words: string, own: string | null, lens: Lens): Promise<TagLi
     own ? tagListsFromHits(ownHits, own) : [],
     houseObserver ? tagListsFromHits(houseHits, houseObserver) : [],
   );
+}
+
+/** Everything `lists` say carries the tag `tagKey`, best first by kind of thing; null when none is the tag's. */
+export function membersOf(lists: readonly TagList[], tagKey: string): Members | null {
+  const own = lists.filter((l) => l.tagKey === tagKey);
+  if (!own.length) return null;
+  const of = (kind: number) =>
+    [
+      ...new Set(
+        own
+          .filter((l) => l.kind === kind)
+          .flatMap((l) => l.members)
+          .sort((a, b) => b.score - a.score)
+          .map((m) => m.target),
+      ),
+    ].slice(0, MEMBERS_ASKED);
+  return { pubkeys: of(PEOPLE_LIST_KIND), ids: of(EVENT_LIST_KIND), addresses: of(ADDRESS_LIST_KIND) };
+}
+
+/**
+ * Who and what carries one tag, through the reader's perspective (the house's where they have no
+ * list of it): its lists, asked by its name — every word of which is in each list's title — and
+ * kept to the tag itself. Null when the tag has no list yet. Never rejects.
+ */
+export async function fetchTagMembers(tag: { key: string; name: string }, lens: Lens): Promise<Members | null> {
+  return membersOf(await fetchTagLists(tag.name, lens), tag.key);
 }
