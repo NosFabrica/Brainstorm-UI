@@ -1,7 +1,13 @@
 // The tags a search's words name outright, and everything carrying each — what
 // a tag's tab in All's row holds.
 //
-// Two ways the search relay finds a tag by its name:
+// Read from the tag's Trusted Lists (services/tagLists) when the search relay has any whose
+// titles hold the words: one list per kind of thing the tag is on, each with its members, best
+// scored first, through the reader's perspective or else the house's.
+//
+// Words no list answers fall back to the tag's raw taggings — every tag until the trusted-list
+// service's first run builds lists of notes and items (brainstorm_server ADR trusted-lists/0002).
+// Two ways the search relay finds a tag by its name there:
 // - a Trusted List of the tag's people (kind 30392, services/searchTags), for
 //   tags anyone carries;
 // - the tag's taggings header ("Taggings of events as Stoicism", a kind-39999
@@ -17,7 +23,15 @@
 import type { NostrEvent } from "nostr-tools";
 import { fetchEventsByFilter, fetchEventsByIds } from "@/services/nostr";
 import { fetchSearchTags } from "@/services/searchTags";
-import { fetchTagDetail, fetchTagNotes, type TaggedNote, type TrustObserver } from "@/services/tags";
+import {
+  ADDRESS_LIST_KIND,
+  EVENT_LIST_KIND,
+  PEOPLE_LIST_KIND,
+  fetchTagLists,
+  tagNameOf,
+  type TagList,
+} from "@/services/tagLists";
+import { fetchTagDetail, fetchTagNotes, type TrustObserver } from "@/services/tags";
 import type { SearchPov } from "@/services/search";
 import { tagMatchStrength } from "@/lib/tagMatch";
 import { DCOSL_RELAY, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
@@ -32,10 +46,10 @@ export interface NamedTag {
   authorPubkey: string;
   slug: string;
   name: string;
-  /** The people carrying it, most vouched first. */
-  people: Array<{ pubkey: string; applications: number; addedAt: number }>;
-  /** Everything else carrying it — notes by id, list items and articles by coordinate. */
-  things: TaggedNote[];
+  /** The people carrying it, best first. */
+  people: Array<{ pubkey: string; rank: number }>;
+  /** Everything else carrying it — notes by id, list items and articles by address — best first. */
+  things: Array<{ id?: string; address?: string; rank: number; relays: string[] }>;
 }
 
 /** At most this many tags get a tab: two words rarely name more than one. */
@@ -71,6 +85,37 @@ export function fetchNamedTags(query: string, lens: Lens): Promise<NamedTag[]> {
 }
 
 async function ask(words: string, lens: Lens, observer: TrustObserver): Promise<NamedTag[]> {
+  const fromLists = namedFromLists(words, await fetchTagLists(words, lens));
+  return fromLists.length ? best(fromLists) : best(await fromTaggings(words, lens, observer));
+}
+
+const best = (tags: NamedTag[]) => tags.sort((a, b) => namedTagCount(b) - namedTagCount(a)).slice(0, MAX_TAGS);
+
+/** Each tag the lists are of whose own name the words name: its people's list and its lists of things. */
+export function namedFromLists(words: string, lists: readonly TagList[]): NamedTag[] {
+  const byTag = new Map<string, TagList[]>();
+  for (const l of lists) byTag.set(l.tagKey, [...(byTag.get(l.tagKey) ?? []), l]);
+  return [...byTag.entries()].flatMap(([key, of]) => {
+    const name = tagNameOf(of);
+    if (tagMatchStrength(words, name) !== "strong") return [];
+    const members = (kind: number) => of.filter((l) => l.kind === kind).flatMap((l) => l.members);
+    const tag: NamedTag = {
+      key,
+      authorPubkey: of[0].authorPubkey,
+      slug: of[0].slug,
+      name,
+      people: members(PEOPLE_LIST_KIND).map((m) => ({ pubkey: m.target, rank: m.score })),
+      things: [
+        ...members(EVENT_LIST_KIND).map((m) => ({ id: m.target, rank: m.score, relays: [] })),
+        ...members(ADDRESS_LIST_KIND).map((m) => ({ address: m.target, rank: m.score, relays: [] })),
+      ],
+    };
+    return namedTagCount(tag) > 0 ? [tag] : [];
+  });
+}
+
+/** The tags the words name, read from their raw taggings. */
+async function fromTaggings(words: string, lens: Lens, observer: TrustObserver): Promise<NamedTag[]> {
   const [lists, headers] = await Promise.all([
     fetchSearchTags(words, lens).catch(() => []),
     fetchEventsByFilter(
@@ -103,16 +148,13 @@ async function ask(words: string, lens: Lens, observer: TrustObserver): Promise<
         authorPubkey,
         slug,
         name: detail.tag.name,
-        people: detail.carriers.map((c) => ({ pubkey: c.pubkey, applications: c.applications, addedAt: c.addedAt })),
-        things,
+        people: detail.carriers.map((c) => ({ pubkey: c.pubkey, rank: c.applications })),
+        things: things.map((t) => ({ id: t.id, address: t.address, rank: t.applications, relays: t.relays })),
       };
-      return tag.people.length + tag.things.length > 0 ? tag : null;
+      return namedTagCount(tag) > 0 ? tag : null;
     }),
   );
-  return named
-    .filter((t): t is NamedTag => !!t)
-    .sort((a, b) => b.people.length + b.things.length - (a.people.length + a.things.length))
-    .slice(0, MAX_TAGS);
+  return named.filter((t): t is NamedTag => !!t);
 }
 
 /** How many things carry a named tag: its tab's whole count. */
@@ -171,14 +213,13 @@ async function rowsOf(tag: NamedTag): Promise<NostrEvent[]> {
     addressed.flat(),
     (e) => `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`,
   );
-  // Most vouched first, people and things alike; the newest tagged breaks a tie.
+  // Best first, people and things alike; on a tie, the order the tag gave them.
   const order = [
-    ...tag.people.map((p) => ({ event: people.get(p.pubkey), applications: p.applications, addedAt: p.addedAt })),
+    ...tag.people.map((p) => ({ event: people.get(p.pubkey), rank: p.rank })),
     ...tag.things.map((t) => ({
       event: t.id ? byId.get(t.id) : t.address ? byAddress.get(t.address) : undefined,
-      applications: t.applications,
-      addedAt: t.addedAt,
+      rank: t.rank,
     })),
-  ].sort((a, b) => b.applications - a.applications || b.addedAt - a.addedAt);
+  ].sort((a, b) => b.rank - a.rank);
   return order.flatMap((o) => (o.event ? [o.event] : []));
 }

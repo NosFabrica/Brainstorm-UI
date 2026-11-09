@@ -55,7 +55,7 @@ export interface SearchTag extends TagSummary {
   members: SearchTagMember[];
 }
 
-interface Lens {
+export interface Lens {
   pov: SearchPov;
   /** Required for pov === "mywot". */
   userPubkey?: string;
@@ -105,7 +105,7 @@ async function ask(words: string, lens: Lens, members: boolean): Promise<SearchT
 }
 
 /** Everything the relay sends up to EOSE, an error or the deadline. */
-function collect(words: string, lens: Lens, kinds: number[]): Promise<SearchHit[]> {
+export function collect(words: string, lens: Lens, kinds: number[], limit = LIST_LIMIT): Promise<SearchHit[]> {
   return new Promise((resolve) => {
     let latest: SearchHit[] = [];
     let done = false;
@@ -120,7 +120,7 @@ function collect(words: string, lens: Lens, kinds: number[]): Promise<SearchHit[
     }
     cancel = searchStream(
       words,
-      { tab: "people", pov: lens.pov, userPubkey: lens.userPubkey, kinds, limit: LIST_LIMIT },
+      { tab: "people", pov: lens.pov, userPubkey: lens.userPubkey, kinds, limit },
       (snapshot: SearchSnapshot) => {
         latest = snapshot.hits;
         if (snapshot.eose || snapshot.error) finish();

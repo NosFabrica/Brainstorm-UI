@@ -14,6 +14,11 @@ const detail = vi.hoisted(() => ({
 }));
 
 vi.mock("@/services/searchTags", () => ({ fetchSearchTags: async () => lists.tags }));
+const tagLists = vi.hoisted(() => ({ lists: [] as unknown[] }));
+vi.mock("@/services/tagLists", async (actual) => ({
+  ...(await actual<typeof import("@/services/tagLists")>()),
+  fetchTagLists: async () => tagLists.lists,
+}));
 vi.mock("@/services/nostr", () => ({
   fetchEventsByFilter: async (filter: Record<string, unknown>) => {
     relay.asked.push(filter);
@@ -52,6 +57,7 @@ beforeEach(async () => {
   relay.asked = [];
   relay.headers = [];
   lists.tags = [];
+  tagLists.lists = [];
   detail.of.clear();
   detail.notes.clear();
   (await import("./namedTags")).forgetNamedTags();
@@ -96,5 +102,52 @@ describe("fetchNamedTags", () => {
     lists.tags = [{ authorPubkey: VH_AUTHOR, slug: "verified-human", name: "Verified Human" }];
     detail.of.set(`${VH_AUTHOR}|verified-human`, { name: "Verified Human", carriers: [] });
     expect(await fetchNamedTags("verified human", { pov: "nosfabrica" })).toEqual([]);
+  });
+
+  it("reads a tag the lists hold from its lists alone: people and things, best first, no tagging read", async () => {
+    const tag = {
+      tagKey: `${VH_AUTHOR}|verified-human`,
+      authorPubkey: VH_AUTHOR,
+      slug: "verified-human",
+      observer: "h",
+    };
+    tagLists.lists = [
+      {
+        ...tag,
+        kind: 30392,
+        title: "Verified Human",
+        target: "person",
+        members: [{ target: "e".repeat(64), score: 80 }],
+      },
+      {
+        ...tag,
+        kind: 30394,
+        title: "Verified Human GitHub Accounts",
+        target: `39998:${"f".repeat(64)}:github-accounts`,
+        members: [{ target: `39999:${"f".repeat(64)}:vcavallo`, score: 64 }],
+      },
+      // Named by the relay for "verified", but not a tag the words name.
+      {
+        ...tag,
+        tagKey: "x|verified-podcaster",
+        slug: "verified-podcaster",
+        kind: 30392,
+        title: "Verified Podcaster",
+        target: "person",
+        members: [{ target: "1".repeat(64), score: 9 }],
+      },
+    ];
+    lists.tags = [{ authorPubkey: VH_AUTHOR, slug: "verified-human", name: "Verified Human" }];
+    const { fetchNamedTags } = await import("./namedTags");
+
+    const tags = await fetchNamedTags("verified human", { pov: "nosfabrica" });
+    expect(tags).toEqual([
+      expect.objectContaining({
+        name: "Verified Human",
+        people: [{ pubkey: "e".repeat(64), rank: 80 }],
+        things: [{ address: `39999:${"f".repeat(64)}:vcavallo`, rank: 64, relays: [] }],
+      }),
+    ]);
+    expect(relay.asked).toEqual([]);
   });
 });
