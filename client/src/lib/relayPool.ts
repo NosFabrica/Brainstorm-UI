@@ -19,9 +19,36 @@
  * next read if it gets authenticated meanwhile. A relay that cannot be reached
  * is skipped the same way: no single relay decides when a read is done.
  */
-import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type RelayOptions } from "applesauce-relay";
+import {
+  AuthRequiredError,
+  Relay,
+  RelayClosedError,
+  RelayGroup,
+  RelayPool,
+  type GroupRequestCompleteOperator,
+  type RelayOptions,
+} from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { Subject, filter, isObservable, map, race, scan, take, timer, type Observable } from "rxjs";
+import {
+  EMPTY,
+  Subject,
+  defer,
+  filter,
+  identity,
+  isObservable,
+  map,
+  of,
+  race,
+  repeat,
+  retry,
+  scan,
+  share,
+  take,
+  tap,
+  throwError,
+  timer,
+  type Observable,
+} from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
 import { SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
@@ -57,10 +84,46 @@ export function withSearchToken(filters: ReqFilters): ReqFilters {
   return (Array.isArray(filters) ? (filters as OneFilter[]).map(one) : one(filters as OneFilter)) as ReqFilters;
 }
 
+/**
+ * An `auth-required:` refusal, wherever the relay put the prefix. NIP-01 puts it
+ * first; strfry sends `ERROR: auth-required: requested filter requires
+ * authentication` (relay.mwaters.net, 2026-11-08), and the library — which reads
+ * the prefix at index 0, case-sensitively — took that for a clean close, while a
+ * lowercase `error: auth-required: …` it reads as a plain error.
+ */
+const AUTH_REQUIRED = /(^|[\s:])auth-required:/i;
+
+/** Whether a CLOSED (or OK) reason asks for a NIP-42 login, in any of the spellings relays use. */
+export function isAuthRequiredReason(reason: string | undefined): boolean {
+  return !!reason && AUTH_REQUIRED.test(reason);
+}
+
+type ReqOptions = NonNullable<Parameters<Relay["req"]>[1]>;
+type ReqMessages = ReturnType<Relay["req"]>;
+
+/** How many times a live REQ is asked again after the relay CLOSEs it; the library's `resubscribe` shape. */
+function resubscribeCount(resubscribe: ReqOptions["resubscribe"]): number {
+  if (resubscribe === undefined || resubscribe === false) return 0;
+  if (resubscribe === true) return Infinity;
+  if (typeof resubscribe === "number") return resubscribe;
+  return resubscribe.count ?? Infinity;
+}
+
 class ReadFirstRelay extends Relay {
-  /** Every read — `request` and `subscription` included — comes through here. */
-  req(filters: ReqFilters, opts?: Parameters<Relay["req"]>[1]): ReturnType<Relay["req"]> {
-    return super.req(this.url === SEARCH_RELAY ? withSearchToken(filters) : filters, { waitForAuth: false, ...opts });
+  /**
+   * Every read — `request` and `subscription` included — comes through here.
+   * One-shot reads never wait for a login; live ones do, and are asked again
+   * by [liveReq]'s rules rather than the library's.
+   */
+  req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+    const asked = this.url === SEARCH_RELAY ? withSearchToken(filters) : filters;
+    if (opts?.waitForAuth) return this.liveReq(asked, opts);
+    return super.req(asked, { ...opts, waitForAuth: false }).pipe(
+      // A refusal the library didn't recognise still tells services/relayAuth to log in.
+      tap((message) => {
+        if (message.type === "CLOSED" && isAuthRequiredReason(message.reason)) this.flagAuthRequired();
+      }),
+    );
   }
 
   subscription(
@@ -68,6 +131,78 @@ class ReadFirstRelay extends Relay {
     opts?: Parameters<Relay["subscription"]>[1],
   ): ReturnType<Relay["subscription"]> {
     return super.subscription(filters, { waitForAuth: true, ...opts });
+  }
+
+  /** What the library does on a well-formed refusal: services/relayAuth answers the challenge. */
+  private flagAuthRequired(): void {
+    if (!this.receivedAuthRequiredForReq.value) this.receivedAuthRequiredForReq.next(true);
+  }
+
+  /**
+   * A REQ that lives until it is unsubscribed, asked again by two rules:
+   *
+   * - **Refused before we have logged in**: no delay — wait for the login
+   *   (services/relayAuth answers the challenge) and ask again the moment it
+   *   lands. A relay refusing the first REQ until we log in is NIP-42's
+   *   normal order, not a failure. A login that never happens (no signer, a
+   *   reader who said no, a relay that rejects it) leaves the REQ waiting,
+   *   sending nothing.
+   * - **Refused after a login, or CLOSEd for any other reason**: logging in
+   *   again changes nothing, so back off — 1s, 2s, … 30s, cut short when the
+   *   app comes back — and start over from 1s once the relay answers (an
+   *   EVENT or EOSE).
+   *
+   * The library's own rules asked again at once in both cases — after a
+   * refusal it didn't recognise (`ERROR: auth-required: …`), and after a
+   * well-formed one from a relay we had already logged in to — so a relay
+   * that keeps refusing got one REQ per round trip for as long as the tab was
+   * open: thousands a minute.
+   */
+  private liveReq(filters: ReqFilters, opts: ReqOptions): ReqMessages {
+    const backoff = wakeableBackoff();
+    const times = resubscribeCount(opts.resubscribe);
+    /** Refusals and closes since the relay last answered; drives the backoff. */
+    let strikes = 0;
+    /** Whether the REQ now on the wire went out on a logged-in connection. */
+    let sentLoggedIn = false;
+    /** Whether the last attempt ended in the relay's CLOSED (not an unsubscribe). */
+    let closedByRelay = false;
+    const askOnce = defer(() =>
+      this.waitForAuth(
+        this.authRequiredForRead$,
+        defer(() => {
+          sentLoggedIn = this.authenticated;
+          closedByRelay = false;
+          return super.req(filters, { ...opts, waitForAuth: false, resubscribe: undefined });
+        }),
+      ),
+    );
+    return askOnce.pipe(
+      map((message) => {
+        if (message.type === "EVENT" || message.type === "EOSE") strikes = 0;
+        if (message.type === "CLOSED") {
+          if (isAuthRequiredReason(message.reason)) throw new AuthRequiredError(message.reason);
+          closedByRelay = true;
+        }
+        return message;
+      }),
+      retry({
+        delay: (error: unknown) => {
+          const reason = error instanceof RelayClosedError ? error.reason : undefined;
+          // `restricted:`, `blocked:` and the rest end the subscription, as before.
+          if (!(error instanceof AuthRequiredError) && !isAuthRequiredReason(reason)) return throwError(() => error);
+          this.flagAuthRequired();
+          // Not logged in yet: askOnce waits for the login, so go straight back to it.
+          if (!sentLoggedIn) return of(null);
+          return backoff(error, ++strikes);
+        },
+      }),
+      // `repeat({ count: 0 })` would empty the stream, not just not repeat it.
+      times > 0
+        ? repeat({ count: times, delay: () => (closedByRelay ? backoff(undefined, ++strikes) : EMPTY) })
+        : identity,
+      share(),
+    );
   }
 
   /**

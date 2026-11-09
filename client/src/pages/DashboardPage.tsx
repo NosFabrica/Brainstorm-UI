@@ -60,6 +60,7 @@ import { dashboardPrompt } from "@/lib/dashboardPrompt";
 
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
+import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
 
 interface GrapeRankResult {
   status?: unknown;
@@ -284,10 +285,7 @@ export default function DashboardPage() {
       wasAutoTriggeredRef.current = false;
       // First-time calc vs a true recalculation reads very differently — don't
       // tell a never-scored user we're "refreshing" / "recalculating".
-      let hadPrev = false;
-      try {
-        hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true";
-      } catch {}
+      const hadPrev = hasOwnScores(user?.pubkey);
       toast({
         title: hadPrev ? "Refreshing your scores" : "Calculating your network",
         description: hadPrev
@@ -516,23 +514,12 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handleExport is per-render; user dep re-binds it
   }, [navigate, user]);
 
-  // Per-pubkey — a global flag would leak one account's "has scores" state onto
-  // the next account on the same browser (making a brand-new user look like a
-  // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
-    const k = user?.pubkey ? accountKey("brainstorm_calc_completed", user.pubkey) : "";
     if (calcDone) {
-      try {
-        if (k) localStorage.setItem(k, "true");
-        localStorage.setItem("brainstorm_calc_completed", "true");
-      } catch {}
+      markOwnScores(user?.pubkey);
       return true;
     }
-    try {
-      return !!k && localStorage.getItem(k) === "true";
-    } catch {
-      return false;
-    }
+    return hasOwnScores(user?.pubkey);
   }, [calcDone, user?.pubkey]);
 
   // Also above the early return, for the same reason. Holds whether this is the

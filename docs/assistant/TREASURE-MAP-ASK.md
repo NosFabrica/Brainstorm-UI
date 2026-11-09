@@ -261,6 +261,11 @@ again.
   - while off: Turn on, plus Turn off when a version still lists some of the Assistant's duties, so no claim is
     stuck;
   - while on: Update now (enabled unless up to date) and Turn off.
+- **Pressed for them**: with a Brainstorm session, the app sends `{ "on": true }` itself, from any page
+  (`components/AutoAssistantSetup`): Turn on when no version was ever published, Update now while on and out of date
+  — once for each `shouldSay`, never retried within a visit. Off with a version published is the reader's choice
+  (they pressed Turn off), and stays theirs. `/setup` reads "Publishing" meanwhile; a failure, the 409 included,
+  turns the row back into a step.
 - **Elsewhere in the app**, a self-Map found on relays, in search results or on its `/e` page, reads as what its
   Assistant publishes ("Publishes and keeps up to date · Rank, Followers, …"), never as an activation
   (`describeDesignation`).
@@ -269,8 +274,8 @@ again.
 
 - **Keeping it true on its own** (Tapestry's story 5, not built there either). § 9.2 says a key MUST remove or narrow
   a self-entry _before_ it stops publishing what the self-entry speaks for. Until the server republishes when the
-  answer changes, the UI shows the Map as out of date, flags any listed duty that isn't live, and the reader presses
-  Update now. A natural first hook is after a TA publish succeeds, and whenever a reader's scheduling policy is
+  answer changes, the UI presses Update now for the reader on their next visit (What the UI shows) and flags any
+  listed duty that isn't live. A natural first hook is after a TA publish succeeds, and whenever a reader's scheduling policy is
   disabled or their entitlement lapses: then the self-entries come off before upkeep stops.
 - **Counting Maps** (§ 9.2): a self-entry is never its key's choice of a provider. Nothing in Brainstorm counts
   kind-10040 adopters today; anything that starts to should skip a Map whose public entries all name its author.

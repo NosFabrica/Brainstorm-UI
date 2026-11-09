@@ -8,7 +8,7 @@
  */
 import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { isKey } from "@/lib/searchQuery";
 import { orderTopSections, type TopSection } from "@/lib/topOrder";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
@@ -40,7 +40,7 @@ import type { PanelSections } from "@/components/search/KnowledgePanel";
 import { takeHeadStart, type HeadStartResult } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
 import { ListItemResults } from "@/components/search/ListItemResults";
-import { fetchEventRsvps, type EventRsvps } from "@/services/search";
+import { useEventRsvps } from "@/hooks/useEventRsvps";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 
 /** A file-metadata hit stays in Media only when the file is a picture, a video or a sound. */
@@ -190,9 +190,6 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
 }
 
 const TOP: SearchGroup = "search-top";
-
-/** How long the Happening list must stop changing before its RSVPs are asked for. */
-const RSVP_SETTLE_MS = 400;
 
 /**
  * What the Top page asks each section for. index.html's head start asks
@@ -653,7 +650,6 @@ function ComposedResultsBody({
     [articleClusters, coveredArticles],
   );
   // Who is going to what Happening shows — one request for the section.
-  const [happeningRsvps, setHappeningRsvps] = useState<Map<string, EventRsvps>>(new Map());
   const calendarAddr = (e: { kind: number; pubkey: string; tags: string[][] }) =>
     `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
   const happeningEventAddrs = useMemo(
@@ -665,26 +661,7 @@ function ComposedResultsBody({
         : [],
     [happeningF],
   );
-  const happeningAddrKey = happeningEventAddrs.join(",");
-  useEffect(() => {
-    if (!happeningAddrKey) {
-      setHappeningRsvps(new Map());
-      return;
-    }
-    let alive = true;
-    // The list fills in bursts as events arrive, and each burst changes this
-    // key: asking on every one sent five requests for the same page (measured
-    // on staging 2026-09-17), each for up to 500 RSVPs. Ask once it settles.
-    const timer = setTimeout(() => {
-      void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
-        if (alive) setHappeningRsvps(m);
-      });
-    }, RSVP_SETTLE_MS);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [happeningAddrKey]);
+  const happeningRsvps = useEventRsvps(happeningEventAddrs);
   const happeningClusters = useMemo(
     () => (happeningF ? collapseHits(happeningF.hits, undefined, { maxPerAuthor: 2 }) : []),
     [happeningF],

@@ -8,6 +8,7 @@
  * gradient / no wordmark image (guidelines p16/p17).
  */
 import { useLocation } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 import { ArrowRight, Globe, Info, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -30,6 +31,7 @@ export function PerspectiveToggle({
   compact?: boolean;
 }) {
   const [, setLocation] = useLocation();
+  const loginHref = useLoginHref();
   const canUseMywot = hasMywot && isSearchObserver;
 
   // The results row shows the lens only when it can switch. A visitor's
@@ -80,7 +82,7 @@ export function PerspectiveToggle({
       </span>
       <button
         type="button"
-        onClick={() => setLocation("/login")}
+        onClick={() => setLocation(loginHref)}
         aria-label="My perspective — sign in"
         title="Sign in to search through the people you trust"
         className={segment(false)}
