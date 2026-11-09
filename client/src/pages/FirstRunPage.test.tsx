@@ -16,13 +16,15 @@ const NEWS = [person("5", "AP News"), person("6", "Reuters"), person("7", "Stack
 
 const h = vi.hoisted(() => ({
   follows: 0,
+  /** The relays' answer about their follow list; by default it agrees with `follows`. */
+  verdict: undefined as undefined | "checking" | "none" | "has-follows",
   navigate: vi.fn(),
   followPubkeys: vi.fn(),
   trigger: vi.fn(),
   toast: vi.fn(),
   byTopic: {} as Record<string, unknown[]>,
   /** The Assistant's own setup, which the app does in the background. */
-  assistant: { live: true, publishing: false },
+  assistant: { live: true, publishing: false } as { live: boolean; publishing: boolean; lastPublish?: string },
   menuPublishing: false,
   mapPublishing: false,
 }));
@@ -33,6 +35,9 @@ vi.mock("wouter", async (orig) => ({
 }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
 vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => h.follows }));
+vi.mock("@/hooks/useVerifiedNoFollows", () => ({
+  useVerifiedNoFollows: () => h.verdict ?? (h.follows > 0 ? "has-follows" : "none"),
+}));
 vi.mock("@/hooks/useOnboardingPeople", () => ({
   useOnboardingPeople: (topics: string[]) => ({
     byTopic: Object.fromEntries(topics.map((t) => [t, h.byTopic[t] ?? []])),
@@ -58,6 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   h.follows = 0;
+  h.verdict = undefined;
   h.byTopic = { music: MUSIC, news: NEWS };
   h.followPubkeys.mockResolvedValue({ success: true });
   h.trigger.mockResolvedValue(undefined);
@@ -165,6 +171,17 @@ describe("FirstRunPage", () => {
       expect(state("ready-assistant")).toBe("working");
     });
 
+    // The app tried and couldn't: no spinner left turning over nothing. It's
+    // finished later, and Account shows it.
+    it("an Assistant the app couldn't set up isn't shown as still working", () => {
+      h.assistant = { live: false, publishing: false, lastPublish: "error" };
+      render(<FirstRunPage />);
+      toDone();
+      expect(state("ready-assistant")).toBe("next");
+      expect(screen.getByTestId("ready-assistant")).not.toHaveTextContent("Setting up");
+      expect(screen.getByTestId("ready-assistant")).toHaveTextContent("Your Brainstorm Assistant");
+    });
+
     it("a returning key's follows are already done", () => {
       h.follows = 416;
       render(<FirstRunPage />);
@@ -226,6 +243,34 @@ describe("FirstRunPage", () => {
       );
       expect(h.toast.mock.calls.at(-1)[0].action).toBeTruthy();
       expect(h.trigger).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * A key new to Brainstorm on a device that hasn't seen its follow list:
+   * this browser's count is 0 until the relays answer. The first run waits
+   * for that, so someone who follows 416 people is never walked through
+   * "What are you into?".
+   */
+  describe("on a device that hasn't seen their list yet", () => {
+    it("waits for the relays, then shows the network they already have", () => {
+      h.verdict = "checking";
+      const view = render(<FirstRunPage />);
+      expect(screen.getByTestId("first-run-checking")).toHaveTextContent("Checking your network");
+      expect(screen.queryByTestId(/^first-run-topic-/)).toBeNull();
+
+      // The relays found their list, and the count is repaired from it.
+      h.verdict = "has-follows";
+      h.follows = 416;
+      view.rerender(<FirstRunPage />);
+      expect(screen.getByTestId("first-run-found")).toHaveTextContent("416 people");
+      expect(screen.queryByTestId(/^first-run-topic-/)).toBeNull();
+    });
+
+    it("a list the relays don't find is a new network: the topics", () => {
+      h.verdict = "none";
+      render(<FirstRunPage />);
+      expect(screen.getAllByTestId(/^first-run-topic-/).length).toBeGreaterThan(0);
     });
   });
 });

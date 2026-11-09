@@ -26,6 +26,7 @@ import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
 import { useAssistantProfile } from "@/hooks/useAssistantProfile";
 import { useAssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import { useOnboardingPeople } from "@/hooks/useOnboardingPeople";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { useToast } from "@/hooks/use-toast";
 import { markFirstRunDone } from "@/lib/firstRun";
 import { knownFollowCount } from "@/lib/followStore";
@@ -90,9 +91,12 @@ export default function FirstRunPage() {
     if (!user) navigate("/login", { replace: true });
   }, [user, navigate]);
 
-  // A key that already follows people has a network: nothing to rebuild.
-  const [followCount] = useState(() => (pubkey ? knownFollowCount(pubkey) : 0));
-  const returning = followCount > 0;
+  // A key that already follows people has a network: nothing to rebuild. On a
+  // device that hasn't seen their list, this browser's count is 0 until the
+  // relays answer — which also repairs the count — so the run waits for them.
+  const verdict = useVerifiedNoFollows(pubkey);
+  const returning = verdict === "has-follows";
+  const followCount = pubkey ? knownFollowCount(pubkey) : 0;
   const steps: Step[] = returning ? ["found", "done"] : ["topics", "people", "done"];
   const [index, setIndex] = useState(0);
   const step = steps[index];
@@ -108,6 +112,10 @@ export default function FirstRunPage() {
   const selfMap = useAssistantTreasureMap(pubkey);
   const assistantReady =
     assistantProfile.live && !assistantProfile.publishing && !dutyMenu.publishing && !selfMap.publishing;
+  // The app tried and couldn't bring it to life: nothing is under way any
+  // more, so it's what's next — finished later, under Account — not a spinner.
+  const assistantStalled =
+    !assistantProfile.live && !assistantProfile.publishing && assistantProfile.lastPublish === "error";
 
   // Each topic's top three are ticked the moment its people arrive, once per pick.
   const preselected = useRef(new Set<string>());
@@ -220,6 +228,18 @@ export default function FirstRunPage() {
         : "Continue";
 
   if (!user) return null;
+  if (verdict === "checking") {
+    return (
+      <div className="flex min-h-page items-center justify-center bg-white dark:bg-slate-950">
+        <p
+          className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
+          data-testid="first-run-checking"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" /> Checking your network…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950" data-testid="page-first-run">
@@ -356,9 +376,19 @@ export default function FirstRunPage() {
             <Lead>{returning ? "One last choice, then straight to search." : "Here's what's ready for you."}</Lead>
             <ul className="mt-8 space-y-3" aria-live="polite">
               <ReadyLine
-                state={assistantReady ? "done" : "working"}
-                title={assistantReady ? "Your Brainstorm Assistant is live" : "Setting up your Brainstorm Assistant"}
-                detail="Works for you in the background."
+                state={assistantReady ? "done" : assistantStalled ? "next" : "working"}
+                title={
+                  assistantReady
+                    ? "Your Brainstorm Assistant is live"
+                    : assistantStalled
+                      ? "Your Brainstorm Assistant"
+                      : "Setting up your Brainstorm Assistant"
+                }
+                detail={
+                  assistantStalled
+                    ? "Finishes setting up later — you'll find it under Account."
+                    : "Works for you in the background."
+                }
                 testid="ready-assistant"
               />
               {returning && (

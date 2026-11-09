@@ -6,13 +6,38 @@ import { HAND_PICKED, ONBOARDING_TOPICS, houseListTitle, type OnboardingTopic } 
 import { PEOPLE_PER_TOPIC, pickTopicPeople, type SuggestedPerson } from "@/lib/onboardingPeople";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 
+/**
+ * Every list the house publishes, by title — asked once and shared by every
+ * topic (picking all eleven used to send eleven identical requests). A failed
+ * ask isn't kept, so the next topic picked tries again.
+ */
+let houseLists: Promise<Map<string, string[]>> | null = null;
+function allHouseLists(): Promise<Map<string, string[]>> {
+  houseLists ??= (async () => {
+    const house = await resolveHouseObserver().catch(() => null);
+    if (!house) return new Map<string, string[]>();
+    const events = await fetchFromSearch([{ kinds: [TRUSTED_PEOPLE_KIND], authors: [house] }], { timeoutMs: 4000 });
+    const byTitle = new Map<string, string[]>();
+    for (const event of events) {
+      const list = readTrustedList(event);
+      if (!byTitle.has(list.title))
+        byTitle.set(
+          list.title,
+          list.members.map((m) => m.pubkey),
+        );
+    }
+    return byTitle;
+  })().catch((err) => {
+    houseLists = null;
+    throw err;
+  });
+  return houseLists;
+}
+
 /** The house's list for a topic, best first; null when none is published. */
 async function houseList(topic: OnboardingTopic): Promise<string[] | null> {
-  const house = await resolveHouseObserver().catch(() => null);
-  if (!house) return null;
-  const events = await fetchFromSearch([{ kinds: [TRUSTED_PEOPLE_KIND], authors: [house] }], { timeoutMs: 4000 });
-  const event = events.find((e) => readTrustedList(e).title === houseListTitle(topic));
-  return event ? readTrustedList(event).members.map((m) => m.pubkey) : null;
+  const lists = await allHouseLists().catch(() => new Map<string, string[]>());
+  return lists.get(houseListTitle(topic)) ?? null;
 }
 
 async function loadTopicPeople(topic: OnboardingTopic): Promise<SuggestedPerson[]> {
