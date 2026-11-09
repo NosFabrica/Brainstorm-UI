@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
- * The background publish of the Assistant's two setup tasks, from any page:
- * once per task for what it should say now, again only when that changes,
- * never without a session, and never a loop on failure.
+ * The background publish of the Assistant's setup tasks, from any page: its
+ * profile, so it's live, then its Duty Menu and Treasure Map — once per task
+ * for what it should say now, again only when that changes, never without a
+ * session, and never a loop on failure.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
@@ -11,8 +12,10 @@ const s = vi.hoisted(() => ({
   session: true,
   menu: {} as Record<string, unknown>,
   map: {} as Record<string, unknown>,
+  profile: {} as Record<string, unknown>,
   publish: vi.fn(),
   set: vi.fn(),
+  publishProfile: vi.fn(),
 }));
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64) }) }));
@@ -24,7 +27,13 @@ vi.mock("@/hooks/useAssistantTreasureMap", () => ({
   useAssistantTreasureMap: (pk: string | undefined) => ({ ...s.map, pk, set: s.set }),
 }));
 
+vi.mock("@/hooks/useAssistantProfile", () => ({
+  useAssistantProfile: (pk: string | undefined) => ({ ...s.profile, pk, publish: s.publishProfile }),
+}));
+
 import { AutoAssistantSetup } from "./AutoAssistantSetup";
+
+const ASSISTANT = "b".repeat(64);
 
 const OFFER = [{ key: "30382:rank", relay: "wss://scores.example/" }];
 const SHOULD = [["30382:rank", "wss://scores.example/"]];
@@ -34,15 +43,43 @@ beforeEach(() => {
   s.session = true;
   s.publish.mockResolvedValue({});
   s.set.mockResolvedValue({});
+  s.publishProfile.mockResolvedValue({});
+  s.profile = { taPubkey: ASSISTANT, settled: true, live: true };
   s.menu = { supported: true, status: "current", settled: true, offer: OFFER };
   s.map = { supported: true, status: "current", settled: true, on: true, published: {}, shouldSay: SHOULD };
 });
 
 describe("AutoAssistantSetup", () => {
-  it("does nothing when both are up to date", () => {
+  it("does nothing when all are up to date", () => {
     render(<AutoAssistantSetup />);
     expect(s.publish).not.toHaveBeenCalled();
     expect(s.set).not.toHaveBeenCalled();
+    expect(s.publishProfile).not.toHaveBeenCalled();
+  });
+
+  // Every account, not only one made here: a key signed in from an extension
+  // gets its Assistant brought to life the same way.
+  it("brings an Assistant with no profile to life, once", () => {
+    s.profile.live = false;
+    const { rerender } = render(<AutoAssistantSetup />);
+    rerender(<AutoAssistantSetup />);
+    expect(s.publishProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("never republishes a profile that exists, or one the relays haven't answered for", () => {
+    render(<AutoAssistantSetup />);
+    s.profile = { ...s.profile, live: false, settled: false };
+    render(<AutoAssistantSetup />);
+    expect(s.publishProfile).not.toHaveBeenCalled();
+  });
+
+  it("doesn't retry a failed profile publish for the same Assistant", async () => {
+    s.profile.live = false;
+    s.publishProfile.mockRejectedValueOnce(new Error("server down"));
+    const { rerender } = render(<AutoAssistantSetup />);
+    await Promise.resolve();
+    rerender(<AutoAssistantSetup />);
+    expect(s.publishProfile).toHaveBeenCalledTimes(1);
   });
 
   it("publishes a missing Duty Menu and turns on a never-published Treasure Map, for this account", () => {
@@ -85,8 +122,10 @@ describe("AutoAssistantSetup", () => {
     s.session = false;
     s.menu.status = "missing";
     s.map.status = "out-of-date";
+    s.profile.live = false;
     render(<AutoAssistantSetup />);
     expect(s.publish).not.toHaveBeenCalled();
     expect(s.set).not.toHaveBeenCalled();
+    expect(s.publishProfile).not.toHaveBeenCalled();
   });
 });

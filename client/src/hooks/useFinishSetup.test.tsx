@@ -27,6 +27,8 @@ const state = vi.hoisted(() => ({
   >,
   /** A Brainstorm session, which the background publish needs; the steps above are read without one. */
   session: false,
+  /** This deployment's Assistant: live unless a test says otherwise. */
+  profile: { taPubkey: "b".repeat(64), settled: true, live: true, lastPublish: null } as Record<string, unknown>,
 }));
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64) }) }));
@@ -42,8 +44,13 @@ vi.mock("@/hooks/useDirectMessages", () => ({ useDmStatus: () => state.dm }));
 vi.mock("@/hooks/useAssistantDutyMenu", () => ({ useAssistantDutyMenu: () => state.menu }));
 vi.mock("@/hooks/useAssistantTreasureMap", () => ({ useAssistantTreasureMap: () => state.selfMap }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => state.session }));
+vi.mock("@/hooks/useAssistantProfile", () => ({ useAssistantProfile: () => state.profile }));
 
 import { useFinishSetup } from "./useFinishSetup";
+
+beforeEach(() => {
+  state.profile = { taPubkey: TA, settled: true, live: true, lastPublish: null };
+});
 
 describe("useFinishSetup — the Activate step and Trusted Lists", () => {
   beforeEach(() => {
@@ -374,5 +381,58 @@ describe("useFinishSetup — while the app publishes them by itself", () => {
     const { result } = renderHook(() => useFinishSetup());
     expect(result.current.treasureMapAuto).toBe(false);
     expect(result.current.treasureMapPending).toBe(true);
+  });
+});
+
+/**
+ * Step 1, "Create your account": the account comes with its own Brainstorm
+ * Assistant, and the step is done once that Assistant is live — its profile
+ * out. The app brings it to life by itself (AutoAssistantSetup); a publish
+ * that failed hands the step back to /setup.
+ */
+describe("useFinishSetup — the account step: your Brainstorm Assistant", () => {
+  beforeEach(() => {
+    state.provider = "brainstorm";
+    state.missing = [];
+    state.activated = true;
+    state.lists = undefined;
+    state.dm = "stopped";
+    state.session = true;
+    state.menu = { supported: false, status: null, settled: true };
+    state.selfMap = { supported: false, status: null, settled: true };
+  });
+
+  it("an Assistant that's live: the account step is done", () => {
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.accountDone).toBe(true);
+    expect(result.current.accountPending).toBe(false);
+    expect(result.current.doneCount).toBe(3);
+    expect(result.current.allDone).toBe(true);
+  });
+
+  it("one the app is bringing to life isn't a step left, and says it's being done", () => {
+    state.profile = { ...state.profile, live: false };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.accountDone).toBe(false);
+    expect(result.current.accountAuto).toBe(true);
+    expect(result.current.accountPending).toBe(false);
+    expect(result.current.remaining).toBe(0);
+    expect(result.current.doneCount).toBe(2);
+    expect(result.current.allDone).toBe(false);
+  });
+
+  it("one whose publish failed is a step left, for /setup to do by hand", () => {
+    state.profile = { ...state.profile, live: false, lastPublish: "error" };
+    const { result } = renderHook(() => useFinishSetup());
+    expect(result.current.accountAuto).toBe(false);
+    expect(result.current.accountPending).toBe(true);
+    expect(result.current.remaining).toBe(1);
+  });
+
+  it("doesn't nag before the server names the Assistant or the relays answer", () => {
+    state.profile = { ...state.profile, live: false, taPubkey: null };
+    expect(renderHook(() => useFinishSetup()).result.current.accountPending).toBe(false);
+    state.profile = { ...state.profile, taPubkey: TA, settled: false };
+    expect(renderHook(() => useFinishSetup()).result.current.accountPending).toBe(false);
   });
 });

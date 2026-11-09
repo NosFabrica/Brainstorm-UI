@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
+import { useAssistantProfile } from "@/hooks/useAssistantProfile";
 import { useAssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import { useDmStatus } from "@/hooks/useDirectMessages";
 import { useHasSession } from "@/hooks/useHasSession";
@@ -18,7 +19,8 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * The account-setup model behind every "Finish setting up your account"
  * surface: the header banner, the /setup checklist page, the dashboard's
  * setup card and the account menu's Account setup row. Three steps — create
- * your account (done the moment you're signed in), create your follow list
+ * your account (it comes with its own Brainstorm Assistant: done once that
+ * Assistant is live, its profile out), create your follow list
  * (feeds the scoring), activate your Brainstorm account (the kind-10040 that
  * lets other apps find the scores). A Treasure Map that already gives the rank
  * duty to another Assistant counts as activated: they chose who publishes their
@@ -36,8 +38,9 @@ import { isNip85Activated } from "@/lib/nip85Activation";
  * so nobody is asked to publish an empty Map.
  *
  * With a Brainstorm session the app does those two itself, from any page
- * (components/AutoAssistantSetup). One it is doing, or about to, is not a step
- * left (`dutyMenuAuto` / `treasureMapAuto`): nothing nags about work under way.
+ * (components/AutoAssistantSetup), and brings the Assistant to life the same
+ * way. One it is doing, or about to, is not a step left (`accountAuto` /
+ * `dutyMenuAuto` / `treasureMapAuto`): nothing nags about work under way.
  * One whose publish failed, or went through and still reads out of date, is a
  * step again, for /setup to do by hand.
  *
@@ -59,6 +62,15 @@ import { isNip85Activated } from "@/lib/nip85Activation";
 export interface FinishSetupState {
   /** No signed-in account → every surface hides. */
   signedIn: boolean;
+  /**
+   * Step 1: the account's Brainstorm Assistant is live (its profile out). Done
+   * too while the server hasn't named the Assistant — nothing to ask for yet.
+   */
+  accountDone: boolean;
+  /** Relay-verified "the Assistant has no profile", and the app isn't publishing one. */
+  accountPending: boolean;
+  /** The app is bringing the Assistant to life by itself, or about to. */
+  accountAuto: boolean;
   followDone: boolean;
   /** Relay-verified "this account really follows nobody". */
   followPending: boolean;
@@ -136,6 +148,7 @@ export function useFinishSetup(): FinishSetupState {
   const dmStatus = useDmStatus();
   const menu = useAssistantDutyMenu(pubkey);
   const selfMap = useAssistantTreasureMap(pubkey);
+  const profile = useAssistantProfile(pubkey);
   const hasSession = useHasSession();
 
   return useMemo(() => {
@@ -173,9 +186,11 @@ export function useFinishSetup(): FinishSetupState {
               on: selfMap.on,
               published: selfMap.published,
             },
+            { taPubkey: profile.taPubkey, settled: profile.settled, live: profile.live },
           )
         : [];
     const handling = (outcome: string | null | undefined) => outcome == null || outcome === "pending";
+    const accountAuto = autoDue.includes("assistant-profile") && handling(profile.lastPublish);
     const dutyMenuAuto = autoDue.includes("duty-menu") && handling(menu.lastPublish);
     const treasureMapAuto = autoDue.includes("treasure-map") && handling(selfMap.lastPublish);
 
@@ -193,14 +208,20 @@ export function useFinishSetup(): FinishSetupState {
     const treasureMapPending =
       mapCounted && selfMap.settled && (treasureMap === "missing" || treasureMap === "out-of-date") && !treasureMapAuto;
 
+    // Step 1: the account's Assistant is live. Nothing to ask for until the
+    // server has named it, nor before the relays have answered.
+    const accountDone = signedIn && (!profile.taPubkey || profile.live);
+    const accountPending = signedIn && !!profile.taPubkey && profile.settled && !profile.live && !accountAuto;
+
     const remaining =
+      (accountPending ? 1 : 0) +
       (followPending ? 1 : 0) +
       (activatePending || signalsPending ? 1 : 0) +
       (dutyMenuPending ? 1 : 0) +
       (treasureMapPending ? 1 : 0);
-    // The counted steps: account (done once signed in), follow list, activation, then the Duty Menu and Treasure Map where offered.
+    // The counted steps: account (its Assistant live), follow list, activation, then the Duty Menu and Treasure Map where offered.
     const steps = [
-      true,
+      accountDone,
       followDone,
       activateDone,
       ...(menuCounted ? [dutyMenuDone] : []),
@@ -220,6 +241,9 @@ export function useFinishSetup(): FinishSetupState {
 
     return {
       signedIn,
+      accountDone,
+      accountPending,
+      accountAuto,
       followDone,
       followPending,
       followCount,
@@ -238,7 +262,8 @@ export function useFinishSetup(): FinishSetupState {
       remaining,
       doneCount,
       totalSteps: steps.length,
-      allDone: followDone && activateDone && (!menuCounted || dutyMenuDone) && (!mapCounted || treasureMapDone),
+      allDone:
+        accountDone && followDone && activateDone && (!menuCounted || dutyMenuDone) && (!mapCounted || treasureMapDone),
       messages,
       optionalRemaining,
     };
@@ -261,5 +286,9 @@ export function useFinishSetup(): FinishSetupState {
     selfMap.on,
     selfMap.published,
     selfMap.lastPublish,
+    profile.taPubkey,
+    profile.settled,
+    profile.live,
+    profile.lastPublish,
   ]);
 }

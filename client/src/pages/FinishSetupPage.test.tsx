@@ -42,6 +42,9 @@ vi.mock("@/hooks/useFinishSetup", () => ({
 function state(overrides: Partial<FinishSetupState>): FinishSetupState {
   return {
     signedIn: true,
+    accountDone: true,
+    accountPending: false,
+    accountAuto: false,
     followDone: false,
     followPending: true,
     followCount: 0,
@@ -349,5 +352,40 @@ describe("FinishSetupPage — the Treasure Map step", () => {
     expect(row).toHaveTextContent("up to date");
     fireEvent.click(within(row).getByTestId("setup-view-treasure-map"));
     expect(navigate).toHaveBeenCalledWith("/setup/treasure-map");
+  });
+});
+
+/**
+ * Step 1: the account comes with its own Brainstorm Assistant, and the step is
+ * done once that Assistant is live. The app brings it to life by itself; a
+ * publish that failed leaves the step for them, on the Assistant's own page.
+ */
+describe("FinishSetupPage — the account step: your Brainstorm Assistant", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("done: signed in, and their Assistant is live", () => {
+    setupState.mockReturnValue(state({}));
+    renderWithProviders(<FinishSetupPage />);
+    expect(screen.getByTestId("setup-row-account")).toHaveTextContent("Your Brainstorm Assistant is live.");
+  });
+
+  it("one the app is bringing to life says so, with nothing for them to do", () => {
+    setupState.mockReturnValue(state({ accountDone: false, accountAuto: true, doneCount: 0 }));
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-account-pending");
+    expect(row).toHaveTextContent("Create your account");
+    expect(row).toHaveTextContent("Publishing");
+    expect(row).toHaveTextContent("Your account comes with your own Brainstorm Assistant");
+    expect(row).toHaveTextContent("nothing for you to do");
+  });
+
+  it("one whose publish failed is theirs to do, on their Assistant's page", () => {
+    setupState.mockReturnValue(state({ accountDone: false, accountPending: true, doneCount: 0 }));
+    renderWithProviders(<FinishSetupPage />);
+    const row = screen.getByTestId("setup-row-account-pending");
+    expect(row).toHaveTextContent("Start here");
+    expect(row).not.toHaveTextContent("Publishing");
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/settings?tab=assistants");
   });
 });

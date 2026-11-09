@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeftRight,
   ArrowRight,
+  Bot,
   Check,
   ChevronRight,
   ListChecks,
@@ -71,6 +72,12 @@ function listOf(names: string[]): string {
 }
 
 /** A task the app is doing by itself (components/AutoAssistantSetup): the row stays, with nothing to do. */
+/** Settings › Assistants, Yours: the card that publishes the Assistant by hand. */
+const YOUR_ASSISTANT_PATH = "/settings?tab=assistants";
+
+const ACCOUNT_COMES_WITH =
+  "Your account comes with your own Brainstorm Assistant: a nostr identity Brainstorm holds for you, which signs and publishes on your behalf.";
+
 const PUBLISHING_FOR_YOU = "Your Assistant is publishing it for you now — nothing for you to do.";
 
 function PendingRow({
@@ -148,6 +155,8 @@ export default function FinishSetupPage() {
   const rankProvider = useRankProvider(user?.pubkey);
   const providerName = rankProvider?.name ?? "an Assistant";
   const {
+    accountDone,
+    accountAuto,
     followDone,
     followCount,
     activateDone,
@@ -227,11 +236,29 @@ export default function FinishSetupPage() {
         </div>
 
         <div className="mt-5 flex flex-col gap-3">
-          <DoneRow
-            label="Create your account"
-            detail={`You're signed in as ${user.displayName || "yourself"}.`}
-            testid="setup-row-account"
-          />
+          {accountDone ? (
+            <DoneRow
+              label="Create your account"
+              detail={`You're signed in as ${user.displayName || "yourself"}. Your Brainstorm Assistant is live.`}
+              testid="setup-row-account"
+            />
+          ) : (
+            // The account comes with its own Assistant, which the app brings to
+            // life by itself (AutoAssistantSetup); a failed publish is theirs,
+            // on the Assistant's own page.
+            <PendingRow
+              label="Create your account"
+              badge={accountAuto ? "Publishing" : "Start here"}
+              detail={
+                accountAuto
+                  ? `${ACCOUNT_COMES_WITH} It's going live now — nothing for you to do.`
+                  : `${ACCOUNT_COMES_WITH} Bring it to life on its page — one tap.`
+              }
+              icon={Bot}
+              onClick={() => navigate(YOUR_ASSISTANT_PATH)}
+              testid="setup-row-account-pending"
+            />
+          )}
 
           {followDone ? (
             <DoneRow
