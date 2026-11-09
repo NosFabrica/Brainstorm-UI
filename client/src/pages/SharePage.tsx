@@ -122,6 +122,7 @@ import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
+import { hasOwnScores } from "@/lib/ownScores";
 
 const NO_RELAYS: string[] = [];
 
@@ -193,16 +194,10 @@ export default function SharePage() {
   const { pov: scorePov } = useScorePov();
   // A USABLE personal point of view — the same rule ConnectionListPage applies
   // to the follower lists, so a count and the list behind it can never come
-  // from different perspectives. `brainstorm_calc_completed` is a localStorage
+  // from different perspectives. `hasOwnScores` is a per-Account localStorage
   // breadcrumb, not server truth; without it the personalized stats would be
   // an empty perspective pretending to be one.
-  const calcDone = (() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  })();
+  const calcDone = hasOwnScores(currentUser?.pubkey);
   const myPov = loggedIn && calcDone && scorePov === "personalized";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);

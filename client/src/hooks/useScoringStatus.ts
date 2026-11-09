@@ -4,6 +4,7 @@ import { apiClient } from "@/services/api";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { accountKey } from "@/lib/accountStorage";
 import { useHasSession } from "@/hooks/useHasSession";
+import { markOwnScores } from "@/lib/ownScores";
 
 export type ScoringStatus = "idle" | "calculating" | "publishing" | "ready" | "failed";
 
@@ -57,12 +58,7 @@ export function useScoringStatus(): {
   // up within the first poll (~seconds) on whatever page the user is on.
   useEffect(() => {
     if (!publishDone) return;
-    try {
-      localStorage.setItem("brainstorm_calc_completed", "true");
-      if (user?.pubkey) localStorage.setItem(accountKey("brainstorm_calc_completed", user.pubkey), "true");
-    } catch {
-      /* ignore */
-    }
+    markOwnScores(user?.pubkey);
   }, [publishDone, user?.pubkey]);
 
   let triggeredAt = 0;

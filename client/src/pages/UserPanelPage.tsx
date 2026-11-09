@@ -76,6 +76,7 @@ import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { publicOrigin } from "@/lib/publicOrigin";
+import { hasOwnScores } from "@/lib/ownScores";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
@@ -467,9 +468,7 @@ export default function UserPanelPage() {
   ]);
 
   const grapeRank = grapeRankData?.data;
-  const calcDone =
-    grapeRank?.internal_publication_status?.toLowerCase() === "success" ||
-    localStorage.getItem("brainstorm_calc_completed") === "true";
+  const calcDone = grapeRank?.internal_publication_status?.toLowerCase() === "success" || hasOwnScores(user?.pubkey);
   const lastCalculated = historyData?.data?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
 
   const followedUsers = useMemo((): FollowedUser[] => {
