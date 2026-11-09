@@ -82,7 +82,7 @@ describe("resolveTrustSource", () => {
   });
 
   it("ignores a declaration with no rank pointer", async () => {
-    // `signNip85Deactivation` publishes an empty-tag 10040 to revoke. That must
+    // `signNip85Deactivation` leaves an empty-tag 10040 when no other provider is named. That must
     // read as "no scorer", not as a malformed source we half-honor.
     nostr.fetchTrustProviderList.mockResolvedValue({ kind: 10040, tags: [] });
     const { resolveTrustSource } = await load();

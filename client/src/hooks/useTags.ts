@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { TagTarget } from "@/lib/tagTarget";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchProfileTags,
@@ -204,6 +205,8 @@ export function useTagDetail(authorPubkey: string | undefined, slug: string | un
 
 export const eventTagsKey = (eventId: string, viewerPubkey?: string, observer?: TrustObserver) =>
   ["event-tags", eventId, viewerPubkey ?? "anon", observer ?? "house"] as const;
+// The coordinate, when there is one, rides after these so the key's prefix — what
+// `useApplyEventTag` invalidates — is unchanged.
 
 /**
  * Every tag applied to one note (rung C2).
@@ -211,12 +214,13 @@ export const eventTagsKey = (eventId: string, viewerPubkey?: string, observer?: 
  * Anon-safe like the profile read. The viewer is part of the key because their
  * own stances ride along and must not leak between accounts via a shared entry.
  */
-export function useEventTags(eventId: string | undefined) {
+export function useEventTags(eventId: string | undefined, address?: string) {
   const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<NoteTagsResult>({
-    queryKey: eventTagsKey(eventId ?? "", viewerPubkey, observer),
-    queryFn: () => fetchEventTags(eventId!, viewerPubkey, observer),
+    // An addressable event's coordinate: read its taggings by it too (#334).
+    queryKey: [...eventTagsKey(eventId ?? "", viewerPubkey, observer), address ?? null],
+    queryFn: () => fetchEventTags(eventId!, viewerPubkey, observer, address),
     enabled: !!eventId,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
@@ -331,7 +335,7 @@ export function useTagNotes(authorPubkey: string | undefined, slug: string | und
  * the assertion landed would be claiming something we don't know. The refetch
  * below is the honest version, and the caller shows pending state meanwhile.
  */
-export function useApplyEventTag(eventId: string | undefined, relayHint?: string) {
+export function useApplyEventTag(eventId: string | undefined, relayHint?: string, target?: TagTarget) {
   const queryClient = useQueryClient();
   const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
@@ -343,7 +347,8 @@ export function useApplyEventTag(eventId: string | undefined, relayHint?: string
     }) =>
       applyTagToEvent({
         tag: args.tag,
-        eventId: eventId!,
+        // An addressable event by its coordinate, a note by its id (#334).
+        target: target ?? { id: eventId! },
         relayHint,
         polarity: args.polarity ?? 1,
       }),

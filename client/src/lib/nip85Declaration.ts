@@ -79,6 +79,11 @@ export function mergeDesignation(existing: string[][], rows: string[][]): string
   return [...existing.filter((t) => !ours.has(t[0])), ...rows];
 }
 
+/** The user's 10040 tags without the rows naming `key`; every other provider's rows are kept. */
+export function withoutProvider(existing: string[][], key: string): string[][] {
+  return existing.filter((t) => t[1] !== key);
+}
+
 const sameRelay = (a: unknown, b: string) =>
   String(a ?? "")
     .trim()

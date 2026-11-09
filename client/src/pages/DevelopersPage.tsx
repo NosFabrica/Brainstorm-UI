@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { AgentSetupCard } from "@/components/settings/AgentSetupCard";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ArrowRight, BadgeCheck } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection } from "@/components/developers/DevShared";
@@ -44,6 +45,8 @@ const METHODS: {
 ];
 
 export default function DevelopersPage() {
+  // The AI agent setup is internal for now: admins only, as in Settings.
+  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const accent = getTone("accent");
   return (
     <InfoPageLayout testId="page-developers">
@@ -137,7 +140,7 @@ export default function DevelopersPage() {
           </div>
 
           <OpenSourceSection />
-          <AgentSetupCard />
+          {isAdmin && <AgentSetupCard internal />}
         </div>
       </div>
     </InfoPageLayout>

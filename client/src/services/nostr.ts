@@ -5,6 +5,7 @@ import {
   listRows,
   mergeDesignation,
   signalRows,
+  withoutProvider,
   type ListDesignation,
 } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
@@ -184,6 +185,29 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
   } catch {}
 
   return held;
+}
+
+/**
+ * `fetchTrustProviderList`, plus whether a majority of the user's relays answered
+ * and none holds one: "declared nothing" proven, not just "couldn't read".
+ */
+export async function probeTrustProviderList(
+  pubkey: string,
+  timeoutMs = 10000,
+): Promise<{ event: NostrEvent | undefined; provenAbsent: boolean }> {
+  const held = eventStore.getReplaceable(10040, pubkey) as NostrEvent | undefined;
+  try {
+    const writeRelays = await outboxRelays(pubkey, PROFILE_RELAYS);
+    const { newest, reach } = await requestNewestWithReach(
+      writeRelays,
+      { kinds: [10040], authors: [pubkey], limit: 5 },
+      timeoutMs,
+    );
+    const event = newerOf(newest, (eventStore.getReplaceable(10040, pubkey) as NostrEvent | undefined) ?? held);
+    return { event, provenAbsent: !event && reach.answered.length * 2 > reach.asked.length };
+  } catch {}
+
+  return { event: held, provenAbsent: false };
 }
 
 export interface Nip85TagCheck {
@@ -1561,8 +1585,12 @@ export async function signNip85(
   });
 }
 
-export async function signNip85Deactivation(): Promise<NostrEvent> {
-  return signAs(requireActiveAccount(), { kind: 10040, tags: [], content: "" });
+export async function signNip85Deactivation(serviceKey: string, existing: string[][]): Promise<NostrEvent> {
+  return signAs(requireActiveAccount(), {
+    kind: 10040,
+    tags: withoutProvider(existing, serviceKey),
+    content: "",
+  });
 }
 
 export interface ReportMetadata {

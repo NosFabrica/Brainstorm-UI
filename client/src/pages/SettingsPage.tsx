@@ -53,17 +53,13 @@ import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
-import type { NostrEvent } from "applesauce-core/helpers";
 import {
-  signNip85,
-  signNip85Deactivation,
-  publishToRelays,
-  getNip85RelayUrl,
-  fetchTrustProviderList,
-} from "@/services/nostr";
-import { checkUserLists } from "@/services/trustLists";
+  deactivateBrainstormTrustAnchor,
+  publishBrainstormTrustAnchor,
+  type TrustAnchorPublishResult,
+} from "@/services/trustAnchor";
 import { logout } from "@/accounts/login-flow";
-import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
+import { isNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { PasskeySettings } from "@/components/PasskeySettings";
@@ -118,6 +114,7 @@ import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
 import { markOwnScores } from "@/lib/ownScores";
+import { InternalChip } from "@/components/InternalChip";
 
 type SettingsTab = SettingsTabKey;
 
@@ -155,18 +152,6 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
 // so on the tab — is lib/settingsTab (settingsTabsFor). The Dictionary
 // (2026-10-05): still an internal demo. Its renderers, on list items' pages,
 // cards and search rows, are for everyone; only the page about them is hidden.
-
-/** "internal" on a tab or view only admins have — what regular users don't see yet. */
-function InternalChip() {
-  return (
-    <span
-      className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-px align-middle text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-      data-testid="chip-internal"
-    >
-      internal
-    </span>
-  );
-}
 
 export default function SettingsPage() {
   const [, navigate] = useLocation();
@@ -231,6 +216,8 @@ export default function SettingsPage() {
     "idle",
   );
   const [deactivateError, setDeactivateError] = useState("");
+  const [republishRetry, setRepublishRetry] = useState<(() => Promise<TrustAnchorPublishResult>) | null>(null);
+  const [deactivateRetry, setDeactivateRetry] = useState<(() => Promise<TrustAnchorPublishResult>) | null>(null);
   const { toast } = useToast();
 
   const { preset: serverPreset, isLoading: presetLoading } = useTrustPresetSync(!!user);
@@ -413,6 +400,7 @@ export default function SettingsPage() {
   const handleRepublishNip85 = async () => {
     setRepublishState("signing");
     setRepublishError("");
+    setRepublishRetry(null);
 
     if (!user?.pubkey) {
       setRepublishState("error");
@@ -426,46 +414,11 @@ export default function SettingsPage() {
       return;
     }
 
-    let nip85Relay: string;
-    try {
-      nip85Relay = getNip85RelayUrl();
-    } catch (err) {
-      setRepublishState("error");
-      const msg = err instanceof Error ? err.message : "NIP-85 relay URL is not configured.";
-      setRepublishError(msg);
-      toast({ title: "NIP-85 relay not configured", description: msg, variant: "destructive", duration: 5000 });
-      return;
-    }
+    await showRepublishResult(await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setRepublishState));
+  };
 
-    let signedEvent: NostrEvent;
-    try {
-      // Republish merged: keep every row already in their 10040, and name their
-      // Trusted Lists when they have some it doesn't.
-      let existing: string[][] = [];
-      try {
-        existing = (await fetchTrustProviderList(user.pubkey))?.tags ?? [];
-      } catch {}
-      let lists = null;
-      try {
-        const found = await checkUserLists(user.pubkey, taPubkey);
-        if (found.status === "missing") lists = found.designation;
-      } catch {}
-      signedEvent = await signNip85(taPubkey, nip85Relay, { lists, existing });
-    } catch (err) {
-      setRepublishState("idle");
-      // Declining is silent, as everywhere else — `keyAccessMessage` returns null
-      // for it. What reaches here otherwise is a real failure, and calling that
-      // "cancelled" told the user they had done something they hadn't.
-      const message = keyAccessMessage(err);
-      if (message) toast({ variant: "destructive", title: "Couldn't sign", description: message, duration: 3000 });
-      return;
-    }
-
-    setRepublishState("publishing");
-    const result = await publishToRelays(signedEvent);
-
-    if (result.success) {
-      markNip85Activated(user.pubkey);
+  const showRepublishResult = async (result: TrustAnchorPublishResult) => {
+    if (result.status === "success") {
       setRepublishState("success");
       toast({
         title: "NIP-85 event updated",
@@ -473,15 +426,28 @@ export default function SettingsPage() {
         duration: 4000,
       });
       setTimeout(() => setRepublishState("idle"), 3000);
+    } else if (result.status === "cancelled") {
+      setRepublishState("idle");
+      if (result.message)
+        toast({ variant: "destructive", title: "Couldn't sign", description: result.message, duration: 3000 });
     } else {
       setRepublishState("error");
-      setRepublishError(result.error || "Failed to publish to relays. Please try again.");
+      setRepublishError(result.message);
+      setRepublishRetry(() => result.retry ?? null);
     }
+  };
+
+  const retryRepublish = async () => {
+    if (!republishRetry) return;
+    setRepublishState("publishing");
+    setRepublishError("");
+    await showRepublishResult(await republishRetry());
   };
 
   const handleDeactivateNip85 = async () => {
     setDeactivateState("signing");
     setDeactivateError("");
+    setDeactivateRetry(null);
 
     if (!user?.pubkey) {
       setDeactivateState("error");
@@ -489,24 +455,17 @@ export default function SettingsPage() {
       return;
     }
 
-    let signedEvent: NostrEvent;
-    try {
-      signedEvent = await signNip85Deactivation();
-    } catch (err) {
-      setDeactivateState("idle");
-      // Declining is silent, as everywhere else — `keyAccessMessage` returns null
-      // for it. What reaches here otherwise is a real failure, and calling that
-      // "cancelled" told the user they had done something they hadn't.
-      const message = keyAccessMessage(err);
-      if (message) toast({ variant: "destructive", title: "Couldn't sign", description: message, duration: 3000 });
+    if (!taPubkey) {
+      setDeactivateState("error");
+      setDeactivateError("Service key not available. Please wait for data to load and try again.");
       return;
     }
 
-    setDeactivateState("publishing");
-    const result = await publishToRelays(signedEvent);
+    await showDeactivateResult(await deactivateBrainstormTrustAnchor(user.pubkey, taPubkey, setDeactivateState));
+  };
 
-    if (result.success) {
-      clearNip85Activated(user.pubkey);
+  const showDeactivateResult = async (result: TrustAnchorPublishResult) => {
+    if (result.status === "success") {
       setDeactivateState("success");
       toast({
         title: "Provider deactivated",
@@ -517,10 +476,22 @@ export default function SettingsPage() {
         setDeactivateState("idle");
         window.location.reload();
       }, 2000);
+    } else if (result.status === "cancelled") {
+      setDeactivateState("idle");
+      if (result.message)
+        toast({ variant: "destructive", title: "Couldn't sign", description: result.message, duration: 3000 });
     } else {
       setDeactivateState("error");
-      setDeactivateError(result.error || "Failed to publish to relays. Please try again.");
+      setDeactivateError(result.message);
+      setDeactivateRetry(() => result.retry ?? null);
     }
+  };
+
+  const retryDeactivate = async () => {
+    if (!deactivateRetry) return;
+    setDeactivateState("publishing");
+    setDeactivateError("");
+    await showDeactivateResult(await deactivateRetry());
   };
 
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
@@ -963,6 +934,16 @@ export default function SettingsPage() {
                 data-testid="alert-sp-republish-error"
               >
                 <p className="text-xs font-medium text-red-700">{republishError}</p>
+                {republishRetry && (
+                  <button
+                    type="button"
+                    onClick={() => void retryRepublish()}
+                    className="mt-1 text-xs font-bold text-red-700 underline"
+                    data-testid="button-sp-republish-retry"
+                  >
+                    Retry — sends the same signed update, no new signature
+                  </button>
+                )}
               </div>
             )}
 
@@ -1123,6 +1104,16 @@ export default function SettingsPage() {
                 data-testid="alert-sp-deactivate-error"
               >
                 <p className="text-xs font-medium text-red-700">{deactivateError}</p>
+                {deactivateRetry && (
+                  <button
+                    type="button"
+                    onClick={() => void retryDeactivate()}
+                    className="mt-1 text-xs font-bold text-red-700 underline"
+                    data-testid="button-sp-deactivate-retry"
+                  >
+                    Retry — sends the same signed update, no new signature
+                  </button>
+                )}
               </div>
             )}
           </div>
