@@ -15,11 +15,22 @@ picture, banner and bio. Today the server writes it and the person can't change 
 "‹owner›'s Brainstorm Assistant" with the default bio and picture. The UI already sends
 fields to it (`publishBrainstormAssistantProfile`), and they are dropped.
 
-The Assistant card's **Customize › Name, picture & bio** is waiting on this, shown and marked
-"soon". The flow it will open was prototyped on `prototype/assistant-ux`, `?variant=PB` (chosen
+The Assistant card's **Customize › Name, picture & bio** is waiting on this. Customize is
+**internal for now**: only admins see it, marked "internal", with this item marked "soon". Regular
+users see no Customize at all. The flow it will open was prototyped on `prototype/assistant-ux`, `?variant=PB` (chosen
 over a side sheet, `PA`): the Assistant card turns into its own form in place, as Settings ›
 Profile's **Edit** does for the person's own profile — fields beside a live preview of the card,
 picture and banner as file uploads, "Reset to default" per field, one Publish.
+
+## Internal first
+
+Brainstorm holds every Assistant's key, so editing what an Assistant says about itself starts
+internal: admins only, in the UI. Opening it to every person is a later decision, made with the
+team once the flow has run internally.
+
+**Question for the server:** while it's internal, should `POST` with `content` also require an
+admin session, or stay owner-only and leave the UI to decide who sees the form? The UI works
+either way.
 
 ## The endpoints
 
@@ -79,8 +90,8 @@ server alone knows.
 
 ## What the UI shows
 
-- **Customize › Name, picture & bio** turns on when `GET` answers; on a server without it, it stays
-  "soon".
+- **Customize › Name, picture & bio**, for admins, turns on when `GET` answers; on a server without
+  it, it stays "soon". Regular users don't see Customize until the team opens it up.
 - Edit in place, on the Assistant card itself — the same gesture as editing your own profile:
   fields from the current profile, defaults from `GET`, a live preview, one **Publish** ("Your
   Assistant signs it — one tap") and Cancel, then the relay report and _View on Nostr_.

@@ -120,7 +120,11 @@ export function BrainstormAssistantCard({
   // The cached kind 0 is only ever the confirmed Assistant's.
   const confirmed = !!published;
   const [profile, setProfile] = useState<AssistantProfile | null>(() => (confirmed ? readAssistantProfile() : null));
-  const userPubkey = useActiveAccountDisplay()?.pubkey ?? null;
+  const me = useActiveAccountDisplay();
+  const userPubkey = me?.pubkey ?? null;
+  // Brainstorm holds every Assistant's key, so customizing one is internal for
+  // now: only admins see Customize, the way Settings keeps operator views.
+  const isAdmin = me?.isAdmin === true;
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -644,10 +648,11 @@ export function BrainstormAssistantCard({
                   <Wand2 className="h-3.5 w-3.5" />
                   Customize
                 </button>
-              ) : (
-                // Live, offering only what's real: what it does is the Treasure
-                // Map, editable today; its name, picture and bio wait for the
-                // server to accept them (docs/assistant/PROFILE-EDIT-ASK.md).
+              ) : isAdmin ? (
+                // Internal, offering only what's real: what it does is the
+                // Treasure Map, editable today; its name, picture and bio wait
+                // for the server, which holds its key, to sign them
+                // (docs/assistant/PROFILE-EDIT-ASK.md).
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -657,10 +662,16 @@ export function BrainstormAssistantCard({
                     >
                       <Wand2 className="h-3.5 w-3.5" />
                       Customize
+                      <span
+                        className="rounded-full bg-amber-100 px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                        data-testid="chip-internal"
+                      >
+                        internal
+                      </span>
                       <ChevronDown className="h-3 w-3" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-60">
+                  <DropdownMenuContent align="start" className="w-64">
                     <DropdownMenuItem
                       onSelect={() => navigate("/settings?tab=assistants&view=map")}
                       data-testid="menu-assistant-duties"
@@ -675,12 +686,14 @@ export function BrainstormAssistantCard({
                         <p className="text-sm font-medium">
                           Name, picture &amp; bio <span className="text-xs font-normal text-slate-400">soon</span>
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Waiting on Brainstorm's server</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Brainstorm holds its key, so the server signs these
+                        </p>
                       </div>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
+              ) : null}
             </div>
           </div>
         ) : (

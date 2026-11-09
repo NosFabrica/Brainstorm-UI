@@ -23,11 +23,16 @@ has its own screen.
 
 Three, as plain switches in the UI. A key carries the set it was made with; it never grows.
 
-| Scope     | What it lets the agent do                                                                                          | Default |
-| --------- | ------------------------------------------------------------------------------------------------------------------ | ------- |
-| `search`  | NIP-50 search and the read endpoints, from this person's perspective (`observer:` their pubkey)                    | on      |
-| `read`    | Read their Treasure Map, lists and Dictionary as the UI does                                                       | on      |
-| `publish` | Ask their Assistant to sign and publish (the Assistant-signed `POST`s: Dictionary copies, Duty Menu, Treasure Map) | **off** |
+| Scope     | What it lets the agent do                                                                                          | Default           |
+| --------- | ------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| `search`  | NIP-50 search and the read endpoints, from this person's perspective (`observer:` their pubkey)                    | on                |
+| `read`    | Read their Treasure Map, lists and Dictionary as the UI does                                                       | on                |
+| `publish` | Ask their Assistant to sign and publish (the Assistant-signed `POST`s: Dictionary copies, Duty Menu, Treasure Map) | **off**, internal |
+
+**`publish` is internal for now.** It signs with the Assistant's key, which Brainstorm holds, so
+only admins can give it to a key until the team opens it up. The server should refuse `publish`
+on a key made by anyone else (`403`, `{ "code": "scope", "needs": "admin" }`); `search` and `read`
+are for everyone.
 
 A key never signs as the person: there is no scope for their own key, and nothing here can
 touch billing, admin or the account itself.
@@ -94,7 +99,8 @@ Every use updates `last_used_at`. Rate limits are per key.
   you_ — one place for everything working for the person. It appears once they have a key; until
   then, a single **Connect an agent**. Each key: name, permission chips, created and last used,
   and **Revoke** behind an in-page confirmation.
-- **Connect an agent**: name → permissions (`publish` off, marked "Signs as your Assistant") →
+- **Connect an agent**: name → permissions (`publish` shown to admins only, off, marked "internal ·
+  Signs as your Assistant") →
   the key, shown once with a copy button and a ready prompt — the same prompt the Developers
   page's "Set up with your AI agent" card offers, with the key in it.
 - Account › Sign out everywhere notes that connected agents stay connected, and links to them.
