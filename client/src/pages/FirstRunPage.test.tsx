@@ -20,6 +20,10 @@ const h = vi.hoisted(() => ({
   followPubkeys: vi.fn(),
   trigger: vi.fn(),
   byTopic: {} as Record<string, unknown[]>,
+  /** The Assistant's own setup, which the app does in the background. */
+  assistant: { live: true, publishing: false },
+  menuPublishing: false,
+  mapPublishing: false,
 }));
 
 vi.mock("wouter", async (orig) => ({
@@ -40,6 +44,11 @@ vi.mock("@/services/socialActions", () => ({
 }));
 vi.mock("@/services/trustAnchor", () => ({ triggerScoringAndAnchor: (...a: unknown[]) => h.trigger(...a) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/hooks/useAssistantProfile", () => ({ useAssistantProfile: () => h.assistant }));
+vi.mock("@/hooks/useAssistantDutyMenu", () => ({ useAssistantDutyMenu: () => ({ publishing: h.menuPublishing }) }));
+vi.mock("@/hooks/useAssistantTreasureMap", () => ({
+  useAssistantTreasureMap: () => ({ publishing: h.mapPublishing }),
+}));
 
 import FirstRunPage from "./FirstRunPage";
 import { isFirstRunDone } from "@/lib/firstRun";
@@ -51,6 +60,9 @@ beforeEach(() => {
   h.byTopic = { music: MUSIC, news: NEWS };
   h.followPubkeys.mockResolvedValue({ success: true });
   h.trigger.mockResolvedValue(undefined);
+  h.assistant = { live: true, publishing: false };
+  h.menuPublishing = false;
+  h.mapPublishing = false;
 });
 
 const pick = (label: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
@@ -111,5 +123,62 @@ describe("FirstRunPage", () => {
     expect(h.followPubkeys).not.toHaveBeenCalled();
     expect(h.trigger).not.toHaveBeenCalled();
     expect(isFirstRunDone(ME)).toBe(true);
+  });
+
+  /**
+   * The last step says what's ready for them, in plain words, live: their
+   * Assistant (set up in the background), their follows and their scores —
+   * and where to find it all later. No links out of the flow.
+   */
+  describe("what's ready, on the last step", () => {
+    const toDone = () => {
+      pick("Music");
+      next();
+      next();
+    };
+    const state = (testid: string) => screen.getByTestId(testid).getAttribute("data-state");
+
+    // A spinner means work under way. Nothing is published until they press
+    // Start searching, so their follows and scores are what happens next —
+    // never shown as already in progress.
+    it("tells what's ready apart from what happens when they continue", () => {
+      render(<FirstRunPage />);
+      toDone();
+      expect(screen.getByTestId("ready-assistant")).toHaveTextContent("Your Brainstorm Assistant is live");
+      expect(state("ready-assistant")).toBe("done");
+
+      const next = screen.getByTestId("first-run-next-up");
+      expect(next).toHaveTextContent("When you continue");
+      expect(screen.getByTestId("ready-follows")).toHaveTextContent("We'll follow the 3 people you picked");
+      expect(state("ready-follows")).toBe("next");
+      expect(screen.getByTestId("ready-scores")).toHaveTextContent(/about 5 minutes/i);
+      expect(state("ready-scores")).toBe("next");
+      expect(screen.getByTestId("page-first-run")).toHaveTextContent("You'll find all of this later under Account.");
+    });
+
+    it("shows the Assistant as under way only while the app really is setting it up", () => {
+      h.menuPublishing = true;
+      render(<FirstRunPage />);
+      toDone();
+      expect(screen.getByTestId("ready-assistant")).toHaveTextContent("Setting up your Brainstorm Assistant");
+      expect(state("ready-assistant")).toBe("working");
+    });
+
+    it("a returning key's follows are already done", () => {
+      h.follows = 416;
+      render(<FirstRunPage />);
+      next();
+      expect(screen.getByTestId("ready-follows")).toHaveTextContent("Following 416 people");
+      expect(state("ready-follows")).toBe("done");
+    });
+
+    it("nothing to follow, nothing promised: no follows line when they picked nobody", () => {
+      render(<FirstRunPage />);
+      pick("Music");
+      next();
+      for (const name of ["Ann", "Ben", "Cal"]) fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+      next();
+      expect(screen.queryByTestId("ready-follows")).toBeNull();
+    });
   });
 });

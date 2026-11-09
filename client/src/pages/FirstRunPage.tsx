@@ -22,6 +22,9 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
+import { useAssistantProfile } from "@/hooks/useAssistantProfile";
+import { useAssistantTreasureMap } from "@/hooks/useAssistantTreasureMap";
 import { useOnboardingPeople } from "@/hooks/useOnboardingPeople";
 import { useToast } from "@/hooks/use-toast";
 import { markFirstRunDone } from "@/lib/firstRun";
@@ -101,6 +104,13 @@ export default function FirstRunPage() {
   const confirmPksRef = useRef<string[] | null>(null);
   confirmPksRef.current = confirmPks;
   const { byTopic, loading } = useOnboardingPeople(picked);
+  // The Assistant's own setup runs in the background (AutoAssistantSetup); the
+  // last step only reports it, in plain words.
+  const assistantProfile = useAssistantProfile(pubkey);
+  const dutyMenu = useAssistantDutyMenu(pubkey);
+  const selfMap = useAssistantTreasureMap(pubkey);
+  const assistantReady =
+    assistantProfile.live && !assistantProfile.publishing && !dutyMenu.publishing && !selfMap.publishing;
 
   // Each topic's top three are ticked the moment its people arrive, once per pick.
   const preselected = useRef(new Set<string>());
@@ -243,7 +253,7 @@ export default function FirstRunPage() {
         </button>
       </header>
 
-      <main className="mx-auto w-full max-w-xl flex-1 px-6 pb-36 pt-6">
+      <main className="mx-auto w-full max-w-xl flex-1 px-6 pb-36 pt-6 sm:flex-none sm:pb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
           Step {index + 1} of {steps.length}
         </p>
@@ -350,14 +360,45 @@ export default function FirstRunPage() {
         {step === "done" && (
           <>
             <Title>You're all set.</Title>
-            <Lead>
-              {returning
-                ? "One last choice, then straight to search."
-                : following.size > 0
-                  ? `You'll follow ${following.size} people. Your trust scores calculate in the background — search works right away.`
-                  : "Search works right away. Follow people anytime to make it yours."}
-            </Lead>
-            <label className="mt-8 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <Lead>{returning ? "One last choice, then straight to search." : "Here's what's ready for you."}</Lead>
+            <ul className="mt-8 space-y-3" aria-live="polite">
+              <ReadyLine
+                state={assistantReady ? "done" : "working"}
+                title={assistantReady ? "Your Brainstorm Assistant is live" : "Setting up your Brainstorm Assistant"}
+                detail="Works for you in the background."
+                testid="ready-assistant"
+              />
+              {returning && (
+                <ReadyLine
+                  state="done"
+                  title={`Following ${followCount.toLocaleString()} people`}
+                  detail="Your network came with you."
+                  testid="ready-follows"
+                />
+              )}
+            </ul>
+            {/* Nothing below has started: it happens when they press the button,
+                so it reads as what's next — never as work under way. */}
+            <section className="mt-6" data-testid="first-run-next-up">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">When you continue</h2>
+              <ol className="mt-3 space-y-3">
+                {!returning && following.size > 0 && (
+                  <ReadyLine
+                    state="next"
+                    title={`We'll follow the ${following.size} ${following.size === 1 ? "person" : "people"} you picked`}
+                    detail="You can change who you follow anytime."
+                    testid="ready-follows"
+                  />
+                )}
+                <ReadyLine
+                  state="next"
+                  title="Your trust scores start calculating"
+                  detail="About 5 minutes — search works right away."
+                  testid="ready-scores"
+                />
+              </ol>
+            </section>
+            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
               <input
                 type="checkbox"
                 checked={share}
@@ -377,11 +418,14 @@ export default function FirstRunPage() {
                 </span>
               </span>
             </label>
+            <p className="mt-4 text-[13px] text-slate-400 dark:text-slate-500">
+              You'll find all of this later under Account.
+            </p>
           </>
         )}
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-100 bg-white/90 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-100 bg-white/90 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-slate-800 dark:bg-slate-950/90 sm:static sm:border-0 sm:bg-transparent sm:pb-10 sm:pt-2 sm:backdrop-blur-none sm:dark:bg-transparent">
         <div className="mx-auto flex max-w-xl items-center gap-3">
           {index > 0 && (
             <button
@@ -419,6 +463,47 @@ export default function FirstRunPage() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * One line of the last step, by what is true of it: done (a check), working
+ * (a spinner — only while the app really is at it), or next (a plain dot:
+ * happens when they continue, not started).
+ */
+function ReadyLine({
+  state,
+  title,
+  detail,
+  testid,
+}: {
+  state: "done" | "working" | "next";
+  title: string;
+  detail: string;
+  testid: string;
+}) {
+  return (
+    <li className="flex items-start gap-3" data-testid={testid} data-state={state}>
+      <span
+        className={cn(
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+          state === "done"
+            ? "bg-emerald-500"
+            : state === "working"
+              ? "bg-brand-primary/10"
+              : "border border-slate-300 dark:border-slate-600",
+        )}
+        aria-hidden="true"
+      >
+        {state === "done" && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+        {state === "working" && <Loader2 className="h-3 w-3 animate-spin text-brand-primary" />}
+        {state === "next" && <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />}
+      </span>
+      <span>
+        <span className="block text-[15px] font-semibold text-slate-900 dark:text-slate-100">{title}</span>
+        <span className="block text-[13px] text-slate-500 dark:text-slate-400">{detail}</span>
+      </span>
+    </li>
   );
 }
 
