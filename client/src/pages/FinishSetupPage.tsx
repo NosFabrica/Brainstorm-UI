@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useRef, useState, type ComponentType, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowLeftRight,
@@ -9,12 +9,15 @@ import {
   ChevronRight,
   PenLine,
   Share2,
-  Sparkles,
   UserPlus,
+  UserRoundPen,
   Users,
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { ProfileEditModal } from "@/components/ProfileEditModal";
+import { ProfileEditSheet } from "@/components/ProfileEditSheet";
+import { uploadProfileImage } from "@/components/ImageUpload";
+import { updateProfileField } from "@/services/profileQuickEdit";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -129,11 +132,13 @@ function ScoresSwitchRow({ onSwitch, providerName }: { onSwitch: () => void; pro
 
 /**
  * Who they are, at the top of "Your account": banner (or the Aurora gradient
- * until they add one), photo, name, verified handle and bio, with "Edit
- * profile" always there. While a photo, banner or bio is missing, one gentle
- * optional line offers each — never a step, never counted.
+ * until they add one), photo, name, verified handle and bio. "Edit profile"
+ * opens the whole form beside the page. While a photo, banner or bio is
+ * missing, one optional line offers each, added in place: a photo or banner
+ * straight from their files, a bio in a box right here. Never a step.
  */
 function AccountIdentity({
+  pubkey,
   name,
   picture,
   banner,
@@ -141,6 +146,7 @@ function AccountIdentity({
   nip05,
   onEdit,
 }: {
+  pubkey: string;
   name: string;
   picture?: string;
   banner?: string;
@@ -148,20 +154,60 @@ function AccountIdentity({
   nip05?: string;
   onEdit: () => void;
 }) {
-  const missing = [!picture && "Add photo", !banner && "Add banner", !about && "Add bio"].filter(
-    (m): m is string => !!m,
-  );
+  const photoInput = useRef<HTMLInputElement>(null);
+  const bannerInput = useRef<HTMLInputElement>(null);
+  const [writingBio, setWritingBio] = useState(false);
+  const [bio, setBio] = useState("");
+  const [saving, setSaving] = useState<null | "picture" | "banner" | "about">(null);
+  const [error, setError] = useState<string | null>(null);
+  // What they just added shows at once, before the relays echo it back.
+  const [added, setAdded] = useState<{ picture?: string; banner?: string; about?: string }>({});
+  const shown = { picture: added.picture ?? picture, banner: added.banner ?? banner, about: added.about ?? about };
+
+  const save = async (field: "picture" | "banner" | "about", value: string) => {
+    setSaving(field);
+    setError(null);
+    const res = await updateProfileField(pubkey, field, value);
+    setSaving(null);
+    if (res.cancelled) return false;
+    if (!res.success) {
+      setError(`Couldn't save — ${res.error || "please try again."}`);
+      return false;
+    }
+    setAdded((a) => ({ ...a, [field]: value }));
+    return true;
+  };
+
+  const onImage = async (field: "picture" | "banner", file: File | undefined) => {
+    if (!file) return;
+    setSaving(field);
+    setError(null);
+    try {
+      const url = await uploadProfileImage(file, field === "picture" ? "square" : "banner");
+      await save(field, url);
+    } catch (err) {
+      setSaving(null);
+      if (!isUnlockCancelled(err)) setError("Couldn't upload that image — please try another.");
+    }
+  };
+
+  const missing = [
+    !shown.picture && { label: "Add photo", onClick: () => photoInput.current?.click() },
+    !shown.banner && { label: "Add banner", onClick: () => bannerInput.current?.click() },
+    !shown.about && !writingBio && { label: "Add bio", onClick: () => setWritingBio(true) },
+  ].filter((m): m is { label: string; onClick: () => void } => !!m);
+
   return (
     <Card className="overflow-hidden p-0" data-testid="account-identity">
       <div
         className="h-24 bg-gradient-to-r from-brand-primary/80 to-brand-accent/70 bg-cover bg-center"
-        style={banner ? { backgroundImage: `url(${JSON.stringify(banner)})` } : undefined}
+        style={shown.banner ? { backgroundImage: `url(${JSON.stringify(shown.banner)})` } : undefined}
         aria-hidden="true"
       />
       <div className="px-5 pb-5">
         <div className="-mt-8 flex items-end justify-between gap-3">
           <Avatar className="h-16 w-16 ring-4 ring-white dark:ring-slate-900">
-            <AvatarImage src={picture} alt="" />
+            <AvatarImage src={shown.picture} alt="" />
             <AvatarFallback className="text-lg">{name.slice(0, 1).toUpperCase()}</AvatarFallback>
           </Avatar>
           <Button size="sm" variant="outline" onClick={onEdit}>
@@ -182,28 +228,88 @@ function AccountIdentity({
         {nip05 && (
           <div className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">{nip05.replace(/^_@/, "")}</div>
         )}
-        {about && <p className="mt-2 line-clamp-2 text-[14px] text-slate-600 dark:text-slate-300">{about}</p>}
+        {shown.about && (
+          <p className="mt-2 line-clamp-2 text-[14px] text-slate-600 dark:text-slate-300">{shown.about}</p>
+        )}
+
+        {writingBio && (
+          <div className="mt-3 flex flex-col gap-2">
+            <textarea
+              autoFocus
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="A line about you"
+              aria-label="Your bio"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-900 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              data-testid="input-bio"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                aria-label="Save bio"
+                disabled={!bio.trim() || saving === "about"}
+                onClick={async () => {
+                  if (await save("about", bio)) setWritingBio(false);
+                }}
+              >
+                {saving === "about" ? "Saving…" : "Save"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setWritingBio(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
         {missing.length > 0 && (
           <div
             className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-3 dark:bg-slate-800/50"
             data-testid="profile-nudge"
           >
-            <Sparkles className="h-4 w-4 shrink-0 text-brand-accent" />
+            <UserRoundPen className="h-4 w-4 shrink-0 text-brand-primary dark:text-brand-link" />
             <span className="mr-1 text-[13px] text-slate-600 dark:text-slate-300">
               So people recognise you <span className="text-slate-400">· optional</span>
             </span>
-            {missing.map((label) => (
+            {missing.map(({ label, onClick }) => (
               <button
                 key={label}
                 type="button"
-                onClick={onEdit}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] font-semibold text-slate-700 hover:border-brand-accent/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                onClick={onClick}
+                disabled={saving !== null}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] font-semibold text-slate-700 hover:border-brand-accent/50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 {label}
               </button>
             ))}
+            {(saving === "picture" || saving === "banner") && (
+              <span className="text-[12px] text-slate-400">Uploading…</span>
+            )}
           </div>
         )}
+        {error && (
+          <p role="alert" className="mt-2 text-[13px] text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
+
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void onImage("picture", e.target.files?.[0])}
+          data-testid="input-add-photo"
+        />
+        <input
+          ref={bannerInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void onImage("banner", e.target.files?.[0])}
+          data-testid="input-add-banner"
+        />
       </div>
     </Card>
   );
@@ -374,6 +480,7 @@ export default function FinishSetupPage() {
         {allDone ? (
           <div className="flex flex-col gap-4" data-testid="card-account-status">
             <AccountIdentity
+              pubkey={user.pubkey}
               name={own?.display_name || own?.name || user.displayName || "You"}
               picture={own?.picture || user.picture}
               banner={own?.banner}
@@ -472,7 +579,7 @@ export default function FinishSetupPage() {
                 Continue <ArrowRight className="h-4 w-4" />
               </button>
             )}
-            <ProfileEditModal open={editingProfile} onOpenChange={setEditingProfile} />
+            <ProfileEditSheet open={editingProfile} onOpenChange={setEditingProfile} />
           </div>
         ) : (
           <>

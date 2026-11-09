@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
 import FinishSetupPage from "./FinishSetupPage";
@@ -42,9 +42,16 @@ vi.mock("@/hooks/useLiveProfile", () => ({
 vi.mock("@/hooks/useBrainstormAssistant", () => ({
   useBrainstormAssistant: () => ({ taPubkey: TA, published: null }),
 }));
-vi.mock("@/components/ProfileEditModal", () => ({
-  ProfileEditModal: ({ open }: { open: boolean }) => (open ? <div data-testid="profile-editor" /> : null),
+vi.mock("@/components/ProfileEditSheet", () => ({
+  ProfileEditSheet: ({ open }: { open: boolean }) => (open ? <div data-testid="profile-editor" /> : null),
 }));
+// Editing in place: an image goes to the uploader, and one field to the profile.
+const quick = vi.hoisted(() => ({ upload: vi.fn(), update: vi.fn() }));
+vi.mock("@/components/ImageUpload", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  uploadProfileImage: (...a: unknown[]) => quick.upload(...a),
+}));
+vi.mock("@/services/profileQuickEdit", () => ({ updateProfileField: (...a: unknown[]) => quick.update(...a) }));
 
 const setupState = vi.fn<() => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -271,8 +278,55 @@ describe("FinishSetupPage — what's left, then your account", () => {
     for (const label of ["Add photo", "Add banner", "Add bio"]) {
       expect(within(nudge).getByRole("button", { name: label })).toBeInTheDocument();
     }
-    fireEvent.click(within(nudge).getByRole("button", { name: "Add banner" }));
-    expect(screen.getByTestId("profile-editor")).toBeInTheDocument();
+  });
+
+  /**
+   * Each missing piece is added where it shows — a photo or banner straight
+   * from their files, a bio in a box in the card — not through the whole form.
+   */
+  describe("editing in place", () => {
+    beforeEach(() => {
+      profiles.byPubkey = { [PUBKEY]: { name: "Lira" }, [TA]: ASSISTANT };
+      setupState.mockReturnValue(state(everythingDone));
+      quick.upload.mockResolvedValue("https://img.example/new.png");
+      quick.update.mockResolvedValue({ success: true });
+    });
+    const file = () => new File(["x"], "me.png", { type: "image/png" });
+
+    it.each([
+      ["Add photo", "input-add-photo", "square", "picture"],
+      ["Add banner", "input-add-banner", "banner", "banner"],
+    ] as const)("%s uploads the picked image and saves it to their profile", async (label, input, aspect, field) => {
+      renderWithProviders(<FinishSetupPage />);
+      fireEvent.click(within(screen.getByTestId("profile-nudge")).getByRole("button", { name: label }));
+      fireEvent.change(screen.getByTestId(input), { target: { files: [file()] } });
+      await waitFor(() => expect(quick.update).toHaveBeenCalledWith(PUBKEY, field, "https://img.example/new.png"));
+      expect(quick.upload).toHaveBeenCalledWith(expect.any(File), aspect);
+      expect(screen.queryByTestId("profile-editor")).toBeNull();
+    });
+
+    it("Add bio becomes a box in the card, and Save publishes it", async () => {
+      renderWithProviders(<FinishSetupPage />);
+      fireEvent.click(within(screen.getByTestId("profile-nudge")).getByRole("button", { name: "Add bio" }));
+      fireEvent.change(screen.getByTestId("input-bio"), { target: { value: "Builds trust tools." } });
+      fireEvent.click(screen.getByRole("button", { name: "Save bio" }));
+      await waitFor(() => expect(quick.update).toHaveBeenCalledWith(PUBKEY, "about", "Builds trust tools."));
+    });
+
+    it("says so when a change couldn't be saved", async () => {
+      quick.update.mockResolvedValue({ success: false, error: "relays down" });
+      renderWithProviders(<FinishSetupPage />);
+      fireEvent.click(within(screen.getByTestId("profile-nudge")).getByRole("button", { name: "Add bio" }));
+      fireEvent.change(screen.getByTestId("input-bio"), { target: { value: "Hi" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save bio" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save");
+    });
+
+    it("Edit profile opens the whole form beside the page", () => {
+      renderWithProviders(<FinishSetupPage />);
+      fireEvent.click(within(screen.getByTestId("account-identity")).getByRole("button", { name: "Edit profile" }));
+      expect(screen.getByTestId("profile-editor")).toBeInTheDocument();
+    });
   });
 
   it("says nothing about the profile once it's complete", () => {
