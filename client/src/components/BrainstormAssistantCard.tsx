@@ -35,6 +35,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
+import { InternalChip } from "@/components/InternalChip";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -662,12 +663,7 @@ export function BrainstormAssistantCard({
                     >
                       <Wand2 className="h-3.5 w-3.5" />
                       Customize
-                      <span
-                        className="rounded-full bg-amber-100 px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                        data-testid="chip-internal"
-                      >
-                        internal
-                      </span>
+                      <InternalChip />
                       <ChevronDown className="h-3 w-3" />
                     </button>
                   </DropdownMenuTrigger>
