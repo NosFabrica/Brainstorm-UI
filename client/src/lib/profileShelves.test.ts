@@ -15,7 +15,7 @@ const ev = (kind: number, tags: string[][], created_at = NOW) => ({
 describe("profileTracks", () => {
   const AUDIO = ["media", "https://cdn.example/song.mp3"];
 
-  // Benjamin's "Podcast" rows: an older record's `c` is its category.
+  // An older record's `c` is its category ("Podcast"), not the artist.
   it("never shows a `c` category as the artist", () => {
     const [track] = profileTracks([ev(31337, [["title", "Song"], AUDIO, ["c", "Podcast"]])]);
 

@@ -56,7 +56,8 @@ export function parseTrack(ev: EventLike): Track | null {
     artist: tag("artist") || tag("creator"),
     cover: tag("image") || tag("cover"),
     audio,
-    genre: tag("genre") || ev.tags.find((t) => t[0] === "t" && t[1])?.[1] || tag("c"),
+    // "music" is the kind, not a genre; publishers often tag it first.
+    genre: tag("genre") || ev.tags.find((t) => t[0] === "t" && t[1] && t[1].toLowerCase() !== "music")?.[1] || tag("c"),
     durationSec: Number.isFinite(dur) && dur > 0 ? dur : undefined,
     createdAt: ev.created_at,
   };
