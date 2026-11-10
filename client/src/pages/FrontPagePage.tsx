@@ -615,14 +615,18 @@ function Paper({ page }: { page: Printed }) {
       <Changes changes={page.changes} />
       {/* The paper is always light, whatever the app's theme: newsprint. No scripts can run in it
           (no allow-scripts), and its links open in a new tab, outside the sandbox. */}
-      <iframe
-        title="Your front page"
-        srcDoc={page.html}
-        sandbox="allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="no-referrer"
-        className="h-[85vh] min-h-[600px] w-full rounded-2xl border border-border bg-white shadow-sm"
-        data-testid="front-page-frame"
-      />
+      {/* The model writes the layout, and some pages run edge to edge: a margin of newsprint
+          (house.css --paper) keeps the rounded corners from clipping a folio's first letter. */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-[#faf8f3] p-3 shadow-sm sm:p-5">
+        <iframe
+          title="Your front page"
+          srcDoc={page.html}
+          sandbox="allow-popups allow-popups-to-escape-sandbox"
+          referrerPolicy="no-referrer"
+          className="block h-[85vh] min-h-[600px] w-full border-0 bg-[#faf8f3]"
+          data-testid="front-page-frame"
+        />
+      </div>
     </div>
   );
 }
