@@ -83,9 +83,40 @@ function useEnter(delay = 0) {
 }
 
 /**
- * The provider's first letter on a neutral tile. Neutral on purpose: colour on this page
- * is for trust and focus (the selected tile, the preferred key), not decoration, and a
- * page of brand logos would be a list of other companies' marks.
+ * Two letters per provider, fixed so no two collide: a first letter alone gave OpenRouter,
+ * OpenAI and Ollama the same "O", and Gemini and Groq the same "G" (design review,
+ * 2026-11-10). A provider not on the list takes the first two letters of its name.
+ */
+const MONOGRAMS: Record<string, string> = {
+  openrouter: "OR",
+  anthropic: "AN",
+  openai: "OA",
+  gemini: "GE",
+  routstr: "RS",
+  ppq: "PQ",
+  venice: "VE",
+  near: "NE",
+  mistral: "MI",
+  groq: "GQ",
+  xai: "XA",
+  deepseek: "DS",
+  together: "TO",
+  fireworks: "FW",
+  cerebras: "CB",
+  ollama: "OL",
+  lmstudio: "LM",
+};
+
+function monogramOf(preset: AgentPreset | undefined, name: string): string {
+  if (preset && MONOGRAMS[preset.id]) return MONOGRAMS[preset.id];
+  const letters = name.replace(/[^\p{L}\p{N}]/gu, "");
+  return (letters.slice(0, 2) || "?").toUpperCase();
+}
+
+/**
+ * The provider's monogram on a neutral tile. Neutral on purpose: colour on this page is
+ * for trust and focus (the selected tile, the preferred key), not decoration, and a page
+ * of brand logos would be a list of other companies' marks.
  */
 function Monogram({
   preset,
@@ -103,14 +134,14 @@ function Monogram({
     <span
       aria-hidden
       className={cn(
-        "grid h-10 w-10 shrink-0 place-items-center rounded-xl font-display text-base font-semibold transition-colors",
+        "grid h-10 w-10 shrink-0 place-items-center rounded-xl font-display text-sm font-semibold tracking-tight transition-colors",
         lit
           ? "bg-gradient-to-br from-brand-primary to-brand-accent text-white shadow-md shadow-brand-primary/25"
           : "border border-border bg-muted text-foreground",
         className,
       )}
     >
-      {preset?.id === "custom" ? <Plus className="h-4 w-4" /> : name.charAt(0).toUpperCase()}
+      {preset?.id === "custom" ? <Plus className="h-4 w-4" /> : monogramOf(preset, name)}
     </span>
   );
 }
@@ -193,9 +224,11 @@ function Hero({ connectedTo, children }: { connectedTo: string | null; children?
           </div>
           <p className="text-sm text-muted-foreground">Bring your own AI. Encrypted to you.</p>
           <div className="mt-3" data-testid="ai-model-status">
+            {/* "Using", not "Connected": saving a key says which one apps use, not that it
+                answers. A key that can't be reached would otherwise wear a green check. */}
             {connectedTo ? (
-              <Chip tone="success" icon={CheckCircle2}>
-                Connected · {connectedTo}
+              <Chip tone="neutral" icon={Sparkles}>
+                Using {connectedTo}
               </Chip>
             ) : (
               <Chip tone="slate" dot>
@@ -210,58 +243,101 @@ function Hero({ connectedTo, children }: { connectedTo: string | null; children?
   );
 }
 
-function ProviderGrid({ selected, onPick }: { selected: string | null; onPick: (id: string) => void }) {
+/** The six most people want, then everything else behind one tap; local runners apart. */
+const MAIN_PROVIDERS = ["openrouter", "anthropic", "openai", "gemini", "routstr", "ppq"];
+const LOCAL_PROVIDERS = new Set(["ollama", "lmstudio"]);
+
+function ProviderTile({
+  preset,
+  active,
+  index,
+  onPick,
+}: {
+  preset: AgentPreset;
+  active: boolean;
+  index: number;
+  onPick: (id: string) => void;
+}) {
   const reduced = usePrefersReducedMotion();
+  const isCustom = preset.id === "custom";
   return (
-    <div
-      className="grid grid-cols-3 gap-x-2 gap-y-4 sm:grid-cols-4 lg:grid-cols-6"
-      role="radiogroup"
-      aria-label="Provider"
-      data-testid="ai-model-provider"
+    <motion.button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={() => onPick(preset.id)}
+      {...(reduced
+        ? { initial: false }
+        : {
+            initial: { opacity: 0, y: 4 },
+            animate: { opacity: 1, y: 0 },
+            transition: { duration: 0.16, delay: Math.min(index, 10) * 0.02 },
+          })}
+      className={cn(
+        "flex min-w-0 items-center gap-2.5 rounded-xl border bg-card px-2.5 py-2 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent",
+        active
+          ? "border-brand-primary ring-2 ring-brand-primary/25 dark:border-brand-accent/60 dark:ring-brand-accent/25"
+          : "border-border hover:border-brand-accent/40",
+      )}
+      data-testid={`ai-model-tile-${preset.id}`}
     >
-      {AGENT_PRESETS.map((preset, i) => {
-        const active = preset.id === selected;
-        const badge = preset.recommended ? "Recommended" : preset.keyless ? "Local" : null;
-        return (
-          <motion.button
-            key={preset.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onPick(preset.id)}
-            {...(reduced
-              ? { initial: false }
-              : {
-                  initial: { opacity: 0, y: 6 },
-                  animate: { opacity: 1, y: 0 },
-                  transition: { duration: 0.18, delay: Math.min(i, 12) * 0.02 },
-                })}
-            className={cn(
-              "relative flex h-[5.5rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border bg-card px-1.5 pb-2 pt-3 text-center transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent",
-              active
-                ? "border-brand-primary ring-2 ring-brand-primary/25 dark:border-brand-accent/60 dark:ring-brand-accent/25"
-                : "border-border hover:border-brand-accent/40",
-            )}
-            data-testid={`ai-model-tile-${preset.id}`}
-          >
-            {badge && (
-              <span
-                className={cn(
-                  "absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-semibold leading-4",
-                  preset.recommended
-                    ? "bg-brand-primary text-white dark:bg-brand-accent dark:text-slate-950"
-                    : "border border-border bg-muted text-muted-foreground",
-                )}
-              >
-                {badge}
-              </span>
-            )}
-            <Monogram preset={preset} name={preset.name} lit={active} className="h-9 w-9 text-sm" />
-            <span className="w-full truncate text-xs font-semibold text-foreground sm:text-sm">{preset.name}</span>
-          </motion.button>
-        );
-      })}
+      <Monogram preset={preset} name={preset.name} lit={active} className="h-8 w-8 rounded-lg text-xs" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-foreground">
+          {isCustom ? "Custom" : preset.name}
+        </span>
+        {preset.recommended && (
+          <span className="block text-[11px] font-medium leading-4 text-brand-primary dark:text-brand-accent">
+            Recommended
+          </span>
+        )}
+      </span>
+    </motion.button>
+  );
+}
+
+function ProviderGrid({ selected, onPick }: { selected: string | null; onPick: (id: string) => void }) {
+  const main = MAIN_PROVIDERS.map((id) => AGENT_PRESETS.find((p) => p.id === id)).filter((p): p is AgentPreset => !!p);
+  const local = AGENT_PRESETS.filter((p) => LOCAL_PROVIDERS.has(p.id));
+  const custom = AGENT_PRESETS.find((p) => p.id === "custom");
+  const more = AGENT_PRESETS.filter(
+    (p) => !MAIN_PROVIDERS.includes(p.id) && !LOCAL_PROVIDERS.has(p.id) && p !== custom,
+  );
+  // Open already when the picked one lives there (Change brings the grid back).
+  const [showMore, setShowMore] = useState(() => more.some((p) => p.id === selected));
+  const grid = "grid grid-cols-2 gap-2 sm:grid-cols-3";
+  let index = 0;
+  const tile = (preset: AgentPreset) => (
+    <ProviderTile key={preset.id} preset={preset} active={preset.id === selected} index={index++} onPick={onPick} />
+  );
+  return (
+    <div className="flex flex-col gap-4" role="radiogroup" aria-label="Provider" data-testid="ai-model-provider">
+      <div className={grid}>{main.map(tile)}</div>
+      {showMore ? (
+        <div className={grid} data-testid="ai-model-more">
+          {more.map(tile)}
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          onClick={() => setShowMore(true)}
+          data-testid="ai-model-more-open"
+        >
+          <Plus /> More providers
+        </Button>
+      )}
+      <div className="flex flex-col gap-2">
+        <h4 className="flex items-center gap-1.5 px-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <Laptop className="h-3.5 w-3.5" /> On your computer
+        </h4>
+        <div className={grid}>
+          {local.map(tile)}
+          {custom && tile(custom)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -519,6 +595,17 @@ function KeyEntry({
   );
 }
 
+/** A saved endpoint with no secret: say where it runs, so the row isn't half empty. */
+function keylessLabel(url: string): string {
+  try {
+    const host = new URL(url).hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return "Local · no key";
+    return `${host} · no key`;
+  } catch {
+    return "No key";
+  }
+}
+
 function KeyCard({
   entry,
   preferred,
@@ -542,8 +629,8 @@ function KeyCard({
         <Monogram preset={presetForUrl(entry.url)} name={name} lit={preferred} />
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="shrink-0 text-sm font-semibold text-foreground">{name}</span>
-          <span className="truncate font-mono text-xs text-muted-foreground">
-            {entry.key ? maskKey(entry.key) : "No key"}
+          <span className={cn("truncate text-xs text-muted-foreground", entry.key && "font-mono")}>
+            {entry.key ? maskKey(entry.key) : keylessLabel(entry.url)}
           </span>
         </div>
         {preferred ? (

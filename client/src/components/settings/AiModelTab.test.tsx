@@ -62,7 +62,9 @@ describe("AiModelTab", () => {
     expect(within(rows[0]).getByTestId("ai-model-preferred")).toBeTruthy();
     expect(within(rows[1]).queryByTestId("ai-model-preferred")).toBeNull();
     expect(within(rows[1]).getByTestId("ai-model-make-preferred")).toBeTruthy();
-    expect(screen.getByTestId("ai-model-status").textContent).toContain("Connected · OpenRouter");
+    expect(screen.getByTestId("ai-model-status").textContent).toContain("Using OpenRouter");
+    // A key-less local runner says where it runs instead of a blank second line.
+    expect(within(rows[1]).getByText("Local · no key")).toBeTruthy();
     expect(document.body.textContent).not.toContain(SECRET);
     expect(document.body.textContent).toContain("sk-or-…cdef");
   });
@@ -162,6 +164,33 @@ describe("AiModelTab", () => {
     fireEvent.change(field, { target: { value: "sk-wrong" } });
     expect(await screen.findByText("Key rejected")).toBeTruthy();
     expect((screen.getByTestId("ai-model-save") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows the main six first, the rest behind More providers, local runners apart", () => {
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+    fireEvent.click(screen.getByTestId("ai-model-other-providers"));
+
+    for (const id of [
+      "openrouter",
+      "anthropic",
+      "openai",
+      "gemini",
+      "routstr",
+      "ppq",
+      "ollama",
+      "lmstudio",
+      "custom",
+    ]) {
+      expect(screen.getByTestId(`ai-model-tile-${id}`)).toBeTruthy();
+    }
+    expect(screen.queryByTestId("ai-model-tile-groq")).toBeNull();
+    fireEvent.click(screen.getByTestId("ai-model-more-open"));
+    expect(within(screen.getByTestId("ai-model-more")).getByTestId("ai-model-tile-groq")).toBeTruthy();
+    // Two letters each, so OpenRouter, OpenAI and Ollama no longer share an "O".
+    expect(screen.getByTestId("ai-model-tile-openrouter").textContent).toContain("OR");
+    expect(screen.getByTestId("ai-model-tile-openai").textContent).toContain("OA");
+    expect(screen.getByTestId("ai-model-tile-ollama").textContent).toContain("OL");
   });
 
   it("tests a local runner as soon as it is picked, with no key field", async () => {

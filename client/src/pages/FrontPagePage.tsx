@@ -6,11 +6,12 @@ import {
   Check,
   Download,
   Hourglass,
+  Info,
   KeyRound,
   Loader2,
   Lock,
+  Maximize2,
   Newspaper,
-  RotateCcw,
   ShieldCheck,
   Sparkles,
   X,
@@ -23,6 +24,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -49,6 +53,8 @@ const AI_SETTINGS = "/settings?tab=assistants&view=ai";
 interface Printed {
   html: string;
   code: string;
+  /** Which model wrote it; absent on a paper printed before this was kept. */
+  model?: string;
   printedAt: number;
   events: number;
   quotes: number;
@@ -57,10 +63,11 @@ interface Printed {
   changes: ResolveChange[];
 }
 
+// The paper on show lives apart from the run, so a reprint's progress sits above the
+// paper the reader is still reading instead of replacing it.
 type Run =
   | { state: "idle" }
   | { state: "running"; step: PrintStep; pull: PullProgress | null }
-  | { state: "printed"; page: Printed }
   | { state: "refused"; violations: Violation[]; changes: ResolveChange[] }
   | { state: "pending" }
   | { state: "error"; message: string };
@@ -139,10 +146,10 @@ export default function FrontPagePage() {
   const mywot = useHasMywot();
   const { canUseMywot, hasMywot, isSearchObserver } = useCanSearchMywot();
 
-  const [run, setRun] = useState<Run>(() => {
-    const last = pubkey ? readLast(pubkey) : null;
-    return last ? { state: "printed", page: last } : { state: "idle" };
-  });
+  const [page, setPage] = useState<Printed | null>(() => (pubkey ? readLast(pubkey) : null));
+  const [run, setRun] = useState<Run>({ state: "idle" });
+  const [printOpen, setPrintOpen] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -165,6 +172,7 @@ export default function FrontPagePage() {
 
   const print = useCallback(async () => {
     if (!key || !pubkey || !model) return;
+    setPrintOpen(false);
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
@@ -186,11 +194,13 @@ export default function FrontPagePage() {
         setRun({ state: "pending" });
       } else if (result.status === "refused") {
         writeLast(pubkey, null);
+        setPage(null);
         setRun({ state: "refused", violations: result.violations, changes: result.changes });
       } else {
-        const page: Printed = {
+        const printed: Printed = {
           html: result.html,
           code: result.corpus.code,
+          model,
           printedAt: Date.now(),
           events: Object.values(result.corpus.desks).reduce((n, list) => n + list.length, 0),
           quotes: result.quotes,
@@ -198,8 +208,9 @@ export default function FrontPagePage() {
           usage: result.usage,
           changes: result.changes,
         };
-        writeLast(pubkey, page);
-        setRun({ state: "printed", page });
+        writeLast(pubkey, printed);
+        setPage(printed);
+        setRun({ state: "idle" });
       }
     } catch (err) {
       if (controller.signal.aborted) {
@@ -228,63 +239,104 @@ export default function FrontPagePage() {
     return null;
   }, [keys.status, key, mywot.known, mywot.isLoading, hasMywot, isSearchObserver, canUseMywot]);
 
+  const picker = key && blocker === null && (
+    <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
+  );
+  // Reader-first: once there is a paper, it leads and the controls step back into a
+  // header and a dialog. The hero is for the first print and for setup.
+  const showHero = !page || blocker !== null;
+
   return (
-    <div className="flex min-h-page flex-col bg-background">
-      {user && <AppHeader user={user} onLogout={() => logout()} />}
-      <main className="mx-auto w-full max-w-5xl flex-1 space-y-5 px-4 py-6 sm:px-6 sm:py-8">
-        <Hero
-          printed={run.state === "printed" ? run.page : null}
-          ready={blocker === null}
-          busy={run.state === "running"}
-          onPrint={print}
-          picker={
-            key &&
-            blocker === null && <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
-          }
-          canPrint={!!model}
-        />
+    <TooltipProvider delayDuration={300}>
+      <div className="flex min-h-page flex-col bg-background">
+        {user && <AppHeader user={user} onLogout={() => logout()} />}
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {/* The header lines up with the paper's edges once there is one; the hero keeps the
+              narrower column the rest of the app reads in. */}
+          <div className={cn("space-y-5", showHero && "mx-auto max-w-5xl")}>
+            {showHero ? (
+              <Hero
+                ready={blocker === null}
+                busy={run.state === "running"}
+                onPrint={print}
+                picker={picker}
+                hint={models.status === "unlisted" && !model}
+                canPrint={!!model}
+              />
+            ) : (
+              page && (
+                <PaperHeader
+                  page={page}
+                  busy={run.state === "running"}
+                  onPrintAgain={() => setPrintOpen(true)}
+                  onFullScreen={() => setFullScreen(true)}
+                />
+              )
+            )}
 
-        {blocker && blocker !== "checking" && <Blocker kind={blocker} onUnlock={keys.reveal} />}
-        {blocker === "checking" && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="front-page-checking">
-            <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+            {blocker && blocker !== "checking" && <Blocker kind={blocker} onUnlock={keys.reveal} />}
+            {blocker === "checking" && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="front-page-checking">
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+              </div>
+            )}
+
+            <AnimatePresence mode="wait">
+              {run.state === "running" && (
+                <Fade key="running">
+                  <Progress step={run.step} pull={run.pull} onCancel={cancel} />
+                </Fade>
+              )}
+              {run.state === "pending" && (
+                <Fade key="pending">
+                  <Blocker kind="pending" onUnlock={keys.reveal} />
+                </Fade>
+              )}
+              {run.state === "error" && (
+                <Fade key="error">
+                  <Alert variant="destructive" data-testid="front-page-error">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>No paper today</AlertTitle>
+                    <AlertDescription>{run.message}</AlertDescription>
+                  </Alert>
+                </Fade>
+              )}
+              {run.state === "refused" && (
+                <Fade key="refused">
+                  <Refused violations={run.violations} changes={run.changes} />
+                </Fade>
+              )}
+            </AnimatePresence>
           </div>
-        )}
 
-        <AnimatePresence mode="wait">
-          {run.state === "running" && (
-            <Fade key="running">
-              <Progress step={run.step} pull={run.pull} onCancel={cancel} />
+          {/* Wider than the controls: a newspaper wants the width a wide window has. */}
+          {page && (
+            <Fade key={`paper-${page.printedAt}`}>
+              <PaperFrame page={page} />
             </Fade>
           )}
-          {run.state === "pending" && (
-            <Fade key="pending">
-              <Blocker kind="pending" onUnlock={keys.reveal} />
-            </Fade>
-          )}
-          {run.state === "error" && (
-            <Fade key="error">
-              <Alert variant="destructive" data-testid="front-page-error">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>No paper today</AlertTitle>
-                <AlertDescription>{run.message}</AlertDescription>
-              </Alert>
-            </Fade>
-          )}
-          {run.state === "refused" && (
-            <Fade key="refused">
-              <Refused violations={run.violations} changes={run.changes} />
-            </Fade>
-          )}
-          {run.state === "printed" && (
-            <Fade key={`printed-${run.page.printedAt}`}>
-              <Paper page={run.page} />
-            </Fade>
-          )}
-        </AnimatePresence>
-      </main>
-      <Footer />
-    </div>
+        </main>
+        <Footer />
+
+        <Dialog open={printOpen} onOpenChange={setPrintOpen}>
+          <DialogContent className="sm:max-w-md" data-testid="front-page-print-dialog">
+            <DialogHeader>
+              <DialogTitle>Print again</DialogTitle>
+            </DialogHeader>
+            <PrintControls
+              picker={picker}
+              hint={models.status === "unlisted" && !model}
+              busy={run.state === "running"}
+              canPrint={!!model}
+              again
+              onPrint={print}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {fullScreen && page && <FullScreenPaper page={page} onClose={() => setFullScreen(false)} />}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -303,18 +355,18 @@ function Fade({ children }: { children: React.ReactNode }) {
 }
 
 function Hero({
-  printed,
   ready,
   busy,
   onPrint,
   picker,
+  hint,
   canPrint,
 }: {
-  printed: Printed | null;
   ready: boolean;
   busy: boolean;
   onPrint: () => void;
   picker: React.ReactNode;
+  hint: boolean;
   canPrint: boolean;
 }) {
   return (
@@ -338,35 +390,172 @@ function Hero({
               Your front page
             </h1>
             <p className="text-sm text-muted-foreground">Today on Nostr, through your web of trust.</p>
-            {printed && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <Chip tone="slate" size="sm">
-                  No. {printed.code}
-                </Chip>
-                <Chip tone="success" size="sm" icon={ShieldCheck}>
-                  {printed.quotes} {printed.quotes === 1 ? "quote" : "quotes"} verified
-                </Chip>
-              </div>
-            )}
           </div>
         </div>
         {ready && (
-          <div className="flex flex-col gap-2 sm:w-64">
-            {picker}
-            <Button
-              size="lg"
-              className="w-full"
-              onClick={onPrint}
-              disabled={busy || !canPrint}
-              data-testid="front-page-print"
-            >
-              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              {printed ? "Print again" : "Print today's paper"}
-            </Button>
+          <div className="sm:w-64">
+            <PrintControls picker={picker} hint={hint} busy={busy} canPrint={canPrint} onPrint={onPrint} />
           </div>
         )}
       </div>
     </Card>
+  );
+}
+
+/** Model, the reason Print is off when it is, and Print: in the hero and in the dialog. */
+function PrintControls({
+  picker,
+  hint,
+  busy,
+  canPrint,
+  again = false,
+  onPrint,
+}: {
+  picker: React.ReactNode;
+  hint: boolean;
+  busy: boolean;
+  canPrint: boolean;
+  again?: boolean;
+  onPrint: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {picker}
+      {hint && (
+        <p className="text-xs text-muted-foreground" data-testid="front-page-model-hint">
+          Name a model to print, e.g. llama3.3
+        </p>
+      )}
+      <Button
+        size="lg"
+        className="w-full"
+        onClick={onPrint}
+        disabled={busy || !canPrint}
+        data-testid="front-page-print"
+      >
+        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+        {again ? "Print" : "Print today's paper"}
+      </Button>
+    </div>
+  );
+}
+
+const editionDate = (at: number) =>
+  new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date(at));
+
+function IconAction({
+  label,
+  onClick,
+  disabled,
+  testId,
+  children,
+}: {
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-muted-foreground hover:text-foreground"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+          data-testid={testId}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * The returning reader's header: the edition's date, one quiet line of facts, and the
+ * actions as icons. The rest (edition number, model, tokens, what the check removed) is
+ * one tap away in the info popover, not chips in the reader's way.
+ */
+function PaperHeader({
+  page,
+  busy,
+  onPrintAgain,
+  onFullScreen,
+}: {
+  page: Printed;
+  busy: boolean;
+  onPrintAgain: () => void;
+  onFullScreen: () => void;
+}) {
+  const removed = noteworthy(page.changes).length;
+  return (
+    <div className="flex items-center gap-3" data-testid="front-page-header">
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+          {editionDate(page.printedAt)}
+        </h1>
+        <p className="truncate text-sm text-muted-foreground" data-testid="front-page-facts">
+          {page.events.toLocaleString()} posts · {page.quotes} {page.quotes === 1 ? "quote" : "quotes"} verified
+          {removed > 0 && ` · ${removed} removed`}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center">
+        <IconAction label="Print again" onClick={onPrintAgain} disabled={busy} testId="front-page-print-again">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        </IconAction>
+        <IconAction label="Download" onClick={() => download(page)} testId="front-page-download">
+          <Download className="h-4 w-4" />
+        </IconAction>
+        <IconAction label="Read full screen" onClick={onFullScreen} testId="front-page-fullscreen">
+          <Maximize2 className="h-4 w-4" />
+        </IconAction>
+        <EditionInfo page={page} />
+      </div>
+    </div>
+  );
+}
+
+function EditionInfo({ page }: { page: Printed }) {
+  const tokens = page.usage ? (page.usage.promptTokens ?? 0) + (page.usage.completionTokens ?? 0) : null;
+  const rows: [string, string][] = [["Edition", `No. ${page.code}`]];
+  if (page.model) rows.push(["Model", page.model]);
+  if (tokens) rows.push(["Tokens", tokens.toLocaleString()]);
+  if (page.rounds === 2) rows.push(["Check", "Fixed once"]);
+  return (
+    <Popover>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              aria-label="About this edition"
+              data-testid="front-page-info"
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>About this edition</TooltipContent>
+      </Tooltip>
+      <PopoverContent align="end" className="w-72 space-y-3" data-testid="front-page-info-panel">
+        <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
+          {rows.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="truncate text-right font-medium text-foreground">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <Changes changes={page.changes} />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -584,47 +773,89 @@ function download(page: Printed) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function Paper({ page }: { page: Printed }) {
-  const tokens = page.usage ? (page.usage.promptTokens ?? 0) + (page.usage.completionTokens ?? 0) : null;
+const SANDBOX = "allow-popups allow-popups-to-escape-sandbox";
+
+/**
+ * The paper inline. Until the frame has loaded it takes a slim placeholder, not the
+ * full height: a tall empty sheet reads as broken.
+ */
+function PaperFrame({ page }: { page: Printed }) {
+  const [loaded, setLoaded] = useState(false);
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Chip tone="slate" size="sm">
-          {page.events.toLocaleString()} posts read
-        </Chip>
-        {tokens !== null && tokens > 0 && (
-          <Chip tone="slate" size="sm">
-            {tokens.toLocaleString()} tokens
-          </Chip>
-        )}
-        {page.rounds === 2 && (
-          <Chip tone="warning" size="sm" icon={RotateCcw}>
-            Fixed once
-          </Chip>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={() => download(page)}
-          data-testid="front-page-download"
-        >
-          <Download className="mr-1.5 h-4 w-4" /> Download
-        </Button>
-      </div>
-      <Changes changes={page.changes} />
+    // The model writes the layout, and some pages run edge to edge: a margin of newsprint
+    // (house.css --paper) keeps the rounded corners from clipping a folio's first letter.
+    <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-[#faf8f3] p-3 shadow-sm sm:p-5">
+      {!loaded && (
+        <div className="grid h-24 place-items-center" data-testid="front-page-frame-loading">
+          <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+        </div>
+      )}
       {/* The paper is always light, whatever the app's theme: newsprint. No scripts can run in it
           (no allow-scripts), and its links open in a new tab, outside the sandbox. */}
-      {/* The model writes the layout, and some pages run edge to edge: a margin of newsprint
-          (house.css --paper) keeps the rounded corners from clipping a folio's first letter. */}
-      <div className="overflow-hidden rounded-2xl border border-border bg-[#faf8f3] p-3 shadow-sm sm:p-5">
+      <iframe
+        title="Your front page"
+        srcDoc={page.html}
+        sandbox={SANDBOX}
+        referrerPolicy="no-referrer"
+        onLoad={() => setLoaded(true)}
+        className={cn("block w-full border-0 bg-[#faf8f3]", loaded ? "h-[85vh] min-h-[600px]" : "h-0")}
+        data-testid="front-page-frame"
+      />
+    </div>
+  );
+}
+
+/** The paper filling the window, for reading: same sandbox, Esc or ✕ to leave. */
+function FullScreenPaper({ page, onClose }: { page: Printed; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Your front page"
+      className="fixed inset-0 z-50 flex flex-col bg-[#faf8f3]"
+      data-testid="front-page-fullscreen-view"
+    >
+      <div className="flex items-center gap-2 border-b border-black/10 px-3 py-2 text-slate-800">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{editionDate(page.printedAt)}</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
+          onClick={() => download(page)}
+          aria-label="Download"
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
+          onClick={onClose}
+          aria-label="Close"
+          data-testid="front-page-fullscreen-close"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+      {/* The same margin of newsprint as inline: a page run edge to edge loses its folio's
+          first letter to the window's edge otherwise. */}
+      <div className="flex min-h-0 flex-1 p-2 sm:p-4">
         <iframe
-          title="Your front page"
+          title="Your front page, full screen"
           srcDoc={page.html}
-          sandbox="allow-popups allow-popups-to-escape-sandbox"
+          sandbox={SANDBOX}
           referrerPolicy="no-referrer"
-          className="block h-[85vh] min-h-[600px] w-full border-0 bg-[#faf8f3]"
-          data-testid="front-page-frame"
+          className="block h-full w-full flex-1 border-0 bg-[#faf8f3]"
         />
       </div>
     </div>
