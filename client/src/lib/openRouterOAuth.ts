@@ -63,10 +63,10 @@ export function authUrl({
 export type ConnectError = "declined" | "mismatch" | "expired" | "failed";
 
 export const CONNECT_ERROR_TEXT: Record<ConnectError, string> = {
-  declined: "OpenRouter didn't give Brainstorm a key. Connect again, or paste a key instead.",
-  mismatch: "That OpenRouter sign-in didn't start on this page, so it was ignored. Connect again from here.",
-  expired: "The OpenRouter sign-in expired. Connect again.",
-  failed: "OpenRouter didn't hand over a key. Connect again, or paste a key instead.",
+  declined: "OpenRouter didn't give Brainstorm a key.",
+  mismatch: "That sign-in didn't start here.",
+  expired: "OpenRouter sign-in expired.",
+  failed: "OpenRouter didn't hand over a key.",
 };
 
 /**

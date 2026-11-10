@@ -18,6 +18,8 @@ import {
   parseAgentKeys,
   providerName,
   readTestAnswer,
+  testCaption,
+  presetForUrl,
   removeKey,
   withAgentKeys,
 } from "./agentKeys";
@@ -173,5 +175,25 @@ describe("testing a key", () => {
     expect(readTestAnswer(400, { error: "Incorrect API key provided." })).toEqual({ status: "rejected" });
     expect(readTestAnswer(400, { error: { message: "Please pass a valid API key" } })).toEqual({ status: "rejected" });
     expect(readTestAnswer(400, { error: "model is required" })).toEqual({ status: "failed", httpStatus: 400 });
+  });
+});
+
+describe("the test caption", () => {
+  it("is a few words, never a sentence", () => {
+    expect(testCaption({ status: "ok", models: 312 })).toEqual({ tone: "ok", text: "Works · 312 models" });
+    expect(testCaption({ status: "ok", models: 1 }).text).toBe("Works · 1 model");
+    expect(testCaption({ status: "ok", models: null }).text).toBe("Works");
+    expect(testCaption({ status: "ok", models: 5, unverified: true })).toEqual({
+      tone: "unchecked",
+      text: "Answered, key unchecked",
+    });
+    expect(testCaption({ status: "rejected" })).toEqual({ tone: "rejected", text: "Key rejected" });
+    expect(testCaption({ status: "unreachable" })).toEqual({ tone: "problem", text: "Can't reach it" });
+    expect(testCaption({ status: "failed", httpStatus: 500 }).text).toBe("Error 500");
+  });
+
+  it("finds a stored URL's preset by host", () => {
+    expect(presetForUrl("https://openrouter.ai/api/v1")?.keyPage).toBe("https://openrouter.ai/keys");
+    expect(presetForUrl("https://example.com/v1")).toBeUndefined();
   });
 });

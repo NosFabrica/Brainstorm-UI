@@ -85,8 +85,10 @@ export interface AgentPreset {
   /** A local runner: no key. */
   keyless?: boolean;
   recommended?: boolean;
-  /** One line under the form when it matters. */
-  note?: string;
+  /** At most a few words, shown as a chip on the form when it matters. */
+  hint?: string;
+  /** Where the provider hands out keys, for "Get a key". */
+  keyPage?: string;
   /**
    * The cheapest GET under `url` that fails on a bad key. Default `/models`; `null` where
    * every free call answers without looking at the key (checked 2026-11-10).
@@ -101,7 +103,7 @@ export const AGENT_PRESETS: AgentPreset[] = [
     name: "OpenRouter",
     url: "https://openrouter.ai/api/v1",
     recommended: true,
-    note: "One key reaches every major model, and you can cap what it spends.",
+    keyPage: "https://openrouter.ai/keys",
     // Its model list is public; `/key` describes the key and 401s on a bad one.
     keyCheckPath: "/key",
   },
@@ -109,37 +111,74 @@ export const AGENT_PRESETS: AgentPreset[] = [
     id: "anthropic",
     name: "Anthropic",
     url: "https://api.anthropic.com/v1",
-    note: "Use an API key from the Claude Console. Claude Pro or Max sign-ins don't work here.",
+    // Claude Pro/Max sign-ins can't be used by other apps; only Console keys work.
+    hint: "Console key, not Pro/Max",
+    keyPage: "https://console.anthropic.com/settings/keys",
   },
-  { id: "openai", name: "OpenAI", url: "https://api.openai.com/v1" },
-  { id: "gemini", name: "Google Gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai" },
-  { id: "routstr", name: "Routstr", url: "https://api.routstr.com/v1", note: "Paid with Cashu, no account." },
-  { id: "ppq", name: "PPQ.ai", url: "https://api.ppq.ai/v1", note: "Topped up with Lightning.", keyCheckPath: null },
-  { id: "venice", name: "Venice", url: "https://api.venice.ai/api/v1", keyCheckPath: "/api_keys/rate_limits" },
-  { id: "near", name: "NEAR AI", url: "https://cloud-api.near.ai/v1", keyCheckPath: "/users/me" },
-  { id: "mistral", name: "Mistral", url: "https://api.mistral.ai/v1" },
-  { id: "groq", name: "Groq", url: "https://api.groq.com/openai/v1" },
-  { id: "xai", name: "xAI", url: "https://api.x.ai/v1" },
-  { id: "deepseek", name: "DeepSeek", url: "https://api.deepseek.com/v1" },
-  { id: "together", name: "Together", url: "https://api.together.xyz/v1" },
-  { id: "fireworks", name: "Fireworks", url: "https://api.fireworks.ai/inference/v1" },
-  { id: "cerebras", name: "Cerebras", url: "https://api.cerebras.ai/v1" },
+  { id: "openai", name: "OpenAI", url: "https://api.openai.com/v1", keyPage: "https://platform.openai.com/api-keys" },
   {
-    id: "ollama",
-    name: "Ollama",
-    url: "http://localhost:11434/v1",
-    keyless: true,
-    note: "Runs on your computer. Works only there, and only once Ollama allows this site (OLLAMA_ORIGINS).",
+    id: "gemini",
+    name: "Google Gemini",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai",
+    keyPage: "https://aistudio.google.com/apikey",
+  },
+  { id: "routstr", name: "Routstr", url: "https://api.routstr.com/v1", hint: "Pays with Cashu" },
+  {
+    id: "ppq",
+    name: "PPQ.ai",
+    url: "https://api.ppq.ai/v1",
+    hint: "Pays with Lightning",
+    keyPage: "https://ppq.ai",
+    keyCheckPath: null,
   },
   {
-    id: "lmstudio",
-    name: "LM Studio",
-    url: "http://localhost:1234/v1",
-    keyless: true,
-    note: "Runs on your computer. Works only there, with CORS turned on in LM Studio's server settings.",
+    id: "venice",
+    name: "Venice",
+    url: "https://api.venice.ai/api/v1",
+    keyPage: "https://venice.ai/settings/api",
+    keyCheckPath: "/api_keys/rate_limits",
   },
-  { id: "custom", name: "Custom", url: "", note: "Any OpenAI-compatible API root, ending before /chat/completions." },
+  {
+    id: "near",
+    name: "NEAR AI",
+    url: "https://cloud-api.near.ai/v1",
+    keyPage: "https://cloud.near.ai",
+    keyCheckPath: "/users/me",
+  },
+  { id: "mistral", name: "Mistral", url: "https://api.mistral.ai/v1", keyPage: "https://console.mistral.ai/api-keys" },
+  { id: "groq", name: "Groq", url: "https://api.groq.com/openai/v1", keyPage: "https://console.groq.com/keys" },
+  { id: "xai", name: "xAI", url: "https://api.x.ai/v1", keyPage: "https://console.x.ai" },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    url: "https://api.deepseek.com/v1",
+    keyPage: "https://platform.deepseek.com/api_keys",
+  },
+  {
+    id: "together",
+    name: "Together",
+    url: "https://api.together.xyz/v1",
+    keyPage: "https://api.together.ai/settings/api-keys",
+  },
+  {
+    id: "fireworks",
+    name: "Fireworks",
+    url: "https://api.fireworks.ai/inference/v1",
+    keyPage: "https://fireworks.ai/account/api-keys",
+  },
+  { id: "cerebras", name: "Cerebras", url: "https://api.cerebras.ai/v1", keyPage: "https://cloud.cerebras.ai" },
+  // A page only reaches a local runner once the runner lets this site in
+  // (OLLAMA_ORIGINS, LM Studio's CORS switch); the form says so in a tooltip.
+  { id: "ollama", name: "Ollama", url: "http://localhost:11434/v1", keyless: true },
+  { id: "lmstudio", name: "LM Studio", url: "http://localhost:1234/v1", keyless: true },
+  { id: "custom", name: "Custom", url: "" },
 ];
+
+/** The preset a stored URL belongs to, by host. */
+export function presetForUrl(url: string): AgentPreset | undefined {
+  const host = parseUrl(url)?.host;
+  return host ? AGENT_PRESETS.find((p) => p.url && parseUrl(p.url)?.host === host) : undefined;
+}
 
 function parseUrl(url: string): URL | null {
   try {
@@ -160,8 +199,7 @@ export function normalizeAgentUrl(input: string): string | null {
 export function providerName(url: string): string {
   const u = parseUrl(url);
   if (!u) return url;
-  const preset = AGENT_PRESETS.find((p) => p.url && parseUrl(p.url)?.host === u.host);
-  return preset?.name ?? u.host;
+  return presetForUrl(url)?.name ?? u.host;
 }
 
 /** `sk-or-…a1b2`: enough to tell two keys apart, never enough to use one. */
@@ -169,11 +207,6 @@ export function maskKey(key: string): string {
   if (!key) return "No key";
   if (key.length < 14) return "••••";
   return `${key.slice(0, 6)}…${key.slice(-4)}`;
-}
-
-function presetFor(url: string): AgentPreset | undefined {
-  const host = parseUrl(url)?.host;
-  return host ? AGENT_PRESETS.find((p) => p.url && parseUrl(p.url)?.host === host) : undefined;
 }
 
 /**
@@ -186,7 +219,7 @@ export function modelsRequest(entry: AgentKey): {
   headers: Record<string, string>;
   keyChecked: boolean;
 } {
-  const preset = presetFor(entry.url);
+  const preset = presetForUrl(entry.url);
   const path = preset?.keyCheckPath ?? "/models";
   const keyChecked = preset?.keyCheckPath !== null;
   const headers: Record<string, string> = {};
@@ -216,4 +249,30 @@ export function readTestAnswer(httpStatus: number, body: unknown, keyChecked = t
   const data = (body as { data?: unknown } | null)?.data ?? (body as { models?: unknown } | null)?.models;
   const models = Array.isArray(data) ? data.length : null;
   return keyChecked ? { status: "ok", models } : { status: "ok", models, unverified: true };
+}
+
+/**
+ * What a test result says under the key field: a few words, never a sentence. `tone`
+ * picks the status icon (ok, a check; unchecked, a question mark; rejected, an x;
+ * anything else, a warning).
+ */
+export function testCaption(result: KeyTestResult): {
+  tone: "ok" | "unchecked" | "rejected" | "problem";
+  text: string;
+} {
+  switch (result.status) {
+    case "ok":
+      if (result.unverified) return { tone: "unchecked", text: "Answered, key unchecked" };
+      if (result.models === null) return { tone: "ok", text: "Works" };
+      return {
+        tone: "ok",
+        text: `Works · ${result.models.toLocaleString()} ${result.models === 1 ? "model" : "models"}`,
+      };
+    case "rejected":
+      return { tone: "rejected", text: "Key rejected" };
+    case "failed":
+      return { tone: "problem", text: `Error ${result.httpStatus}` };
+    case "unreachable":
+      return { tone: "problem", text: "Can't reach it" };
+  }
 }
