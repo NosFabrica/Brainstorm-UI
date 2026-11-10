@@ -1,0 +1,157 @@
+// @vitest-environment node
+/**
+ * The AI agent keys format (kind 12000), shared with Amethyst through Quartz's
+ * `AgentKeyEvent`. Node, not jsdom: the vector is really verified and decrypted
+ * (jsdom's foreign-realm Uint8Array fails @noble's checks, see `test/setup.ts`).
+ */
+import { describe, expect, it } from "vitest";
+import { getPublicKey, verifyEvent } from "nostr-tools/pure";
+import * as nip44 from "nostr-tools/nip44";
+import {
+  AGENT_KEYS_KIND,
+  addKey,
+  decodePrivateTags,
+  makePreferred,
+  maskKey,
+  modelsRequest,
+  normalizeAgentUrl,
+  parseAgentKeys,
+  providerName,
+  readTestAnswer,
+  removeKey,
+  withAgentKeys,
+} from "./agentKeys";
+
+/**
+ * Quartz's `AgentKeyVectorTest`: signed and encrypted by the test key 0x…01, never a
+ * real secret. Every implementation reads the same two keys from it.
+ */
+const VECTOR = {
+  id: "b58135caffa23430671f695d85268ac5a2c0858e431f0143aa42d64edf6eea96",
+  pubkey: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  created_at: 1794268800,
+  kind: 12000,
+  tags: [["alt", "AI agent keys (encrypted)"]],
+  content:
+    "AjqAxU3ZRggimbtgKdX9GpN4Vmyxzoaqqp7Psxc7uG2OGDXb2wSGdS/ei2TaHSBmrepE9X3eTB5mIlOPK//4MLyVAdgWDbzb8OSoEfLZ7dzFx9eKtvVKEP07VxLf2RSGA6fipPPSOUclij1tWAy+6qsKaEa59udZ3eqYahHXjX1yMsCS50Bz17AgJ440o2X385+mfT9AT6es6FaNHtrv70FIihIlp4CtsARuW2Nk1qO+4W717CZpRrdTlCc9ieH1FG8A",
+  sig: "acf3db20b3b0c5b8f19dfbda35e11b9f16f903aac806fc7be7d14d27484a324b1d539f6715ea31db59be6d50e95dd9933ab06c98cf3b9b54e628f24d5e43a756",
+};
+const TEST_KEY = new Uint8Array(32);
+TEST_KEY[31] = 1;
+
+const openRouter = { key: "sk-or-v1-abcdef0123456789", url: "https://openrouter.ai/api/v1" };
+const ollama = { key: "", url: "http://localhost:11434/v1" };
+const anthropic = { key: "sk-ant-api03-zzzzzzzzzzzz", url: "https://api.anthropic.com/v1" };
+
+describe("the shared vector", () => {
+  it("verifies, and decrypts with the test key to the same two keys Quartz reads", () => {
+    expect(verifyEvent({ ...VECTOR })).toBe(true);
+    expect(VECTOR.kind).toBe(AGENT_KEYS_KIND);
+    expect(getPublicKey(TEST_KEY)).toBe(VECTOR.pubkey);
+
+    const plain = nip44.decrypt(VECTOR.content, nip44.getConversationKey(TEST_KEY, VECTOR.pubkey));
+    const tags = decodePrivateTags(plain);
+
+    expect(tags).toEqual([
+      ["key", "sk-or-v1-test-vector-not-a-real-key", "https://openrouter.ai/api/v1"],
+      ["key", "", "http://localhost:11434/v1"],
+    ]);
+    expect(parseAgentKeys(tags!)).toEqual([
+      { key: "sk-or-v1-test-vector-not-a-real-key", url: "https://openrouter.ai/api/v1" },
+      { key: "", url: "http://localhost:11434/v1" },
+    ]);
+  });
+});
+
+describe("reading the private tags", () => {
+  it("keeps the order and skips malformed key tags", () => {
+    const tags = [
+      ["key", "only-a-key"],
+      ["key", "blank-url", "  "],
+      ["model", "x", "https://x"],
+      ["key", "sk-good", "https://api.example.com/v1", "extra"],
+      ["key", "", "http://localhost:1234/v1"],
+    ];
+    expect(parseAgentKeys(tags)).toEqual([
+      { key: "sk-good", url: "https://api.example.com/v1" },
+      { key: "", url: "http://localhost:1234/v1" },
+    ]);
+  });
+
+  it("refuses content that isn't a list of string tags", () => {
+    expect(decodePrivateTags("not json")).toBeNull();
+    expect(decodePrivateTags('{"key":"x"}')).toBeNull();
+    expect(decodePrivateTags('[["key", 1, "https://x"]]')).toBeNull();
+    expect(decodePrivateTags("[]")).toEqual([]);
+  });
+});
+
+describe("rewriting", () => {
+  it("puts the keys first and keeps every tag that isn't a key", () => {
+    const before = [
+      ["key", "old", "https://old.example/v1"],
+      ["model", "anthropic/claude"],
+      ["x", "y"],
+    ];
+    expect(withAgentKeys(before, [anthropic, ollama])).toEqual([
+      ["key", anthropic.key, anthropic.url],
+      ["key", "", ollama.url],
+      ["model", "anthropic/claude"],
+      ["x", "y"],
+    ]);
+  });
+
+  it("adds at the end without duplicates, moves one to the front, and removes one", () => {
+    const keys = addKey(addKey([], openRouter), ollama);
+    expect(keys).toEqual([openRouter, ollama]);
+    expect(addKey(keys, { ...openRouter })).toBe(keys);
+    expect(makePreferred(keys, ollama)).toEqual([ollama, openRouter]);
+    expect(removeKey(keys, openRouter)).toEqual([ollama]);
+  });
+});
+
+describe("display", () => {
+  it("masks keys so two can be told apart and none can be used", () => {
+    expect(maskKey(openRouter.key)).toBe("sk-or-…6789");
+    expect(maskKey("")).toBe("No key");
+    expect(maskKey("short")).toBe("••••");
+  });
+
+  it("names the provider from the URL", () => {
+    expect(providerName("https://openrouter.ai/api/v1")).toBe("OpenRouter");
+    expect(providerName("http://localhost:11434/v1")).toBe("Ollama");
+    expect(providerName("https://llm.example.org/v1")).toBe("llm.example.org");
+  });
+
+  it("stores URLs without a trailing slash, and only http(s)", () => {
+    expect(normalizeAgentUrl(" https://api.example.com/v1/ ")).toBe("https://api.example.com/v1");
+    expect(normalizeAgentUrl("ftp://x")).toBeNull();
+    expect(normalizeAgentUrl("nope")).toBeNull();
+  });
+});
+
+describe("testing a key", () => {
+  it("asks for the model list with the key as a bearer token, and no header without one", () => {
+    expect(modelsRequest(openRouter)).toEqual({
+      url: "https://openrouter.ai/api/v1/models",
+      headers: { Authorization: `Bearer ${openRouter.key}` },
+    });
+    expect(modelsRequest(ollama)).toEqual({ url: "http://localhost:11434/v1/models", headers: {} });
+  });
+
+  it("tells Anthropic it is a web page calling it directly", () => {
+    const { headers } = modelsRequest(anthropic);
+    expect(headers["x-api-key"]).toBe(anthropic.key);
+    expect(headers["anthropic-version"]).toBe("2023-06-01");
+    expect(headers["anthropic-dangerous-direct-browser-access"]).toBe("true");
+  });
+
+  it("reads the answer", () => {
+    expect(readTestAnswer(200, { data: [{}, {}] })).toEqual({ status: "ok", models: 2 });
+    expect(readTestAnswer(200, { models: [{}] })).toEqual({ status: "ok", models: 1 });
+    expect(readTestAnswer(200, null)).toEqual({ status: "ok", models: null });
+    expect(readTestAnswer(401, null)).toEqual({ status: "rejected" });
+    expect(readTestAnswer(403, null)).toEqual({ status: "rejected" });
+    expect(readTestAnswer(404, null)).toEqual({ status: "failed", httpStatus: 404 });
+  });
+});

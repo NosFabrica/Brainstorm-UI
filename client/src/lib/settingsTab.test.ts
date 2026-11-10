@@ -95,10 +95,10 @@ describe("settingsTabsFor / assistantViewsFor", () => {
     expect(admin.find((t) => t.key === "assistants")?.internal).toBe(false);
   });
 
-  it("gives everyone 'yours' and the Treasure Map, and admins the list and duties too, marked internal", () => {
-    expect(assistantViewsFor({ admin: false }).map((v) => v.key)).toEqual(["yours", "map"]);
+  it("gives everyone 'yours', the Treasure Map and the AI model, and admins the list and duties too, marked internal", () => {
+    expect(assistantViewsFor({ admin: false }).map((v) => v.key)).toEqual(["yours", "map", "ai"]);
     const admin = assistantViewsFor({ admin: true });
-    expect(admin.map((v) => v.key)).toEqual(["yours", "all", "duties", "map"]);
+    expect(admin.map((v) => v.key)).toEqual(["yours", "all", "duties", "map", "ai"]);
     expect(admin.filter((v) => v.internal).map((v) => v.key)).toEqual(["all", "duties"]);
   });
 });

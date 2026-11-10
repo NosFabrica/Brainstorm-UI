@@ -113,6 +113,7 @@ import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
+import { AiModelTab } from "@/components/settings/AiModelTab";
 import { markOwnScores } from "@/lib/ownScores";
 import { InternalChip } from "@/components/InternalChip";
 
@@ -131,8 +132,8 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "trust", label: "Trust & Search", icon: ShieldCheck },
   // The reader's Assistants (2026-10-23, one tab since 2026-11-02): the one Brainstorm
   // hosts for them; every one they've tagged and what each does (Tapestry's My
-  // Assistants); and the Treasure Map that hands out the duties — as views
-  // (lib/settingsTab assistantViewsFor), the last three admins' only for now.
+  // Assistants); the Treasure Map that hands out the duties; and the keys to their
+  // own AI provider — as views (lib/settingsTab assistantViewsFor).
   { key: "assistants", label: "Assistants", icon: Bot },
   // Its own tab (2026-10-05), out of Trust & search: a reader looks for message settings
   // under "Messages". Where the inbox's "Manage" (and its settings icon) lands.
@@ -2008,6 +2009,7 @@ export default function SettingsPage() {
                 <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />
               )}
               {assistantView === "map" && <TreasureMapTab viewer={user?.pubkey} />}
+              {assistantView === "ai" && <AiModelTab />}
             </div>
           )}
 
