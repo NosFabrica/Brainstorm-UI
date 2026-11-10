@@ -9,14 +9,20 @@ import type { AgentKeysState } from "@/hooks/useAgentKeys";
 const state = vi.fn<() => AgentKeysState>();
 const reveal = vi.fn();
 const updateAgentKeys = vi.fn();
+const testAgentKey = vi.fn();
+const startOpenRouterConnect = vi.fn();
 
 vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ ...state(), reveal }) }));
 vi.mock("@/services/agentKeys", () => ({
   updateAgentKeys: (...args: unknown[]) => updateAgentKeys(...args),
-  testAgentKey: vi.fn(),
+  testAgentKey: (...args: unknown[]) => testAgentKey(...args),
+}));
+vi.mock("@/services/openRouterOAuth", () => ({
+  startOpenRouterConnect: () => startOpenRouterConnect(),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
+import { clearHandoff, handOff, peekHandoff } from "@/lib/openRouterOAuth";
 import { AiModelTab } from "./AiModelTab";
 
 const SECRET = "sk-or-v1-0123456789abcdef";
@@ -24,6 +30,8 @@ const SECRET = "sk-or-v1-0123456789abcdef";
 beforeEach(() => {
   vi.clearAllMocks();
   updateAgentKeys.mockResolvedValue({ success: true });
+  testAgentKey.mockResolvedValue({ status: "ok", models: null });
+  clearHandoff();
 });
 
 describe("AiModelTab", () => {
@@ -79,5 +87,38 @@ describe("AiModelTab", () => {
 
     expect(screen.getByTestId("ai-model-unreadable")).toBeTruthy();
     expect(screen.queryByTestId("ai-model-add")).toBeNull();
+  });
+
+  it("offers Connect with OpenRouter for OpenRouter only", async () => {
+    state.mockReturnValue({ status: "none" });
+    startOpenRouterConnect.mockResolvedValue(true);
+    render(<AiModelTab />);
+
+    fireEvent.click(screen.getByTestId("ai-model-openrouter-connect"));
+    await vi.waitFor(() => expect(startOpenRouterConnect).toHaveBeenCalledTimes(1));
+  });
+
+  it("fills and tests a key OpenRouter handed over, and leaves saving to the user", async () => {
+    handOff({ key: SECRET });
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+
+    expect((screen.getByTestId("ai-model-key") as HTMLInputElement).value).toBe(SECRET);
+    await vi.waitFor(() =>
+      expect(testAgentKey).toHaveBeenCalledWith({ key: SECRET, url: "https://openrouter.ai/api/v1" }),
+    );
+    expect((await screen.findByTestId("ai-model-test-result")).textContent).toContain("It works");
+    expect(updateAgentKeys).not.toHaveBeenCalled();
+    expect(peekHandoff()).toBeNull();
+    expect((screen.getByTestId("ai-model-save") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("says why when OpenRouter didn't hand a key over", () => {
+    handOff({ error: "declined" });
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+
+    expect(screen.getByTestId("ai-model-test-result").textContent).toContain("didn't give Brainstorm a key");
+    expect(testAgentKey).not.toHaveBeenCalled();
   });
 });

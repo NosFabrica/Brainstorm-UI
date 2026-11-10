@@ -51,6 +51,7 @@ import { isAdminPubkey } from "@/config/adminAccess";
 const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
 const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
 const DutyMenuSetupPage = lazyWithReload(() => import("@/pages/DutyMenuSetupPage"));
+const OpenRouterCallbackPage = lazyWithReload(() => import("@/pages/OpenRouterCallbackPage"));
 const TreasureMapSetupPage = lazyWithReload(() => import("@/pages/TreasureMapSetupPage"));
 const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
 const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
@@ -278,6 +279,8 @@ function Router() {
             <Route path="/setup/treasure-map">{() => <RequireAuth component={TreasureMapSetupPage} />}</Route>
             <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
             <Route path="/activate" component={ActivatePage} />
+            {/* "Connect with OpenRouter" comes back here (lib/openRouterOAuth). Before /settings. */}
+            <Route path="/settings/openrouter">{() => <RequireAuth component={OpenRouterCallbackPage} />}</Route>
             <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
             <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
             <Route path="/what-is-wot" component={WhatIsWotPage} />

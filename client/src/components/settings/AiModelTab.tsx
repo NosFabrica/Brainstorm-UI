@@ -7,8 +7,19 @@
  * A key is tested from this page before it is saved, so a typo or a provider that
  * won't answer a web page shows up here rather than mid-task.
  */
-import { useMemo, useState } from "react";
-import { AlertTriangle, Bot, CheckCircle2, KeyRound, Loader2, Lock, Plus, Star, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  Lock,
+  Plus,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,7 +50,9 @@ import {
   type AgentKey,
   type KeyTestResult,
 } from "@/lib/agentKeys";
+import { CONNECT_ERROR_TEXT, clearHandoff, peekHandoff } from "@/lib/openRouterOAuth";
 import { testAgentKey, updateAgentKeys } from "@/services/agentKeys";
+import { startOpenRouterConnect } from "@/services/openRouterOAuth";
 
 function testMessage(result: KeyTestResult): { ok: boolean; text: string } {
   switch (result.status) {
@@ -120,13 +133,20 @@ function KeyRow({
   );
 }
 
+const OPENROUTER_ID = "openrouter";
+
 function AddKeyForm({ busy, onSave }: { busy: boolean; onSave: (entry: AgentKey) => Promise<boolean> }) {
-  const [presetId, setPresetId] = useState(AGENT_PRESETS[0].id);
+  // What "Connect with OpenRouter" brought back, if the user just returned from it.
+  const [arrived] = useState(peekHandoff);
+  const [presetId, setPresetId] = useState(arrived ? OPENROUTER_ID : AGENT_PRESETS[0].id);
   const preset = AGENT_PRESETS.find((p) => p.id === presetId) ?? AGENT_PRESETS[0];
   const [customUrl, setCustomUrl] = useState("");
-  const [key, setKey] = useState("");
+  const [key, setKey] = useState(arrived && "key" in arrived ? arrived.key : "");
   const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    arrived && "error" in arrived ? { ok: false, text: CONNECT_ERROR_TEXT[arrived.error] } : null,
+  );
 
   const isCustom = preset.id === "custom";
   const url = normalizeAgentUrl(isCustom ? customUrl : preset.url);
@@ -139,11 +159,32 @@ function AddKeyForm({ busy, onSave }: { busy: boolean; onSave: (entry: AgentKey)
     setResult(null);
   };
 
-  const test = async () => {
-    if (!entry) return;
+  const test = async (candidate: AgentKey | null = entry) => {
+    if (!candidate) return;
     setTesting(true);
-    setResult(testMessage(await testAgentKey(entry)));
+    setResult(testMessage(await testAgentKey(candidate)));
     setTesting(false);
+  };
+
+  // A key from OpenRouter is tested straight away; saving it stays the user's call.
+  const testedArrival = useRef(false);
+  useEffect(() => {
+    clearHandoff();
+    if (testedArrival.current || !arrived || !("key" in arrived)) return;
+    testedArrival.current = true;
+    const openRouter = AGENT_PRESETS.find((p) => p.id === OPENROUTER_ID);
+    if (openRouter) void test({ key: arrived.key, url: openRouter.url });
+    // Once, for the key that arrived with this mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const connect = async () => {
+    setConnecting(true);
+    setResult(null);
+    if (!(await startOpenRouterConnect())) {
+      setConnecting(false);
+      setResult({ ok: false, text: "This browser won't keep what the sign-in needs. Paste a key instead." });
+    }
   };
 
   const save = async () => {
@@ -200,6 +241,27 @@ function AddKeyForm({ busy, onSave }: { busy: boolean; onSave: (entry: AgentKey)
         <p className="font-mono text-xs text-slate-500 dark:text-slate-400" data-testid="ai-model-preset-url">
           {preset.url}
         </p>
+      )}
+
+      {preset.id === OPENROUTER_ID && (
+        <div className="flex flex-col gap-1.5">
+          <Button
+            className="self-start"
+            disabled={connecting}
+            onClick={() => void connect()}
+            data-testid="ai-model-openrouter-connect"
+          >
+            {connecting ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <ExternalLink className="mr-1.5 h-4 w-4" />
+            )}
+            Connect with OpenRouter
+          </Button>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Sign in at OpenRouter and approve a key for Brainstorm, or paste one below.
+          </p>
+        </div>
       )}
 
       {!preset.keyless && (
