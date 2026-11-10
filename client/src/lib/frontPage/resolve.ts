@@ -16,7 +16,7 @@
  * sanitizer that cleans up in silence would hide exactly the event worth seeing.
  */
 import type { NostrEvent } from "nostr-tools";
-import { DESK_LINKS, DESK_LINK_KEYS, fromNevent, type DeskLink } from "./desks";
+import { DESK_LINKS, DESK_LINK_KEYS, fromNevent, toProfileLink, type DeskLink } from "./desks";
 import type { Corpus } from "./corpus";
 import {
   corpusIndex,
@@ -24,12 +24,13 @@ import {
   deskWriterTarget,
   parsePage,
   permalinkTarget,
+  profileTarget,
   serialize,
   toPermalink,
 } from "./validate";
 
 export interface ResolveChange {
-  kind: "resolved" | "dropped" | "unwrapped" | "permalink" | "stream" | "listing" | "calendar";
+  kind: "resolved" | "dropped" | "unwrapped" | "permalink" | "stream" | "listing" | "calendar" | "profile";
   detail: string;
 }
 
@@ -109,6 +110,11 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
     const desk = deskTarget(url, id);
     if (desk) {
       keep(desk.link.canonicalUrl(desk.event), desk.link.change as ResolveChange["kind"]);
+      continue;
+    }
+    const author = profileTarget(url, corpus);
+    if (author) {
+      keep(toProfileLink(author), "profile");
       continue;
     }
     if (id && eventIds.has(id)) {

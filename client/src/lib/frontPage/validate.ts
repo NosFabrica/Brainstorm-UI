@@ -19,7 +19,18 @@
  * IMAGE check, so they are refused unless they name shortlist art.
  */
 import type { NostrEvent } from "nostr-tools";
-import { DESK_LINKS, DESK_LINK_KEYS, fromNaddr, fromNevent, tagValue, toNevent, type DeskLinkKey } from "./desks";
+import {
+  DESK_LINKS,
+  DESK_LINK_KEYS,
+  PROFILE_LINK,
+  PROFILE_WRITER,
+  fromNaddr,
+  fromNevent,
+  fromNpub,
+  tagValue,
+  toNevent,
+  type DeskLinkKey,
+} from "./desks";
 import type { Corpus } from "./corpus";
 
 export interface Violation {
@@ -133,6 +144,26 @@ const addressKey = (kind: number, pubkey: string, identifier: string | null) =>
  * address key, so 31922 and 31923 cannot answer for each other even when a pubkey
  * reuses a d-tag across both.
  */
+/**
+ * The author a byline link names, if they wrote a post this edition read: the writer's
+ * form names them by one of their event ids (or, leniently, by their pubkey hex), the
+ * canonical form by npub. Anyone else is not the paper's to link, however they were named.
+ */
+export function profileTarget(href: string, corpus: Corpus): string | null {
+  const events = Object.values(corpus.desks).flat();
+  const authors = new Set(events.map((e) => e.pubkey.toLowerCase()));
+  const canonical = PROFILE_LINK.exec(href);
+  if (canonical) {
+    const pubkey = fromNpub(canonical[1]);
+    return pubkey && authors.has(pubkey) ? pubkey : null;
+  }
+  const hex = PROFILE_WRITER.exec(href)?.[1]?.toLowerCase();
+  if (!hex) return null;
+  const byPost = events.find((e) => e.id.toLowerCase() === hex);
+  if (byPost) return byPost.pubkey.toLowerCase();
+  return authors.has(hex) ? hex : null;
+}
+
 export function corpusIndex(corpus: Corpus): Record<DeskLinkKey, DeskIndex> {
   const found = INDEX.get(corpus);
   if (found) return found;
@@ -318,12 +349,14 @@ export function check(page: string | Document, corpus: Corpus): CheckResult {
     // njump naddrs; refusing them here makes a regression there fail closed.
     if (id && eventIds.has(id) && !calendarIds.has(id)) continue;
     if (DESK_LINK_KEYS.some((key) => deskLinkTarget(key, href, corpus))) continue;
+    // Bylines: only the canonical npub form, only for someone this edition read.
+    if (PROFILE_LINK.test(href) && profileTarget(href, corpus)) continue;
     // Presence in the corpus is evidence of NOTHING. An earlier version allowlisted
     // every URL that appeared in the corpus; the corpus is written by the attacker too,
     // so posting "click https://evil.example/x" was enough to get it allowlisted.
     flag(
       "LINK",
-      "only source citations, verified zap.stream watch links, Shopstr listing links, and njump calendar links may be links",
+      "only source citations, author bylines, verified zap.stream watch links, Shopstr listing links, and njump calendar links may be links",
       href.slice(0, 120),
     );
   }

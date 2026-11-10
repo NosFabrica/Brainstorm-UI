@@ -197,6 +197,29 @@ export function fromNaddr(value: string): { kind: number; pubkey: string; identi
   }
 }
 
+/** `npub1…` to pubkey hex, or null if it does not decode to an npub. */
+export function fromNpub(value: string): string | null {
+  try {
+    const decoded = nip19.decode(value.trim());
+    return decoded.type === "npub" ? decoded.data.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/*
+ * A byline's link to its author. Beyond the Observer, which links no one: the digest gives
+ * the writer event ids and never pubkeys, so the writer names an author by one of their
+ * posts (PROFILE_WRITER) and resolve turns it into the author's own npub page
+ * (PROFILE_LINK). Only someone who wrote a post this edition read may be linked.
+ */
+export const PROFILE_WRITER = /^https:\/\/jumble\.social\/users\/([0-9a-f]{64})(?:[/?#].*)?$/i;
+export const PROFILE_LINK = /^https:\/\/jumble\.social\/users\/(npub1[0-9a-z]+)(?:[/?#].*)?$/i;
+
+export function toProfileLink(pubkey: string): string {
+  return `https://jumble.social/users/${nip19.npubEncode(pubkey)}`;
+}
+
 export function toNpub(hex: string): string {
   return nip19.npubEncode(hex);
 }

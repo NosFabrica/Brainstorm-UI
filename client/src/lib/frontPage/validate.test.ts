@@ -9,7 +9,7 @@
 // scanner (attribute quoting, `</a >`) are kept as the same cases against the parser.
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "nostr-tools";
-import { DESK_LINKS } from "./desks";
+import { DESK_LINKS, toProfileLink } from "./desks";
 import type { Corpus } from "./corpus";
 import { resolve } from "./resolve";
 import { PERMALINK, check, deskLinkTarget, parsePage, permalinkTarget, quotedText, toPermalink } from "./validate";
@@ -317,5 +317,27 @@ describe("resolve", () => {
       for (const key of ["live", "classifieds", "calendar"] as const) deskLinkTarget(key, href, counted);
     }
     expect(reads).toBe(0);
+  });
+});
+
+describe("bylines", () => {
+  const STRANGER = "33".repeat(32);
+
+  it("link their author by one of the author's posts, and come out as the author's npub", () => {
+    // The digest gives event ids, never keys: the writer names the author by a post.
+    const { html, changes } = resolve(`<a href="https://jumble.social/users/${STREAM_ID}">NoGood Radio</a>`, corpus);
+    expect(hrefOf(html)).toBe(toProfileLink(STREAM_PK));
+    expect(changes.map((c) => c.kind)).toEqual(["profile"]);
+    expect(kinds(html)).toEqual([]);
+  });
+
+  it("only for someone this edition read: a stranger is unwrapped, and the check refuses one", () => {
+    const named = resolve(
+      `<a href="https://jumble.social/users/${STRANGER}">x</a> <a href="${toProfileLink(STRANGER)}">y</a>`,
+      corpus,
+    );
+    expect(named.html).not.toMatch(/jumble\.social\/users/);
+    expect(named.changes.map((c) => c.kind)).toEqual(["unwrapped", "unwrapped"]);
+    expect(kinds(`<a href="${toProfileLink(STRANGER)}">x</a>`)).toEqual(["LINK"]);
   });
 });

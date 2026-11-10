@@ -437,7 +437,7 @@ export async function printFrontPage({
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt() },
-    { role: "user", content: userMessage(digest(corpus), readerName) },
+    { role: "user", content: userMessage(digest(corpus), readerName, readerLanguage()) },
   ];
 
   let usage: Usage | null = null;
@@ -474,4 +474,9 @@ export async function printFrontPage({
   }
   // Unreachable: round 2 always returns.
   throw new WriterError("The page could not be checked.");
+}
+
+/** The reader's language for the paper: the browser's own, which is what they read the app in. */
+function readerLanguage(): string | null {
+  return typeof navigator !== "undefined" && navigator.language ? navigator.language : null;
 }

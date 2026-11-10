@@ -32,6 +32,12 @@ describe("the prompt", () => {
     expect(message.indexOf("Reader: Vitor")).toBeLessThan(message.indexOf("<corpus>"));
   });
 
+  it("names the reader's language outside the corpus, and only when there is one", () => {
+    const message = userMessage("THE DIGEST", "Vitor", "pt-BR");
+    expect(message.indexOf("Language: pt-BR")).toBeLessThan(message.indexOf("<corpus>"));
+    expect(userMessage("THE DIGEST", "Vitor", null)).not.toMatch(/Language:/);
+  });
+
   it("the repair message lists every violation", () => {
     const text = repairMessage([{ kind: "QUOTE", detail: "not found verbatim", excerpt: "made up" }]);
     expect(text).toMatch(/- QUOTE: not found verbatim\n {2}made up/);

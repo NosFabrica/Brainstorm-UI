@@ -25,10 +25,16 @@ export function systemPrompt(): string {
  * The digest arrives in a delimited block, framed once in the system prompt as data.
  * The reader's name goes outside it: it is ours, not the corpus's.
  */
-export function userMessage(digest: string, readerName: string): string {
+/**
+ * The language goes here, never into the fixed brief: the brief says what to do when one is
+ * named (correction 9), this names it. A BCP 47 tag ("pt-BR"); models read those as well as names.
+ */
+export function userMessage(digest: string, readerName: string, language?: string | null): string {
+  const tag = language?.trim();
   return [
     `Masthead: ${MASTHEAD.name}`,
     `Reader: ${readerName}`,
+    ...(tag ? [`Language: ${tag}`] : []),
     "",
     "<corpus>",
     digest,
@@ -48,7 +54,7 @@ export function repairMessage(violations: Violation[]): string {
     "",
     "QUOTE: copy the words exactly from one event, or paraphrase without <q>/<blockquote>.",
     'IMAGE: use <img src="art-N"> ids from the shortlist only.',
-    "LINK: only the citation, watch, listing and calendar URL forms the brief allows.",
+    "LINK: only the citation, byline, watch, listing and calendar URL forms the brief allows.",
     "MARKUP: no scripts, forms, frames or handlers.",
     "",
     "Return the corrected complete HTML document and nothing else.",
