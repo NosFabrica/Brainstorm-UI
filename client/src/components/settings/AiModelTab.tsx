@@ -44,9 +44,16 @@ import { testAgentKey, updateAgentKeys } from "@/services/agentKeys";
 function testMessage(result: KeyTestResult): { ok: boolean; text: string } {
   switch (result.status) {
     case "ok":
+      if (result.unverified) {
+        return {
+          ok: true,
+          text: "The provider answered, but it doesn't check keys on this call. A wrong key will show up the first time an app uses it.",
+        };
+      }
+      if (result.models === null) return { ok: true, text: "It works." };
       return {
         ok: true,
-        text: result.models === null ? "It works." : `It works: ${result.models.toLocaleString()} models available.`,
+        text: `It works: ${result.models.toLocaleString()} ${result.models === 1 ? "model" : "models"} available.`,
       };
     case "rejected":
       return { ok: false, text: "The provider rejected this key. Check it and try again." };

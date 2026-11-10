@@ -167,9 +167,10 @@ describe("testing a key", () => {
     fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     expect(await service.testAgentKey(ollama)).toEqual({ status: "unreachable" });
 
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: "a" }] }), { status: 200 }));
-    expect(await service.testAgentKey(openRouter)).toEqual({ status: "ok", models: 1 });
-    expect(fetchMock.mock.calls[2][0]).toBe("https://openrouter.ai/api/v1/models");
+    // OpenRouter's model list is public, so the key is checked at `/key`, which describes it.
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { label: "sk-or-v1-abc" } }), { status: 200 }));
+    expect(await service.testAgentKey(openRouter)).toEqual({ status: "ok", models: null });
+    expect(fetchMock.mock.calls[2][0]).toBe("https://openrouter.ai/api/v1/key");
     vi.unstubAllGlobals();
   });
 });

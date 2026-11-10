@@ -132,11 +132,27 @@ describe("display", () => {
 
 describe("testing a key", () => {
   it("asks for the model list with the key as a bearer token, and no header without one", () => {
-    expect(modelsRequest(openRouter)).toEqual({
-      url: "https://openrouter.ai/api/v1/models",
-      headers: { Authorization: `Bearer ${openRouter.key}` },
+    expect(modelsRequest({ key: "sk-x", url: "https://api.openai.com/v1" })).toEqual({
+      url: "https://api.openai.com/v1/models",
+      headers: { Authorization: "Bearer sk-x" },
+      keyChecked: true,
     });
-    expect(modelsRequest(ollama)).toEqual({ url: "http://localhost:11434/v1/models", headers: {} });
+    expect(modelsRequest(ollama)).toEqual({ url: "http://localhost:11434/v1/models", headers: {}, keyChecked: true });
+  });
+
+  it("checks a key where the model list is public", () => {
+    // OpenRouter, Venice and NEAR list models for anyone; these calls 401 on a bad key.
+    expect(modelsRequest(openRouter).url).toBe("https://openrouter.ai/api/v1/key");
+    expect(modelsRequest({ key: "k", url: "https://api.venice.ai/api/v1" }).url).toBe(
+      "https://api.venice.ai/api/v1/api_keys/rate_limits",
+    );
+    expect(modelsRequest({ key: "k", url: "https://cloud-api.near.ai/v1" }).url).toBe(
+      "https://cloud-api.near.ai/v1/users/me",
+    );
+    // PPQ has no such call: it answers, but the key isn't checked.
+    const ppq = modelsRequest({ key: "k", url: "https://api.ppq.ai/v1" });
+    expect(ppq.keyChecked).toBe(false);
+    expect(readTestAnswer(200, { data: [{}] }, ppq.keyChecked)).toEqual({ status: "ok", models: 1, unverified: true });
   });
 
   it("tells Anthropic it is a web page calling it directly", () => {
@@ -153,5 +169,9 @@ describe("testing a key", () => {
     expect(readTestAnswer(401, null)).toEqual({ status: "rejected" });
     expect(readTestAnswer(403, null)).toEqual({ status: "rejected" });
     expect(readTestAnswer(404, null)).toEqual({ status: "failed", httpStatus: 404 });
+    // xAI and Gemini answer a bad key with 400.
+    expect(readTestAnswer(400, { error: "Incorrect API key provided." })).toEqual({ status: "rejected" });
+    expect(readTestAnswer(400, { error: { message: "Please pass a valid API key" } })).toEqual({ status: "rejected" });
+    expect(readTestAnswer(400, { error: "model is required" })).toEqual({ status: "failed", httpStatus: 400 });
   });
 });

@@ -98,11 +98,11 @@ export async function updateAgentKeys(change: (keys: AgentKey[]) => AgentKey[]):
  * fetch is a host that is down, wrong, or that doesn't let web pages call it.
  */
 export async function testAgentKey(entry: AgentKey, timeoutMs = 10_000): Promise<KeyTestResult> {
-  const { url, headers } = modelsRequest(entry);
+  const { url, headers, keyChecked } = modelsRequest(entry);
   try {
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
     const body = await response.json().catch(() => null);
-    return readTestAnswer(response.status, body);
+    return readTestAnswer(response.status, body, keyChecked);
   } catch {
     return { status: "unreachable" };
   }

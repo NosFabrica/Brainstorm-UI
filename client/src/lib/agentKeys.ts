@@ -87,6 +87,11 @@ export interface AgentPreset {
   recommended?: boolean;
   /** One line under the form when it matters. */
   note?: string;
+  /**
+   * The cheapest GET under `url` that fails on a bad key. Default `/models`; `null` where
+   * every free call answers without looking at the key (checked 2026-11-10).
+   */
+  keyCheckPath?: string | null;
 }
 
 /** Which providers the form offers. Only the URL is stored; this list is display. */
@@ -97,6 +102,8 @@ export const AGENT_PRESETS: AgentPreset[] = [
     url: "https://openrouter.ai/api/v1",
     recommended: true,
     note: "One key reaches every major model, and you can cap what it spends.",
+    // Its model list is public; `/key` describes the key and 401s on a bad one.
+    keyCheckPath: "/key",
   },
   {
     id: "anthropic",
@@ -107,9 +114,9 @@ export const AGENT_PRESETS: AgentPreset[] = [
   { id: "openai", name: "OpenAI", url: "https://api.openai.com/v1" },
   { id: "gemini", name: "Google Gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai" },
   { id: "routstr", name: "Routstr", url: "https://api.routstr.com/v1", note: "Paid with Cashu, no account." },
-  { id: "ppq", name: "PPQ.ai", url: "https://api.ppq.ai/v1", note: "Topped up with Lightning." },
-  { id: "venice", name: "Venice", url: "https://api.venice.ai/api/v1" },
-  { id: "near", name: "NEAR AI", url: "https://cloud-api.near.ai/v1" },
+  { id: "ppq", name: "PPQ.ai", url: "https://api.ppq.ai/v1", note: "Topped up with Lightning.", keyCheckPath: null },
+  { id: "venice", name: "Venice", url: "https://api.venice.ai/api/v1", keyCheckPath: "/api_keys/rate_limits" },
+  { id: "near", name: "NEAR AI", url: "https://cloud-api.near.ai/v1", keyCheckPath: "/users/me" },
   { id: "mistral", name: "Mistral", url: "https://api.mistral.ai/v1" },
   { id: "groq", name: "Groq", url: "https://api.groq.com/openai/v1" },
   { id: "xai", name: "xAI", url: "https://api.x.ai/v1" },
@@ -164,11 +171,24 @@ export function maskKey(key: string): string {
   return `${key.slice(0, 6)}…${key.slice(-4)}`;
 }
 
+function presetFor(url: string): AgentPreset | undefined {
+  const host = parseUrl(url)?.host;
+  return host ? AGENT_PRESETS.find((p) => p.url && parseUrl(p.url)?.host === host) : undefined;
+}
+
 /**
- * The request that tests a key: `GET <url>/models`. Anthropic only answers a web
- * page that says it means to call it directly, and wants a version.
+ * The request that tests a key: the preset's `keyCheckPath`, else `GET <url>/models`.
+ * `keyChecked` is false for a provider whose free calls ignore the key. Anthropic only
+ * answers a web page that says it means to call it directly, and wants a version.
  */
-export function modelsRequest(entry: AgentKey): { url: string; headers: Record<string, string> } {
+export function modelsRequest(entry: AgentKey): {
+  url: string;
+  headers: Record<string, string>;
+  keyChecked: boolean;
+} {
+  const preset = presetFor(entry.url);
+  const path = preset?.keyCheckPath ?? "/models";
+  const keyChecked = preset?.keyCheckPath !== null;
   const headers: Record<string, string> = {};
   if (entry.key) headers.Authorization = `Bearer ${entry.key}`;
   if (parseUrl(entry.url)?.host === "api.anthropic.com") {
@@ -176,19 +196,24 @@ export function modelsRequest(entry: AgentKey): { url: string; headers: Record<s
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   }
-  return { url: `${entry.url}/models`, headers };
+  return { url: `${entry.url}${path}`, headers, keyChecked };
 }
 
 export type KeyTestResult =
-  | { status: "ok"; models: number | null }
+  | { status: "ok"; models: number | null; unverified?: boolean }
   | { status: "rejected" }
   | { status: "failed"; httpStatus: number }
   | { status: "unreachable" };
 
-/** What an answer to `modelsRequest` means. */
-export function readTestAnswer(httpStatus: number, body: unknown): KeyTestResult {
+/**
+ * What an answer to `modelsRequest` means. xAI and Gemini answer a bad key with a 400
+ * that says so, which counts as rejected.
+ */
+export function readTestAnswer(httpStatus: number, body: unknown, keyChecked = true): KeyTestResult {
   if (httpStatus === 401 || httpStatus === 403) return { status: "rejected" };
+  if (httpStatus === 400 && /api key/i.test(JSON.stringify(body ?? ""))) return { status: "rejected" };
   if (httpStatus < 200 || httpStatus >= 300) return { status: "failed", httpStatus };
   const data = (body as { data?: unknown } | null)?.data ?? (body as { models?: unknown } | null)?.models;
-  return { status: "ok", models: Array.isArray(data) ? data.length : null };
+  const models = Array.isArray(data) ? data.length : null;
+  return keyChecked ? { status: "ok", models } : { status: "ok", models, unverified: true };
 }
