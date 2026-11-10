@@ -499,6 +499,12 @@ function KeyEntry({
           {testing ? "Checking…" : (caption?.text ?? error)}
         </p>
       )}
+      {/* NIP-FA asks clients to say this where the key goes in, until the check speaks. */}
+      {!testing && !caption && !error && !preset.keyless && (
+        <p className="text-xs text-muted-foreground" data-testid="ai-model-budget-hint">
+          Use a key with a budget limit
+        </p>
+      )}
 
       <Button
         className="w-full sm:w-auto sm:self-end"

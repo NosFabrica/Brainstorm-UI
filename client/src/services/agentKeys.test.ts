@@ -92,7 +92,8 @@ describe("saving the first key", () => {
 
     expect(res.success).toBe(true);
     expect(published().kind).toBe(12000);
-    expect(published().tags).toEqual([["alt", "AI agent keys (encrypted)"]]);
+    // The older copy's `alt` (NIP-31, unrecommended) is not carried forward.
+    expect(published().tags).toEqual([]);
     expect(JSON.stringify(published())).not.toContain(openRouter.key);
     expect(decrypted()).toEqual([["key", openRouter.key, openRouter.url]]);
   });
@@ -130,7 +131,7 @@ describe("editing an existing event", () => {
       ["key", openRouter.key, openRouter.url],
       ["model", "anthropic/claude"],
     ]);
-    expect(published().tags).toEqual([["alt", "AI agent keys (encrypted)"], ["-"]]);
+    expect(published().tags).toEqual([["-"]]);
     expect(published().created_at).toBe(before.created_at + 1);
   });
 

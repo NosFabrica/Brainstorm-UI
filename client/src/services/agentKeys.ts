@@ -12,7 +12,6 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 import { requestNewestWithReach } from "@/lib/relayRequest";
 import { outboxRelays } from "@/lib/relayRouting";
 import {
-  AGENT_KEYS_ALT,
   AGENT_KEYS_KIND,
   decodePrivateTags,
   modelsRequest,
@@ -78,11 +77,13 @@ export async function updateAgentKeys(change: (keys: AgentKey[]) => AgentKey[]):
     const ciphertext = await encryptToSelf(account, JSON.stringify(next));
     if (!ciphertext) return { success: false, error: "Could not encrypt" };
 
+    // NIP-FA needs no public tags; an `alt` an older version carried (NIP-31, unrecommended)
+    // is dropped, anything else (NIP-70's `["-"]`) kept.
     const publicTags = newest?.tags.filter((t) => t[0] !== "alt") ?? [];
     const now = Math.floor(Date.now() / 1000);
     const signed = await signAs(account, {
       kind: AGENT_KEYS_KIND,
-      tags: [["alt", AGENT_KEYS_ALT], ...publicTags],
+      tags: publicTags,
       content: ciphertext,
       // Past the copy we read, so relays keep this one even when this clock lags.
       created_at: newest ? Math.max(now, newest.created_at + 1) : now,

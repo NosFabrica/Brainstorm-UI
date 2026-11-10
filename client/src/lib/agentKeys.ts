@@ -12,7 +12,6 @@
  */
 
 export const AGENT_KEYS_KIND = 12000;
-export const AGENT_KEYS_ALT = "AI agent keys (encrypted)";
 const KEY_TAG = "key";
 
 export interface AgentKey {
