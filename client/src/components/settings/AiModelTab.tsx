@@ -314,12 +314,15 @@ function KeyEntry({
   initialError,
   busy,
   onSave,
+  onChange,
 }: {
   preset: AgentPreset;
   initialKey: string;
   initialError: string | null;
   busy: boolean;
   onSave: (entry: AgentKey) => Promise<boolean>;
+  /** Back to the provider grid; the typed key goes with this panel. */
+  onChange: () => void;
 }) {
   const [customUrl, setCustomUrl] = useState("");
   const [key, setKey] = useState(initialKey);
@@ -373,8 +376,16 @@ function KeyEntry({
 
   return (
     <div className="flex flex-col gap-3" data-testid="ai-model-add">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-display text-base font-semibold text-foreground">{preset.name}</span>
+      <div className="flex items-center gap-3">
+        <Monogram preset={preset} name={preset.name} lit />
+        <span className="min-w-0 flex-1 truncate font-display text-base font-semibold text-foreground">
+          {preset.name}
+        </span>
+        <Button variant="ghost" size="sm" onClick={onChange} data-testid="ai-model-change">
+          Change
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 empty:hidden">
         {preset.hint && (
           <Chip tone="slate" size="sm">
             {preset.hint}
@@ -400,7 +411,7 @@ function KeyEntry({
             href={preset.keyPage}
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-brand-link hover:bg-muted"
+            className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-brand-link hover:bg-muted"
             data-testid="ai-model-get-key"
           >
             Get a key <ArrowUpRight className="h-3 w-3" />
@@ -584,6 +595,7 @@ export function AiModelTab() {
   const [removing, setRemoving] = useState<AgentKey | null>(null);
   // What "Connect OpenRouter" brought back, if the user just returned from it.
   const [arrived] = useState(peekHandoff);
+  const [handoff, setHandoff] = useState(arrived);
   const [adding, setAdding] = useState(!!arrived);
   const [picked, setPicked] = useState<string | null>(arrived ? OPENROUTER_ID : null);
   const openRouter = useOpenRouterConnect();
@@ -691,42 +703,48 @@ export function AiModelTab() {
           {canEdit && adding && (
             <motion.div {...addEnter} key="add">
               <Card className="flex flex-col gap-4 p-4 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">Pick a provider</h3>
-                  {saved.length === 0 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setAdding(false)}
-                      aria-label="Close"
-                    >
-                      <X />
-                    </Button>
-                  )}
-                </div>
-                <div className="pt-2">
-                  <ProviderGrid selected={picked} onPick={setPicked} />
-                </div>
-                {preset && (
-                  <div className="border-t border-border pt-4">
-                    <KeyEntry
-                      key={preset.id}
-                      preset={preset}
-                      initialKey={arrived && "key" in arrived && preset.id === OPENROUTER_ID ? arrived.key : ""}
-                      initialError={
-                        arrived && "error" in arrived && preset.id === OPENROUTER_ID
-                          ? CONNECT_ERROR_TEXT[arrived.error]
-                          : null
-                      }
-                      busy={busy}
-                      onSave={async (entry) => {
-                        const ok = await apply((cur) => addKey(cur, entry), "Key saved");
-                        if (ok) setAdding(false);
-                        return ok;
-                      }}
-                    />
-                  </div>
+                {preset ? (
+                  <KeyEntry
+                    key={preset.id}
+                    preset={preset}
+                    initialKey={handoff && "key" in handoff && preset.id === OPENROUTER_ID ? handoff.key : ""}
+                    initialError={
+                      handoff && "error" in handoff && preset.id === OPENROUTER_ID
+                        ? CONNECT_ERROR_TEXT[handoff.error]
+                        : null
+                    }
+                    busy={busy}
+                    onChange={() => {
+                      // What OpenRouter handed over belongs to the panel it arrived in.
+                      setHandoff(null);
+                      setPicked(null);
+                    }}
+                    onSave={async (entry) => {
+                      const ok = await apply((cur) => addKey(cur, entry), "Key saved");
+                      if (ok) setAdding(false);
+                      return ok;
+                    }}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-foreground">Pick a provider</h3>
+                      {saved.length === 0 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setAdding(false)}
+                          aria-label="Close"
+                        >
+                          <X />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="pt-2">
+                      <ProviderGrid selected={picked} onPick={setPicked} />
+                    </div>
+                  </>
                 )}
               </Card>
             </motion.div>

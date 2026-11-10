@@ -135,6 +135,22 @@ describe("AiModelTab", () => {
     expect(change([])).toEqual([{ key: SECRET, url: OPENROUTER }]);
   });
 
+  it("folds the grid away once a provider is picked, and Change brings it back empty", () => {
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+    pick("openai");
+
+    expect(screen.queryByTestId("ai-model-provider")).toBeNull();
+    fireEvent.change(screen.getByTestId("ai-model-key"), { target: { value: "sk-typed" } });
+    fireEvent.click(screen.getByTestId("ai-model-change"));
+
+    expect(screen.getByTestId("ai-model-provider")).toBeTruthy();
+    expect(screen.queryByTestId("ai-model-key")).toBeNull();
+    expect(screen.getByTestId("ai-model-tile-openai").getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByTestId("ai-model-tile-openai"));
+    expect((screen.getByTestId("ai-model-key") as HTMLInputElement).value).toBe("");
+  });
+
   it("won't save a key the provider rejected", async () => {
     testAgentKey.mockResolvedValue({ status: "rejected" });
     state.mockReturnValue({ status: "none" });
