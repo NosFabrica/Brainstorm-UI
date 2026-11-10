@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Smartphone,
   ListChecks,
+  Newspaper,
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { PovToggle } from "@/components/score/TrustScorePov";
@@ -449,6 +450,9 @@ export function AccountMenuBody({
           trust product. So: the user's own state first, then the one offer,
           then growth, then utilities.
 
+          0. Front page — today's paper, written from the user's own web of
+             trust by their own AI. Theirs before anything else, and above
+             Insights so the Insights → Get Priority pair below stays adjacent.
           1. Insights — the thing you CHECK, and the most-opened row here. Also
              the only always-on door to the account page: the dashboard link is
              11px and gated behind NIP-85 activation.
@@ -464,6 +468,12 @@ export function AccountMenuBody({
              Settings: both are about the account itself, and it's the way back
              to /setup once the header pill has gone — until nothing remains. */}
       <div className="p-1.5">
+        <MenuRow
+          icon={Newspaper}
+          label="Front page"
+          onClick={() => onNavigate("/front-page")}
+          testId="dropdown-front-page"
+        />
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
         {isFree && billingAvailable !== false && (
           // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,

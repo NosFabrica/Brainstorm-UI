@@ -73,6 +73,7 @@ const HopsPathPage = lazyWithReload(() => import("@/pages/HopsPathPage"));
 const HowSearchWorksPage = lazyWithReload(() => import("@/pages/HowSearchWorksPage"));
 const HowTagsWorkPage = lazyWithReload(() => import("@/pages/HowTagsWorkPage"));
 const InsightsPage = lazyWithReload(() => import("@/pages/InsightsPage"));
+const FrontPagePage = lazyWithReload(() => import("@/pages/FrontPagePage"));
 const LoginPage = lazyWithReload(() => import("@/pages/LoginPage"));
 const MyTagsPage = lazyWithReload(() => import("@/pages/MyTagsPage"));
 // Dev only: `import.meta.env.DEV` is false in a production build, so this and its chunk drop out.
@@ -247,6 +248,7 @@ function Router() {
             <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
             <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
             <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
+            <Route path="/front-page">{() => <RequireAuth component={FrontPagePage} />}</Route>
             <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
             <Route path="/messages">{() => <RequireAuth component={MessagesPage} />}</Route>
             <Route path="/messages/:slug">{() => <RequireAuth component={MessagesPage} />}</Route>
