@@ -41,11 +41,40 @@ export async function loadAgentKeys(pubkey: string, timeoutMs = 6000): Promise<N
   return event ?? (eventStore.getReplaceable(AGENT_KEYS_KIND, pubkey) as NostrEvent | undefined);
 }
 
-/** The event's private tags, decrypted; null when this Account can't read them. */
-export async function decryptAgentKeyTags(account: BrainstormAccount, event: NostrEvent): Promise<string[][] | null> {
-  if (event.pubkey !== account.pubkey || !event.content) return null;
-  const plain = await decryptFromSelf(account, event.content);
-  return plain === null ? null : decodePrivateTags(plain);
+/**
+ * Decrypts by event id: the ones read (an extension or bunker asks its user each time),
+ * and the ones still out, which a second ask joins instead of starting another. A read
+ * that came to nothing isn't kept, so asking again (Unlock) tries again.
+ */
+const readKeys = new Map<string, string[][]>();
+const readingKeys = new Map<string, Promise<string[][] | null>>();
+const MAX_READ = 8;
+
+/** The event's private tags, decrypted; null when this Account can't read them. One decrypt per event. */
+export function decryptAgentKeyTags(account: BrainstormAccount, event: NostrEvent): Promise<string[][] | null> {
+  if (event.pubkey !== account.pubkey || !event.content) return Promise.resolve(null);
+  const done = readKeys.get(event.id);
+  if (done) return Promise.resolve(done);
+  const out = readingKeys.get(event.id);
+  if (out) return out;
+  const read = decryptFromSelf(account, event.content)
+    .then((plain) => (plain === null ? null : decodePrivateTags(plain)))
+    .then(
+      (tags) => {
+        readingKeys.delete(event.id);
+        if (tags) {
+          readKeys.set(event.id, tags);
+          if (readKeys.size > MAX_READ) readKeys.delete(readKeys.keys().next().value!);
+        }
+        return tags;
+      },
+      (error) => {
+        readingKeys.delete(event.id);
+        throw error;
+      },
+    );
+  readingKeys.set(event.id, read);
+  return read;
 }
 
 /**

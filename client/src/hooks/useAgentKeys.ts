@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { canSignSilently } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -37,20 +37,23 @@ export function useAgentKeys(): AgentKeysState & { reveal: () => void } {
     value: { status: "loading" },
   });
 
+  // The decrypt keys on whose keys and which event, never on the ask settling: an EOSE
+  // landing while a decrypt is out (an extension prompt open) must not start a second.
+  const accountRef = useRef(account);
+  accountRef.current = account;
+  const own = event && event.pubkey === pubkey ? event : undefined;
   useEffect(() => {
+    const acct = accountRef.current;
+    if (!acct || !own) return;
     const set = (value: AgentKeysState) => setState({ pubkey, value });
-    if (!account || !event || event.pubkey !== account.pubkey) {
-      set(list.settled ? { status: "none" } : { status: "loading" });
-      return;
-    }
     let live = true;
     void (async () => {
-      if (askCount === 0 && !(await canSignSilently(account))) {
+      if (askCount === 0 && !(await canSignSilently(acct))) {
         if (live) set({ status: "locked" });
         return;
       }
       try {
-        const tags = await decryptAgentKeyTags(account, event);
+        const tags = await decryptAgentKeyTags(acct, own);
         if (live) set(tags ? { status: "ready", keys: parseAgentKeys(tags) } : { status: "unreadable" });
       } catch {
         // They declined to unlock: still locked, not unreadable.
@@ -60,9 +63,11 @@ export function useAgentKeys(): AgentKeysState & { reveal: () => void } {
     return () => {
       live = false;
     };
-  }, [account, event?.id, list.settled, askCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pubkey, own?.id, askCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reveal = useCallback(() => setAsks((a) => ({ pubkey, n: (a.pubkey === pubkey ? a.n : 0) + 1 })), [pubkey]);
-  const value = state.pubkey === pubkey ? state.value : { status: "loading" as const };
+  let value: AgentKeysState;
+  if (!own) value = list.settled ? { status: "none" } : { status: "loading" };
+  else value = state.pubkey === pubkey ? state.value : { status: "loading" };
   return { ...value, reveal };
 }

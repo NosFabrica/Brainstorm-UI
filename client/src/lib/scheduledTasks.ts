@@ -4,7 +4,7 @@
  * are public (`event.tags`) or private (`content`: a NIP-44 ciphertext, by the author to
  * themselves, of a JSON array of tags), and readers use both:
  *
- *   ["task", "observer"]   ["cron", "0 6 * * 1-5", "America/New_York"]   ["paused"]
+ *   ["task", "observer"]   ["cron", "0 6 * * 1-5", "America/New_York", "<set at>"]   ["paused"]
  *   ["claim", "<due unix>", "<install id>", "<device name>", "<claimed at>"]   ["ran", "<unix>"]
  *
  * and any other tag is one of the task's own options. `cron` is a POSIX five-field
@@ -56,6 +56,11 @@ export interface ScheduledTask {
   cron: string | null;
   /** The `cron` tag's zone, when this browser knows it; null otherwise. */
   tz: string | null;
+  /**
+   * Unix seconds `cron` was last set (its fourth value; 0 when absent). Changing `cron` or
+   * removing `paused` sets it, and no occurrence due before it is ever reported missed.
+   */
+  setAt: number;
   /** Null when absent or malformed: nothing has claimed an occurrence yet. */
   claim: TaskClaim | null;
   /** Unix seconds the claimed occurrence finished; null when absent. */
@@ -103,6 +108,7 @@ export function readTask(tags: TaskTags): ScheduledTask {
     enabled: !merged(tags).some((t) => t[0] === "paused"),
     cron: typeof cron?.[1] === "string" ? cron[1] : null,
     tz: cron?.[2] && isValidTimeZone(cron[2]) ? cron[2] : null,
+    setAt: seconds(cron?.[3]) ?? 0,
     claim: readClaim(first(tags, "claim")),
     ran: seconds(first(tags, "ran")?.[1]),
   };
@@ -143,7 +149,8 @@ const FIELD_RANGES: [number, number][] = [
 ];
 
 // `*`, `n` or `a-b`, each optionally `/step` — except a bare number (`a/n` is not in the NIP).
-const ELEMENT = /^(?:\*|(\d{1,2})(?:-(\d{1,2}))?)(?:\/(\d{1,2}))?$/;
+// Any number of digits: `06` is 6, and the range check, not the pattern, rejects `060`.
+const ELEMENT = /^(?:\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/;
 
 function parseField(text: string, min: number, max: number): boolean[] | null {
   const allowed = new Array<boolean>(max + 1).fill(false);
@@ -195,10 +202,14 @@ function dayMatches(cron: Cron, m: number, d: number, wd: number): boolean {
 
 // --- time zones ---------------------------------------------------------------------
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
+
+const wallFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatterFor(tz: string): Intl.DateTimeFormat {
-  let f = formatters.get(tz);
+  let f = wallFormatters.get(tz);
   if (!f) {
     f = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
@@ -210,7 +221,7 @@ function formatterFor(tz: string): Intl.DateTimeFormat {
       minute: "2-digit",
       second: "2-digit",
     });
-    formatters.set(tz, f);
+    wallFormatters.set(tz, f);
   }
   return f;
 }
@@ -234,8 +245,14 @@ function wallAt(instant: number, tz: string): number {
   return Date.UTC(w.y, w.m - 1, w.d, w.hh, w.mm);
 }
 
-const HALF_DAY = 43_200_000;
-const DAY = 86_400_000;
+/**
+ * A wall time's instant is that time written as UTC, less the offset in force then. No zone
+ * is more than 14 h ahead of UTC (Kiribati; Chatham is 13:45 in summer, Auckland 13) or 12 h
+ * behind it, so the instant lies in [wall − 14 h, wall + 12 h]. The offsets just outside
+ * that window are the ones before and after any change inside it.
+ */
+const AHEAD = 15 * HOUR;
+const BEHIND = 13 * HOUR;
 
 /**
  * The instant `hh:mm` falls on the calendar day `y-m-d` in `tz`, as NIP-FB reads it: a
@@ -244,21 +261,32 @@ const DAY = 86_400_000;
  */
 function zonedInstant(y: number, m: number, d: number, hh: number, mm: number, tz: string): number {
   const asUtc = Date.UTC(y, m - 1, d, hh, mm);
-  // Every offset the zone uses around that day: at most two, before and after a change.
-  const offsets = [zoneOffset(asUtc - HALF_DAY, tz), zoneOffset(asUtc, tz), zoneOffset(asUtc + HALF_DAY, tz)];
+  const offsets = [zoneOffset(asUtc - AHEAD, tz), zoneOffset(asUtc, tz), zoneOffset(asUtc + BEHIND, tz)];
   const candidates = [...new Set(offsets.map((o) => asUtc - o))].sort((a, b) => a - b);
+  // The earliest instant that reads as this time: a repeated time's first occurrence.
   const exact = candidates.find((c) => wallAt(c, tz) === asUtc);
   if (exact !== undefined) return exact;
   // Skipped: the clock reads before it at the earliest candidate and after it at the
   // latest. Changes happen on a minute, so search the minutes between.
   let lo = candidates[0];
   let hi = candidates[candidates.length - 1];
-  while (hi - lo > 60_000) {
-    const mid = lo + Math.floor((hi - lo) / 120_000) * 60_000;
+  while (hi - lo > MINUTE) {
+    const mid = lo + Math.floor((hi - lo) / (2 * MINUTE)) * MINUTE;
     if (wallAt(mid, tz) >= asUtc) hi = mid;
     else lo = mid;
   }
   return hi;
+}
+
+/**
+ * The one offset `tz` keeps for every wall time on the calendar day `y-m-d`, or null when it
+ * changes around that day. Most days have one, and then each of the day's times is a
+ * subtraction, not a search.
+ */
+function dayOffset(y: number, m: number, d: number, tz: string): number | null {
+  const start = Date.UTC(y, m - 1, d);
+  const before = zoneOffset(start - AHEAD, tz);
+  return before === zoneOffset(start + DAY + BEHIND, tz) ? before : null;
 }
 
 const indices = (allowed: boolean[]) => allowed.flatMap((on, i) => (on ? [i] : []));
@@ -266,14 +294,16 @@ const indices = (allowed: boolean[]) => allowed.flatMap((on, i) => (on ? [i] : [
 /** Far enough to find a 29 February past a skipped leap year (2096 → 2104). */
 const HORIZON_DAYS = 366 * 8 + 2;
 /** No zone's clock moves by more than this in one change: a wall time this far before now can't be after it. */
-const MAX_SHIFT = 3 * 3_600_000;
+const MAX_SHIFT = 3 * HOUR;
+
+const asCron = (expr: string | Cron | null) => (typeof expr === "string" || expr === null ? parseCron(expr) : expr);
 
 /**
  * The next instant after `now` the expression matches, read in `tz`; null when it never
  * matches (`0 6 31 2 *`) or isn't an expression.
  */
 export function nextCronAt(expr: string | Cron | null, tz: string, now: number): number | null {
-  const cron = typeof expr === "string" || expr === null ? parseCron(expr) : expr;
+  const cron = asCron(expr);
   if (!cron) return null;
   const hours = indices(cron.hour);
   const minutes = indices(cron.minute);
@@ -286,10 +316,12 @@ export function nextCronAt(expr: string | Cron | null, tz: string, now: number):
     const m = date.getUTCMonth() + 1;
     const d = date.getUTCDate();
     if (!dayMatches(cron, m, d, date.getUTCDay())) continue;
+    const fixed = dayOffset(y, m, d, tz);
     for (const hh of hours) {
       for (const mm of minutes) {
-        if (Date.UTC(y, m - 1, d, hh, mm) < nowWall - MAX_SHIFT) continue;
-        const at = zonedInstant(y, m, d, hh, mm, tz);
+        const wall = Date.UTC(y, m - 1, d, hh, mm);
+        if (wall < nowWall - MAX_SHIFT) continue;
+        const at = fixed !== null ? wall - fixed : zonedInstant(y, m, d, hh, mm, tz);
         if (at > now) return at;
       }
     }
@@ -303,7 +335,7 @@ export function nextCronAt(expr: string | Cron | null, tz: string, now: number):
  * expression.
  */
 export function prevCronAt(expr: string | Cron | null, tz: string, now: number): number | null {
-  const cron = typeof expr === "string" || expr === null ? parseCron(expr) : expr;
+  const cron = asCron(expr);
   if (!cron) return null;
   const hours = indices(cron.hour).reverse();
   const minutes = indices(cron.minute).reverse();
@@ -315,10 +347,12 @@ export function prevCronAt(expr: string | Cron | null, tz: string, now: number):
     const m = date.getUTCMonth() + 1;
     const d = date.getUTCDate();
     if (!dayMatches(cron, m, d, date.getUTCDay())) continue;
+    const fixed = dayOffset(y, m, d, tz);
     for (const hh of hours) {
       for (const mm of minutes) {
-        if (Date.UTC(y, m - 1, d, hh, mm) > nowWall + MAX_SHIFT) continue;
-        const at = zonedInstant(y, m, d, hh, mm, tz);
+        const wall = Date.UTC(y, m - 1, d, hh, mm);
+        if (wall > nowWall + MAX_SHIFT) continue;
+        const at = fixed !== null ? wall - fixed : zonedInstant(y, m, d, hh, mm, tz);
         if (at <= now) return at;
       }
     }
@@ -329,15 +363,18 @@ export function prevCronAt(expr: string | Cron | null, tz: string, now: number):
 // --- liveness (NIP-FB: who last ran it, and a warning for a missed run) ------------
 
 /** NIP-FB: how long an occurrence has to run before a `ran` older than it is worth a warning. */
-export const MISSED_RUN_GRACE_MS = 3 * 3_600_000;
+export const MISSED_RUN_GRACE_MS = 3 * HOUR;
 
 /**
  * The newest occurrence that was due more than three hours before `now`; null when the
- * task doesn't run (off, or no usable schedule).
+ * task doesn't run (off, or no usable schedule), or when that occurrence came before
+ * `cron` was last set (NIP-FB: due before it, or while paused, is never missed; resuming
+ * sets it too).
  */
 export function lastDue(task: ScheduledTask, now: number): number | null {
   if (!task.enabled || !task.tz) return null;
-  return prevCronAt(task.cron, task.tz, now - MISSED_RUN_GRACE_MS - 1);
+  const due = prevCronAt(task.cron, task.tz, now - MISSED_RUN_GRACE_MS - 1);
+  return due !== null && due >= task.setAt * 1000 ? due : null;
 }
 
 export interface MissedRun {
@@ -369,7 +406,7 @@ export interface SimpleShape {
   dow: boolean[];
 }
 
-const NUMBER = /^\d{1,2}$/;
+const NUMBER = /^\d+$/;
 
 /** The expression as a time and weekdays, or null when it says more than that (NIP-FB: show it as it is). */
 export function simpleShape(expr: string | null | undefined): SimpleShape | null {
@@ -408,32 +445,71 @@ export interface LocalSimple {
 const hhmm = (h: number, m: number) => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
 /**
+ * The next occurrence at the expression's own wall time `hour:minute`: one no
+ * daylight-saving change moved. A gap day's run is at the jump, which is not the time the
+ * schedule says.
+ */
+function unmovedOccurrence(cron: Cron, tz: string, hour: number, minute: number, now: number): number | null {
+  let from = now;
+  for (let i = 0; i < 16; i++) {
+    const at = nextCronAt(cron, tz, from);
+    if (at === null) return null;
+    const w = wallClock(at, tz);
+    if (w.hh === hour && w.mm === minute) return at;
+    from = at;
+  }
+  return null;
+}
+
+/** Whole days the viewer's calendar is ahead of the schedule's at `instant`: -1, 0 or 1. */
+function dayShift(instant: number, tz: string, viewerTz: string): number {
+  const there = wallClock(instant, tz);
+  const here = wallClock(instant, viewerTz);
+  return Math.round((Date.UTC(here.y, here.m - 1, here.d) - Date.UTC(there.y, there.m - 1, there.d)) / DAY);
+}
+
+const shiftDays = (dow: boolean[], shift: number) => WEEKDAYS.filter((_, i) => dow[(((i - shift) % 7) + 7) % 7]);
+
+/**
  * The schedule in `viewerTz`'s terms, when it is simple: the time on the viewer's clock,
  * and the weekdays it falls on there (22:00 Monday in New York is Tuesday morning in
- * Tokyo). Null when it isn't a simple shape, or has no zone.
+ * Tokyo). On the schedule's own clock that is the expression's own fields; on another, both
+ * come from one occurrence no daylight-saving change moved, so the time is the one the
+ * schedule says and the weekday is that run's. Null when it isn't a simple shape, or has
+ * no zone.
  */
 export function localSimple(task: ScheduledTask, viewerTz: string, now: number): LocalSimple | null {
   const shape = simpleShape(task.cron);
   if (!shape || !task.tz) return null;
-  const at = nextCronAt(`${shape.minute} ${shape.hour} * * *`, task.tz, now);
+  if (viewerTz === task.tz) return { time: hhmm(shape.hour, shape.minute), days: shiftDays(shape.dow, 0) };
+  const at = unmovedOccurrence(parseCron(task.cron)!, task.tz, shape.hour, shape.minute, now);
   if (at === null) return null;
-  const there = wallClock(at, task.tz);
   const here = wallClock(at, viewerTz);
-  // How many days the viewer's calendar is ahead at that moment: -1, 0 or 1.
-  const shift = Math.round((Date.UTC(here.y, here.m - 1, here.d) - Date.UTC(there.y, there.m - 1, there.d)) / DAY);
-  return {
-    time: hhmm(here.hh, here.mm),
-    days: WEEKDAYS.filter((_, i) => shape.dow[(((i - shift) % 7) + 7) % 7]),
-  };
+  return { time: hhmm(here.hh, here.mm), days: shiftDays(shape.dow, dayShift(at, task.tz, viewerTz)) };
 }
 
 // --- edits: each returns new tags, the rest where they were ------------------------
 
-/** Running: no `paused` tag on either side. Paused: one, private unless one was there. */
-export function setEnabled(tags: TaskTags, enabled: boolean): TaskTags {
+const unix = (ms: number) => String(Math.floor(ms / 1000));
+
+/** The `cron` tag with its fourth value, when it was last set, at `now`; the values after it kept. */
+function stampCron(tags: TaskTags, now: number): TaskTags {
+  return putTag(tags, "cron", (old) =>
+    !old || old.length < 2 ? (old ?? ["cron"]) : ["cron", old[1], old[2] ?? "", unix(now), ...old.slice(4)],
+  );
+}
+
+/**
+ * Running: no `paused` tag on either side, and, when one was there, `cron` marked as set
+ * `now` (NIP-FB: the mornings it was paused for are not missed ones). Paused: one, private
+ * unless one was there.
+ */
+export function setEnabled(tags: TaskTags, enabled: boolean, now: number): TaskTags {
   if (enabled) {
+    if (!merged(tags).some((t) => t[0] === "paused")) return tags;
     const keep = (list: string[][]) => list.filter((t) => t[0] !== "paused");
-    return { public: keep(tags.public), private: keep(tags.private) };
+    const resumed = { public: keep(tags.public), private: keep(tags.private) };
+    return merged(resumed).some((t) => t[0] === "cron") ? stampCron(resumed, now) : resumed;
   }
   return putTag(tags, "paused", (old) => old ?? ["paused"]);
 }
@@ -441,15 +517,18 @@ export function setEnabled(tags: TaskTags, enabled: boolean): TaskTags {
 /**
  * The schedule as a time and weekdays on the editor's clock: the `cron` tag becomes
  * `M H * * <days>` in the editor's zone (NIP-FB: the zone of whoever last set it), on its
- * own side, with any values after the zone kept.
+ * own side, set `now`, with any values after that kept. The same expression in the same
+ * zone is no change, and keeps the tag as it was.
  */
-export function setSimpleSchedule(tags: TaskTags, simple: LocalSimple, tz: string): TaskTags {
+export function setSimpleSchedule(tags: TaskTags, simple: LocalSimple, tz: string, now: number): TaskTags {
   const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(simple.time);
   if (!m) throw new RangeError(`Not a time: ${simple.time}`);
   if (!isValidTimeZone(tz)) throw new RangeError(`Not a time zone: ${tz}`);
   if (simple.days.length === 0) throw new RangeError("Pick at least one day.");
   const expr = `${Number(m[2])} ${Number(m[1])} * * ${dowField(simple.days)}`;
-  return putTag(tags, "cron", (old) => ["cron", expr, tz, ...(old?.slice(3) ?? [])]);
+  return putTag(tags, "cron", (old) =>
+    old && old[1] === expr && old[2] === tz ? old : ["cron", expr, tz, unix(now), ...(old?.slice(4) ?? [])],
+  );
 }
 
 /** The task named, when no `task` tag says what it is (NIP-FB requires one). */
@@ -498,6 +577,21 @@ export function nextRunAt(task: ScheduledTask, now: number): number | null {
 
 // --- display ------------------------------------------------------------------------
 
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** One `Intl.DateTimeFormat` per locale and options: making one costs far more than using it. */
+function dtf(locale: string | undefined, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale ?? ""}|${JSON.stringify(options)}`;
+  let f = dateFormats.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, options);
+    dateFormats.set(key, f);
+  }
+  return f;
+}
+
+const zoned = (tz: string | undefined) => (tz ? { timeZone: tz } : {});
+
 const WEEKDAY_SET: readonly Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
 const WEEKEND_SET: readonly Weekday[] = ["sun", "sat"];
 const sameDays = (a: readonly Weekday[], b: readonly Weekday[]) =>
@@ -506,11 +600,19 @@ const sameDays = (a: readonly Weekday[], b: readonly Weekday[]) =>
 /** Monday first, as a week reads. */
 export const WEEK_ORDER: readonly Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
+const weekdayNames = new Map<string, string[]>();
+
 /** A weekday's name in the reader's language; `style` as Intl's `weekday`. */
 export function weekdayName(day: Weekday, style: "narrow" | "short" | "long" = "short", locale?: string): string {
-  // 2024-01-07 was a Sunday.
-  const date = new Date(Date.UTC(2024, 0, 7 + WEEKDAYS.indexOf(day)));
-  return new Intl.DateTimeFormat(locale, { weekday: style, timeZone: "UTC" }).format(date);
+  const key = `${locale ?? ""}|${style}`;
+  let names = weekdayNames.get(key);
+  if (!names) {
+    const f = new Intl.DateTimeFormat(locale, { weekday: style, timeZone: "UTC" });
+    // 2024-01-07 was a Sunday.
+    names = WEEKDAYS.map((_, i) => f.format(new Date(Date.UTC(2024, 0, 7 + i))));
+    weekdayNames.set(key, names);
+  }
+  return names[WEEKDAYS.indexOf(day)];
 }
 
 /** How the days read: `every`, `weekdays`, `weekends`, or the days themselves (`Mon, Wed, Fri`). */
@@ -525,20 +627,42 @@ export function describeDays(days: readonly Weekday[], locale?: string): string 
 
 /** `6:00 AM` (or the viewer's own convention) for an instant, in the viewer's zone unless `tz` is given. */
 export function formatClock(instant: number, tz?: string, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-    ...(tz ? { timeZone: tz } : {}),
-  }).format(new Date(instant));
+  return dtf(locale, { hour: "numeric", minute: "2-digit", ...zoned(tz) }).format(new Date(instant));
+}
+
+/** `6:00 AM` for a time of day, `HH:MM` or hours and minutes, as the viewer writes times. */
+export function formatTimeOfDay(time: string | { hh: number; mm: number }, locale?: string): string {
+  const { hh, mm } = typeof time === "string" ? { hh: Number(time.slice(0, 2)), mm: Number(time.slice(3, 5)) } : time;
+  return dtf(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(
+    new Date(Date.UTC(2024, 0, 1, hh, mm)),
+  );
 }
 
 /** `Thu 6:00 AM`: an instant within the week ahead, in the viewer's zone unless `tz` is given. */
 export function formatWhen(instant: number, tz?: string, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, {
+  return dtf(locale, { weekday: "short", hour: "numeric", minute: "2-digit", ...zoned(tz) }).format(new Date(instant));
+}
+
+/** The calendar day of `instant` in `zone`, as days since 1970. */
+function dayNumber(instant: number, zone: string): number {
+  const w = wallClock(instant, zone);
+  return Math.round(Date.UTC(w.y, w.m - 1, w.d) / DAY);
+}
+
+/**
+ * A coming instant: `Thu 6:00 AM` within the next six days, where the weekday names one
+ * day, and `Tue, Dec 1, 6:00 AM` further out. In the viewer's zone unless `tz` is given.
+ */
+export function formatNext(instant: number, now: number, tz?: string, locale?: string): string {
+  const zone = tz ?? browserTimeZone();
+  if (dayNumber(instant, zone) - dayNumber(now, zone) <= 6) return formatWhen(instant, tz, locale);
+  return dtf(locale, {
     weekday: "short",
+    month: "short",
+    day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    ...(tz ? { timeZone: tz } : {}),
+    ...zoned(tz),
   }).format(new Date(instant));
 }
 
@@ -548,15 +672,11 @@ export function formatWhen(instant: number, tz?: string, locale?: string): strin
  */
 export function relativeDay(instant: number, now: number, tz?: string, locale?: string): string {
   const zone = tz ?? browserTimeZone();
-  const day = (t: number) => {
-    const w = wallClock(t, zone);
-    return Date.UTC(w.y, w.m - 1, w.d);
-  };
-  const ago = Math.round((day(now) - day(instant)) / DAY);
+  const ago = dayNumber(now, zone) - dayNumber(instant, zone);
   if (ago <= 0) return "today";
   if (ago === 1) return "yesterday";
-  if (ago < 7) return new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: zone }).format(new Date(instant));
-  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: zone }).format(new Date(instant));
+  if (ago < 7) return dtf(locale, { weekday: "long", timeZone: zone }).format(new Date(instant));
+  return dtf(locale, { month: "short", day: "numeric", timeZone: zone }).format(new Date(instant));
 }
 
 /** `HH:MM` on the wall clock in `tz` at `instant`. */
@@ -565,11 +685,149 @@ export function wallTime(instant: number, tz: string): string {
   return hhmm(w.hh, w.mm);
 }
 
-/** The browser's own IANA zone: the `tz` a schedule edited here is written with. */
-export function browserTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
+/** How a zone reads in a sentence: `New York time`, `UTC`. */
+export function zoneLabel(tz: string): string {
+  if (/^(Etc\/)?(UTC|GMT|UCT|Zulu|Universal)$/.test(tz)) return "UTC";
+  return `${(tz.split("/").pop() ?? tz).replace(/_/g, " ")} time`;
+}
+
+// --- a schedule in words --------------------------------------------------------------
+
+const COUNTS = ["", "Once", "Twice", "Three times", "Four times"];
+const ordinal = (n: number) => {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
+};
+const and = (items: string[]) =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** Minutes past midnight, for a count of minutes that may run into the day before or after. */
+const timeOfDay = (t: number) => ((t % 1440) + 1440) % 1440;
+
+/** Minutes the viewer's clock is ahead of the schedule's at `instant`. */
+function minutesAhead(instant: number, tz: string, viewerTz: string): number {
+  return Math.round((zoneOffset(instant, viewerTz) - zoneOffset(instant, tz)) / MINUTE);
+}
+
+/** ` on weekdays`, ` on Mon, Wed`, or nothing for every day. */
+function onDays(days: Weekday[], locale?: string): string {
+  const words = describeDays(days, locale);
+  return words === "every" ? "" : ` on ${words}`;
+}
+
+/**
+ * A schedule a time-and-weekdays editor can't show, in words, when it can be said
+ * plainly: `Every 6 hours`, `Twice a day, 6:00 AM and 6:00 PM`, `Monthly on the 1st at
+ * 6:00 AM`, `Yearly on Jan 1 at 6:00 AM`. Times are on the viewer's clock; where moving
+ * them there would move the day too (a monthly run at 01:00 in Tokyo is the day before in
+ * New York), they stay on the schedule's clock and say whose (`(Tokyo time)`). Null when
+ * it isn't one of these shapes (or isn't an expression): show the expression as written.
+ */
+export function describeCron(
+  expr: string | null,
+  tz: string,
+  viewerTz: string,
+  now: number,
+  locale?: string,
+): string | null {
+  const cron = parseCron(expr);
+  const fields = cronFields(expr);
+  if (!cron || !fields) return null;
+  const next = nextCronAt(cron, tz, now);
+  if (next === null) return null;
+  const [mi, ho, dom, mon, dow] = fields;
+  const minutes = indices(cron.minute);
+  const hours = indices(cron.hour);
+  const days = WEEKDAYS.filter((_, i) => cron.dow[i]);
+  const ahead = minutesAhead(next, tz, viewerTz);
+  const step = (field: string) => (field === "*" ? 1 : Number(/^\*\/(\d+)$/.exec(field)?.[1] ?? 0));
+
+  // Every n minutes, all day, every day.
+  const minuteStep = step(mi);
+  if (minuteStep && 60 % minuteStep === 0 && ho === "*" && dom === "*" && mon === "*" && dow === "*") {
+    return minuteStep === 1 ? "Every minute" : `Every ${minuteStep} minutes`;
   }
+  // Every n hours, at one minute past, every day.
+  const hourStep = step(ho);
+  if (hourStep && 24 % hourStep === 0 && minutes.length === 1 && dom === "*" && mon === "*" && dow === "*") {
+    const past = (((minutes[0] + ahead) % 60) + 60) % 60;
+    const every = hourStep === 1 ? "Every hour" : `Every ${hourStep} hours`;
+    return past === 0 ? every : `${every}, at :${String(past).padStart(2, "0")}`;
+  }
+
+  // Each run's time of day on both clocks, and how far the viewer's moves its day.
+  const times = hours.flatMap((h) => minutes.map((m) => h * 60 + m));
+  const moved = times.map((t) => t + ahead);
+  const shifts = new Set(moved.map((t) => Math.floor(t / 1440)));
+  const clock = (t: number) => formatTimeOfDay({ hh: Math.floor(t / 60), mm: t % 60 }, locale);
+  const viewerClock = (t: number) => clock(timeOfDay(t));
+  const elsewhere = viewerTz === tz ? "" : ` (${zoneLabel(tz)})`;
+
+  // A few times a day, on some weekdays or every day.
+  if (dom === "*" && mon === "*" && times.length >= 1 && times.length <= 4) {
+    const count = times.length === 1 ? "Daily" : `${COUNTS[times.length]} a day`;
+    if (shifts.size === 1) {
+      const shift = [...shifts][0];
+      const list = moved
+        .map(timeOfDay)
+        .sort((a, b) => a - b)
+        .map(clock);
+      const at = times.length === 1 ? ` at ${list[0]}` : `, ${and(list)}`;
+      return `${count}${onDays(shiftDays(cron.dow, shift), locale)}${at}`;
+    }
+    const at = times.length === 1 ? ` at ${clock(times[0])}` : `, ${and(times.map(clock))}`;
+    return `${count}${onDays(days, locale)}${at}${elsewhere}`;
+  }
+
+  // On some days of the month (or one day of the year), at one time.
+  if (times.length !== 1 || dow !== "*" || !/^\d+(,\d+)*$/.test(dom)) return null;
+  const monthDays = indices(cron.dom);
+  const sameDay = shifts.has(0);
+  const time = sameDay ? viewerClock(moved[0]) : clock(times[0]);
+  const zoneNote = sameDay ? "" : elsewhere;
+  if (mon === "*" && monthDays.length <= 3) {
+    return `Monthly on the ${and(monthDays.map(ordinal))} at ${time}${zoneNote}`;
+  }
+  if (NUMBER.test(mon) && monthDays.length === 1) {
+    const date = dtf(locale, { month: "short", day: "numeric", timeZone: "UTC" }).format(
+      new Date(Date.UTC(2024, Number(mon) - 1, monthDays[0])),
+    );
+    return `Yearly on ${date} at ${time}${zoneNote}`;
+  }
+  return null;
+}
+
+/**
+ * Whether every time of day the expression runs at is before noon on the viewer's clock
+ * (what makes it a morning paper); null when it isn't an expression or never runs.
+ */
+export function runsBeforeNoon(expr: string | null, tz: string, viewerTz: string, now: number): boolean | null {
+  const cron = parseCron(expr);
+  if (!cron) return null;
+  const next = nextCronAt(cron, tz, now);
+  if (next === null) return null;
+  const ahead = minutesAhead(next, tz, viewerTz);
+  for (const h of indices(cron.hour)) {
+    for (const m of indices(cron.minute)) {
+      if (timeOfDay(h * 60 + m + ahead) >= 720) return false;
+    }
+  }
+  return true;
+}
+
+let zoneCache: { tz: string; at: number } | null = null;
+
+/** The browser's own IANA zone: the `tz` a schedule edited here is written with. Asked at most once a minute. */
+export function browserTimeZone(): string {
+  const now = Date.now();
+  if (zoneCache && now - zoneCache.at < MINUTE && now >= zoneCache.at) return zoneCache.tz;
+  let tz = "UTC";
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    // An old engine without zones: UTC.
+  }
+  zoneCache = { tz, at: now };
+  return tz;
 }

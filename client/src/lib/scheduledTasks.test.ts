@@ -22,6 +22,10 @@ import {
   simpleShape,
   taskStatus,
   wallTime,
+  formatNext,
+  describeCron,
+  runsBeforeNoon,
+  zoneLabel,
   withTaskName,
   type TaskTags,
 } from "./scheduledTasks";
@@ -68,7 +72,7 @@ describe("tags, public and private", () => {
   // A task written by a client that keeps some tags public, with options and a tag from a later version.
   const mixed: TaskTags = {
     public: [
-      ["cron", "0 6 * * *", "America/New_York", "later-value"],
+      ["cron", "0 6 * * *", "America/New_York", "1794300000", "later-value"],
       ["client", "other-app"],
     ],
     private: [
@@ -86,6 +90,7 @@ describe("tags, public and private", () => {
       enabled: true,
       cron: "0 6 * * *",
       tz: "America/New_York",
+      setAt: 1794300000,
       claim: { due: 1794398400, id: "3f1c9a0e5b7d4c21", by: "Desktop (Linux)", at: null },
       ran: 1794398520,
     });
@@ -99,13 +104,14 @@ describe("tags, public and private", () => {
 
   it("edits each tag where it was, keeps every other tag where it was, and adds new ones privately", () => {
     const edited = setEnabled(
-      setSimpleSchedule(mixed, { time: "07:15", days: ["mon", "wed"] }, "Europe/Lisbon"),
+      setSimpleSchedule(mixed, { time: "07:15", days: ["mon", "wed"] }, "Europe/Lisbon", WED),
       false,
+      WED,
     );
     expect(edited).toEqual({
-      // The cron tag stays public, with the value after its zone.
+      // The cron tag stays public, set now, with the value after that kept.
       public: [
-        ["cron", "15 7 * * 1,3", "Europe/Lisbon", "later-value"],
+        ["cron", "15 7 * * 1,3", "Europe/Lisbon", String(WED / 1000), "later-value"],
         ["client", "other-app"],
       ],
       // paused wasn't there: it goes private. claim, ran, options: untouched.
@@ -115,14 +121,17 @@ describe("tags, public and private", () => {
 
   it("resumes by removing paused from whichever side has it", () => {
     const paused = { public: [["paused"], ["desk", "tech"]], private: [["paused"], ["task", "observer"]] };
-    expect(setEnabled(paused, true)).toEqual({ public: [["desk", "tech"]], private: [["task", "observer"]] });
+    expect(setEnabled(paused, true, WED)).toEqual({ public: [["desk", "tech"]], private: [["task", "observer"]] });
     // Pausing what is already paused changes nothing.
-    expect(setEnabled(paused, false)).toEqual(paused);
+    expect(setEnabled(paused, false, WED)).toEqual(paused);
   });
 
   it("adds a cron tag privately when there was none", () => {
-    const fresh = setSimpleSchedule(emptyTask("observer"), { time: "06:00", days: [...WEEKDAYS] }, "UTC");
-    expect(fresh).toEqual({ public: [], private: [["task", "observer"], ["paused"], ["cron", "0 6 * * *", "UTC"]] });
+    const fresh = setSimpleSchedule(emptyTask("observer"), { time: "06:00", days: [...WEEKDAYS] }, "UTC", WED);
+    expect(fresh).toEqual({
+      public: [],
+      private: [["task", "observer"], ["paused"], ["cron", "0 6 * * *", "UTC", String(WED / 1000)]],
+    });
   });
 
   it("names the task only when no tag does", () => {
@@ -132,7 +141,8 @@ describe("tags, public and private", () => {
 
   it("does not change the tags it was given", () => {
     const before = JSON.stringify(mixed);
-    setEnabled(setSimpleSchedule(mixed, { time: "08:00", days: ["mon"] }, "UTC"), false);
+    setEnabled(setSimpleSchedule(mixed, { time: "08:00", days: ["mon"] }, "UTC", WED), false, WED);
+    setEnabled({ public: mixed.public, private: [...mixed.private, ["paused"]] }, true, WED);
     expect(JSON.stringify(mixed)).toBe(before);
   });
 
@@ -142,6 +152,7 @@ describe("tags, public and private", () => {
       enabled: false,
       cron: null,
       tz: null,
+      setAt: 0,
       claim: null,
       ran: null,
     });
@@ -152,8 +163,16 @@ describe("tags, public and private", () => {
       public: [],
       private: [["task", ""], ["cron"], ["claim", "soon", "x"], ["ran", "yesterday"]],
     };
-    expect(readTask(odd)).toEqual({ task: null, enabled: true, cron: null, tz: null, claim: null, ran: null });
-    expect(setEnabled(odd, false).private).toEqual([...odd.private, ["paused"]]);
+    expect(readTask(odd)).toEqual({
+      task: null,
+      enabled: true,
+      cron: null,
+      tz: null,
+      setAt: 0,
+      claim: null,
+      ran: null,
+    });
+    expect(setEnabled(odd, false, WED).private).toEqual([...odd.private, ["paused"]]);
     // A zone this browser doesn't know: the expression is read, the zone isn't.
     expect(readTask({ public: [], private: [["cron", "0 6 * * *", "Mars/Olympus"]] })).toMatchObject({
       cron: "0 6 * * *",
@@ -308,16 +327,18 @@ describe("the simple editor's shape", () => {
   it("round-trips through an edit in the viewer's zone", () => {
     const ny = readTask(fixture({ cron: "0 22 * * 1-5" }));
     const local = localSimple(ny, "Asia/Tokyo", WED)!;
-    const edited = readTask(setSimpleSchedule(fixture(), local, "Asia/Tokyo"));
+    const edited = readTask(setSimpleSchedule(fixture(), local, "Asia/Tokyo", WED));
     expect(edited).toMatchObject({ cron: "0 12 * * 2-6", tz: "Asia/Tokyo" });
     // The same instants either way.
     expect(nextCronAt(edited.cron, "Asia/Tokyo", WED)).toBe(nextCronAt("0 22 * * 1-5", "America/New_York", WED));
   });
 
   it("refuses a time that isn't one, a zone that isn't one, or no days", () => {
-    expect(() => setSimpleSchedule(fixture(), { time: "24:00", days: ["mon"] }, "UTC")).toThrow(RangeError);
-    expect(() => setSimpleSchedule(fixture(), { time: "06:00", days: ["mon"] }, "Nowhere/Town")).toThrow(RangeError);
-    expect(() => setSimpleSchedule(fixture(), { time: "06:00", days: [] }, "UTC")).toThrow(RangeError);
+    expect(() => setSimpleSchedule(fixture(), { time: "24:00", days: ["mon"] }, "UTC", WED)).toThrow(RangeError);
+    expect(() => setSimpleSchedule(fixture(), { time: "06:00", days: ["mon"] }, "Nowhere/Town", WED)).toThrow(
+      RangeError,
+    );
+    expect(() => setSimpleSchedule(fixture(), { time: "06:00", days: [] }, "UTC", WED)).toThrow(RangeError);
   });
 });
 
@@ -464,5 +485,200 @@ describe("liveness", () => {
     expect(relativeDay(now - 86_400_000, now, "UTC", "en-US")).toBe("yesterday");
     expect(relativeDay(Date.UTC(2026, 10, 9, 8, 0), now, "UTC", "en-US")).toBe("Monday");
     expect(relativeDay(Date.UTC(2026, 10, 3, 8, 0), now, "UTC", "en-US")).toBe("Nov 3");
+  });
+});
+
+// --- review fixes -------------------------------------------------------------------
+
+describe("the cron reader is no stricter than NIP-FB", () => {
+  it("reads leading zeros and any step of at least 1", () => {
+    expect(parseCron("00 06 * * 01-05")).toEqual(parseCron("0 6 * * 1-5"));
+    expect(parseCron("0 0/1 * * *")).toBeNull(); // still no a/n
+    expect(parseCron("*/100 * * * *")!.minute.flatMap((on, m) => (on ? [m] : []))).toEqual([0]);
+    expect(parseCron("0 0-23/007 * * *")!.hour.flatMap((on, h) => (on ? [h] : []))).toEqual([0, 7, 14, 21]);
+    expect(simpleShape("05 007 * * *")).toMatchObject({ hour: 7, minute: 5 });
+  });
+
+  it("still rejects values out of range, however they are written", () => {
+    for (const bad of ["060 6 * * *", "0 024 * * *", "0 6 * * 008", "0 6 000 * *", "0 */000 * * *"]) {
+      expect(parseCron(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("zones twelve or more hours ahead of UTC", () => {
+  it("runs a time Auckland skips at the jump", () => {
+    // 2026-09-27 02:00 NZST jumps to 03:00 NZDT: 02:30 runs at 03:00 NZDT, 14:00 UTC the day before.
+    expect(iso(nextCronAt("30 2 * * *", "Pacific/Auckland", Date.UTC(2026, 8, 26, 12, 0)))).toBe(
+      "2026-09-26T14:00:00.000Z",
+    );
+  });
+
+  it("runs a time Chatham skips at the jump, quarter hours and all", () => {
+    // 2026-09-27 02:45 +12:45 jumps to 03:45 +13:45: 03:00 runs at 03:45 +13:45.
+    expect(iso(nextCronAt("0 3 * * *", "Pacific/Chatham", Date.UTC(2026, 8, 26, 10, 0)))).toBe(
+      "2026-09-26T14:00:00.000Z",
+    );
+  });
+
+  it("runs a time Auckland repeats at its first occurrence", () => {
+    // 2026-04-05 03:00 NZDT falls back to 02:00 NZST: the first 02:30 is NZDT, 13:30 UTC.
+    expect(iso(nextCronAt("30 2 * * *", "Pacific/Auckland", Date.UTC(2026, 3, 4, 10, 0)))).toBe(
+      "2026-04-04T13:30:00.000Z",
+    );
+    expect(iso(prevCronAt("30 2 * * *", "Pacific/Auckland", Date.UTC(2026, 3, 4, 15, 0)))).toBe(
+      "2026-04-04T13:30:00.000Z",
+    );
+  });
+
+  it("agrees with the slow path on every day of a year with changes", () => {
+    for (const tz of ["Pacific/Auckland", "Pacific/Chatham", "America/New_York", "Europe/London", "Asia/Kolkata"]) {
+      let at = Date.UTC(2026, 0, 1);
+      for (let i = 0; i < 400; i++) {
+        const next = nextCronAt("15 2 * * *", tz, at)!;
+        // Every occurrence is 02:15 on its own clock, or the jump that skipped it.
+        expect(next > at, tz).toBe(true);
+        expect(prevCronAt("15 2 * * *", tz, next), tz).toBe(next);
+        at = next;
+      }
+    }
+  });
+});
+
+describe("the simple editor across a daylight-saving change", () => {
+  // Saturday 2026-03-07 17:00 UTC: New York's clocks skip 02:00–03:00 tomorrow.
+  const SAT = Date.UTC(2026, 2, 7, 17, 0);
+
+  it("shows the cron's own time on a gap day, not the time it is moved to", () => {
+    const task = readTask(fixture({ cron: "30 2 * * 1-5", tz: "America/New_York" }));
+    expect(localSimple(task, "America/New_York", SAT)).toMatchObject({ time: "02:30" });
+    // In another zone, from an occurrence the change didn't move: Monday 02:30 EDT is 06:30 UTC.
+    expect(localSimple(task, "UTC", SAT)).toMatchObject({ time: "06:30", days: ["mon", "tue", "wed", "thu", "fri"] });
+  });
+
+  it("saves what it showed: adding Saturday keeps 02:30", () => {
+    const tags = fixture({ cron: "30 2 * * 1-5", tz: "America/New_York" });
+    const local = localSimple(readTask(tags), "America/New_York", SAT)!;
+    const saved = setSimpleSchedule(tags, { ...local, days: [...local.days, "sat"] }, "America/New_York", SAT);
+    expect(readTask(saved).cron).toBe("30 2 * * 1-6");
+  });
+
+  it("takes the weekday and the time from the same occurrence", () => {
+    // Monday 04:30 London. On Sunday 8 March New York has changed and London hasn't: that
+    // morning is 23:30 Saturday in New York, but Monday's run is 00:30 Monday.
+    const task = readTask(fixture({ cron: "30 4 * * 1", tz: "Europe/London" }));
+    expect(localSimple(task, "America/New_York", SAT)).toMatchObject({ time: "00:30", days: ["mon"] });
+  });
+});
+
+describe("when cron was last set (NIP-FB's fourth value)", () => {
+  const due = Date.UTC(2026, 10, 11, 11, 0); // this morning's 06:00 New York
+  const later = due + 4 * 3_600_000;
+  const withSetAt = (setAt: string | undefined, ran = due / 1000 - 86_400) => {
+    const tags = fixture({ cron: "0 6 * * *", ran });
+    const cron = tags.private.find((t) => t[0] === "cron")!;
+    if (setAt !== undefined) cron.push(setAt);
+    return tags;
+  };
+
+  it("reads it, as 0 when absent or not a time", () => {
+    expect(readTask(withSetAt("1794300000")).setAt).toBe(1794300000);
+    expect(readTask(withSetAt(undefined)).setAt).toBe(0);
+    expect(readTask(withSetAt("soon")).setAt).toBe(0);
+  });
+
+  it("never reports a run due before it as missed", () => {
+    expect(missedRun(readTask(withSetAt(undefined)), later)).not.toBeNull();
+    expect(missedRun(readTask(withSetAt(String(due / 1000 + 1))), later)).toBeNull();
+    expect(missedRun(readTask(withSetAt(String(due / 1000))), later)).not.toBeNull();
+  });
+
+  it("is set to now when the schedule changes, and kept when it doesn't", () => {
+    const tags = withSetAt("1794300000");
+    const now = Date.UTC(2026, 10, 11, 16, 0);
+    const changed = setSimpleSchedule(tags, { time: "07:00", days: [...WEEKDAYS] }, "America/New_York", now);
+    expect(changed.private.find((t) => t[0] === "cron")).toEqual([
+      "cron",
+      "0 7 * * *",
+      "America/New_York",
+      String(now / 1000),
+    ]);
+    const same = setSimpleSchedule(tags, { time: "06:00", days: [...WEEKDAYS] }, "America/New_York", now);
+    expect(same.private.find((t) => t[0] === "cron")?.[3]).toBe("1794300000");
+  });
+
+  it("keeps values after it", () => {
+    const tags = withSetAt("1794300000");
+    tags.private.find((t) => t[0] === "cron")!.push("future");
+    const now = Date.UTC(2026, 10, 11, 16, 0);
+    const changed = setSimpleSchedule(tags, { time: "07:00", days: ["mon"] }, "UTC", now);
+    expect(changed.private.find((t) => t[0] === "cron")).toEqual([
+      "cron",
+      "0 7 * * 1",
+      "UTC",
+      String(now / 1000),
+      "future",
+    ]);
+  });
+
+  it("is set to now when the task resumes, so a paused morning isn't missed", () => {
+    const now = Date.UTC(2026, 10, 11, 16, 0);
+    const paused = setEnabled(withSetAt("1794300000"), false, now);
+    expect(paused.private.find((t) => t[0] === "cron")?.[3]).toBe("1794300000");
+    const resumed = setEnabled(paused, true, now);
+    expect(readTask(resumed)).toMatchObject({ enabled: true, setAt: now / 1000 });
+    expect(missedRun(readTask(resumed), now + 20 * 3_600_000)).toBeNull();
+    // Resuming what wasn't paused changes nothing.
+    expect(setEnabled(withSetAt("1794300000"), true, now)).toEqual(withSetAt("1794300000"));
+  });
+});
+
+describe("the next run, said", () => {
+  it("says the date when it is more than six days away", () => {
+    const next = nextCronAt("0 6 1 * *", "UTC", WED)!;
+    expect(formatNext(next, WED, "UTC", "en-US")).toBe("Tue, Dec 1, 6:00 AM");
+    const soon = nextCronAt("0 6 * * 1", "UTC", WED)!;
+    expect(formatNext(soon, WED, "UTC", "en-US")).toBe("Mon 6:00 AM");
+  });
+});
+
+describe("a schedule the simple editor can't show, in words", () => {
+  const words = (cron: string, tz = "America/New_York", viewer = tz) => describeCron(cron, tz, viewer, WED, "en-US");
+
+  it("says the common shapes plainly, on the viewer's clock", () => {
+    expect(words("0 6,18 * * *")).toBe("Twice a day, 6:00 AM and 6:00 PM");
+    expect(words("0 6,18 * * 1-5")).toBe("Twice a day on weekdays, 6:00 AM and 6:00 PM");
+    expect(words("0 */6 * * *")).toBe("Every 6 hours");
+    expect(words("15 * * * *", "UTC", "Asia/Kolkata")).toBe("Every hour, at :45");
+    expect(words("*/15 * * * *")).toBe("Every 15 minutes");
+    expect(words("0 6 1 * *")).toBe("Monthly on the 1st at 6:00 AM");
+    expect(words("0 6 1,15 * *", "UTC", "Europe/Lisbon")).toBe("Monthly on the 1st and 15th at 6:00 AM");
+    expect(words("0 6 1 1 *", "UTC")).toBe("Yearly on Jan 1 at 6:00 AM");
+    expect(words("0 6,18 * * *", "America/New_York", "Europe/Lisbon")).toBe("Twice a day, 11:00 AM and 11:00 PM");
+  });
+
+  it("keeps the schedule's own clock, and names it, where the viewer's would move the day", () => {
+    // 06:00 on the 1st in Tokyo is the last day of the month before in New York.
+    expect(words("0 6 1 * *", "Asia/Tokyo", "America/New_York")).toBe("Monthly on the 1st at 6:00 AM (Tokyo time)");
+  });
+
+  it("gives up on what it can't say plainly", () => {
+    for (const cron of ["0 6 1-7 * 1", "0 6,7,8,9,10 * * *", "0 6 * * MON", "*/7 * * * *"]) {
+      expect(words(cron), cron).toBeNull();
+    }
+  });
+
+  it("knows a morning schedule from one that isn't", () => {
+    expect(runsBeforeNoon("0 6,11 * * *", "UTC", "UTC", WED)).toBe(true);
+    expect(runsBeforeNoon("0 6,18 * * *", "UTC", "UTC", WED)).toBe(false);
+    // 06:00 New York is 20:00 in Tokyo.
+    expect(runsBeforeNoon("0 6 * * *", "America/New_York", "Asia/Tokyo", WED)).toBe(false);
+    expect(runsBeforeNoon("0 6 * * MON", "UTC", "UTC", WED)).toBeNull();
+  });
+
+  it("names a zone the way a sentence would", () => {
+    expect(zoneLabel("America/New_York")).toBe("New York time");
+    expect(zoneLabel("UTC")).toBe("UTC");
+    expect(zoneLabel("Etc/UTC")).toBe("UTC");
   });
 });

@@ -16,15 +16,18 @@ const publish = vi.fn();
 const signAs = vi.fn();
 const activeAccount = vi.fn();
 const requestNewestWithReach = vi.fn();
+const loadRelayList = vi.fn();
 
 vi.mock("@/lib/relayRequest", async (original) => ({
   ...(await original<typeof import("@/lib/relayRequest")>()),
   requestNewestWithReach: (...args: unknown[]) => requestNewestWithReach(...args),
 }));
 
+// The user's NIP-65 list names two write relays; our fallback set is never asked.
 vi.mock("@/lib/relayRouting", async (original) => ({
   ...(await original<typeof import("@/lib/relayRouting")>()),
-  outboxRelays: async () => ["wss://r0", "wss://r1"],
+  loadRelayList: (...args: unknown[]) => loadRelayList(...args),
+  outboxRelays: async () => ["wss://r0", "wss://r1", "wss://fallback"],
 }));
 
 vi.mock("@/lib/relayPool", () => ({
@@ -53,6 +56,7 @@ const account = {
   },
 };
 
+const NOW = Date.UTC(2026, 10, 11, 16, 0);
 const reachAll = { asked: ["wss://r0", "wss://r1"], answered: ["wss://r0", "wss://r1"] };
 const reachNone = { asked: ["wss://r0", "wss://r1"], answered: [] as string[] };
 
@@ -91,6 +95,8 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
   activeAccount.mockReturnValue(account);
+  loadRelayList.mockResolvedValue({ write: ["wss://r0", "wss://r1"], read: [] });
+  requestNewestWithReach.mockImplementation(async () => ({ newest: undefined, reach: reachNone }));
   publish.mockResolvedValue([{ ok: true, from: "wss://r0", message: "" }]);
   signAs.mockImplementation(async (_account: unknown, template: { kind: number }) =>
     finalizeEvent({ created_at: 0, tags: [], content: "", ...template } as never, SECRET),
@@ -105,7 +111,7 @@ describe("no write without a read", () => {
   it("writes nothing when no relay answered and nothing is held", async () => {
     requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachNone });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(res.success).toBe(false);
     expect(signAs).not.toHaveBeenCalled();
@@ -118,7 +124,7 @@ describe("no write without a read", () => {
       reach: { ...reachAll, answered: ["wss://r0"] },
     });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(res.success).toBe(false);
     expect(signAs).not.toHaveBeenCalled();
@@ -130,7 +136,7 @@ describe("no write without a read", () => {
     store.eventStore.add(scheduleEvent(amethystPrivate));
     requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachNone });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(res.success).toBe(false);
     expect(signAs).not.toHaveBeenCalled();
@@ -144,7 +150,7 @@ describe("no write without a read", () => {
     );
     requestNewestWithReach.mockResolvedValue({ newest: foreign, reach: reachAll });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(res.success).toBe(false);
     expect(publish).not.toHaveBeenCalled();
@@ -153,7 +159,7 @@ describe("no write without a read", () => {
   it("writes nothing when the newest copy's private part isn't a tag list", async () => {
     requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent('{"task":"observer"}'), reach: reachAll });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(res.success).toBe(false);
     expect(publish).not.toHaveBeenCalled();
@@ -163,7 +169,7 @@ describe("no write without a read", () => {
     requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent(amethystPrivate), reach: reachAll });
 
     const res = await service.updateObserverSchedule((d) =>
-      tasks.setSimpleSchedule(d, { time: "25:00", days: ["mon"] }, "UTC"),
+      tasks.setSimpleSchedule(d, { time: "25:00", days: ["mon"] }, "UTC", NOW),
     );
 
     expect(res.success).toBe(false);
@@ -178,7 +184,7 @@ describe("editing", () => {
     requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });
 
     const res = await service.updateObserverSchedule((d) =>
-      tasks.setSimpleSchedule(d, { time: "07:30", days: ["mon", "wed"] }, "Europe/Lisbon"),
+      tasks.setSimpleSchedule(d, { time: "07:30", days: ["mon", "wed"] }, "Europe/Lisbon", NOW),
     );
 
     expect(res.success).toBe(true);
@@ -188,7 +194,7 @@ describe("editing", () => {
     // claim, ran and the option: as Amethyst wrote them, in place.
     expect(decrypted()).toEqual([
       ["task", "observer"],
-      ["cron", "30 7 * * 1,3", "Europe/Lisbon"],
+      ["cron", "30 7 * * 1,3", "Europe/Lisbon", String(NOW / 1000)],
       ["claim", "1794398400", "3f1c9a0e5b7d4c21", "Desktop (Linux)"],
       ["ran", "1794398520"],
       ["desk", "tech"],
@@ -212,13 +218,17 @@ describe("editing", () => {
     requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });
 
     await service.updateObserverSchedule((d) =>
-      tasks.setEnabled(tasks.setSimpleSchedule(d, { time: "07:00", days: [...tasks.WEEKDAYS] }, "UTC"), false),
+      tasks.setEnabled(
+        tasks.setSimpleSchedule(d, { time: "07:00", days: [...tasks.WEEKDAYS] }, "UTC", NOW),
+        false,
+        NOW,
+      ),
     );
 
     // The cron it found public stays public; paused, new, goes private.
     expect(published().tags).toEqual([
       ["d", "observer"],
-      ["cron", "0 7 * * *", "UTC"],
+      ["cron", "0 7 * * *", "UTC", String(NOW / 1000)],
       ["future", "x"],
     ]);
     expect(decrypted()).toEqual([["task", "observer"], ["claim", "1794398400", "3f1c", "Desktop (Linux)"], ["paused"]]);
@@ -239,7 +249,7 @@ describe("editing", () => {
     );
     requestNewestWithReach.mockResolvedValue({ newest: bare, reach: reachAll });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(res.success).toBe(true);
     expect(published().tags).toEqual([
@@ -261,7 +271,7 @@ describe("editing", () => {
     store.eventStore.add(newer);
     requestNewestWithReach.mockResolvedValue({ newest: older, reach: reachAll });
 
-    await service.updateObserverSchedule((d) => tasks.setEnabled(d, false));
+    await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
 
     expect(decrypted()).toContainEqual(["cron", "0 6 * * 1,3", "America/New_York"]);
     expect(published().created_at).toBe(newer.created_at + 1);
@@ -271,11 +281,16 @@ describe("editing", () => {
     requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
 
     const res = await service.updateObserverSchedule((d) =>
-      tasks.setSimpleSchedule(d, { time: "06:00", days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }, "UTC"),
+      tasks.setSimpleSchedule(
+        d,
+        { time: "06:00", days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] },
+        "UTC",
+        NOW,
+      ),
     );
 
     expect(res.success).toBe(true);
-    expect(decrypted()).toEqual([["task", "observer"], ["paused"], ["cron", "0 6 * * *", "UTC"]]);
+    expect(decrypted()).toEqual([["task", "observer"], ["paused"], ["cron", "0 6 * * *", "UTC", String(NOW / 1000)]]);
   });
 
   it("asks the relays for the one schedule event", async () => {
@@ -294,5 +309,113 @@ describe("editing", () => {
     const res = await service.updateObserverSchedule((d) => d);
     expect(res.success).toBe(false);
     expect(requestNewestWithReach).not.toHaveBeenCalled();
+  });
+});
+
+describe("NIP-FB's quorum: the user's write relays and nothing else", () => {
+  it("asks only the write relays, so fallback relays answering can't stand in for them", async () => {
+    // A reviewer's repro: w1 and w2 are down; our fallback set answers EOSE with nothing.
+    // Counted in, those answers made "no event" look like "no task", and a blank
+    // `0 6 * * *` task went out over the real one.
+    requestNewestWithReach.mockImplementation(async (relays: string[]) => ({
+      newest: undefined,
+      reach: { asked: relays, answered: relays.filter((r) => r === "wss://fallback") },
+    }));
+
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, true, NOW));
+
+    expect(requestNewestWithReach.mock.calls[0][0]).toEqual(["wss://r0/", "wss://r1/"]);
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/0 of your 2 write relays answered/);
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("refuses without a relay list, or with one naming no write relay", async () => {
+    for (const list of [null, { write: [], read: ["wss://r0"] }]) {
+      loadRelayList.mockResolvedValue(list);
+      const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/no write relays/);
+    }
+    expect(requestNewestWithReach).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("publishes to the write relays only, and needs more than half of them to take it", async () => {
+    loadRelayList.mockResolvedValue({ write: ["wss://r0", "wss://r1", "wss://r2"], read: [] });
+    requestNewestWithReach.mockImplementation(async (relays: string[]) => ({
+      newest: scheduleEvent(amethystPrivate),
+      reach: { asked: relays, answered: relays.slice(0, 2) },
+    }));
+    publish.mockImplementation(async ([url]: string[]) => [
+      { ok: url !== "wss://r2/" && url !== "wss://r1/", from: url },
+    ]);
+
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+
+    expect(publish.mock.calls.map((c) => c[0][0]).sort()).toEqual(["wss://r0/", "wss://r1/", "wss://r2/"]);
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Only 1 of your 3 write relays took the change/);
+    // A write the reader is told failed doesn't show as saved.
+    expect(store.eventStore.getReplaceable(34817, PUBKEY, "observer")?.id).not.toBe(published().id);
+  });
+
+  it("says which event it wrote, so the card can wait for it", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent(amethystPrivate), reach: reachAll });
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    expect(res.success).toBe(true);
+    expect(res.id).toBe((published() as unknown as { id: string }).id);
+    expect(res.createdAt).toBe(published().created_at);
+    expect(store.eventStore.getReplaceable(34817, PUBKEY, "observer")?.id).toBe(res.id);
+  });
+});
+
+describe("reading the schedule", () => {
+  it("decrypts an event once, however many ask while it is out", async () => {
+    const decrypt = vi.fn(account.nip44.decrypt);
+    const slow = { ...account, nip44: { ...account.nip44, decrypt } };
+    const event = scheduleEvent(amethystPrivate);
+    const [a, b] = await Promise.all([
+      service.readSchedule(slow as never, event),
+      service.readSchedule(slow as never, event),
+    ]);
+    const c = await service.readSchedule(slow as never, event);
+    expect(a).toEqual(b);
+    expect(c).toEqual(a);
+    expect(a.status).toBe("ready");
+    expect(decrypt).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a signer that failed from a schedule that can't be read, and asks again only after a failure", async () => {
+    let fail = true;
+    const decrypt = vi.fn(async (from: string, cipher: string) => {
+      if (fail) throw new Error("bunker went quiet");
+      return account.nip44.decrypt(from, cipher);
+    });
+    const bunker = { ...account, nip44: { ...account.nip44, decrypt } };
+    const event = scheduleEvent(amethystPrivate);
+    expect((await service.readSchedule(bunker as never, event)).status).toBe("failed");
+    fail = false;
+    expect((await service.readSchedule(bunker as never, event)).status).toBe("ready");
+    expect(decrypt).toHaveBeenCalledTimes(2);
+
+    // Plaintext that isn't a tag array is unreadable, and stays so without asking again.
+    const odd = scheduleEvent('{"task":"observer"}');
+    expect((await service.readSchedule(bunker as never, odd)).status).toBe("unreadable");
+    expect((await service.readSchedule(bunker as never, odd)).status).toBe("unreadable");
+    expect(decrypt).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a signer failure when an edit needs to read the schedule", async () => {
+    activeAccount.mockReturnValue({
+      ...account,
+      nip44: { ...account.nip44, decrypt: async () => Promise.reject(new Error("User rejected")) },
+    });
+    requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent(amethystPrivate), reach: reachAll });
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    expect(res.success).toBe(false);
+    expect(res.error).not.toMatch(/Couldn't read your schedule/);
+    expect(publish).not.toHaveBeenCalled();
   });
 });

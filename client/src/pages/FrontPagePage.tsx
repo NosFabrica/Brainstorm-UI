@@ -62,6 +62,8 @@ import { withPaperCsp } from "@/lib/frontPage/validate";
 import { printedToday, type PrintedEdition } from "@/lib/frontPage/observerSchedule";
 import { formatClock } from "@/lib/scheduledTasks";
 import { MorningSchedule } from "@/components/frontPage/MorningSchedule";
+import { useNow } from "@/hooks/useNow";
+import { onAppResume } from "@/lib/appResume";
 import { WriterError, fetchModels, printFrontPage, type PrintStep, type PullProgress } from "@/services/frontPage";
 import type { Usage } from "@/lib/frontPage/writer";
 
@@ -236,6 +238,9 @@ function useModels(key: AgentKey | null): Models {
 
 // --- the page --------------------------------------------------------------------
 
+/** Away this long, the site is asked again on return: a device may have printed meanwhile. */
+const SITE_REASK_AWAY_MS = 60_000;
+
 export default function FrontPagePage() {
   const user = useActiveAccountDisplay();
   // Everything below is one account's: its paper, its site, the editions fetched from
@@ -262,7 +267,17 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   // null when no server had them.
   const [fetched, setFetched] = useState<Record<string, string | null>>({});
 
-  // The reader's Observer site: what the day tabs list.
+  // The reader's Observer site: what the day tabs list. Asked again when the page is shown
+  // again after a while away, so a paper a device printed meanwhile is known before the
+  // "already printed today" hint is worked out.
+  const [siteAsk, setSiteAsk] = useState(0);
+  useEffect(
+    () =>
+      onAppResume((away) => {
+        if (away >= SITE_REASK_AWAY_MS) setSiteAsk((n) => n + 1);
+      }),
+    [],
+  );
   useEffect(() => {
     if (!pubkey) return;
     let live = true;
@@ -274,16 +289,18 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     return () => {
       live = false;
     };
-  }, [pubkey]);
+  }, [pubkey, siteAsk]);
 
   const sessionDay = page ? utcDay(page.printedAt) : null;
   // A paper already printed today (here, on another device, by Amethyst's schedule): a
   // hint beside Print, never a block on it. The spec's rule for a scheduled print.
+  // `now` ticks each minute (paused while hidden): the hint lapses when its 20 hours do.
+  const now = useNow(60_000);
   const todays = useMemo(() => {
     const editions: PrintedEdition[] = [...(site?.editions ?? [])];
     if (page) editions.push({ day: utcDay(page.printedAt), printedAt: Math.floor(page.printedAt / 1000) });
-    return printedToday(editions, Date.now());
-  }, [site, page]);
+    return printedToday(editions, now);
+  }, [site, page, now]);
   const days = useMemo(() => {
     const all = new Set<string>(site?.editions.map((e) => e.day) ?? []);
     if (sessionDay) all.add(sessionDay);

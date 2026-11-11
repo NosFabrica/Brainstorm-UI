@@ -23,6 +23,7 @@ describe("where the morning paper lives", () => {
       enabled: false,
       cron: null,
       tz: null,
+      setAt: 0,
       claim: null,
       ran: null,
     });

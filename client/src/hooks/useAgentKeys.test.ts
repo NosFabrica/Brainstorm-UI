@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
-const current = vi.hoisted(() => ({ account: undefined as { pubkey: string } | undefined }));
+const current = vi.hoisted(() => ({ account: undefined as { pubkey: string } | undefined, settled: true }));
 const decrypt = vi.fn();
 const silently = vi.fn();
 
@@ -13,7 +13,7 @@ vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => current.accou
 vi.mock("@/hooks/useStoreReplaceable", () => ({
   useStoreReplaceable: (_kind: number, pubkey: string | undefined) => ({
     event: pubkey ? { id: `event-${pubkey}`, pubkey, kind: 12000, content: "x", tags: [] } : undefined,
-    settled: true,
+    settled: current.settled,
   }),
 }));
 vi.mock("@/accounts/signing", () => ({ canSignSilently: (...a: unknown[]) => silently(...a) }));
@@ -59,5 +59,28 @@ describe("useAgentKeys", () => {
     current.account = B;
     rerender();
     await vi.waitFor(() => expect(result.current.status).toBe("locked"));
+  });
+
+  it("decrypts once when the ask settles while the decrypt is out", async () => {
+    // A reviewer's repro: the effect keyed on `settled`, so an EOSE landing while an
+    // extension's prompt was open asked for a second decrypt.
+    silently.mockResolvedValue(true);
+    let finish: (tags: string[][]) => void = () => {};
+    decrypt.mockReset().mockImplementation(() => new Promise((r) => (finish = r)));
+    current.account = A;
+    current.settled = false;
+    const { result, rerender } = renderHook(() => useAgentKeys());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    current.settled = true;
+    rerender();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    act(() => finish([]));
+    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(decrypt).toHaveBeenCalledTimes(1);
+    current.settled = true;
   });
 });
