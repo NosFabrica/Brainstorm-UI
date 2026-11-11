@@ -117,6 +117,21 @@ describe("FrontPagePage", () => {
       expect(screen.queryByTestId("front-page-print")).toBeNull();
     });
 
+    it("doesn't call it the first paper when the reader already has some", async () => {
+      state.hasMywot = false;
+      state.isSearchObserver = false;
+      const day = new Date().toISOString().slice(0, 10);
+      state.site = {
+        event: { tags: [] },
+        index: { v: 1, title: "", editions: [{ day, path: `/${day}.html`, sha256: "b".repeat(64) }] },
+        servers: ["https://files.example"],
+        relays: [],
+      };
+      renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-setup")).toHaveTextContent("To print your paper"));
+      expect(screen.getByTestId("front-page-setup")).not.toHaveTextContent("Before your first paper");
+    });
+
     it("with the key only, says which provider and still asks for the web of trust", () => {
       state.hasMywot = false;
       state.isSearchObserver = false;

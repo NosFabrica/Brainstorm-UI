@@ -564,6 +564,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                 // A print the relay turned away says the ranking isn't there yet, whatever
                 // the gate above it answered.
                 wot={run.state === "pending" ? "pending" : wotStep}
+                hasEditions={days.length > 0}
                 onUnlock={keys.reveal}
               />
             )}
@@ -1154,11 +1155,23 @@ type WotStep = "done" | "todo" | "pending";
  * clears it. "pending" is a web of trust the search relay doesn't rank through yet:
  * calculated or being calculated, but not done.
  */
-function SetupChecklist({ keyStep, wot, onUnlock }: { keyStep: KeyStep; wot: WotStep; onUnlock: () => void }) {
+function SetupChecklist({
+  keyStep,
+  wot,
+  hasEditions,
+  onUnlock,
+}: {
+  keyStep: KeyStep;
+  wot: WotStep;
+  /** The reader has papers already and removed a step: it isn't their first. */
+  hasEditions: boolean;
+  onUnlock: () => void;
+}) {
+  const title = hasEditions ? "To print your paper" : "Before your first paper";
   return (
     <Card className="p-4 sm:p-5" data-testid="front-page-setup">
-      <SectionHeader variant="title" kicker="Before your first paper" />
-      <ul className="mt-3 divide-y divide-border" aria-label="Before your first paper">
+      <SectionHeader variant="title" kicker={title} />
+      <ul className="mt-3 divide-y divide-border" aria-label={title}>
         <SetupRow
           testId="front-page-setup-key"
           label="AI key"
