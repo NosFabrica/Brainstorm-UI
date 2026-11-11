@@ -160,6 +160,29 @@ describe("saving", () => {
     expect(switchEl()).toHaveAttribute("aria-checked", "false");
   });
 
+  it("saves an edit made on another clock in the schedule's own zone", async () => {
+    // Tokyo keeps one offset all year: an hour later on this clock is an hour later there.
+    const other = tz === "Asia/Tokyo" ? "America/Sao_Paulo" : "Asia/Tokyo";
+    const doc: TaskTags = {
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["cron", "0 6 * * 1-5", other],
+      ],
+    };
+    state = { ...ready("0 6 * * 1-5"), doc, schedule: readTask(doc) };
+    update.mockResolvedValue({ success: true, id: "e2", createdAt: 2000 });
+    render(<Card />);
+    fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
+    const [hh, mm] = time().value.split(":").map(Number);
+    fireEvent.change(time(), {
+      target: { value: `${String((hh + 1) % 24).padStart(2, "0")}:${String(mm).padStart(2, "0")}` },
+    });
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save")));
+    const change = update.mock.calls[0][0] as (d: TaskTags) => TaskTags;
+    expect(readTask(change(doc))).toMatchObject({ cron: "0 7 * * 1-5", tz: other });
+  });
+
   it("drops the overlay when a newer event than its own arrives", async () => {
     state = ready("0 6 * * *");
     update.mockResolvedValue({ success: true, id: "e2", createdAt: 2000 });

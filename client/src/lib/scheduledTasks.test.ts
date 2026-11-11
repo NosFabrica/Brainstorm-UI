@@ -5,6 +5,7 @@ import {
   WEEKDAYS,
   describeDays,
   dowField,
+  editSimpleSchedule,
   emptyTask,
   formatClock,
   lastDue,
@@ -734,5 +735,135 @@ describe("a schedule the simple editor can't show, in words", () => {
     expect(zoneLabel("America/New_York")).toBe("New York time");
     expect(zoneLabel("UTC")).toBe("UTC");
     expect(zoneLabel("Etc/UTC")).toBe("UTC");
+  });
+});
+
+describe("an edit keeps the schedule's zone (NIP-FB: changing the time keeps the time zone)", () => {
+  const cronOf = (tags: TaskTags) => tags.private.find((t) => t[0] === "cron");
+  /** The next `count` runs after `from`, as `Wed 06:15` on `zone`'s clock. */
+  const runs = (tags: TaskTags, from: number, count: number, zone: string) => {
+    const task = readTask(tags);
+    const out: string[] = [];
+    let at = from;
+    for (let i = 0; i < count; i++) {
+      at = nextCronAt(task.cron, task.tz!, at)!;
+      const day = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: zone }).format(new Date(at));
+      out.push(`${day} ${wallTime(at, zone)}`);
+    }
+    return out;
+  };
+
+  it("a 15-minute nudge from London stays 06:15 in New York after London's clocks change", () => {
+    // 20 March 2026: New York is on summer time, London not until the 29th.
+    const now = Date.UTC(2026, 2, 20, 12, 0);
+    const tags = fixture({ cron: "0 6 * * *" });
+    const shown = localSimple(readTask(tags), "Europe/London", now)!;
+    expect(shown).toEqual({ time: "10:00", days: [...WEEKDAYS] });
+    const nudged = editSimpleSchedule(tags, { ...shown, time: "10:15" }, "Europe/London", now);
+    expect(cronOf(nudged)).toEqual(["cron", "15 6 * * *", "America/New_York", String(now / 1000)]);
+    // Never 05:15 in New York (10:15 London) once both are on summer time.
+    const april = Date.UTC(2026, 3, 1);
+    expect(runs(nudged, april, 3, "America/New_York")).toEqual(["Wed 06:15", "Thu 06:15", "Fri 06:15"]);
+  });
+
+  it("confirming what Auckland shows changes nothing: the same tags, setAt kept", () => {
+    const now = Date.UTC(2026, 10, 11, 12, 0);
+    const tags = fixture({ cron: "0 6 * * 1-5" });
+    cronOf(tags)!.push("1794300000");
+    const shown = localSimple(readTask(tags), "Pacific/Auckland", now)!;
+    // 06:00 Monday in New York is midnight Tuesday in Auckland.
+    expect(shown).toEqual({ time: "00:00", days: ["tue", "wed", "thu", "fri", "sat"] });
+    expect(editSimpleSchedule(tags, shown, "Pacific/Auckland", now)).toBe(tags);
+    // In any order the days come in.
+    expect(editSimpleSchedule(tags, { ...shown, days: [...shown.days].reverse() }, "Pacific/Auckland", now)).toBe(tags);
+  });
+
+  it("an hour later on Auckland's clock is 07:00 on the same New York weekdays", () => {
+    const now = Date.UTC(2026, 10, 11, 12, 0);
+    const tags = fixture({ cron: "0 6 * * 1-5" });
+    const shown = localSimple(readTask(tags), "Pacific/Auckland", now)!;
+    const later = editSimpleSchedule(tags, { ...shown, time: "01:00" }, "Pacific/Auckland", now);
+    expect(cronOf(later)).toEqual(["cron", "0 7 * * 1-5", "America/New_York", String(now / 1000)]);
+    expect(runs(later, now, 3, "America/New_York")).toEqual(["Thu 07:00", "Fri 07:00", "Mon 07:00"]);
+  });
+
+  it("shifts the weekdays when the new time crosses midnight in the schedule's zone", () => {
+    const now = Date.UTC(2026, 10, 11, 12, 0);
+    const tags = fixture({ cron: "0 6 * * 1-5" });
+    const shown = localSimple(readTask(tags), "Pacific/Auckland", now)!;
+    // 23:00 on Auckland's Tuesday to Saturday is 05:00 the same day in New York.
+    const late = editSimpleSchedule(tags, { ...shown, time: "23:00" }, "Pacific/Auckland", now);
+    expect(readTask(late)).toMatchObject({ cron: "0 5 * * 2-6", tz: "America/New_York" });
+    // Adding Auckland's Sunday at the time shown adds New York's Saturday.
+    const sunday = editSimpleSchedule(tags, { ...shown, days: [...shown.days, "sun"] }, "Pacific/Auckland", now);
+    expect(readTask(sunday)).toMatchObject({ cron: "0 6 * * 1-6", tz: "America/New_York" });
+    // 22:00 Mon–Fri in New York is 12:00 Tue–Sat in Tokyo; 08:00 there is 18:00 the day before in New York.
+    const ny = fixture({ cron: "0 22 * * 1-5" });
+    const tokyo = localSimple(readTask(ny), "Asia/Tokyo", WED)!;
+    expect(readTask(editSimpleSchedule(ny, { ...tokyo, time: "08:00" }, "Asia/Tokyo", WED))).toMatchObject({
+      cron: "0 18 * * 1-5",
+      tz: "America/New_York",
+    });
+  });
+
+  it("edits the fields in place on the schedule's own clock", () => {
+    const tags = fixture({ cron: "0 6 * * 1-5" });
+    cronOf(tags)!.push("1794300000");
+    const shown = localSimple(readTask(tags), "America/New_York", WED)!;
+    expect(editSimpleSchedule(tags, shown, "America/New_York", WED)).toBe(tags);
+    const moved = editSimpleSchedule(tags, { time: "07:30", days: ["mon", "sat"] }, "America/New_York", WED);
+    expect(cronOf(moved)).toEqual(["cron", "30 7 * * 1,6", "America/New_York", String(WED / 1000)]);
+    // The same fields written another way are the same schedule.
+    const zeros = fixture({ cron: "00 06 * * 1,2,3,4,5" });
+    expect(editSimpleSchedule(zeros, shown, "America/New_York", WED)).toBe(zeros);
+  });
+
+  it("refuses a time the viewer's clock skips that day", () => {
+    // 29 March 2026 in London: 01:00 jumps to 02:00. Saturday 21:30 in New York is 02:30 Sunday there.
+    const now = Date.UTC(2026, 2, 28, 12, 0);
+    const tags = fixture({ cron: "30 21 * * 6" });
+    const shown = localSimple(readTask(tags), "Europe/London", now)!;
+    expect(shown).toEqual({ time: "02:30", days: ["sun"] });
+    expect(() => editSimpleSchedule(tags, { ...shown, time: "01:45" }, "Europe/London", now)).toThrow(RangeError);
+    expect(readTask(editSimpleSchedule(tags, { ...shown, time: "02:00" }, "Europe/London", now))).toMatchObject({
+      cron: "0 21 * * 6",
+      tz: "America/New_York",
+    });
+  });
+
+  it("refuses a time the schedule's zone repeats when the schedule would run at the other one", () => {
+    // 1 November 2026: New York reads 01:00–02:00 twice. Sunday 00:30 there is 04:30 UTC.
+    const now = Date.UTC(2026, 9, 31, 12, 0);
+    const tags = fixture({ cron: "30 0 * * 0" });
+    const shown = localSimple(readTask(tags), "UTC", now)!;
+    expect(shown).toEqual({ time: "04:30", days: ["sun"] });
+    // 06:30 UTC is the second 01:30 in New York: the schedule would run at the first, an hour early.
+    expect(() => editSimpleSchedule(tags, { ...shown, time: "06:30" }, "UTC", now)).toThrow(RangeError);
+    // 05:30 UTC is the first: that is when it runs.
+    expect(readTask(editSimpleSchedule(tags, { ...shown, time: "05:30" }, "UTC", now))).toMatchObject({
+      cron: "30 1 * * 0",
+      tz: "America/New_York",
+    });
+  });
+
+  it("writes the viewer's own zone when there is no schedule yet", () => {
+    const fresh = editSimpleSchedule(
+      emptyTask("observer"),
+      { time: "06:00", days: [...WEEKDAYS] },
+      "Europe/London",
+      WED,
+    );
+    expect(cronOf(fresh)).toEqual(["cron", "0 6 * * *", "Europe/London", String(WED / 1000)]);
+  });
+
+  it("refuses to rewrite a schedule it can't show, and what isn't a time", () => {
+    expect(() =>
+      editSimpleSchedule(fixture({ cron: "0 6,18 * * *" }), { time: "07:00", days: ["mon"] }, "UTC", WED),
+    ).toThrow(RangeError);
+    expect(() =>
+      editSimpleSchedule(fixture({ tz: "Nowhere/Town" }), { time: "07:00", days: ["mon"] }, "UTC", WED),
+    ).toThrow(RangeError);
+    expect(() => editSimpleSchedule(fixture(), { time: "24:00", days: ["mon"] }, "UTC", WED)).toThrow(RangeError);
+    expect(() => editSimpleSchedule(fixture(), { time: "06:00", days: [] }, "UTC", WED)).toThrow(RangeError);
   });
 });

@@ -156,8 +156,9 @@ async function writeRelaysOf(pubkey: string): Promise<string[] | null> {
  * it was, on its side (public or private). Fails, writing nothing, without write relays,
  * when half or fewer of them answered the read, when the newest copy can't be read, or
  * when `change` refuses (it throws on a time that isn't one); and fails when half or fewer
- * took the write. `claim` and `ran` are only ever carried over; a public `client` tag is
- * the one tag dropped.
+ * took the write. Succeeds, writing nothing, when `change` hands back the tags it was
+ * given. `claim` and `ran` are only ever carried over; a public `client` tag is the one
+ * tag dropped.
  */
 export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
   const account = activeAccount();
@@ -195,14 +196,18 @@ export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags
       doc = emptyObserverSchedule();
     }
 
-    let next: TaskTags;
+    let changed: TaskTags;
     try {
-      // `task` is required: a copy that lost it gets the one its `d` fixes. A public
-      // `client` tag (Amethyst used to add one) is dropped: NIP-FB forbids it.
-      next = withoutPublicClient(withTaskName(change(doc), OBSERVER_TASK));
+      changed = change(doc);
     } catch (err) {
       return { success: false, error: err instanceof RangeError ? err.message : "That change can't be made." };
     }
+    // No change (`change` handed back what it was given, as confirming the time shown
+    // does): nothing to sign or publish, and when `cron` was set stays.
+    if (changed === doc) return { success: true };
+    // `task` is required: a copy that lost it gets the one its `d` fixes. A public
+    // `client` tag (Amethyst used to add one) is dropped: NIP-FB forbids it.
+    const next = withoutPublicClient(withTaskName(changed, OBSERVER_TASK));
 
     // Always the JSON, `[]` included: NIP-44 can't encrypt an empty string.
     const ciphertext = await encryptToSelf(account, JSON.stringify(next.private));

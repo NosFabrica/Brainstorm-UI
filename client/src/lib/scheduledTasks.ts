@@ -520,21 +520,100 @@ export function setEnabled(tags: TaskTags, enabled: boolean, now: number): TaskT
   return putTag(tags, "paused", (old) => old ?? ["paused"]);
 }
 
+/** `HH:MM` as hours and minutes; a RangeError when it isn't a time of day. */
+function parseTime(time: string): { hour: number; minute: number } {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!m) throw new RangeError(`Not a time: ${time}`);
+  return { hour: Number(m[1]), minute: Number(m[2]) };
+}
+
 /**
- * The schedule as a time and weekdays on the editor's clock: the `cron` tag becomes
- * `M H * * <days>` in the editor's zone (NIP-FB: the zone of whoever last set it), on its
- * own side, set `now`, with any values after that kept. The same expression in the same
- * zone is no change, and keeps the tag as it was.
+ * The `cron` tag as `M H * * <days>` read in `tz`, exactly as given, on its own side, set
+ * `now`, with any values after that kept. The same expression in the same zone is no
+ * change, and keeps the tag as it was. The editor's edits go through `editSimpleSchedule`,
+ * which keeps a schedule's zone; this one writes a first schedule, in the viewer's zone.
  */
 export function setSimpleSchedule(tags: TaskTags, simple: LocalSimple, tz: string, now: number): TaskTags {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(simple.time);
-  if (!m) throw new RangeError(`Not a time: ${simple.time}`);
+  const { hour, minute } = parseTime(simple.time);
   if (!isValidTimeZone(tz)) throw new RangeError(`Not a time zone: ${tz}`);
   if (simple.days.length === 0) throw new RangeError("Pick at least one day.");
-  const expr = `${Number(m[2])} ${Number(m[1])} * * ${dowField(simple.days)}`;
+  const expr = `${minute} ${hour} * * ${dowField(simple.days)}`;
   return putTag(tags, "cron", (old) =>
     old && old[1] === expr && old[2] === tz ? old : ["cron", expr, tz, unix(now), ...(old?.slice(4) ?? [])],
   );
+}
+
+const dowOf = (days: readonly Weekday[]) => WEEKDAYS.map((d) => days.includes(d));
+const sameDow = (a: boolean[], b: boolean[]) => WEEKDAYS.every((_, i) => !!a[i] === !!b[i]);
+
+/** `Sunday, March 29` (or with `weekdayOnly`, `Sunday`): a calendar day, for a message. */
+const dayWords = (w: { y: number; m: number; d: number }, weekdayOnly = false) =>
+  dtf(undefined, {
+    weekday: "long",
+    ...(weekdayOnly ? {} : { month: "long", day: "numeric" }),
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(w.y, w.m - 1, w.d)));
+
+/**
+ * The time and weekdays the viewer picked in the editor, `simple`, on their own clock
+ * (`viewerTz`), as an edit of the schedule that keeps its zone (NIP-FB: changing the time
+ * keeps the time zone), matching Amethyst's `planTimeEdit` (Quartz `SimpleCron.movedTo`):
+ *
+ * - No schedule yet: written in the viewer's zone, as there is nothing to keep.
+ * - On the schedule's own clock: its fields, changed in place.
+ * - On another clock: the editor showed one run no clock change moved (`localSimple`). That
+ *   run moves to the picked time on the same calendar day on the viewer's clock, and the
+ *   expression follows it in the schedule's zone, the picked weekdays moved with it when it
+ *   crosses midnight there. So a nudge from London to a New York schedule stays a New York
+ *   time, and keeps following New York's clock changes, not London's.
+ *
+ * Confirming what the editor showed is no change: the same `tags` come back (nothing to
+ * write; when it was set stays). A RangeError refuses what isn't a time, no days, a
+ * schedule the editor can't show (another app changed it meanwhile), a time the viewer's
+ * clocks skip that day, and a time the schedule's zone reads twice that day when the
+ * schedule would run at the other reading.
+ */
+export function editSimpleSchedule(tags: TaskTags, simple: LocalSimple, viewerTz: string, now: number): TaskTags {
+  const { hour, minute } = parseTime(simple.time);
+  if (!isValidTimeZone(viewerTz)) throw new RangeError(`Not a time zone: ${viewerTz}`);
+  if (simple.days.length === 0) throw new RangeError("Pick at least one day.");
+  const task = readTask(tags);
+  if (task.cron === null) return setSimpleSchedule(tags, simple, viewerTz, now);
+  const shape = simpleShape(task.cron);
+  const tz = task.tz;
+  const changedElsewhere = "Your schedule was changed in another app, so nothing was saved.";
+  if (!shape || !tz) throw new RangeError(changedElsewhere);
+  const picked = dowOf(simple.days);
+  const unchanged = (h: number, m: number, dow: boolean[]) => h === hour && m === minute && sameDow(dow, picked);
+
+  if (tz === viewerTz) {
+    return unchanged(shape.hour, shape.minute, shape.dow) ? tags : setSimpleSchedule(tags, simple, tz, now);
+  }
+
+  // The run the editor shows (`localSimple`), and how the viewer sees it.
+  const at = unmovedOccurrence(parseCron(task.cron)!, tz, shape.hour, shape.minute, now);
+  if (at === null) throw new RangeError(changedElsewhere);
+  const seen = wallClock(at, viewerTz);
+  if (unchanged(seen.hh, seen.mm, dowOf(shiftDays(shape.dow, dayShift(at, tz, viewerTz))))) return tags;
+
+  // Moved to the picked time on that day on the viewer's clock.
+  const moved = zonedInstant(seen.y, seen.m, seen.d, hour, minute, viewerTz);
+  if (wallAt(moved, viewerTz) !== Date.UTC(seen.y, seen.m - 1, seen.d, hour, minute)) {
+    throw new RangeError(
+      `${formatTimeOfDay(simple.time)} is skipped on ${dayWords(seen)} when your clocks change. Pick another time.`,
+    );
+  }
+  // Where that lands on the schedule's clock, which must run then and not at another reading.
+  const there = wallClock(moved, tz);
+  if (zonedInstant(there.y, there.m, there.d, there.hh, there.mm, tz) !== moved) {
+    throw new RangeError(
+      `${formatTimeOfDay(simple.time)} that ${dayWords(seen, true)} is the second ${formatTimeOfDay({ hh: there.hh, mm: there.mm })} in ${zoneLabel(tz)}, and the schedule would run at the first. Pick another time.`,
+    );
+  }
+  // The viewer's days as the schedule's: a day later there when it is a day behind here.
+  const days = shiftDays(picked, -dayShift(moved, tz, viewerTz));
+  if (there.hh === shape.hour && there.mm === shape.minute && sameDow(dowOf(days), shape.dow)) return tags;
+  return setSimpleSchedule(tags, { time: hhmm(there.hh, there.mm), days }, tz, now);
 }
 
 /**
@@ -844,7 +923,10 @@ export function runsBeforeNoon(expr: string | null, tz: string, viewerTz: string
 
 let zoneCache: { tz: string; at: number } | null = null;
 
-/** The browser's own IANA zone: the `tz` a schedule edited here is written with. Asked at most once a minute. */
+/**
+ * The browser's own IANA zone: the clock the editor shows, and the `tz` a first schedule is
+ * written with (an edit keeps the schedule's own). Asked at most once a minute.
+ */
 export function browserTimeZone(): string {
   const now = Date.now();
   if (zoneCache && now - zoneCache.at < MINUTE && now >= zoneCache.at) return zoneCache.tz;

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY } from "rxjs";
 import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 import * as nip44 from "nostr-tools/nip44";
+import type { Weekday } from "@/lib/scheduledTasks";
 
 const publish = vi.fn();
 const signAs = vi.fn();
@@ -179,6 +180,23 @@ describe("no write without a read", () => {
 });
 
 describe("editing", () => {
+  it("writes nothing when an Auckland viewer confirms a New York schedule as shown", async () => {
+    const before = scheduleEvent(
+      amethystPrivate.map((t) => (t[0] === "cron" ? ["cron", "0 6 * * 1-5", "America/New_York", "1794300000"] : t)),
+    );
+    requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });
+    const shown = { time: "00:00", days: ["tue", "wed", "thu", "fri", "sat"] as Weekday[] };
+
+    const res = await service.updateObserverSchedule((d) =>
+      tasks.editSimpleSchedule(d, shown, "Pacific/Auckland", NOW),
+    );
+
+    expect(res).toMatchObject({ success: true });
+    expect(res.id).toBeUndefined();
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("keeps every tag it didn't change, on its side, and puts the private ones in ciphertext", async () => {
     const before = scheduleEvent(amethystPrivate);
     requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });

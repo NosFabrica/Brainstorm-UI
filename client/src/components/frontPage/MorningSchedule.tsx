@@ -15,6 +15,7 @@ import {
   browserTimeZone,
   describeCron,
   describeDays,
+  editSimpleSchedule,
   formatClock,
   formatNext,
   formatTimeOfDay,
@@ -257,7 +258,7 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
               base={base}
               busy={busy}
               onSave={async (simple) => {
-                const ok = await save((d) => setSimpleSchedule(d, simple, browserTimeZone(), Date.now()));
+                const ok = await save((d) => editSimpleSchedule(d, simple, browserTimeZone(), Date.now()));
                 if (ok) setOpen(false);
               }}
               onCancel={() => {
