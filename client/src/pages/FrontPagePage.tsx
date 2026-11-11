@@ -49,6 +49,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { wotStepOf, type WotStep } from "@/lib/frontPage/setupSteps";
+import { pageWidth } from "@/lib/pageWidth";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useAgentKeys } from "@/hooks/useAgentKeys";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -521,7 +522,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     <TooltipProvider delayDuration={300}>
       <div className="flex min-h-page flex-col bg-background">
         {user && <AppHeader user={user} onLogout={() => logout()} />}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <main className={cn(pageWidth("wide"), "flex-1 py-6 sm:py-8")}>
           {/* The header lines up with the paper's edges once there is one; the hero keeps the
               narrower column the rest of the app reads in. */}
           <div className={cn("space-y-5", showHero && "mx-auto max-w-5xl")}>
