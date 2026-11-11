@@ -35,10 +35,10 @@ These override the brief below wherever they disagree.
    `prefers-color-scheme: dark` block. This overrides "the page is read in both
    light and dark themes".
 
-6. NO LINK-PREVIEW META TAGS. This page is shown once on the reader's screen and is
-   never published, so leave out the `description`, `og:` and `twitter:` tags the
-   Output section asks for. Everything else in Output stands: return the complete
-   HTML document and nothing else, starting with `<!doctype html>`.
+6. NO LINK-PREVIEW META TAGS. The reader may publish this page to their own public
+   Observer site, but leave out the `og:` and `twitter:` tags the Output section asks
+   for; a `<meta name="description">` is allowed. Everything else in Output stands:
+   return the complete HTML document and nothing else, starting with `<!doctype html>`.
 
 7. THIS DIGEST HAS NO FIELD LABELS. Where the brief mentions `EXCERPT`, `AUTHOR`,
    `SOURCE`, `CONTEXT`, `WHEN`, `LOCATION`, `PRICE`, `STATUS` or `CONDITION`, read
@@ -56,6 +56,24 @@ These override the brief below wherever they disagree.
    paraphrase, captions and the folio in that language. Quotes stay verbatim in the
    language they were written in; when that differs, paraphrase the meaning beside the
    quote in the reader's language, never inside `<q>` or `<blockquote>`.
+
+10. THE PAGE IS MADE OF A FIXED SET OF PARTS, and anything else is refused, not
+    stripped. Elements: html head body title meta style header footer main section
+    article aside nav div span h1–h6 p br hr a img figure figcaption blockquote q cite
+    em strong b i u s small sub sup mark time abbr ul ol li dl dt dd table thead tbody
+    tfoot tr th td caption colgroup col details summary. No svg, no template, no
+    noscript, no link, no video or picture. Attributes: class, id, lang, dir, title,
+    role, aria-_, style and hidden anywhere; href, target="\_blank" and rel on links;
+    src, alt, width, height, loading and decoding on images; charset, or name
+    (viewport or description) with content, on meta; colspan, rowspan and scope on
+    cells; datetime on time; start and reversed on ol; span on col; open on details.
+    No data-_ attributes, no srcset. CSS: no backslashes, no `url()` or `image-set()`
+    (pictures are only ever `<img>`), no `@import` or `@font-face`, no `content:` text,
+    and `quotes:` only with quote marks. QUOTES ARE PLAIN: inside `<q>` and
+    `<blockquote>` use only p, br, em, strong, b, i, and a cite or footer for the
+    attribution, with no class, style, hidden, aria-hidden or dir on any of them, and
+    no stylesheet rule that hides, clips or shrinks text inside a quote. The
+    attribution in cite/footer is not part of the quote.
 
 ---
 

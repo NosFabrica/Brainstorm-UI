@@ -228,6 +228,31 @@ describe("the digest", () => {
     expect(text).not.toContain(SOMEBODY);
     expect(text).toContain("edition code: " + corpus.code);
   });
+
+  it("gives no desk link to an event whose address can't be encoded (a d tag over 255 bytes)", async () => {
+    const long = ev({
+      id: "f".repeat(64),
+      kind: 30311,
+      tags: [
+        ["d", "x".repeat(300)],
+        ["title", "Long Show"],
+        ["status", "live"],
+      ],
+    });
+    const corpus = await assemble({
+      observer: OBSERVER,
+      relay: "wss://search.example/",
+      floor: 20,
+      since: SINCE,
+      until: UNTIL,
+      desks: { live: [long] },
+      control: [],
+      profiles: {},
+    });
+    const text = digest(corpus);
+    expect(text).toContain("Long Show");
+    expect(text).not.toContain(`watch: https://zap.stream/stream/${"f".repeat(64)}`);
+  });
 });
 
 describe("the edition code and bylines", () => {

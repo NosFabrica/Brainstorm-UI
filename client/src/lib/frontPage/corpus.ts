@@ -42,6 +42,8 @@ export interface Corpus {
   overlap: number;
   profiles: Record<string, Profile>;
   art: Art[];
+  /** Desks the relay didn't answer cleanly (timed out, closed): their sections may be thin. */
+  unanswered?: string[];
 }
 
 // --- art -------------------------------------------------------------------
@@ -277,7 +279,8 @@ export function digest(corpus: Corpus, budget = DEFAULT_DIGEST_BUDGET): string {
       p(`- [${event.id}] kind ${event.kind} · ${author} · ${when(event.created_at)}`);
       if (title) p(`  title: ${title}`);
       const link = linkFor(desk.key);
-      if (link && tagValue(event, "d")) p(`  ${link.line}: ${link.writerUrl(event.id)}`);
+      // No link for an event whose address can't be encoded: resolve would have nothing to point it at.
+      if (link && link.canonicalUrlOrNull(event)) p(`  ${link.line}: ${link.writerUrl(event.id)}`);
       const text = body(event, EXCERPT[desk.key] ?? DEFAULT_EXCERPT);
       if (text) p(`  ${text}`);
     }

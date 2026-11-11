@@ -240,8 +240,25 @@ export interface DeskLink {
   naddr: RegExp;
   /** Writer form: event id hex on the host. resolve encodes the naddr afterwards. */
   writerUrl(eventId: string): string;
-  /** The host's canonical page for an event, addressed by naddr. */
+  /** The host's canonical page for an event, addressed by naddr. Throws when there is none. */
   canonicalUrl(event: NostrEvent): string;
+  /** The same, or null when the event has no address that encodes (no `d`, or one over 255 bytes). */
+  canonicalUrlOrNull(event: NostrEvent): string | null;
+}
+
+/**
+ * An naddr for [event], or null. NIP-19 stores each TLV value's length in one byte, so a
+ * `d` tag over 255 bytes cannot be encoded (nostr-tools would write a corrupt naddr below
+ * the bech32 limit and throw above it). Corpus content decides this, so it never throws.
+ */
+export function naddrFor(event: NostrEvent): string | null {
+  const d = tagValue(event, "d");
+  if (!d || new TextEncoder().encode(d).length > 255) return null;
+  try {
+    return nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier: d });
+  } catch {
+    return null;
+  }
 }
 
 function deskLink(spec: {
@@ -257,6 +274,11 @@ function deskLink(spec: {
   const writerPrefix = `https://${spec.host}${spec.writerPath}`;
   const naddrPrefix = `https://${spec.host}${spec.naddrPath}`;
   const kinds = new Set(spec.kinds);
+  const canonicalUrlOrNull = (event: NostrEvent) => {
+    if (!kinds.has(event.kind)) return null;
+    const naddr = naddrFor(event);
+    return naddr ? naddrPrefix + naddr : null;
+  };
   return {
     kinds,
     line: spec.line,
@@ -270,10 +292,11 @@ function deskLink(spec: {
       return writerPrefix + id;
     },
     canonicalUrl(event: NostrEvent) {
-      const d = tagValue(event, "d");
-      if (!d || !kinds.has(event.kind)) throw new Error(`Not an address on ${spec.host}`);
-      return naddrPrefix + nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier: d });
+      const url = canonicalUrlOrNull(event);
+      if (!url) throw new Error(`Not an address on ${spec.host}`);
+      return url;
     },
+    canonicalUrlOrNull,
   };
 }
 

@@ -19,9 +19,12 @@ import type { NostrEvent } from "nostr-tools";
 import { DESK_LINKS, DESK_LINK_KEYS, fromNevent, toProfileLink, type DeskLink } from "./desks";
 import type { Corpus } from "./corpus";
 import {
+  cleanUrl,
   corpusIndex,
   deskLinkTarget,
   deskWriterTarget,
+  httpsTarget,
+  isFragment,
   parsePage,
   permalinkTarget,
   profileTarget,
@@ -57,16 +60,11 @@ function openInNewTab(anchor: Element): void {
 export function resolve(html: string, corpus: Corpus): { html: string; doc: Document; changes: ResolveChange[] } {
   const doc = parsePage(html);
   const byId = new Map(corpus.art.map((a) => [a.id, a]));
-  const eventIds = new Set(
-    Object.values(corpus.desks)
-      .flat()
-      .map((e) => e.id),
-  );
   const changes: ResolveChange[] = [];
 
   // --- art ids -------------------------------------------------------------
   for (const img of Array.from(doc.querySelectorAll("img"))) {
-    const id = img.getAttribute("src") ?? "";
+    const id = cleanUrl(img.getAttribute("src") ?? "");
     if (!/^art-\d+$/.test(id)) continue;
     const art = byId.get(id);
     if (art) {
@@ -83,6 +81,7 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
   // citations and the verified zap.stream / Shopstr / njump-calendar links. A calendar
   // listing cited the ordinary way is re-encoded to njump rather than kept as a frozen
   // nevent. Everything else is unwrapped to its own text.
+  // Nothing here may throw on corpus content: a link that can't be kept is unwrapped.
   const index = corpusIndex(corpus);
   const deskTarget = (url: string, id: string | null): { link: DeskLink; event: NostrEvent } | null => {
     for (const key of DESK_LINK_KEYS) {
@@ -95,21 +94,34 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
   };
 
   for (const anchor of Array.from(doc.querySelectorAll("a[href]"))) {
-    const url = anchor.getAttribute("href") ?? "";
-    if (!/^https?:/i.test(url)) continue;
+    const raw = anchor.getAttribute("href") ?? "";
+    // A same-document anchor stays; everything else is judged by where a browser would
+    // go, so ` javascript:`, `//host` and `java&#9;script:` are unwrapped like any other.
+    if (isFragment(raw)) continue;
+    const unwrap = () => {
+      anchor.replaceWith(...Array.from(anchor.childNodes));
+      changes.push({ kind: "unwrapped", detail: raw.slice(0, 120) });
+    };
+    const url = httpsTarget(raw);
+    if (!url) {
+      unwrap();
+      continue;
+    }
     const id = citedEventId(url);
     // Kept links point at their canonical address and open in a new tab: the paper
     // stays put, and a writer who forgets target=_blank still gets it.
     const keep = (canonical: string, kind: ResolveChange["kind"]) => {
-      if (url !== canonical) {
+      if (raw !== canonical) {
         anchor.setAttribute("href", canonical);
-        changes.push({ kind, detail: `${url} -> ${canonical}` });
+        changes.push({ kind, detail: `${raw.slice(0, 120)} -> ${canonical}` });
       }
       openInNewTab(anchor);
     };
     const desk = deskTarget(url, id);
     if (desk) {
-      keep(desk.link.canonicalUrl(desk.event), desk.link.change as ResolveChange["kind"]);
+      const canonical = desk.link.canonicalUrlOrNull(desk.event);
+      if (canonical) keep(canonical, desk.link.change as ResolveChange["kind"]);
+      else unwrap();
       continue;
     }
     const author = profileTarget(url, corpus);
@@ -117,12 +129,14 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
       keep(toProfileLink(author), "profile");
       continue;
     }
-    if (id && eventIds.has(id)) {
-      keep(toPermalink(id), "permalink");
+    const cited = id ? index.events.get(id) : undefined;
+    // A calendar listing with no address that encodes has no link at all: an nevent
+    // would freeze one revision of it.
+    if (cited && !DESK_LINKS.calendar.kinds.has(cited.kind)) {
+      keep(toPermalink(cited.id), "permalink");
       continue;
     }
-    anchor.replaceWith(...Array.from(anchor.childNodes));
-    changes.push({ kind: "unwrapped", detail: url.slice(0, 120) });
+    unwrap();
   }
 
   return { html: serialize(doc), doc, changes };

@@ -9,10 +9,23 @@
 // scanner (attribute quoting, `</a >`) are kept as the same cases against the parser.
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "nostr-tools";
-import { DESK_LINKS, toProfileLink } from "./desks";
+import { DESK_LINKS, naddrFor, toProfileLink } from "./desks";
+import houseCss from "./house.css?raw";
 import type { Corpus } from "./corpus";
 import { resolve } from "./resolve";
-import { PERMALINK, check, deskLinkTarget, parsePage, permalinkTarget, quotedText, toPermalink } from "./validate";
+import {
+  PAPER_CSP,
+  PERMALINK,
+  check,
+  deskLinkTarget,
+  parsePage,
+  permalinkTarget,
+  quotedText,
+  serialize,
+  settle,
+  toPermalink,
+  withPaperCsp,
+} from "./validate";
 
 const EVENT_ID = "a".repeat(64);
 const OTHER_ID = "b".repeat(64);
@@ -128,13 +141,14 @@ describe("images", () => {
     ]);
   });
 
-  it("beyond the Observer: srcset and CSS url() cannot load what the IMAGE check never saw", () => {
+  it("srcset and CSS url() cannot load what the IMAGE check never saw — not even shortlist art", () => {
     expect(kinds('<img src="https://blossom.example.com/real.jpg" srcset="https://evil.example/x.jpg 2x">')).toEqual([
-      "IMAGE",
+      "MARKUP",
     ]);
     expect(kinds('<div style="background:url(https://evil.example/x.jpg)"></div>')).toEqual(["IMAGE"]);
     expect(kinds("<style>.a{background:url('https://evil.example/x.jpg')}</style>")).toEqual(["IMAGE"]);
-    expect(kinds("<style>.a{background:url(https://blossom.example.com/real.jpg)}</style>")).toEqual([]);
+    // v2: art is only ever <img>, so even a shortlist URL is refused in CSS.
+    expect(kinds("<style>.a{background:url(https://blossom.example.com/real.jpg)}</style>")).toEqual(["IMAGE"]);
   });
 });
 
@@ -187,20 +201,23 @@ describe("markup", () => {
     for (const bad of [
       "<script>alert(1)</script>",
       '<p onclick="steal()">x</p>',
-      '<a href="javascript:void(0)">x</a>',
       '<iframe src="https://x.example"></iframe>',
       '<form action="/x"><input name="y"></form>',
       "<style>@import url(https://x.example/a.css);</style>",
     ]) {
       expect(kinds(bad), bad).toContain("MARKUP");
     }
+    // A scripting URL is not a link the paper may carry.
+    expect(kinds('<a href="javascript:void(0)">x</a>')).toEqual(["LINK"]);
   });
 
   it("a real page head is not an attack, but a redirect or a <base> is", () => {
     const head =
       '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The Nostr Observer</title>';
     expect(kinds(head)).toEqual([]);
-    expect(kinds('<meta http-equiv="refresh" content="0;url=https://evil.example">')).toEqual(["MARKUP"]);
+    expect(new Set(kinds('<meta http-equiv="refresh" content="0;url=https://evil.example">'))).toEqual(
+      new Set(["MARKUP"]),
+    );
     expect(kinds('<base href="https://evil.example/">')).toEqual(["MARKUP"]);
   });
 
@@ -339,5 +356,202 @@ describe("bylines", () => {
     expect(named.html).not.toMatch(/jumble\.social\/users/);
     expect(named.changes.map((c) => c.kind)).toEqual(["unwrapped", "unwrapped"]);
     expect(kinds(`<a href="${toProfileLink(STRANGER)}">x</a>`)).toEqual(["LINK"]);
+  });
+});
+
+// The 2026-11-11 audit's bypasses of v1, one by one (paper boundary v2). Each of these
+// passed the old denylist; each must be refused now, and resolve must not keep a link a
+// browser would follow somewhere the check never looked.
+describe("paper boundary v2: the audit's bypasses", () => {
+  const QUOTE = "The relay answered in three seconds flat";
+  const refused = (html: string) => expect(kinds(html), html).not.toEqual([]);
+
+  it("declarative shadow DOM", () => {
+    expect(kinds('<template shadowrootmode="open"><img src="x" onerror="alert(1)"></template>')).toContain("MARKUP");
+    expect(kinds('<div><template shadowroot="open"><p>x</p></template></div>')).toContain("MARKUP");
+  });
+
+  it("noscript comment smuggling", () => {
+    expect(kinds('<noscript><p title="</noscript><img src=x onerror=alert(1)>"></p></noscript>')).toContain("MARKUP");
+  });
+
+  it("links browsers clean before they follow them", () => {
+    for (const href of [
+      " javascript:alert(1)",
+      "//evil.example/x",
+      "java\tscript:alert(1)",
+      "java&#9;script:alert(1)",
+      "\u0001javascript:alert(1)",
+      "jav&#x0A;ascript:alert(1)",
+      "https:evil.example",
+      "/relative/path",
+    ]) {
+      const html = `<a href="${href}">x</a>`;
+      expect(kinds(html), href).toEqual(["LINK"]);
+      const out = resolve(html, corpus);
+      expect(
+        out.changes.map((c) => c.kind),
+        href,
+      ).toEqual(["unwrapped"]);
+      expect(kinds(out.html), href).toEqual([]);
+    }
+  });
+
+  it("a cleaned URL still resolves to the citation it names", () => {
+    const out = resolve(`<a href="  https://jumble.social/notes/${EVENT_ID}\n">source</a>`, corpus);
+    expect(hrefOf(out.html)).toBe(toPermalink(EVENT_ID));
+    expect(kinds(out.html)).toEqual([]);
+  });
+
+  it("a same-document #fragment is not a link out", () => {
+    expect(kinds('<a href="#lead">the lead</a><h2 id="lead">x</h2>')).toEqual([]);
+    expect(resolve('<a href="#lead">x</a>', corpus).changes).toEqual([]);
+  });
+
+  it("SVG links, SVG animation and MathML links", () => {
+    refused('<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>');
+    refused('<svg><a href="https://evil.example"><set attributeName="href" to="javascript:alert(1)"/></a></svg>');
+    refused('<math href="javascript:alert(1)"><mi>x</mi></math>');
+    expect(kinds("<svg></svg>")).toEqual(["MARKUP"]);
+  });
+
+  it("outside resources outside <img>", () => {
+    refused('<link rel="stylesheet" href="https://evil.example/a.css">');
+    refused('<video poster="https://evil.example/x.jpg"></video>');
+    refused('<img src="https://blossom.example.com/real.jpg" poster="https://evil.example/x.jpg">');
+    refused('<table background="https://evil.example/x.jpg"><tr><td>x</td></tr></table>');
+    refused('<svg><image href="https://evil.example/x.jpg"/></svg>');
+    refused('<picture><source srcset="https://evil.example/x.jpg"></picture>');
+  });
+
+  it("an image is judged by the URL a browser would fetch", () => {
+    expect(kinds('<img src=" https://blossom.example.com/real.jpg ">')).toEqual([]);
+    expect(kinds('<img src="//evil.example/x.jpg">')).toEqual(["IMAGE"]);
+  });
+
+  it("CSS escapes, image-set() and the other ways CSS fetches", () => {
+    expect(kinds('<style>@\\69mport "https://evil.example/a.css";</style>')).toContain("MARKUP");
+    expect(kinds('<div style="background:\\75rl(https://evil.example/x.jpg)"></div>')).toContain("MARKUP");
+    expect(kinds("<div style=\"background-image:image-set('https://evil.example/x.jpg' 1x)\"></div>")).toContain(
+      "IMAGE",
+    );
+    expect(kinds("<style>.a{background:-webkit-image-set('https://evil.example/x.jpg' 1x)}</style>")).toContain(
+      "IMAGE",
+    );
+    expect(kinds("<style>@font-face{font-family:x;src:local(x)}</style>")).toContain("MARKUP");
+    expect(kinds("<style>@namespace svg 'x';</style>")).toEqual([]);
+    expect(kinds("<style>@document url-prefix(){a{color:red}}</style>")).toContain("MARKUP");
+    expect(kinds("<style>.a{behavior:url(x.htc)}</style>")).toContain("MARKUP");
+    // Ordinary words are not refused for looking like those.
+    expect(kinds("<style>html{scroll-behavior:smooth}.a{image-rendering:auto}</style>")).toEqual([]);
+  });
+
+  it("hidden text inside a quote, by attribute", () => {
+    // Every word is in the event; what the reader sees drops the "didn't".
+    const hide = (attrs: string) => `<q>and then it <em ${attrs}>didn't</em> answer at all</q>`;
+    expect(kinds(hide(""))).toEqual([]);
+    for (const attrs of ['style="display:none"', 'class="x"', "hidden", 'aria-hidden="true"', 'dir="rtl"']) {
+      expect(kinds(hide(attrs)), attrs).toContain("MARKUP");
+    }
+    expect(kinds(`<q style="font-size:0">${QUOTE}</q>`)).toContain("MARKUP");
+    expect(kinds(`<q>${QUOTE} <span>x</span></q>`)).toContain("MARKUP");
+  });
+
+  it("hidden text inside a quote, by stylesheet", () => {
+    const quote = "<blockquote><p>and then it <em>didn't</em> answer at all</p></blockquote>";
+    expect(kinds(`<style>blockquote em{display:none}</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>p em{font-size:0}</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>em{visibility:hidden}</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>blockquote p::first-letter{font-size:0}</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>blockquote{max-height:1em;overflow:hidden}</style>${quote}`)).toContain("MARKUP");
+    // Styling a quote, or text in it, without hiding any of it is fine.
+    expect(
+      kinds(`<style>.lead blockquote{margin:0 auto;max-width:30ch}blockquote em{font-style:normal}</style>${quote}`),
+    ).toEqual([]);
+    // A rule that can't reach a quote isn't asked.
+    expect(kinds(`<style>.kicker{display:none}</style>${quote}`)).toEqual([]);
+  });
+
+  it("generated text: ::after content and quotes: that are words", () => {
+    expect(kinds(`<style>q::after{content:" - never"}</style><q>${QUOTE}</q>`)).toContain("MARKUP");
+    expect(kinds(`<style>.x::before{content:attr(title)}</style><p class="x" title="y">z</p>`)).toContain("MARKUP");
+    expect(kinds(`<style>q{quotes:"Never: " ""}</style><q>${QUOTE}</q>`)).toContain("MARKUP");
+    expect(kinds(`<p style="quotes:'I never said ' ''"><q>${QUOTE}</q></p>`)).toContain("MARKUP");
+    expect(kinds(`<style>.rule::after{content:""}</style><p class="rule">x</p>`)).toEqual([]);
+  });
+
+  it("every elision fragment is checked, however short", () => {
+    expect(kinds("<q>The relay answered … no … at all</q>")).toEqual(["QUOTE"]);
+    expect(kinds("<q>The relay answered … it … at all</q>")).toEqual([]);
+  });
+
+  it("attribution is not quote text, and may carry a byline link", () => {
+    const attributed = `<blockquote><p>${QUOTE}</p><footer>— <cite><a href="${toProfileLink("aa".repeat(32))}">x</a>Alice</cite></footer></blockquote>`;
+    expect(quotedText(parsePage(attributed))).toEqual([QUOTE]);
+    expect(kinds(`<blockquote><p>${QUOTE}</p><footer>— <cite>Alice</cite></footer></blockquote>`)).toEqual([]);
+    // A link in the attribution is still a link.
+    expect(kinds(attributed)).toEqual(["LINK"]);
+  });
+
+  it("only the attributes a paper needs", () => {
+    expect(kinds('<a href="#x" target="_top">x</a>')).toEqual(["MARKUP"]);
+    expect(kinds('<a href="#x" target="_blank" rel="noopener">x</a>')).toEqual([]);
+    expect(kinds('<p data-x="1">x</p>')).toEqual(["MARKUP"]);
+    expect(kinds('<meta property="og:title" content="x">')).toContain("MARKUP");
+    expect(kinds('<meta name="description" content="x">')).toEqual([]);
+    expect(kinds("<details open><summary>more</summary><p>x</p></details>")).toEqual([]);
+    expect(kinds('<td colspan="2">x</td>')).toEqual([]);
+  });
+
+  it("the house page passes as given", () => {
+    const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>The Nostr Observer</title><style>${houseCss}</style></head><body><main><blockquote><p>${QUOTE}</p><footer><cite>Alice</cite></footer></blockquote><p>and <q>then it didn't answer at all</q></p></main></body></html>`;
+    expect(check(page, corpus).violations).toEqual([]);
+  });
+
+  it("checks the page in the form it settles into after a round trip", () => {
+    // Built in the DOM, a <blockquote> can sit inside a <p>; written out and read back, it can't.
+    const doc = parsePage("<p>lead</p>");
+    const quote = doc.createElement("blockquote");
+    quote.textContent = "This sentence was never posted by anybody.";
+    doc.querySelector("p")!.append(quote);
+    const settled = settle(doc);
+    expect(settled.stable).toBe(true);
+    expect(serialize(settled.doc)).not.toBe(serialize(doc));
+    expect(check(doc, corpus).violations.map((v) => v.kind)).toEqual(["QUOTE"]);
+  });
+
+  it("the app's CSP leads the head of every page that leaves the sandbox, and the model may not write one", () => {
+    const html = withPaperCsp("<!doctype html><html><head><title>t</title></head><body><p>x</p></body></html>");
+    const first = parsePage(html).head.firstElementChild!;
+    expect(first.getAttribute("http-equiv")).toBe("Content-Security-Policy");
+    expect(first.getAttribute("content")).toBe(PAPER_CSP);
+    expect(withPaperCsp(html)).toBe(html);
+    expect(kinds(`<meta http-equiv="Content-Security-Policy" content="${PAPER_CSP}">`)).toContain("MARKUP");
+  });
+});
+
+describe("desk links whose address can't be encoded", () => {
+  const LONG_ID = "44".repeat(32);
+  const long = ev({
+    id: LONG_ID,
+    kind: 30311,
+    pubkey: STREAM_PK,
+    tags: [
+      ["d", "x".repeat(300)],
+      ["status", "live"],
+    ],
+  });
+  const withLong = { ...corpus, desks: { ...corpus.desks, live: [...corpus.desks.live, long] } } as Corpus;
+
+  it("have no naddr", () => {
+    expect(naddrFor(long)).toBeNull();
+    expect(DESK_LINKS.live.canonicalUrlOrNull(long)).toBeNull();
+    expect(() => DESK_LINKS.live.canonicalUrl(long)).toThrow();
+  });
+
+  it("are unwrapped by resolve, which never throws on corpus content", () => {
+    const out = resolve(`<a href="https://zap.stream/stream/${LONG_ID}">x</a>`, withLong);
+    expect(out.changes.map((c) => c.kind)).toEqual(["unwrapped"]);
+    expect(check(out.html, withLong).violations).toEqual([]);
   });
 });
