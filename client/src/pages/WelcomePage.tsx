@@ -12,6 +12,8 @@ import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
 import { knownFollowCount } from "@/lib/followStore";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * Post-signup "Build your network" — the primary activation step. New users pick
@@ -160,7 +162,7 @@ export default function WelcomePage() {
         skipTestId="welcome-skip"
       />
 
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
+      <main className={cn(pageWidth("reading"), "py-8")}>
         {checking ? (
           <p
             className="flex items-center gap-2 py-16 text-sm text-slate-500 dark:text-slate-400"

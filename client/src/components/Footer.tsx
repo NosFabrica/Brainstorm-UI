@@ -2,6 +2,8 @@ import { useLocation } from "wouter";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Wordmark } from "@/components/Wordmark";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 // Structured, product-grade footer (Google-style tiers). Top tier: the
 // Brainstorm wordmark with the version held to the far right. Hairline. Bottom
@@ -30,7 +32,7 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
       data-footer-dark="true"
       style={{ marginLeft: "calc(50% - 50vw)", paddingBottom: "max(env(safe-area-inset-bottom, 0px), 20px)" }}
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-6 pt-7 sm:px-8">
+      <div className={cn(pageWidth("wide"), "flex flex-col gap-5 pt-7")}>
         {/* Tier 1 — brand anchor (left) + version (right) */}
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-6">
           <button

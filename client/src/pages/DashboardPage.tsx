@@ -61,6 +61,8 @@ import { dashboardPrompt } from "@/lib/dashboardPrompt";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
 import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 interface GrapeRankResult {
   status?: unknown;
@@ -641,7 +643,7 @@ export default function DashboardPage() {
         {/* One column, one rhythm: every block is a direct child and the column's gap
             is the only spacing between them — a block that renders nothing leaves no
             hole, and nothing carries a margin of its own. */}
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+        <div className={cn(pageWidth("wide"), "relative z-10 flex flex-1 flex-col gap-4 py-6 sm:gap-6 sm:py-8")}>
           <DeferredSessionNotice />
 
           <div className="flex flex-col gap-4 sm:gap-6">

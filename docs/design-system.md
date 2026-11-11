@@ -9,6 +9,29 @@ These primitives exist so theming/radius/shadow/spacing are defined **once**. Ne
 UI must use them instead of hand-rolling `bg-<color>-50 …` chips or `rounded-2xl
 border bg-white dark:bg-slate-900` cards.
 
+## Page widths — `client/src/lib/pageWidth.ts`
+
+Every page's content sits in one of three widths, centered, with one gutter
+(16px, 24px from `sm`). A page never writes its own
+`mx-auto max-w-… px-4 sm:px-6`; `pageWidth.guard.test.ts` fails when one does.
+
+| Width      | Size   | For                                                         |
+| ---------- | ------ | ----------------------------------------------------------- |
+| `wide`     | 1280px | multi-column app pages (dashboard, settings, admin), footer |
+| `standard` | 1024px | info pages, profiles, the network                           |
+| `reading`  | 672px  | feeds, a single post, a focused task (setup, the first run) |
+
+```tsx
+<main className={cn(pageWidth("reading"), "flex-1 py-8")}>
+```
+
+- The top bar takes the same name: `<PublicPageHeader width="reading" />`, so
+  its edges are the content's. The signed-in bar and the info pages' bar are `wide`.
+- Long text in a `standard` page caps its own measure (`max-w-3xl`, left-aligned),
+  so lines stay readable while the page's edges match its neighbours'.
+- A capped block inside a page (a centered paragraph, a card) is not a page
+  width and stays as it is.
+
 ## Colour system — `client/src/index.css` tokens
 
 Canonical palette (brand guidelines v1, **p5 — Colour System**). _"Neutral tones

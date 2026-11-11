@@ -89,6 +89,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { Nip05Check } from "@/components/Nip05Check";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { publicPageUrl } from "@/lib/publicOrigin";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -191,8 +193,8 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
 function DeletedEvent({ expired = false }: { expired?: boolean }) {
   return (
     <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader />
-      <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+      <PublicPageHeader width="reading" />
+      <main className={cn(pageWidth("reading"), "py-8")}>
         <div className="py-10" data-testid={expired ? "event-expired" : "event-deleted"}>
           <DeletedStub expired={expired} />
           <p className="mt-4 text-center">
@@ -470,11 +472,11 @@ function EventView({
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
-        maxWidthClass="max-w-2xl"
+        width="reading"
         actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />}
       />
 
-      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className={cn(pageWidth("reading"), "py-6 sm:py-8")}>
         {!ptr ? (
           <div className="py-20 text-center">
             <MessageSquare className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />

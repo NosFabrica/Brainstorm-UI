@@ -33,6 +33,8 @@ import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
 import { signalLabel } from "@/lib/nip85Declaration";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * /setup, in two moods (2026-11-09):
@@ -483,7 +485,7 @@ export default function FinishSetupPage() {
         search={false}
       />
 
-      <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
+      <main className={cn(pageWidth("reading"), "pb-28 pt-8 sm:pt-10")}>
         <SectionHeader kicker={allDone ? "Account" : "Finish setting up"} className="mb-4" />
         <h1
           className={

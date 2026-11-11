@@ -26,6 +26,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { PlanCard } from "@/components/billing/PlanCard";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: TIER_LABELS.high,
@@ -217,7 +219,7 @@ export default function InsightsPage() {
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
+      <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
         <button
           type="button"
           onClick={() => goBack("/dashboard")}

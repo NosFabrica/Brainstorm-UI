@@ -115,6 +115,8 @@ import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
 import { markOwnScores } from "@/lib/ownScores";
 import { InternalChip } from "@/components/InternalChip";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type SettingsTab = SettingsTabKey;
 
@@ -1907,7 +1909,7 @@ export default function SettingsPage() {
       <GlossBackground />
       <AppHeader user={user} onLogout={handleLogout} active="settings" />
 
-      <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main className={cn(pageWidth("wide"), "relative z-10 flex-1 py-6 sm:py-8")}>
         <DeferredSessionNotice className="mb-6" />
         <div className="space-y-6" data-testid="container-settings">
           <PageHeader

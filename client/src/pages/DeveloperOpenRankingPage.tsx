@@ -3,6 +3,8 @@ import { Compass, BarChart3, Search, Settings2, BookOpen } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { CodeBlock } from "@/components/CodeBlock";
 import { SectionCard, OpenSourceSection, DevBackLink } from "@/components/developers/DevShared";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 // Configurable Open Ranking (ORE) base — the HTTP origin that serves this
 // instance's ranking endpoints. Driven by config so it points at OUR deployment.
@@ -60,7 +62,7 @@ const STATS_FIELDS: { field: string; meaning: string }[] = [
 export default function DeveloperOpenRankingPage() {
   return (
     <InfoPageLayout testId="page-developers-open-ranking">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-10">
           {/* Editorial hero */}
           <header className="max-w-3xl">

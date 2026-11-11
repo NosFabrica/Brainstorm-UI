@@ -112,6 +112,8 @@ import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -2515,7 +2517,7 @@ export default function ProfilePage() {
         />
       )}
 
-      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-12 sm:px-6">
+      <main className={cn(pageWidth("standard"), "relative z-10 py-12")}>
         <div className="mb-6 flex items-center gap-2">
           {(() => {
             if (fromAdmin) {

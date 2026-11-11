@@ -26,7 +26,9 @@ import { dictionaryRelays } from "@/config/dictionary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { dictionaryConceptOf, loadDictionary } from "@/services/dictionary";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
+import { pageWidth } from "@/lib/pageWidth";
 import { eventPath } from "@/lib/shareId";
+import { cn } from "@/lib/utils";
 
 const VIEWS = ["single", "card", "popup", "all"] as const;
 type View = (typeof VIEWS)[number];
@@ -94,7 +96,7 @@ export default function RendererPlayground() {
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950" data-testid="page-renderer-playground">
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+      <main className={cn(pageWidth("standard"), "space-y-6 py-8")}>
         <div className="space-y-1">
           <SectionHeader kicker="Dev only" />
           <h1
