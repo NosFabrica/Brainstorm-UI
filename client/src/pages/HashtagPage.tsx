@@ -19,6 +19,8 @@ import { hashtagShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import { PUBLICATION_INDEX_KIND } from "@/lib/publication";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 // Tag hygiene for the "related topics" row — mirror the profile "Posts about" rules.
 const VALID_TAG = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
@@ -194,11 +196,11 @@ export default function HashtagPage() {
     <ShareNavProvider>
       <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <PublicPageHeader
-          maxWidthClass="max-w-2xl"
+          width="reading"
           actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} mint={mintShortUrl} />}
         />
 
-        <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6" data-testid="hashtag-page">
+        <main className={cn(pageWidth("reading"), "flex-1 py-8")} data-testid="hashtag-page">
           <PageHeader
             kicker="Topic"
             title={

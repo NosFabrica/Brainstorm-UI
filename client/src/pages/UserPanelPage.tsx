@@ -77,6 +77,8 @@ import { useSocialActions } from "@/hooks/useSocialActions";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { hasOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
@@ -842,7 +844,7 @@ export default function UserPanelPage() {
       <PageBackground />
 
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950" data-testid="nav-agentsuite">
-        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
+        <div className={cn(pageWidth("wide"), "py-3 sm:py-4")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
               <button
@@ -1022,7 +1024,7 @@ export default function UserPanelPage() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main className={cn(pageWidth("wide"), "relative z-10 flex-1 py-6 sm:py-8")}>
         <div className="animate-fade-up space-y-6" data-testid="container-agentsuite">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2" data-testid="section-agentsuite-header">

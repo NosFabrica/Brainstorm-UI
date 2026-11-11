@@ -23,6 +23,8 @@ import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { personMatches } from "@/lib/personMatch";
 import { hasOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -293,7 +295,7 @@ export default function ConnectionListPage() {
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader
-        maxWidthClass="max-w-2xl"
+        width="reading"
         // Pops history rather than navigating to the profile. As a <Link> this
         // PUSHED a duplicate entry, so "Back" moved the user forward: the
         // stack became [profile, list, profile] and the browser's own Back
@@ -311,7 +313,7 @@ export default function ConnectionListPage() {
         back={{ label: `Back to ${subjectName.split(" ")[0]}`, onClick: () => goBack(`/p/${rawId}`) }}
       />
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6">
+      <main className={cn(pageWidth("reading"), "flex-1 py-6")}>
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">

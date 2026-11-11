@@ -15,6 +15,7 @@ import { trackHistoryEntry } from "@/lib/historyState";
 import { AutoScoreReturning } from "@/components/AutoScoreReturning";
 import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoAssistantSetup } from "@/components/AutoAssistantSetup";
+import { FirstRunGate } from "@/components/FirstRunGate";
 import NotFound from "@/pages/not-found";
 import ShortLinkPage from "@/pages/ShortLinkPage";
 import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
@@ -96,6 +97,7 @@ const TagPage = lazyWithReload(() => import("@/pages/TagPage"));
 const TermsPage = lazyWithReload(() => import("@/pages/TermsPage"));
 const UserPanelPage = lazyWithReload(() => import("@/pages/UserPanelPage"));
 const WelcomePage = lazyWithReload(() => import("@/pages/WelcomePage"));
+const FirstRunPage = lazyWithReload(() => import("@/pages/FirstRunPage"));
 const WhatIsWotPage = lazyWithReload(() => import("@/pages/WhatIsWotPage"));
 
 /**
@@ -276,6 +278,7 @@ function Router() {
             <Route path="/tags/:author/:slug" component={TagPage} />
             <Route path="/hero-lab" component={HeroLab} />
             <Route path="/welcome" component={WelcomePage} />
+            <Route path="/start" component={FirstRunPage} />
             <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
             <Route path="/setup/duty-menu">{() => <RequireAuth component={DutyMenuSetupPage} />}</Route>
             <Route path="/setup/treasure-map">{() => <RequireAuth component={TreasureMapSetupPage} />}</Route>
@@ -349,6 +352,7 @@ function App() {
                 <AutoScoreReturning />
                 <AutoActivateBrainstorm />
                 <AutoAssistantSetup />
+                <FirstRunGate />
                 <LightboxProvider>
                   <Router />
                 </LightboxProvider>

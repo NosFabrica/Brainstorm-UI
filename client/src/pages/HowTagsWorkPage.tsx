@@ -4,6 +4,8 @@ import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * `/how-tags-work` — the user-facing explainer for tagging.
@@ -37,7 +39,7 @@ import { Chip } from "@/components/ui/chip";
 export default function HowTagsWorkPage() {
   return (
     <InfoPageLayout testId="page-how-tags-work">
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-12">
           <PageHeader
             size="hero"
@@ -53,7 +55,7 @@ export default function HowTagsWorkPage() {
 
           {/* ── The one-paragraph version ─────────────────────────────── */}
           <Card className="p-6 sm:p-8" data-testid="section-htw-simple">
-            <p className="text-lg leading-relaxed text-slate-700 dark:text-slate-200">
+            <p className="max-w-3xl text-lg leading-relaxed text-slate-700 dark:text-slate-200">
               Think of a tag like a friend saying{" "}
               <span className="font-semibold text-slate-900 dark:text-slate-100">"oh, she's a great photographer"</span>
               . It's their opinion, said out loud, with their name on it. Other people can agree, disagree, or say
@@ -232,7 +234,7 @@ function Section({
         </h2>
       </div>
       <div
-        className={`space-y-3 border-l-2 ${accent} pl-5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300`}
+        className={`max-w-3xl space-y-3 border-l-2 ${accent} pl-5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300`}
       >
         {children}
       </div>
