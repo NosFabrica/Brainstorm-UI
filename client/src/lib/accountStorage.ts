@@ -62,7 +62,32 @@ const NAMESPACES = {
   // muted and accepted come back at the next sign-in from the account's own
   // encrypted copy (lib/dm/prefsSync).
   brainstorm_dm_prefs: "session",
+  // Today's front page: whether this account publishes to its Observer, and whether it
+  // has seen (and accepted) the notice that the Observer is public.
+  "frontPage:publish": "device",
+  "frontPage:observerNotice": "device",
 } as const satisfies Record<string, Lifetime>;
+
+/**
+ * sessionStorage rows (this tab only) that belong to one Account: they go at sign-out
+ * too, so the next person to sign in on this tab doesn't find the last one's paper.
+ */
+const TAB_NAMESPACES = ["frontPage:last"] as const;
+
+export type TabNamespace = (typeof TAB_NAMESPACES)[number];
+
+/** The sessionStorage row this namespace keeps for one Account. */
+export function tabKey(namespace: TabNamespace, pubkey: string): string {
+  return `${namespace}:${pubkey}`;
+}
+
+function clearTab(pubkey: string): void {
+  try {
+    for (const ns of TAB_NAMESPACES) sessionStorage.removeItem(tabKey(ns, pubkey));
+  } catch {
+    /* private browsing, or storage already gone */
+  }
+}
 
 export type AccountNamespace = keyof typeof NAMESPACES;
 
@@ -101,9 +126,11 @@ function clear(pubkey: string, lifetimes: readonly Lifetime[]): void {
  */
 export function clearSessionScopedStorage(pubkey: string): void {
   clear(pubkey, ["session"]);
+  clearTab(pubkey);
 }
 
 /** The Account is leaving this device — everything it kept here goes with it. */
 export function clearAccountStorage(pubkey: string): void {
   clear(pubkey, ["session", "device"]);
+  clearTab(pubkey);
 }

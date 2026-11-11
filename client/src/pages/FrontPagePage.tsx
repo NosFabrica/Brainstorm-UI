@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,7 +37,14 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { copyToClipboard } from "@/lib/clipboard";
 import { observerNaddr, observerUrl, utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
-import { PublishError, fetchBlob, leadHeadline, loadObserverSite, publishToObserver } from "@/services/observerSite";
+import {
+  PublishError,
+  fetchBlob,
+  leadHeadline,
+  loadObserverSite,
+  publishToObserver,
+  type PublishFailure,
+} from "@/services/observerSite";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -49,6 +57,8 @@ import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
+import { accountKey, tabKey } from "@/lib/accountStorage";
+import { withPaperCsp } from "@/lib/frontPage/validate";
 import { WriterError, fetchModels, printFrontPage, type PrintStep, type PullProgress } from "@/services/frontPage";
 import type { Usage } from "@/lib/frontPage/writer";
 
@@ -90,7 +100,7 @@ type Run =
 
 // --- session-only memory ------------------------------------------------------
 
-const lastKey = (pubkey: string) => `frontPage:last:${pubkey}`;
+const lastKey = (pubkey: string) => tabKey("frontPage:last", pubkey);
 
 function readLast(pubkey: string): Printed | null {
   try {
@@ -110,8 +120,8 @@ function writeLast(pubkey: string, page: Printed | null) {
   }
 }
 
-const publishKey = (pubkey: string) => `frontPage:publish:${pubkey}`;
-const noticeKey = (pubkey: string) => `frontPage:observerNotice:${pubkey}`;
+const publishKey = (pubkey: string) => accountKey("frontPage:publish", pubkey);
+const noticeKey = (pubkey: string) => accountKey("frontPage:observerNotice", pubkey);
 
 /** "Publish to my Observer": on unless this account turned it off. */
 function readPublish(pubkey: string): boolean {
@@ -168,7 +178,15 @@ interface SiteState {
 }
 
 type PublishState =
-  { state: "idle" } | { state: "publishing" } | { state: "published" } | { state: "failed"; message: string };
+  | { state: "idle" }
+  /** Waiting for the reader to say yes to a public site, the first time. */
+  | { state: "confirm"; paper: Printed }
+  | { state: "publishing" }
+  | { state: "published" }
+  | { state: "failed"; message: string; reason: PublishFailure | null };
+
+/** Where Brainstorm keeps the reader's Blossom servers (Settings › Messages › File servers). */
+const FILE_SERVERS_SETTINGS = "/settings?tab=messages&focus=file-servers";
 
 const modelKey = (url: string) => `frontPage:model:${url}`;
 
@@ -200,6 +218,8 @@ function useModels(key: AgentKey | null): Models {
     setModels({ status: "loading" });
     fetchModels(key, controller.signal)
       .then((ids) => {
+        // A key changed mid-flight: this list is the old key's.
+        if (controller.signal.aborted) return;
         const ranked = rankModels(ids);
         setModels(ranked.length ? { status: "listed", ids: ranked } : { status: "unlisted" });
       })
@@ -215,6 +235,13 @@ function useModels(key: AgentKey | null): Models {
 
 export default function FrontPagePage() {
   const user = useActiveAccountDisplay();
+  // Everything below is one account's: its paper, its site, the editions fetched from
+  // it, a publish in flight. Switching accounts starts it over instead of showing the
+  // last account's under the new one's name (or publishing it to the new one's site).
+  return <FrontPageBody key={user?.pubkey ?? "signed-out"} user={user} />;
+}
+
+function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDisplay> }) {
   const pubkey = user?.pubkey ?? null;
   const readerName = user?.displayName || (pubkey ? shortNpub(pubkey) : "");
   const keys = useAgentKeys();
@@ -226,10 +253,10 @@ export default function FrontPagePage() {
   const [run, setRun] = useState<Run>({ state: "idle" });
   const [publish, setPublish] = useState(() => (pubkey ? readPublish(pubkey) : true));
   const [publishState, setPublishState] = useState<PublishState>({ state: "idle" });
-  const [notice, setNotice] = useState(false);
   const [site, setSite] = useState<SiteState | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  // Editions fetched from the site by hash: html, or null when no server had the bytes.
+  // Editions fetched from the site, by sha256 (a day reprinted is other bytes): html, or
+  // null when no server had them.
   const [fetched, setFetched] = useState<Record<string, string | null>>({});
 
   // The reader's Observer site: what the day tabs list.
@@ -255,21 +282,29 @@ export default function FrontPagePage() {
   const day = selectedDay && days.includes(selectedDay) ? selectedDay : (days[0] ?? null);
   const siteEntry = day && day !== sessionDay ? site?.editions.find((e) => e.day === day) : undefined;
   const shown: Printed | null =
-    day === sessionDay ? page : siteEntry ? fromEntry(siteEntry, fetched[day!] ?? "") : null;
-  const shownFailed = !!siteEntry && day !== null && fetched[day] === null;
+    day === sessionDay ? page : siteEntry ? fromEntry(siteEntry, fetched[siteEntry.sha256] ?? "") : null;
+  // No servers to ask is not an answer: nothing is remembered, so a later load can try.
+  const shownFailed = !!siteEntry && (fetched[siteEntry.sha256] === null || site?.servers.length === 0);
 
   useEffect(() => {
-    if (!siteEntry || !site || fetched[siteEntry.day] !== undefined) return;
+    if (!siteEntry || !site || site.servers.length === 0 || fetched[siteEntry.sha256] !== undefined) return;
     const controller = new AbortController();
-    fetchBlob(siteEntry.sha256, site.servers, { signal: controller.signal }).then((html) => {
-      if (!controller.signal.aborted) setFetched((m) => ({ ...m, [siteEntry.day]: html }));
+    const { sha256 } = siteEntry;
+    fetchBlob(sha256, site.servers, { signal: controller.signal }).then((html) => {
+      if (!controller.signal.aborted) setFetched((m) => ({ ...m, [sha256]: html }));
     });
     return () => controller.abort();
   }, [siteEntry, site, fetched]);
 
+  // Read when a paper is ready, not when Print was pressed: turning publishing off while
+  // the paper is being written must keep that paper private.
+  const publishOn = useRef(publish);
+  publishOn.current = publish;
   const choosePublish = (on: boolean) => {
     setPublish(on);
+    publishOn.current = on;
     if (pubkey) writePublish(pubkey, on);
+    if (!on) setPublishState((s) => (s.state === "confirm" ? { state: "idle" } : s));
   };
 
   const publishPaper = useCallback(
@@ -288,17 +323,31 @@ export default function FrontPagePage() {
           quotesVerified: printed.quotes,
           model: printed.model,
         });
-        setSite((prev) => ({ editions: out.editions, servers: prev?.servers ?? [], exists: true }));
+        setSite((prev) => ({
+          editions: out.editions,
+          servers: [...new Set([...out.servers, ...(prev?.servers ?? [])])],
+          exists: true,
+        }));
         setPublishState({ state: "published" });
-        if (!noticeSeen(pubkey)) setNotice(true);
       } catch (err) {
         setPublishState({
           state: "failed",
           message: err instanceof PublishError ? err.message : "Couldn't publish to your Observer.",
+          reason: err instanceof PublishError ? err.reason : null,
         });
       }
     },
     [pubkey, user?.displayName],
+  );
+
+  /** Publish, once the reader has said yes to a public site: asked before the first one. */
+  const offerPublish = useCallback(
+    (printed: Printed) => {
+      if (!pubkey) return;
+      if (noticeSeen(pubkey)) void publishPaper(printed);
+      else setPublishState({ state: "confirm", paper: printed });
+    },
+    [pubkey, publishPaper],
   );
   const [printOpen, setPrintOpen] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
@@ -306,20 +355,26 @@ export default function FrontPagePage() {
   useEffect(() => () => abort.current?.abort(), []);
 
   const models = useModels(key);
-  const [model, setModel] = useState("");
+  // The model is one provider's: when the key changes, the last provider's choice is
+  // not sent to the new one while its list loads.
+  const [chosen, setChosen] = useState<{ url: string; id: string } | null>(null);
+  const model = key && chosen?.url === key.url ? chosen.id : "";
   useEffect(() => {
     if (!key) return;
     const remembered = readModel(key.url);
     if (models.status === "listed") {
-      setModel(remembered && models.ids.includes(remembered) ? remembered : models.ids[0]);
+      setChosen({ url: key.url, id: remembered && models.ids.includes(remembered) ? remembered : models.ids[0] });
     } else if (models.status === "unlisted") {
-      setModel(remembered ?? "");
+      setChosen({ url: key.url, id: remembered ?? "" });
+    } else {
+      setChosen(null);
     }
   }, [key?.url, models]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chooseModel = (id: string) => {
-    setModel(id);
-    if (key) writeModel(key.url, id);
+    if (!key) return;
+    setChosen({ url: key.url, id });
+    writeModel(key.url, id);
   };
 
   const print = useCallback(async () => {
@@ -373,7 +428,7 @@ export default function FrontPagePage() {
         setSelectedDay(null);
         setRun({ state: "idle" });
         // Only a page the check passed gets here: that is the only one published.
-        if (publish) void publishPaper(printed);
+        if (publishOn.current) offerPublish(printed);
         else setPublishState({ state: "idle" });
       }
     } catch (err) {
@@ -386,7 +441,7 @@ export default function FrontPagePage() {
         message: err instanceof WriterError ? err.message : "Something went wrong while printing. Try again.",
       });
     }
-  }, [key, pubkey, model, readerName, publish, publishPaper]);
+  }, [key, pubkey, model, readerName, offerPublish]);
 
   const cancel = () => {
     abort.current?.abort();
@@ -442,17 +497,18 @@ export default function FrontPagePage() {
               )
             )}
 
-            {!showHero && publishState.state !== "idle" && (
-              <PublishStatus state={publishState} onRetry={() => page && void publishPaper(page)} />
-            )}
-            {notice && pubkey && (
+            {publishState.state === "confirm" && pubkey && (
               <ObserverNotice
                 pubkey={pubkey}
-                onDone={() => {
+                onPublish={() => {
                   markNoticeSeen(pubkey);
-                  setNotice(false);
+                  void publishPaper(publishState.paper);
                 }}
+                onNotNow={() => setPublishState({ state: "idle" })}
               />
+            )}
+            {!showHero && publishState.state !== "idle" && publishState.state !== "confirm" && (
+              <PublishStatus state={publishState} onRetry={() => page && offerPublish(page)} />
             )}
 
             {blocker && blocker !== "checking" && <Blocker kind={blocker} onUnlock={keys.reveal} />}
@@ -519,7 +575,7 @@ export default function FrontPagePage() {
           </DialogContent>
         </Dialog>
 
-        {fullScreen && shown?.html && <FullScreenPaper page={shown} onClose={() => setFullScreen(false)} />}
+        {shown?.html && <FullScreenPaper page={shown} open={fullScreen} onClose={() => setFullScreen(false)} />}
       </div>
     </TooltipProvider>
   );
@@ -650,7 +706,7 @@ function PublishSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) 
 }
 
 function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () => void }) {
-  if (state.state === "idle") return null;
+  if (state.state === "idle" || state.state === "confirm") return null;
   return (
     <div className="flex items-center gap-2 text-sm" data-testid="front-page-publish-status">
       {state.state === "publishing" && (
@@ -665,7 +721,16 @@ function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () =>
           <span className="text-muted-foreground">On your Observer</span>
         </>
       )}
-      {state.state === "failed" && (
+      {state.state === "failed" && state.reason === "no-servers" && (
+        <>
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          <span className="min-w-0 truncate text-muted-foreground">Your Observer needs a file server</span>
+          <Button asChild variant="ghost" size="sm" className="h-7 px-2" data-testid="front-page-publish-add-server">
+            <Link href={FILE_SERVERS_SETTINGS}>Add a Blossom server</Link>
+          </Button>
+        </>
+      )}
+      {state.state === "failed" && state.reason !== "no-servers" && (
         <>
           <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           <span className="min-w-0 truncate text-muted-foreground">{state.message}</span>
@@ -684,31 +749,52 @@ function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () =>
   );
 }
 
-/** Once, after the first publish: the site is public, and where that's turned off. */
-function ObserverNotice({ pubkey, onDone }: { pubkey: string; onDone: () => void }) {
+/**
+ * Before the first publish, not after: the site is public, and this is where that's
+ * turned off. Nothing is uploaded until the reader says Publish.
+ */
+function ObserverNotice({
+  pubkey,
+  onPublish,
+  onNotNow,
+}: {
+  pubkey: string;
+  onPublish: () => void;
+  onNotNow: () => void;
+}) {
   return (
-    <Card className="flex items-start gap-4 p-4 sm:p-5" data-testid="front-page-observer-notice">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
-        <Globe className="h-5 w-5" />
-      </span>
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="font-medium text-foreground">Your Observer is public</p>
-        <p className="text-sm text-muted-foreground">
-          Anyone can read it.{" "}
-          <a
-            href={observerUrl(pubkey)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-foreground underline underline-offset-2"
-          >
-            Open it
-          </a>
-          . Turn off “Publish to my Observer” in Print to keep a paper to yourself.
-        </p>
+    <Card
+      className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:p-5"
+      data-testid="front-page-observer-notice"
+    >
+      <div className="flex min-w-0 flex-1 items-start gap-4">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+          <Globe className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="font-medium text-foreground">Publish to your public Observer?</p>
+          <p className="text-sm text-muted-foreground">
+            Anyone can read{" "}
+            <a
+              href={observerUrl(pubkey)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              your Observer
+            </a>
+            . Turn off “Publish to my Observer” in Print to keep papers to yourself.
+          </p>
+        </div>
       </div>
-      <Button size="sm" variant="secondary" onClick={onDone} data-testid="front-page-observer-notice-ok">
-        Got it
-      </Button>
+      <div className="flex shrink-0 gap-2 sm:self-center">
+        <Button size="sm" variant="ghost" onClick={onNotNow} data-testid="front-page-observer-notice-later">
+          Not now
+        </Button>
+        <Button size="sm" onClick={onPublish} data-testid="front-page-observer-notice-ok">
+          Publish
+        </Button>
+      </div>
     </Card>
   );
 }
@@ -1132,7 +1218,8 @@ function Refused({ violations, changes }: { violations: Violation[]; changes: Re
 
 function download(page: Printed) {
   const date = new Date(page.printedAt).toISOString().slice(0, 10);
-  const url = URL.createObjectURL(new Blob([page.html], { type: "text/html" }));
+  // Outside the app's sandbox, the CSP is the page's script barrier (idempotent).
+  const url = URL.createObjectURL(new Blob([withPaperCsp(page.html)], { type: "text/html" }));
   const a = document.createElement("a");
   a.href = url;
   a.download = `front-page-${date}-${page.code}.html`;
@@ -1184,59 +1271,71 @@ function PaperFrame({ page, failed = false }: { page: Printed; failed?: boolean 
   );
 }
 
-/** The paper filling the window, for reading: same sandbox, Esc or ✕ to leave. */
-function FullScreenPaper({ page, onClose }: { page: Printed; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = overflow;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+/**
+ * The paper filling the window, for reading: same sandbox, Esc or ✕ to leave. A Radix
+ * dialog, so focus is trapped inside it and returns to the button that opened it. One
+ * limit: a key pressed while focus is inside the paper's frame stays in the frame (a
+ * sandboxed document's events don't reach this one), so Esc works once focus is back
+ * on the bar, and ✕ always does.
+ */
+function FullScreenPaper({ page, open, onClose }: { page: Printed; open: boolean; onClose: () => void }) {
+  // What had focus when it opened (the opener has no Dialog.Trigger to return to).
+  const opener = useRef<HTMLElement | null>(null);
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Your front page"
-      className="fixed inset-0 z-50 flex flex-col bg-[#faf8f3]"
-      data-testid="front-page-fullscreen-view"
-    >
-      <div className="flex items-center gap-2 border-b border-black/10 px-3 py-2 text-slate-800">
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{editionDate(page.printedAt)}</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
-          onClick={() => download(page)}
-          aria-label="Download"
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          }}
+          onCloseAutoFocus={(e) => {
+            if (opener.current?.isConnected) {
+              e.preventDefault();
+              opener.current.focus();
+            }
+          }}
+          className="fixed inset-0 z-50 flex flex-col bg-[#faf8f3] focus:outline-none"
+          data-testid="front-page-fullscreen-view"
         >
-          <Download className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
-          onClick={onClose}
-          aria-label="Close"
-          data-testid="front-page-fullscreen-close"
-        >
-          <X className="h-5 w-5" />
-        </Button>
-      </div>
-      {/* The same margin of newsprint as inline: a page run edge to edge loses its folio's
-          first letter to the window's edge otherwise. */}
-      <div className="flex min-h-0 flex-1 p-2 sm:p-4">
-        <iframe
-          title="Your front page, full screen"
-          srcDoc={page.html}
-          sandbox={SANDBOX}
-          referrerPolicy="no-referrer"
-          className="block h-full w-full flex-1 border-0 bg-[#faf8f3]"
-        />
-      </div>
-    </div>
+          <div className="flex items-center gap-2 border-b border-black/10 px-3 py-2 text-slate-800">
+            <DialogPrimitive.Title className="min-w-0 flex-1 truncate text-sm font-medium">
+              {editionDate(page.printedAt)}
+            </DialogPrimitive.Title>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
+              onClick={() => download(page)}
+              aria-label="Download"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <DialogPrimitive.Close asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
+                aria-label="Close"
+                data-testid="front-page-fullscreen-close"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </DialogPrimitive.Close>
+          </div>
+          {/* The same margin of newsprint as inline: a page run edge to edge loses its folio's
+              first letter to the window's edge otherwise. */}
+          <div className="flex min-h-0 flex-1 p-2 sm:p-4">
+            <iframe
+              title="Your front page, full screen"
+              srcDoc={page.html}
+              sandbox={SANDBOX}
+              referrerPolicy="no-referrer"
+              className="block h-full w-full flex-1 border-0 bg-[#faf8f3]"
+            />
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

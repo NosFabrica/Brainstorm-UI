@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   hasMywot: true,
   isSearchObserver: true,
   models: [] as string[],
+  modelsFor: null as null | ((url: string) => Promise<string[]>),
+  user: { pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" },
   print: vi.fn(),
   site: { event: null, index: { v: 1, title: "", editions: [] }, servers: [], relays: [] } as Record<string, unknown>,
   publish: vi.fn(),
@@ -21,7 +23,7 @@ vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/Footer", () => ({ Footer: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
-  useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" }),
+  useActiveAccountDisplay: () => state.user,
 }));
 vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ ...state.keys, reveal: vi.fn() }) }));
 vi.mock("@/hooks/useHasMywot", () => ({
@@ -36,7 +38,7 @@ vi.mock("@/hooks/useCanSearchMywot", () => ({
 }));
 vi.mock("@/services/frontPage", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  fetchModels: () => Promise.resolve(state.models),
+  fetchModels: (key: { url: string }) => (state.modelsFor ? state.modelsFor(key.url) : Promise.resolve(state.models)),
   printFrontPage: (...args: unknown[]) => state.print(...args),
 }));
 
@@ -65,9 +67,16 @@ describe("FrontPagePage", () => {
     state.hasMywot = true;
     state.isSearchObserver = true;
     state.models = ["openai/gpt-4o-mini", "anthropic/claude-sonnet-4.5"];
+    state.modelsFor = null;
+    state.user = { pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" };
     state.print.mockReset();
     state.site = { event: null, index: { v: 1, title: "", editions: [] }, servers: [], relays: [] };
-    state.publish.mockReset().mockResolvedValue({ url: "https://x.nsite.lol", naddr: "naddr1x", editions: [] });
+    state.publish.mockReset().mockResolvedValue({
+      url: "https://x.nsite.lol",
+      naddr: "naddr1x",
+      editions: [],
+      servers: ["https://files.example"],
+    });
     state.fetchBlob.mockReset().mockResolvedValue(null);
   });
 
@@ -151,11 +160,18 @@ describe("FrontPagePage", () => {
     await waitFor(() => expect(state.print).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByTestId("front-page-print-dialog")).toBeNull());
 
-    fireEvent.click(screen.getByTestId("front-page-fullscreen"));
-    const view = screen.getByTestId("front-page-fullscreen-view");
+    const opener = screen.getByTestId("front-page-fullscreen");
+    opener.focus();
+    fireEvent.click(opener);
+    const view = await screen.findByTestId("front-page-fullscreen-view");
+    expect(view.getAttribute("role")).toBe("dialog");
     expect(view.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-popups allow-popups-to-escape-sandbox");
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByTestId("front-page-fullscreen-view")).toBeNull();
+    // Focus moves into the reader and is held there.
+    await waitFor(() => expect(view.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(view, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("front-page-fullscreen-view")).toBeNull());
+    // ... and comes back to the button that opened it.
+    await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 
   it("a refused page is never shown; the violations are", async () => {
@@ -172,7 +188,7 @@ describe("FrontPagePage", () => {
     expect(screen.queryByTestId("front-page-frame")).toBeNull();
   });
 
-  it("publishes a clean paper to the reader's Observer, and says once that it is public", async () => {
+  it("asks once, before the first publish, that the Observer is public; then publishes the clean paper", async () => {
     state.print.mockResolvedValue({
       ...printed,
       html: '<html><body><h2 class="lead-head">Relays went quiet</h2></body></html>',
@@ -181,6 +197,14 @@ describe("FrontPagePage", () => {
     await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
     expect(screen.getByTestId("front-page-publish-switch")).toHaveAttribute("data-state", "checked");
     fireEvent.click(screen.getByTestId("front-page-print"));
+
+    // Nothing goes out before the reader says yes.
+    const notice = await screen.findByTestId("front-page-observer-notice");
+    expect(notice).toHaveTextContent("public");
+    expect(state.publish).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("front-page-observer-notice-ok"));
+    expect(screen.queryByTestId("front-page-observer-notice")).toBeNull();
+    expect(localStorage.getItem(`frontPage:observerNotice:${"a".repeat(64)}`)).toBe("1");
 
     await waitFor(() => expect(state.publish).toHaveBeenCalledTimes(1));
     expect(state.publish.mock.calls[0][0]).toMatchObject({
@@ -193,11 +217,6 @@ describe("FrontPagePage", () => {
       model: "anthropic/claude-sonnet-4.5",
     });
     expect(await screen.findByTestId("front-page-publish-status")).toHaveTextContent("On your Observer");
-    const notice = await screen.findByTestId("front-page-observer-notice");
-    expect(notice).toHaveTextContent("Your Observer is public");
-    fireEvent.click(screen.getByTestId("front-page-observer-notice-ok"));
-    expect(screen.queryByTestId("front-page-observer-notice")).toBeNull();
-    expect(localStorage.getItem(`frontPage:observerNotice:${"a".repeat(64)}`)).toBe("1");
 
     fireEvent.click(screen.getByTestId("front-page-info"));
     const links = await screen.findByTestId("front-page-observer-links");
@@ -215,7 +234,70 @@ describe("FrontPagePage", () => {
     expect(state.publish).not.toHaveBeenCalled();
   });
 
+  it("“Not now” publishes nothing, and asks again next time", async () => {
+    state.print.mockResolvedValue(printed);
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("front-page-print"));
+    fireEvent.click(await screen.findByTestId("front-page-observer-notice-later"));
+    expect(screen.queryByTestId("front-page-observer-notice")).toBeNull();
+    expect(state.publish).not.toHaveBeenCalled();
+    expect(localStorage.getItem(`frontPage:observerNotice:${"a".repeat(64)}`)).toBeNull();
+  });
+
+  it("turning publishing off while the paper is written keeps that paper private", async () => {
+    localStorage.setItem(`frontPage:observerNotice:${"a".repeat(64)}`, "1");
+    let finish: (v: unknown) => void = () => {};
+    state.print.mockReturnValue(new Promise((r) => (finish = r)));
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("front-page-print"));
+    fireEvent.click(screen.getByTestId("front-page-publish-switch"));
+    finish(printed);
+    await screen.findByTestId("front-page-frame");
+    expect(state.publish).not.toHaveBeenCalled();
+  });
+
+  it("with no Blossom server list, publishes nothing and points to where servers are added", async () => {
+    localStorage.setItem(`frontPage:observerNotice:${"a".repeat(64)}`, "1");
+    const { PublishError } = await import("@/services/observerSite");
+    state.print.mockResolvedValue(printed);
+    state.publish.mockRejectedValueOnce(new PublishError("no servers", "no-servers"));
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("front-page-print"));
+    const add = await screen.findByTestId("front-page-publish-add-server");
+    expect(add.getAttribute("href")).toBe("/settings?tab=messages&focus=file-servers");
+  });
+
+  it("an account switch starts the page over: no paper, site or publish of the last account's", async () => {
+    localStorage.setItem(`frontPage:observerNotice:${"a".repeat(64)}`, "1");
+    state.print.mockResolvedValue(printed);
+    const view = renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("front-page-print"));
+    await screen.findByTestId("front-page-frame");
+    await waitFor(() => expect(state.publish).toHaveBeenCalledTimes(1));
+
+    state.user = { pubkey: "b".repeat(64), npub: "npub1other", displayName: "Other" };
+    view.rerender(<FrontPagePage />);
+    expect(screen.queryByTestId("front-page-frame")).toBeNull();
+    expect(screen.queryByTestId("front-page-publish-status")).toBeNull();
+    expect(screen.getByTestId("front-page-hero")).toBeInTheDocument();
+  });
+
+  it("never sends the last provider's model to a new key while its list loads", async () => {
+    const view = renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    state.modelsFor = () => new Promise(() => {});
+    state.keys = { status: "ready", keys: [{ key: "sk-ant-x", url: "https://api.anthropic.com/v1" }] };
+    view.rerender(<FrontPagePage />);
+    // The new key's list hasn't come: there is no model to print with, so no Print.
+    expect(screen.getByTestId("front-page-print")).toBeDisabled();
+  });
+
   it("a failed publish keeps the paper and offers Retry", async () => {
+    localStorage.setItem(`frontPage:observerNotice:${"a".repeat(64)}`, "1");
     state.print.mockResolvedValue(printed);
     state.publish.mockRejectedValueOnce(new Error("boom"));
     renderWithProviders(<FrontPagePage />);
@@ -265,5 +347,17 @@ describe("FrontPagePage", () => {
     fireEvent.mouseDown(older);
     fireEvent.click(older);
     await waitFor(() => expect(screen.getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 1"));
+  });
+
+  it("with no servers to ask, asks none and remembers no failure", async () => {
+    state.site = {
+      event: { kind: 35128 },
+      index: { v: 1, title: "", editions: [{ day: "2026-11-10", path: "/2026-11-10.html", sha256: "2".repeat(64) }] },
+      servers: [],
+      relays: [],
+    };
+    renderWithProviders(<FrontPagePage />);
+    expect(await screen.findByTestId("front-page-frame-missing")).toBeInTheDocument();
+    expect(state.fetchBlob).not.toHaveBeenCalled();
   });
 });

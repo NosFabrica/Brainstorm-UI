@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { accountKey, clearAccountStorage, clearSessionScopedStorage } from "./accountStorage";
+import { accountKey, clearAccountStorage, clearSessionScopedStorage, tabKey } from "./accountStorage";
 
 const PUBKEY = "a".repeat(64);
 const OTHER = "b".repeat(64);
@@ -51,6 +51,24 @@ describe("clearing what a Session left behind", () => {
     clearSessionScopedStorage(PUBKEY);
 
     expect(localStorage.getItem(accountKey("brainstorm_calc_triggered_at", OTHER))).toBe("123");
+  });
+});
+
+describe("the front page's rows", () => {
+  it("are the Account's: the paper in this tab goes at sign-out, the settings when it leaves", () => {
+    sessionStorage.setItem(tabKey("frontPage:last", PUBKEY), "{}");
+    sessionStorage.setItem(tabKey("frontPage:last", OTHER), "{}");
+    localStorage.setItem(accountKey("frontPage:publish", PUBKEY), "off");
+    localStorage.setItem(accountKey("frontPage:observerNotice", PUBKEY), "1");
+
+    clearSessionScopedStorage(PUBKEY);
+    expect(sessionStorage.getItem(tabKey("frontPage:last", PUBKEY))).toBeNull();
+    expect(sessionStorage.getItem(tabKey("frontPage:last", OTHER))).toBe("{}");
+    expect(localStorage.getItem(accountKey("frontPage:publish", PUBKEY))).toBe("off");
+
+    clearAccountStorage(PUBKEY);
+    expect(localStorage.getItem(accountKey("frontPage:publish", PUBKEY))).toBeNull();
+    expect(localStorage.getItem(accountKey("frontPage:observerNotice", PUBKEY))).toBeNull();
   });
 });
 
