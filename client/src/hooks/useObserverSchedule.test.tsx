@@ -166,4 +166,24 @@ describe("useObserverSchedule", () => {
     await shown();
     expect(load).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps its answer's identity until something in it changes", async () => {
+    unasked.mockResolvedValue(true);
+    held = { event: event(), loading: false, settled: true };
+    const { result, rerender } = renderHook(() => useObserverSchedule());
+    await flush();
+    await releaseAll();
+    expect(result.current.status).toBe("ready");
+    const first = result.current;
+    rerender();
+    rerender();
+    expect(result.current).toBe(first);
+
+    held = { event: undefined, loading: true, settled: false };
+    rerender();
+    const loading = result.current;
+    expect(loading.status).toBe("loading");
+    rerender();
+    expect(result.current).toBe(loading);
+  });
 });

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useObserverSchedule, type ObserverSchedule } from "@/hooks/useObserverSchedule";
+import type { ObserverSchedule } from "@/hooks/useObserverSchedule";
 import { useNow } from "@/hooks/useNow";
 import { emptyObserverSchedule } from "@/lib/frontPage/observerSchedule";
 import { cn } from "@/lib/utils";
@@ -59,11 +59,12 @@ interface Pending {
  * opens the time and weekdays when the schedule is that simple, or what was written when
  * it isn't (NIP-FB: a simple editor edits only what it can show again).
  *
- * Memoized with no props: the page re-renders on every streamed chunk while it prints,
- * and none of that is this card's. What it shows is worked out once a minute.
+ * Memoized, and handed the page's one read of the schedule (`useObserverSchedule` keeps
+ * its answer's identity until it changes): the page re-renders on every streamed chunk
+ * while it prints, and none of that is this card's. What it shows is worked out once a
+ * minute.
  */
-export const MorningSchedule = memo(function MorningSchedule() {
-  const state = useObserverSchedule();
+export const MorningSchedule = memo(function MorningSchedule({ schedule: state }: { schedule: ObserverSchedule }) {
   const now = useNow(60_000);
   const zone = browserTimeZone();
   const held = state.status === "ready" ? state.doc : state.status === "none" ? NONE : null;

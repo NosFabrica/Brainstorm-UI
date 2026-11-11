@@ -561,7 +561,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
               </div>
             )}
 
-            {pubkey && <MorningSchedule />}
+            {pubkey && <MorningSchedule schedule={scheduleState} />}
 
             <AnimatePresence mode="wait">
               {run.state === "running" && (

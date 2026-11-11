@@ -9,16 +9,14 @@ import { useState } from "react";
 import type { ObserverSchedule } from "@/hooks/useObserverSchedule";
 import { browserTimeZone, readTask, type TaskTags } from "@/lib/scheduledTasks";
 
-// The hook's answer, as a store: a change re-renders the card the way the real hook would
-// (the card is memoized, so re-rendering its parent doesn't).
+// The hook's answer, as a store: a change re-renders whoever holds it, the way the real
+// hook would. The page holds it and hands it to the card.
 let state: ObserverSchedule;
 const listeners = new Set<() => void>();
-const hookCalls = vi.fn();
 vi.mock("@/hooks/useObserverSchedule", async () => {
   const { useSyncExternalStore } = await import("react");
   return {
     useObserverSchedule: () => {
-      hookCalls();
       return useSyncExternalStore(
         (l) => {
           listeners.add(l);
@@ -35,10 +33,28 @@ const hookSays = (next: ObserverSchedule) =>
     state = next;
     listeners.forEach((l) => l());
   });
+// Counts the card's renders: it calls useNow once per render.
+const cardRenders = vi.fn();
+vi.mock("@/hooks/useNow", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useNow")>();
+  return {
+    ...actual,
+    useNow: (ms: number) => {
+      cardRenders();
+      return actual.useNow(ms);
+    },
+  };
+});
 const update = vi.fn();
 vi.mock("@/services/observerSchedule", () => ({ updateObserverSchedule: (c: unknown) => update(c) }));
 
+import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule } from "./MorningSchedule";
+
+/** The card as the page uses it: one read of the schedule, handed down. */
+function Card() {
+  return <MorningSchedule schedule={useObserverSchedule()} />;
+}
 
 const tz = browserTimeZone();
 const refresh = vi.fn();
@@ -61,13 +77,12 @@ const deferred = () => {
 beforeEach(() => {
   update.mockReset();
   refresh.mockReset();
-  hookCalls.mockReset();
 });
 
 describe("calm by default", () => {
   it("shows the sentence, the last run and the switch; the editor waits for Edit", () => {
     state = ready("0 6 * * 1-5", [["ran", String(Math.floor(Date.now() / 1000) - 3600)]]);
-    render(<MorningSchedule />);
+    render(<Card />);
     expect(screen.getByTestId("front-page-schedule-status")).toHaveTextContent("Printed each weekday at 6:00 AM");
     expect(screen.getByTestId("front-page-schedule-title")).toHaveTextContent("Morning paper");
     expect(screen.queryByTestId("front-page-schedule-time")).toBeNull();
@@ -79,7 +94,7 @@ describe("calm by default", () => {
 
   it("opens on a tap on the card, but not on its switch", () => {
     state = ready("0 6 * * *");
-    render(<MorningSchedule />);
+    render(<Card />);
     update.mockReturnValue(new Promise(() => {}));
     fireEvent.click(switchEl());
     expect(screen.queryByTestId("front-page-schedule-panel")).toBeNull();
@@ -87,7 +102,7 @@ describe("calm by default", () => {
 
   it("opens on a tap anywhere else on the card", () => {
     state = ready("0 6 * * *");
-    render(<MorningSchedule />);
+    render(<Card />);
     fireEvent.click(screen.getByTestId("front-page-schedule-status"));
     expect(screen.getByTestId("front-page-schedule-panel")).toBeInTheDocument();
   });
@@ -95,7 +110,7 @@ describe("calm by default", () => {
   it("closes again after a save", async () => {
     state = ready("0 6 * * *");
     update.mockResolvedValue({ success: true, id: "e2", createdAt: 2000 });
-    render(<MorningSchedule />);
+    render(<Card />);
     fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
     fireEvent.change(time(), { target: { value: "07:30" } });
     await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save")));
@@ -109,7 +124,7 @@ describe("saving", () => {
     state = ready("0 6 * * *");
     const out = deferred();
     update.mockReturnValue(out.promise);
-    render(<MorningSchedule />);
+    render(<Card />);
     fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
     fireEvent.change(time(), { target: { value: "07:30" } });
     await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save")));
@@ -126,7 +141,7 @@ describe("saving", () => {
     state = ready("0 6 * * *");
     const out = deferred();
     update.mockReturnValue(out.promise);
-    render(<MorningSchedule />);
+    render(<Card />);
     await act(async () => fireEvent.click(switchEl()));
     expect(switchEl()).toBeDisabled();
     expect(switchEl()).toHaveAttribute("aria-checked", "false");
@@ -148,7 +163,7 @@ describe("saving", () => {
   it("drops the overlay when a newer event than its own arrives", async () => {
     state = ready("0 6 * * *");
     update.mockResolvedValue({ success: true, id: "e2", createdAt: 2000 });
-    render(<MorningSchedule />);
+    render(<Card />);
     await act(async () => fireEvent.click(switchEl()));
     expect(switchEl()).toHaveAttribute("aria-checked", "false");
     // Still the old event: the overlay holds.
@@ -163,7 +178,7 @@ describe("saving", () => {
 describe("what it says", () => {
   it("says a schedule it can't edit in words, and opens what was written", () => {
     state = ready("0 6,18 * * *");
-    render(<MorningSchedule />);
+    render(<Card />);
     expect(screen.getByTestId("front-page-schedule-status")).toHaveTextContent("Twice a day, 6:00 AM and 6:00 PM");
     expect(screen.getByTestId("front-page-schedule-title")).toHaveTextContent(/^Paper$/);
     fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
@@ -179,7 +194,7 @@ describe("what it says", () => {
     ]) {
       const doc: TaskTags = { public: [], private: [["task", "observer"], cronTag] };
       state = { ...ready("0 6 * * 1-5"), doc, schedule: readTask(doc) };
-      const { unmount } = render(<MorningSchedule />);
+      const { unmount } = render(<Card />);
       const status = screen.getByTestId("front-page-schedule-status");
       expect(status).toHaveTextContent("On a schedule this app can't read");
       expect(screen.getByTestId("front-page-schedule-cron")).toHaveTextContent("0 6 * * 1-5");
@@ -194,7 +209,7 @@ describe("what it says", () => {
 
   it("shows an expression it can't say as written, whole", () => {
     state = ready("0 6 1-7 * 1");
-    render(<MorningSchedule />);
+    render(<Card />);
     expect(screen.getByTestId("front-page-schedule-cron")).toHaveTextContent("0 6 1-7 * 1");
     expect(screen.getByTestId("front-page-schedule-cron").className).toContain("break-all");
   });
@@ -206,7 +221,7 @@ describe("what it says", () => {
     // Ran after yesterday's: fine as of the last ask, missed as of now.
     const ran = String(Math.floor((now - 20 * HOUR) / 1000));
     state = { ...ready(cron, [["ran", ran]]), checkedAt: now - 10 * HOUR };
-    render(<MorningSchedule />);
+    render(<Card />);
     expect(screen.queryByTestId("front-page-schedule-missed")).toBeNull();
     expect(refresh).toHaveBeenCalled();
     hookSays({ ...ready(cron, [["ran", ran]]), checkedAt: now });
@@ -215,7 +230,7 @@ describe("what it says", () => {
 
   it("offers a retry when the signer failed", () => {
     state = { status: "failed", error: "Your signer didn't answer.", reveal, refresh, checkedAt: null };
-    render(<MorningSchedule />);
+    render(<Card />);
     expect(screen.getByTestId("front-page-schedule-status")).toHaveTextContent("Couldn't open your schedule");
     fireEvent.click(screen.getByTestId("front-page-schedule-retry"));
     expect(reveal).toHaveBeenCalled();
@@ -233,7 +248,7 @@ describe("accessibility", () => {
       ],
     };
     state = { ...ready("0 6 * * *"), doc, schedule: readTask(doc) };
-    const { container } = render(<MorningSchedule />);
+    const { container } = render(<Card />);
     const status = screen.getByTestId("front-page-schedule-status");
     expect(status).toHaveAttribute("role", "status");
     const described = document.getElementById(status.getAttribute("aria-describedby")!);
@@ -251,16 +266,20 @@ describe("rendering", () => {
     function Page() {
       const [n, setN] = useState(0);
       bump = () => setN((x) => x + 1);
+      const schedule = useObserverSchedule();
       return (
         <div data-n={n}>
-          <MorningSchedule />
+          <MorningSchedule schedule={schedule} />
         </div>
       );
     }
     render(<Page />);
-    const before = hookCalls.mock.calls.length;
+    const before = cardRenders.mock.calls.length;
     act(() => bump());
     act(() => bump());
-    expect(hookCalls.mock.calls.length).toBe(before);
+    expect(cardRenders.mock.calls.length).toBe(before);
+    // ...and does when the schedule changes.
+    hookSays(ready("0 7 * * *"));
+    expect(cardRenders.mock.calls.length).toBeGreaterThan(before);
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { canSignUnasked } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -31,6 +31,10 @@ export type ObserverSchedule = ObserverScheduleState & {
   /** When the relays last answered for it (ms); null before they have. What a missed-run warning may rest on. */
   checkedAt: number | null;
 };
+
+/** The states with nothing in them, shared so the hook's answer keeps its identity. */
+const LOADING: ObserverScheduleState = { status: "loading" };
+const NONE: ObserverScheduleState = { status: "none" };
 
 /** No more than one re-ask a minute, however often the page is shown again. */
 const REFRESH_MIN_MS = 60_000;
@@ -124,9 +128,11 @@ export function useObserverSchedule(): ObserverSchedule {
   const reveal = useCallback(() => setAsks((a) => ({ pubkey, n: (a.pubkey === pubkey ? a.n : 0) + 1 })), [pubkey]);
 
   let value: ObserverScheduleState;
-  if (!event) value = held.settled ? { status: "none" } : { status: "loading" };
+  if (!event) value = held.settled ? NONE : LOADING;
   else if (read && read.pubkey === pubkey) value = read.value;
-  else value = { status: "loading" };
+  else value = LOADING;
   const checkedAt = checked && checked.pubkey === pubkey ? checked.at : null;
-  return { ...value, reveal, refresh, checkedAt };
+  // The same object until something in it changes: the page holds it and hands it to the
+  // memoized card, which must not re-render on every streamed chunk of a print.
+  return useMemo(() => ({ ...value, reveal, refresh, checkedAt }), [value, reveal, refresh, checkedAt]);
 }
