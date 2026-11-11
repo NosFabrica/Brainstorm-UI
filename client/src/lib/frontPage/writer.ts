@@ -8,7 +8,7 @@
  * the Observer server, this has no Message Batches and no fixed model: the reader's
  * key decides the provider, and the reader picks the model.
  */
-import type { AgentKey } from "@/lib/agentKeys";
+import { apiRoot, isSecureAgentUrl, type AgentKey } from "@/lib/agentKeys";
 import type { Violation } from "./validate";
 import brief from "./editorial.md?raw";
 import houseCss from "./house.css?raw";
@@ -74,9 +74,11 @@ function hostOf(url: string): string | null {
 /** Headers for a key, the way `modelsRequest` sends them: Anthropic answers a web page only when told it means to. */
 export function authHeaders(key: AgentKey): Record<string, string> {
   const headers: Record<string, string> = {};
-  if (key.key) headers.Authorization = `Bearer ${key.key}`;
+  // NIP-FA: never in cleartext, and no Authorization at all for an empty key.
+  const secret = key.key && isSecureAgentUrl(key.url, key.key) ? key.key : "";
+  if (secret) headers.Authorization = `Bearer ${secret}`;
   if (hostOf(key.url) === "api.anthropic.com") {
-    if (key.key) headers["x-api-key"] = key.key;
+    if (secret) headers["x-api-key"] = secret;
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   }
@@ -95,7 +97,7 @@ export function chatRequest(key: AgentKey, model: string, messages: ChatMessage[
   if (stream) body.stream_options = { include_usage: true };
   if (hostOf(key.url) === "api.anthropic.com") body.max_tokens = ANTHROPIC_MAX_TOKENS;
   return {
-    url: `${key.url.replace(/\/+$/, "")}/chat/completions`,
+    url: `${apiRoot(key.url)}/chat/completions`,
     init: {
       method: "POST",
       headers: { ...authHeaders(key), "Content-Type": "application/json" },

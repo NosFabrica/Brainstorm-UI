@@ -10,6 +10,8 @@ import * as nip44 from "nostr-tools/nip44";
 import {
   AGENT_KEYS_KIND,
   addKey,
+  apiRoot,
+  isSecureAgentUrl,
   decodePrivateTags,
   makePreferred,
   maskKey,
@@ -75,9 +77,21 @@ describe("reading the private tags", () => {
       ["key", "", "http://localhost:1234/v1"],
     ];
     expect(parseAgentKeys(tags)).toEqual([
-      { key: "sk-good", url: "https://api.example.com/v1" },
+      { key: "sk-good", url: "https://api.example.com/v1", extra: ["extra"] },
       { key: "", url: "http://localhost:1234/v1" },
     ]);
+  });
+
+  it("never uses a key that would travel in cleartext (NIP-FA: https, loopback, or no key)", () => {
+    expect(
+      parseAgentKeys([
+        ["key", "sk-leak", "http://llm.example.org/v1"],
+        ["key", "sk-local", "http://127.0.0.1:8080/v1"],
+        ["key", "sk-local6", "http://[::1]:8080/v1"],
+        ["key", "", "http://lan-box:11434/v1"],
+      ]).map((k) => k.key),
+    ).toEqual(["sk-local", "sk-local6", ""]);
+    expect(isSecureAgentUrl("http://localhost.evil.example/v1", "sk")).toBe(false);
   });
 
   it("refuses content that isn't a list of string tags", () => {
@@ -103,6 +117,29 @@ describe("rewriting", () => {
     ]);
   });
 
+  it("keeps extra values, and key tags it couldn't use, through an edit (NIP-FA Editing)", () => {
+    const before = [
+      ["key", "sk-a", "https://a.example/v1", "label", "future"],
+      ["key", "only-a-key"],
+      ["key", "sk-leak", "http://llm.example.org/v1"],
+      ["model", "x"],
+    ];
+    const keys = parseAgentKeys(before);
+    expect(withAgentKeys(before, makePreferred(addKey(keys, ollama), ollama))).toEqual([
+      ["key", "", ollama.url],
+      ["key", "sk-a", "https://a.example/v1", "label", "future"],
+      ["key", "only-a-key"],
+      ["key", "sk-leak", "http://llm.example.org/v1"],
+      ["model", "x"],
+    ]);
+    // Removing the one it can use leaves the ones it can't.
+    expect(withAgentKeys(before, removeKey(keys, keys[0]))).toEqual([
+      ["key", "only-a-key"],
+      ["key", "sk-leak", "http://llm.example.org/v1"],
+      ["model", "x"],
+    ]);
+  });
+
   it("adds at the end without duplicates, moves one to the front, and removes one", () => {
     const keys = addKey(addKey([], openRouter), ollama);
     expect(keys).toEqual([openRouter, ollama]);
@@ -125,14 +162,26 @@ describe("display", () => {
     expect(providerName("https://llm.example.org/v1")).toBe("llm.example.org");
   });
 
-  it("stores URLs without a trailing slash, and only http(s)", () => {
-    expect(normalizeAgentUrl(" https://api.example.com/v1/ ")).toBe("https://api.example.com/v1");
-    expect(normalizeAgentUrl("ftp://x")).toBeNull();
-    expect(normalizeAgentUrl("nope")).toBeNull();
+  it("stores URLs without a trailing slash, and only http(s); plain http only for this computer or no key", () => {
+    expect(normalizeAgentUrl(" https://api.example.com/v1/ ", "sk")).toBe("https://api.example.com/v1");
+    expect(normalizeAgentUrl("ftp://x", "")).toBeNull();
+    expect(normalizeAgentUrl("nope", "")).toBeNull();
+    expect(normalizeAgentUrl("http://llm.example.org/v1", "sk")).toBeNull();
+    expect(normalizeAgentUrl("http://llm.example.org/v1", "")).toBe("http://llm.example.org/v1");
+    expect(normalizeAgentUrl("http://localhost:11434/v1", "sk")).toBe("http://localhost:11434/v1");
+  });
+
+  it("calls the URL without its one trailing slash", () => {
+    expect(apiRoot("https://a.example/v1/")).toBe("https://a.example/v1");
+    expect(modelsRequest({ key: "", url: "https://a.example/v1/" }).url).toBe("https://a.example/v1/models");
   });
 });
 
 describe("testing a key", () => {
+  it("never puts a key on a cleartext request", () => {
+    expect(modelsRequest({ key: "sk-x", url: "http://llm.example.org/v1" }).headers).toEqual({});
+  });
+
   it("asks for the model list with the key as a bearer token, and no header without one", () => {
     expect(modelsRequest({ key: "sk-x", url: "https://api.openai.com/v1" })).toEqual({
       url: "https://api.openai.com/v1/models",

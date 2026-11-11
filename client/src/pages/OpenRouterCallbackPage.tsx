@@ -10,6 +10,7 @@ import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { AI_MODEL_SETTINGS_PATH, handOff } from "@/lib/openRouterOAuth";
 import { completeOpenRouterConnect } from "@/services/openRouterOAuth";
+import { activeAccount } from "@/accounts/signing";
 
 export default function OpenRouterCallbackPage() {
   const [, navigate] = useLocation();
@@ -21,8 +22,11 @@ export default function OpenRouterCallbackPage() {
     window.history.replaceState(window.history.state, "", window.location.pathname);
     let cancelled = false;
     void completeOpenRouterConnect(search).then((outcome) => {
-      handOff(outcome);
-      if (!cancelled) navigate(AI_MODEL_SETTINGS_PATH, { replace: true });
+      // Left before it finished: nobody is waiting for this key, so it isn't kept.
+      if (cancelled) return;
+      const pubkey = activeAccount()?.pubkey;
+      if (pubkey) handOff(outcome, pubkey);
+      navigate(AI_MODEL_SETTINGS_PATH, { replace: true });
     });
     return () => {
       cancelled = true;

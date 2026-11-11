@@ -22,6 +22,8 @@ vi.mock("@/services/openRouterOAuth", () => ({
   startOpenRouterConnect: () => startOpenRouterConnect(),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+const ME = "ab".repeat(32);
+vi.mock("@/accounts/signing", () => ({ activeAccount: () => ({ pubkey: ME }) }));
 
 import { clearHandoff, handOff, peekHandoff } from "@/lib/openRouterOAuth";
 import { AiModelTab } from "./AiModelTab";
@@ -212,7 +214,7 @@ describe("AiModelTab", () => {
   });
 
   it("fills and tests a key OpenRouter handed over, and leaves saving to the user", async () => {
-    handOff({ key: SECRET });
+    handOff({ key: SECRET }, ME);
     state.mockReturnValue({ status: "none" });
     render(<AiModelTab />);
 
@@ -220,16 +222,68 @@ describe("AiModelTab", () => {
     await vi.waitFor(() => expect(testAgentKey).toHaveBeenCalledWith({ key: SECRET, url: OPENROUTER }));
     expect((await screen.findByTestId("ai-model-test-result")).textContent).toContain("Works");
     expect(updateAgentKeys).not.toHaveBeenCalled();
-    expect(peekHandoff()).toBeNull();
+    expect(peekHandoff(ME)).toBeNull();
     expect((screen.getByTestId("ai-model-save") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("says why when OpenRouter didn't hand a key over", () => {
-    handOff({ error: "declined" });
+    handOff({ error: "declined" }, ME);
     state.mockReturnValue({ status: "none" });
     render(<AiModelTab />);
 
     expect(screen.getByTestId("ai-model-test-result").textContent).toContain("didn't give Brainstorm a key");
     expect(testAgentKey).not.toHaveBeenCalled();
+  });
+
+  it("never shows another account the key OpenRouter handed over", () => {
+    handOff({ key: SECRET }, "cd".repeat(32));
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+
+    expect(screen.queryByTestId("ai-model-key")).toBeNull();
+    expect(document.body.textContent).not.toContain(SECRET);
+  });
+
+  it("calls a custom address only once it has been typed, never a half-typed host", async () => {
+    vi.useFakeTimers();
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+    pick("custom");
+
+    const address = screen.getByTestId("ai-model-url");
+    fireEvent.change(screen.getByTestId("ai-model-key"), { target: { value: SECRET } });
+    for (const partial of ["https://ev", "https://evil", "https://llm.example.org/v1"]) {
+      fireEvent.change(address, { target: { value: partial } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+    }
+    expect(testAgentKey).not.toHaveBeenCalled();
+    expect(screen.getByTestId("ai-model-url-test")).toBeTruthy();
+
+    fireEvent.blur(address);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(testAgentKey).toHaveBeenCalledTimes(1);
+    expect(testAgentKey).toHaveBeenCalledWith({ key: SECRET, url: "https://llm.example.org/v1" });
+  });
+
+  it("won't send a key to a plain-http address off this computer", async () => {
+    vi.useFakeTimers();
+    state.mockReturnValue({ status: "none" });
+    render(<AiModelTab />);
+    pick("custom");
+
+    fireEvent.change(screen.getByTestId("ai-model-key"), { target: { value: SECRET } });
+    const address = screen.getByTestId("ai-model-url");
+    fireEvent.change(address, { target: { value: "http://llm.example.org/v1" } });
+    fireEvent.keyDown(address, { key: "Enter" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(testAgentKey).not.toHaveBeenCalled();
+    expect(screen.getByTestId("ai-model-url-error").textContent).toContain("https://");
+    expect((screen.getByTestId("ai-model-save") as HTMLButtonElement).disabled).toBe(true);
   });
 });

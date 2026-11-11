@@ -9,7 +9,7 @@ import type { NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import { loadReplaceable } from "@/lib/loaders";
 import { PROFILE_RELAYS } from "@/lib/relays";
-import { requestNewestWithReach } from "@/lib/relayRequest";
+import { beats, requestNewestWithReach } from "@/lib/relayRequest";
 import { outboxRelays } from "@/lib/relayRouting";
 import {
   AGENT_KEYS_KIND,
@@ -58,11 +58,16 @@ export async function updateAgentKeys(change: (keys: AgentKey[]) => AgentKey[]):
   if (!account) return { success: false, error: "Not logged in" };
   try {
     const relays = await outboxRelays(account.pubkey, PROFILE_RELAYS);
-    const { newest, reach } = await requestNewestWithReach(
+    const { newest: fetched, reach } = await requestNewestWithReach(
       relays,
       { kinds: [AGENT_KEYS_KIND], authors: [account.pubkey], limit: 1 },
       6000,
     );
+    // The store can hold a newer copy than the relays that answered (one this session
+    // just wrote, or one another relay served earlier): rewriting from an older read
+    // would drop the keys it added.
+    const held = eventStore.getReplaceable(AGENT_KEYS_KIND, account.pubkey) as NostrEvent | undefined;
+    const newest = held && beats(held, fetched) ? held : fetched;
     let privateTags: string[][] = [];
     if (newest) {
       const read = await decryptAgentKeyTags(account, newest);

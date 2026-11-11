@@ -66,6 +66,7 @@ import {
 import { CONNECT_ERROR_TEXT, clearHandoff, peekHandoff } from "@/lib/openRouterOAuth";
 import { testAgentKey, updateAgentKeys } from "@/services/agentKeys";
 import { startOpenRouterConnect } from "@/services/openRouterOAuth";
+import { activeAccount } from "@/accounts/signing";
 
 const OPENROUTER_ID = "openrouter";
 const TEST_DELAY_MS = 700;
@@ -401,6 +402,9 @@ function KeyEntry({
   onChange: () => void;
 }) {
   const [customUrl, setCustomUrl] = useState("");
+  // A custom address is only called once the user is done typing it (blur, Enter or
+  // Test): testing as they type would send the key to every half-typed host on the way.
+  const [committedUrl, setCommittedUrl] = useState("");
   const [key, setKey] = useState(initialKey);
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -411,10 +415,16 @@ function KeyEntry({
   const run = useRef(0);
 
   const isCustom = preset.id === "custom";
-  const url = normalizeAgentUrl(isCustom ? customUrl : preset.url);
   const trimmedKey = key.trim();
+  const url = normalizeAgentUrl(isCustom ? committedUrl : preset.url, trimmedKey);
+  const typingUrl = isCustom && customUrl.trim() !== committedUrl.trim();
+  const commitUrl = () => {
+    if (customUrl === committedUrl) return;
+    immediate.current = true;
+    setCommittedUrl(customUrl);
+  };
   const needsKey = !preset.keyless && !isCustom;
-  const ready = !!url && (!needsKey || !!trimmedKey);
+  const ready = !!url && !typingUrl && (!needsKey || !!trimmedKey);
 
   useEffect(() => {
     const id = ++run.current;
@@ -446,6 +456,7 @@ function KeyEntry({
     if (await onSave({ key: trimmedKey, url })) {
       setKey("");
       setCustomUrl("");
+      setCommittedUrl("");
       setResult(null);
     }
   };
@@ -512,17 +523,32 @@ function KeyEntry({
 
       {isCustom && (
         <div className="flex flex-col gap-1">
-          <Input
-            aria-label="API address"
-            placeholder="https://…/v1"
-            value={customUrl}
-            onChange={(e) => setCustomUrl(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            className={cn(customUrl && "font-mono")}
-            data-testid="ai-model-url"
-          />
-          {customUrl.trim() && !url && <p className="text-xs text-red-600 dark:text-red-400">Needs https://</p>}
+          <div className="flex gap-2">
+            <Input
+              aria-label="API address"
+              placeholder="https://…/v1"
+              value={customUrl}
+              onChange={(e) => setCustomUrl(e.target.value)}
+              onBlur={commitUrl}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitUrl();
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              className={cn("min-w-0 flex-1", customUrl && "font-mono")}
+              data-testid="ai-model-url"
+            />
+            {typingUrl && (
+              <Button variant="outline" onClick={commitUrl} data-testid="ai-model-url-test">
+                Test
+              </Button>
+            )}
+          </div>
+          {!typingUrl && committedUrl.trim() && !url && (
+            <p className="text-xs text-red-600 dark:text-red-400" data-testid="ai-model-url-error">
+              {trimmedKey ? "Needs https:// (or this computer)" : "Not a web address"}
+            </p>
+          )}
         </div>
       )}
 
@@ -687,7 +713,7 @@ export function AiModelTab() {
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<AgentKey | null>(null);
   // What "Connect OpenRouter" brought back, if the user just returned from it.
-  const [arrived] = useState(peekHandoff);
+  const [arrived] = useState(() => peekHandoff(activeAccount()?.pubkey));
   const [handoff, setHandoff] = useState(arrived);
   const [adding, setAdding] = useState(!!arrived);
   const [picked, setPicked] = useState<string | null>(arrived ? OPENROUTER_ID : null);

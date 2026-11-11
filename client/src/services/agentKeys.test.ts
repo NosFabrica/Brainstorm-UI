@@ -147,6 +147,35 @@ describe("editing an existing event", () => {
     expect(decrypted()).toEqual([]);
   });
 
+  it("rewrites from the store's copy when it is newer than what the relays answered with", async () => {
+    // Relays that answered hold an older copy; this session already saw (or wrote) a newer one.
+    const old = earlier([["key", openRouter.key, openRouter.url]]);
+    const newer = finalizeEvent(
+      {
+        kind: 12000,
+        created_at: old.created_at + 50,
+        tags: [],
+        content: nip44.encrypt(
+          JSON.stringify([
+            ["key", openRouter.key, openRouter.url],
+            ["key", "", ollama.url],
+          ]),
+          toSelf,
+        ),
+      },
+      SECRET,
+    );
+    const { eventStore } = await import("@/lib/eventStore");
+    eventStore.add(newer);
+    requestNewestWithReach.mockResolvedValue({ newest: old, reach: reachAll });
+
+    const res = await service.updateAgentKeys((keys) => lib.removeKey(keys, openRouter));
+
+    expect(res.success).toBe(true);
+    expect(decrypted()).toEqual([["key", "", ollama.url]]);
+    expect(published().created_at).toBe(newer.created_at + 1);
+  });
+
   it("writes nothing over a copy it can't read", async () => {
     const unreadable = finalizeEvent({ kind: 12000, created_at: 1, tags: [], content: "garbage" }, SECRET);
     requestNewestWithReach.mockResolvedValue({ newest: unreadable, reach: reachAll });

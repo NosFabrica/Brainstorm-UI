@@ -139,17 +139,19 @@ export function takePending(): PendingConnect | null {
 
 export type ConnectOutcome = { key: string } | { error: ConnectError };
 
-let handoff: ConnectOutcome | null = null;
+/** Whose sign-in it was: a key OpenRouter handed one account is never shown to another. */
+let handoff: { pubkey: string; outcome: ConnectOutcome } | null = null;
 
-export function handOff(outcome: ConnectOutcome): void {
-  handoff = outcome;
+export function handOff(outcome: ConnectOutcome, pubkey: string): void {
+  handoff = { pubkey, outcome };
 }
 
-/** What the last sign-in brought back, without consuming it (StrictMode reads twice). */
-export function peekHandoff(): ConnectOutcome | null {
-  return handoff;
+/** What the last sign-in brought back for [pubkey], without consuming it (StrictMode reads twice). */
+export function peekHandoff(pubkey: string | null | undefined): ConnectOutcome | null {
+  return handoff && pubkey && handoff.pubkey === pubkey ? handoff.outcome : null;
 }
 
+/** Forgets the handoff: once the AI model view has it, and at sign-out. */
 export function clearHandoff(): void {
   handoff = null;
 }

@@ -26,34 +26,43 @@ export function useAgentKeys(): AgentKeysState & { reveal: () => void } {
   const pubkey = account?.pubkey;
   const list = useStoreReplaceable(AGENT_KEYS_KIND, pubkey, () => loadAgentKeys(pubkey!));
   const event = list.event;
-  // Each reveal() is a fresh ask, so a declined unlock can be tried again.
-  const [asks, setAsks] = useState(0);
-  const [state, setState] = useState<AgentKeysState>({ status: "loading" });
+  // Each reveal() is a fresh ask, so a declined unlock can be tried again. It is the
+  // account's ask: switching accounts doesn't carry one account's unlock to the next.
+  const [asks, setAsks] = useState({ pubkey, n: 0 });
+  const askCount = asks.pubkey === pubkey ? asks.n : 0;
+  // Tagged with whose keys they are: after a switch, the last account's keys read as
+  // loading until this one's are decrypted, never as this account's.
+  const [state, setState] = useState<{ pubkey: string | undefined; value: AgentKeysState }>({
+    pubkey,
+    value: { status: "loading" },
+  });
 
   useEffect(() => {
-    if (!account || !event) {
-      setState(list.settled ? { status: "none" } : { status: "loading" });
+    const set = (value: AgentKeysState) => setState({ pubkey, value });
+    if (!account || !event || event.pubkey !== account.pubkey) {
+      set(list.settled ? { status: "none" } : { status: "loading" });
       return;
     }
     let live = true;
     void (async () => {
-      if (asks === 0 && !(await canSignSilently(account))) {
-        if (live) setState({ status: "locked" });
+      if (askCount === 0 && !(await canSignSilently(account))) {
+        if (live) set({ status: "locked" });
         return;
       }
       try {
         const tags = await decryptAgentKeyTags(account, event);
-        if (live) setState(tags ? { status: "ready", keys: parseAgentKeys(tags) } : { status: "unreadable" });
+        if (live) set(tags ? { status: "ready", keys: parseAgentKeys(tags) } : { status: "unreadable" });
       } catch {
         // They declined to unlock: still locked, not unreadable.
-        if (live) setState({ status: "locked" });
+        if (live) set({ status: "locked" });
       }
     })();
     return () => {
       live = false;
     };
-  }, [account, event?.id, list.settled, asks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [account, event?.id, list.settled, askCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const reveal = useCallback(() => setAsks((n) => n + 1), []);
-  return { ...state, reveal };
+  const reveal = useCallback(() => setAsks((a) => ({ pubkey, n: (a.pubkey === pubkey ? a.n : 0) + 1 })), [pubkey]);
+  const value = state.pubkey === pubkey ? state.value : { status: "loading" as const };
+  return { ...value, reveal };
 }

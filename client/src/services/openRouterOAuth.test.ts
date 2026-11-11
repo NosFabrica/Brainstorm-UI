@@ -52,4 +52,16 @@ describe("Connect with OpenRouter", () => {
     keepPending({ verifier: "VER", state: "ST" });
     expect(await completeOpenRouterConnect("?code=CODE3&state=ST")).toEqual({ error: "failed" });
   });
+
+  it("doesn't hold the key once the exchange settled", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ key: "sk-or-v1-held" }), { status: 200 })),
+    );
+    keepPending({ verifier: "VER", state: "ST" });
+    expect(await completeOpenRouterConnect("?code=CODE4&state=ST")).toEqual({ key: "sk-or-v1-held" });
+    await Promise.resolve();
+    // A later visit to the same address gets no key from memory: the code is spent.
+    expect(await completeOpenRouterConnect("?code=CODE4&state=ST")).not.toEqual({ key: "sk-or-v1-held" });
+  });
 });

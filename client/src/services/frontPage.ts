@@ -16,7 +16,7 @@
 import type { NostrEvent } from "nostr-tools";
 import type { Relay } from "applesauce-relay";
 import { searchRelay } from "@/lib/searchRelay";
-import type { AgentKey } from "@/lib/agentKeys";
+import { apiRoot, type AgentKey } from "@/lib/agentKeys";
 import {
   DEFAULT_TRUST_FLOOR,
   DESKS,
@@ -307,7 +307,7 @@ function explain(status: number, body: string): string {
 
 /** The models a key can use, best guess first is the caller's job (`rankModels`). */
 export async function fetchModels(key: AgentKey, signal?: AbortSignal): Promise<string[]> {
-  const response = await fetch(`${key.url.replace(/\/+$/, "")}/models`, { headers: authHeaders(key), signal });
+  const response = await fetch(`${apiRoot(key.url)}/models`, { headers: authHeaders(key), signal });
   if (!response.ok) throw new WriterError(explain(response.status, ""), response.status);
   return readModelIds(await response.json().catch(() => null));
 }

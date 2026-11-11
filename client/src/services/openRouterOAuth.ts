@@ -55,6 +55,12 @@ export function completeOpenRouterConnect(search: string, timeoutMs = 15_000): P
       return { error: "failed" };
     }
   })();
-  inFlight = { search, outcome };
+  const entry = { search, outcome };
+  inFlight = entry;
+  // Settled, it answers no one: the code it traded is spent, and the key it holds
+  // shouldn't sit in memory for a later visit (or another account) to pick up.
+  void outcome.finally(() => {
+    if (inFlight === entry) inFlight = null;
+  });
   return outcome;
 }

@@ -78,11 +78,14 @@ describe("the callback", () => {
   });
 
   it("hands the outcome over in memory, never to storage", () => {
-    handOff({ key: "sk-or-v1-secret" });
-    expect(peekHandoff()).toEqual({ key: "sk-or-v1-secret" });
+    handOff({ key: "sk-or-v1-secret" }, "aa");
+    expect(peekHandoff("aa")).toEqual({ key: "sk-or-v1-secret" });
+    // Kept for the account that signed in, and nobody else.
+    expect(peekHandoff("bb")).toBeNull();
+    expect(peekHandoff(null)).toBeNull();
     expect(JSON.stringify({ ...window.sessionStorage })).not.toContain("sk-or-v1-secret");
     clearHandoff();
-    expect(peekHandoff()).toBeNull();
+    expect(peekHandoff("aa")).toBeNull();
     expect(Object.keys(CONNECT_ERROR_TEXT)).toHaveLength(4);
   });
 });

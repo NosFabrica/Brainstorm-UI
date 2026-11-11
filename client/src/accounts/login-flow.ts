@@ -38,6 +38,7 @@ import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
+import { clearHandoff } from "@/lib/openRouterOAuth";
 import { passkeyVaultApi, PasskeyNotReadyError } from "@/services/api/passkeyVault";
 import {
   assertPasskey,
@@ -323,6 +324,8 @@ export function logout() {
   // rather than a list kept here. What it keeps on this device stays: it is still
   // listed, and signing back in should find its follows and prefs where it left them.
   if (prevPubkey) clearSessionScopedStorage(prevPubkey);
+  // A key OpenRouter handed over and nobody saved yet is this Session's, not the next one's.
+  clearHandoff();
   // The cached events go too: which profiles someone looked at is a browsing
   // trail, and it should not outlive the session on a shared device.
   clearHydratedStore();

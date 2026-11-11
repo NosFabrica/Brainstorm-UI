@@ -17,19 +17,38 @@ const KEY_TAG = "key";
 export interface AgentKey {
   /** Sent as `Authorization: Bearer <key>`. Empty for an endpoint that needs none. */
   key: string;
-  /** The API root: apps call `<url>/chat/completions` and `<url>/models`. */
+  /** The API root: apps call `<url>/chat/completions` and `<url>/models`. Use `apiRoot`. */
   url: string;
+  /** Values after the URL another app wrote: carried through a rewrite, never read. */
+  extra?: string[];
 }
-
-const isKeyTag = (tag: unknown[]) => tag[0] === KEY_TAG;
 
 function parseKeyTag(tag: string[]): AgentKey | null {
   if (tag.length < 3 || tag[0] !== KEY_TAG) return null;
   if (!tag[2] || !tag[2].trim()) return null;
-  return { key: tag[1], url: tag[2] };
+  // A key never travels in cleartext: such a tag is not used, only kept.
+  if (!isSecureAgentUrl(tag[2], tag[1])) return null;
+  return tag.length > 3 ? { key: tag[1], url: tag[2], extra: tag.slice(3) } : { key: tag[1], url: tag[2] };
 }
 
-/** Every well-formed `key` tag, in the user's order of preference. */
+const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/i;
+
+/**
+ * NIP-FA: the URL is `https`, except for a loopback host or when there is no key to
+ * protect. Anything else would send the key in the clear.
+ */
+export function isSecureAgentUrl(url: string, key: string): boolean {
+  const u = parseUrl(url.trim());
+  if (!u) return false;
+  return u.protocol === "https:" || !key || LOOPBACK.test(u.hostname);
+}
+
+/** Where to call: the stored URL without its one trailing `/` (NIP-FA readers strip one). */
+export function apiRoot(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+/** Every usable `key` tag, in the user's order of preference. */
 export function parseAgentKeys(privateTags: string[][]): AgentKey[] {
   const out: AgentKey[] = [];
   for (const tag of privateTags) {
@@ -53,11 +72,15 @@ export function decodePrivateTags(plaintext: string): string[][] | null {
 }
 
 /**
- * The new private tags: [keys] first, in order, then every tag that isn't a `key`,
- * untouched, so data another app keeps here survives this one's edit.
+ * The new private tags: [keys] first, in order, each with the extra values it was read
+ * with; then every other tag as it was found — tags that aren't keys, and `key` tags
+ * this app couldn't use — so data another app keeps here survives this one's edit.
  */
 export function withAgentKeys(privateTags: string[][], keys: AgentKey[]): string[][] {
-  return [...keys.map((k) => [KEY_TAG, k.key, k.url]), ...privateTags.filter((t) => !isKeyTag(t))];
+  return [
+    ...keys.map((k) => [KEY_TAG, k.key, k.url, ...(k.extra ?? [])]),
+    ...privateTags.filter((t) => t[0] !== KEY_TAG || parseKeyTag(t) === null),
+  ];
 }
 
 const same = (a: AgentKey, b: AgentKey) => a.key === b.key && a.url === b.url;
@@ -188,10 +211,13 @@ function parseUrl(url: string): URL | null {
   }
 }
 
-/** The URL as stored: trimmed, no trailing slash. Null when it isn't an http(s) URL. */
-export function normalizeAgentUrl(input: string): string | null {
+/**
+ * The URL as stored: trimmed, no trailing slash. Null when it isn't an http(s) URL, or
+ * when it is plain http to a host other than this computer while [key] is not empty.
+ */
+export function normalizeAgentUrl(input: string, key: string): string | null {
   const trimmed = input.trim().replace(/\/+$/, "");
-  return parseUrl(trimmed) ? trimmed : null;
+  return parseUrl(trimmed) && isSecureAgentUrl(trimmed, key) ? trimmed : null;
 }
 
 /** A provider's name for a stored URL: the preset's when it is one, else its host. */
@@ -222,13 +248,15 @@ export function modelsRequest(entry: AgentKey): {
   const path = preset?.keyCheckPath ?? "/models";
   const keyChecked = preset?.keyCheckPath !== null;
   const headers: Record<string, string> = {};
-  if (entry.key) headers.Authorization = `Bearer ${entry.key}`;
+  // Never in cleartext, and no Authorization at all for an empty key.
+  const secret = entry.key && isSecureAgentUrl(entry.url, entry.key) ? entry.key : "";
+  if (secret) headers.Authorization = `Bearer ${secret}`;
   if (parseUrl(entry.url)?.host === "api.anthropic.com") {
-    if (entry.key) headers["x-api-key"] = entry.key;
+    if (secret) headers["x-api-key"] = secret;
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   }
-  return { url: `${entry.url}${path}`, headers, keyChecked };
+  return { url: `${apiRoot(entry.url)}${path}`, headers, keyChecked };
 }
 
 export type KeyTestResult =
