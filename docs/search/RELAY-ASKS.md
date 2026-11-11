@@ -223,3 +223,25 @@ day; `include:spam` returns the full page. That is the lens question in issue #2
 of the filter.
 
 Ask: nothing yet. A count by label (ties to #5) would let the chip say how many there are.
+
+## 17. A Dictionary item's own fields are not searchable (2026-11-10)
+
+A DList item (kind 39999/9999) carries its fields as tags named by its list's header:
+`github-username`, `cuisine`, `locality`. The relay matches the words against the standard
+text fields only: `name`, `description`, `t` and `alt`. Probed on the search relay, within
+GitHub Accounts (`#z` its header, `include:spam`):
+
+| Words       | Found | Where the word is                      |
+| ----------- | ----- | -------------------------------------- |
+| `strayhorn` | 1     | `description` ("David Strayhorn")      |
+| `vcavallo`  | 0     | `github-username` (and the item's `d`) |
+| `wds4`      | 0     | `github-username`                      |
+
+Food and Drink Places only look searchable by field: every one of 30 matches for `mexican`
+and for `austin` also carries the word in `alt` or `t`, which that list's publisher fills
+from the fields. A list whose items don't carry those copies can't be found by its fields
+at all, so "vcavallo" doesn't find vcavallo's GitHub account.
+
+Ask: index a DList item's other tag values as text, as `alt` already is. This is a plainer
+case of compile-to-vespa's G2 (a match scoped to one property): an unscoped match over the
+item's fields comes first.
