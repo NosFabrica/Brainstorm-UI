@@ -27,6 +27,7 @@ import {
   upsertEdition,
   utcDay,
   type EditionEntry,
+  tagBudget,
 } from "./observerSite";
 
 const hash = (n: number) => n.toString(16).padStart(64, "0");
@@ -186,6 +187,11 @@ describe("roll-off", () => {
   it("budgets from the smallest relay limit, less the envelope, else the default", () => {
     expect(eventBudget([131_072, 65_536, undefined])).toBe(64_536);
     expect(eventBudget([undefined, null])).toBe(DEFAULT_EVENT_BUDGET);
+  });
+
+  it("takes the smallest tag limit a relay publishes, else the default", () => {
+    expect(tagBudget([2000, 100, null, undefined])).toBe(100);
+    expect(tagBudget([0, -5, undefined])).toBe(DEFAULT_MAX_TAGS);
   });
 });
 

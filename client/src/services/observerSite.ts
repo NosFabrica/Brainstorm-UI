@@ -13,12 +13,12 @@ import { eventStore } from "@/lib/eventStore";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { beats, requestNewestWithReach } from "@/lib/relayRequest";
 import { outboxRelays } from "@/lib/relayRouting";
+import { relayLimits } from "@/lib/relayLimits";
 import { loadBlossomServers, normalizeServer } from "@/lib/blossomServers";
 import { nostrAuthHeader, serverScopeTags } from "@/services/blossom";
 import { publishToRelays } from "@/services/nostr";
 import { withPaperCsp } from "@/lib/frontPage/validate";
 import {
-  DEFAULT_MAX_TAGS,
   EDITIONS_PATH,
   OBSERVER_D,
   OBSERVER_SITE_KIND,
@@ -38,6 +38,7 @@ import {
   sha256Text,
   siteDescription,
   siteTitle,
+  tagBudget,
   upsertEdition,
   utcDay,
   type EditionEntry,
@@ -266,10 +267,11 @@ export async function publishToObserver(input: PublishInput): Promise<Published>
   const description = siteDescription(input.name);
   const createdAt = Math.max(Math.floor(now / 1000), (site.event?.created_at ?? 0) + 1);
   const maxDay = latestDay(now);
+  // The write relays' own NIP-11 limits; the spec's defaults where none publish them.
+  const limits = await relayLimits(site.relays);
   const kept = rollOff(upsertEdition(site.index.editions, entry), {
-    // Brainstorm reads no NIP-11 documents, so the spec's default budgets apply.
-    budget: eventBudget([]) - SIGNER_TAG_SLACK,
-    maxTags: DEFAULT_MAX_TAGS - SIGNER_TAGS,
+    budget: eventBudget(limits.map((l) => l.maxMessageLength)) - SIGNER_TAG_SLACK,
+    maxTags: tagBudget(limits.map((l) => l.maxEventTags)) - SIGNER_TAGS,
     servers,
     title,
     description,

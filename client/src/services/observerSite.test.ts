@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDITIONS_PATH, INDEX_PATH, serializeEditions, sha256Text } from "@/lib/frontPage/observerSite";
 import { withPaperCsp } from "@/lib/frontPage/validate";
+import { clearRelayLimitsCache } from "@/lib/relayLimits";
 
 const PK = "a".repeat(64);
 
@@ -47,6 +48,7 @@ let blobs: Map<string, string>;
 let puts: { url: string; body: string }[];
 
 beforeEach(() => {
+  clearRelayLimitsCache();
   mocks.site = undefined;
   mocks.answered = ["wss://write.example"];
   mocks.servers = ["https://files.example"];
@@ -226,6 +228,32 @@ describe("publishToObserver", () => {
     const manifest = mocks.signAs.mock.calls[0][1];
     const today = await sha256Text(withPaperCsp(PAPER));
     expect(manifest.tags).toContainEqual(["path", INDEX_PATH, today]);
+  });
+
+  it("rolls off to the tag limit a write relay publishes in its NIP-11 document", async () => {
+    const days = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+    mocks.site = {
+      kind: 35128,
+      pubkey: PK,
+      created_at: 1,
+      tags: [["d", "observer"], ...days.map((d) => ["path", `/${d}.html`, "1".repeat(64)])],
+    };
+    const real = globalThis.fetch as unknown as (url: string, init?: RequestInit) => Promise<Response>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url.startsWith("https://write.example") && !init?.method
+          ? new Response(JSON.stringify({ limitation: { max_event_tags: 16 } }))
+          : real(url, init),
+      ),
+    );
+    await publishToObserver(input);
+    const manifest = mocks.signAs.mock.calls[0][1];
+    // signAs adds one client tag, so the manifest it is handed leaves room for it.
+    expect(manifest.tags.length).toBeLessThanOrEqual(15);
+    expect(
+      manifest.tags.filter((t: string[]) => /^\/\d{4}-\d{2}-\d{2}\.html$/.test(t[1] ?? "")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("publishes nothing when no server takes the page", async () => {

@@ -708,7 +708,9 @@ function PublishSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) 
 function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () => void }) {
   if (state.state === "idle" || state.state === "confirm") return null;
   return (
-    <div className="flex items-center gap-2 text-sm" data-testid="front-page-publish-status">
+    // Wraps on a phone: the message takes the rest of the line and the action drops below it,
+    // rather than cutting the message off.
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="front-page-publish-status">
       {state.state === "publishing" && (
         <>
           <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -723,21 +725,27 @@ function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () =>
       )}
       {state.state === "failed" && state.reason === "no-servers" && (
         <>
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-          <span className="min-w-0 truncate text-muted-foreground">Your Observer needs a file server</span>
-          <Button asChild variant="ghost" size="sm" className="h-7 px-2" data-testid="front-page-publish-add-server">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span className="min-w-0 flex-1 text-muted-foreground">Your Observer needs a file server</span>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 px-2"
+            data-testid="front-page-publish-add-server"
+          >
             <Link href={FILE_SERVERS_SETTINGS}>Add a Blossom server</Link>
           </Button>
         </>
       )}
       {state.state === "failed" && state.reason !== "no-servers" && (
         <>
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-          <span className="min-w-0 truncate text-muted-foreground">{state.message}</span>
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span className="min-w-0 flex-1 text-muted-foreground">{state.message}</span>
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2"
+            className="h-7 shrink-0 px-2"
             onClick={onRetry}
             data-testid="front-page-publish-retry"
           >
@@ -902,7 +910,7 @@ function PaperHeader({
           <span className="hidden sm:inline">{editionDate(page.printedAt)}</span>
         </h1>
         {facts.length > 0 && (
-          <p className="truncate text-sm text-muted-foreground" data-testid="front-page-facts">
+          <p className="text-sm text-muted-foreground" data-testid="front-page-facts">
             {facts.join(" · ")}
           </p>
         )}
@@ -1271,20 +1279,58 @@ function PaperFrame({ page, failed = false }: { page: Printed; failed?: boolean 
   );
 }
 
+/** How long after a Tab press a move into the paper's frame still counts as keyboard. */
+const TAB_INTO_FRAME_MS = 400;
+
 /**
  * The paper filling the window, for reading: same sandbox, Esc or ✕ to leave. A Radix
- * dialog, so focus is trapped inside it and returns to the button that opened it. One
- * limit: a key pressed while focus is inside the paper's frame stays in the frame (a
- * sandboxed document's events don't reach this one), so Esc works once focus is back
- * on the bar, and ✕ always does.
+ * dialog, so focus is trapped inside it and returns to the button that opened it.
+ *
+ * Esc after clicking into the paper: the frame is sandboxed without allow-scripts or
+ * allow-same-origin, so a key pressed while it has focus never reaches this document and
+ * nothing here can listen inside it. So when a click or tap moves focus into the frame,
+ * focus is handed straight back to the dialog: the click itself still lands in the paper
+ * (links open, text can be selected), wheel and touch still scroll it, and Esc closes.
+ * The cost: with the mouse, the paper can't be scrolled with the keyboard (arrows, Space,
+ * PageDown), because the parent can't scroll an opaque-origin frame. A keyboard user who
+ * Tabs into the paper keeps focus there instead, to reach its links and scroll it, and
+ * Shift+Tab or ✕ leaves. Giving the frame allow-same-origin would fix both, but would
+ * loosen the sandbox the paper boundary was reviewed under.
  */
 function FullScreenPaper({ page, open, onClose }: { page: Printed; open: boolean; onClose: () => void }) {
   // What had focus when it opened (the opener has no Dialog.Trigger to return to).
   const opener = useRef<HTMLElement | null>(null);
+  const content = useRef<HTMLDivElement | null>(null);
+  const frame = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let lastTab = 0;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") lastTab = Date.now();
+    };
+    // The window blurs when focus moves into the frame (it is another document).
+    const onBlur = () => {
+      const byKeyboard = Date.now() - lastTab < TAB_INTO_FRAME_MS;
+      window.setTimeout(() => {
+        if (!byKeyboard && frame.current && document.activeElement === frame.current) {
+          content.current?.focus({ preventScroll: true });
+        }
+      }, 0);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [open]);
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
+          ref={content}
           aria-describedby={undefined}
           onOpenAutoFocus={() => {
             opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1327,6 +1373,7 @@ function FullScreenPaper({ page, open, onClose }: { page: Printed; open: boolean
               first letter to the window's edge otherwise. */}
           <div className="flex min-h-0 flex-1 p-2 sm:p-4">
             <iframe
+              ref={frame}
               title="Your front page, full screen"
               srcDoc={page.html}
               sandbox={SANDBOX}

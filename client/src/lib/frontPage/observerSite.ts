@@ -173,6 +173,12 @@ export function eventBudget(maxMessageLengths: (number | null | undefined)[]): n
   return known.length ? Math.min(...known) - ENVELOPE_BYTES : DEFAULT_EVENT_BUDGET;
 }
 
+/** The tag budget: the smallest `max_event_tags` the write relays publish. */
+export function tagBudget(maxEventTags: (number | null | undefined)[]): number {
+  const known = maxEventTags.filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0);
+  return known.length ? Math.min(...known) : DEFAULT_MAX_TAGS;
+}
+
 export interface SiteFiles {
   /** Hashes of the regenerated archive page and index. */
   archive: string;

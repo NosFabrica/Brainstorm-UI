@@ -174,6 +174,44 @@ describe("FrontPagePage", () => {
     await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 
+  it("clicking into the full-screen paper hands focus back so Esc still closes; tabbing in keeps it there", async () => {
+    sessionStorage.setItem(
+      `frontPage:last:${"a".repeat(64)}`,
+      JSON.stringify({
+        html: printed.html,
+        code: "OLD001",
+        printedAt: 1,
+        events: 5,
+        quotes: 1,
+        rounds: 1,
+        usage: null,
+        changes: [],
+      }),
+    );
+    renderWithProviders(<FrontPagePage />);
+    fireEvent.click(screen.getByTestId("front-page-fullscreen"));
+    const view = await screen.findByTestId("front-page-fullscreen-view");
+    const frame = view.querySelector("iframe")!;
+
+    // A click into the frame: focus lands on the frame and the window blurs.
+    frame.focus();
+    expect(document.activeElement).toBe(frame);
+    fireEvent.blur(window);
+    await waitFor(() => expect(document.activeElement).toBe(view));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("front-page-fullscreen-view")).toBeNull());
+
+    // A keyboard user tabbing into the paper keeps focus there, to reach its links.
+    fireEvent.click(screen.getByTestId("front-page-fullscreen"));
+    const again = await screen.findByTestId("front-page-fullscreen-view");
+    const frame2 = again.querySelector("iframe")!;
+    fireEvent.keyDown(window, { key: "Tab" });
+    frame2.focus();
+    fireEvent.blur(window);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.activeElement).toBe(frame2);
+  });
+
   it("a refused page is never shown; the violations are", async () => {
     state.print.mockResolvedValue({
       status: "refused",
