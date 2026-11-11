@@ -4,7 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   Check,
+  Copy,
   Download,
+  ExternalLink,
+  Globe,
   Hourglass,
   Info,
   KeyRound,
@@ -12,6 +15,8 @@ import {
   Lock,
   Maximize2,
   Newspaper,
+  RotateCcw,
+  Share2,
   ShieldCheck,
   Sparkles,
   X,
@@ -27,6 +32,11 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { copyToClipboard } from "@/lib/clipboard";
+import { observerNaddr, observerUrl, utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
+import { PublishError, fetchBlob, leadHeadline, loadObserverSite, publishToObserver } from "@/services/observerSite";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -44,8 +54,11 @@ import type { Usage } from "@/lib/frontPage/writer";
 
 /**
  * Today's front page: the Nostr Observer's daily paper, written from the reader's own
- * web of trust by the reader's own AI key, and shown here once. Nothing is stored or
- * published; the last page survives a reload of this tab and nothing else.
+ * web of trust by the reader's own AI key. With "Publish to my Observer" on, each clean
+ * paper also goes to the reader's public Observer site (quartz
+ * `plans/2026-11-11-observer-site.md`), and the day tabs read the earlier editions back
+ * from it — printed here, in Amethyst, or anywhere else. The just-printed paper also
+ * survives a reload of this tab.
  */
 
 const AI_SETTINGS = "/settings?tab=assistants&view=ai";
@@ -56,8 +69,9 @@ interface Printed {
   /** Which model wrote it; absent on a paper printed before this was kept. */
   model?: string;
   printedAt: number;
-  events: number;
-  quotes: number;
+  /** Absent for an edition read back from the site that didn't record it. */
+  events?: number;
+  quotes?: number;
   rounds: number;
   usage: Usage | null;
   changes: ResolveChange[];
@@ -93,6 +107,66 @@ function writeLast(pubkey: string, page: Printed | null) {
     // private window or full storage: the page still shows, it just won't survive a reload
   }
 }
+
+const publishKey = (pubkey: string) => `frontPage:publish:${pubkey}`;
+const noticeKey = (pubkey: string) => `frontPage:observerNotice:${pubkey}`;
+
+/** "Publish to my Observer": on unless this account turned it off. */
+function readPublish(pubkey: string): boolean {
+  try {
+    return localStorage.getItem(publishKey(pubkey)) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function writePublish(pubkey: string, on: boolean) {
+  try {
+    localStorage.setItem(publishKey(pubkey), on ? "on" : "off");
+  } catch {
+    // remembered for this visit only
+  }
+}
+
+function noticeSeen(pubkey: string): boolean {
+  try {
+    return localStorage.getItem(noticeKey(pubkey)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markNoticeSeen(pubkey: string) {
+  try {
+    localStorage.setItem(noticeKey(pubkey), "1");
+  } catch {
+    // shown again next time
+  }
+}
+
+/** An edition read back from the site, as the page shows it; empty html until fetched. */
+function fromEntry(entry: EditionEntry, html: string): Printed {
+  return {
+    html,
+    code: entry.code ?? "",
+    model: entry.model,
+    printedAt: entry.printedAt ? entry.printedAt * 1000 : Date.parse(`${entry.day}T12:00:00Z`),
+    events: entry.posts,
+    quotes: entry.quotesVerified,
+    rounds: 1,
+    usage: null,
+    changes: [],
+  };
+}
+
+interface SiteState {
+  editions: EditionEntry[];
+  servers: string[];
+  exists: boolean;
+}
+
+type PublishState =
+  { state: "idle" } | { state: "publishing" } | { state: "published" } | { state: "failed"; message: string };
 
 const modelKey = (url: string) => `frontPage:model:${url}`;
 
@@ -148,6 +222,82 @@ export default function FrontPagePage() {
 
   const [page, setPage] = useState<Printed | null>(() => (pubkey ? readLast(pubkey) : null));
   const [run, setRun] = useState<Run>({ state: "idle" });
+  const [publish, setPublish] = useState(() => (pubkey ? readPublish(pubkey) : true));
+  const [publishState, setPublishState] = useState<PublishState>({ state: "idle" });
+  const [notice, setNotice] = useState(false);
+  const [site, setSite] = useState<SiteState | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  // Editions fetched from the site by hash: html, or null when no server had the bytes.
+  const [fetched, setFetched] = useState<Record<string, string | null>>({});
+
+  // The reader's Observer site: what the day tabs list.
+  useEffect(() => {
+    if (!pubkey) return;
+    let live = true;
+    loadObserverSite(pubkey)
+      .then((loaded) => {
+        if (live) setSite({ editions: loaded.index.editions, servers: loaded.servers, exists: !!loaded.event });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [pubkey]);
+
+  const sessionDay = page ? utcDay(page.printedAt) : null;
+  const days = useMemo(() => {
+    const all = new Set<string>(site?.editions.map((e) => e.day) ?? []);
+    if (sessionDay) all.add(sessionDay);
+    return [...all].sort().reverse();
+  }, [site, sessionDay]);
+  const day = selectedDay && days.includes(selectedDay) ? selectedDay : (days[0] ?? null);
+  const siteEntry = day && day !== sessionDay ? site?.editions.find((e) => e.day === day) : undefined;
+  const shown: Printed | null =
+    day === sessionDay ? page : siteEntry ? fromEntry(siteEntry, fetched[day!] ?? "") : null;
+  const shownFailed = !!siteEntry && day !== null && fetched[day] === null;
+
+  useEffect(() => {
+    if (!siteEntry || !site || fetched[siteEntry.day] !== undefined) return;
+    const controller = new AbortController();
+    fetchBlob(siteEntry.sha256, site.servers, { signal: controller.signal }).then((html) => {
+      if (!controller.signal.aborted) setFetched((m) => ({ ...m, [siteEntry.day]: html }));
+    });
+    return () => controller.abort();
+  }, [siteEntry, site, fetched]);
+
+  const choosePublish = (on: boolean) => {
+    setPublish(on);
+    if (pubkey) writePublish(pubkey, on);
+  };
+
+  const publishPaper = useCallback(
+    async (printed: Printed) => {
+      if (!pubkey) return;
+      setPublishState({ state: "publishing" });
+      try {
+        const out = await publishToObserver({
+          pubkey,
+          html: printed.html,
+          name: user?.displayName ?? "",
+          printedAt: printed.printedAt,
+          headline: leadHeadline(printed.html),
+          code: printed.code,
+          posts: printed.events,
+          quotesVerified: printed.quotes,
+          model: printed.model,
+        });
+        setSite((prev) => ({ editions: out.editions, servers: prev?.servers ?? [], exists: true }));
+        setPublishState({ state: "published" });
+        if (!noticeSeen(pubkey)) setNotice(true);
+      } catch (err) {
+        setPublishState({
+          state: "failed",
+          message: err instanceof PublishError ? err.message : "Couldn't publish to your Observer.",
+        });
+      }
+    },
+    [pubkey, user?.displayName],
+  );
   const [printOpen, setPrintOpen] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -210,7 +360,11 @@ export default function FrontPagePage() {
         };
         writeLast(pubkey, printed);
         setPage(printed);
+        setSelectedDay(null);
         setRun({ state: "idle" });
+        // Only a page the check passed gets here: that is the only one published.
+        if (publish) void publishPaper(printed);
+        else setPublishState({ state: "idle" });
       }
     } catch (err) {
       if (controller.signal.aborted) {
@@ -222,7 +376,7 @@ export default function FrontPagePage() {
         message: err instanceof WriterError ? err.message : "Something went wrong while printing. Try again.",
       });
     }
-  }, [key, pubkey, model, readerName]);
+  }, [key, pubkey, model, readerName, publish, publishPaper]);
 
   const cancel = () => {
     abort.current?.abort();
@@ -242,9 +396,11 @@ export default function FrontPagePage() {
   const picker = key && blocker === null && (
     <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
   );
+  const publishSwitch = <PublishSwitch on={publish} onChange={choosePublish} />;
+  const observerLinks = pubkey && (site?.exists || publishState.state === "published") ? pubkey : null;
   // Reader-first: once there is a paper, it leads and the controls step back into a
   // header and a dialog. The hero is for the first print and for setup.
-  const showHero = !page || blocker !== null;
+  const showHero = !shown || blocker !== null;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -260,18 +416,33 @@ export default function FrontPagePage() {
                 busy={run.state === "running"}
                 onPrint={print}
                 picker={picker}
+                publishSwitch={publishSwitch}
                 hint={models.status === "unlisted" && !model}
                 canPrint={!!model}
               />
             ) : (
-              page && (
+              shown && (
                 <PaperHeader
-                  page={page}
+                  page={shown}
                   busy={run.state === "running"}
+                  observer={observerLinks}
                   onPrintAgain={() => setPrintOpen(true)}
                   onFullScreen={() => setFullScreen(true)}
                 />
               )
+            )}
+
+            {!showHero && publishState.state !== "idle" && (
+              <PublishStatus state={publishState} onRetry={() => page && void publishPaper(page)} />
+            )}
+            {notice && pubkey && (
+              <ObserverNotice
+                pubkey={pubkey}
+                onDone={() => {
+                  markNoticeSeen(pubkey);
+                  setNotice(false);
+                }}
+              />
             )}
 
             {blocker && blocker !== "checking" && <Blocker kind={blocker} onUnlock={keys.reveal} />}
@@ -309,10 +480,13 @@ export default function FrontPagePage() {
             </AnimatePresence>
           </div>
 
+          {/* The days the reader's Observer holds, right above the paper they switch. */}
+          {shown && days.length > 1 && <DayTabs days={days} day={day!} onChange={setSelectedDay} />}
+
           {/* Wider than the controls: a newspaper wants the width a wide window has. */}
-          {page && (
-            <Fade key={`paper-${page.printedAt}`}>
-              <PaperFrame page={page} />
+          {shown && (
+            <Fade key={`paper-${day}-${shown.printedAt}`}>
+              <PaperFrame page={shown} failed={shownFailed} />
             </Fade>
           )}
         </main>
@@ -325,6 +499,7 @@ export default function FrontPagePage() {
             </DialogHeader>
             <PrintControls
               picker={picker}
+              publishSwitch={publishSwitch}
               hint={models.status === "unlisted" && !model}
               busy={run.state === "running"}
               canPrint={!!model}
@@ -334,7 +509,7 @@ export default function FrontPagePage() {
           </DialogContent>
         </Dialog>
 
-        {fullScreen && page && <FullScreenPaper page={page} onClose={() => setFullScreen(false)} />}
+        {fullScreen && shown?.html && <FullScreenPaper page={shown} onClose={() => setFullScreen(false)} />}
       </div>
     </TooltipProvider>
   );
@@ -359,6 +534,7 @@ function Hero({
   busy,
   onPrint,
   picker,
+  publishSwitch,
   hint,
   canPrint,
 }: {
@@ -366,6 +542,7 @@ function Hero({
   busy: boolean;
   onPrint: () => void;
   picker: React.ReactNode;
+  publishSwitch: React.ReactNode;
   hint: boolean;
   canPrint: boolean;
 }) {
@@ -394,7 +571,14 @@ function Hero({
         </div>
         {ready && (
           <div className="sm:w-64">
-            <PrintControls picker={picker} hint={hint} busy={busy} canPrint={canPrint} onPrint={onPrint} />
+            <PrintControls
+              picker={picker}
+              publishSwitch={publishSwitch}
+              hint={hint}
+              busy={busy}
+              canPrint={canPrint}
+              onPrint={onPrint}
+            />
           </div>
         )}
       </div>
@@ -405,6 +589,7 @@ function Hero({
 /** Model, the reason Print is off when it is, and Print: in the hero and in the dialog. */
 function PrintControls({
   picker,
+  publishSwitch,
   hint,
   busy,
   canPrint,
@@ -412,6 +597,7 @@ function PrintControls({
   onPrint,
 }: {
   picker: React.ReactNode;
+  publishSwitch: React.ReactNode;
   hint: boolean;
   busy: boolean;
   canPrint: boolean;
@@ -436,12 +622,122 @@ function PrintControls({
         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
         {again ? "Print" : "Print today's paper"}
       </Button>
+      {publishSwitch}
     </div>
+  );
+}
+
+/** Publish each clean paper to the reader's public Observer site; on unless turned off. */
+function PublishSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 pt-1 text-sm text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <Globe className="h-3.5 w-3.5" /> Publish to my Observer
+      </span>
+      <Switch checked={on} onCheckedChange={onChange} data-testid="front-page-publish-switch" />
+    </label>
+  );
+}
+
+function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () => void }) {
+  if (state.state === "idle") return null;
+  return (
+    <div className="flex items-center gap-2 text-sm" data-testid="front-page-publish-status">
+      {state.state === "publishing" && (
+        <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          <span className="text-muted-foreground">Publishing to your Observer…</span>
+        </>
+      )}
+      {state.state === "published" && (
+        <>
+          <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-muted-foreground">On your Observer</span>
+        </>
+      )}
+      {state.state === "failed" && (
+        <>
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          <span className="min-w-0 truncate text-muted-foreground">{state.message}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={onRetry}
+            data-testid="front-page-publish-retry"
+          >
+            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Once, after the first publish: the site is public, and where that's turned off. */
+function ObserverNotice({ pubkey, onDone }: { pubkey: string; onDone: () => void }) {
+  return (
+    <Card className="flex items-start gap-4 p-4 sm:p-5" data-testid="front-page-observer-notice">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+        <Globe className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-medium text-foreground">Your Observer is public</p>
+        <p className="text-sm text-muted-foreground">
+          Anyone can read it.{" "}
+          <a
+            href={observerUrl(pubkey)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Open it
+          </a>
+          . Turn off “Publish to my Observer” in Print to keep a paper to yourself.
+        </p>
+      </div>
+      <Button size="sm" variant="secondary" onClick={onDone} data-testid="front-page-observer-notice-ok">
+        Got it
+      </Button>
+    </Card>
+  );
+}
+
+/** Today / Yesterday / a weekday: the editions the reader's Observer holds. */
+function DayTabs({ days, day, onChange }: { days: string[]; day: string; onChange: (day: string) => void }) {
+  const today = utcDay(Date.now());
+  const yesterday = utcDay(Date.now() - 86_400_000);
+  const label = (d: string) =>
+    d === today
+      ? "Today"
+      : d === yesterday
+        ? "Yesterday"
+        : new Intl.DateTimeFormat(undefined, {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          }).format(new Date(`${d}T12:00:00Z`));
+  return (
+    <Tabs value={day} onValueChange={onChange} className="mt-5">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <TabsList data-testid="front-page-day-tabs">
+          {days.slice(0, 14).map((d) => (
+            <TabsTrigger key={d} value={d} data-testid={`front-page-day-${d}`}>
+              {label(d)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
+    </Tabs>
   );
 }
 
 const editionDate = (at: number) =>
   new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date(at));
+/** The phone's form: "Wed, Nov 11" fits where the long date gets cut off. */
+const editionDateShort = (at: number) =>
+  new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(new Date(at));
 
 function IconAction({
   label,
@@ -484,45 +780,60 @@ function IconAction({
 function PaperHeader({
   page,
   busy,
+  observer,
   onPrintAgain,
   onFullScreen,
 }: {
   page: Printed;
   busy: boolean;
+  /** The reader's pubkey once they have an Observer site to link to. */
+  observer: string | null;
   onPrintAgain: () => void;
   onFullScreen: () => void;
 }) {
   const removed = noteworthy(page.changes).length;
+  const facts = [
+    page.events !== undefined ? `${page.events.toLocaleString()} posts` : null,
+    page.quotes !== undefined ? `${page.quotes} ${page.quotes === 1 ? "quote" : "quotes"} verified` : null,
+    removed > 0 ? `${removed} removed` : null,
+  ].filter(Boolean);
   return (
     <div className="flex items-center gap-3" data-testid="front-page-header">
       <div className="min-w-0 flex-1">
         <h1 className="truncate font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-          {editionDate(page.printedAt)}
+          <span className="sm:hidden">{editionDateShort(page.printedAt)}</span>
+          <span className="hidden sm:inline">{editionDate(page.printedAt)}</span>
         </h1>
-        <p className="truncate text-sm text-muted-foreground" data-testid="front-page-facts">
-          {page.events.toLocaleString()} posts · {page.quotes} {page.quotes === 1 ? "quote" : "quotes"} verified
-          {removed > 0 && ` · ${removed} removed`}
-        </p>
+        {facts.length > 0 && (
+          <p className="truncate text-sm text-muted-foreground" data-testid="front-page-facts">
+            {facts.join(" · ")}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 items-center">
         <IconAction label="Print again" onClick={onPrintAgain} disabled={busy} testId="front-page-print-again">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
         </IconAction>
-        <IconAction label="Download" onClick={() => download(page)} testId="front-page-download">
+        <IconAction label="Download" onClick={() => download(page)} disabled={!page.html} testId="front-page-download">
           <Download className="h-4 w-4" />
         </IconAction>
-        <IconAction label="Read full screen" onClick={onFullScreen} testId="front-page-fullscreen">
+        <IconAction
+          label="Read full screen"
+          onClick={onFullScreen}
+          disabled={!page.html}
+          testId="front-page-fullscreen"
+        >
           <Maximize2 className="h-4 w-4" />
         </IconAction>
-        <EditionInfo page={page} />
+        <EditionInfo page={page} observer={observer} />
       </div>
     </div>
   );
 }
 
-function EditionInfo({ page }: { page: Printed }) {
+function EditionInfo({ page, observer }: { page: Printed; observer: string | null }) {
   const tokens = page.usage ? (page.usage.promptTokens ?? 0) + (page.usage.completionTokens ?? 0) : null;
-  const rows: [string, string][] = [["Edition", `No. ${page.code}`]];
+  const rows: [string, string][] = page.code ? [["Edition", `No. ${page.code}`]] : [];
   if (page.model) rows.push(["Model", page.model]);
   if (tokens) rows.push(["Tokens", tokens.toLocaleString()]);
   if (page.rounds === 2) rows.push(["Check", "Fixed once"]);
@@ -554,8 +865,53 @@ function EditionInfo({ page }: { page: Printed }) {
           ))}
         </dl>
         <Changes changes={page.changes} />
+        {observer && <ObserverLinks pubkey={observer} />}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Open, copy or share the reader's Observer site. */
+function ObserverLinks({ pubkey }: { pubkey: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = observerUrl(pubkey);
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  return (
+    <div className="space-y-2 border-t border-border pt-3" data-testid="front-page-observer-links">
+      <Button asChild size="sm" variant="secondary" className="w-full justify-start">
+        <a href={url} target="_blank" rel="noopener noreferrer" data-testid="front-page-observer-open">
+          <ExternalLink className="mr-2 h-4 w-4" /> Open my Observer
+        </a>
+      </Button>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="flex-1 justify-start"
+          onClick={async () => {
+            if (await copyToClipboard(observerNaddr(pubkey))) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }
+          }}
+          data-testid="front-page-observer-copy"
+        >
+          {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+          {copied ? "Copied" : "Copy naddr"}
+        </Button>
+        {canShare && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="flex-1 justify-start"
+            onClick={() => void navigator.share({ title: "My Observer", url }).catch(() => undefined)}
+            data-testid="front-page-observer-share"
+          >
+            <Share2 className="mr-2 h-4 w-4" /> Share
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -779,8 +1135,20 @@ const SANDBOX = "allow-popups allow-popups-to-escape-sandbox";
  * The paper inline. Until the frame has loaded it takes a slim placeholder, not the
  * full height: a tall empty sheet reads as broken.
  */
-function PaperFrame({ page }: { page: Printed }) {
+function PaperFrame({ page, failed = false }: { page: Printed; failed?: boolean }) {
   const [loaded, setLoaded] = useState(false);
+  // An edition read back from the site: its bytes are still on their way, or no server had them.
+  if (!page.html) {
+    return (
+      <div className="mt-5 grid h-40 place-items-center rounded-2xl border border-border bg-[#faf8f3] p-3 text-sm text-slate-600 shadow-sm">
+        {failed ? (
+          <span data-testid="front-page-frame-missing">None of your file servers had this edition.</span>
+        ) : (
+          <Loader2 className="h-5 w-5 animate-spin text-slate-400" data-testid="front-page-frame-loading" />
+        )}
+      </div>
+    );
+  }
   return (
     // The model writes the layout, and some pages run edge to edge: a margin of newsprint
     // (house.css --paper) keeps the rounded corners from clipping a folio's first letter.
