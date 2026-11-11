@@ -241,6 +241,8 @@ interface AdminUsersPage {
 interface GrapeRankError {
   code: string;
   message: string | null;
+  /** "warning": caused by the user's own graph (e.g. no follows), not a fault of ours. */
+  severity?: "warning" | "error";
 }
 
 interface BrainstormRequestInstance {
@@ -477,6 +479,17 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
   }
 }
 
+type ActivityOutcomeItem = { updated_at: string; status?: string | null; error?: GrapeRankError | null };
+
+function isWarningItem(item: { error?: GrapeRankError | null }): boolean {
+  return item.error?.severity === "warning";
+}
+
+/** A failed calc that isn't a warning: what the dashboard counts as a failure. */
+function isFailedActivity(item: { status?: string | null; error?: GrapeRankError | null }): boolean {
+  return isFailedStatus(item.status) && !isWarningItem(item);
+}
+
 function parseActivityTs(s: string | undefined | null): number {
   if (!s) return 0;
   try {
@@ -489,7 +502,7 @@ function parseActivityTs(s: string | undefined | null): number {
 }
 
 function bucketActivity(
-  activity: { updated_at: string; status?: string | null }[],
+  activity: ActivityOutcomeItem[],
   bucketCount: number,
   bucketSizeMs: number,
   now: number,
@@ -507,18 +520,13 @@ function bucketActivity(
     if (ageBuckets < 0 || ageBuckets >= bucketCount) continue;
     const idx = bucketCount - 1 - ageBuckets;
     buckets[idx].total++;
-    const s = (a.status || "").toLowerCase();
-    if (s === "success") buckets[idx].success++;
-    else if (s === "failed" || s === "failure") buckets[idx].failed++;
+    if ((a.status || "").toLowerCase() === "success") buckets[idx].success++;
+    else if (isFailedActivity(a)) buckets[idx].failed++;
   }
   return buckets;
 }
 
-function compareActivityWindows(
-  activity: { updated_at: string; status?: string | null }[],
-  windowMs: number,
-  now: number,
-) {
+function compareActivityWindows(activity: ActivityOutcomeItem[], windowMs: number, now: number) {
   const cur: typeof activity = [];
   const prev: typeof activity = [];
   for (const a of activity) {
@@ -529,20 +537,20 @@ function compareActivityWindows(
     if (age < windowMs) cur.push(a);
     else if (age < windowMs * 2) prev.push(a);
   }
-  const countStatus = (arr: typeof activity, want: string[]) =>
-    arr.filter((a) => want.includes((a.status || "").toLowerCase())).length;
+  const countSuccess = (arr: typeof activity) => arr.filter((a) => (a.status || "").toLowerCase() === "success").length;
+  const countFailed = (arr: typeof activity) => arr.filter(isFailedActivity).length;
   const sr = (arr: typeof activity): number | null => {
-    const s = countStatus(arr, ["success"]);
-    const f = countStatus(arr, ["failed", "failure"]);
+    const s = countSuccess(arr);
+    const f = countFailed(arr);
     return s + f === 0 ? null : Math.round((s / (s + f)) * 100);
   };
   return {
     curTotal: cur.length,
     prevTotal: prev.length,
-    curFailed: countStatus(cur, ["failed", "failure"]),
-    prevFailed: countStatus(prev, ["failed", "failure"]),
-    curSuccess: countStatus(cur, ["success"]),
-    prevSuccess: countStatus(prev, ["success"]),
+    curFailed: countFailed(cur),
+    prevFailed: countFailed(prev),
+    curSuccess: countSuccess(cur),
+    prevSuccess: countSuccess(prev),
     curSR: sr(cur),
     prevSR: sr(prev),
     hasPrev: prev.length > 0,
@@ -1529,17 +1537,21 @@ function UserHistoryRow({
   );
 }
 
-function ActivityStatusBadge({ value }: { value: string | null }) {
+function ActivityStatusBadge({ value, warning = false }: { value: string | null; warning?: boolean }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
+  const failed = lower === "failure" || lower === "failed" || lower === "error";
+  if (failed && warning) value = "warning";
   const colors =
     lower === "success" || lower === "done" || lower === "published"
       ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
-      : lower === "failure" || lower === "failed" || lower === "error"
-        ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
-        : lower === "pending" || lower === "queued" || lower === "in_progress"
-          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
-          : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
+      : failed && warning
+        ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+        : failed
+          ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
+          : lower === "pending" || lower === "queued" || lower === "in_progress"
+            ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+            : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return (
     <span
       className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${colors}`}
@@ -1580,7 +1592,8 @@ function getActivityPipelineState(item: BrainstormRequestInstance) {
   const s = item.status?.toLowerCase() ?? "";
   if (s === "ongoing" || s === "in_progress" || s === "processing") return "active" as const;
   if (s === "waiting" || s === "queued" || s === "pending") return "waiting" as const;
-  if (s === "failure" || s === "failed" || s === "error") return "failed" as const;
+  if (s === "failure" || s === "failed" || s === "error")
+    return isWarningItem(item) ? ("warning" as const) : ("failed" as const);
   return "complete" as const;
 }
 
@@ -1591,6 +1604,7 @@ function isFailedStatus(value: string | null | undefined): boolean {
 }
 
 function isItemFailed(item: BrainstormRequestInstance): boolean {
+  if (isWarningItem(item)) return false;
   return (
     isFailedStatus(item.status) || isFailedStatus(item.ta_status) || isFailedStatus(item.internal_publication_status)
   );
@@ -1917,6 +1931,16 @@ const pipelineRowStyles = {
     dot: "",
     dotPulse: "",
   },
+  warning: {
+    row: "bg-amber-50/30 dark:bg-amber-500/10 border-l-[3px] border-l-amber-300 border-b border-b-amber-100/40 dark:border-b-amber-500/20",
+    hover: "hover:bg-amber-50/50 dark:hover:bg-amber-500/15",
+    expanded: "bg-amber-50/20 dark:bg-amber-500/5",
+    expandedBorder: "border-amber-200/40 dark:border-amber-500/25",
+    label: "",
+    labelClass: "",
+    dot: "",
+    dotPulse: "",
+  },
   complete: {
     row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60 dark:border-b-slate-800/60",
     hover: "hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10",
@@ -1975,6 +1999,7 @@ function ActivityRow({
   const style = pipelineRowStyles[pipeline];
   const isInPipeline = pipeline === "active" || pipeline === "waiting";
   const isFailed = isItemFailed(item);
+  const isWarning = isWarningItem(item);
   const failureStage = getFailureStage(item);
   const baseRowBg =
     pipeline === "complete"
@@ -2138,13 +2163,13 @@ function ActivityRow({
           )}
         </td>
         <td className="px-2 py-2">
-          <ActivityStatusBadge value={item.status} />
+          <ActivityStatusBadge value={item.status} warning={isWarning} />
         </td>
         <td className="px-2 py-2">
-          <ActivityStatusBadge value={item.ta_status} />
+          <ActivityStatusBadge value={item.ta_status} warning={isWarning} />
         </td>
         <td className="px-2 py-2">
-          <ActivityStatusBadge value={item.internal_publication_status} />
+          <ActivityStatusBadge value={item.internal_publication_status} warning={isWarning} />
         </td>
         <td className="px-2 py-2 font-mono text-[10px] text-slate-600 dark:text-slate-300">{item.algorithm || "—"}</td>
         <td className="px-2 py-2 text-center text-[10px]" data-testid={`cell-queue-${item.private_id ?? idx}`}>
@@ -2255,6 +2280,22 @@ function ActivityRow({
                 </span>
                 <span className="ml-2 text-[10px] text-red-500/70">Click for details</span>
               </div>
+            </div>
+          </td>
+        </tr>
+      )}
+      {isWarning && !expanded && (
+        <tr
+          className={`cursor-pointer ${style.row} ${style.hover}`}
+          onClick={() => setExpanded(true)}
+          data-testid={`row-activity-warning-preview-${item.private_id ?? idx}`}
+        >
+          <td colSpan={13} className="border-t border-amber-100/50 px-4 py-1.5 dark:border-amber-500/20">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+              <span className="break-words font-mono text-[10px] text-amber-800 dark:text-amber-300">
+                {truncateError(item.error?.message?.trim() || item.error?.code || "", 160)}
+              </span>
             </div>
           </td>
         </tr>
@@ -3006,7 +3047,7 @@ export default function AdminPage() {
       }
     });
     const recentSuccess = last24h.filter((a) => a.status?.toLowerCase() === "success").length;
-    const recentFailed = last24h.filter((a) => isFailedStatus(a.status)).length;
+    const recentFailed = last24h.filter(isFailedActivity).length;
 
     const sortedByUpdate = [...users].sort((a, b) => {
       const ta = new Date(a.last_updated || "").getTime() || 0;
@@ -3831,7 +3872,7 @@ export default function AdminPage() {
                 const rangeLong = trends.cfg.longLabel;
                 const rangeShort = trends.cfg.shortLabel;
                 const filteredSuccess = filteredItems.filter((a) => a.status?.toLowerCase() === "success").length;
-                const filteredFailed = filteredItems.filter((a) => isFailedStatus(a.status)).length;
+                const filteredFailed = filteredItems.filter(isFailedActivity).length;
                 const filteredTotal = filteredItems.length;
                 const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
                   const ta = new Date(a.last_updated || "").getTime() || 0;
