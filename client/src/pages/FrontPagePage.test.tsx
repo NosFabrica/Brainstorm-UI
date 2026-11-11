@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { readTask } from "@/lib/scheduledTasks";
 import FrontPagePage from "./FrontPagePage";
@@ -27,7 +27,7 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => state.user,
 }));
-vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ ...state.keys, reveal: vi.fn() }) }));
+vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ reveal: vi.fn(), ...state.keys }) }));
 // The morning schedule card has its own tests (lib/scheduledTasks, services/observerSchedule).
 vi.mock("@/hooks/useObserverSchedule", () => ({
   useObserverSchedule: () => ({ reveal: vi.fn(), refresh: vi.fn(), checkedAt: null, ...state.schedule }),
@@ -97,19 +97,99 @@ describe("FrontPagePage", () => {
     expect(screen.getByTestId("front-page-print")).not.toBeDisabled();
   });
 
-  it("without an AI key, points to the AI model settings and offers no Print", () => {
-    state.keys = { status: "none" };
-    renderWithProviders(<FrontPagePage />);
-    expect(screen.getByTestId("front-page-blocked-no-key")).toBeInTheDocument();
-    expect(screen.getByTestId("front-page-connect").getAttribute("href")).toBe("/settings?tab=assistants&view=ai");
-    expect(screen.queryByTestId("front-page-print")).toBeNull();
-  });
+  describe("before the first paper", () => {
+    const row = (which: "key" | "wot") => screen.getByTestId(`front-page-setup-${which}`);
 
-  it("while the rankings are still arriving, says so and offers no Print", () => {
-    state.isSearchObserver = false;
-    renderWithProviders(<FrontPagePage />);
-    expect(screen.getByTestId("front-page-blocked-pending")).toBeInTheDocument();
-    expect(screen.queryByTestId("front-page-print")).toBeNull();
+    it("with neither, lists both steps to do, each with its action, and offers no Print", () => {
+      state.keys = { status: "none" };
+      state.hasMywot = false;
+      state.isSearchObserver = false;
+      renderWithProviders(<FrontPagePage />);
+      const card = screen.getByTestId("front-page-setup");
+      expect(card).toHaveTextContent("Before your first paper");
+      expect(row("key")).toHaveAttribute("data-state", "todo");
+      expect(row("key")).toHaveTextContent("AI key: To do");
+      expect(screen.getByTestId("front-page-connect").getAttribute("href")).toBe("/settings?tab=assistants&view=ai");
+      expect(screen.getByRole("link", { name: "Connect an AI key" })).toBeInTheDocument();
+      expect(row("wot")).toHaveAttribute("data-state", "todo");
+      expect(row("wot")).toHaveTextContent("Web of trust: To do");
+      expect(screen.getByRole("link", { name: "Set up your web of trust" }).getAttribute("href")).toBe("/setup");
+      expect(screen.queryByTestId("front-page-print")).toBeNull();
+    });
+
+    it("with the key only, says which provider and still asks for the web of trust", () => {
+      state.hasMywot = false;
+      state.isSearchObserver = false;
+      renderWithProviders(<FrontPagePage />);
+      expect(row("key")).toHaveAttribute("data-state", "done");
+      expect(row("key")).toHaveTextContent("AI key: Done");
+      // The done row stays a link, to change the key.
+      const change = screen.getByRole("link", { name: "AI key: using OpenRouter. Change" });
+      expect(change).toHaveTextContent("Using OpenRouter");
+      expect(change.getAttribute("href")).toBe("/settings?tab=assistants&view=ai");
+      expect(screen.queryByTestId("front-page-connect")).toBeNull();
+      expect(row("wot")).toHaveAttribute("data-state", "todo");
+      expect(screen.getByTestId("front-page-setup-wot-action").getAttribute("href")).toBe("/setup");
+      expect(screen.queryByTestId("front-page-print")).toBeNull();
+    });
+
+    it("with the web of trust only, asks for a key and keeps the web of trust a link", () => {
+      state.keys = { status: "none" };
+      renderWithProviders(<FrontPagePage />);
+      expect(row("key")).toHaveAttribute("data-state", "todo");
+      expect(screen.getByTestId("front-page-connect")).toBeInTheDocument();
+      expect(row("wot")).toHaveAttribute("data-state", "done");
+      expect(row("wot")).toHaveTextContent("Web of trust: Done");
+      expect(screen.getByRole("link", { name: "Web of trust: ready. Change" }).getAttribute("href")).toBe("/setup");
+      expect(screen.queryByTestId("front-page-print")).toBeNull();
+    });
+
+    it("with both, shows no checklist and offers Print", async () => {
+      renderWithProviders(<FrontPagePage />);
+      expect(screen.queryByTestId("front-page-setup")).toBeNull();
+      expect(await screen.findByTestId("front-page-print")).toBeInTheDocument();
+    });
+
+    it("while the rankings are still arriving, shows the web of trust in progress, not done, and no Print", () => {
+      state.isSearchObserver = false;
+      renderWithProviders(<FrontPagePage />);
+      expect(row("key")).toHaveAttribute("data-state", "done");
+      expect(row("wot")).toHaveAttribute("data-state", "pending");
+      expect(row("wot")).toHaveTextContent("Web of trust: In progress");
+      expect(row("wot")).toHaveTextContent("Preparing…");
+      expect(within(row("wot")).getByRole("status")).toHaveTextContent(
+        "Your rankings are on their way. Try again in a few minutes.",
+      );
+      expect(screen.queryByTestId("front-page-setup-wot-action")).toBeNull();
+      expect(screen.queryByTestId("front-page-setup-wot-change")).toBeNull();
+      expect(screen.queryByTestId("front-page-print")).toBeNull();
+    });
+
+    it("with the key locked, keeps Unlock on the key row beside the rest of setup", () => {
+      const reveal = vi.fn();
+      state.keys = { status: "locked", reveal };
+      state.hasMywot = false;
+      state.isSearchObserver = false;
+      renderWithProviders(<FrontPagePage />);
+      expect(row("key")).toHaveAttribute("data-state", "locked");
+      expect(row("key")).toHaveTextContent("AI key: To do");
+      const unlock = screen.getByRole("button", { name: "Unlock your AI key" });
+      expect(unlock).toHaveAttribute("data-testid", "front-page-unlock");
+      fireEvent.click(unlock);
+      expect(reveal).toHaveBeenCalledTimes(1);
+      expect(row("wot")).toHaveAttribute("data-state", "todo");
+      expect(screen.queryByTestId("front-page-print")).toBeNull();
+    });
+
+    it("a print the relay turns away marks the web of trust in progress", async () => {
+      state.print.mockResolvedValue({ status: "not-ready", reason: "projection-pending" });
+      renderWithProviders(<FrontPagePage />);
+      expect(screen.queryByTestId("front-page-setup")).toBeNull();
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      await waitFor(() => expect(row("wot")).toHaveAttribute("data-state", "pending"));
+      expect(row("key")).toHaveAttribute("data-state", "done");
+    });
   });
 
   it("picks the best listed model, prints, and shows the paper sandboxed with what was removed", async () => {

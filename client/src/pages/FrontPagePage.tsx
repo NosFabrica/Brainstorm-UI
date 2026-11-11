@@ -6,18 +6,17 @@ import {
   Check,
   Copy,
   Download,
+  ChevronRight,
   ExternalLink,
   Globe,
   Hourglass,
   Info,
-  KeyRound,
   Loader2,
   Lock,
   Maximize2,
   Newspaper,
   RotateCcw,
   Share2,
-  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
@@ -25,6 +24,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Footer } from "@/components/Footer";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -481,15 +481,19 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     setRun({ state: "idle" });
   };
 
-  // What stands between the reader and a paper, first unmet need only.
-  const blocker = useMemo(() => {
-    if (keys.status === "loading" || (!mywot.known && mywot.isLoading)) return "checking" as const;
-    if (keys.status === "locked") return "locked" as const;
-    if (keys.status === "none" || keys.status === "unreadable" || !key) return "no-key" as const;
-    if (!hasMywot) return "no-wot" as const;
-    if (!isSearchObserver || !canUseMywot) return "pending" as const;
-    return null;
-  }, [keys.status, key, mywot.known, mywot.isLoading, hasMywot, isSearchObserver, canUseMywot]);
+  // What stands between the reader and a paper: both needs, each on its own row.
+  const keyStep: KeyStep =
+    keys.status === "locked"
+      ? { state: "locked" }
+      : key
+        ? { state: "done", provider: providerName(key.url) }
+        : { state: "todo" };
+  // `hasMywot` is the assistant the server mints at sign-in; the ranking is there once the
+  // search relay answers through it. Until then its scores are being calculated or projected.
+  const wotStep: WotStep = !hasMywot ? "todo" : !isSearchObserver || !canUseMywot ? "pending" : "done";
+  const checking = keys.status === "loading" || (!mywot.known && mywot.isLoading);
+  const blocker = checking ? "checking" : keyStep.state !== "done" || wotStep !== "done" ? "setup" : null;
+  const setupShown = blocker === "setup";
 
   const picker = key && blocker === null && (
     <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
@@ -554,7 +558,15 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
               <PublishStatus state={publishState} onRetry={() => page && offerPublish(page)} />
             )}
 
-            {blocker && blocker !== "checking" && <Blocker kind={blocker} onUnlock={keys.reveal} />}
+            {(setupShown || run.state === "pending") && (
+              <SetupChecklist
+                keyStep={keyStep}
+                // A print the relay turned away says the ranking isn't there yet, whatever
+                // the gate above it answered.
+                wot={run.state === "pending" ? "pending" : wotStep}
+                onUnlock={keys.reveal}
+              />
+            )}
             {blocker === "checking" && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="front-page-checking">
                 <Loader2 className="h-4 w-4 animate-spin" /> Checking…
@@ -567,11 +579,6 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
               {run.state === "running" && (
                 <Fade key="running">
                   <Progress step={run.step} pull={run.pull} onCancel={cancel} />
-                </Fade>
-              )}
-              {run.state === "pending" && (
-                <Fade key="pending">
-                  <Blocker kind="pending" onUnlock={keys.reveal} />
                 </Fade>
               )}
               {run.state === "error" && (
@@ -1138,57 +1145,150 @@ function ModelPicker({
   );
 }
 
-function Blocker({ kind, onUnlock }: { kind: "locked" | "no-key" | "no-wot" | "pending"; onUnlock: () => void }) {
-  const content = {
-    "no-key": {
-      icon: KeyRound,
-      title: "Connect an AI model",
-      body: "Your paper is written with your own AI key.",
-      action: (
-        <Button asChild size="sm" data-testid="front-page-connect">
-          <Link href={AI_SETTINGS}>Connect</Link>
-        </Button>
-      ),
-    },
-    locked: {
-      icon: Lock,
-      title: "Unlock your AI key",
-      body: "It's encrypted to your account.",
-      action: (
-        <Button size="sm" onClick={onUnlock} data-testid="front-page-unlock">
-          Unlock
-        </Button>
-      ),
-    },
-    "no-wot": {
-      icon: ShieldCheck,
-      title: "Calculate your web of trust",
-      body: "Your paper is ranked by it.",
-      action: (
-        <Button asChild size="sm">
-          <Link href="/setup">Finish setup</Link>
-        </Button>
-      ),
-    },
-    pending: {
-      icon: Hourglass,
-      title: "Your rankings are on their way",
-      body: "The search relay is still preparing them. Try again in a few minutes.",
-      action: null,
-    },
-  }[kind];
-  const Icon = content.icon;
+type KeyStep = { state: "done"; provider: string } | { state: "todo" } | { state: "locked" };
+type WotStep = "done" | "todo" | "pending";
+
+/**
+ * What a first paper needs, both at once: the reader's AI key and their web of trust.
+ * A done row stays a link, to change it; a to-do row carries the one action that
+ * clears it. "pending" is a web of trust the search relay doesn't rank through yet:
+ * calculated or being calculated, but not done.
+ */
+function SetupChecklist({ keyStep, wot, onUnlock }: { keyStep: KeyStep; wot: WotStep; onUnlock: () => void }) {
   return (
-    <Card className="flex items-center gap-4 p-4 sm:p-5" data-testid={`front-page-blocked-${kind}`}>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
-        <Icon className="h-5 w-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-foreground">{content.title}</p>
-        <p className="text-sm text-muted-foreground">{content.body}</p>
-      </div>
-      {content.action}
+    <Card className="p-4 sm:p-5" data-testid="front-page-setup">
+      <SectionHeader variant="title" kicker="Before your first paper" />
+      <ul className="mt-3 divide-y divide-border" aria-label="Before your first paper">
+        <SetupRow
+          testId="front-page-setup-key"
+          label="AI key"
+          state={keyStep.state === "done" ? "done" : "todo"}
+          dataState={keyStep.state}
+          action={
+            keyStep.state === "done" ? (
+              <ChangeLink
+                href={AI_SETTINGS}
+                label={`AI key: using ${keyStep.provider}. Change`}
+                testId="front-page-setup-key-change"
+              >
+                Using {keyStep.provider}
+              </ChangeLink>
+            ) : keyStep.state === "locked" ? (
+              <Button size="sm" onClick={onUnlock} aria-label="Unlock your AI key" data-testid="front-page-unlock">
+                <Lock /> Unlock
+              </Button>
+            ) : (
+              <Button asChild size="sm" data-testid="front-page-connect">
+                <Link href={AI_SETTINGS} aria-label="Connect an AI key">
+                  Connect <ChevronRight />
+                </Link>
+              </Button>
+            )
+          }
+        />
+        <SetupRow
+          testId="front-page-setup-wot"
+          label="Web of trust"
+          state={wot}
+          dataState={wot}
+          note={wot === "pending" ? "Your rankings are on their way. Try again in a few minutes." : undefined}
+          action={
+            wot === "done" ? (
+              <ChangeLink href="/setup" label="Web of trust: ready. Change" testId="front-page-setup-wot-change">
+                Ready
+              </ChangeLink>
+            ) : wot === "pending" ? (
+              <span className="text-sm text-muted-foreground" data-testid="front-page-setup-wot-status">
+                Preparing…
+              </span>
+            ) : (
+              <Button asChild size="sm" data-testid="front-page-setup-wot-action">
+                <Link href="/setup" aria-label="Set up your web of trust">
+                  Set up <ChevronRight />
+                </Link>
+              </Button>
+            )
+          }
+        />
+      </ul>
     </Card>
+  );
+}
+
+const STEP_STATE_WORD = { done: "Done", todo: "To do", pending: "In progress" } as const;
+
+function SetupRow({
+  testId,
+  label,
+  state,
+  dataState,
+  note,
+  action,
+}: {
+  testId: string;
+  label: string;
+  state: "done" | "todo" | "pending";
+  dataState: string;
+  note?: string;
+  action: React.ReactNode;
+}) {
+  return (
+    <li className="py-2.5 first:pt-0 last:pb-0" data-testid={testId} data-state={dataState}>
+      <div className="flex min-h-9 items-center gap-3">
+        <span
+          aria-hidden
+          className={cn(
+            "grid h-6 w-6 shrink-0 place-items-center rounded-full",
+            state === "done" && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+            state === "pending" && "bg-brand-primary/15 text-brand-primary",
+            state === "todo" && "border-2 border-slate-300 dark:border-slate-600",
+          )}
+        >
+          {state === "done" ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : state === "pending" ? (
+            <Hourglass className="h-3.5 w-3.5" />
+          ) : null}
+        </span>
+        <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+          {label}
+          <span className="sr-only">: {STEP_STATE_WORD[state]}</span>
+        </span>
+        <span className="flex min-w-0 shrink-0 justify-end">{action}</span>
+      </div>
+      {note && (
+        <p className="mt-1 pl-9 text-xs text-muted-foreground" role="status">
+          {note}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/** A done row's way back in: its status, quiet, as the link that changes it. */
+function ChangeLink({
+  href,
+  label,
+  testId,
+  children,
+}: {
+  href: string;
+  label: string;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size="sm"
+      className="-mr-2 max-w-[11rem] gap-1 px-2 font-normal text-muted-foreground sm:max-w-xs"
+    >
+      <Link href={href} aria-label={label} data-testid={testId}>
+        <span className="truncate">{children}</span>
+        <ChevronRight />
+      </Link>
+    </Button>
   );
 }
 
