@@ -28,13 +28,14 @@ import {
 } from "@/lib/frontPage/desks";
 import { assemble, digest, profilesFrom, type Corpus } from "@/lib/frontPage/corpus";
 import { resolve, type ResolveChange } from "@/lib/frontPage/resolve";
-import { check, serialize, type Violation } from "@/lib/frontPage/validate";
+import { check, serialize, withPaperCsp, type Violation } from "@/lib/frontPage/validate";
 import {
   authHeaders,
   chatRequest,
   extractDocument,
   parseStreamLine,
   readCompletion,
+  unfinished,
   readModelIds,
   repairMessage,
   systemPrompt,
@@ -140,7 +141,7 @@ async function pool<T, R>(items: T[], width: number, worker: (item: T) => Promis
 
 // --- the ranking gate --------------------------------------------------------
 
-export type ProbeVerdict = "ready" | "projection-pending";
+export type ProbeVerdict = "ready" | "projection-pending" | "relay-unreachable";
 
 /**
  * The Observer's link 4: the same question asked through the reader's ranking and
@@ -160,6 +161,9 @@ export async function probeRanking(
     askRelay(relay, rankedProbe(observer, since), { idleMs: 15_000, signal }),
     askRelay(relay, rankedProbe(null, since), { idleMs: 15_000, signal }),
   ]);
+  // Only clean answers say anything: a read that timed out or was closed returned
+  // nothing because nothing came back, not because the window was empty.
+  if (observed.note !== null || anonymous.note !== null) return "relay-unreachable";
   return anonymous.events.length > 0 && observed.events.length === 0 ? "projection-pending" : "ready";
 }
 
@@ -205,18 +209,28 @@ export async function pullCorpus({
         { signal },
       );
       report(0);
-      return { key: "__control__", events: control };
+      return { key: "__control__", events: control, note: null };
     }
-    const { events: found } = await askRelay(
+    const { events: found, note } = await askRelay(
       relay,
       { ...filterFor(desk.kinds, since, until, desk.limit, observer, floor) },
       { signal },
     );
     const kept = belongs(desk, observer, found);
     report(kept.length);
-    return { key: desk.key, events: kept };
+    return { key: desk.key, events: kept, note };
   });
   signal?.throwIfAborted();
+
+  // A desk that timed out or was closed came back empty because nothing came back. With
+  // most of them like that, the "paper" would be a relay outage written up as a quiet day,
+  // so it stops here, before a model is paid to write it.
+  const unanswered = results.filter((r) => r.key !== "__control__" && r.note !== null).map((r) => r.key);
+  if (unanswered.length > DESKS.length / 2) {
+    throw new RelayOutageError(
+      `The search relay didn't answer for ${unanswered.length} of ${DESKS.length} desks. Nothing was sent to your AI; try again in a few minutes.`,
+    );
+  }
 
   const desks: Record<string, NostrEvent[]> = {};
   let control: NostrEvent[] = [];
@@ -247,7 +261,7 @@ export async function pullCorpus({
   ).flat();
   signal?.throwIfAborted();
 
-  return assemble({
+  const corpus = assemble({
     observer,
     relay: relay.url,
     floor,
@@ -257,6 +271,7 @@ export async function pullCorpus({
     control,
     profiles: profilesFrom(found),
   });
+  return unanswered.length ? { ...corpus, unanswered } : corpus;
 }
 
 // --- the writer ------------------------------------------------------------
@@ -269,6 +284,14 @@ export class WriterError extends Error {
   ) {
     super(message);
     this.name = "WriterError";
+  }
+}
+
+/** The search relay didn't answer enough of the run to make a paper of it. */
+export class RelayOutageError extends WriterError {
+  constructor(message: string) {
+    super(message);
+    this.name = "RelayOutageError";
   }
 }
 
@@ -324,9 +347,9 @@ export async function writePage({
   const isStream = (response.headers.get("content-type") ?? "").includes("text/event-stream");
   if (response.ok && isStream && response.body) return readStream(response.body, onText);
   if (response.ok) {
-    const { text, usage } = readCompletion(await response.json().catch(() => null));
-    onText?.(text.length);
-    return { text, usage };
+    const written = completed(await response.json().catch(() => null));
+    onText?.(written.text.length);
+    return written;
   }
   if (![400, 415, 422].includes(response.status)) {
     throw new WriterError(explain(response.status, await response.text().catch(() => "")), response.status);
@@ -335,35 +358,63 @@ export async function writePage({
   const plain = chatRequest(key, model, messages, false);
   const second = await fetch(plain.url, { ...plain.init, signal });
   if (!second.ok) throw new WriterError(explain(second.status, await second.text().catch(() => "")), second.status);
-  const { text, usage } = readCompletion(await second.json().catch(() => null));
-  onText?.(text.length);
-  return { text, usage };
+  const written = completed(await second.json().catch(() => null));
+  onText?.(written.text.length);
+  return written;
 }
 
-async function readStream(body: ReadableStream<Uint8Array>, onText?: (chars: number) => void): Promise<Written> {
+/**
+ * The stream, to `[DONE]`. An `{"error": …}` frame, a `finish_reason` other than `stop`,
+ * or a stream that just stops (no `[DONE]`, no `stop`) is a failure: a page cut off
+ * halfway is never handed to the check as if it were the paper.
+ */
+export async function readStream(body: ReadableStream<Uint8Array>, onText?: (chars: number) => void): Promise<Written> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let text = "";
   let usage: Usage | null = null;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const chunk = parseStreamLine(line);
-      if (chunk.text) {
-        text += chunk.text;
-        onText?.(text.length);
-      }
-      if (chunk.usage) usage = chunk.usage;
+  let finishReason: string | null = null;
+  let sawDone = false;
+  const take = (line: string) => {
+    const chunk = parseStreamLine(line);
+    if (chunk.error) throw new WriterError(`Your AI provider failed partway: ${chunk.error.slice(0, 160)}`);
+    if (chunk.text) {
+      text += chunk.text;
+      onText?.(text.length);
     }
+    if (chunk.usage) usage = chunk.usage;
+    if (chunk.finishReason) finishReason = chunk.finishReason;
+    if (chunk.done) sawDone = true;
+  };
+  try {
+    while (!sawDone) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        take(line);
+        if (sawDone) break;
+      }
+    }
+    if (!sawDone) take(buffer + decoder.decode());
+  } finally {
+    // Done reading (or failing): let the connection go instead of draining the rest.
+    reader.cancel().catch(() => {});
   }
-  const last = parseStreamLine(buffer);
-  if (last.text) text += last.text;
-  if (last.usage) usage = last.usage;
+  const why = unfinished(finishReason, { required: !sawDone });
+  if (why) throw new WriterError(`No paper: ${why}. Try again, or pick another model.`);
+  return { text, usage };
+}
+
+/** A non-streamed answer, held to the same rule as a streamed one. */
+function completed(json: unknown): Written {
+  const { text, usage, finishReason, error } = readCompletion(json);
+  if (error) throw new WriterError(`Your AI provider answered with an error: ${error.slice(0, 160)}`);
+  const why = unfinished(finishReason, { required: false });
+  if (why) throw new WriterError(`No paper: ${why}. Try again, or pick another model.`);
   return { text, usage };
 }
 
@@ -460,7 +511,9 @@ export async function printFrontPage({
     if (verdict.violations.length === 0) {
       return {
         status: "printed",
-        html: serialize(resolved.doc),
+        // The page as checked (settled after a round trip), with the app's own CSP: it
+        // may leave the sandbox, as a Download or on the reader's Observer site.
+        html: withPaperCsp(serialize(verdict.doc)),
         corpus,
         changes: resolved.changes,
         quotes: verdict.quotes.length,

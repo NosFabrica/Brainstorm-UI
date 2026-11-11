@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Observable } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
-import { askRelay, printFrontPage, pullCorpus, probeRanking, writePage } from "./frontPage";
-import { toPermalink } from "@/lib/frontPage/validate";
+import { RelayOutageError, askRelay, printFrontPage, pullCorpus, probeRanking, writePage } from "./frontPage";
+import { PAPER_CSP, parsePage, toPermalink } from "@/lib/frontPage/validate";
 
 const OBSERVER = "aa".repeat(32);
 const AUTHOR = "bb".repeat(32);
@@ -87,6 +87,43 @@ const sse = (chunks: string[], usage = { prompt_tokens: 1200, completion_tokens:
   );
 };
 
+/** A stream of raw `data:` payloads; `open` leaves it unclosed, as a provider that hangs would. */
+const rawSse = (payloads: unknown[], { open = false } = {}) => {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const p of payloads) {
+          controller.enqueue(encoder.encode(`data: ${typeof p === "string" ? p : JSON.stringify(p)}\n\n`));
+        }
+        if (!open) controller.close();
+      },
+    }),
+    { status: 200, headers: { "content-type": "text/event-stream" } },
+  );
+};
+const delta = (content: string, finish_reason: string | null = null) => ({
+  choices: [{ delta: { content }, finish_reason }],
+});
+
+/** fakeRelay, but a CLOSED for every REQ [closes] picks. */
+function closingRelay(closes: (filter: Record<string, unknown>) => boolean, options = {}) {
+  const base = fakeRelay(options);
+  return {
+    asked: base.asked,
+    relay: {
+      url: base.relay.url,
+      req(filters: Record<string, unknown>[]) {
+        if (!closes(filters[0])) return base.relay.req(filters);
+        base.asked.push(filters[0]);
+        return new Observable<Msg>((sub) => {
+          queueMicrotask(() => sub.next({ type: "CLOSED", reason: "error: overloaded" }));
+        });
+      },
+    },
+  };
+}
+
 const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>The Nostr Observer</title></head><body>
 <div class="folio"><span>No. X</span><span>Friday</span><span>24h to 12:00 UTC</span></div>
 <h1>The Nostr Observer</h1>
@@ -134,6 +171,14 @@ describe("the ranking gate", () => {
     expect(await probeRanking(fakeRelay({ observedNotes: [] }).relay as never, OBSERVER, 0)).toBe("projection-pending");
   });
 
+  it("is never ready on reads that didn't end cleanly", async () => {
+    // A CLOSED or timed-out observed read returned nothing because nothing came back.
+    const observedCloses = closingRelay((f) => String(f.search).startsWith("observer:"));
+    expect(await probeRanking(observedCloses.relay as never, OBSERVER, 0)).toBe("relay-unreachable");
+    const anonymousCloses = closingRelay((f) => String(f.search).startsWith("include:spam"));
+    expect(await probeRanking(anonymousCloses.relay as never, OBSERVER, 0)).toBe("relay-unreachable");
+  });
+
   it("an empty window is a quiet day, not a broken ranking", async () => {
     expect(await probeRanking(fakeRelay({ observedNotes: [], anonymousNotes: [] }).relay as never, OBSERVER, 0)).toBe(
       "ready",
@@ -168,6 +213,24 @@ describe("pullCorpus", () => {
   });
 });
 
+describe("pullCorpus when the relay fails", () => {
+  it("stops before the model when most desks didn't answer", async () => {
+    const { relay } = closingRelay(
+      (f) => String(f.search).startsWith("observer:") && !(f.kinds as number[]).includes(1),
+    );
+    await expect(pullCorpus({ relay: relay as never, observer: OBSERVER, until: 1_786_900_000 })).rejects.toThrow(
+      RelayOutageError,
+    );
+  });
+
+  it("names the desks that didn't answer when they are a few", async () => {
+    const { relay } = closingRelay((f) => (f.kinds as number[]).includes(20));
+    const corpus = await pullCorpus({ relay: relay as never, observer: OBSERVER, until: 1_786_900_000 });
+    expect(corpus.unanswered?.length).toBeGreaterThan(0);
+    expect(corpus.unanswered!.length).toBeLessThan(7);
+  });
+});
+
 describe("writePage", () => {
   it("streams and reports progress and usage", async () => {
     const fetch = vi.fn().mockResolvedValue(sse(["<p>", "hello</p>"]));
@@ -188,6 +251,52 @@ describe("writePage", () => {
     const out = await writePage({ key, model: "m", messages: [] });
     expect(out.text).toBe("<p>plain</p>");
     expect(JSON.parse(fetch.mock.calls[1][1].body).stream).toBe(false);
+  });
+
+  it("an error frame mid-stream is a failure, never a page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          rawSse([delta("<!doctype html><p>half"), { error: { message: "upstream died" } }, "[DONE]"]),
+        ),
+    );
+    await expect(writePage({ key, model: "m", messages: [] })).rejects.toThrow(/upstream died/);
+  });
+
+  it("a finish_reason other than stop is a failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawSse([delta("<p>half", "length"), "[DONE]"])));
+    await expect(writePage({ key, model: "m", messages: [] })).rejects.toThrow(/ran out of room/);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawSse([delta("<p>x", "content_filter"), "[DONE]"])));
+    await expect(writePage({ key, model: "m", messages: [] })).rejects.toThrow(/content filter/);
+  });
+
+  it("a stream that just stops (no [DONE], no stop) is a failure; one that says stop is not", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawSse([delta("<p>half")])));
+    await expect(writePage({ key, model: "m", messages: [] })).rejects.toThrow(/stopped before it was finished/);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawSse([delta("<p>whole</p>", "stop")])));
+    expect((await writePage({ key, model: "m", messages: [] })).text).toBe("<p>whole</p>");
+  });
+
+  it("stops reading at [DONE], even when the connection stays open", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(rawSse([delta("<p>done</p>"), "[DONE]", delta("<p>after</p>")], { open: true })),
+    );
+    expect((await writePage({ key, model: "m", messages: [] })).text).toBe("<p>done</p>");
+  });
+
+  it("holds a non-streamed answer to the same rule", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(Response.json({ choices: [{ message: { content: "<p>half" }, finish_reason: "length" }] })),
+    );
+    await expect(writePage({ key, model: "m", messages: [] })).rejects.toThrow(/ran out of room/);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: { message: "quota exceeded" } })));
+    await expect(writePage({ key, model: "m", messages: [] })).rejects.toThrow(/quota exceeded/);
   });
 
   it("says a rejected key in plain words", async () => {
@@ -215,6 +324,8 @@ describe("printFrontPage", () => {
     expect(result.html).toContain('src="https://blossom.example/sunrise.jpg"');
     expect(result.html).toContain(`href="${toPermalink(NOTE_ID)}"`);
     expect(result.html).toMatch(/^<!doctype html>/);
+    // The page may leave the sandbox (Download, Observer site): it carries the app's CSP.
+    expect(parsePage(result.html).head.firstElementChild?.getAttribute("content")).toBe(PAPER_CSP);
     expect(result.usage?.completionTokens).toBe(800);
     expect([...new Set(steps)]).toEqual(["probe", "pull", "write", "check"]);
   });
@@ -270,6 +381,21 @@ describe("printFrontPage", () => {
     });
     expect(result).toEqual({ status: "not-ready", reason: "projection-pending" });
     expect(asked).toHaveLength(2);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("never spends on the model when the relay is down", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const { relay } = closingRelay((f) => String(f.search).startsWith("observer:"));
+    const result = await printFrontPage({
+      key,
+      model: "m",
+      observer: OBSERVER,
+      readerName: "R",
+      relay: relay as never,
+    });
+    expect(result).toEqual({ status: "not-ready", reason: "relay-unreachable" });
     expect(fetch).not.toHaveBeenCalled();
   });
 

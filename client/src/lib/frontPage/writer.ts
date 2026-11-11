@@ -55,7 +55,7 @@ export function repairMessage(violations: Violation[]): string {
     "QUOTE: copy the words exactly from one event, or paraphrase without <q>/<blockquote>.",
     'IMAGE: use <img src="art-N"> ids from the shortlist only.',
     "LINK: only the citation, byline, watch, listing and calendar URL forms the brief allows.",
-    "MARKUP: no scripts, forms, frames or handlers.",
+    "MARKUP: only the elements, attributes and CSS the brief's correction 10 lists; no hidden or styled text inside quotes.",
     "",
     "Return the corrected complete HTML document and nothing else.",
   ].join("\n");
@@ -116,32 +116,88 @@ export function readUsage(raw: unknown): Usage | null {
   return { promptTokens: n(usage.prompt_tokens), completionTokens: n(usage.completion_tokens) };
 }
 
+/** What one line of a Chat Completions event stream says. */
+export interface StreamChunk {
+  text: string;
+  usage: Usage | null;
+  /** `[DONE]`: stop reading. */
+  done: boolean;
+  /** The choice's `finish_reason`, when this chunk carried one. */
+  finishReason: string | null;
+  /** An `{"error": …}` frame: the provider failed mid-answer. */
+  error: string | null;
+}
+
+function errorText(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  const message = (raw as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message ? message : "the provider reported an error";
+}
+
 /**
  * Server-sent events, one `data:` line at a time, from Chat Completions streaming.
- * Returns the text added by this chunk and any usage it carried.
+ * Returns the text added by this chunk, any usage it carried, and how it ends.
  */
-export function parseStreamLine(line: string): { text: string; usage: Usage | null; done: boolean } {
+export function parseStreamLine(line: string): StreamChunk {
+  const none: StreamChunk = { text: "", usage: null, done: false, finishReason: null, error: null };
   const trimmed = line.trim();
-  if (!trimmed.startsWith("data:")) return { text: "", usage: null, done: false };
+  if (!trimmed.startsWith("data:")) return none;
   const data = trimmed.slice(5).trim();
-  if (data === "[DONE]") return { text: "", usage: null, done: true };
+  if (data === "[DONE]") return { ...none, done: true };
   try {
     const json = JSON.parse(data) as {
-      choices?: { delta?: { content?: unknown } }[];
+      choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
       usage?: unknown;
+      error?: unknown;
     };
-    const content = json.choices?.[0]?.delta?.content;
-    return { text: typeof content === "string" ? content : "", usage: readUsage(json.usage), done: false };
+    if (json.error !== undefined && json.error !== null) return { ...none, error: errorText(json.error) };
+    const choice = json.choices?.[0];
+    const content = choice?.delta?.content;
+    return {
+      ...none,
+      text: typeof content === "string" ? content : "",
+      usage: readUsage(json.usage),
+      finishReason: typeof choice?.finish_reason === "string" ? choice.finish_reason : null,
+    };
   } catch {
-    return { text: "", usage: null, done: false };
+    return none;
   }
 }
 
-/** A non-streamed answer's text. */
-export function readCompletion(json: unknown): { text: string; usage: Usage | null } {
-  const body = json as { choices?: { message?: { content?: unknown } }[]; usage?: unknown };
-  const content = body?.choices?.[0]?.message?.content;
-  return { text: typeof content === "string" ? content : "", usage: readUsage(body?.usage) };
+/** A non-streamed answer: its text, usage, and how it ended (`error` when it failed). */
+export function readCompletion(json: unknown): {
+  text: string;
+  usage: Usage | null;
+  finishReason: string | null;
+  error: string | null;
+} {
+  const body = json as {
+    choices?: { message?: { content?: unknown }; finish_reason?: unknown }[];
+    usage?: unknown;
+    error?: unknown;
+  } | null;
+  const usage = readUsage(body?.usage);
+  if (body?.error !== undefined && body?.error !== null) {
+    return { text: "", usage, finishReason: null, error: errorText(body.error) };
+  }
+  const choice = body?.choices?.[0];
+  const content = choice?.message?.content;
+  const finishReason = typeof choice?.finish_reason === "string" ? choice.finish_reason : null;
+  return { text: typeof content === "string" ? content : "", usage, finishReason, error: null };
+}
+
+/**
+ * Why an answer is not a whole page, or null when it is. A page cut off by the token
+ * limit (`length`) or a content filter is half a newspaper, and half a newspaper is
+ * not printed. A missing reason is accepted only where the caller saw the stream end
+ * properly (`[DONE]`) or the answer was not streamed.
+ */
+export function unfinished(finishReason: string | null, { required }: { required: boolean }): string | null {
+  if (finishReason === "stop") return null;
+  if (finishReason === null) return required ? "the answer stopped before it was finished" : null;
+  if (finishReason === "length") return "the answer ran out of room before the page was finished";
+  if (finishReason === "content_filter") return "the provider's content filter stopped the answer";
+  return `the answer ended early (${finishReason.slice(0, 40)})`;
 }
 
 /**

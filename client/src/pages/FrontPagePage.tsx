@@ -75,6 +75,8 @@ interface Printed {
   rounds: number;
   usage: Usage | null;
   changes: ResolveChange[];
+  /** Desks the search relay didn't answer this run: their sections may be thin. */
+  unanswered?: number;
 }
 
 // The paper on show lives apart from the run, so a reprint's progress sits above the
@@ -341,7 +343,14 @@ export default function FrontPagePage() {
         },
       });
       if (result.status === "not-ready") {
-        setRun({ state: "pending" });
+        setRun(
+          result.reason === "relay-unreachable"
+            ? {
+                state: "error",
+                message: "The search relay didn't answer, so nothing was sent to your AI. Try again in a few minutes.",
+              }
+            : { state: "pending" },
+        );
       } else if (result.status === "refused") {
         writeLast(pubkey, null);
         setPage(null);
@@ -357,6 +366,7 @@ export default function FrontPagePage() {
           rounds: result.rounds,
           usage: result.usage,
           changes: result.changes,
+          unanswered: result.corpus.unanswered?.length ?? 0,
         };
         writeLast(pubkey, printed);
         setPage(printed);
@@ -796,6 +806,7 @@ function PaperHeader({
     page.events !== undefined ? `${page.events.toLocaleString()} posts` : null,
     page.quotes !== undefined ? `${page.quotes} ${page.quotes === 1 ? "quote" : "quotes"} verified` : null,
     removed > 0 ? `${removed} removed` : null,
+    page.unanswered ? `${page.unanswered} ${page.unanswered === 1 ? "desk" : "desks"} didn't answer` : null,
   ].filter(Boolean);
   return (
     <div className="flex items-center gap-3" data-testid="front-page-header">

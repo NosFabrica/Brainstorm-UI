@@ -6,6 +6,7 @@ import {
   parseStreamLine,
   rankModels,
   readCompletion,
+  unfinished,
   readModelIds,
   repairMessage,
   systemPrompt,
@@ -88,7 +89,28 @@ describe("the answer", () => {
     expect(readCompletion({ choices: [{ message: { content: "hi" } }], usage: { prompt_tokens: 1 } })).toEqual({
       text: "hi",
       usage: { promptTokens: 1, completionTokens: null },
+      finishReason: null,
+      error: null,
     });
+    expect(readCompletion({ choices: [{ message: { content: "x" }, finish_reason: "length" }] }).finishReason).toBe(
+      "length",
+    );
+    expect(readCompletion({ error: { message: "quota" } }).error).toBe("quota");
+  });
+
+  it("reads how a stream ends: its finish_reason, or an error frame", () => {
+    expect(parseStreamLine('data: {"choices":[{"delta":{},"finish_reason":"length"}]}').finishReason).toBe("length");
+    expect(parseStreamLine('data: {"error":{"message":"overloaded"}}').error).toBe("overloaded");
+    expect(parseStreamLine('data: {"error":"boom"}').error).toBe("boom");
+    expect(parseStreamLine('data: {"choices":[{"delta":{"content":"x"}}]}').error).toBeNull();
+  });
+
+  it("only a page that stopped on its own is whole", () => {
+    expect(unfinished("stop", { required: true })).toBeNull();
+    expect(unfinished(null, { required: false })).toBeNull();
+    expect(unfinished(null, { required: true })).toMatch(/stopped before/);
+    expect(unfinished("length", { required: false })).toMatch(/ran out of room/);
+    expect(unfinished("tool_calls", { required: false })).toMatch(/ended early/);
   });
 
   it("strips a fence or a preamble around the document", () => {
