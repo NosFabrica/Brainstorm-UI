@@ -424,7 +424,9 @@ export default function FinishSetupPage() {
     allDone,
     messages,
   } = useFinishSetup();
-  const { isCalculating } = useScoringStatus();
+  const { isCalculating, status: scoreStatus } = useScoringStatus();
+  // A run that failed has no scores to show: never "Ready".
+  const scoresFailed = scoreStatus === "failed";
   const [showDone, setShowDone] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   // Who they are, and their Assistant as the identity it is: both read live.
@@ -525,9 +527,13 @@ export default function FinishSetupPage() {
               />
               <AccountTile
                 icon={BarChart3}
-                value={isCalculating ? "Calculating" : "Ready"}
+                value={isCalculating ? "Calculating" : scoresFailed ? "Not ready yet" : "Ready"}
                 label="Trust scores"
-                action={{ label: "View insights", onClick: () => navigate("/network") }}
+                action={
+                  scoresFailed
+                    ? { label: "Open dashboard", onClick: () => navigate("/dashboard") }
+                    : { label: "View insights", onClick: () => navigate("/network") }
+                }
                 testid="tile-scores"
               />
               <AccountTile

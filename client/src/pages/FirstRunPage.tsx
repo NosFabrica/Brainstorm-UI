@@ -87,8 +87,12 @@ export default function FirstRunPage() {
   const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
 
+  // Signed out: sign in first, keeping where they were headed. A new account
+  // comes back through /start with it (LoginPage); a returning one lands there.
   useEffect(() => {
-    if (!user) navigate("/login", { replace: true });
+    if (user) return;
+    const next = nextPath();
+    navigate(next !== "/" ? `/login?next=${encodeURIComponent(next)}` : "/login", { replace: true });
   }, [user, navigate]);
 
   // A key that already follows people has a network: nothing to rebuild. On a
