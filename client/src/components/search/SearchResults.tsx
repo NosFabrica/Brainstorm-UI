@@ -1352,7 +1352,8 @@ export function SearchResults({
         ? (followHeadStart(effectiveQuery) ?? undefined)
         : undefined;
     const handle = searchStream(
-      effectiveQuery,
+      // A list the words name asks for its items whatever their words.
+      category?.whole ? "" : effectiveQuery,
       {
         // A category of All's asks its kinds alone, or as its tab asks it (Events, Recipes).
         tab: category?.tab ?? tab,

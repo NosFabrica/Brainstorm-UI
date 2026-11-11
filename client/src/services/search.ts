@@ -638,6 +638,8 @@ export interface CategoryAsk {
   tags?: Record<`#${string}`, string[]>;
   /** Asked as this tab asks, in place of its kinds: Events with Event Index's items, Recipes by their tag. */
   tab?: SearchTab;
+  /** Asked without the words, which are its own name: a Dictionary list's items, all of them. */
+  whole?: boolean;
 }
 
 /**
@@ -661,7 +663,7 @@ export function countCategories(
       categories.map((c) => ({
         key: c.key,
         filters: askForTab(
-          words,
+          c.whole ? "" : words,
           c.tab ? { tab: c.tab, ...lens } : { tab: "all", kinds: c.kinds, tags: c.tags, ...lens },
           observer,
         ).filters,

@@ -3322,6 +3322,20 @@ describe("countCategories", () => {
   const settle = () => new Promise((r) => setTimeout(r, 0));
   const PLACES = `39998:${"b".repeat(64)}:food-and-drink-places`;
 
+  it("counts a list the words name without the words: all its items", async () => {
+    sideCountMock.mockImplementation(() => of({ count: 6 }));
+    countCategories(
+      "github accounts",
+      [{ key: PLACES, kinds: [39999, 9999], tags: { "#z": [PLACES] }, whole: true }],
+      { pov: "nosfabrica" },
+      () => {},
+    );
+    await settle();
+    expect(sideCountMock.mock.calls.map(([f]) => f)).toEqual([
+      [{ kinds: [39999, 9999], "#z": [PLACES], search: `observer:${HOUSE}` }],
+    ]);
+  });
+
   it("counts each of All's categories as its page asks it — its kinds, a list's headers, in the page's own order", async () => {
     sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) =>
       of({ count: String(filters[0].kinds) === "21,22" ? 212 : 701 }),

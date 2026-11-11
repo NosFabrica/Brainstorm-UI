@@ -61,9 +61,23 @@ export function kindCategories(hits: readonly SearchHit[], held: ReadonlySet<str
   }));
 }
 
-/** A Dictionary list as a category: its items, by the headers they are filed under. */
-export function listCategory(list: { coordinate: string; name: string; headers: readonly string[] }): Category {
-  return { key: list.coordinate, name: list.name, kinds: [...DLIST_ITEM_KINDS], tags: { "#z": [...list.headers] } };
+/**
+ * A Dictionary list as a category: its items, by the headers they are filed under — all of them,
+ * whatever their words, when the words are the list's own name (hooks/useListRibbon).
+ */
+export function listCategory(list: {
+  coordinate: string;
+  name: string;
+  headers: readonly string[];
+  whole?: boolean;
+}): Category {
+  return {
+    key: list.coordinate,
+    name: list.name,
+    kinds: [...DLIST_ITEM_KINDS],
+    tags: { "#z": [...list.headers] },
+    ...(list.whole ? { whole: true } : {}),
+  };
 }
 
 /** Whether a row belongs on a category's page: a kind's keeps only the rows its label names. */
