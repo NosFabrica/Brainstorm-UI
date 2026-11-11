@@ -47,6 +47,8 @@ import {
 } from "@/services/observerSite";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
+import { useScoringStatus } from "@/hooks/useScoringStatus";
+import { wotStepOf, type WotStep } from "@/lib/frontPage/setupSteps";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useAgentKeys } from "@/hooks/useAgentKeys";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -488,11 +490,13 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
       : key
         ? { state: "done", provider: providerName(key.url) }
         : { state: "todo" };
-  // `hasMywot` is the assistant the server mints at sign-in; the ranking is there once the
-  // search relay answers through it. Until then its scores are being calculated or projected.
-  const wotStep: WotStep = !hasMywot ? "todo" : !isSearchObserver || !canUseMywot ? "pending" : "done";
+  // `hasMywot` is the assistant the server mints at sign-in, so it says nothing about
+  // scores: the scoring status says whether a calculation is running, failed or never ran.
+  // The ranking is there once the search relay answers through the assistant.
+  const scoring = useScoringStatus().status;
+  const wotStep = wotStepOf({ hasAssistant: hasMywot, ranked: isSearchObserver && canUseMywot, scoring });
   const checking = keys.status === "loading" || (!mywot.known && mywot.isLoading);
-  const blocker = checking ? "checking" : keyStep.state !== "done" || wotStep !== "done" ? "setup" : null;
+  const blocker = checking ? "checking" : keyStep.state !== "done" || wotStep.state !== "done" ? "setup" : null;
   const setupShown = blocker === "setup";
 
   const picker = key && blocker === null && (
@@ -563,7 +567,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                 keyStep={keyStep}
                 // A print the relay turned away says the ranking isn't there yet, whatever
                 // the gate above it answered.
-                wot={run.state === "pending" ? "pending" : wotStep}
+                wot={run.state === "pending" ? wotStepOf({ hasAssistant: hasMywot, ranked: false, scoring }) : wotStep}
                 hasEditions={days.length > 0}
                 onUnlock={keys.reveal}
               />
@@ -1147,13 +1151,12 @@ function ModelPicker({
 }
 
 type KeyStep = { state: "done"; provider: string } | { state: "todo" } | { state: "locked" };
-type WotStep = "done" | "todo" | "pending";
 
 /**
  * What a first paper needs, both at once: the reader's AI key and their web of trust.
  * A done row stays a link, to change it; a to-do row carries the one action that
- * clears it. "pending" is a web of trust the search relay doesn't rank through yet:
- * calculated or being calculated, but not done.
+ * clears it. The web of trust says what it is waiting for (calculating, publishing, search
+ * catching up), or what to do when nothing is coming: a calculation that never ran or failed.
  */
 function SetupChecklist({
   keyStep,
@@ -1202,29 +1205,62 @@ function SetupChecklist({
         <SetupRow
           testId="front-page-setup-wot"
           label="Web of trust"
-          state={wot}
-          dataState={wot}
-          note={wot === "pending" ? "Your rankings are on their way. Try again in a few minutes." : undefined}
-          action={
-            wot === "done" ? (
-              <ChangeLink href="/setup" label="Web of trust: ready. Change" testId="front-page-setup-wot-change">
-                Ready
-              </ChangeLink>
-            ) : wot === "pending" ? (
-              <span className="text-sm text-muted-foreground" data-testid="front-page-setup-wot-status">
-                Preparing…
-              </span>
-            ) : (
-              <Button asChild size="sm" data-testid="front-page-setup-wot-action">
-                <Link href="/setup" aria-label="Set up your web of trust">
-                  Set up <ChevronRight />
-                </Link>
-              </Button>
-            )
-          }
+          state={wot.state}
+          dataState={wot.state}
+          reason={wot.state === "pending" ? wot.phase : wot.state === "todo" ? wot.why : undefined}
+          note={wotNote(wot)}
+          action={<WotAction wot={wot} />}
         />
       </ul>
     </Card>
+  );
+}
+
+const WOT_PHASE_WORD = { calculating: "Calculating…", publishing: "Publishing…", indexing: "Almost ready" } as const;
+
+/** What the reader waits for, or why there is something to do; nothing while it is done or to set up. */
+function wotNote(wot: WotStep): string | undefined {
+  if (wot.state === "pending") {
+    return wot.phase === "indexing"
+      ? "Your rankings are ready. Search picks them up in a few minutes."
+      : "Your rankings are on their way. This takes a few minutes.";
+  }
+  if (wot.state === "todo" && wot.why === "uncalculated") return "Your rankings haven't been calculated yet.";
+  if (wot.state === "todo" && wot.why === "failed") return "The last calculation didn't finish.";
+  return undefined;
+}
+
+/**
+ * The web of trust row's right side. A calculation is started, or retried, on the dashboard,
+ * which knows the follows it needs and asks before it publishes anything.
+ */
+function WotAction({ wot }: { wot: WotStep }) {
+  if (wot.state === "done") {
+    return (
+      <ChangeLink href="/setup" label="Web of trust: ready. Change" testId="front-page-setup-wot-change">
+        Ready
+      </ChangeLink>
+    );
+  }
+  if (wot.state === "pending") {
+    return (
+      <span className="text-sm text-muted-foreground" data-testid="front-page-setup-wot-status">
+        {WOT_PHASE_WORD[wot.phase]}
+      </span>
+    );
+  }
+  const [href, text, label, testId] =
+    wot.why === "setup"
+      ? ["/setup", "Set up", "Set up your web of trust", "front-page-setup-wot-action"]
+      : wot.why === "failed"
+        ? ["/dashboard", "Retry", "Retry your web of trust calculation", "front-page-setup-wot-retry"]
+        : ["/dashboard", "Calculate", "Calculate your web of trust", "front-page-setup-wot-calculate"];
+  return (
+    <Button asChild size="sm" data-testid={testId}>
+      <Link href={href} aria-label={label}>
+        {text} <ChevronRight />
+      </Link>
+    </Button>
   );
 }
 
@@ -1235,6 +1271,7 @@ function SetupRow({
   label,
   state,
   dataState,
+  reason,
   note,
   action,
 }: {
@@ -1242,11 +1279,13 @@ function SetupRow({
   label: string;
   state: "done" | "todo" | "pending";
   dataState: string;
+  /** Why it is to do or pending, for tests and the curious; not shown. */
+  reason?: string;
   note?: string;
   action: React.ReactNode;
 }) {
   return (
-    <li className="py-2.5 first:pt-0 last:pb-0" data-testid={testId} data-state={dataState}>
+    <li className="py-2.5 first:pt-0 last:pb-0" data-testid={testId} data-state={dataState} data-reason={reason}>
       <div className="flex min-h-9 items-center gap-3">
         <span
           aria-hidden

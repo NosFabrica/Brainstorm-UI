@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   publish: vi.fn(),
   fetchBlob: vi.fn(),
   schedule: { status: "none" } as Record<string, unknown>,
+  scoring: "calculating" as "idle" | "calculating" | "publishing" | "ready" | "failed",
 }));
 
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
@@ -32,6 +33,7 @@ vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ reveal: vi.fn(),
 vi.mock("@/hooks/useObserverSchedule", () => ({
   useObserverSchedule: () => ({ reveal: vi.fn(), refresh: vi.fn(), checkedAt: null, ...state.schedule }),
 }));
+vi.mock("@/hooks/useScoringStatus", () => ({ useScoringStatus: () => ({ status: state.scoring }) }));
 vi.mock("@/hooks/useHasMywot", () => ({
   useHasMywot: () => ({ hasMywot: state.hasMywot, taPubkey: "t", known: true, isLoading: false }),
 }));
@@ -72,6 +74,7 @@ describe("FrontPagePage", () => {
     state.keys = { status: "ready", keys: [{ key: "sk-or-v1-x", url: "https://openrouter.ai/api/v1" }] };
     state.hasMywot = true;
     state.isSearchObserver = true;
+    state.scoring = "calculating";
     state.models = ["openai/gpt-4o-mini", "anthropic/claude-sonnet-4.5"];
     state.modelsFor = null;
     state.user = { pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" };
@@ -171,13 +174,51 @@ describe("FrontPagePage", () => {
       expect(row("key")).toHaveAttribute("data-state", "done");
       expect(row("wot")).toHaveAttribute("data-state", "pending");
       expect(row("wot")).toHaveTextContent("Web of trust: In progress");
-      expect(row("wot")).toHaveTextContent("Preparing…");
+      expect(row("wot")).toHaveAttribute("data-reason", "calculating");
+      expect(row("wot")).toHaveTextContent("Calculating…");
       expect(within(row("wot")).getByRole("status")).toHaveTextContent(
-        "Your rankings are on their way. Try again in a few minutes.",
+        "Your rankings are on their way. This takes a few minutes.",
       );
       expect(screen.queryByTestId("front-page-setup-wot-action")).toBeNull();
       expect(screen.queryByTestId("front-page-setup-wot-change")).toBeNull();
       expect(screen.queryByTestId("front-page-print")).toBeNull();
+    });
+
+    it("says what the rankings are waiting for: publishing, or search catching up", () => {
+      state.isSearchObserver = false;
+      state.scoring = "publishing";
+      const { unmount } = renderWithProviders(<FrontPagePage />);
+      expect(row("wot")).toHaveAttribute("data-state", "pending");
+      expect(row("wot")).toHaveTextContent("Publishing…");
+      unmount();
+      state.scoring = "ready";
+      renderWithProviders(<FrontPagePage />);
+      expect(row("wot")).toHaveAttribute("data-reason", "indexing");
+      expect(row("wot")).toHaveTextContent("Almost ready");
+      expect(within(row("wot")).getByRole("status")).toHaveTextContent("Search picks them up in a few minutes.");
+    });
+
+    it("asks for a calculation that never ran instead of waiting for it forever", () => {
+      state.isSearchObserver = false;
+      state.scoring = "idle";
+      renderWithProviders(<FrontPagePage />);
+      expect(row("wot")).toHaveAttribute("data-state", "todo");
+      expect(row("wot")).toHaveAttribute("data-reason", "uncalculated");
+      expect(row("wot")).toHaveTextContent("Your rankings haven't been calculated yet.");
+      const calculate = screen.getByRole("link", { name: "Calculate your web of trust" });
+      expect(calculate.getAttribute("href")).toBe("/dashboard");
+      expect(screen.queryByTestId("front-page-setup-wot-status")).toBeNull();
+    });
+
+    it("offers a retry for a calculation that failed", () => {
+      state.isSearchObserver = false;
+      state.scoring = "failed";
+      renderWithProviders(<FrontPagePage />);
+      expect(row("wot")).toHaveAttribute("data-state", "todo");
+      expect(row("wot")).toHaveTextContent("The last calculation didn't finish.");
+      expect(screen.getByRole("link", { name: "Retry your web of trust calculation" }).getAttribute("href")).toBe(
+        "/dashboard",
+      );
     });
 
     it("with the key locked, keeps Unlock on the key row beside the rest of setup", () => {
