@@ -89,6 +89,8 @@ import { hasSession } from "@/accounts/session";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
@@ -3495,7 +3497,7 @@ export default function AdminPage() {
 
       <AppHeader user={user} onLogout={handleLogout} active="admin" />
 
-      <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main className={cn(pageWidth("wide"), "relative z-10 flex-1 py-6 sm:py-8")}>
         <DeferredSessionNotice className="mb-6" />
         <div className="animate-fade-up space-y-6">
           <div className="flex items-start justify-between gap-4">

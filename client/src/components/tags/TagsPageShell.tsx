@@ -1,6 +1,8 @@
 import { Link } from "wouter";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * The chrome shared by `/tags` (everyone's tags) and `/tags/mine` (yours).
@@ -38,8 +40,8 @@ export function TagsPageShell({
 }) {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader maxWidthClass="max-w-2xl" />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6 sm:py-8" data-testid={`tags-view-${view}`}>
+      <PublicPageHeader width="reading" />
+      <main className={cn(pageWidth("reading"), "flex-1 py-6 sm:py-8")} data-testid={`tags-view-${view}`}>
         <PageHeader kicker="Tags" title={title} subtitle={subtitle} testId="tags-page-header" />
 
         <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">

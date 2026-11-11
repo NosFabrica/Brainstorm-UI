@@ -10,6 +10,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/accounts/login-flow";
 import { useNetworkArticles, type ArticleSort } from "@/hooks/useNetworkArticles";
 import { cn } from "@/lib/utils";
+import { pageWidth } from "@/lib/pageWidth";
 
 /**
  * The full "Reading from your network" list — the surface behind the dashboard
@@ -57,7 +58,7 @@ export default function ReadingPage() {
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
+      <main className={cn(pageWidth("standard"), "flex-1 py-8")}>
         <button
           type="button"
           onClick={() => goBack("/dashboard")}

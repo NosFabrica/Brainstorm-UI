@@ -64,6 +64,8 @@ import {
 import { BookshelfContents, BookshelfHeader } from "@/components/share/BookshelfReader";
 import { useBookScope } from "@/hooks/usePublication";
 import { ARTICLE_PROSE_CLASS } from "@/lib/articleProse";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -344,11 +346,8 @@ export function ArticleShell({
 }) {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <PublicPageHeader
-        maxWidthClass="max-w-3xl"
-        actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />}
-      />
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+      <PublicPageHeader width="reading" actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />} />
+      <main className={cn(pageWidth("reading"), "py-6 sm:py-10")}>
         {children}
         <div className="mt-10 text-center">
           <p className="text-xs text-slate-400 dark:text-slate-500">

@@ -36,6 +36,7 @@ import { ONBOARDING_TOPICS, type OnboardingTopicKey } from "@/lib/onboardingTopi
 import { cn } from "@/lib/utils";
 import { followPubkeys, type FollowOutcome } from "@/services/socialActions";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { pageWidth } from "@/lib/pageWidth";
 
 const TOPIC_ICONS: Record<OnboardingTopicKey, ComponentType<{ className?: string }>> = {
   news: Newspaper,
@@ -247,7 +248,7 @@ export default function FirstRunPage() {
 
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950" data-testid="page-first-run">
-      <header className="flex items-center justify-between px-6 py-5">
+      <header className="flex items-center justify-between px-4 py-5 sm:px-6">
         <BrainLogo size={28} />
         <div className="flex items-center gap-1.5" aria-hidden="true">
           {steps.map((s, i) => (
@@ -270,7 +271,7 @@ export default function FirstRunPage() {
         </button>
       </header>
 
-      <main className="mx-auto w-full max-w-xl flex-1 px-6 pb-36 pt-6 sm:flex-none sm:pb-6">
+      <main className={cn(pageWidth("reading"), "flex-1 pb-36 pt-6 sm:flex-none sm:pb-6")}>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
           Step {index + 1} of {steps.length}
         </p>
@@ -432,8 +433,8 @@ export default function FirstRunPage() {
         )}
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-100 bg-white/90 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-slate-800 dark:bg-slate-950/90 sm:static sm:border-0 sm:bg-transparent sm:pb-10 sm:pt-2 sm:backdrop-blur-none sm:dark:bg-transparent">
-        <div className="mx-auto flex max-w-xl items-center gap-3">
+      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-100 bg-white/90 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-slate-800 dark:bg-slate-950/90 sm:static sm:border-0 sm:bg-transparent sm:pb-10 sm:pt-2 sm:backdrop-blur-none sm:dark:bg-transparent">
+        <div className={cn(pageWidth("reading"), "flex items-center gap-3")}>
           {index > 0 && (
             <button
               type="button"
