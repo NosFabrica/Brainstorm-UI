@@ -6006,6 +6006,34 @@ describe("A tag's tab in All's row", () => {
     expect(screen.getByTestId("tag-tab-count")).toHaveTextContent("1 of 2 tagged Verified Human");
   });
 
+  it("offers the other tags what carries it carry, and keeps those carrying the one pressed", async () => {
+    __forgetResultTags();
+    const own = { key: vh.key, authorPubkey: AUTHOR, slug: vh.slug, name: vh.name, counted: true };
+    const podcaster = {
+      key: `${AUTHOR}|podcaster`,
+      authorPubkey: AUTHOR,
+      slug: "podcaster",
+      name: "Podcaster",
+      counted: true,
+    };
+    resultTagsMock.people.mockImplementation(async () => new Map([["d".repeat(64), { tags: [own, podcaster] }]]));
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(`tag:${AUTHOR}:verified-human`)}`);
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+
+    const facets = await screen.findByTestId("tag-facets");
+    // The tab's own tag is on every row: not a filter.
+    expect(
+      within(facets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Podcaster"]);
+    fireEvent.click(within(facets).getByText("Podcaster"));
+    expect(screen.getByTestId("container-search-results").children).toHaveLength(1);
+    expect(screen.getByTestId("tag-tab-count")).toHaveTextContent("1 of 2 tagged Verified Human");
+    resultTagsMock.people.mockImplementation(async () => new Map());
+  });
+
   it("isn't there when the words name no tag", async () => {
     namedTagsMock.tags.mockImplementation(async () => []);
     setUrlTab("all");

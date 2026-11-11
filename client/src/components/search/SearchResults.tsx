@@ -13,7 +13,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal, Tag as TagIcon } from "lucide-react";
+import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import {
   BROWSE_UNAVAILABLE_SORTS,
   activeFilterCount,
@@ -55,6 +55,7 @@ import {
   tabLabel,
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
+import { TagFacets } from "./TagFacets";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
@@ -304,8 +305,6 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 ];
 /** On All, how many of its categories stand in the row before More. */
 const CATEGORIES_IN_ROW = 4;
-/** On All, how many of the results' tags show as filters before "more tags". */
-const TAG_FILTERS_SHOWN = 6;
 /** A tag's tab in All's row, by key: `tag:<author>:<slug>`, as the link holds it. */
 const TAG_TAB = "tag:";
 const tagTabKeyOf = (tag: NamedTag) => `${TAG_TAB}${tag.authorPubkey}:${tag.slug}`;
@@ -1700,20 +1699,6 @@ export function SearchResults({
     observer: pov === "mywot" && userPubkey ? userPubkey : "house",
     enabled: onAll,
   });
-  const [allTagsShown, setAllTagsShown] = useState(false);
-  useEffect(() => setAllTagsShown(false), [effectiveQuery]);
-  const tagFilters = useMemo(() => {
-    const { tags } = resultTags;
-    const shown = allTagsShown ? tags : tags.slice(0, TAG_FILTERS_SHOWN);
-    // The pressed one stays in sight, wherever the order puts it.
-    const pressed = tags.find((t) => t.key === tagFilter);
-    return {
-      shown: pressed && !shown.includes(pressed) ? [...shown, pressed] : shown,
-      more: allTagsShown
-        ? 0
-        : Math.max(0, tags.length - TAG_FILTERS_SHOWN - (pressed && !shown.includes(pressed) ? 1 : 0)),
-    };
-  }, [resultTags, allTagsShown, tagFilter]);
   const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
   const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
   useEffect(() => {
@@ -2735,41 +2720,19 @@ export function SearchResults({
                 </FacetRow>
               )}
               {/* The tags the results carry, most carried first: each a filter over them. */}
-              {onAll &&
-                !tagTabKey &&
-                serverStatus.search !== "down" &&
-                (tagFilters.shown.length > 0 || !!tagFilter) && (
-                  <FacetRow className="mb-2" testId="tag-facets">
-                    <TagIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                    {tagFilters.shown.map((t) => (
-                      <FacetChip
-                        key={t.key}
-                        pressed={tagFilter === t.key}
-                        onClick={() =>
-                          pressTag(
-                            tagFilter === t.key
-                              ? null
-                              : { key: t.key, name: t.name, carriers: carriersOf(hits, resultTags.byHit, t.key) },
-                          )
-                        }
-                        testId={`tag-facet-${t.slug}`}
-                      >
-                        {t.name}
-                      </FacetChip>
-                    ))}
-                    {/* A tag the link names that no loaded row carries: still pressed, so it can be let go. */}
-                    {tagFilter && resultTags.settled && !tagFilters.shown.some((t) => t.key === tagFilter) && (
-                      <FacetChip pressed onClick={() => pressTag(null)} testId="tag-facet-pressed">
-                        {tagFilter.slice(tagFilter.indexOf("|") + 1)}
-                      </FacetChip>
-                    )}
-                    {tagFilters.more > 0 && (
-                      <FacetChip pressed={false} onClick={() => setAllTagsShown(true)} testId="tag-facets-more">
-                        +{tagFilters.more} more
-                      </FacetChip>
-                    )}
-                  </FacetRow>
-                )}
+              {onAll && !tagTabKey && serverStatus.search !== "down" && (
+                <TagFacets
+                  key={effectiveQuery}
+                  tags={resultTags.tags}
+                  pressed={tagFilter}
+                  settled={resultTags.settled}
+                  onPress={(t) =>
+                    pressTag(
+                      t ? { key: t.key, name: t.name, carriers: carriersOf(hits, resultTags.byHit, t.key) } : null,
+                    )
+                  }
+                />
+              )}
               {activeKind ? (
                 <activeKind.Page query={query} onTabChange={changeTab} />
               ) : serverStatus.search === "down" ? (
@@ -2793,7 +2756,12 @@ export function SearchResults({
                 />
               ) : tagTab ? (
                 // A tag's tab holds what carries it, not a search of the words.
-                <TagTabResults tag={tagTab} scoreOf={scoreOf} query={query} />
+                <TagTabResults
+                  tag={tagTab}
+                  scoreOf={scoreOf}
+                  query={query}
+                  observer={pov === "mywot" && userPubkey ? userPubkey : "house"}
+                />
               ) : snapshot?.error ? (
                 <div
                   className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
