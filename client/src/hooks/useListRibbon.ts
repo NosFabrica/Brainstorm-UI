@@ -24,6 +24,8 @@ export interface RibbonList {
   href: string;
   /** The headers its items are filed under (`#z`): its own, and its copies'. */
   headers: string[];
+  /** The words are the list's own name ("github accounts"): all its items are what they find. */
+  whole: boolean;
 }
 
 /** The most items asked of each list. */
@@ -142,6 +144,7 @@ export function useListRibbon(
         more: answer?.full ?? false,
         href: eventPath(resolved.community?.event ?? definition.event, dictionaryRelays()),
         headers,
+        whole,
       });
     }
     return found.sort(
