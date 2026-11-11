@@ -27,13 +27,17 @@ const h = vi.hoisted(() => ({
   assistant: { live: true, publishing: false } as { live: boolean; publishing: boolean; lastPublish?: string },
   menuPublishing: false,
   mapPublishing: false,
+  /** Whether anyone is signed in. */
+  signedIn: true,
 }));
 
 vi.mock("wouter", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   useLocation: () => ["/start", h.navigate],
 }));
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => (h.signedIn ? { pubkey: ME } : null),
+}));
 vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => h.follows }));
 vi.mock("@/hooks/useVerifiedNoFollows", () => ({
   useVerifiedNoFollows: () => h.verdict ?? (h.follows > 0 ? "has-follows" : "none"),
@@ -70,6 +74,8 @@ beforeEach(() => {
   h.assistant = { live: true, publishing: false };
   h.menuPublishing = false;
   h.mapPublishing = false;
+  h.signedIn = true;
+  window.history.replaceState({}, "", "/start");
 });
 
 const pick = (label: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
@@ -271,6 +277,27 @@ describe("FirstRunPage", () => {
       h.verdict = "none";
       render(<FirstRunPage />);
       expect(screen.getAllByTestId(/^first-run-topic-/).length).toBeGreaterThan(0);
+    });
+  });
+  /**
+   * Nobody signed in: /start sends them to sign in, and keeps where they were
+   * headed. A new account comes back through /start with it (LoginPage); a
+   * returning one lands there directly.
+   */
+  describe("signed out", () => {
+    beforeEach(() => {
+      h.signedIn = false;
+    });
+
+    it("goes to sign in, keeping where they were headed", async () => {
+      window.history.replaceState({}, "", "/start?next=%2Fp%2Fabc");
+      render(<FirstRunPage />);
+      await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login?next=%2Fp%2Fabc", { replace: true }));
+    });
+
+    it("goes to plain sign in when they were headed nowhere in particular", async () => {
+      render(<FirstRunPage />);
+      await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login", { replace: true }));
     });
   });
 });

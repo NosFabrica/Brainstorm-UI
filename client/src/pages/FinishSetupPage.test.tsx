@@ -16,8 +16,10 @@ vi.mock("wouter", async (orig) => ({
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: PUBKEY, npub: "npub1lira", displayName: "Lira" }),
 }));
+/** The app-wide score run: under way unless a test says otherwise. */
+const scoring = vi.hoisted(() => ({ value: { status: "calculating", isCalculating: true } }));
 vi.mock("@/hooks/useScoringStatus", () => ({
-  useScoringStatus: () => ({ isCalculating: true }),
+  useScoringStatus: () => scoring.value,
 }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 // The header drags in the account menu / apps launcher stack; the checklist is
@@ -239,6 +241,31 @@ describe("FinishSetupPage — what's left, then your account", () => {
   beforeEach(() => {
     profiles.byPubkey = { [PUBKEY]: FULL, [TA]: ASSISTANT };
     profiles.loading = false;
+    scoring.value = { status: "calculating", isCalculating: true };
+  });
+
+  // A run that failed has no scores to show: the tile never says "Ready" for
+  // it, and points at the dashboard, where a run can be started again.
+  it("a score run that failed reads 'Not ready yet', with the dashboard to try again", () => {
+    scoring.value = { status: "failed", isCalculating: false };
+    setupState.mockReturnValue(state(everythingDone));
+    renderWithProviders(<FinishSetupPage />);
+
+    const tile = screen.getByTestId("tile-scores");
+    expect(tile).toHaveTextContent("Not ready yet");
+    expect(tile).not.toHaveTextContent("Ready");
+    fireEvent.click(within(tile).getByRole("button", { name: "Open dashboard" }));
+    expect(navigate).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("a finished score run reads 'Ready'", () => {
+    scoring.value = { status: "ready", isCalculating: false };
+    setupState.mockReturnValue(state(everythingDone));
+    renderWithProviders(<FinishSetupPage />);
+
+    const tile = screen.getByTestId("tile-scores");
+    expect(tile).toHaveTextContent("Ready");
+    expect(within(tile).getByRole("button", { name: "View insights" })).toBeInTheDocument();
   });
 
   // Once nothing is left: who they are, what their account is for, their
