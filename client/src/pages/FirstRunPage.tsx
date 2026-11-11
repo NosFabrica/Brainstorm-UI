@@ -71,12 +71,14 @@ function nextPath(): string {
  *
  * Each topic suggests trusted people (lib/onboardingPeople), its top three
  * ticked; dropping the topic drops them. A key that already follows people
- * skips to "your network is ready". The last screen asks whether other apps
- * may use their trust scores — on by default; for an account made here the
- * declaration then goes out by itself, and an extension asks once. Finishing
- * publishes one follow list (services/socialActions, merged into any they
- * have) and starts their scores — in the background, after they've gone
- * to search: one that couldn't be saved says so, pointing to /setup.
+ * skips to "your network is ready". Other apps may use their trust scores:
+ * that isn't asked. It was a checkbox here, and left off — with no other
+ * provider named — their search came back empty; Settings is where it's
+ * turned off. For an account made here the declaration goes out by itself,
+ * and an extension asks once. Finishing publishes one follow list
+ * (services/socialActions, merged into any they have) and starts their
+ * scores — in the background, after they've gone to search: one that
+ * couldn't be saved says so, pointing to /setup.
  * Skipping publishes nothing. Either way the first run isn't offered again
  * (lib/firstRun). Decided 2026-11-08: plain words, nothing about the
  * protocol — the Assistant's own setup happens out of sight.
@@ -107,7 +109,6 @@ export default function FirstRunPage() {
 
   const [picked, setPicked] = useState<OnboardingTopicKey[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
-  const [share, setShare] = useState(true);
   const { byTopic, loading } = useOnboardingPeople(picked);
   // The Assistant's own setup runs in the background (AutoAssistantSetup); the
   // last step only reports it, in plain words.
@@ -181,12 +182,11 @@ export default function FirstRunPage() {
   // this page — only toasts and navigation — so leaving doesn't cut it short.
   const saveInBackground = (pks: string[]) => {
     if (!pubkey) return;
-    const consent = share;
     const people = `${pks.length} ${pks.length === 1 ? "person" : "people"}`;
     void (async () => {
       const res: FollowOutcome = await followPubkeys(pks).catch(() => ({ success: false }));
       if (res.success && !res.cancelled && !res.needsBaseConfirmation) {
-        void triggerScoringAndAnchor(pubkey, { nip85Consent: consent }).catch(() => {});
+        void triggerScoringAndAnchor(pubkey, { nip85Consent: true }).catch(() => {});
         toast({
           title: `You're following ${people}`,
           description: "Your trust scores are calculating — about 5 minutes.",
@@ -196,7 +196,7 @@ export default function FirstRunPage() {
       // Declined, failed, or a list on the relays to confirm before changing it
       // (the follow picker asks that): /setup has the step, and the header's
       // pill counts it once the relays confirm there's no list.
-      recordNip85Consent(pubkey, consent);
+      recordNip85Consent(pubkey, true);
       toast({
         title: "Your follows weren't saved",
         description: "Finish it from your account setup — it takes a moment.",
@@ -215,9 +215,9 @@ export default function FirstRunPage() {
       saveInBackground([...following]);
     } else if (pubkey) {
       // A returning key keeps the network it has: start its scores. Nobody
-      // picked: nothing to score yet, so only the sharing choice is kept.
-      if (returning) void triggerScoringAndAnchor(pubkey, { nip85Consent: share }).catch(() => {});
-      else recordNip85Consent(pubkey, share);
+      // picked: nothing to score yet, so sharing is only noted for when there is.
+      if (returning) void triggerScoringAndAnchor(pubkey, { nip85Consent: true }).catch(() => {});
+      else recordNip85Consent(pubkey, true);
     }
     leave();
   };
@@ -377,7 +377,7 @@ export default function FirstRunPage() {
         {step === "done" && (
           <>
             <Title>You're all set.</Title>
-            <Lead>{returning ? "One last choice, then straight to search." : "Here's what's ready for you."}</Lead>
+            <Lead>Here's what's ready for you.</Lead>
             <ul className="mt-8 space-y-3" aria-live="polite">
               <ReadyLine
                 state={assistantReady ? "done" : assistantStalled ? "next" : "working"}
@@ -425,27 +425,7 @@ export default function FirstRunPage() {
                 />
               </ol>
             </section>
-            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              <input
-                type="checkbox"
-                checked={share}
-                onChange={(e) => setShare(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-brand-primary"
-                aria-describedby="first-run-share-detail"
-              />
-              <span>
-                <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Let other apps use my trust scores
-                </span>
-                <span
-                  id="first-run-share-detail"
-                  className="mt-0.5 block text-[13px] text-slate-500 dark:text-slate-400"
-                >
-                  Apps you use can rank and filter by the people you trust. You can turn this off anytime in Settings.
-                </span>
-              </span>
-            </label>
-            <p className="mt-4 text-[13px] text-slate-400 dark:text-slate-500">
+            <p className="mt-6 text-[13px] text-slate-400 dark:text-slate-500">
               You'll find all of this later under Account.
             </p>
           </>

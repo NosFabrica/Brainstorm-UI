@@ -3,8 +3,8 @@
  * The first run (/start): what you're into → people to follow → all set, then
  * search. Picking a topic preselects its top three, and dropping it drops
  * them; a key that already follows people skips straight to "your network is
- * ready". Finishing publishes one follow list and records the sharing choice;
- * skipping publishes nothing.
+ * ready". Finishing publishes one follow list and lets other apps use their
+ * trust scores — always, nothing to choose; skipping publishes nothing.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -62,6 +62,7 @@ vi.mock("@/hooks/useAssistantTreasureMap", () => ({
 
 import FirstRunPage from "./FirstRunPage";
 import { isFirstRunDone } from "@/lib/firstRun";
+import { hasNip85Consent } from "@/lib/nip85Consent";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -101,20 +102,67 @@ describe("FirstRunPage", () => {
     expect(screen.getByText("Dee")).toBeInTheDocument();
   });
 
-  it("finishing publishes one follow list with the picks, records the sharing choice and lands on search", async () => {
+  it("finishing publishes one follow list with the picks and lands on search", async () => {
     render(<FirstRunPage />);
     pick("Music");
     next();
     fireEvent.click(screen.getByRole("button", { name: /Dee/ }));
     next();
-    fireEvent.click(screen.getByRole("checkbox", { name: /Let other apps use my trust scores/ }));
     fireEvent.click(screen.getByTestId("first-run-next"));
 
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/", { replace: true }));
     expect(h.followPubkeys).toHaveBeenCalledTimes(1);
     expect(h.followPubkeys.mock.calls[0][0]).toEqual([MUSIC[0], MUSIC[1], MUSIC[2], MUSIC[3]].map((p) => p.pubkey));
-    expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: false });
+    expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: true });
     expect(isFirstRunDone(ME)).toBe(true);
+  });
+
+  /**
+   * Other apps using their trust scores isn't a choice here: left off, with
+   * no other provider named, their search came back empty. It's on for
+   * everyone who finishes; Settings is where it's turned off.
+   */
+  describe("letting other apps use their trust scores", () => {
+    it("asks nothing on the last step, for a new network or one that came with them", () => {
+      const fresh = render(<FirstRunPage />);
+      pick("Music");
+      next();
+      next();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.getByTestId("page-first-run")).not.toHaveTextContent(/let other apps/i);
+      fresh.unmount();
+
+      h.follows = 416;
+      render(<FirstRunPage />);
+      next();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.getByTestId("page-first-run")).not.toHaveTextContent(/one last choice/i);
+    });
+
+    it("is on for someone who picked nobody, ready for when they do follow people", () => {
+      render(<FirstRunPage />);
+      pick("Music");
+      next();
+      for (const name of ["Ann", "Ben", "Cal"]) fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+      next();
+      fireEvent.click(screen.getByTestId("first-run-next"));
+      expect(h.followPubkeys).not.toHaveBeenCalled();
+      expect(h.trigger).not.toHaveBeenCalled();
+      expect(hasNip85Consent(ME)).toBe(true);
+    });
+
+    it("is on even when the follows couldn't be saved", async () => {
+      h.followPubkeys.mockResolvedValue({ success: false, error: "relay down" });
+      render(<FirstRunPage />);
+      pick("Music");
+      next();
+      next();
+      fireEvent.click(screen.getByTestId("first-run-next"));
+      await waitFor(() =>
+        expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your follows weren't saved" })),
+      );
+      expect(hasNip85Consent(ME)).toBe(true);
+    });
   });
 
   it("a key that already follows people goes straight to 'your network is ready'", async () => {
@@ -229,7 +277,7 @@ describe("FirstRunPage", () => {
       expect(h.followPubkeys).toHaveBeenCalledTimes(1);
     });
 
-    it("once saved, starts their scores with their sharing choice and says so", async () => {
+    it("once saved, starts their scores, shared with other apps, and says so", async () => {
       render(<FirstRunPage />);
       finish();
       await waitFor(() => expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: true }));
