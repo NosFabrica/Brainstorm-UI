@@ -1,21 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDITIONS_PATH, INDEX_PATH, serializeEditions, sha256Text } from "@/lib/frontPage/observerSite";
+import { withPaperCsp } from "@/lib/frontPage/validate";
 
 const PK = "a".repeat(64);
 
 const mocks = vi.hoisted(() => ({
   site: undefined as unknown,
+  answered: ["wss://write.example"] as string[],
   servers: ["https://files.example"] as string[],
+  blossomLookups: 0,
   signAs: vi.fn(),
   auth: vi.fn(),
   publish: vi.fn(),
 }));
 
-vi.mock("@/lib/loaders", () => ({ loadReplaceable: () => Promise.resolve(mocks.site) }));
+vi.mock("@/lib/relayRequest", async (orig) => ({
+  ...(await orig<object>()),
+  requestNewestWithReach: () =>
+    Promise.resolve({ newest: mocks.site, reach: { asked: ["wss://write.example"], answered: mocks.answered } }),
+}));
 vi.mock("@/lib/relayRouting", () => ({ outboxRelays: () => Promise.resolve(["wss://write.example"]) }));
 vi.mock("@/lib/blossomServers", async (orig) => ({
   ...(await orig<object>()),
-  loadBlossomServers: () => Promise.resolve({ servers: mocks.servers, found: true }),
+  loadBlossomServers: () => {
+    mocks.blossomLookups++;
+    return Promise.resolve({ servers: mocks.servers, found: mocks.servers.length > 0 });
+  },
 }));
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: vi.fn(), getReplaceable: () => undefined } }));
 vi.mock("@/accounts/signing", () => ({
@@ -28,7 +38,7 @@ vi.mock("@/services/blossom", async (orig) => ({
 }));
 vi.mock("@/services/nostr", () => ({ publishToRelays: (...args: unknown[]) => mocks.publish(...args) }));
 
-import { leadHeadline, loadObserverSite, publishToObserver, PublishError } from "./observerSite";
+import { fetchBlob, leadHeadline, loadObserverSite, publishToObserver, PublishError } from "./observerSite";
 
 const PAPER = `<!doctype html><html><body><header class="masthead"><h1>The Nostr Observer</h1></header><h2 class="lead-head">Twelve relays, one lesson</h2></body></html>`;
 const NOV11 = Date.UTC(2026, 10, 11, 9, 0);
@@ -38,7 +48,9 @@ let puts: { url: string; body: string }[];
 
 beforeEach(() => {
   mocks.site = undefined;
+  mocks.answered = ["wss://write.example"];
   mocks.servers = ["https://files.example"];
+  mocks.blossomLookups = 0;
   mocks.signAs
     .mockReset()
     .mockImplementation((_a, t) => Promise.resolve({ ...t, id: "e".repeat(64), pubkey: PK, sig: "s" }));
@@ -77,16 +89,21 @@ const input = {
 };
 
 describe("publishToObserver", () => {
-  it("first publish: three files under one upload signature, /index.html is today's paper", async () => {
+  it("first publish: three files, one upload token each, /index.html is today's paper", async () => {
     const out = await publishToObserver(input);
-    expect(mocks.auth).toHaveBeenCalledTimes(1);
-    const authTags = mocks.auth.mock.calls[0][0].tags as string[][];
-    expect(authTags.filter((t) => t[0] === "x")).toHaveLength(3);
+    expect(mocks.auth).toHaveBeenCalledTimes(3);
+    for (const call of mocks.auth.mock.calls) {
+      expect((call[0].tags as string[][]).filter((t) => t[0] === "x")).toHaveLength(1);
+    }
     expect(puts).toHaveLength(3);
+    expect(mocks.blossomLookups).toBe(1);
+    expect(out.servers).toEqual(["https://files.example"]);
 
     const manifest = mocks.signAs.mock.calls[0][1];
     expect(manifest.kind).toBe(35128);
-    const today = await sha256Text(PAPER);
+    // The published copy carries the app's CSP, so its hash is of that copy.
+    const today = await sha256Text(withPaperCsp(PAPER));
+    expect(blobs.get(today)).toContain("Content-Security-Policy");
     expect(manifest.tags).toContainEqual(["path", INDEX_PATH, today]);
     expect(manifest.tags).toContainEqual(["path", "/2026-11-11.html", today]);
     expect(manifest.tags).toContainEqual(["title", "Lira's Observer"]);
@@ -146,6 +163,71 @@ describe("publishToObserver", () => {
     expect(out.editions.map((e) => e.day)).toEqual(["2026-11-11", "2026-11-09"]);
   });
 
+  it("uploads nowhere the reader didn't choose: no Blossom server list, no publish", async () => {
+    mocks.servers = [];
+    const failure = await publishToObserver(input).catch((e) => e);
+    expect(failure).toBeInstanceOf(PublishError);
+    expect(failure.reason).toBe("no-servers");
+    expect(puts).toHaveLength(0);
+    expect(mocks.signAs).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when none of the reader's relays answered the read", async () => {
+    mocks.answered = [];
+    const failure = await publishToObserver(input).catch((e) => e);
+    expect(failure.reason).toBe("unreadable");
+    expect(puts).toHaveLength(0);
+    expect(mocks.publish).not.toHaveBeenCalled();
+  });
+
+  it("mirrors to every server in parallel, best effort beyond the first that takes each file", async () => {
+    mocks.servers = ["https://down.example", "https://files.example"];
+    const real = globalThis.fetch as unknown as (url: string, init?: RequestInit) => Promise<Response>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url.startsWith("https://down.example") ? new Response("", { status: 503 }) : real(url, init),
+      ),
+    );
+    const out = await publishToObserver(input);
+    expect(out.servers).toEqual(["https://files.example", "https://down.example"]);
+    expect(mocks.signAs.mock.calls[0][1].tags.filter((t: string[]) => t[0] === "server")).toEqual([
+      ["server", "https://files.example"],
+      ["server", "https://down.example"],
+    ]);
+  });
+
+  it("keeps days the dated paths serve that editions.json missed, and never lets a future day lead", async () => {
+    const json = serializeEditions({
+      v: 1,
+      title: "Lira's Observer",
+      editions: [{ day: "2026-11-10", path: "/2026-11-10.html", sha256: "1".repeat(64), headline: "Yesterday" }],
+    });
+    const jsonHash = await sha256Text(json);
+    blobs.set(jsonHash, json);
+    mocks.site = {
+      kind: 35128,
+      pubkey: PK,
+      created_at: 1,
+      tags: [
+        ["d", "observer"],
+        ["path", "/2026-11-10.html", "1".repeat(64)],
+        ["path", "/2026-11-09.html", "9".repeat(64)],
+        ["path", "/2099-01-01.html", "7".repeat(64)],
+        ["path", "/2026-02-30.html", "8".repeat(64)],
+        ["path", EDITIONS_PATH, jsonHash],
+      ],
+    };
+    const out = await publishToObserver({ ...input, printedAt: Date.now() });
+    const days = out.editions.map((e) => e.day);
+    expect(days).toContain("2026-11-09");
+    expect(days).not.toContain("2026-02-30");
+    expect(out.editions.find((e) => e.day === "2026-11-10")?.headline).toBe("Yesterday");
+    const manifest = mocks.signAs.mock.calls[0][1];
+    const today = await sha256Text(withPaperCsp(PAPER));
+    expect(manifest.tags).toContainEqual(["path", INDEX_PATH, today]);
+  });
+
   it("publishes nothing when no server takes the page", async () => {
     vi.stubGlobal(
       "fetch",
@@ -186,6 +268,24 @@ describe("loadObserverSite", () => {
     const site = await loadObserverSite(PK);
     expect(site.event).toBeNull();
     expect(site.index.editions).toEqual([]);
+  });
+});
+
+describe("fetchBlob", () => {
+  it("hashes the bytes as served, and compares in lower case", async () => {
+    const text = "<p>caf\u00e9</p>";
+    const hash = await sha256Text(text);
+    blobs.set(hash, text);
+    expect(await fetchBlob(hash.toUpperCase(), ["https://files.example"])).toBe(text);
+    // Bytes that aren't valid UTF-8 can't decode to the same string another file has.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Uint8Array([0xff, 0xfe]), { status: 200 })),
+    );
+    const bad = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array([0xff, 0xfe]))), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
+    expect(await fetchBlob(bad, ["https://files.example"])).toBeNull();
   });
 });
 

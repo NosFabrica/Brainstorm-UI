@@ -58,7 +58,7 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
   };
 
   return (
-    <section className="flex flex-col gap-3" data-testid="section-file-servers">
+    <section className="flex flex-col gap-3" data-testid="section-file-servers" id="file-servers-section">
       <div>
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">File servers</h3>
         <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">

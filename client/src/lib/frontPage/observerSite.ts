@@ -23,6 +23,8 @@ export const KEEP_EDITIONS = 90;
 export const DEFAULT_EVENT_BUDGET = 60_000;
 /** What the `["EVENT", …]` frame around the event costs, taken off a relay's own limit. */
 export const ENVELOPE_BYTES = 1_000;
+/** The tag-count budget when no write relay publishes `max_event_tags`. */
+export const DEFAULT_MAX_TAGS = 100;
 
 /** Where canonical named-site URLs are served (the gateway Brainstorm links root sites on). */
 export const NSITE_GATEWAY = "nsite.lol";
@@ -62,6 +64,22 @@ export function editionPath(day: string): string {
   return `/${day}.html`;
 }
 
+/** A `YYYY-MM-DD` that is a real calendar date (not `2026-13-45`). */
+export function isRealDay(day: string): boolean {
+  if (!DAY.test(day)) return false;
+  const at = Date.parse(`${day}T00:00:00Z`);
+  return Number.isFinite(at) && new Date(at).toISOString().slice(0, 10) === day;
+}
+
+/**
+ * The newest day a real edition can carry, [now] in milliseconds: tomorrow in UTC, for a
+ * clock ahead of the reader's. A later day is somebody's bad data, and it must not take
+ * `/index.html` (or today's place in the roll-off) from today's paper.
+ */
+export function latestDay(now: number): string {
+  return utcDay(now + 86_400_000);
+}
+
 export function siteTitle(name: string | null | undefined): string {
   const n = name?.trim();
   return n ? `${n}'s Observer` : "The Nostr Observer";
@@ -79,7 +97,7 @@ function validEntry(raw: unknown): raw is EditionEntry {
   const e = raw as Record<string, unknown>;
   return (
     typeof e.day === "string" &&
-    DAY.test(e.day) &&
+    isRealDay(e.day) &&
     e.path === editionPath(e.day) &&
     typeof e.sha256 === "string" &&
     HEX64.test(e.sha256)
@@ -121,11 +139,27 @@ export function rebuildFromPaths(tags: string[][]): EditionEntry[] {
     if (tag[0] !== "path") continue;
     const match = DATED_PATH.exec(tag[1] ?? "");
     const hash = (tag[2] ?? "").toLowerCase();
-    if (match && HEX64.test(hash) && !out.some((e) => e.day === match[1])) {
+    if (match && isRealDay(match[1]) && HEX64.test(hash) && !out.some((e) => e.day === match[1])) {
       out.push({ day: match[1], path: tag[1], sha256: hash });
     }
   }
   return out.sort(newestFirst);
+}
+
+/**
+ * The editions a site serves: one per dated `path` tag, described by the index's entry
+ * for that day when it names the same bytes. A day the index lists but the paths don't
+ * is gone (rolled off by a racing producer); a day the paths serve that the index
+ * misses, or lists under another hash, still shows, with only its day and hash.
+ */
+export function mergeEntries(indexed: EditionEntry[], fromPaths: EditionEntry[]): EditionEntry[] {
+  const byDay = new Map(indexed.map((e) => [e.day, e]));
+  return fromPaths
+    .map((served) => {
+      const described = byDay.get(served.day);
+      return described && described.sha256.toLowerCase() === served.sha256 ? described : served;
+    })
+    .sort(newestFirst);
 }
 
 /** [entry] in, replacing the same day; newest first. */
@@ -152,14 +186,20 @@ export interface ManifestInput {
   title: string;
   description: string;
   aggregate: string;
+  /** The newest day `/index.html` may show (`latestDay`); every day when absent. */
+  maxDay?: string;
 }
 
-/** The manifest's `path` tags: `/index.html` is the newest edition's bytes, then every file. */
-export function pathTags(entries: EditionEntry[], files: SiteFiles): string[][] {
+/**
+ * The manifest's `path` tags: `/index.html` is the newest edition's bytes (up to
+ * [maxDay]), then every file. Dated paths are named from the day, never from the entry.
+ */
+export function pathTags(entries: EditionEntry[], files: SiteFiles, maxDay?: string): string[][] {
   const sorted = [...entries].sort(newestFirst);
   const tags: string[][] = [];
-  if (sorted[0]) tags.push(["path", INDEX_PATH, sorted[0].sha256]);
-  for (const e of sorted) tags.push(["path", e.path, e.sha256]);
+  const lead = sorted.find((e) => !maxDay || e.day <= maxDay);
+  if (lead) tags.push(["path", INDEX_PATH, lead.sha256]);
+  for (const e of sorted) tags.push(["path", editionPath(e.day), e.sha256]);
   tags.push(["path", ARCHIVE_PATH, files.archive], ["path", EDITIONS_PATH, files.editions]);
   return tags;
 }
@@ -171,7 +211,7 @@ export function manifestTemplate(input: ManifestInput): { kind: number; tags: st
     content: "",
     tags: [
       ["d", OBSERVER_D],
-      ...pathTags(input.entries, input.files),
+      ...pathTags(input.entries, input.files, input.maxDay),
       ["x", input.aggregate, "aggregate"],
       ...input.servers.map((s) => ["server", s]),
       ["title", input.title],
@@ -196,33 +236,49 @@ export function signedSize(input: Omit<ManifestInput, "aggregate">, createdAt: n
 
 /**
  * Roll-off: the newest [keep], then the oldest dropped while the signed manifest would
- * exceed [budget]. Today's edition is never dropped.
+ * exceed [budget] bytes or [maxTags] tags. The [protect]ed day (today's edition) is never
+ * dropped, and neither is the last edition left.
  */
 export function rollOff(
   entries: EditionEntry[],
   {
     keep = KEEP_EDITIONS,
     budget,
+    maxTags = DEFAULT_MAX_TAGS,
     servers,
     title,
     description,
     createdAt,
+    protect,
+    maxDay,
   }: {
     keep?: number;
     budget: number;
+    maxTags?: number;
     servers: string[];
     title: string;
     description: string;
     createdAt: number;
+    protect?: string;
+    maxDay?: string;
   },
 ): EditionEntry[] {
-  let kept = [...entries].sort(newestFirst).slice(0, Math.max(1, keep));
+  const sorted = [...entries].sort(newestFirst);
+  const guarded = protect ? sorted.find((e) => e.day === protect) : undefined;
+  let kept = sorted.filter((e) => e !== guarded).slice(0, Math.max(0, Math.max(1, keep) - (guarded ? 1 : 0)));
+  if (guarded) kept = [guarded, ...kept].sort(newestFirst);
   const placeholder = { archive: "0".repeat(64), editions: "0".repeat(64) };
-  while (
-    kept.length > 1 &&
-    signedSize({ entries: kept, files: placeholder, servers, title, description }, createdAt) > budget
-  ) {
-    kept = kept.slice(0, -1);
+  const tooBig = () => {
+    const input = { entries: kept, files: placeholder, servers, title, description, maxDay };
+    return (
+      signedSize(input, createdAt) > budget ||
+      manifestTemplate({ ...input, aggregate: "0".repeat(64) }).tags.length > maxTags
+    );
+  };
+  while (kept.length > 1 && tooBig()) {
+    const oldest = [...kept].reverse().find((e) => e !== guarded);
+    if (!oldest) break;
+    kept = kept.filter((e) => e !== oldest);
   }
   return kept;
 }
@@ -271,7 +327,7 @@ export function archiveHtml(index: EditionsIndex): string {
     .sort(newestFirst)
     .map((e) => {
       const headline = typeof e.headline === "string" && e.headline.trim() ? escapeHtml(e.headline.trim()) : "";
-      return `<li><a href=".${escapeHtml(e.path)}">${escapeHtml(archiveDate(e.day))}</a>${headline ? ` <span class="dek">— ${headline}</span>` : ""}</li>`;
+      return `<li><a href=".${escapeHtml(editionPath(e.day))}">${escapeHtml(archiveDate(e.day))}</a>${headline ? ` <span class="dek">— ${headline}</span>` : ""}</li>`;
     })
     .join("\n");
   return `<!doctype html>

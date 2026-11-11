@@ -177,6 +177,7 @@ export default function SettingsPage() {
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
   //   ?tab=trust&focus=tag-relays → Trust > Advanced > Where tags come from
+  //   ?tab=messages&focus=file-servers → Messages > File servers
   const focusParam = new URLSearchParams(search).get("focus");
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const highlightBackup = highlighted === "backup";
@@ -191,7 +192,9 @@ export default function SettingsPage() {
           ? "tag-relays-section"
           : focusParam === "messages"
             ? "messages-section"
-            : null;
+            : focusParam === "file-servers"
+              ? "file-servers-section"
+              : null;
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });

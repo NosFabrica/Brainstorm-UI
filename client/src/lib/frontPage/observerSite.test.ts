@@ -3,12 +3,16 @@ import { nip19 } from "nostr-tools";
 import {
   ARCHIVE_PATH,
   DEFAULT_EVENT_BUDGET,
+  DEFAULT_MAX_TAGS,
   EDITIONS_PATH,
   INDEX_PATH,
   aggregateHash,
   archiveHtml,
   editionPath,
   eventBudget,
+  isRealDay,
+  latestDay,
+  mergeEntries,
   manifestTemplate,
   observerNaddr,
   observerUrl,
@@ -84,6 +88,39 @@ describe("editions.json", () => {
     expect(rebuildFromPaths(tags)).toEqual([entry("2026-11-11", 2), entry("2026-11-10", 1)]);
   });
 
+  it("takes only real calendar days", () => {
+    expect(isRealDay("2026-11-11")).toBe(true);
+    expect(isRealDay("2028-02-29")).toBe(true);
+    expect(isRealDay("2026-02-30")).toBe(false);
+    expect(isRealDay("2026-13-01")).toBe(false);
+    expect(rebuildFromPaths([["path", "/2026-02-30.html", hash(1)]])).toEqual([]);
+    expect(
+      parseEditions(
+        JSON.stringify({
+          v: 1,
+          title: "",
+          editions: [{ day: "2026-99-99", path: "/2026-99-99.html", sha256: hash(1) }],
+        }),
+      )!.editions,
+    ).toEqual([]);
+  });
+
+  it("describes each served day by its index entry when the bytes match, else by the path alone", () => {
+    const merged = mergeEntries(
+      [
+        entry("2026-11-10", 1, { headline: "kept" }),
+        entry("2026-11-09", 5, { headline: "stale hash" }),
+        entry("2026-11-01", 3),
+      ],
+      [entry("2026-11-11", 2), entry("2026-11-10", 1), entry("2026-11-09", 6)],
+    );
+    expect(merged.map((e) => [e.day, e.sha256, e.headline])).toEqual([
+      ["2026-11-11", hash(2), undefined],
+      ["2026-11-10", hash(1), "kept"],
+      ["2026-11-09", hash(6), undefined],
+    ]);
+  });
+
   it("a second print the same UTC day replaces that day's entry", () => {
     const list = upsertEdition([entry("2026-11-10", 1), entry("2026-11-11", 2)], entry("2026-11-11", 9));
     expect(list.map((e) => [e.day, e.sha256])).toEqual([
@@ -121,6 +158,31 @@ describe("roll-off", () => {
     expect(rollOff(all, { ...base, budget: 10 })).toHaveLength(1);
   });
 
+  it("also keeps the manifest under the tag-count budget", () => {
+    const kept = rollOff(days(90), { ...base, budget: 1_000_000, maxTags: 50 });
+    const tags = manifestTemplate({
+      entries: kept,
+      files: { archive: hash(0), editions: hash(0) },
+      servers: base.servers,
+      title: "T",
+      description: "D",
+      aggregate: hash(0),
+    }).tags;
+    expect(tags.length).toBeLessThanOrEqual(50);
+    expect(tags.length).toBeGreaterThan(45);
+    expect(DEFAULT_MAX_TAGS).toBe(100);
+    // 90 editions with six servers don't fit in the default 100 tags.
+    const many = { ...base, servers: Array.from({ length: 6 }, (_, i) => `https://s${i}.example`) };
+    expect(rollOff(days(90), { ...many, budget: 1_000_000 }).length).toBeLessThan(90);
+  });
+
+  it("never drops the protected day, even when a bogus future day sorts above it", () => {
+    const today = "2026-11-11";
+    const all = [entry("2099-01-01", 99), ...days(40), entry(today, 7)];
+    const kept = rollOff(all, { ...base, budget: 10, protect: today });
+    expect(kept.map((e) => e.day)).toContain(today);
+  });
+
   it("budgets from the smallest relay limit, less the envelope, else the default", () => {
     expect(eventBudget([131_072, 65_536, undefined])).toBe(64_536);
     expect(eventBudget([undefined, null])).toBe(DEFAULT_EVENT_BUDGET);
@@ -151,6 +213,16 @@ describe("manifest", () => {
     expect(template.tags).toContainEqual(["server", "https://a.example"]);
     expect(template.tags).toContainEqual(["title", "Lira's Observer"]);
     expect(siteTitle("")).toBe("The Nostr Observer");
+  });
+
+  it("never lets a future day take /index.html", () => {
+    const tags = pathTags(
+      [entry("2099-01-01", 9), entry("2026-11-11", 2)],
+      { archive: hash(3), editions: hash(4) },
+      latestDay(Date.UTC(2026, 10, 11, 10)),
+    );
+    expect(tags[0]).toEqual(["path", INDEX_PATH, hash(2)]);
+    expect(latestDay(Date.UTC(2026, 10, 11, 23))).toBe("2026-11-12");
   });
 
   it("computes the NIP-5A aggregate hash, independent of tag order", async () => {
@@ -188,5 +260,9 @@ describe("archive.html", () => {
     expect(html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; co");
     expect(html.indexOf("./2026-11-11.html")).toBeLessThan(html.indexOf("./2026-11-10.html"));
     expect(html).toContain('href="./index.html"');
+    // The link is named from the day, never from a path another producer wrote.
+    const odd = archiveHtml({ v: 1, title: "", editions: [{ ...entry("2026-11-12", 1), path: "//evil.example/x" }] });
+    expect(odd).toContain('href="./2026-11-12.html"');
+    expect(odd).not.toContain("evil.example");
   });
 });
