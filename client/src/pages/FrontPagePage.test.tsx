@@ -26,6 +26,8 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => state.user,
 }));
 vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ ...state.keys, reveal: vi.fn() }) }));
+// The morning schedule card has its own tests (lib/scheduledTasks, services/observerSchedule).
+vi.mock("@/hooks/useObserverSchedule", () => ({ useObserverSchedule: () => ({ status: "none", reveal: vi.fn() }) }));
 vi.mock("@/hooks/useHasMywot", () => ({
   useHasMywot: () => ({ hasMywot: state.hasMywot, taPubkey: "t", known: true, isLoading: false }),
 }));
@@ -131,6 +133,33 @@ describe("FrontPagePage", () => {
     expect(screen.getByTestId("front-page-changes").textContent).toContain("evil.example");
     // Kept for this tab only.
     expect(sessionStorage.getItem(`frontPage:last:${"a".repeat(64)}`)).toContain("4F2A9C");
+  });
+
+  it("says today's paper was already printed, with a way to read it, and still lets the reader print", async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    state.site = {
+      event: { tags: [] },
+      index: {
+        v: 1,
+        title: "",
+        editions: [
+          { day, path: `/${day}.html`, sha256: "b".repeat(64), printedAt: Math.floor(Date.now() / 1000) - 7200 },
+        ],
+      },
+      servers: ["https://files.example"],
+      relays: [],
+    };
+    state.fetchBlob.mockResolvedValue(printed.html);
+    renderWithProviders(<FrontPagePage />);
+
+    expect(screen.getByTestId("front-page-schedule")).toHaveTextContent("Not scheduled");
+    fireEvent.click(await screen.findByTestId("front-page-print-again"));
+    const hint = await screen.findByTestId("front-page-printed-today");
+    expect(hint).toHaveTextContent("Already printed today");
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("front-page-printed-today-open"));
+    await waitFor(() => expect(screen.queryByTestId("front-page-print-dialog")).toBeNull());
+    expect(state.print).not.toHaveBeenCalled();
   });
 
   it("a returning reader prints again from a dialog, and reads full screen", async () => {

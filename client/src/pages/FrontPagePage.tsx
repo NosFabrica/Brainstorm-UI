@@ -59,6 +59,9 @@ import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
 import { accountKey, tabKey } from "@/lib/accountStorage";
 import { withPaperCsp } from "@/lib/frontPage/validate";
+import { printedToday, type PrintedEdition } from "@/lib/frontPage/observerSchedule";
+import { formatClock } from "@/lib/scheduledTasks";
+import { MorningSchedule } from "@/components/frontPage/MorningSchedule";
 import { WriterError, fetchModels, printFrontPage, type PrintStep, type PullProgress } from "@/services/frontPage";
 import type { Usage } from "@/lib/frontPage/writer";
 
@@ -274,6 +277,13 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   }, [pubkey]);
 
   const sessionDay = page ? utcDay(page.printedAt) : null;
+  // A paper already printed today (here, on another device, by Amethyst's schedule): a
+  // hint beside Print, never a block on it. The spec's rule for a scheduled print.
+  const todays = useMemo(() => {
+    const editions: PrintedEdition[] = [...(site?.editions ?? [])];
+    if (page) editions.push({ day: utcDay(page.printedAt), printedAt: Math.floor(page.printedAt / 1000) });
+    return printedToday(editions, Date.now());
+  }, [site, page]);
   const days = useMemo(() => {
     const all = new Set<string>(site?.editions.map((e) => e.day) ?? []);
     if (sessionDay) all.add(sessionDay);
@@ -462,6 +472,15 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
   );
   const publishSwitch = <PublishSwitch on={publish} onChange={choosePublish} />;
+  const printedHint = todays && (
+    <PrintedTodayHint
+      printedAt={todays.printedAt}
+      onOpen={() => {
+        setSelectedDay(todays.day);
+        setPrintOpen(false);
+      }}
+    />
+  );
   const observerLinks = pubkey && (site?.exists || publishState.state === "published") ? pubkey : null;
   // Reader-first: once there is a paper, it leads and the controls step back into a
   // header and a dialog. The hero is for the first print and for setup.
@@ -482,6 +501,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                 onPrint={print}
                 picker={picker}
                 publishSwitch={publishSwitch}
+                printedHint={printedHint}
                 hint={models.status === "unlisted" && !model}
                 canPrint={!!model}
               />
@@ -517,6 +537,8 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                 <Loader2 className="h-4 w-4 animate-spin" /> Checking…
               </div>
             )}
+
+            {pubkey && <MorningSchedule />}
 
             <AnimatePresence mode="wait">
               {run.state === "running" && (
@@ -566,6 +588,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
             <PrintControls
               picker={picker}
               publishSwitch={publishSwitch}
+              printedHint={printedHint}
               hint={models.status === "unlisted" && !model}
               busy={run.state === "running"}
               canPrint={!!model}
@@ -601,6 +624,7 @@ function Hero({
   onPrint,
   picker,
   publishSwitch,
+  printedHint,
   hint,
   canPrint,
 }: {
@@ -609,6 +633,7 @@ function Hero({
   onPrint: () => void;
   picker: React.ReactNode;
   publishSwitch: React.ReactNode;
+  printedHint: React.ReactNode;
   hint: boolean;
   canPrint: boolean;
 }) {
@@ -640,6 +665,7 @@ function Hero({
             <PrintControls
               picker={picker}
               publishSwitch={publishSwitch}
+              printedHint={printedHint}
               hint={hint}
               busy={busy}
               canPrint={canPrint}
@@ -656,6 +682,7 @@ function Hero({
 function PrintControls({
   picker,
   publishSwitch,
+  printedHint,
   hint,
   busy,
   canPrint,
@@ -664,6 +691,7 @@ function PrintControls({
 }: {
   picker: React.ReactNode;
   publishSwitch: React.ReactNode;
+  printedHint: React.ReactNode;
   hint: boolean;
   busy: boolean;
   canPrint: boolean;
@@ -678,6 +706,7 @@ function PrintControls({
           Name a model to print, e.g. llama3.3
         </p>
       )}
+      {printedHint}
       <Button
         size="lg"
         className="w-full"
@@ -689,6 +718,27 @@ function PrintControls({
         {again ? "Print" : "Print today's paper"}
       </Button>
       {publishSwitch}
+    </div>
+  );
+}
+
+/** Today's paper exists already: say so above Print, with the way to read it. Print stays on. */
+function PrintedTodayHint({ printedAt, onOpen }: { printedAt?: number; onOpen: () => void }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="front-page-printed-today">
+      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <span className="min-w-0 flex-1">
+        Already printed today{printedAt !== undefined ? `, ${formatClock(printedAt * 1000)}` : ""}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 px-2"
+        onClick={onOpen}
+        data-testid="front-page-printed-today-open"
+      >
+        Open
+      </Button>
     </div>
   );
 }
