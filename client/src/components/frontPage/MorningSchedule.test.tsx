@@ -171,6 +171,27 @@ describe("what it says", () => {
     expect(screen.getByTestId("front-page-schedule-panel")).toHaveTextContent("0 6,18 * * *");
   });
 
+  it("shows a simple time with a missing or unknown zone read-only, as written, never in the editor", () => {
+    for (const cronTag of [
+      ["cron", "0 6 * * 1-5"],
+      ["cron", "0 6 * * 1-5", ""],
+      ["cron", "0 6 * * 1-5", "Nowhere/Town"],
+    ]) {
+      const doc: TaskTags = { public: [], private: [["task", "observer"], cronTag] };
+      state = { ...ready("0 6 * * 1-5"), doc, schedule: readTask(doc) };
+      const { unmount } = render(<MorningSchedule />);
+      const status = screen.getByTestId("front-page-schedule-status");
+      expect(status).toHaveTextContent("On a schedule this app can't read");
+      expect(screen.getByTestId("front-page-schedule-cron")).toHaveTextContent("0 6 * * 1-5");
+      expect(screen.getByTestId("front-page-schedule-edit")).toHaveTextContent("Details");
+      fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
+      expect(screen.queryByTestId("front-page-schedule-editor")).toBeNull();
+      expect(screen.getByTestId("front-page-schedule-panel")).toHaveTextContent("with no time zone this app knows");
+      expect(screen.getByTestId("front-page-schedule-panel")).toHaveTextContent("Set in another app");
+      unmount();
+    }
+  });
+
   it("shows an expression it can't say as written, whole", () => {
     state = ready("0 6 1-7 * 1");
     render(<MorningSchedule />);

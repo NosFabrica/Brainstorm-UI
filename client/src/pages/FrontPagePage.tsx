@@ -59,8 +59,9 @@ import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
 import { accountKey, tabKey } from "@/lib/accountStorage";
 import { withPaperCsp } from "@/lib/frontPage/validate";
-import { printedToday, type PrintedEdition } from "@/lib/frontPage/observerSchedule";
-import { formatClock } from "@/lib/scheduledTasks";
+import { printedToday, printedTodayZone, type PrintedEdition } from "@/lib/frontPage/observerSchedule";
+import { browserTimeZone, formatClock } from "@/lib/scheduledTasks";
+import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule } from "@/components/frontPage/MorningSchedule";
 import { useNow } from "@/hooks/useNow";
 import { onAppResume } from "@/lib/appResume";
@@ -293,14 +294,19 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
 
   const sessionDay = page ? utcDay(page.printedAt) : null;
   // A paper already printed today (here, on another device, by Amethyst's schedule): a
-  // hint beside Print, never a block on it. The spec's rule for a scheduled print.
-  // `now` ticks each minute (paused while hidden): the hint lapses when its 20 hours do.
+  // hint beside Print, never a block on it. The spec's rule for a scheduled print: today
+  // is a calendar day in the schedule's zone when there is one this account can read,
+  // else in the viewer's. The schedule's read is shared with the card (one ask, one
+  // decrypt). `now` ticks each minute (paused while hidden): the hint lapses at midnight.
   const now = useNow(60_000);
+  const scheduleState = useObserverSchedule();
+  const syncedSchedule = scheduleState.status === "ready" ? scheduleState.schedule : null;
+  const todayZone = printedTodayZone(syncedSchedule, browserTimeZone());
   const todays = useMemo(() => {
     const editions: PrintedEdition[] = [...(site?.editions ?? [])];
     if (page) editions.push({ day: utcDay(page.printedAt), printedAt: Math.floor(page.printedAt / 1000) });
-    return printedToday(editions, now);
-  }, [site, page, now]);
+    return printedToday(editions, now, todayZone);
+  }, [site, page, now, todayZone]);
   const days = useMemo(() => {
     const all = new Set<string>(site?.editions.map((e) => e.day) ?? []);
     if (sessionDay) all.add(sessionDay);

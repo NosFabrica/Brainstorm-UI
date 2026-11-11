@@ -23,7 +23,7 @@ import { publishUntilEnough } from "@/lib/publishQuorum";
 import { beats, requestNewestWithReach } from "@/lib/relayRequest";
 import { dedupeRelays, loadRelayList, outboxRelays } from "@/lib/relayRouting";
 import { OBSERVER_TASK, SCHEDULE_D, SCHEDULE_KIND, emptyObserverSchedule } from "@/lib/frontPage/observerSchedule";
-import { withTaskName, type TaskTags } from "@/lib/scheduledTasks";
+import { withTaskName, withoutPublicClient, type TaskTags } from "@/lib/scheduledTasks";
 import { decodePrivateTags } from "@/lib/agentKeys";
 import {
   activeAccount,
@@ -156,7 +156,8 @@ async function writeRelaysOf(pubkey: string): Promise<string[] | null> {
  * it was, on its side (public or private). Fails, writing nothing, without write relays,
  * when half or fewer of them answered the read, when the newest copy can't be read, or
  * when `change` refuses (it throws on a time that isn't one); and fails when half or fewer
- * took the write. `claim` and `ran` are only ever carried over.
+ * took the write. `claim` and `ran` are only ever carried over; a public `client` tag is
+ * the one tag dropped.
  */
 export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
   const account = activeAccount();
@@ -196,8 +197,9 @@ export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags
 
     let next: TaskTags;
     try {
-      // `task` is required: a copy that lost it gets the one its `d` fixes.
-      next = withTaskName(change(doc), OBSERVER_TASK);
+      // `task` is required: a copy that lost it gets the one its `d` fixes. A public
+      // `client` tag (Amethyst used to add one) is dropped: NIP-FB forbids it.
+      next = withoutPublicClient(withTaskName(change(doc), OBSERVER_TASK));
     } catch (err) {
       return { success: false, error: err instanceof RangeError ? err.message : "That change can't be made." };
     }
@@ -207,7 +209,7 @@ export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags
     if (!ciphertext) return { success: false, error: "Could not encrypt" };
 
     const now = Math.floor(Date.now() / 1000);
-    // `d`, then the public tags as they were (`signAs` adds no client tag to this kind).
+    // `d`, then the public tags as they were, less any `client` (`signAs` adds none to this kind).
     const signed = await signAs(account, {
       kind: SCHEDULE_KIND,
       tags: [["d", SCHEDULE_D], ...next.public],

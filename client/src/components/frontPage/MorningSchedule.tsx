@@ -417,7 +417,7 @@ function ScheduleDetails({ schedule, now, onDone }: { schedule: ScheduledTask; n
       {schedule.cron && (
         <p>
           Written as <Raw cron={schedule.cron} />
-          {schedule.tz ? <> in {schedule.tz}</> : null}
+          {schedule.tz ? <> in {schedule.tz}</> : <>, with no time zone this app knows</>}
         </p>
       )}
       {next !== null && <p>Next: {formatNext(next, now)}</p>}

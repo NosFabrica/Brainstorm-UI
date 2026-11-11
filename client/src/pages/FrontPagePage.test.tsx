@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
+import { readTask } from "@/lib/scheduledTasks";
 import FrontPagePage from "./FrontPagePage";
 
 const state = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const state = vi.hoisted(() => ({
   site: { event: null, index: { v: 1, title: "", editions: [] }, servers: [], relays: [] } as Record<string, unknown>,
   publish: vi.fn(),
   fetchBlob: vi.fn(),
+  schedule: { status: "none" } as Record<string, unknown>,
 }));
 
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
@@ -27,7 +29,9 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 }));
 vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ ...state.keys, reveal: vi.fn() }) }));
 // The morning schedule card has its own tests (lib/scheduledTasks, services/observerSchedule).
-vi.mock("@/hooks/useObserverSchedule", () => ({ useObserverSchedule: () => ({ status: "none", reveal: vi.fn() }) }));
+vi.mock("@/hooks/useObserverSchedule", () => ({
+  useObserverSchedule: () => ({ reveal: vi.fn(), refresh: vi.fn(), checkedAt: null, ...state.schedule }),
+}));
 vi.mock("@/hooks/useHasMywot", () => ({
   useHasMywot: () => ({ hasMywot: state.hasMywot, taPubkey: "t", known: true, isLoading: false }),
 }));
@@ -80,6 +84,7 @@ describe("FrontPagePage", () => {
       servers: ["https://files.example"],
     });
     state.fetchBlob.mockReset().mockResolvedValue(null);
+    state.schedule = { status: "none" };
   });
 
   it("when the provider lists no models, says what to type before Print is offered", async () => {
@@ -143,7 +148,8 @@ describe("FrontPagePage", () => {
         v: 1,
         title: "",
         editions: [
-          { day, path: `/${day}.html`, sha256: "b".repeat(64), printedAt: Math.floor(Date.now() / 1000) - 7200 },
+          // Printed now: today on any clock, whatever the hour the suite runs at.
+          { day, path: `/${day}.html`, sha256: "b".repeat(64), printedAt: Math.floor(Date.now() / 1000) },
         ],
       },
       servers: ["https://files.example"],
@@ -160,6 +166,48 @@ describe("FrontPagePage", () => {
     fireEvent.click(screen.getByTestId("front-page-printed-today-open"));
     await waitFor(() => expect(screen.queryByTestId("front-page-print-dialog")).toBeNull());
     expect(state.print).not.toHaveBeenCalled();
+  });
+
+  it("reads 'today' on the schedule's clock when there is a readable schedule", async () => {
+    const now = Date.now();
+    // A fixed-offset zone where it is now `hour` o'clock (IANA's Etc/GMT signs are inverted).
+    const zoneAt = (hour: number) => {
+      let offset = hour - new Date(now).getUTCHours();
+      if (offset > 14) offset -= 24;
+      if (offset < -12) offset += 24;
+      return offset === 0 ? "UTC" : offset > 0 ? `Etc/GMT-${offset}` : `Etc/GMT+${-offset}`;
+    };
+    // 23 hours ago: earlier today where it is now 23:xx, yesterday where it is noon.
+    const printedAt = Math.floor(now / 1000) - 23 * 3600;
+    const day = new Date(printedAt * 1000).toISOString().slice(0, 10);
+    state.site = {
+      event: { tags: [] },
+      index: { v: 1, title: "", editions: [{ day, path: `/${day}.html`, sha256: "b".repeat(64), printedAt }] },
+      servers: ["https://files.example"],
+      relays: [],
+    };
+    const scheduleIn = (zone: string) => {
+      const doc = {
+        public: [],
+        private: [
+          ["task", "observer"],
+          ["cron", "0 6 * * *", zone],
+        ],
+      };
+      return { status: "ready", doc, schedule: readTask(doc), eventId: "e1", createdAt: 1 };
+    };
+
+    state.schedule = scheduleIn(zoneAt(23));
+    const late = renderWithProviders(<FrontPagePage />);
+    fireEvent.click(await screen.findByTestId("front-page-print-again"));
+    expect(await screen.findByTestId("front-page-printed-today")).toHaveTextContent("Already printed today");
+    late.unmount();
+
+    state.schedule = scheduleIn(zoneAt(12));
+    renderWithProviders(<FrontPagePage />);
+    fireEvent.click(await screen.findByTestId("front-page-print-again"));
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    expect(screen.queryByTestId("front-page-printed-today")).toBeNull();
   });
 
   it("a returning reader prints again from a dialog, and reads full screen", async () => {

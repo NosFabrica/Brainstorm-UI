@@ -54,7 +54,10 @@ export interface ScheduledTask {
   enabled: boolean;
   /** The expression as written, readable or not (`parseCron` says which); null when absent. */
   cron: string | null;
-  /** The `cron` tag's zone, when this browser knows it; null otherwise. */
+  /**
+   * The `cron` tag's zone, when this browser knows it; null otherwise. NIP-FB: a `cron`
+   * with no zone, or one that isn't an IANA zone, is unreadable (`taskStatus`).
+   */
   tz: string | null;
   /**
    * Unix seconds `cron` was last set (its fourth value; 0 when absent). Changing `cron` or
@@ -72,9 +75,12 @@ export function emptyTask(task: string): TaskTags {
   return { public: [], private: [["task", task], ["paused"]] };
 }
 
-/** Whether this browser knows `tz` as a time zone. */
+/**
+ * Whether `tz` is an IANA zone this browser knows. Newer engines also take a UTC offset
+ * (`+05:00`) as a zone and older ones throw on it; it isn't an IANA name, so it never is.
+ */
 export function isValidTimeZone(tz: string): boolean {
-  if (!tz) return false;
+  if (!tz || /^[+-]/.test(tz)) return false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
     return true;
@@ -531,6 +537,17 @@ export function setSimpleSchedule(tags: TaskTags, simple: LocalSimple, tz: strin
   );
 }
 
+/**
+ * NIP-FB: the event carries no public `client` tag (it would say which app the user
+ * schedules with to anyone who looks). Amethyst used to add one; a rewrite drops it. A
+ * private one stays: nobody else can read it.
+ */
+export function withoutPublicClient(tags: TaskTags): TaskTags {
+  return tags.public.some((t) => t[0] === "client")
+    ? { public: tags.public.filter((t) => t[0] !== "client"), private: tags.private }
+    : tags;
+}
+
 /** The task named, when no `task` tag says what it is (NIP-FB requires one). */
 export function withTaskName(tags: TaskTags, task: string): TaskTags {
   return first(tags, "task")?.[1] ? tags : putTag(tags, "task", () => ["task", task]);
@@ -552,9 +569,12 @@ export function lastRun(task: ScheduledTask): { at: number; by: string | null } 
 export type TaskStatus =
   /** Turned off. */
   | "off"
-  /** On, but no `cron` or no usable `tz`. */
+  /** On, but no `cron`. */
   | "no-schedule"
-  /** `cron` is there but isn't an expression NIP-FB defines: shown as it is, never run. */
+  /**
+   * `cron` is there but isn't an expression NIP-FB defines, or its zone is missing or
+   * isn't an IANA zone: shown as it is, never run, never edited as a simple schedule.
+   */
   | "unreadable-schedule"
   /** A valid expression that never matches a real date (`0 6 31 2 *`). */
   | "never"
@@ -563,8 +583,8 @@ export type TaskStatus =
 /** Why the task does or doesn't run, first reason only. */
 export function taskStatus(task: ScheduledTask, now: number): TaskStatus {
   if (!task.enabled) return "off";
-  if (task.cron === null || !task.tz) return "no-schedule";
-  if (!parseCron(task.cron)) return "unreadable-schedule";
+  if (task.cron === null) return "no-schedule";
+  if (!task.tz || !parseCron(task.cron)) return "unreadable-schedule";
   if (nextCronAt(task.cron, task.tz, now) === null) return "never";
   return "scheduled";
 }
@@ -641,6 +661,12 @@ export function formatTimeOfDay(time: string | { hh: number; mm: number }, local
 /** `Thu 6:00 AM`: an instant within the week ahead, in the viewer's zone unless `tz` is given. */
 export function formatWhen(instant: number, tz?: string, locale?: string): string {
   return dtf(locale, { weekday: "short", hour: "numeric", minute: "2-digit", ...zoned(tz) }).format(new Date(instant));
+}
+
+/** The calendar date of `instant` in `zone`: `YYYY-MM-DD`. */
+export function dateIn(instant: number, zone: string): string {
+  const w = wallClock(instant, zone);
+  return `${String(w.y).padStart(4, "0")}-${String(w.m).padStart(2, "0")}-${String(w.d).padStart(2, "0")}`;
 }
 
 /** The calendar day of `instant` in `zone`, as days since 1970. */

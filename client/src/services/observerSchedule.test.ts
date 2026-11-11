@@ -234,6 +234,25 @@ describe("editing", () => {
     expect(decrypted()).toEqual([["task", "observer"], ["claim", "1794398400", "3f1c", "Desktop (Linux)"], ["paused"]]);
   });
 
+  it("drops a public client tag Amethyst used to add, and keeps the rest where it was", async () => {
+    const before = scheduleEvent(amethystPrivate, 2_000_000_000, [
+      ["d", "observer"],
+      ["client", "Amethyst"],
+      ["future", "x"],
+    ]);
+    requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });
+
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+
+    expect(res.success).toBe(true);
+    expect(published().tags).toEqual([
+      ["d", "observer"],
+      ["future", "x"],
+    ]);
+    expect(decrypted()).toEqual([...amethystPrivate, ["paused"]]);
+    expect(res.doc?.public).toEqual([["future", "x"]]);
+  });
+
   it("reads an event with no private part, and names the task if no tag does", async () => {
     const bare = finalizeEvent(
       {

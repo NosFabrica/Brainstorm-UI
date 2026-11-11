@@ -27,6 +27,8 @@ import {
   runsBeforeNoon,
   zoneLabel,
   withTaskName,
+  withoutPublicClient,
+  dateIn,
   type TaskTags,
 } from "./scheduledTasks";
 
@@ -144,6 +146,25 @@ describe("tags, public and private", () => {
     setEnabled(setSimpleSchedule(mixed, { time: "08:00", days: ["mon"] }, "UTC", WED), false, WED);
     setEnabled({ public: mixed.public, private: [...mixed.private, ["paused"]] }, true, WED);
     expect(JSON.stringify(mixed)).toBe(before);
+  });
+
+  it("drops a public client tag, and only that", () => {
+    const amethyst: TaskTags = {
+      public: [
+        ["cron", "0 6 * * *", "UTC"],
+        ["client", "Amethyst"],
+      ],
+      private: [
+        ["task", "observer"],
+        ["client", "kept: nobody else reads it"],
+      ],
+    };
+    expect(withoutPublicClient(amethyst)).toEqual({
+      public: [["cron", "0 6 * * *", "UTC"]],
+      private: amethyst.private,
+    });
+    const clean = { public: [["cron", "0 6 * * *", "UTC"]], private: [] };
+    expect(withoutPublicClient(clean)).toBe(clean);
   });
 
   it("starts a new task named and paused", () => {
@@ -380,9 +401,35 @@ describe("claim and status", () => {
     expect(status({ claim: undefined, ran: undefined })).toBe("scheduled");
     expect(status({ enabled: false })).toBe("off");
     expect(status({ cron: undefined })).toBe("no-schedule");
-    expect(status({ tz: "Nowhere/Town" })).toBe("no-schedule");
     expect(status({ cron: "0 6 * * MON" })).toBe("unreadable-schedule");
     expect(status({ cron: "0 6 30 2 *" })).toBe("never");
+  });
+
+  it("reads a cron with a missing or unknown zone as unreadable (NIP-FB), never as a schedule to run or edit", () => {
+    const missing = readTask({
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["cron", "0 6 * * 1-5"],
+      ],
+    });
+    const empty = readTask(fixture({ tz: "" }));
+    // Intl throws on these: not IANA zones.
+    const unknown = readTask(fixture({ tz: "Nowhere/Town" }));
+    const junk = readTask(fixture({ tz: "+05:00" }));
+    for (const task of [missing, empty, unknown, junk]) {
+      expect(task.cron).toBe("0 6 * * 1-5");
+      expect(task.tz).toBeNull();
+      expect(taskStatus(task, WED)).toBe("unreadable-schedule");
+      expect(nextRunAt(task, WED)).toBeNull();
+      expect(lastDue(task, WED)).toBeNull();
+      expect(missedRun({ ...task, ran: 1 }, WED)).toBeNull();
+      // Not a time and weekdays to edit, though the expression alone would be one.
+      expect(localSimple(task, "America/New_York", WED)).toBeNull();
+      expect(localSimple(task, "UTC", WED)).toBeNull();
+    }
+    // Paused, it is off first; the zone is still not one.
+    expect(taskStatus(readTask(fixture({ tz: "Nowhere/Town", enabled: false })), WED)).toBe("off");
   });
 
   it("runs next on the next weekday, and not at all when it is off", () => {
@@ -393,6 +440,13 @@ describe("claim and status", () => {
 });
 
 describe("display", () => {
+  it("names an instant's calendar date in a zone", () => {
+    const at = Date.UTC(2026, 10, 11, 2, 0);
+    expect(dateIn(at, "UTC")).toBe("2026-11-11");
+    expect(dateIn(at, "America/New_York")).toBe("2026-11-10");
+    expect(dateIn(at, "Asia/Tokyo")).toBe("2026-11-11");
+  });
+
   it("shows an instant on the viewer's clock", () => {
     const at = nextCronAt("0 6 * * *", "America/New_York", WED)!;
     expect(wallTime(at, "Europe/Lisbon")).toBe("11:00");
