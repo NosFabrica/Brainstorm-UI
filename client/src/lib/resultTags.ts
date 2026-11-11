@@ -1,4 +1,4 @@
-import type { Members, SearchHit } from "@/services/search";
+import type { SearchHit } from "@/services/search";
 
 /** A tag some of a search's results carry: what a tag filter offers. */
 export interface ResultTag {
@@ -72,29 +72,11 @@ export function gatherTags(
   return { tags: ordered, byHit };
 }
 
-/**
- * The rows among `hits` known to carry the tag `key`, as a search is narrowed to them: a profile
- * by its person, anything else by id. What a pressed tag adds to its lists' members, so a row the
- * page showed carrying it stays — one on a kind no list is kept for, or tagged since the lists
- * were made.
- */
+/** The rows among `hits` known to carry the tag `key`: what a pressed tag keeps of the page it was pressed on. */
 export function carriersOf(
   hits: readonly SearchHit[],
   byHit: ReadonlyMap<string, ReadonlySet<string>>,
   key: string,
-): Members {
-  const pubkeys: string[] = [];
-  const ids: string[] = [];
-  for (const h of hits) {
-    if (!byHit.get(h.event.id)?.has(key)) continue;
-    if (h.event.kind === 0) pubkeys.push(h.event.pubkey);
-    else ids.push(h.event.id);
-  }
-  return { pubkeys, ids, addresses: [] };
-}
-
-/** Both, each once. */
-export function joinMembers(a: Members, b: Members): Members {
-  const join = (x: string[], y: string[]) => [...new Set([...x, ...y])];
-  return { pubkeys: join(a.pubkeys, b.pubkeys), ids: join(a.ids, b.ids), addresses: join(a.addresses, b.addresses) };
+): SearchHit[] {
+  return hits.filter((h) => byHit.get(h.event.id)?.has(key));
 }

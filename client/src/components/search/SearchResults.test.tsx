@@ -5874,17 +5874,13 @@ describe("All's tag filters", () => {
     expect(tagMembersMock).toHaveBeenCalledWith({ key: stoicism.key, name: "Stoicism" });
     await waitFor(() => expect(allStreams.length).toBeGreaterThan(asked));
     const narrowed = allStreams[allStreams.length - 1].params as { members?: unknown };
-    // The lists' members, and the loaded rows that carried it when pressed.
-    expect(narrowed.members).toEqual({
-      pubkeys: [PERSON],
-      ids: ["9".repeat(64), note.event.id, article.event.id],
-      addresses: [PLACE],
-    });
-    // The relay's answer is the tag's: not thinned again by what the loaded rows were tagged.
+    expect(narrowed.members).toEqual({ pubkeys: [PERSON], ids: ["9".repeat(64)], addresses: [PLACE] });
+    // The relay's answer is the tag's, not thinned again by what the loaded rows were tagged — and
+    // the loaded rows that carried it stay, though the relay sent only one of them again.
     const place = row("4", 39999, [["d", "cafe"]]);
     emit({ hits: [place, note], eose: true, exhausted: true });
-    await waitFor(() => expect(resultRows()).toBe(2));
-    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^2 results tagged Stoicism$/);
+    await waitFor(() => expect(resultRows()).toBe(3));
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^3 results tagged Stoicism$/);
 
     // Let go, All's own search again.
     fireEvent.click(screen.getByTestId("tag-facet-stoicism"));

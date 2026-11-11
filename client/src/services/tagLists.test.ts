@@ -11,6 +11,30 @@ vi.mock("@/services/searchTags", () => ({
 }));
 const HOUSE = "be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a";
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => HOUSE }));
+// This deployment's server, and what it says signs the house's lists here: nobody, unless a test says.
+const STAGING_KEY = "8ddfd518".padEnd(64, "0");
+const server = vi.hoisted(() => ({ rows: [] as string[][], asked: [] as string[] }));
+vi.mock("@/services/api/core", () => ({
+  getBrainstormApi: () => "https://api.test",
+  fetch: async (url: string) => {
+    server.asked.push(url);
+    return { ok: true, json: async () => server.rows };
+  },
+}));
+// The search relay asked unranked, by signer: what it was asked, and what it sends.
+const unranked = vi.hoisted(() => ({ asked: [] as Record<string, unknown>[], answer: [] as unknown[] }));
+vi.mock("@/lib/searchRelay", () => ({
+  searchRelay: () => ({
+    req: (filter: Record<string, unknown>) => ({
+      subscribe: (o: { next: (m: unknown) => void }) => {
+        unranked.asked.push(filter);
+        for (const event of unranked.answer) o.next({ type: "EVENT", event });
+        o.next({ type: "EOSE" });
+        return { unsubscribe() {} };
+      },
+    }),
+  }),
+}));
 
 import { fetchTagLists, forgetTagLists, membersOf, mergePerspectives, tagListsFromHits, tagNameOf } from "./tagLists";
 
@@ -82,6 +106,10 @@ const notes = (observer = HOUSE) =>
 beforeEach(() => {
   relay.asked = [];
   relay.answer = [];
+  server.rows = [];
+  server.asked = [];
+  unranked.asked = [];
+  unranked.answer = [];
   forgetTagLists();
 });
 
@@ -138,6 +166,27 @@ describe("fetchTagLists", () => {
     await fetchTagLists("Verified Human ", { pov: "nosfabrica" });
     expect(relay.asked).toEqual([{ pov: "nosfabrica", kinds: [30392, 30393, 30394] }]);
     expect(lists.map((l) => l.title)).toEqual(["Verified Human", "Verified Human GitHub Accounts"]);
+  });
+
+  it("reads the house's lists this deployment's server signed, which the house's 10040 doesn't name", async () => {
+    server.rows = [
+      ["30382:rank", STAGING_KEY, "wss://nip85-staging"],
+      ["30393", STAGING_KEY, "wss://nip85-staging"],
+    ];
+    relay.answer = [people()];
+    unranked.answer = [accounts().event, notes(READER).event];
+    const lists = await fetchTagLists("verified human", { pov: "nosfabrica" });
+    expect(server.asked).toEqual([`https://api.test/setup/${HOUSE}`]);
+    expect(unranked.asked).toEqual([
+      { kinds: [30392, 30393, 30394], authors: [STAGING_KEY], search: "verified human include:spam", limit: 40 },
+    ]);
+    // Only the house's: a list it signed for someone else isn't the house's.
+    expect(lists.map((l) => l.title)).toEqual(["Verified Human", "Verified Human GitHub Accounts"]);
+  });
+
+  it("asks nothing unranked when the server names no signer", async () => {
+    await fetchTagLists("verified human", { pov: "nosfabrica" });
+    expect(unranked.asked).toEqual([]);
   });
 
   it("through the reader's own perspective, asks theirs beside the house's", async () => {

@@ -47,7 +47,6 @@ import {
   isKindlessTab,
   searchStream,
   TAB_KINDS,
-  type Members,
   type SearchHit,
   type SearchPov,
   type SearchSnapshot,
@@ -111,7 +110,7 @@ import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
 import { useNamedTags } from "@/hooks/useNamedTags";
 import { useTagMembers } from "@/hooks/useTagMembers";
-import { carriersOf, joinMembers } from "@/lib/resultTags";
+import { carriersOf } from "@/lib/resultTags";
 import { TagTabResults } from "@/components/search/TagTabResults";
 import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
@@ -1318,14 +1317,14 @@ export function SearchResults({
   });
   const category = onAll && openCategory?.query === effectiveQuery ? openCategory.category : null;
   // A pressed tag narrows All to what carries it: the search asked again of the tag's Trusted Lists'
-  // members (hooks/useTagMembers), with the loaded rows it was pressed on that carry it, so none of
-  // those goes. The link holds it (`tagged`), for the words it was pressed on, as it holds a
-  // category; a category pressed keeps it.
+  // members (hooks/useTagMembers), shown with the loaded rows it was pressed on that carry it, so
+  // none of those goes. The link holds it (`tagged`), for the words it was pressed on, as it holds
+  // a category; a category pressed keeps it.
   const [tagPressed, setTagPressed] = useState<{
     query: string;
     key: string;
     name?: string;
-    carriers?: Members;
+    carriers?: SearchHit[];
   } | null>(() => {
     const key = urlTagged();
     return key ? { query: effectiveQuery, key } : null;
@@ -1338,7 +1337,7 @@ export function SearchResults({
     });
   }, [effectiveQuery]);
   const pressTag = useCallback(
-    (tag: { key: string; name: string; carriers: Members } | null) => {
+    (tag: { key: string; name: string; carriers: SearchHit[] } | null) => {
       setTagPressed(tag ? { query: effectiveQuery, ...tag } : null);
       writeTaggedToUrl(tag?.key ?? null);
     },
@@ -1352,12 +1351,9 @@ export function SearchResults({
       : null,
     { pov, userPubkey },
   );
-  const tagCarriers = tagPressed?.carriers;
-  const narrowTo = useMemo(
-    () => (tagMembers.members && tagCarriers ? joinMembers(tagMembers.members, tagCarriers) : tagMembers.members),
-    [tagMembers.members, tagCarriers],
-  );
+  const narrowTo = tagMembers.members;
   const narrowKey = tagFilter && narrowTo ? tagFilter : null;
+  const tagCarriers = tagFilter ? tagPressed?.carriers : undefined;
   // Which tag the stream's rows were asked for, set beside them: until the narrowed answer is in,
   // the rows on hand are All's, which the tag thins.
   const [streamTag, setStreamTag] = useState<string | null>(null);
@@ -1588,7 +1584,13 @@ export function SearchResults({
   // profiles' handles belong to (hooks/useHandlePointers), asked of every People hit before the floor.
   const pointers = useHandlePointers(tab === "people" ? (snapshot?.hits ?? []) : []);
   const rawHits = useMemo(() => {
-    const base = snapshot?.hits ?? [];
+    const sent = snapshot?.hits ?? [];
+    // A pressed tag's own answer keeps the rows the page showed carrying it: the relay may have
+    // found those through a list whose title holds the words ("verified" finds Verified Human's
+    // people), which the narrowed ask doesn't match again.
+    const kept = streamTag && streamTag === tagFilter && tagCarriers?.length ? tagCarriers : null;
+    const sentIds = kept ? new Set(sent.map((h) => h.event.id)) : null;
+    const base = kept ? [...sent, ...kept.filter((h) => !sentIds!.has(h.event.id))] : sent;
     // A listing is for sale or it is not a result: sold, hidden and priceless
     // never count, so the count line and the cards agree.
     // One product, one card: a seller's same-title copies from two apps fold
@@ -1625,7 +1627,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits]);
+  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits, streamTag, tagFilter, tagCarriers]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared

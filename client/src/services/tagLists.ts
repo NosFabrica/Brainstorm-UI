@@ -18,7 +18,17 @@
 //
 // Which perspective: the reader's own lists of a tag, when they have any; otherwise the house's,
 // asked beside theirs (services/searchTags does the same for people).
+//
+// Whose lists count: asked through a perspective, the relay keeps the lists signed by the keys
+// that perspective's kind-10040 names. The house's 10040 names the production server's assistant,
+// so lists a staging server builds for the house never pass. The house's lists are therefore also
+// asked unranked, from the assistant THIS deployment's server signs them with (its `/setup` rows),
+// and the observer each names is checked here as the relay would. In production that is the key
+// the 10040 already names, and the answer is the same lists again.
 
+import type { NostrEvent } from "nostr-tools";
+import { searchRelay } from "@/lib/searchRelay";
+import { fetch, getBrainstormApi } from "@/services/api/core";
 import type { Members, SearchHit } from "@/services/search";
 import { collect, type Lens } from "@/services/searchTags";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -140,10 +150,78 @@ export function tagNameOf(lists: readonly TagList[]): string {
 }
 
 const memo = new Map<string, Promise<TagList[]>>();
+const signers = new Map<string, Promise<string | null>>();
 
 /** Test seam: forget every answer. */
 export function forgetTagLists(): void {
   memo.clear();
+  signers.clear();
+}
+
+const HEX64 = /^[0-9a-f]{64}$/i;
+const ASK_MS = 4000;
+
+/**
+ * Who this deployment's server signs `observer`'s Trusted Lists as: its `/setup` row for them. Null if it
+ * won't say. Asked without a session: it needs none, and a reader who isn't signed in is most readers.
+ */
+function signerHere(observer: string): Promise<string | null> {
+  let pending = signers.get(observer);
+  if (!pending) {
+    pending = fetch(`${getBrainstormApi()}/setup/${observer}`, { signal: AbortSignal.timeout(ASK_MS) })
+      .then((response) => (response.ok ? (response.json() as Promise<unknown>) : []))
+      .then((rows) => {
+        if (!Array.isArray(rows)) return null;
+        const row = (rows as unknown[]).find(
+          (r): r is string[] => Array.isArray(r) && TAG_LIST_KINDS.map(String).includes(r[0]),
+        );
+        const key = row?.[1];
+        return key && HEX64.test(key) ? key : null;
+      })
+      .catch(() => null);
+    signers.set(observer, pending);
+  }
+  return pending;
+}
+
+/** The tag lists one key signed whose titles hold `words`, unranked: every observer's, for the caller to keep its own. */
+function listsSignedBy(words: string, signer: string): Promise<SearchHit[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const found: NostrEvent[] = [];
+    let done = false;
+    let sub: { unsubscribe(): void } | undefined;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub?.unsubscribe();
+      resolve(found.map((event) => ({ event, author: null, rank: null })));
+    };
+    const timer = setTimeout(finish, ASK_MS);
+    sub = relay
+      .req({ kinds: TAG_LIST_KINDS, authors: [signer], search: `${words} include:spam`, limit: LISTS_LIMIT })
+      .subscribe({
+        next: (msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) found.push(msg.event);
+          else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+        },
+        error: finish,
+      });
+    if (done) sub.unsubscribe();
+  });
+}
+
+/** The house's lists: those its 10040 names a signer for, and those this deployment's server built for it. */
+async function houseLists(words: string): Promise<TagList[]> {
+  const house = await resolveHouseObserver();
+  if (!house) return [];
+  const [ranked, builtHere] = await Promise.all([
+    collect(words, { pov: "nosfabrica" }, TAG_LIST_KINDS, LISTS_LIMIT),
+    signerHere(house).then((signer) => (signer ? listsSignedBy(words, signer) : [])),
+  ]);
+  return tagListsFromHits([...ranked, ...builtHere], house);
 }
 
 /**
@@ -165,15 +243,11 @@ export function fetchTagLists(words: string, lens: Lens): Promise<TagList[]> {
 }
 
 async function ask(words: string, own: string | null, lens: Lens): Promise<TagList[]> {
-  const [houseObserver, ownHits, houseHits] = await Promise.all([
-    resolveHouseObserver(),
+  const [ownHits, houses] = await Promise.all([
     own ? collect(words, lens, TAG_LIST_KINDS, LISTS_LIMIT) : Promise.resolve([]),
-    collect(words, { pov: "nosfabrica" }, TAG_LIST_KINDS, LISTS_LIMIT),
+    houseLists(words),
   ]);
-  return mergePerspectives(
-    own ? tagListsFromHits(ownHits, own) : [],
-    houseObserver ? tagListsFromHits(houseHits, houseObserver) : [],
-  );
+  return mergePerspectives(own ? tagListsFromHits(ownHits, own) : [], houses);
 }
 
 /** Everything `lists` say carries the tag `tagKey`, best first by kind of thing; null when none is the tag's. */

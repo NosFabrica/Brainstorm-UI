@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { carriersOf, gatherTags, joinMembers, tagTargets, targetsOf, type ResultTag } from "./resultTags";
+import { carriersOf, gatherTags, tagTargets, targetsOf, type ResultTag } from "./resultTags";
 import type { SearchHit } from "@/services/search";
 
 const PK = "a".repeat(64);
@@ -56,19 +56,13 @@ describe("gatherTags", () => {
 });
 
 describe("carriersOf", () => {
-  it("is the rows carrying the tag: a profile by its person, anything else by id", () => {
+  it("is the rows carrying the tag", () => {
     const byHit = new Map([
       ["p", new Set([`${PK}|stoicism`])],
       ["i", new Set([`${PK}|stoicism`])],
       ["n", new Set([`${PK}|artist`])],
     ]);
     const hits = [hit("p", 0), hit("n", 1), hit("i", 39999, [["d", "x"]])];
-    expect(carriersOf(hits, byHit, `${PK}|stoicism`)).toEqual({ pubkeys: [PK], ids: ["i"], addresses: [] });
-  });
-
-  it("joins two without repeats", () => {
-    expect(
-      joinMembers({ pubkeys: ["a"], ids: ["1"], addresses: [] }, { pubkeys: ["a", "b"], ids: [], addresses: ["c"] }),
-    ).toEqual({ pubkeys: ["a", "b"], ids: ["1"], addresses: ["c"] });
+    expect(carriersOf(hits, byHit, `${PK}|stoicism`).map((h) => h.event.id)).toEqual(["p", "i"]);
   });
 });
