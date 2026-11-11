@@ -85,6 +85,13 @@ describe("signing as an account", () => {
     }
   });
 
+  it("leaves a NIP-FB scheduled task with its `d` alone: no other public tag is allowed", async () => {
+    const account = signableAccount();
+
+    const event = await signAs(account, { kind: 34817, tags: [["d", "observer"]], content: "x" });
+    expect(event.tags).toEqual([["d", "observer"]]);
+  });
+
   it("defaults created_at to now, and lets a caller pin it", async () => {
     const account = signableAccount();
 

@@ -139,6 +139,7 @@ export const SIGNED_KINDS = [
   24242, // Blossom upload auth
   27235, // NIP-98 HTTP auth
   30078, // NIP-78 app data
+  34817, // NIP-FB scheduled task (the Observer's morning paper)
 ];
 
 /**
