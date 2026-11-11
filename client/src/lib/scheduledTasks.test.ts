@@ -93,6 +93,7 @@ describe("tags, public and private", () => {
       enabled: true,
       cron: "0 6 * * *",
       tz: "America/New_York",
+      writtenTz: "America/New_York",
       setAt: 1794300000,
       claim: { due: 1794398400, id: "3f1c9a0e5b7d4c21", by: "Desktop (Linux)", at: null },
       ran: 1794398520,
@@ -174,6 +175,7 @@ describe("tags, public and private", () => {
       enabled: false,
       cron: null,
       tz: null,
+      writtenTz: null,
       setAt: 0,
       claim: null,
       ran: null,
@@ -190,15 +192,18 @@ describe("tags, public and private", () => {
       enabled: true,
       cron: null,
       tz: null,
+      writtenTz: null,
       setAt: 0,
       claim: null,
       ran: null,
     });
     expect(setEnabled(odd, false, WED).private).toEqual([...odd.private, ["paused"]]);
-    // A zone this browser doesn't know: the expression is read, the zone isn't.
+    // A zone this browser doesn't know: the expression is read, the zone isn't, and what
+    // was written is kept for showing.
     expect(readTask({ public: [], private: [["cron", "0 6 * * *", "Mars/Olympus"]] })).toMatchObject({
       cron: "0 6 * * *",
       tz: null,
+      writtenTz: "Mars/Olympus",
     });
   });
 });
@@ -418,6 +423,7 @@ describe("claim and status", () => {
     // Intl throws on these: not IANA zones.
     const unknown = readTask(fixture({ tz: "Nowhere/Town" }));
     const junk = readTask(fixture({ tz: "+05:00" }));
+    expect([missing, empty, unknown, junk].map((t) => t.writtenTz)).toEqual([null, null, "Nowhere/Town", "+05:00"]);
     for (const task of [missing, empty, unknown, junk]) {
       expect(task.cron).toBe("0 6 * * 1-5");
       expect(task.tz).toBeNull();

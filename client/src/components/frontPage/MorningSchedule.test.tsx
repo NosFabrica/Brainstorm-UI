@@ -210,12 +210,13 @@ describe("what it says", () => {
   });
 
   it("shows a simple time with a missing or unknown zone read-only, as written, never in the editor", () => {
-    for (const cronTag of [
-      ["cron", "0 6 * * 1-5"],
-      ["cron", "0 6 * * 1-5", ""],
-      ["cron", "0 6 * * 1-5", "Nowhere/Town"],
-    ]) {
-      const doc: TaskTags = { public: [], private: [["task", "observer"], cronTag] };
+    for (const [cronTag, zoneNote] of [
+      [["cron", "0 6 * * 1-5"], "with no time zone"],
+      [["cron", "0 6 * * 1-5", ""], "with no time zone"],
+      [["cron", "0 6 * * 1-5", "Nowhere/Town"], "in Nowhere/Town, a time zone this app doesn't know"],
+      [["cron", "0 6 * * 1-5", "+05:00"], "in +05:00, a time zone this app doesn't know"],
+    ] as const) {
+      const doc: TaskTags = { public: [], private: [["task", "observer"], [...cronTag]] };
       state = { ...ready("0 6 * * 1-5"), doc, schedule: readTask(doc) };
       const { unmount } = render(<Card />);
       const status = screen.getByTestId("front-page-schedule-status");
@@ -224,7 +225,8 @@ describe("what it says", () => {
       expect(screen.getByTestId("front-page-schedule-edit")).toHaveTextContent("Details");
       fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
       expect(screen.queryByTestId("front-page-schedule-editor")).toBeNull();
-      expect(screen.getByTestId("front-page-schedule-panel")).toHaveTextContent("with no time zone this app knows");
+      // What was written, so the reader can tell a missing zone from a misspelt one.
+      expect(screen.getByTestId("front-page-schedule-panel")).toHaveTextContent(zoneNote);
       expect(screen.getByTestId("front-page-schedule-panel")).toHaveTextContent("Set in another app");
       unmount();
     }

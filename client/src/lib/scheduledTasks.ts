@@ -59,6 +59,8 @@ export interface ScheduledTask {
    * with no zone, or one that isn't an IANA zone, is unreadable (`taskStatus`).
    */
   tz: string | null;
+  /** The `cron` tag's zone as written, known or not; null when absent or blank. For showing, never for timing. */
+  writtenTz: string | null;
   /**
    * Unix seconds `cron` was last set (its fourth value; 0 when absent). Changing `cron` or
    * removing `paused` sets it, and no occurrence due before it is ever reported missed.
@@ -114,6 +116,7 @@ export function readTask(tags: TaskTags): ScheduledTask {
     enabled: !merged(tags).some((t) => t[0] === "paused"),
     cron: typeof cron?.[1] === "string" ? cron[1] : null,
     tz: cron?.[2] && isValidTimeZone(cron[2]) ? cron[2] : null,
+    writtenTz: typeof cron?.[2] === "string" && cron[2].trim() ? cron[2].trim() : null,
     setAt: seconds(cron?.[3]) ?? 0,
     claim: readClaim(first(tags, "claim")),
     ran: seconds(first(tags, "ran")?.[1]),

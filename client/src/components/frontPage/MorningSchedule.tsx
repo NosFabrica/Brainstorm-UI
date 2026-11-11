@@ -419,7 +419,13 @@ function ScheduleDetails({ schedule, now, onDone }: { schedule: ScheduledTask; n
       {schedule.cron && (
         <p>
           Written as <Raw cron={schedule.cron} />
-          {schedule.tz ? <> in {schedule.tz}</> : <>, with no time zone this app knows</>}
+          {schedule.tz ? (
+            <> in {schedule.tz}</>
+          ) : schedule.writtenTz ? (
+            <> in {schedule.writtenTz}, a time zone this app doesn&apos;t know</>
+          ) : (
+            <>, with no time zone</>
+          )}
         </p>
       )}
       {next !== null && <p>Next: {formatNext(next, now)}</p>}
