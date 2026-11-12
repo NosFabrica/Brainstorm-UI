@@ -379,15 +379,18 @@ describe("FrontPagePage", () => {
       observer: "a".repeat(64),
       readerName: "Lira",
     });
-    // Today's paper takes the print view's place: a toolbar with one quiet line of facts.
+    // Today's paper takes the print view's place: a toolbar with the day and its actions, no
+    // line of counts (they are not what the reader came for).
     expect(screen.getByTestId("front-page-today")).toContainElement(frame);
     expect(screen.queryByTestId("front-page-print-view")).toBeNull();
     expect(screen.queryByTestId("front-page-hero")).toBeNull();
-    expect(screen.getByTestId("front-page-facts").textContent).toBe("2 posts · 3 quotes verified · 1 removed");
-    // The edition number, model and what the check removed sit behind the info button.
+    expect(screen.queryByTestId("front-page-facts")).toBeNull();
+    // The counts, edition number, model and what the check removed sit behind the info button.
     expect(screen.queryByText("No. 4F2A9C")).toBeNull();
     fireEvent.click(screen.getByTestId("front-page-info"));
     const info = await screen.findByTestId("front-page-info-panel");
+    expect(info.textContent).toContain("Posts2");
+    expect(info.textContent).toContain("Quotes verified3");
     expect(info.textContent).toContain("No. 4F2A9C");
     expect(info.textContent).toContain("anthropic/claude-sonnet-4.5");
     expect(screen.getByTestId("front-page-changes").textContent).toContain("evil.example");
@@ -403,7 +406,9 @@ describe("FrontPagePage", () => {
     const frame = await screen.findByTestId("front-page-frame");
     expect(screen.getByTestId("front-page-today")).toContainElement(frame);
     expect(frame.getAttribute("srcdoc")).toContain("The Nostr Observer");
-    expect(screen.getByTestId("front-page-facts")).toHaveTextContent("12 posts");
+    expect(screen.queryByTestId("front-page-facts")).toBeNull();
+    fireEvent.click(screen.getByTestId("front-page-info"));
+    expect(await screen.findByTestId("front-page-info-panel")).toHaveTextContent("Posts12");
     // Nothing around the paper: no hero, and the schedule card sits in Print again.
     expect(screen.queryByTestId("front-page-hero")).toBeNull();
     expect(screen.queryByTestId("front-page-schedule")).toBeNull();

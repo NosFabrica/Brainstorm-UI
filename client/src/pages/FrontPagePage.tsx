@@ -959,7 +959,7 @@ function IconAction({
 }
 
 /**
- * The paper's toolbar: the edition's day, one quiet line of facts, and the actions as
+ * The paper's toolbar: the edition's day and the actions as
  * icons. The rest (edition number, model, tokens, what the check removed) is one tap away
  * in the info popover, not chips in the reader's way. A past edition trades Print again for
  * the way back to today.
@@ -991,15 +991,6 @@ function PaperHeader({
   onPast: () => void;
   onBackToToday: () => void;
 }) {
-  const removed = page ? noteworthy(page.changes).length : 0;
-  const facts = page
-    ? [
-        page.events !== undefined ? `${page.events.toLocaleString()} posts` : null,
-        page.quotes !== undefined ? `${page.quotes} ${page.quotes === 1 ? "quote" : "quotes"} verified` : null,
-        removed > 0 ? `${removed} removed` : null,
-        page.unanswered ? `${page.unanswered} ${page.unanswered === 1 ? "desk" : "desks"} didn't answer` : null,
-      ].filter(Boolean)
-    : [];
   const at = page ? page.printedAt : missingDay ? Date.parse(`${missingDay}T12:00:00Z`) : null;
   return (
     <div className="flex items-center gap-2" data-testid="front-page-header">
@@ -1016,11 +1007,6 @@ function PaperHeader({
             "The Observer"
           )}
         </h1>
-        {facts.length > 0 && (
-          <p className="truncate text-xs text-muted-foreground" data-testid="front-page-facts">
-            {facts.join(" · ")}
-          </p>
-        )}
       </div>
       {past && (
         <Button
@@ -1068,6 +1054,10 @@ function EditionInfo({ page, observer, zone }: { page: Printed; observer: string
   const tokens = page.usage ? (page.usage.promptTokens ?? 0) + (page.usage.completionTokens ?? 0) : null;
   const rows: [string, string][] = [["Date", editionFullDate(page.printedAt, zone)]];
   if (page.code) rows.push(["Edition", `No. ${page.code}`]);
+  // The counts live here, not over the paper: they aren't what the reader came for.
+  if (page.events !== undefined) rows.push(["Posts", page.events.toLocaleString()]);
+  if (page.quotes !== undefined) rows.push(["Quotes verified", String(page.quotes)]);
+  if (page.unanswered) rows.push(["Desks that didn't answer", String(page.unanswered)]);
   if (page.model) rows.push(["Model", page.model]);
   if (tokens) rows.push(["Tokens", tokens.toLocaleString()]);
   if (page.rounds === 2) rows.push(["Check", "Fixed once"]);
