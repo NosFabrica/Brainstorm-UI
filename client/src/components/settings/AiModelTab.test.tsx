@@ -14,6 +14,10 @@ const testAgentKey = vi.fn();
 const startOpenRouterConnect = vi.fn();
 
 vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ ...state(), reveal }) }));
+// The Assistant's keys have their own tests (AssistantKeys.test.tsx).
+vi.mock("@/hooks/useAssistantAgentKeys", () => ({
+  useAssistantAgentKeys: () => ({ status: "unavailable", reveal: vi.fn(), reload: vi.fn(), wrote: vi.fn() }),
+}));
 vi.mock("@/services/agentKeys", () => ({
   updateAgentKeys: (...args: unknown[]) => updateAgentKeys(...args),
   testAgentKey: (...args: unknown[]) => testAgentKey(...args),

@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAgentKeys } from "@/hooks/useAgentKeys";
+import { useAssistantAgentKeys } from "@/hooks/useAssistantAgentKeys";
+import { AssistantKeys } from "@/components/settings/AssistantKeys";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 import {
@@ -709,6 +711,7 @@ function KeyCard({
 
 export function AiModelTab() {
   const keys = useAgentKeys();
+  const assistantKeys = useAssistantAgentKeys();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<AgentKey | null>(null);
@@ -878,6 +881,8 @@ export function AiModelTab() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <AssistantKeys mine={keys} assistant={assistantKeys} />
 
         <AlertDialog open={!!removing} onOpenChange={(open) => !open && setRemoving(null)}>
           <AlertDialogContent>
