@@ -30,6 +30,8 @@ import {
   withTaskName,
   withoutPublicClient,
   dateIn,
+  sameZone,
+  type Weekday,
   type TaskTags,
 } from "./scheduledTasks";
 
@@ -871,5 +873,192 @@ describe("an edit keeps the schedule's zone (NIP-FB: changing the time keeps the
     ).toThrow(RangeError);
     expect(() => editSimpleSchedule(fixture(), { time: "24:00", days: ["mon"] }, "UTC", WED)).toThrow(RangeError);
     expect(() => editSimpleSchedule(fixture(), { time: "06:00", days: [] }, "UTC", WED)).toThrow(RangeError);
+  });
+});
+
+describe("the cross-zone editor round trip (audit, 2026-11-12)", () => {
+  const zones = [
+    "America/New_York",
+    "Europe/London",
+    "Asia/Tokyo",
+    "Pacific/Auckland",
+    "Asia/Kolkata",
+    "Australia/Lord_Howe",
+    "Pacific/Chatham",
+    "America/Sao_Paulo",
+    "UTC",
+    "Pacific/Kiritimati",
+    "Pacific/Pago_Pago",
+  ];
+  const times = ["00:00", "01:30", "02:30", "05:45", "12:00", "23:30"];
+  const daySets: Weekday[][] = [[...WEEKDAYS], ["mon", "tue", "wed", "thu", "fri"], ["sun"], ["sat", "sun"]];
+  // Each near a change somewhere: the US's and the EU's spring and autumn, the southern ones.
+  const nows = [
+    Date.UTC(2026, 10, 12, 12),
+    Date.UTC(2026, 2, 7, 12),
+    Date.UTC(2026, 2, 28, 3),
+    Date.UTC(2026, 9, 31, 20),
+    Date.UTC(2026, 3, 4, 13),
+    Date.UTC(2026, 8, 26, 12),
+  ];
+  const base = (tz: string): TaskTags => ({
+    public: [],
+    private: [
+      ["task", "observer"],
+      ["cron", "0 6 * * 1-5", tz, "1"],
+    ],
+  });
+  const sameSet = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && a.every((d) => b.includes(d));
+  const longName = (d: Weekday) =>
+    new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(
+      new Date(Date.UTC(2024, 0, 7 + WEEKDAYS.indexOf(d))),
+    );
+
+  /** How far `tz` is ahead of UTC at `instant`, in minutes, from Intl alone. */
+  const offsetMinutes = (instant: number, tz: string) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    }).formatToParts(new Date(instant));
+    const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+    return (Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute")) - instant) / 60_000;
+  };
+  /**
+   * Whether any schedule in `tz` would show the pick, found another way than the editor
+   * does: each gap between the two clocks in the next month, the picked time less it.
+   */
+  const anyShows = (tags: TaskTags, time: string, days: Weekday[], tz: string, viewerTz: string, now: number) => {
+    const gaps = new Set<number>();
+    for (let at = now; at < now + 30 * 86_400_000; at += 6 * 3_600_000) {
+      gaps.add(offsetMinutes(at, viewerTz) - offsetMinutes(at, tz));
+    }
+    const wall = Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+    return [...gaps].some((gap) => {
+      const there = wall - gap;
+      const shift = Math.floor(there / 1440);
+      const t = there - shift * 1440;
+      const moved = days.map((d) => WEEKDAYS[(WEEKDAYS.indexOf(d) + shift + 7) % 7]);
+      const hhmm = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+      const back = localSimple(readTask(setSimpleSchedule(tags, { time: hhmm, days: moved }, tz, now)), viewerTz, now);
+      return !!back && back.time === time && sameSet(back.days, days);
+    });
+  };
+
+  it("shows what was picked, never writes on a confirm, and refuses only what no schedule could show", () => {
+    const failures: string[] = [];
+    for (const now of nows) {
+      for (const sz of zones) {
+        for (const vz of zones) {
+          if (sz === vz) continue;
+          const tags = base(sz);
+          const shown = localSimple(readTask(tags), vz, now)!;
+          if (editSimpleSchedule(tags, shown, vz, now) !== tags) failures.push(`confirm wrote ${sz} ${vz} ${iso(now)}`);
+          for (const time of times) {
+            for (const days of daySets) {
+              const what = `${iso(now)} ${sz} seen from ${vz}: ${time} ${days.join(",")}`;
+              let out: TaskTags;
+              try {
+                out = editSimpleSchedule(tags, { time, days }, vz, now);
+              } catch (e) {
+                const message = (e as Error).message;
+                // The reason is a day the reader picked, and no schedule in the zone could show it.
+                if (!days.some((d) => message.includes(longName(d)))) failures.push(`${what} refused: ${message}`);
+                if (anyShows(tags, time, days, sz, vz, now)) failures.push(`${what} refused what could be: ${message}`);
+                continue;
+              }
+              const task = readTask(out);
+              if (task.tz !== sz) failures.push(`${what} moved the zone to ${task.tz}`);
+              const back = localSimple(task, vz, now);
+              if (!back || back.time !== time || !sameSet(back.days, days)) {
+                failures.push(`${what} wrote ${task.cron}, shows ${back?.time} ${back?.days.join(",")}`);
+              } else if (editSimpleSchedule(out, back, vz, now) !== out) {
+                failures.push(`${what} confirming it again wrote`);
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(failures.slice(0, 20)).toEqual([]);
+  }, 60_000);
+
+  it("saves the hour picked from London on a New York schedule the day before the US change", () => {
+    const now = Date.UTC(2026, 2, 7, 12);
+    const tags = base("America/New_York");
+    const out = editSimpleSchedule(tags, { time: "00:00", days: [...WEEKDAYS] }, "Europe/London", now);
+    // Saturday 19:00 in New York is midnight in London tonight; Monday, after the change, it reads 23:00.
+    expect(readTask(out)).toMatchObject({ cron: "0 19 * * *", tz: "America/New_York" });
+    expect(localSimple(readTask(out), "Europe/London", now)).toEqual({ time: "00:00", days: [...WEEKDAYS] });
+    expect(editSimpleSchedule(out, { time: "00:00", days: [...WEEKDAYS] }, "Europe/London", now)).toBe(out);
+  });
+
+  it("doesn't refuse over a day the reader didn't pick", () => {
+    // Saturday 7 March: New York skips 02:30 on Sunday, a day this reader leaves out.
+    const now = Date.UTC(2026, 2, 7, 12);
+    const tokyo = base("Asia/Tokyo");
+    const weekdays: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
+    const out = editSimpleSchedule(tokyo, { time: "02:30", days: weekdays }, "America/New_York", now);
+    expect(readTask(out).tz).toBe("Asia/Tokyo");
+    expect(localSimple(readTask(out), "America/New_York", now)).toEqual({ time: "02:30", days: weekdays });
+    // With Sunday picked, it does: that Sunday has no 02:30.
+    expect(() => editSimpleSchedule(tokyo, { time: "02:30", days: ["sun"] }, "America/New_York", now)).toThrow(
+      /Sunday/,
+    );
+  });
+});
+
+describe("no change is the same tags (audit, 2026-11-12)", () => {
+  const paused: TaskTags = {
+    public: [],
+    private: [["task", "observer"], ["cron", "0 6 * * *", "UTC", "1"], ["paused"]],
+  };
+
+  it("pausing a paused task", () => {
+    expect(setEnabled(paused, false, WED)).toBe(paused);
+    const publicPause: TaskTags = { public: [["paused"]], private: [["task", "observer"]] };
+    expect(setEnabled(publicPause, false, WED)).toBe(publicPause);
+  });
+
+  it("setting the expression and zone it already has", () => {
+    const tags = fixture({ cron: "0 6 * * *", tz: "UTC" });
+    expect(setSimpleSchedule(tags, { time: "06:00", days: [...WEEKDAYS] }, "UTC", WED)).toBe(tags);
+  });
+});
+
+describe("a stepped weekday field is not a simple schedule (audit, 2026-11-12)", () => {
+  it("is left to the details view, as Quartz's SimpleCron.parse does", () => {
+    expect(simpleShape("0 6 * * */2")).toBeNull();
+    expect(simpleShape("0 6 * * 1-5/2")).toBeNull();
+    expect(localSimple(readTask(fixture({ cron: "0 6 * * */2" })), "America/New_York", WED)).toBeNull();
+    expect(simpleShape("0 6 * * 1-5")).not.toBeNull();
+  });
+});
+
+describe("one zone by any of its names (audit, 2026-11-12)", () => {
+  it("knows a renamed zone, and UTC's spellings, as the same", () => {
+    expect(sameZone("Asia/Calcutta", "Asia/Kolkata")).toBe(true);
+    expect(sameZone("UTC", "Etc/UTC")).toBe(true);
+    expect(sameZone("Etc/GMT", "UTC")).toBe(true);
+    expect(sameZone("Europe/Kiev", "Europe/Kyiv")).toBe(true);
+    expect(sameZone("America/New_York", "Europe/London")).toBe(false);
+    // Same offset today, different rules: not the same.
+    expect(sameZone("Europe/London", "Africa/Abidjan")).toBe(false);
+    expect(sameZone("America/New_York", "America/Toronto")).toBe(true);
+  });
+
+  it("edits a schedule written under the other name in place", () => {
+    const tags = fixture({ cron: "0 6 * * 1-5", tz: "Asia/Calcutta" });
+    expect(localSimple(readTask(tags), "Asia/Kolkata", WED)).toEqual({
+      time: "06:00",
+      days: ["mon", "tue", "wed", "thu", "fri"],
+    });
+    const moved = editSimpleSchedule(tags, { time: "07:00", days: ["mon"] }, "Asia/Kolkata", WED);
+    expect(readTask(moved)).toMatchObject({ cron: "0 7 * * 1", tz: "Asia/Calcutta" });
   });
 });

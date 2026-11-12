@@ -83,13 +83,20 @@ export function emptyTask(task: string): TaskTags {
  */
 export function isValidTimeZone(tz: string): boolean {
   if (!tz || /^[+-]/.test(tz)) return false;
+  const known = validZones.get(tz);
+  if (known !== undefined) return known;
+  let valid: boolean;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
+    valid = true;
   } catch {
-    return false;
+    valid = false;
   }
+  // Making a formatter costs far more than asking a map; the names a session sees are few.
+  if (validZones.size < 256) validZones.set(tz, valid);
+  return valid;
 }
+const validZones = new Map<string, boolean>();
 
 /** Both sides, private first: NIP-FB reads a duplicated tag as the private one, then the first. */
 const merged = (tags: TaskTags) => [...tags.private, ...tags.public];
@@ -125,14 +132,26 @@ export function readTask(tags: TaskTags): ScheduledTask {
 
 /**
  * Every `name` tag replaced by `make(old)` on the side it is on; when there is none, one
- * `make(undefined)` added to the private side.
+ * `make(undefined)` added to the private side. When `make` hands back every tag it was
+ * given, so are the tags: no change is the same object, which is how a caller tells there
+ * is nothing to write.
  */
 function putTag(tags: TaskTags, name: string, make: (old: string[] | undefined) => string[]): TaskTags {
-  const found = merged(tags).some((t) => t[0] === name);
-  const swap = (list: string[][]) => list.map((t) => (t[0] === name ? make(t) : t));
-  return found
-    ? { public: swap(tags.public), private: swap(tags.private) }
-    : { public: tags.public, private: [...tags.private, make(undefined)] };
+  let found = false;
+  const swap = (list: string[][]) => {
+    let out: string[][] | null = null;
+    list.forEach((t, i) => {
+      if (t[0] !== name) return;
+      found = true;
+      const next = make(t);
+      if (next !== t) (out ??= list.slice())[i] = next;
+    });
+    return out ?? list;
+  };
+  const pub = swap(tags.public);
+  const priv = swap(tags.private);
+  if (!found) return { public: tags.public, private: [...tags.private, make(undefined)] };
+  return pub === tags.public && priv === tags.private ? tags : { public: pub, private: priv };
 }
 
 // --- cron: NIP-FB's subset of POSIX five-field crontab -------------------------------
@@ -287,6 +306,13 @@ function zonedInstant(y: number, m: number, d: number, hh: number, mm: number, t
   return hi;
 }
 
+/** Every instant `tz`'s wall clock reads `hh:mm` on `y-m-d`: none when skipped, two when repeated. */
+function readingsOf(y: number, m: number, d: number, hh: number, mm: number, tz: string): number[] {
+  const asUtc = Date.UTC(y, m - 1, d, hh, mm);
+  const offsets = [zoneOffset(asUtc - AHEAD, tz), zoneOffset(asUtc, tz), zoneOffset(asUtc + BEHIND, tz)];
+  return [...new Set(offsets.map((o) => asUtc - o))].filter((c) => wallAt(c, tz) === asUtc).sort((a, b) => a - b);
+}
+
 /**
  * The one offset `tz` keeps for every wall time on the calendar day `y-m-d`, or null when it
  * changes around that day. Most days have one, and then each of the day's times is a
@@ -296,6 +322,87 @@ function dayOffset(y: number, m: number, d: number, tz: string): number | null {
   const start = Date.UTC(y, m - 1, d);
   const before = zoneOffset(start - AHEAD, tz);
   return before === zoneOffset(start + DAY + BEHIND, tz) ? before : null;
+}
+
+/**
+ * Names of one zone. Engines canonicalise some of these themselves (`resolvedOptions`) and
+ * not all the same way (older ones say `Asia/Calcutta`, newer keep what they were given),
+ * so both spellings fold to one here.
+ */
+const ZONE_ALIASES: Record<string, string> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Europe/Kiev": "Europe/Kyiv",
+  "America/Godthab": "America/Nuuk",
+  "Pacific/Enderbury": "Pacific/Kanton",
+};
+const UTC_NAMES = /^(Etc\/)?(UTC|UCT|GMT|GMT[+-]?0|Zulu|Universal|Greenwich)$/;
+
+const canonicalZones = new Map<string, string>();
+
+function canonicalZone(tz: string): string {
+  const known = canonicalZones.get(tz);
+  if (known !== undefined) return known;
+  const name = canonicalName(tz);
+  if (canonicalZones.size < 256) canonicalZones.set(tz, name);
+  return name;
+}
+
+function canonicalName(tz: string): string {
+  let name = tz;
+  try {
+    name = new Intl.DateTimeFormat("en-US", { timeZone: tz }).resolvedOptions().timeZone || tz;
+  } catch {
+    // Not a zone: it stays what it is, equal only to itself.
+  }
+  if (UTC_NAMES.test(name)) return "UTC";
+  return ZONE_ALIASES[name] ?? name;
+}
+
+const sameRules = new Map<string, boolean>();
+/** How far ahead two zones' offsets are compared: past a year of clock changes. */
+const RULES_HORIZON_DAYS = 400;
+
+/**
+ * Whether `a` and `b` keep the same offset at every instant over the next year or so
+ * (`America/Toronto` and `America/New_York`): checked once a day, and every quarter hour
+ * across a day either one's clocks change. Kept for the session.
+ */
+function sameOffsets(a: string, b: string, now: number): boolean {
+  const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+  const known = sameRules.get(key);
+  if (known !== undefined) return known;
+  const start = Math.floor(now / DAY) * DAY;
+  let same = true;
+  let last = [zoneOffset(start, a), zoneOffset(start, b)];
+  if (last[0] !== last[1]) same = false;
+  for (let day = 1; same && day <= RULES_HORIZON_DAYS; day++) {
+    const at = start + day * DAY;
+    const here = [zoneOffset(at, a), zoneOffset(at, b)];
+    if (here[0] !== here[1]) same = false;
+    else if (here[0] !== last[0] || here[1] !== last[1]) {
+      for (let t = at - DAY + 15 * MINUTE; same && t < at; t += 15 * MINUTE) {
+        if (zoneOffset(t, a) !== zoneOffset(t, b)) same = false;
+      }
+    }
+    last = here;
+  }
+  sameRules.set(key, same);
+  return same;
+}
+
+/**
+ * Whether two zone names are one clock for the editor: the same zone by another name
+ * (`Asia/Calcutta`, `Asia/Kolkata`; `UTC`, `Etc/UTC`), or zones with the same offsets and
+ * changes ahead. A schedule on such a zone is edited in place, not across zones.
+ */
+export function sameZone(a: string, b: string, now = Date.now()): boolean {
+  if (a === b) return true;
+  if (!isValidTimeZone(a) || !isValidTimeZone(b)) return false;
+  if (canonicalZone(a) === canonicalZone(b)) return true;
+  return sameOffsets(a, b, now);
 }
 
 const indices = (allowed: boolean[]) => allowed.flatMap((on, i) => (on ? [i] : []));
@@ -424,6 +531,9 @@ export function simpleShape(expr: string | null | undefined): SimpleShape | null
   if (!cron || !fields) return null;
   const [minute, hour, dom, month] = fields;
   if (!NUMBER.test(minute) || !NUMBER.test(hour) || dom !== "*" || month !== "*") return null;
+  // A stepped weekday field (`*/2`, `1-5/2`) is a shape the editor wouldn't write back the
+  // same: shown as written, as Quartz's `SimpleCron.parse` does.
+  if (fields[4].includes("/")) return null;
   return { hour: Number(hour), minute: Number(minute), dow: cron.dow };
 }
 
@@ -490,7 +600,7 @@ const shiftDays = (dow: boolean[], shift: number) => WEEKDAYS.filter((_, i) => d
 export function localSimple(task: ScheduledTask, viewerTz: string, now: number): LocalSimple | null {
   const shape = simpleShape(task.cron);
   if (!shape || !task.tz) return null;
-  if (viewerTz === task.tz) return { time: hhmm(shape.hour, shape.minute), days: shiftDays(shape.dow, 0) };
+  if (sameZone(viewerTz, task.tz, now)) return { time: hhmm(shape.hour, shape.minute), days: shiftDays(shape.dow, 0) };
   const at = unmovedOccurrence(parseCron(task.cron)!, task.tz, shape.hour, shape.minute, now);
   if (at === null) return null;
   const here = wallClock(at, viewerTz);
@@ -563,18 +673,23 @@ const dayWords = (w: { y: number; m: number; d: number }, weekdayOnly = false) =
  * keeps the time zone), matching Amethyst's `planTimeEdit` (Quartz `SimpleCron.movedTo`):
  *
  * - No schedule yet: written in the viewer's zone, as there is nothing to keep.
- * - On the schedule's own clock: its fields, changed in place.
- * - On another clock: the editor showed one run no clock change moved (`localSimple`). That
- *   run moves to the picked time on the same calendar day on the viewer's clock, and the
- *   expression follows it in the schedule's zone, the picked weekdays moved with it when it
- *   crosses midnight there. So a nudge from London to a New York schedule stays a New York
- *   time, and keeps following New York's clock changes, not London's.
+ * - On the schedule's own clock (or the same zone by another name): its fields, changed in
+ *   place.
+ * - On another clock: the schedule, still in its zone, whose next run the editor would show
+ *   as `simple` (`localSimple`, the round trip). It is found from the first picked day
+ *   after `now` whose picked time is a time on the viewer's clock: that instant on the
+ *   schedule's clock is the new time, and the picked weekdays move with it when it crosses
+ *   midnight there. When a clock change between now and then would make the editor show
+ *   another time, the next picked day is tried. So a nudge from London to a New York
+ *   schedule stays a New York time, and keeps following New York's clock changes, not
+ *   London's.
  *
  * Confirming what the editor showed is no change: the same `tags` come back (nothing to
  * write; when it was set stays). A RangeError refuses what isn't a time, no days, a
- * schedule the editor can't show (another app changed it meanwhile), a time the viewer's
- * clocks skip that day, and a time the schedule's zone reads twice that day when the
- * schedule would run at the other reading.
+ * schedule the editor can't show (another app changed it meanwhile), and a picked time
+ * that can't be kept: one the viewer's clocks skip on a picked day, or one the schedule's
+ * zone reads twice when the schedule would run at the other reading. Only picked days are
+ * ever the reason.
  */
 export function editSimpleSchedule(tags: TaskTags, simple: LocalSimple, viewerTz: string, now: number): TaskTags {
   const { hour, minute } = parseTime(simple.time);
@@ -589,40 +704,67 @@ export function editSimpleSchedule(tags: TaskTags, simple: LocalSimple, viewerTz
   const picked = dowOf(simple.days);
   const unchanged = (h: number, m: number, dow: boolean[]) => h === hour && m === minute && sameDow(dow, picked);
 
-  if (tz === viewerTz) {
+  if (sameZone(tz, viewerTz, now)) {
     return unchanged(shape.hour, shape.minute, shape.dow) ? tags : setSimpleSchedule(tags, simple, tz, now);
   }
 
-  // The run the editor shows (`localSimple`), and how the viewer sees it.
-  const at = unmovedOccurrence(parseCron(task.cron)!, tz, shape.hour, shape.minute, now);
-  if (at === null) throw new RangeError(changedElsewhere);
-  const seen = wallClock(at, viewerTz);
-  if (unchanged(seen.hh, seen.mm, dowOf(shiftDays(shape.dow, dayShift(at, tz, viewerTz))))) return tags;
+  // Confirming what the editor shows writes nothing.
+  const shown = localSimple(task, viewerTz, now);
+  if (!shown) throw new RangeError(changedElsewhere);
+  if (shown.time === simple.time && sameDow(dowOf(shown.days), picked)) return tags;
 
-  // Moved to the picked time on that day on the viewer's clock.
-  const moved = zonedInstant(seen.y, seen.m, seen.d, hour, minute, viewerTz);
-  if (wallAt(moved, viewerTz) !== Date.UTC(seen.y, seen.m - 1, seen.d, hour, minute)) {
-    throw new RangeError(
-      `${formatTimeOfDay(simple.time)} is skipped on ${dayWords(seen)} when your clocks change. Pick another time.`,
-    );
+  const shows = (out: TaskTags) => {
+    const back = localSimple(readTask(out), viewerTz, now);
+    return !!back && back.time === simple.time && sameDow(dowOf(back.days), picked);
+  };
+  let refusal: string | null = null;
+  const today = wallClock(now, viewerTz);
+  // Two weeks: every picked weekday twice, past any one week's clock change.
+  for (let add = 0; add < 15; add++) {
+    const date = new Date(Date.UTC(today.y, today.m - 1, today.d + add));
+    if (!picked[date.getUTCDay()]) continue;
+    const day = { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
+    // Each instant the viewer's clock reads the picked time that day: none when it skips it,
+    // two when it repeats it.
+    const readings = readingsOf(day.y, day.m, day.d, hour, minute, viewerTz);
+    if (!readings.length) {
+      refusal ??= `${formatTimeOfDay(simple.time)} is skipped on ${dayWords(day)} when your clocks change. Pick another time.`;
+      continue;
+    }
+    for (const at of readings) {
+      if (at <= now) continue;
+      // Where that lands on the schedule's clock, which must run then and not at another reading.
+      const there = wallClock(at, tz);
+      if (zonedInstant(there.y, there.m, there.d, there.hh, there.mm, tz) !== at) {
+        refusal ??= `${formatTimeOfDay(simple.time)} that ${dayWords(day, true)} is the second ${formatTimeOfDay({ hh: there.hh, mm: there.mm })} in ${zoneLabel(tz)}, and the schedule would run at the first. Pick another time.`;
+        continue;
+      }
+      // The viewer's days as the schedule's: a day later there when it is a day behind here.
+      const days = shiftDays(picked, -dayShift(at, tz, viewerTz));
+      const out = setSimpleSchedule(tags, { time: hhmm(there.hh, there.mm), days }, tz, now);
+      if (shows(out)) return out;
+      // Its next run reads another time here: the clocks change between that run and this one.
+      if (refusal === null) {
+        const next = unmovedOccurrence(parseCron(readTask(out).cron)!, tz, there.hh, there.mm, now);
+        if (next !== null) {
+          const w = wallClock(next, viewerTz);
+          // The picked day that run stands for: the one it would have been on, at the picked time.
+          const off = (((((w.hh - hour) * 60 + w.mm - minute + 720) % 1440) + 1440) % 1440) - 720;
+          const meant = wallClock(next - off * MINUTE, viewerTz);
+          refusal = `${formatTimeOfDay(simple.time)} can't be kept on ${dayWords(meant)}: the clocks change, and that run would be at ${formatTimeOfDay({ hh: w.hh, mm: w.mm })} on yours. Pick another time.`;
+        }
+      }
+    }
   }
-  // Where that lands on the schedule's clock, which must run then and not at another reading.
-  const there = wallClock(moved, tz);
-  if (zonedInstant(there.y, there.m, there.d, there.hh, there.mm, tz) !== moved) {
-    throw new RangeError(
-      `${formatTimeOfDay(simple.time)} that ${dayWords(seen, true)} is the second ${formatTimeOfDay({ hh: there.hh, mm: there.mm })} in ${zoneLabel(tz)}, and the schedule would run at the first. Pick another time.`,
-    );
-  }
-  // The viewer's days as the schedule's: a day later there when it is a day behind here.
-  const days = shiftDays(picked, -dayShift(moved, tz, viewerTz));
-  if (there.hh === shape.hour && there.mm === shape.minute && sameDow(dowOf(days), shape.dow)) return tags;
-  return setSimpleSchedule(tags, { time: hhmm(there.hh, there.mm), days }, tz, now);
+  throw new RangeError(
+    refusal ?? `${formatTimeOfDay(simple.time)} can't be kept while the clocks change. Pick another time.`,
+  );
 }
 
 /**
- * NIP-FB: the event carries no public `client` tag (it would say which app the user
- * schedules with to anyone who looks). Amethyst used to add one; a rewrite drops it. A
- * private one stays: nobody else can read it.
+ * No public `client` tag: NIP-FB says clients SHOULD keep every tag but `d` private, and a
+ * public `client` would tell anyone who looks which app the user schedules with. Amethyst
+ * used to add one; a rewrite drops it. A private one stays: nobody else can read it.
  */
 export function withoutPublicClient(tags: TaskTags): TaskTags {
   return tags.public.some((t) => t[0] === "client")
@@ -870,7 +1012,7 @@ export function describeCron(
   const shifts = new Set(moved.map((t) => Math.floor(t / 1440)));
   const clock = (t: number) => formatTimeOfDay({ hh: Math.floor(t / 60), mm: t % 60 }, locale);
   const viewerClock = (t: number) => clock(timeOfDay(t));
-  const elsewhere = viewerTz === tz ? "" : ` (${zoneLabel(tz)})`;
+  const elsewhere = sameZone(viewerTz, tz, now) ? "" : ` (${zoneLabel(tz)})`;
 
   // A few times a day, on some weekdays or every day.
   if (dom === "*" && mon === "*" && times.length >= 1 && times.length <= 4) {
