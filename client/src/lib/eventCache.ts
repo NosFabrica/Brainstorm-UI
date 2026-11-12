@@ -22,6 +22,11 @@
  *   relay round trip. Theirs ONLY: other people's arrive in the store too (a
  *   profile's "muted by" reads dozens), and a mute list can run to thousands
  *   of entries — they would crowd the profiles and routing out of the cache.
+ * - **The signed-in account's Blossom servers (kind 10063) and Observer site
+ *   (kind 35128, `d=observer`).** So the front page lists the reader's earlier
+ *   papers, and knows where to fetch them, on the first render instead of
+ *   after a relay read. Theirs ONLY, like the mute list: other people's are
+ *   unbounded and nothing here waits on them.
  *
  * What may NOT be kept: kind 30078. It is per-account data encrypted to self
  * and scoped by an `authors` filter alone, so persisting it would carry one
@@ -67,12 +72,33 @@ const WRITE_BATCH_MS = 2000;
 /** Bounded, so it cannot grow until the browser evicts the lot. */
 export const MAX_CACHED = 2000;
 
+/** NIP-B7 Blossom server list. */
+const BLOSSOM_SERVER_LIST_KIND = 10063;
+/** The Observer site's manifest and its one `d` — restated, as RELAY_LIST_KIND is, to keep this module a leaf. */
+const OBSERVER_SITE_KIND = 35128;
+const OBSERVER_D = "observer";
+
 /** Kinds worth a disk read. Everything else is unbounded or nobody waits on it. */
-export const CACHED_KINDS = [0, 3, 10000, 10002, 10040, 10050];
+export const CACHED_KINDS = [0, 3, 10000, 10002, 10040, 10050, BLOSSOM_SERVER_LIST_KIND, OBSERVER_SITE_KIND];
 const CACHED = new Set(CACHED_KINDS);
 
 /** Cached for the account being hydrated only — see the module comment. */
-const OWN_ONLY = new Set([10000]);
+const OWN_ONLY = new Set([10000, BLOSSOM_SERVER_LIST_KIND, OBSERVER_SITE_KIND]);
+
+/** The one `d` kept for an addressable kind. A replaceable kind's `d`, if it has one, means nothing. */
+const KEPT_D: Record<number, string> = { [OBSERVER_SITE_KIND]: OBSERVER_D };
+
+const dOf = (event: NostrEvent) => event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
+
+/** Whether this is the one address kept of its kind — always, for a replaceable kind. */
+const keptAddress = (event: NostrEvent) => !(event.kind in KEPT_D) || KEPT_D[event.kind] === dOf(event);
+
+/** Whether this event belongs on the device at all — kind, whose, and which address. */
+function keepable(event: NostrEvent): boolean {
+  if (!CACHED.has(event.kind)) return false;
+  if (OWN_ONLY.has(event.kind) && event.pubkey !== hydratingFor) return false;
+  return keptAddress(event);
+}
 
 /** NIP-65, restated so this module needs no import from the routing one. */
 const RELAY_LIST_KIND = 10002;
@@ -258,6 +284,7 @@ function device(): CacheStore | null {
 function trustworthy(row: CachedRow | undefined): row is CachedRow {
   const event = row?.event;
   if (!event || !CACHED.has(event.kind) || event.pubkey !== row.pubkey) return false;
+  if (!keptAddress(event)) return false;
   if (event.kind === 0) return true;
   try {
     return verifyEvent(event);
@@ -397,7 +424,7 @@ async function refreshStale(rows: CachedRow[]): Promise<void> {
 /** Hold these events for next time, newest copy winning, oldest evicted. */
 export async function writeEvents(events: NostrEvent[]): Promise<void> {
   const s = device();
-  const worth = events.filter((e) => CACHED.has(e.kind) && (!OWN_ONLY.has(e.kind) || e.pubkey === hydratingFor));
+  const worth = events.filter(keepable);
   if (!s || worth.length === 0) return;
   try {
     const addrs = worth.map(coordinate);
@@ -475,8 +502,8 @@ async function hydrate(pubkey: string): Promise<number> {
     held.push(snapshot);
   }
 
-  const routing = CACHED_KINDS.filter((kind) => kind !== 0).map((kind) => `${kind}:${pubkey}:`);
-  for (const row of await liveRows(routing)) held.push(row.event);
+  const own = CACHED_KINDS.filter((kind) => kind !== 0).map((kind) => `${kind}:${pubkey}:${KEPT_D[kind] ?? ""}`);
+  for (const row of await liveRows(own)) held.push(row.event);
 
   let added = 0;
   for (const event of held) {
@@ -548,7 +575,7 @@ export function startEventCacheSync(): () => void {
     void writeEvents(batch);
   };
   const sub = eventStore.insert$.subscribe((event: NostrEvent) => {
-    if (!CACHED.has(event.kind) || (OWN_ONLY.has(event.kind) && event.pubkey !== hydratingFor)) return;
+    if (!keepable(event)) return;
     const addr = coordinate(event);
     const waiting = pending.get(addr);
     if (waiting && waiting.created_at >= event.created_at) return;

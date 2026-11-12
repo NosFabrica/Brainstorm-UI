@@ -223,6 +223,49 @@ describe("what goes to disk", () => {
     expect(storeAdd.mock.calls.at(-1)?.[0]).toMatchObject({ kind: 10000, pubkey: ME });
   });
 
+  /**
+   * The front page draws the reader's earlier papers from these on the first render:
+   * their Observer manifest and where its files are. Theirs only, and only the one
+   * Observer address — not every 35128 they might publish.
+   */
+  it("keeps the signed-in account's Blossom list and Observer site, and nobody else's", async () => {
+    await cache.hydrateEventStore(ME);
+    await cache.writeEvents([
+      signed(10063, [["server", "https://files.example"]]),
+      signed(35128, [["d", "observer"]]),
+      signed(35128, [["d", "another-site"]]),
+      signed(10063, [["server", "https://theirs.example"]], OTHER_SECRET),
+      signed(35128, [["d", "observer"]], OTHER_SECRET),
+    ]);
+
+    const kept = (await readAll()).map((e) => [e.kind, e.pubkey, e.tags.find((t) => t[0] === "d")?.[1]]);
+    expect(kept).toHaveLength(2);
+    expect(kept).toEqual(
+      expect.arrayContaining([
+        [10063, ME, undefined],
+        [35128, ME, "observer"],
+      ]),
+    );
+  });
+
+  it("hydrates them back into the store, and refreshes the site at its address", async () => {
+    await cache.hydrateEventStore(ME);
+    await cache.writeEvents([signed(10063, [["server", "https://files.example"]]), signed(35128, [["d", "observer"]])]);
+
+    cache.__resetEventCache(); // as a page unload would
+    vi.resetModules();
+    const fresh = await import("./eventCache");
+    const added = await fresh.hydrateEventStore(ME);
+    cache = fresh;
+
+    expect(added).toBe(2);
+    const kinds = storeAdd.mock.calls.map((c) => c[0].kind);
+    expect(kinds).toEqual(expect.arrayContaining([10063, 35128]));
+    await vi.waitFor(() =>
+      expect(loadReplaceableMock).toHaveBeenCalledWith(35128, ME, expect.objectContaining({ identifier: "observer" })),
+    );
+  });
+
   it("one row per coordinate, not one per version", async () => {
     // Both really signed: a mutated copy would be rejected as tampered, which
     // would prove nothing about the keying.

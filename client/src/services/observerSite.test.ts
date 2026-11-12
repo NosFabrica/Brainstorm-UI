@@ -13,6 +13,16 @@ const mocks = vi.hoisted(() => ({
   signAs: vi.fn(),
   auth: vi.fn(),
   publish: vi.fn(),
+  /** This device's copies, by hash. */
+  held: new Map<string, string>(),
+}));
+
+vi.mock("@/lib/blobCache", () => ({
+  readBlob: (sha: string) => Promise.resolve(mocks.held.get(sha) ?? null),
+  writeBlob: (sha: string, text: string) => {
+    mocks.held.set(sha, text);
+    return Promise.resolve();
+  },
 }));
 
 vi.mock("@/lib/relayRequest", async (orig) => ({
@@ -20,7 +30,10 @@ vi.mock("@/lib/relayRequest", async (orig) => ({
   requestNewestWithReach: () =>
     Promise.resolve({ newest: mocks.site, reach: { asked: ["wss://write.example"], answered: mocks.answered } }),
 }));
-vi.mock("@/lib/relayRouting", () => ({ outboxRelays: () => Promise.resolve(["wss://write.example"]) }));
+vi.mock("@/lib/relayRouting", () => ({
+  outboxRelays: () => Promise.resolve(["wss://write.example"]),
+  loadRelayList: () => Promise.resolve({ read: [], write: ["wss://write.example"] }),
+}));
 vi.mock("@/lib/blossomServers", async (orig) => ({
   ...(await orig<object>()),
   loadBlossomServers: () => {
@@ -53,6 +66,7 @@ beforeEach(() => {
   mocks.answered = ["wss://write.example"];
   mocks.servers = ["https://files.example"];
   mocks.blossomLookups = 0;
+  mocks.held.clear();
   mocks.signAs
     .mockReset()
     .mockImplementation((_a, t) => Promise.resolve({ ...t, id: "e".repeat(64), pubkey: PK, sig: "s" }));
@@ -314,6 +328,64 @@ describe("fetchBlob", () => {
       b.toString(16).padStart(2, "0"),
     ).join("");
     expect(await fetchBlob(bad, ["https://files.example"])).toBeNull();
+  });
+});
+
+describe("fetchBlob, from this device and in parallel", () => {
+  it("answers from this device's copy without asking a server", async () => {
+    mocks.held.set("3".repeat(64), "<p>held</p>");
+    expect(await fetchBlob("3".repeat(64), ["https://files.example"])).toBe("<p>held</p>");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps what a server served, for next time", async () => {
+    const text = "<p>kept</p>";
+    const hash = await sha256Text(text);
+    blobs.set(hash, text);
+    await fetchBlob(hash, ["https://files.example"]);
+    expect(mocks.held.get(hash)).toBe(text);
+  });
+
+  it("isn't held up by a server that hangs: the others are asked at once", async () => {
+    const text = "<p>fast</p>";
+    const hash = await sha256Text(text);
+    const asked: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        asked.push(url);
+        if (url.startsWith("https://slow.example")) {
+          return new Promise((_, reject) =>
+            init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))),
+          );
+        }
+        return Promise.resolve(new Response(text, { status: 200 }));
+      }),
+    );
+    expect(await fetchBlob(hash, ["https://slow.example", "https://fast.example"])).toBe(text);
+    expect(asked).toEqual([`https://slow.example/${hash}`, `https://fast.example/${hash}`]);
+  });
+
+  it("gives a hanging server its own deadline, and answers null when none serves it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted")))),
+      ),
+    );
+    expect(await fetchBlob("4".repeat(64), ["https://slow.example"], { timeoutMs: 10 })).toBeNull();
+  });
+});
+
+describe("publishing keeps the uploaded files on this device", () => {
+  it("holds the paper and the site's index by their hashes", async () => {
+    const out = await publishToObserver({ pubkey: PK, html: PAPER, name: "Lira", printedAt: NOV11 });
+    const html = withPaperCsp(PAPER);
+    expect(mocks.held.get(await sha256Text(html))).toBe(html);
+    expect(out.editions).toHaveLength(1);
+    const index = [...mocks.held.values()].find((t) => t.startsWith("{"));
+    expect(index && JSON.parse(index).editions).toHaveLength(1);
   });
 });
 

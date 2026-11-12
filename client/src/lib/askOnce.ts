@@ -16,6 +16,10 @@ export interface AskWindow {
   spreadMs?: number;
 }
 
+/** The key `useStoreReplaceable` asks one replaceable event under — shared with asks made ahead of it. */
+export const replaceableAskKey = (kind: number, pubkey: string, identifier?: string) =>
+  `replaceable:${kind}:${pubkey}:${identifier ?? ""}`;
+
 /** Whether `key` is due an ask now: never asked, or its window has passed. */
 export function isDue(key: string, now = Date.now()): boolean {
   return !inFlight.has(key) && (askedUntil.get(key) ?? 0) <= now;

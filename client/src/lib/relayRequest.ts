@@ -131,11 +131,21 @@ export interface RelayReach {
  *
  * `sentBy` names, for each event id, the relays that sent it: whether the newest copy is
  * on most of them, or only on the one that took a write the rest turned away.
+ *
+ * `settleOn` names the relays whose answer IS the answer — an author's own write relays,
+ * for their own event. The promise settles once every one of them has finished (EOSE, or
+ * refused or failed), with what they and anyone faster sent; the rest are asked at the
+ * same time and keep going in the background until they finish or the deadline passes,
+ * and whatever they find lands in the store, where store-backed screens pick it up. So a
+ * fallback relay that never connects delays nobody, and a copy only it holds still
+ * arrives. `reach` and `sentBy` are as they stood when the promise settled. Without
+ * `settleOn` (or with none of its relays among those asked), every relay asked decides.
  */
 export function requestNewestWithReach(
   relays: string[],
   filter: Filter,
   timeoutMs: number,
+  { settleOn }: { settleOn?: string[] } = {},
 ): Promise<{ newest: NostrEvent | undefined; reach: RelayReach; sentBy: Record<string, string[]> }> {
   const asked = dedupeRelays(relays);
   const answered = new Set<string>();
@@ -146,35 +156,52 @@ export function requestNewestWithReach(
   // The pool spells a relay its own way (a trailing slash it added, the host
   // lower-cased), so match on the same normalized form we asked with.
   const normalize = (url: unknown) => dedupeRelays([String(url ?? "")])[0] ?? "";
+  const own = settleOn ? dedupeRelays(settleOn).filter((url) => asked.includes(url)) : [];
+  const deciding = own.length ? own : asked;
 
-  return lastValueFrom(
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve({
+        newest,
+        reach: { asked, answered: asked.filter((url) => answered.has(url)) },
+        sentBy: Object.fromEntries(Object.entries(sentBy).map(([id, from]) => [id, [...from]])),
+      });
+    };
     // `req` takes no deadline of its own — the `takeUntil` below is the only
     // thing that ends a relay that opens and then never speaks.
-    (pool.req(relays, filter) as unknown as Observable<RelayMessage>).pipe(
-      tap((message) => {
-        const from = normalize(message?.from);
-        if (message?.type === "EVENT" && message.event) {
-          const id = (message.event as NostrEvent).id;
-          if (typeof id === "string" && !(sentBy[id] ??= []).includes(from)) sentBy[id].push(from);
-          const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
-          if (beats(stored, newest)) newest = stored;
-        } else if (message?.type === "EOSE") {
-          answered.add(from);
-          settled.add(from);
-        } else if (message?.type === "ERROR" || message?.type === "CLOSED") {
-          settled.add(from);
-        }
-      }),
-      // Every relay accounted for ends the read early; the deadline is the
-      // backstop for the ones that simply never speak.
-      takeWhile(() => asked.some((url) => !settled.has(url)), true),
-      takeUntil(timer(timeoutMs)),
-      catchError(() => EMPTY),
-      reduce(() => undefined, undefined),
-      map(() => undefined),
-    ),
-    { defaultValue: undefined },
-  ).then(() => ({ newest, reach: { asked, answered: asked.filter((url) => answered.has(url)) }, sentBy }));
+    (pool.req(relays, filter) as unknown as Observable<RelayMessage>)
+      .pipe(
+        tap((message) => {
+          const from = normalize(message?.from);
+          if (message?.type === "EVENT" && message.event) {
+            const id = (message.event as NostrEvent).id;
+            if (typeof id === "string" && !(sentBy[id] ??= []).includes(from)) sentBy[id].push(from);
+            const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
+            if (beats(stored, newest)) newest = stored;
+          } else if (message?.type === "EOSE") {
+            answered.add(from);
+            settled.add(from);
+          } else if (message?.type === "ERROR" || message?.type === "CLOSED") {
+            settled.add(from);
+          }
+        }),
+        // Every relay accounted for ends the read early; the deadline is the
+        // backstop for the ones that simply never speak.
+        takeWhile(() => asked.some((url) => !settled.has(url)), true),
+        takeUntil(timer(timeoutMs)),
+        catchError(() => EMPTY),
+      )
+      .subscribe({
+        next: () => {
+          if (deciding.every((url) => settled.has(url))) finish();
+        },
+        complete: finish,
+        error: finish,
+      });
+  });
 }
 
 /**

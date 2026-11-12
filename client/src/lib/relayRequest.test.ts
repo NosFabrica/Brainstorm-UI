@@ -354,6 +354,77 @@ describe("asking the newest, and who answered", () => {
     expect(torndown.count).toBe(1);
   });
 
+  describe("settled by the author's own relays", () => {
+    const OWN = "wss://own";
+    const FLOOR = "wss://floor";
+
+    it("answers once the author's relays are done, while a fallback relay is still silent", async () => {
+      const { subject, torndown } = messages();
+
+      let settled = false;
+      const pending = requestNewestWithReach([OWN, FLOOR], FILTER, 60_000, { settleOn: [OWN] }).then((r) => {
+        settled = true;
+        return r;
+      });
+      subject.next(eose(OWN));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(settled).toBe(true);
+      await expect(pending).resolves.toMatchObject({ newest: undefined, reach: { answered: ["wss://own/"] } });
+      // The fallback is still being asked.
+      expect(torndown.count).toBe(0);
+    });
+
+    it("keeps the fallback's late copy coming: it lands in the store, then the REQ closes", async () => {
+      const { subject, torndown } = messages();
+
+      const pending = requestNewestWithReach([OWN, FLOOR], FILTER, 60_000, { settleOn: [OWN] });
+      subject.next(eose(OWN));
+      await vi.advanceTimersByTimeAsync(0);
+      await pending;
+
+      storeAdd.mockClear();
+      const late = event("late", 30);
+      subject.next(arrived(FLOOR, late));
+      subject.next(eose(FLOOR));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(storeAdd).toHaveBeenCalledWith(late);
+      expect(torndown.count).toBe(1);
+    });
+
+    it("still waits for an author's relay that hasn't answered", async () => {
+      const { subject } = messages();
+
+      let settled = false;
+      void requestNewestWithReach([OWN, FLOOR], FILTER, 60_000, { settleOn: [OWN] }).then(() => {
+        settled = true;
+      });
+      subject.next(eose(FLOOR));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(settled).toBe(false);
+      subject.next(failed(OWN));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(true);
+    });
+
+    it("with none of the author's relays asked, every relay decides as before", async () => {
+      const { subject } = messages();
+
+      let settled = false;
+      void requestNewestWithReach([OWN, FLOOR], FILTER, 60_000, { settleOn: [] }).then(() => {
+        settled = true;
+      });
+      subject.next(eose(OWN));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+      subject.next(eose(FLOOR));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(true);
+    });
+  });
+
   it("feeds the shared store like every other read", async () => {
     const { subject } = messages();
 
