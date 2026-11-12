@@ -48,6 +48,8 @@ import {
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useQueryClient } from "@tanstack/react-query";
 import { wotStepOf, type WotStep } from "@/lib/frontPage/setupSteps";
 import { pageWidth } from "@/lib/pageWidth";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -104,7 +106,8 @@ type Run =
   | { state: "idle" }
   | { state: "running"; step: PrintStep; pull: PullProgress | null }
   | { state: "refused"; violations: Violation[]; changes: ResolveChange[] }
-  | { state: "pending" }
+  /** The relay turned the print away: not ranking yet. `at`: when, so a later check clears it. */
+  | { state: "pending"; at: number }
   | { state: "error"; message: string };
 
 // --- session-only memory ------------------------------------------------------
@@ -259,7 +262,8 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const keys = useAgentKeys();
   const key = keys.status === "ready" ? (keys.keys[0] ?? null) : null;
   const mywot = useHasMywot();
-  const { canUseMywot, hasMywot, isSearchObserver } = useCanSearchMywot();
+  const { canUseMywot, hasMywot, isSearchObserver, observerCheckedAt } = useCanSearchMywot();
+  const queryClient = useQueryClient();
 
   const [page, setPage] = useState<Printed | null>(() => (pubkey ? readLast(pubkey) : null));
   const [run, setRun] = useState<Run>({ state: "idle" });
@@ -440,8 +444,13 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                 state: "error",
                 message: "The search relay didn't answer, so nothing was sent to your AI. Try again in a few minutes.",
               }
-            : { state: "pending" },
+            : { state: "pending", at: Date.now() },
         );
+        // The gate said yes and the relay said not yet: ask the gate again, so the row
+        // follows its next answer instead of staying in progress until the next print.
+        if (result.reason !== "relay-unreachable") {
+          void queryClient.invalidateQueries({ queryKey: ["search-observer", pubkey] });
+        }
       } else if (result.status === "refused") {
         writeLast(pubkey, null);
         setPage(null);
@@ -477,7 +486,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
         message: err instanceof WriterError ? err.message : "Something went wrong while printing. Try again.",
       });
     }
-  }, [key, pubkey, model, readerName, offerPublish]);
+  }, [key, pubkey, model, readerName, offerPublish, queryClient]);
 
   const cancel = () => {
     abort.current?.abort();
@@ -488,16 +497,37 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const keyStep: KeyStep =
     keys.status === "locked"
       ? { state: "locked" }
-      : key
-        ? { state: "done", provider: providerName(key.url) }
-        : { state: "todo" };
+      : keys.status === "failed"
+        ? { state: "failed" }
+        : key
+          ? { state: "done", provider: providerName(key.url) }
+          : { state: "todo" };
   // `hasMywot` is the assistant the server mints at sign-in, so it says nothing about
   // scores: the scoring status says whether a calculation is running, failed or never ran.
   // The ranking is there once the search relay answers through the assistant.
-  const scoring = useScoringStatus().status;
-  const wotStep = wotStepOf({ hasAssistant: hasMywot, ranked: isSearchObserver && canUseMywot, scoring });
-  const checking = keys.status === "loading" || (!mywot.known && mywot.isLoading);
+  const scoringStatus = useScoringStatus();
+  const scoring = scoringStatus.status;
+  // Search ranks through the provider the reader's kind 10040 names: with none naming
+  // Brainstorm, published scores never reach the paper, so "almost ready" would wait forever.
+  const provider = useTrustProviderStatus(pubkey, mywot.taPubkey).data;
+  const activated = provider === undefined || provider === "unknown" ? undefined : provider === "brainstorm";
+  const ranked = isSearchObserver && canUseMywot;
+  // A print the relay turned away says the ranking isn't there yet, whatever the gate
+  // answered then; the gate's next answer (asked again on the spot) stands over it.
+  const turnedAway = run.state === "pending" && observerCheckedAt <= run.at;
+  const wotStep = wotStepOf({ hasAssistant: hasMywot, ranked: ranked && !turnedAway, scoring, activated });
+  useEffect(() => {
+    if (run.state === "pending" && !turnedAway) setRun({ state: "idle" });
+  }, [run, turnedAway]);
+  const checking =
+    keys.status === "loading" ||
+    (!mywot.known && mywot.isLoading) ||
+    // The scoring status decides the row only while search doesn't rank yet.
+    (hasMywot && !ranked && scoringStatus.isLoading);
   const blocker = checking ? "checking" : keyStep.state !== "done" || wotStep.state !== "done" ? "setup" : null;
+  // Whether the reader has papers already: unknown until the site has answered (or a paper
+  // was printed here), and unknown is never read as "none".
+  const hasEditions = days.length > 0 ? true : site ? false : null;
   const setupShown = blocker === "setup";
 
   const picker = key && blocker === null && (
@@ -563,15 +593,8 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
               <PublishStatus state={publishState} onRetry={() => page && offerPublish(page)} />
             )}
 
-            {(setupShown || run.state === "pending") && (
-              <SetupChecklist
-                keyStep={keyStep}
-                // A print the relay turned away says the ranking isn't there yet, whatever
-                // the gate above it answered.
-                wot={run.state === "pending" ? wotStepOf({ hasAssistant: hasMywot, ranked: false, scoring }) : wotStep}
-                hasEditions={days.length > 0}
-                onUnlock={keys.reveal}
-              />
+            {setupShown && (
+              <SetupChecklist keyStep={keyStep} wot={wotStep} hasEditions={hasEditions} onUnlock={keys.reveal} />
             )}
             {blocker === "checking" && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="front-page-checking">
@@ -762,7 +785,7 @@ function PrintControls({
 function PrintedTodayHint({ printedAt, onOpen }: { printedAt?: number; onOpen: () => void }) {
   return (
     <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="front-page-printed-today">
-      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
       <span className="min-w-0 flex-1">
         Already printed today{printedAt !== undefined ? `, ${formatClock(printedAt * 1000)}` : ""}
       </span>
@@ -771,6 +794,7 @@ function PrintedTodayHint({ printedAt, onOpen }: { printedAt?: number; onOpen: (
         size="sm"
         className="h-7 shrink-0 px-2"
         onClick={onOpen}
+        aria-label="Open today's paper"
         data-testid="front-page-printed-today-open"
       >
         Open
@@ -1151,7 +1175,7 @@ function ModelPicker({
   );
 }
 
-type KeyStep = { state: "done"; provider: string } | { state: "todo" } | { state: "locked" };
+type KeyStep = { state: "done"; provider: string } | { state: "todo" } | { state: "locked" } | { state: "failed" };
 
 /**
  * What a first paper needs, both at once: the reader's AI key and their web of trust.
@@ -1167,11 +1191,14 @@ function SetupChecklist({
 }: {
   keyStep: KeyStep;
   wot: WotStep;
-  /** The reader has papers already and removed a step: it isn't their first. */
-  hasEditions: boolean;
+  /**
+   * The reader has papers already and removed a step: it isn't their first. Null while
+   * that isn't known (the site not read yet, or not readable): the neutral title.
+   */
+  hasEditions: boolean | null;
   onUnlock: () => void;
 }) {
-  const title = hasEditions ? "To print your paper" : "Before your first paper";
+  const title = hasEditions === false ? "Before your first paper" : "To print your paper";
   return (
     <Card className="p-4 sm:p-5" data-testid="front-page-setup">
       <SectionHeader variant="title" kicker={title} />
@@ -1193,6 +1220,16 @@ function SetupChecklist({
             ) : keyStep.state === "locked" ? (
               <Button size="sm" onClick={onUnlock} aria-label="Unlock your AI key" data-testid="front-page-unlock">
                 <Lock /> Unlock
+              </Button>
+            ) : keyStep.state === "failed" ? (
+              // The signer didn't answer: the key is there, so asking again is the fix, not Connect.
+              <Button
+                size="sm"
+                onClick={onUnlock}
+                aria-label="Retry reading your AI key"
+                data-testid="front-page-setup-key-retry"
+              >
+                <RotateCcw /> Retry
               </Button>
             ) : (
               <Button asChild size="sm" data-testid="front-page-connect">
@@ -1228,6 +1265,9 @@ function wotNote(wot: WotStep): string | undefined {
   }
   if (wot.state === "todo" && wot.why === "uncalculated") return "Your rankings haven't been calculated yet.";
   if (wot.state === "todo" && wot.why === "failed") return "The last calculation didn't finish.";
+  if (wot.state === "todo" && wot.why === "activate") {
+    return "Your rankings are published. Activate Brainstorm so search can rank through them.";
+  }
   return undefined;
 }
 
@@ -1255,7 +1295,14 @@ function WotAction({ wot }: { wot: WotStep }) {
       ? ["/setup", "Set up", "Set up your web of trust", "front-page-setup-wot-action"]
       : wot.why === "failed"
         ? ["/dashboard", "Retry", "Retry your web of trust calculation", "front-page-setup-wot-retry"]
-        : ["/dashboard", "Calculate", "Calculate your web of trust", "front-page-setup-wot-calculate"];
+        : wot.why === "activate"
+          ? [
+              "/setup/activate",
+              "Activate",
+              "Activate Brainstorm for your web of trust",
+              "front-page-setup-wot-activate",
+            ]
+          : ["/dashboard", "Calculate", "Calculate your web of trust", "front-page-setup-wot-calculate"];
   return (
     <Button asChild size="sm" data-testid={testId}>
       <Link href={href} aria-label={label}>

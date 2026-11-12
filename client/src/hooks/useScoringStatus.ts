@@ -23,6 +23,8 @@ type GrapeRankResult = { data?: { internal_publication_status?: unknown; ta_stat
  */
 export function useScoringStatus(): {
   status: ScoringStatus;
+  /** The first answer from `/user/graperankResult` is still out: `status` is only a default. */
+  isLoading: boolean;
   isCalculating: boolean;
   isReady: boolean;
   elapsedMs: number | null;
@@ -83,6 +85,7 @@ export function useScoringStatus(): {
 
   return {
     status,
+    isLoading: enabled && q.isPending,
     isCalculating: status === "calculating" || status === "publishing",
     isReady: status === "ready",
     elapsedMs,

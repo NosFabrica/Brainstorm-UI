@@ -46,3 +46,23 @@ describe("the web of trust step", () => {
     });
   });
 });
+
+describe("scores published, no 10040 naming Brainstorm (audit, 2026-11-12)", () => {
+  it("is an activation to do, not a wait: search ranks through the provider a 10040 names", () => {
+    expect(wotStepOf({ hasAssistant: true, ranked: false, scoring: "ready", activated: false })).toEqual({
+      state: "todo",
+      why: "activate",
+    });
+    // Named, or not known yet: search is catching up.
+    for (const activated of [true, undefined]) {
+      expect(wotStepOf({ hasAssistant: true, ranked: false, scoring: "ready", activated })).toEqual({
+        state: "pending",
+        phase: "indexing",
+      });
+    }
+    // Ranked is ranked, whatever the 10040 says.
+    expect(wotStepOf({ hasAssistant: true, ranked: true, scoring: "ready", activated: false })).toEqual({
+      state: "done",
+    });
+  });
+});

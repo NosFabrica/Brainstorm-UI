@@ -20,6 +20,12 @@ const state = vi.hoisted(() => ({
   fetchBlob: vi.fn(),
   schedule: { status: "none" } as Record<string, unknown>,
   scoring: "calculating" as "idle" | "calculating" | "publishing" | "ready" | "failed",
+  scoringLoading: false,
+  /** What the reader's kind 10040 says of Brainstorm; undefined until the relays answered. */
+  trustProvider: "brainstorm" as "brainstorm" | "none" | "other" | undefined,
+  /** When the search relay was last asked whether it ranks through the reader. */
+  observerCheckedAt: 1,
+  siteLoad: null as null | (() => Promise<unknown>),
 }));
 
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
@@ -33,7 +39,12 @@ vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ reveal: vi.fn(),
 vi.mock("@/hooks/useObserverSchedule", () => ({
   useObserverSchedule: () => ({ reveal: vi.fn(), refresh: vi.fn(), checkedAt: null, ...state.schedule }),
 }));
-vi.mock("@/hooks/useScoringStatus", () => ({ useScoringStatus: () => ({ status: state.scoring }) }));
+vi.mock("@/hooks/useScoringStatus", () => ({
+  useScoringStatus: () => ({ status: state.scoring, isLoading: state.scoringLoading }),
+}));
+vi.mock("@/hooks/useTrustProviderStatus", () => ({
+  useTrustProviderStatus: () => ({ data: state.trustProvider, missingSignals: [] }),
+}));
 vi.mock("@/hooks/useHasMywot", () => ({
   useHasMywot: () => ({ hasMywot: state.hasMywot, taPubkey: "t", known: true, isLoading: false }),
 }));
@@ -42,6 +53,7 @@ vi.mock("@/hooks/useCanSearchMywot", () => ({
     hasMywot: state.hasMywot,
     isSearchObserver: state.isSearchObserver,
     canUseMywot: state.hasMywot && state.isSearchObserver,
+    observerCheckedAt: state.observerCheckedAt,
   }),
 }));
 vi.mock("@/services/frontPage", async (importOriginal) => ({
@@ -52,7 +64,7 @@ vi.mock("@/services/frontPage", async (importOriginal) => ({
 
 vi.mock("@/services/observerSite", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  loadObserverSite: () => Promise.resolve(state.site),
+  loadObserverSite: () => (state.siteLoad ? state.siteLoad() : Promise.resolve(state.site)),
   publishToObserver: (...args: unknown[]) => state.publish(...args),
   fetchBlob: (...args: unknown[]) => state.fetchBlob(...args),
 }));
@@ -88,6 +100,10 @@ describe("FrontPagePage", () => {
     });
     state.fetchBlob.mockReset().mockResolvedValue(null);
     state.schedule = { status: "none" };
+    state.scoringLoading = false;
+    state.trustProvider = "brainstorm";
+    state.observerCheckedAt = 1;
+    state.siteLoad = null;
   });
 
   it("when the provider lists no models, says what to type before Print is offered", async () => {
@@ -103,13 +119,14 @@ describe("FrontPagePage", () => {
   describe("before the first paper", () => {
     const row = (which: "key" | "wot") => screen.getByTestId(`front-page-setup-${which}`);
 
-    it("with neither, lists both steps to do, each with its action, and offers no Print", () => {
+    it("with neither, lists both steps to do, each with its action, and offers no Print", async () => {
       state.keys = { status: "none" };
       state.hasMywot = false;
       state.isSearchObserver = false;
       renderWithProviders(<FrontPagePage />);
       const card = screen.getByTestId("front-page-setup");
-      expect(card).toHaveTextContent("Before your first paper");
+      // Once the site says there are no papers yet.
+      await waitFor(() => expect(card).toHaveTextContent("Before your first paper"));
       expect(row("key")).toHaveAttribute("data-state", "todo");
       expect(row("key")).toHaveTextContent("AI key: To do");
       expect(screen.getByTestId("front-page-connect").getAttribute("href")).toBe("/settings?tab=assistants&view=ai");
@@ -237,6 +254,73 @@ describe("FrontPagePage", () => {
       expect(screen.queryByTestId("front-page-print")).toBeNull();
     });
 
+    it("calls it neither paper while the site is unknown, nor when it couldn't be read (audit, 2026-11-12)", async () => {
+      state.keys = { status: "none" };
+      state.siteLoad = () => new Promise(() => {});
+      const { unmount } = renderWithProviders(<FrontPagePage />);
+      expect(screen.getByTestId("front-page-setup")).toHaveTextContent("To print your paper");
+      expect(screen.getByTestId("front-page-setup")).not.toHaveTextContent("Before your first paper");
+      unmount();
+      state.siteLoad = () => Promise.reject(new Error("no relay answered"));
+      renderWithProviders(<FrontPagePage />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.getByTestId("front-page-setup")).not.toHaveTextContent("Before your first paper");
+    });
+
+    it("waits for the scoring status before offering a calculation (audit, 2026-11-12)", () => {
+      state.isSearchObserver = false;
+      state.scoring = "idle";
+      state.scoringLoading = true;
+      renderWithProviders(<FrontPagePage />);
+      expect(screen.getByTestId("front-page-checking")).toBeInTheDocument();
+      expect(screen.queryByTestId("front-page-setup-wot-calculate")).toBeNull();
+    });
+
+    it("with scores published but no 10040 naming Brainstorm, leads to activation (audit, 2026-11-12)", () => {
+      state.isSearchObserver = false;
+      state.scoring = "ready";
+      for (const declared of ["none", "other"] as const) {
+        state.trustProvider = declared;
+        const { unmount } = renderWithProviders(<FrontPagePage />);
+        expect(row("wot")).toHaveAttribute("data-state", "todo");
+        expect(row("wot")).toHaveAttribute("data-reason", "activate");
+        expect(row("wot")).not.toHaveTextContent("Almost ready");
+        const activate = screen.getByRole("link", { name: "Activate Brainstorm for your web of trust" });
+        expect(activate.getAttribute("href")).toBe("/setup/activate");
+        expect(activate).toHaveTextContent("Activate");
+        unmount();
+      }
+      // Named, or not known yet: still waiting for search.
+      for (const declared of ["brainstorm", undefined] as const) {
+        state.trustProvider = declared;
+        const { unmount } = renderWithProviders(<FrontPagePage />);
+        expect(row("wot")).toHaveAttribute("data-reason", "indexing");
+        unmount();
+      }
+    });
+
+    it("a signer that failed to read the key offers Retry, not Connect (audit, 2026-11-12)", () => {
+      const reveal = vi.fn();
+      state.keys = { status: "failed", error: "Your signer didn't answer.", reveal };
+      renderWithProviders(<FrontPagePage />);
+      expect(row("key")).toHaveAttribute("data-state", "failed");
+      expect(screen.queryByTestId("front-page-connect")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Retry reading your AI key" }));
+      expect(reveal).toHaveBeenCalledTimes(1);
+    });
+
+    it("clears a turned-away print's in-progress row once search is asked again (audit, 2026-11-12)", async () => {
+      state.print.mockResolvedValue({ status: "not-ready", reason: "projection-pending" });
+      const { rerender } = renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      await waitFor(() => expect(row("wot")).toHaveAttribute("data-state", "pending"));
+      // The search relay answers again, and says it ranks through them.
+      state.observerCheckedAt = Date.now() + 1000;
+      rerender(<FrontPagePage />);
+      await waitFor(() => expect(screen.queryByTestId("front-page-setup")).toBeNull());
+    });
+
     it("a print the relay turns away marks the web of trust in progress", async () => {
       state.print.mockResolvedValue({ status: "not-ready", reason: "projection-pending" });
       renderWithProviders(<FrontPagePage />);
@@ -299,6 +383,10 @@ describe("FrontPagePage", () => {
     const hint = await screen.findByTestId("front-page-printed-today");
     expect(hint).toHaveTextContent("Already printed today");
     await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    // Says what it opens, out of context too; the tick is decoration.
+    const open = screen.getByRole("button", { name: "Open today's paper" });
+    expect(open).toBe(screen.getByTestId("front-page-printed-today-open"));
+    for (const svg of hint.querySelectorAll("svg")) expect(svg).toHaveAttribute("aria-hidden", "true");
     fireEvent.click(screen.getByTestId("front-page-printed-today-open"));
     await waitFor(() => expect(screen.queryByTestId("front-page-print-dialog")).toBeNull());
     expect(state.print).not.toHaveBeenCalled();
