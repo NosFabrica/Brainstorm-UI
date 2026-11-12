@@ -691,7 +691,7 @@ function Hero({
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              Your front page
+              The Observer
             </h1>
             <p className="text-sm text-muted-foreground">Today on Nostr, through your web of trust.</p>
           </div>
@@ -1493,7 +1493,7 @@ function PaperFrame({ page, failed = false }: { page: Printed; failed?: boolean 
       {/* The paper is always light, whatever the app's theme: newsprint. No scripts can run in it
           (no allow-scripts), and its links open in a new tab, outside the sandbox. */}
       <iframe
-        title="Your front page"
+        title="Today's Observer"
         srcDoc={page.html}
         sandbox={SANDBOX}
         referrerPolicy="no-referrer"
@@ -1600,7 +1600,7 @@ function FullScreenPaper({ page, open, onClose }: { page: Printed; open: boolean
           <div className="flex min-h-0 flex-1 p-2 sm:p-4">
             <iframe
               ref={frame}
-              title="Your front page, full screen"
+              title="Today's Observer, full screen"
               srcDoc={page.html}
               sandbox={SANDBOX}
               referrerPolicy="no-referrer"

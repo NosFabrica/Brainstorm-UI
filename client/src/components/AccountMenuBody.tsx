@@ -450,7 +450,7 @@ export function AccountMenuBody({
           trust product. So: the user's own state first, then the one offer,
           then growth, then utilities.
 
-          0. Front page — today's paper, written from the user's own web of
+          0. The Observer — today's paper, written from the user's own web of
              trust by their own AI. Theirs before anything else, and above
              Insights so the Insights → Get Priority pair below stays adjacent.
           1. Insights — the thing you CHECK, and the most-opened row here. Also
@@ -470,7 +470,7 @@ export function AccountMenuBody({
       <div className="p-1.5">
         <MenuRow
           icon={Newspaper}
-          label="Front page"
+          label="The Observer"
           onClick={() => onNavigate("/front-page")}
           testId="dropdown-front-page"
         />
