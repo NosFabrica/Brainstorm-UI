@@ -1192,9 +1192,16 @@ describe("the runner (NIP-FB `p`)", () => {
   });
 
   it("names a runner publicly, replaces every public p, and clears to none", () => {
-    const named = setRunner(base, ASSISTANT);
-    expect(named).toEqual({ public: [["p", ASSISTANT]], private: base.private });
-    expect(setRunner(named, ASSISTANT)).toBe(named);
+    const named = setRunner(base, ASSISTANT, 1000);
+    // The private tags stay, with cron marked as set then.
+    expect(named).toEqual({
+      public: [["p", ASSISTANT]],
+      private: [
+        ["task", "observer"],
+        ["cron", "0 6 * * *", "UTC", "1"],
+      ],
+    });
+    expect(setRunner(named, ASSISTANT, 1000)).toBe(named);
     const conflict: TaskTags = {
       public: [
         ["p", ASSISTANT],
@@ -1203,21 +1210,21 @@ describe("the runner (NIP-FB `p`)", () => {
       ],
       private: [["p", OTHER]],
     };
-    expect(setRunner(conflict, ASSISTANT)).toEqual({
+    expect(setRunner(conflict, ASSISTANT, 1)).toEqual({
       public: [
         ["x", "1"],
         ["p", ASSISTANT],
       ],
       private: [["p", OTHER]],
     });
-    expect(setRunner(conflict, null)).toEqual({ public: [["x", "1"]], private: [["p", OTHER]] });
-    expect(setRunner(base, null)).toBe(base);
-    expect(() => setRunner(base, "not a key")).toThrow(RangeError);
+    expect(setRunner(conflict, null, 1)).toEqual({ public: [["x", "1"]], private: [["p", OTHER]] });
+    expect(setRunner(base, null, 1)).toBe(base);
+    expect(() => setRunner(base, "not a key", 1)).toThrow(RangeError);
   });
 
   it("encrypts to the runner when there is one, else to self (a conflict too)", () => {
     expect(privateTagsPeer(base, ME)).toBe(ME);
-    expect(privateTagsPeer(setRunner(base, ASSISTANT), ME)).toBe(ASSISTANT);
+    expect(privateTagsPeer(setRunner(base, ASSISTANT, 1), ME)).toBe(ASSISTANT);
     expect(
       privateTagsPeer(
         {
@@ -1232,7 +1239,7 @@ describe("the runner (NIP-FB `p`)", () => {
     ).toBe(ME);
   });
 
-  it("reads with each named key, then self", () => {
+  it("reads with the one runner, then self; anything else with self first", () => {
     expect(privateTagsReadPeers([], ME)).toEqual([ME]);
     expect(privateTagsReadPeers([["p", ASSISTANT]], ME)).toEqual([ASSISTANT, ME]);
     expect(
@@ -1245,7 +1252,7 @@ describe("the runner (NIP-FB `p`)", () => {
         ],
         ME,
       ),
-    ).toEqual([ASSISTANT, OTHER, ME]);
+    ).toEqual([ME, ASSISTANT, OTHER]);
   });
 });
 
@@ -1342,13 +1349,13 @@ describe("ported: Quartz ScheduledTaskRunnerTest", () => {
   it("aPublicPNamesTheRunner", () => {
     expect(readTask(daily).runner).toBeNull();
     expect(readTask(daily).runners).toEqual([]);
-    const run = setRunner(daily, ASSISTANT);
+    const run = setRunner(daily, ASSISTANT, WED);
     expect(readTask(run)).toMatchObject({ runner: ASSISTANT, runnerConflict: false });
     expect(run.public.at(-1)).toEqual(["p", ASSISTANT]);
     // Read from the public tags only: a private `p` is just a tag that stays.
     const privateP: TaskTags = { public: daily.public, private: [...daily.private, ["p", ASSISTANT]] };
     expect(readTask(privateP)).toMatchObject({ runner: null, runners: [] });
-    expect(setRunner(privateP, null).private.filter((t) => t[0] === "p")).toHaveLength(1);
+    expect(setRunner(privateP, null, WED).private.filter((t) => t[0] === "p")).toHaveLength(1);
   });
 
   it("twoRunnersAreAConflictAndNobodyRunsIt", () => {
@@ -1361,7 +1368,7 @@ describe("ported: Quartz ScheduledTaskRunnerTest", () => {
     };
     expect(readTask(two)).toMatchObject({ runnerConflict: true, runner: null });
     expect(readTask(two).runners.length > 0).toBe(true);
-    expect(readTask(setRunner(two, ASSISTANT)).runner).toBe(ASSISTANT);
+    expect(readTask(setRunner(two, ASSISTANT, WED)).runner).toBe(ASSISTANT);
     // A `p` that isn't a key names nobody who can run it, and the author's devices still don't.
     const odd: TaskTags = { public: [["p", "not-a-key"]], private: daily.private };
     expect(readTask(odd)).toMatchObject({ runner: null, runnerConflict: false, runners: ["not-a-key"] });
@@ -1376,7 +1383,8 @@ describe("ported: Quartz ScheduledTaskRunnerTest", () => {
       private: daily.private,
     };
     const me = "a".repeat(64);
-    expect(privateTagsReadPeers(two.public, me)).toEqual([STRANGER, ASSISTANT, me]);
+    // Self first: our writer encrypts a conflict to self.
+    expect(privateTagsReadPeers(two.public, me)).toEqual([me, STRANGER, ASSISTANT]);
     expect(privateTagsPeer(two, me)).toBe(me);
   });
 
@@ -1400,10 +1408,65 @@ describe("ported: Quartz ScheduledTaskRunnerTest", () => {
   });
 
   it("clearingAndMovingTheRunnerKeepsEverythingElse", () => {
-    const run = setRunner(setSimpleSchedule(daily, { time: "06:00", days: [...WEEKDAYS] }, "UTC", WED), ASSISTANT);
-    const moved = setRunner(run, STRANGER);
+    const run = setRunner(setSimpleSchedule(daily, { time: "06:00", days: [...WEEKDAYS] }, "UTC", WED), ASSISTANT, WED);
+    const moved = setRunner(run, STRANGER, WED);
     expect(readTask(moved).runner).toBe(STRANGER);
-    expect(moved.private).toBe(run.private);
-    expect(setRunner(moved, null).public).toEqual([]);
+    expect(moved.private).toEqual(run.private);
+    expect(setRunner(moved, null, WED).public).toEqual([]);
+  });
+});
+
+describe("the runner and cron's setAt; who counts as a runner (audit, 2026-11-12)", () => {
+  const ME = "a".repeat(64);
+  const ASSISTANT = "b".repeat(64);
+  const OTHER = "c".repeat(64);
+  const SET = 1_794_300_000;
+  const NOW_MS = 1_794_400_000_000;
+  const scheduled: TaskTags = {
+    public: [],
+    private: [
+      ["task", "observer"],
+      ["cron", "0 6 * * *", "UTC", String(SET), "kept"],
+    ],
+  };
+  const setAtOf = (tags: TaskTags) => readTask(tags).setAt;
+
+  it("naming the runner sets cron's setAt to now, as resuming does", () => {
+    const named = setRunner(scheduled, ASSISTANT, NOW_MS);
+    expect(setAtOf(named)).toBe(NOW_MS / 1000);
+    // The values after setAt stay.
+    expect(named.private[1]).toEqual(["cron", "0 6 * * *", "UTC", String(NOW_MS / 1000), "kept"]);
+  });
+
+  it("clearing or moving the runner sets it too", () => {
+    const named: TaskTags = { public: [["p", ASSISTANT]], private: scheduled.private };
+    expect(setAtOf(setRunner(named, null, NOW_MS))).toBe(NOW_MS / 1000);
+    expect(setAtOf(setRunner(named, OTHER, NOW_MS))).toBe(NOW_MS / 1000);
+  });
+
+  it("no change keeps setAt, and a task without cron gets none", () => {
+    const named: TaskTags = { public: [["p", ASSISTANT]], private: scheduled.private };
+    expect(setRunner(named, ASSISTANT, NOW_MS)).toBe(named);
+    const settingsOnly: TaskTags = { public: [], private: [["task", "observer"]] };
+    expect(setRunner(settingsOnly, ASSISTANT, NOW_MS).private).toEqual([["task", "observer"]]);
+  });
+
+  it("a runner is a lowercase 64-hex key that isn't the author", () => {
+    expect(readTask({ public: [["p", ME]], private: [] }, ME)).toMatchObject({ runner: null, runners: [ME] });
+    expect(readTask({ public: [["p", ASSISTANT.toUpperCase()]], private: [] }, ME).runner).toBeNull();
+    expect(readTask({ public: [["p", ASSISTANT]], private: [] }, ME).runner).toBe(ASSISTANT);
+  });
+
+  it("a p naming the author still names a runner: the devices don't print it, and it is written to self", () => {
+    const self: TaskTags = { public: [["p", ME]], private: [] };
+    expect(readTask(self, ME).runners.length > 0).toBe(true);
+    expect(privateTagsPeer(self, ME)).toBe(ME);
+    expect(privateTagsReadPeers(self.public, ME)).toEqual([ME]);
+  });
+
+  it("an invalid p is read with self, and written to self", () => {
+    const upper: TaskTags = { public: [["p", ASSISTANT.toUpperCase()]], private: [] };
+    expect(privateTagsPeer(upper, ME)).toBe(ME);
+    expect(privateTagsReadPeers(upper.public, ME)).toEqual([ME]);
   });
 });

@@ -86,7 +86,11 @@ export interface ScheduledTask {
    * Runner). A private `p` is just a tag that is kept.
    */
   runners: string[];
-  /** The one key that runs the task for its author; null with none, more than one, or a `p` that isn't a key. */
+  /**
+   * The one key that runs the task for its author: a single public `p` holding a lowercase
+   * 64-hex key that isn't the author's. Null with none, more than one, or any other `p`;
+   * a `p` that isn't a runner still means one is named (`runners`), and nobody runs it.
+   */
   runner: string | null;
   /** More than one public `p`: NIP-FB says nobody runs the task. */
   runnerConflict: boolean;
@@ -141,7 +145,11 @@ function readClaim(tag: string[] | undefined): TaskClaim | null {
   return { due, id: tag[2] ?? "", by: by ? by : null, at: seconds(tag[4]) };
 }
 
-export function readTask(tags: TaskTags): ScheduledTask {
+/**
+ * The task its tags describe. `author`, when known, is who signed it: a `p` naming them
+ * is no runner (`runner`).
+ */
+export function readTask(tags: TaskTags, author?: string): ScheduledTask {
   const cron = first(tags, "cron");
   const task = first(tags, "task")?.[1];
   const runners = runnersOf(tags.public);
@@ -159,7 +167,7 @@ export function readTask(tags: TaskTags): ScheduledTask {
       return param ? [param] : [];
     }),
     runners,
-    runner: soleRunner(runners),
+    runner: soleRunner(runners, author),
     runnerConflict: runners.length > 1,
   };
 }
@@ -224,43 +232,53 @@ export function runnersOf(publicTags: readonly string[][]): string[] {
   return publicTags.filter((t) => t[0] === "p" && typeof t[1] === "string").map((t) => t[1]);
 }
 
-/** The one runner `runners` names: exactly one, and a key; null otherwise. */
-function soleRunner(runners: readonly string[]): string | null {
-  return runners.length === 1 && HEX_KEY.test(runners[0]) ? runners[0] : null;
+/**
+ * The one runner `runners` names: exactly one, a lowercase 64-hex key, and not the author
+ * (when known); null otherwise.
+ */
+function soleRunner(runners: readonly string[], author?: string): string | null {
+  return runners.length === 1 && HEX_KEY.test(runners[0]) && runners[0] !== author ? runners[0] : null;
 }
 
 /**
  * Run by `runner`, or by the author's own devices when it is null: every public `p` goes,
  * and for a runner one public `["p", runner]` is added. A private `p` isn't a runner and
- * stays. Whoever writes the event next encrypts the private tags to the new peer
- * (`privateTagsPeer`): the runner, or the author when cleared. The same tags come back when
- * the task already names exactly that runner, or none.
+ * stays. `cron`, when there is one, is marked as set `now`, as resuming does: the mornings
+ * before the change are nobody's to print, so the devices don't print one the runner
+ * already did (after a clear), nor both of them one in progress (after naming it). Whoever
+ * writes the event next encrypts the private tags to the new peer (`privateTagsPeer`): the
+ * runner, or the author when cleared. The same tags come back when the task already names
+ * exactly that runner, or none.
  */
-export function setRunner(tags: TaskTags, runner: string | null): TaskTags {
+export function setRunner(tags: TaskTags, runner: string | null, now: number): TaskTags {
   const current = runnersOf(tags.public);
   if (runner === null ? current.length === 0 : current.length === 1 && current[0] === runner) return tags;
   if (runner !== null && !HEX_KEY.test(runner)) throw new RangeError("Not a key.");
   const kept = tags.public.filter((t) => t[0] !== "p");
-  return { public: runner === null ? kept : [...kept, ["p", runner]], private: tags.private };
+  const next = { public: runner === null ? kept : [...kept, ["p", runner]], private: tags.private };
+  return merged(next).some((t) => t[0] === "cron") ? stampCron(next, now) : next;
 }
 
 /**
  * The other key of the NIP-44 conversation the private tags are written in, for `author`:
- * the runner when the task names one, else the author (NIP-51's to-self). A conflict is
- * written to self: nobody runs it, and only the author must read it.
+ * the runner when the task names one, else the author (NIP-51's to-self). A conflict, or a
+ * `p` that is no runner, is written to self: nobody runs it, and only the author must read it.
  */
 export function privateTagsPeer(tags: TaskTags, author: string): string {
-  return soleRunner(runnersOf(tags.public)) ?? author;
+  return soleRunner(runnersOf(tags.public), author) ?? author;
 }
 
 /**
  * Which keys the author tries, in order, to read the private tags of an event with these
- * public tags: each key a public `p` names (a conflict was written by some client to one
- * of them), then themselves (Quartz's `ScheduledTaskEvent.privateTagsPeers`).
+ * public tags: the runner, then themselves, when there is one runner; otherwise themselves
+ * first (a conflict is written to self), then each other key a public `p` names, for a
+ * conflict some client wrote to one of them.
  */
 export function privateTagsReadPeers(publicTags: readonly string[][], author: string): string[] {
-  const peers = runnersOf(publicTags).filter((p) => HEX_KEY.test(p) && p !== author);
-  return [...new Set([...peers, author])];
+  const runners = runnersOf(publicTags);
+  const runner = soleRunner(runners, author);
+  if (runner) return [runner, author];
+  return [...new Set([author, ...runners.filter((p) => HEX_KEY.test(p) && p !== author)])];
 }
 
 /**

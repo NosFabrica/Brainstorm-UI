@@ -190,9 +190,9 @@ describe("who prints", () => {
   const base: TaskTags = emptyObserverSchedule();
   it("reads devices, the Assistant, another key, or a conflict", () => {
     expect(whoPrints(readTask(base), ASSISTANT)).toBe("devices");
-    expect(whoPrints(readTask(setRunner(base, ASSISTANT)), ASSISTANT)).toBe("assistant");
-    expect(whoPrints(readTask(setRunner(base, ASSISTANT)), null)).toBe("other");
-    expect(whoPrints(readTask(setRunner(base, "c".repeat(64))), ASSISTANT)).toBe("other");
+    expect(whoPrints(readTask(setRunner(base, ASSISTANT, 0)), ASSISTANT)).toBe("assistant");
+    expect(whoPrints(readTask(setRunner(base, ASSISTANT, 0)), null)).toBe("other");
+    expect(whoPrints(readTask(setRunner(base, "c".repeat(64), 0)), ASSISTANT)).toBe("other");
     expect(
       whoPrints(
         readTask({
@@ -227,6 +227,7 @@ describe("two sites: the reader's and their Assistant's", () => {
         ],
       },
       "b".repeat(64),
+      1000,
     ),
   );
   // 2026-11-12 06:00 New York is 11:00 UTC; at 15:00 UTC it is more than 3 hours past.
@@ -366,7 +367,7 @@ describe("ported: Quartz ObserverRunnerSiteTest", () => {
       ["cron", "0 6 * * *", NY, "0"],
     ],
   };
-  const run = setRunner(daily, ASSISTANT);
+  const run = setRunner(daily, ASSISTANT, 0);
   const withRan = (tags: TaskTags, ran: number) => ({ ...tags, private: [...tags.private, ["ran", String(ran)]] });
   const ms = (s: number) => s * 1000;
   // Quartz warns at exactly 3 hours; NIP-FB and this app at more than 3: the cases sit a second past.

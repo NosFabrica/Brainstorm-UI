@@ -639,6 +639,8 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
     ["param", "key", "https://openrouter.ai/api/v1", "a3f9"],
     ["param", "size", "a3"],
   ];
+  /** `withParams` once naming or clearing the runner marked `cron` as set at NOW. */
+  const restamped = withParams.map((t) => (t[0] === "cron" ? [...t, String(NOW / 1000)] : t));
   const toAssistant = (
     tags: string[][],
     createdAt = 2_000_000_000,
@@ -660,7 +662,7 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
   it("naming the Assistant adds the public p and re-encrypts so both read it, every param kept", async () => {
     requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent(withParams), reach: reachAll });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, ASSISTANT));
+    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, ASSISTANT, NOW));
 
     expect(res.success).toBe(true);
     const event = published();
@@ -669,10 +671,10 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
       ["p", ASSISTANT],
     ]);
     // The Assistant reads it with the reader as peer; the reader with the Assistant as peer.
-    expect(assistantReads(event.content)).toEqual(withParams);
+    expect(assistantReads(event.content)).toEqual(restamped);
     expect(() => nip44.decrypt(event.content, toSelf)).toThrow();
     const read = await service.readSchedule(account as never, event as never);
-    expect(read).toEqual({ status: "ready", tags: { public: [["p", ASSISTANT]], private: withParams } });
+    expect(read).toEqual({ status: "ready", tags: { public: [["p", ASSISTANT]], private: restamped } });
   });
 
   it("reads an event encrypted to the Assistant, and choosing devices re-encrypts to self without the p", async () => {
@@ -680,12 +682,12 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
 
     const res = await service.updateObserverSchedule((d) => {
       expect(d.private).toEqual(withParams);
-      return tasks.setRunner(d, null);
+      return tasks.setRunner(d, null, NOW);
     });
 
     expect(res.success).toBe(true);
     expect(published().tags).toEqual([["d", "observer"]]);
-    expect(decrypted()).toEqual(withParams);
+    expect(decrypted()).toEqual(restamped);
     expect(() => assistantReads(published().content)).toThrow();
   });
 
@@ -711,7 +713,7 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
     const OTHER_SECRET = new Uint8Array(32).fill(11);
     requestNewestWithReach.mockResolvedValue({ newest: toAssistant(withParams), reach: reachAll });
 
-    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, OTHER));
+    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, OTHER, NOW));
 
     expect(res.success).toBe(true);
     expect(published().tags).toEqual([
@@ -719,7 +721,7 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
       ["p", OTHER],
     ]);
     const otherReads = JSON.parse(nip44.decrypt(published().content, nip44.getConversationKey(OTHER_SECRET, PUBKEY)));
-    expect(otherReads).toEqual(withParams);
+    expect(otherReads).toEqual(restamped);
     expect(() => assistantReads(published().content)).toThrow();
   });
 
@@ -765,7 +767,7 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
     );
     expect(await service.readSchedule(account as never, stranger as never)).toEqual({ status: "unreadable" });
     requestNewestWithReach.mockResolvedValue({ newest: stranger, reach: reachAll });
-    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, null));
+    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, null, NOW));
     expect(res.success).toBe(false);
     expect(publish).not.toHaveBeenCalled();
   });

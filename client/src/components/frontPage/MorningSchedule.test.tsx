@@ -434,6 +434,10 @@ describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () =
       ],
     };
     expect(change(doc)).toEqual({ public: [["p", ASSISTANT]], private: doc.private });
+    // A schedule's cron is marked as set now: the mornings before the switch are nobody's.
+    const before = Date.now();
+    const timed = change({ public: [], private: [["cron", "0 6 * * *", tz, "1"]] });
+    expect(readTask(timed).setAt).toBeGreaterThanOrEqual(Math.floor(before / 1000));
   });
 
   it("switching back to devices removes the runner", async () => {

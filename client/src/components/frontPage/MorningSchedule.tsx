@@ -96,11 +96,14 @@ const KEEP = (doc: TaskTags) => doc;
  */
 export const MorningSchedule = memo(function MorningSchedule({
   schedule: state,
+  reader = null,
   assistant = null,
   sites = NO_SITES,
   migrate = KEEP,
 }: {
   schedule: ObserverSchedule;
+  /** Whose schedule it is: a `p` naming them is no runner. */
+  reader?: string | null;
   /** The reader's Brainstorm Assistant (`ta_pubkey`); null without one, and then there's no choice of who prints. */
   assistant?: string | null;
   sites?: ScheduleSites;
@@ -143,10 +146,10 @@ export const MorningSchedule = memo(function MorningSchedule({
     if (landed) setPending(null);
   }, [landed]);
   const doc = (!landed && pending?.doc) || held;
-  const schedule = useMemo(() => (doc ? readTask(doc) : null), [doc]);
+  const schedule = useMemo(() => (doc ? readTask(doc, reader ?? undefined) : null), [doc, reader]);
   // The editor starts from what the relays hold, never from the overlay: a save that
   // fails leaves the reader's draft where it was.
-  const heldSchedule = useMemo(() => (held ? readTask(held) : null), [held]);
+  const heldSchedule = useMemo(() => (held ? readTask(held, reader ?? undefined) : null), [held, reader]);
 
   /**
    * Applies `change`, then `onSaved` once it is saved. One at a time. A failure a retry may
@@ -225,7 +228,7 @@ export const MorningSchedule = memo(function MorningSchedule({
   const who: WhoPrints | null = schedule ? whoPrints(schedule, assistant) : null;
   const choose = (next: "devices" | "assistant") => {
     if (next === who || (next === "assistant" && !assistant)) return;
-    void save((d) => setRunner(d, next === "assistant" ? assistant : null));
+    void save((d) => setRunner(d, next === "assistant" ? assistant : null, Date.now()));
   };
   // The choice is offered to a reader with an Assistant, on a schedule this account reads.
   const canChoose = !!assistant && !!schedule && (state.status === "ready" || state.status === "none");

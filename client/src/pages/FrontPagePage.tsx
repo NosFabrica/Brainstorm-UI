@@ -266,7 +266,9 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   // their Brainstorm Assistant prints their paper as its own Observer site, which is read
   // beside theirs. A site from any other key that tags them is never asked for.
   const runner =
-    scheduleState.runners.length === 1 && HEX_KEY.test(scheduleState.runners[0]) ? scheduleState.runners[0] : null;
+    scheduleState.runners.length === 1 && HEX_KEY.test(scheduleState.runners[0]) && scheduleState.runners[0] !== pubkey
+      ? scheduleState.runners[0]
+      : null;
   const [runnerSite, setRunnerSite] = useState<RunnerSiteState | null>(null);
   const [runnerAsk, setRunnerAsk] = useState(0);
   useEffect(
@@ -577,7 +579,13 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     </div>
   );
   const schedule = pubkey && (
-    <MorningSchedule schedule={scheduleState} assistant={mywot.taPubkey} sites={scheduleSites} migrate={migrate} />
+    <MorningSchedule
+      schedule={scheduleState}
+      reader={pubkey}
+      assistant={mywot.taPubkey}
+      sites={scheduleSites}
+      migrate={migrate}
+    />
   );
   const statusShown =
     !!notice || (publishState.state !== "idle" && publishState.state !== "confirm") || run.state !== "idle";

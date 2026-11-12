@@ -65,9 +65,9 @@ const RESUME_AWAY_MS = 60_000;
  */
 const REVEAL_WINDOW_MS = 2 * 60_000;
 
-function fromRead(read: ScheduleRead, eventId: string, createdAt: number): ObserverScheduleState {
+function fromRead(read: ScheduleRead, author: string, eventId: string, createdAt: number): ObserverScheduleState {
   if (read.status === "ready") {
-    return { status: "ready", doc: read.tags, schedule: readTask(read.tags), eventId, createdAt };
+    return { status: "ready", doc: read.tags, schedule: readTask(read.tags, author), eventId, createdAt };
   }
   return read.status === "failed" ? { status: "failed", error: read.error } : { status: "unreadable" };
 }
@@ -119,7 +119,7 @@ export function useObserverSchedule(): ObserverSchedule {
     };
     const done = heldSchedule(eventId);
     if (done) {
-      set(fromRead(done, eventId, createdAt));
+      set(fromRead(done, pubkey, eventId, createdAt));
       return;
     }
     // Asked for: this event, or one landing just after the ask while they are looking.
@@ -132,7 +132,7 @@ export function useObserverSchedule(): ObserverSchedule {
         return;
       }
       try {
-        set(fromRead(await readSchedule(acct, event), eventId, createdAt));
+        set(fromRead(await readSchedule(acct, event), pubkey, eventId, createdAt));
       } catch {
         // They declined to unlock: still locked, not unreadable.
         set({ status: "locked" });
