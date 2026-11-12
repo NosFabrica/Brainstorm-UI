@@ -308,3 +308,95 @@ describe("rendering", () => {
     expect(cardRenders.mock.calls.length).toBeGreaterThan(before);
   });
 });
+
+describe("focus and the editor's semantics (audit, 2026-11-12)", () => {
+  const editButton = () => screen.getByTestId("front-page-schedule-edit");
+
+  it("moves focus into the editor on open, and back to Edit on Cancel", () => {
+    state = ready("0 6 * * *");
+    render(<Card />);
+    expect(editButton()).toHaveAttribute("aria-expanded", "false");
+    editButton().focus();
+    fireEvent.click(editButton());
+    expect(document.activeElement).toBe(time());
+    expect(editButton()).toHaveAttribute("aria-expanded", "true");
+    const controlled = document.getElementById(editButton().getAttribute("aria-controls")!);
+    expect(controlled).toBe(screen.getByTestId("front-page-schedule-panel"));
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.queryByTestId("front-page-schedule-panel")).toBeNull();
+    expect(document.activeElement).toBe(editButton());
+    expect(editButton()).toHaveAttribute("aria-expanded", "false");
+    // Nothing it points at is missing.
+    const points = editButton().getAttribute("aria-controls");
+    if (points) expect(document.getElementById(points)).not.toBeNull();
+  });
+
+  it("returns focus to Edit after a save closes the editor", async () => {
+    state = ready("0 6 * * *");
+    update.mockResolvedValue({ success: true, id: "e2", createdAt: 2000 });
+    render(<Card />);
+    fireEvent.click(editButton());
+    fireEvent.change(time(), { target: { value: "07:30" } });
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save")));
+    await waitFor(() => expect(screen.queryByTestId("front-page-schedule-panel")).toBeNull());
+    expect(document.activeElement).toBe(editButton());
+  });
+
+  it("names the card with a heading", () => {
+    state = ready("0 6 * * *");
+    render(<Card />);
+    expect(screen.getByRole("heading", { name: "Morning paper" })).toBe(
+      screen.getByTestId("front-page-schedule-title"),
+    );
+  });
+
+  it("links the time to the note naming the schedule's zone", () => {
+    const other = tz === "Asia/Tokyo" ? "Europe/Lisbon" : "Asia/Tokyo";
+    const doc: TaskTags = {
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["cron", "0 6 * * *", other],
+      ],
+    };
+    state = { ...ready("0 6 * * *"), doc, schedule: readTask(doc) };
+    render(<Card />);
+    fireEvent.click(editButton());
+    const note = document.getElementById(time().getAttribute("aria-describedby") ?? "");
+    expect(note).toHaveTextContent(/Set on (Tokyo|Lisbon) time/);
+  });
+
+  it("says nothing of another zone for the same zone by another name", () => {
+    const alias = tz === "UTC" ? "Etc/UTC" : tz === "Asia/Kolkata" ? "Asia/Calcutta" : null;
+    if (!alias) return;
+    const doc: TaskTags = {
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["cron", "0 6 * * *", alias],
+      ],
+    };
+    state = { ...ready("0 6 * * *"), doc, schedule: readTask(doc) };
+    render(<Card />);
+    expect(screen.getByTestId("front-page-schedule-status")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("offers Retry when a save failed for a reason a retry may fix, and retries the same change", async () => {
+    state = ready("0 6 * * *");
+    update.mockResolvedValueOnce({
+      success: false,
+      retryable: true,
+      error: "Couldn't load your relay list, so nothing was changed. Try again.",
+    });
+    render(<Card />);
+    fireEvent.click(editButton());
+    fireEvent.change(time(), { target: { value: "07:30" } });
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save")));
+    expect(screen.getByTestId("front-page-schedule-error")).toHaveTextContent("Couldn't load your relay list");
+    update.mockResolvedValueOnce({ success: true, id: "e2", createdAt: 2000 });
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save-retry")));
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update.mock.calls[1][0]).toBe(update.mock.calls[0][0]);
+    await waitFor(() => expect(screen.queryByTestId("front-page-schedule-error")).toBeNull());
+  });
+});

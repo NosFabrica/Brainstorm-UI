@@ -27,6 +27,7 @@ import {
   readTask,
   relativeDay,
   runsBeforeNoon,
+  sameZone,
   setEnabled,
   setSimpleSchedule,
   taskStatus,
@@ -79,7 +80,20 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
   const saving = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed save a retry may fix (a relay or the relay list didn't answer): Retry runs it again.
+  const [retry, setRetry] = useState<(() => void) | null>(null);
   const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const timeRef = useRef<HTMLInputElement>(null);
+  const doneRef = useRef<HTMLButtonElement>(null);
+  // Focus follows the panel: into it on open (the time, or Done in the details), back to
+  // Edit on close, so a keyboard or screen reader isn't left on a control that went away.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) (timeRef.current ?? doneRef.current)?.focus();
+    else if (!open && wasOpen.current) toggleRef.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
 
   const landed =
     !!pending?.wrote &&
@@ -94,19 +108,24 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
   // fails leaves the reader's draft where it was.
   const heldSchedule = useMemo(() => (held ? readTask(held) : null), [held]);
 
-  /** Applies `change`, returning whether it was saved. One at a time. */
-  const save = async (change: (doc: TaskTags) => TaskTags): Promise<boolean> => {
+  /**
+   * Applies `change`, then `onSaved` once it is saved. One at a time. A failure a retry may
+   * fix keeps both for Retry.
+   */
+  const save = async (change: (doc: TaskTags) => TaskTags, onSaved?: () => void): Promise<boolean> => {
     if (!doc || saving.current) return false;
     let optimistic: TaskTags;
     try {
       optimistic = change(doc);
     } catch (err) {
       setError(err instanceof RangeError ? err.message : null);
+      setRetry(null);
       return false;
     }
     saving.current = true;
     setBusy(true);
     setError(null);
+    setRetry(null);
     setPending({ doc: optimistic });
     try {
       const outcome = await updateObserverSchedule(change);
@@ -116,10 +135,14 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
             ? { doc: outcome.doc ?? optimistic, wrote: { id: outcome.id, createdAt: outcome.createdAt ?? 0 } }
             : null,
         );
+        onSaved?.();
         return true;
       }
       setPending(null);
-      if (!outcome.cancelled) setError(outcome.error ?? "Couldn't save your schedule.");
+      if (!outcome.cancelled) {
+        setError(outcome.error ?? "Couldn't save your schedule.");
+        if (outcome.retryable) setRetry(() => () => void save(change, onSaved));
+      }
       return false;
     } finally {
       saving.current = false;
@@ -164,9 +187,15 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
   const editable = canOpen && (!!view?.simple || schedule.cron === null);
   const base = useMemo(() => (heldSchedule ? localSimple(heldSchedule, zone, now) : null), [heldSchedule, zone, now]);
   const zoneNote =
-    schedule?.tz && schedule.tz !== zone
+    schedule?.tz && !sameZone(schedule.tz, zone, now)
       ? `Set on ${zoneLabel(schedule.tz)}${schedule.cron ? ` (${schedule.cron})` : ""}`
       : null;
+  const panelZoneId = `${ids}-panel-zone`;
+  const close = () => {
+    setOpen(false);
+    setError(null);
+    setRetry(null);
+  };
 
   return (
     <Card
@@ -186,9 +215,9 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
           <AlarmClock className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground" data-testid="front-page-schedule-title">
+          <h2 className="text-sm font-medium text-foreground" data-testid="front-page-schedule-title">
             {view?.morning === false ? "Paper" : "Morning paper"}
-          </p>
+          </h2>
           <p
             role="status"
             className="break-words text-sm text-muted-foreground"
@@ -216,16 +245,18 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
               </span>
             )}
           </p>
-          {canOpen && !open && (
+          {canOpen && (
             <button
+              ref={toggleRef}
               type="button"
               className="mt-1 text-xs font-medium text-brand-primary hover:underline focus-visible:underline focus-visible:outline-none"
-              aria-expanded={false}
-              aria-controls={panelId}
-              onClick={() => setOpen(true)}
+              aria-expanded={open}
+              // Only while it is there to point at.
+              aria-controls={open ? panelId : undefined}
+              onClick={() => (open ? close() : setOpen(true))}
               data-testid="front-page-schedule-edit"
             >
-              {editable ? "Edit" : "Details"}
+              {open ? "Close" : editable ? "Edit" : "Details"}
             </button>
           )}
         </div>
@@ -257,20 +288,25 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
             <ScheduleEditor
               base={base}
               busy={busy}
-              onSave={async (simple) => {
-                const ok = await save((d) => editSimpleSchedule(d, simple, browserTimeZone(), Date.now()));
-                if (ok) setOpen(false);
-              }}
-              onCancel={() => {
-                setOpen(false);
-                setError(null);
-              }}
+              timeRef={timeRef}
+              describedBy={zoneNote ? panelZoneId : undefined}
+              onSave={(simple) =>
+                void save(
+                  (d) => editSimpleSchedule(d, simple, browserTimeZone(), Date.now()),
+                  () => setOpen(false),
+                )
+              }
+              onCancel={close}
             />
           ) : (
-            <ScheduleDetails schedule={schedule} now={now} onDone={() => setOpen(false)} />
+            <ScheduleDetails schedule={schedule} now={now} doneRef={doneRef} onDone={close} />
           )}
           {/* The details name the zone themselves; the editor's times are on this clock. */}
-          {zoneNote && editable && <p className="text-xs text-muted-foreground">{zoneNote}</p>}
+          {zoneNote && editable && (
+            <p id={panelZoneId} className="text-xs text-muted-foreground">
+              {zoneNote}
+            </p>
+          )}
         </div>
       )}
 
@@ -281,7 +317,23 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
           data-testid="front-page-schedule-error"
         >
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          {error}
+          <span>
+            {error}
+            {retry && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="font-medium text-brand-primary hover:underline focus-visible:underline focus-visible:outline-none"
+                  onClick={retry}
+                  disabled={busy}
+                  data-testid="front-page-schedule-save-retry"
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </span>
         </p>
       )}
       {state.status === "failed" && !error && (
@@ -412,7 +464,17 @@ function RunLine({ schedule, missed, now }: { schedule: ScheduledTask; missed: {
 }
 
 /** A schedule set elsewhere, shown as written (NIP-FB: a client that can't show a cron leaves it unchanged). */
-function ScheduleDetails({ schedule, now, onDone }: { schedule: ScheduledTask; now: number; onDone: () => void }) {
+function ScheduleDetails({
+  schedule,
+  now,
+  doneRef,
+  onDone,
+}: {
+  schedule: ScheduledTask;
+  now: number;
+  doneRef: React.Ref<HTMLButtonElement>;
+  onDone: () => void;
+}) {
   const next = nextRunAt(schedule, now);
   return (
     <div className="space-y-1.5 text-xs text-muted-foreground">
@@ -431,7 +493,14 @@ function ScheduleDetails({ schedule, now, onDone }: { schedule: ScheduledTask; n
       {next !== null && <p>Next: {formatNext(next, now)}</p>}
       <p className="flex flex-wrap items-center justify-between gap-2">
         <span>Set in another app: change it there.</span>
-        <Button size="sm" variant="ghost" className="h-8 px-2" onClick={onDone} data-testid="front-page-schedule-done">
+        <Button
+          ref={doneRef}
+          size="sm"
+          variant="ghost"
+          className="h-8 px-2"
+          onClick={onDone}
+          data-testid="front-page-schedule-done"
+        >
           Done
         </Button>
       </p>
@@ -450,11 +519,16 @@ const sameSimple = (a: LocalSimple, b: LocalSimple) =>
 function ScheduleEditor({
   base,
   busy,
+  timeRef,
+  describedBy,
   onSave,
   onCancel,
 }: {
   base: LocalSimple | null;
   busy: boolean;
+  timeRef: React.Ref<HTMLInputElement>;
+  /** The note saying whose clock the schedule keeps, when it isn't this one. */
+  describedBy?: string;
   onSave: (simple: LocalSimple) => void;
   onCancel: () => void;
 }) {
@@ -477,7 +551,9 @@ function ScheduleEditor({
     <div className="space-y-2" data-testid="front-page-schedule-editor">
       <div className="flex items-center gap-2">
         <Input
+          ref={timeRef}
           type="time"
+          aria-describedby={describedBy}
           value={draft.time}
           onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
           onKeyDown={(e) => {
