@@ -17,8 +17,16 @@ vi.mock("@/hooks/useStoreReplaceable", () => ({
   }),
 }));
 vi.mock("@/accounts/signing", () => ({ canSignSilently: (...a: unknown[]) => silently(...a) }));
+// The hook reads through `readAgentKeyTags`; these tests say what the decrypt gave.
 vi.mock("@/services/agentKeys", () => ({
-  decryptAgentKeyTags: (...a: unknown[]) => decrypt(...a),
+  readAgentKeyTags: async (...a: unknown[]) => {
+    const tags = await decrypt(...a);
+    return tags && typeof tags === "object" && "status" in tags
+      ? tags
+      : tags
+        ? { status: "ready", tags }
+        : { status: "unreadable" };
+  },
   loadAgentKeys: vi.fn(),
 }));
 
@@ -82,5 +90,19 @@ describe("useAgentKeys", () => {
     await vi.waitFor(() => expect(result.current.status).toBe("ready"));
     expect(decrypt).toHaveBeenCalledTimes(1);
     current.settled = true;
+  });
+});
+
+describe("a signer failure (audit, 2026-11-12)", () => {
+  it("is failed, with a retry, not unreadable", async () => {
+    silently.mockResolvedValue(true);
+    decrypt.mockReset().mockResolvedValueOnce({ status: "failed", error: "Your signer didn't answer." });
+    current.account = { pubkey: "cc".repeat(32) };
+    current.settled = true;
+    const { result } = renderHook(() => useAgentKeys());
+    await vi.waitFor(() => expect(result.current.status).toBe("failed"));
+    decrypt.mockResolvedValueOnce([["key", "sk-x", "https://x.example/v1"]]);
+    act(() => result.current.reveal());
+    await vi.waitFor(() => expect(result.current.status).toBe("ready"));
   });
 });

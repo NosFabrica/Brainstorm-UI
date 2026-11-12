@@ -4,7 +4,7 @@ import { canSignSilently } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { AGENT_KEYS_KIND, parseAgentKeys, type AgentKey } from "@/lib/agentKeys";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
-import { decryptAgentKeyTags, loadAgentKeys } from "@/services/agentKeys";
+import { loadAgentKeys, readAgentKeyTags } from "@/services/agentKeys";
 
 export type AgentKeysState =
   | { status: "loading" }
@@ -13,13 +13,16 @@ export type AgentKeysState =
   /** There is one, but reading it would raise the unlock prompt: wait for the user to ask. */
   | { status: "locked" }
   | { status: "ready"; keys: AgentKey[] }
+  /** The signer didn't decrypt them (a bunker went quiet, a key here couldn't unlock): `reveal` asks again. */
+  | { status: "failed"; error: string }
   /** There is one and this Account can't read it. */
   | { status: "unreadable" };
 
 /**
  * The Active Account's AI agent keys, live from the store. Decrypting never raises
  * the unlock prompt by itself: a Locked local key that can't open silently reports
- * `locked`, and `reveal()` decrypts at the user's request.
+ * `locked`, and `reveal()` decrypts at the user's request (and asks again after a signer
+ * failure, `failed`).
  */
 export function useAgentKeys(): AgentKeysState & { reveal: () => void } {
   const account = useActiveAccount() as BrainstormAccount | undefined;
@@ -53,8 +56,10 @@ export function useAgentKeys(): AgentKeysState & { reveal: () => void } {
         return;
       }
       try {
-        const tags = await decryptAgentKeyTags(acct, own);
-        if (live) set(tags ? { status: "ready", keys: parseAgentKeys(tags) } : { status: "unreadable" });
+        const read = await readAgentKeyTags(acct, own);
+        if (!live) return;
+        if (read.status === "ready") set({ status: "ready", keys: parseAgentKeys(read.tags) });
+        else set(read.status === "failed" ? { status: "failed", error: read.error } : { status: "unreadable" });
       } catch {
         // They declined to unlock: still locked, not unreadable.
         if (live) set({ status: "locked" });

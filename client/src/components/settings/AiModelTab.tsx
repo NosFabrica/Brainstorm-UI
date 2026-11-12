@@ -778,6 +778,15 @@ export function AiModelTab() {
           </Card>
         )}
 
+        {keys.status === "failed" && (
+          <Card className="flex items-center gap-3 p-4" data-testid="ai-model-failed">
+            <span className="flex-1 text-sm text-foreground">{keys.error}</span>
+            <Button variant="outline" size="sm" onClick={keys.reveal} data-testid="ai-model-retry">
+              Retry
+            </Button>
+          </Card>
+        )}
+
         {keys.status === "unreadable" && (
           <Alert variant="destructive" data-testid="ai-model-unreadable">
             <AlertDescription>This sign-in can't decrypt your keys. Use a NIP-44 signer.</AlertDescription>

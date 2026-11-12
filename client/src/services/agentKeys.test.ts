@@ -204,3 +204,37 @@ describe("testing a key", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("reading the keys tells a signer failure from keys this sign-in can't read (audit, 2026-11-12)", () => {
+  const event = () => earlier([["key", openRouter.key, openRouter.url]]);
+  const failing = (error: unknown) => ({
+    ...account,
+    nip44: { ...account.nip44, decrypt: async () => Promise.reject(error) },
+  });
+
+  it("reads them", async () => {
+    const read = await service.readAgentKeyTags(account as never, event());
+    expect(read).toEqual({ status: "ready", tags: [["key", openRouter.key, openRouter.url]] });
+  });
+
+  it("a signer that timed out or errored is worth asking again, and isn't kept", async () => {
+    const ev = event();
+    const read = await service.readAgentKeyTags(failing(new Error("bunker went quiet")) as never, ev);
+    expect(read).toMatchObject({ status: "failed" });
+    expect(await service.readAgentKeyTags(account as never, ev)).toMatchObject({ status: "ready" });
+  });
+
+  it("a key here with no way to unlock is a failure to retry, not unreadable", async () => {
+    const { NoUnlockPathError } = await import("@/accounts/local-signer");
+    const { LocalAccount } = await import("@/accounts/local-account");
+    // A key held here (not an extension or bunker), as `hasExternalSigner` tells them apart.
+    const local = Object.setPrototypeOf(failing(new NoUnlockPathError("no prompt")), LocalAccount.prototype);
+    const read = await service.readAgentKeyTags(local as never, event());
+    expect(read).toMatchObject({ status: "failed" });
+  });
+
+  it("a ciphertext the signer tried and couldn't open is unreadable", async () => {
+    const read = await service.readAgentKeyTags(failing(new Error("invalid MAC")) as never, event());
+    expect(read).toEqual({ status: "unreadable" });
+  });
+});
