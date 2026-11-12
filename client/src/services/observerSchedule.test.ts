@@ -17,7 +17,10 @@ const publish = vi.fn();
 const signAs = vi.fn();
 const activeAccount = vi.fn();
 const requestNewestWithReach = vi.fn();
-const loadRelayList = vi.fn();
+const loadFreshRelayList = vi.fn();
+/** A fresh read of the relay list found `list`, or none when null. */
+const relayListIs = (list: { write: string[]; read: string[] } | null) =>
+  loadFreshRelayList.mockResolvedValue(list ? { status: "found", list } : { status: "none" });
 
 vi.mock("@/lib/relayRequest", async (original) => ({
   ...(await original<typeof import("@/lib/relayRequest")>()),
@@ -27,8 +30,8 @@ vi.mock("@/lib/relayRequest", async (original) => ({
 // The user's NIP-65 list names two write relays; our fallback set is never asked.
 vi.mock("@/lib/relayRouting", async (original) => ({
   ...(await original<typeof import("@/lib/relayRouting")>()),
-  loadRelayList: (...args: unknown[]) => loadRelayList(...args),
-  outboxRelays: async () => ["wss://r0", "wss://r1", "wss://fallback"],
+  loadFreshRelayList: (...args: unknown[]) => loadFreshRelayList(...args),
+  loadRelayList: async () => ({ write: ["wss://r0", "wss://r1"], read: [] }),
 }));
 
 vi.mock("@/lib/relayPool", () => ({
@@ -96,7 +99,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
   activeAccount.mockReturnValue(account);
-  loadRelayList.mockResolvedValue({ write: ["wss://r0", "wss://r1"], read: [] });
+  relayListIs({ write: ["wss://r0", "wss://r1"], read: [] });
   requestNewestWithReach.mockImplementation(async () => ({ newest: undefined, reach: reachNone }));
   publish.mockResolvedValue([{ ok: true, from: "wss://r0", message: "" }]);
   signAs.mockImplementation(async (_account: unknown, template: { kind: number }) =>
@@ -184,7 +187,11 @@ describe("editing", () => {
     const before = scheduleEvent(
       amethystPrivate.map((t) => (t[0] === "cron" ? ["cron", "0 6 * * 1-5", "America/New_York", "1794300000"] : t)),
     );
-    requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });
+    requestNewestWithReach.mockResolvedValue({
+      newest: before,
+      reach: reachAll,
+      sentBy: { [before.id]: reachAll.answered },
+    });
     const shown = { time: "00:00", days: ["tue", "wed", "thu", "fri", "sat"] as Weekday[] };
 
     const res = await service.updateObserverSchedule((d) =>
@@ -370,7 +377,7 @@ describe("NIP-FB's quorum: the user's write relays and nothing else", () => {
 
   it("refuses without a relay list, or with one naming no write relay", async () => {
     for (const list of [null, { write: [], read: ["wss://r0"] }]) {
-      loadRelayList.mockResolvedValue(list);
+      relayListIs(list);
       const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/no write relays/);
@@ -380,7 +387,7 @@ describe("NIP-FB's quorum: the user's write relays and nothing else", () => {
   });
 
   it("publishes to the write relays only, and needs more than half of them to take it", async () => {
-    loadRelayList.mockResolvedValue({ write: ["wss://r0", "wss://r1", "wss://r2"], read: [] });
+    relayListIs({ write: ["wss://r0", "wss://r1", "wss://r2"], read: [] });
     requestNewestWithReach.mockImplementation(async (relays: string[]) => ({
       newest: scheduleEvent(amethystPrivate),
       reach: { asked: relays, answered: relays.slice(0, 2) },
@@ -454,5 +461,155 @@ describe("reading the schedule", () => {
     expect(res.success).toBe(false);
     expect(res.error).not.toMatch(/Couldn't read your schedule/);
     expect(publish).not.toHaveBeenCalled();
+  });
+});
+
+describe("a retry after a write most relays didn't take (audit, 2026-11-12)", () => {
+  const relays = ["wss://r0/", "wss://r1/", "wss://r2/"];
+  const all = { asked: relays, answered: relays };
+  const old = () =>
+    scheduleEvent(
+      [
+        ["task", "observer"],
+        ["cron", "0 6 * * *", "UTC", "1"],
+      ],
+      2_000_000_000,
+    );
+  const sevenAm = (d: import("@/lib/scheduledTasks").TaskTags) =>
+    tasks.editSimpleSchedule(d, { time: "07:00", days: [...tasks.WEEKDAYS] }, "UTC", NOW);
+  const onlyR0 = async ([url]: string[]) => [
+    { ok: url === "wss://r0/", from: url, message: url === "wss://r0/" ? "" : "blocked" },
+  ];
+
+  beforeEach(() => {
+    relayListIs({ write: ["wss://r0", "wss://r1", "wss://r2"], read: [] });
+  });
+
+  /** The first save: read on all three, taken by r0 alone. Returns the event it wrote. */
+  async function minorityWrite() {
+    const first = old();
+    requestNewestWithReach.mockResolvedValueOnce({ newest: first, reach: all, sentBy: { [first.id]: relays } });
+    publish.mockImplementation(onlyR0);
+    const res = await service.updateObserverSchedule(sevenAm);
+    expect(res.success).toBe(false);
+    const wrote = publish.mock.calls[0][1] as import("nostr-tools").NostrEvent;
+    publish.mockClear();
+    signAs.mockClear();
+    return wrote;
+  }
+
+  it("republishes the copy r0 holds to the relays missing it, unchanged, and says so only once most hold it", async () => {
+    const wrote = await minorityWrite();
+    // The retry reads r0's copy as newest; the edit is then no change.
+    requestNewestWithReach.mockResolvedValueOnce({ newest: wrote, reach: all, sentBy: { [wrote.id]: ["wss://r0/"] } });
+    publish.mockResolvedValue([{ ok: true, from: "x", message: "" }]);
+
+    const res = await service.updateObserverSchedule(sevenAm);
+
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish.mock.calls.map((c) => c[0][0]).sort()).toEqual(["wss://r1/", "wss://r2/"]);
+    expect(publish.mock.calls.every((c) => (c[1] as { id: string }).id === wrote.id)).toBe(true);
+    // r0 held it, and one more took it: most of the three.
+    expect(res).toMatchObject({ success: true, accepted: 2, total: 3, id: wrote.id });
+  });
+
+  it("fails, honestly, when the relays missing it still don't take it", async () => {
+    const wrote = await minorityWrite();
+    requestNewestWithReach.mockResolvedValueOnce({ newest: wrote, reach: all, sentBy: { [wrote.id]: ["wss://r0/"] } });
+    publish.mockImplementation(onlyR0);
+
+    const res = await service.updateObserverSchedule(sevenAm);
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/1 of your 3 write relays/);
+    expect(res.retryable).toBe(true);
+  });
+
+  it("publishes nothing when the copy is already on most of them", async () => {
+    const event = old();
+    requestNewestWithReach.mockResolvedValueOnce({
+      newest: event,
+      reach: all,
+      sentBy: { [event.id]: ["wss://r0/", "wss://r1/"] },
+    });
+    const res = await service.updateObserverSchedule((d) => d);
+    expect(res.success).toBe(true);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("pausing a schedule another device already paused signs and publishes nothing", async () => {
+    const paused = scheduleEvent([["task", "observer"], ["cron", "0 6 * * *", "UTC", "1"], ["paused"]]);
+    requestNewestWithReach.mockResolvedValueOnce({ newest: paused, reach: all, sentBy: { [paused.id]: relays } });
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    expect(res.success).toBe(true);
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+});
+
+describe("a relay list that couldn't be loaded is not one with no write relays (audit, 2026-11-12)", () => {
+  it("says it couldn't load the list, and that a retry may work", async () => {
+    loadFreshRelayList.mockResolvedValue({ status: "unavailable" });
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Couldn't load your relay list/);
+    expect(res.error).not.toMatch(/no write relays/);
+    expect(res.retryable).toBe(true);
+    expect(requestNewestWithReach).not.toHaveBeenCalled();
+  });
+
+  it("says there are no write relays only when the list says so", async () => {
+    relayListIs(null);
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    expect(res.error).toMatch(/no write relays/);
+    expect(res.retryable).toBeFalsy();
+  });
+});
+
+describe("loading the schedule records when the relays answered (audit, 2026-11-12)", () => {
+  it("only when most of the write relays reached EOSE, never on a timeout", async () => {
+    expect(service.scheduleCheckedAt(PUBKEY)).toBeNull();
+    // Every relay silent: the read times out with nothing.
+    requestNewestWithReach.mockImplementation(async (relays: string[]) => ({
+      newest: undefined,
+      reach: { asked: relays, answered: [] },
+      sentBy: {},
+    }));
+    await service.loadObserverSchedule(PUBKEY);
+    expect(service.scheduleCheckedAt(PUBKEY)).toBeNull();
+    // The profile floor answering doesn't stand in for the write relays.
+    requestNewestWithReach.mockImplementation(async (relays: string[]) => ({
+      newest: undefined,
+      reach: { asked: relays, answered: relays.filter((r) => !r.startsWith("wss://r")) },
+      sentBy: {},
+    }));
+    await service.loadObserverSchedule(PUBKEY);
+    expect(service.scheduleCheckedAt(PUBKEY)).toBeNull();
+    // Both write relays answered.
+    requestNewestWithReach.mockImplementation(async (relays: string[]) => ({
+      newest: undefined,
+      reach: { asked: relays, answered: relays },
+      sentBy: {},
+    }));
+    const before = Date.now();
+    await service.loadObserverSchedule(PUBKEY);
+    expect(service.scheduleCheckedAt(PUBKEY)).toBeGreaterThanOrEqual(before);
+    expect(requestNewestWithReach.mock.calls[0][0]).toEqual(expect.arrayContaining(["wss://r0/", "wss://r1/"]));
+  });
+});
+
+describe("a key that can't be unlocked here is a failure to retry (audit, 2026-11-12)", () => {
+  it("isn't remembered as unreadable for the session", async () => {
+    const { NoUnlockPathError } = await import("@/accounts/local-signer");
+    const ev = scheduleEvent(amethystPrivate);
+    const { LocalAccount } = await import("@/accounts/local-account");
+    // A key held here (not an extension or bunker) whose unlock has no way through.
+    const stuck = Object.setPrototypeOf(
+      { ...account, nip44: { ...account.nip44, decrypt: async () => Promise.reject(new NoUnlockPathError()) } },
+      LocalAccount.prototype,
+    );
+    expect(await service.readSchedule(stuck as never, ev)).toMatchObject({ status: "failed" });
+    expect(service.heldSchedule(ev.id)).toBeUndefined();
+    expect(await service.readSchedule(account as never, ev)).toMatchObject({ status: "ready" });
   });
 });

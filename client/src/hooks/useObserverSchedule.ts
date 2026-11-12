@@ -6,7 +6,13 @@ import { SCHEDULE_D, SCHEDULE_KIND } from "@/lib/frontPage/observerSchedule";
 import { readTask, type ScheduledTask, type TaskTags } from "@/lib/scheduledTasks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { onAppResume } from "@/lib/appResume";
-import { heldSchedule, loadObserverSchedule, readSchedule, type ScheduleRead } from "@/services/observerSchedule";
+import {
+  heldSchedule,
+  loadObserverSchedule,
+  readSchedule,
+  scheduleCheckedAt,
+  type ScheduleRead,
+} from "@/services/observerSchedule";
 
 export type ObserverScheduleState =
   | { status: "loading" }
@@ -26,9 +32,13 @@ export type ObserverScheduleState =
 export type ObserverSchedule = ObserverScheduleState & {
   /** Decrypt at the user's request: Unlock, or Retry after a failure. */
   reveal: () => void;
-  /** Ask the relays again (the page shown again, a morning come due), at most once a minute. */
+  /** Ask the relays again (a morning come due, the page shown again after a minute away), at most once a minute. */
   refresh: () => void;
-  /** When the relays last answered for it (ms); null before they have. What a missed-run warning may rest on. */
+  /**
+   * When most of the write relays last answered for it (ms; `scheduleCheckedAt`); null
+   * before they have. A read that timed out doesn't move it. What a missed-run warning may
+   * rest on.
+   */
   checkedAt: number | null;
 };
 
@@ -38,6 +48,14 @@ const NONE: ObserverScheduleState = { status: "none" };
 
 /** No more than one re-ask a minute, however often the page is shown again. */
 const REFRESH_MIN_MS = 60_000;
+/** Away at least this long, the page shown again asks again: a quick tab switch doesn't. */
+const RESUME_AWAY_MS = 60_000;
+/**
+ * After an Unlock, how long a newer event (a device's edit landing, the next read) is read
+ * too while the page is on screen, without asking again. Past it, a newer event waits for
+ * the next Unlock: an extension or bunker prompts for each decrypt, and nobody asked.
+ */
+const REVEAL_WINDOW_MS = 2 * 60_000;
 
 function fromRead(read: ScheduleRead, eventId: string, createdAt: number): ObserverScheduleState {
   if (read.status === "ready") {
@@ -50,9 +68,11 @@ function fromRead(read: ScheduleRead, eventId: string, createdAt: number): Obser
  * The Active Account's synced morning schedule, live from the store: a save shows as
  * soon as a relay takes it. Decrypting never asks the user by itself: only a key held here
  * that opens silently decrypts on load; an extension or bunker, which prompts for every
- * request, and a Locked key report `locked` until `reveal()`. Each event is decrypted
- * once (`readSchedule` joins a read already out), so the ask settling while a decrypt is
- * out doesn't start a second.
+ * request, and a Locked key report `locked` until `reveal()`. A reveal is for the event
+ * it was given for, and for any newer one that lands within two minutes while the page is
+ * shown; a newer event after that is `locked` again until the next reveal. Each event is
+ * decrypted once (`readSchedule` joins a read already out), so the ask settling while a
+ * decrypt is out doesn't start a second.
  */
 export function useObserverSchedule(): ObserverSchedule {
   const account = useActiveAccount() as BrainstormAccount | undefined;
@@ -68,9 +88,16 @@ export function useObserverSchedule(): ObserverSchedule {
   const createdAt = event?.created_at ?? 0;
 
   // Each reveal() is a fresh ask, so a declined unlock or a failed decrypt can be tried
-  // again. It is the account's ask: switching accounts doesn't carry it to the next.
-  const [asks, setAsks] = useState({ pubkey, n: 0 });
+  // again. It is the account's ask, for the event on show: switching accounts doesn't carry
+  // it to the next, and a newer event is covered only within the window (REVEAL_WINDOW_MS).
+  const [asks, setAsks] = useState<{ pubkey: string | undefined; n: number; eventId?: string; at: number }>({
+    pubkey,
+    n: 0,
+    at: 0,
+  });
   const askCount = asks.pubkey === pubkey ? asks.n : 0;
+  const eventRef = useRef(eventId);
+  eventRef.current = eventId;
   // Tagged with whose it is: after a switch the last account's never reads as this one's.
   // A newer event of the same account keeps the last one showing until it is read.
   const [read, setRead] = useState<{ pubkey: string; value: ObserverScheduleState } | null>(null);
@@ -87,8 +114,12 @@ export function useObserverSchedule(): ObserverSchedule {
       set(fromRead(done, eventId, createdAt));
       return;
     }
+    // Asked for: this event, or one landing just after the ask while they are looking.
+    const asked =
+      askCount > 0 &&
+      (asks.eventId === eventId || (Date.now() - asks.at < REVEAL_WINDOW_MS && document.visibilityState !== "hidden"));
     void (async () => {
-      if (askCount === 0 && !(await canSignUnasked(acct))) {
+      if (!asked && !(await canSignUnasked(acct))) {
         set({ status: "locked" });
         return;
       }
@@ -102,13 +133,19 @@ export function useObserverSchedule(): ObserverSchedule {
     return () => {
       live = false;
     };
-  }, [pubkey, eventId, askCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pubkey, eventId, askCount]); // eslint-disable-line react-hooks/exhaustive-deps -- `asks` changes with askCount
 
-  // When the relays last answered: the first ask settling, then each refresh.
+  // When the relays last answered, as the service recorded it: an ask that settled on a
+  // timeout, or one settled minutes ago in askOnce's window, isn't a check made now.
   const [checked, setChecked] = useState<{ pubkey: string | undefined; at: number } | null>(null);
+  const recordCheck = useCallback(() => {
+    if (!pubkey) return;
+    const at = scheduleCheckedAt(pubkey);
+    if (at !== null) setChecked((c) => (c && c.pubkey === pubkey && c.at >= at ? c : { pubkey, at }));
+  }, [pubkey]);
   useEffect(() => {
-    if (held.settled) setChecked({ pubkey, at: Date.now() });
-  }, [pubkey, held.settled]);
+    if (held.settled) recordCheck();
+  }, [held.settled, recordCheck]);
 
   const refreshing = useRef<{ pubkey: string; at: number } | null>(null);
   const refresh = useCallback(() => {
@@ -116,16 +153,29 @@ export function useObserverSchedule(): ObserverSchedule {
     const last = refreshing.current;
     if (last && last.pubkey === pubkey && Date.now() - last.at < REFRESH_MIN_MS) return;
     refreshing.current = { pubkey, at: Date.now() };
-    loadObserverSchedule(pubkey).then(
-      () => setChecked({ pubkey, at: Date.now() }),
-      () => undefined,
-    );
-  }, [pubkey]);
+    loadObserverSchedule(pubkey).then(recordCheck, () => undefined);
+  }, [pubkey, recordCheck]);
 
-  // Shown again after a night away: ask before a stale `ran` reads as a missed morning.
-  useEffect(() => onAppResume(() => refresh()), [refresh]);
+  // Shown again after a night away: ask before a stale `ran` reads as a missed morning. A
+  // tab switch of a few seconds isn't a night away.
+  useEffect(
+    () =>
+      onAppResume((away) => {
+        if (away >= RESUME_AWAY_MS) refresh();
+      }),
+    [refresh],
+  );
 
-  const reveal = useCallback(() => setAsks((a) => ({ pubkey, n: (a.pubkey === pubkey ? a.n : 0) + 1 })), [pubkey]);
+  const reveal = useCallback(
+    () =>
+      setAsks((a) => ({
+        pubkey,
+        n: (a.pubkey === pubkey ? a.n : 0) + 1,
+        eventId: eventRef.current,
+        at: Date.now(),
+      })),
+    [pubkey],
+  );
 
   let value: ObserverScheduleState;
   if (!event) value = held.settled ? NONE : LOADING;

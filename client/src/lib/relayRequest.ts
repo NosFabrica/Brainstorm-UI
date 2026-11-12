@@ -128,15 +128,20 @@ export interface RelayReach {
  * `pool.req` is the only API that surfaces the per-relay EOSE/ERROR frames, so
  * this shape listens to them directly. It therefore also has to feed the store
  * itself — `req` has no `eventStore` option to do it on the way past.
+ *
+ * `sentBy` names, for each event id, the relays that sent it: whether the newest copy is
+ * on most of them, or only on the one that took a write the rest turned away.
  */
 export function requestNewestWithReach(
   relays: string[],
   filter: Filter,
   timeoutMs: number,
-): Promise<{ newest: NostrEvent | undefined; reach: RelayReach }> {
+): Promise<{ newest: NostrEvent | undefined; reach: RelayReach; sentBy: Record<string, string[]> }> {
   const asked = dedupeRelays(relays);
   const answered = new Set<string>();
   const settled = new Set<string>();
+  // Which relays sent each event: a copy only some of them hold is one the rest may lack.
+  const sentBy: Record<string, string[]> = {};
   let newest: NostrEvent | undefined;
   // The pool spells a relay its own way (a trailing slash it added, the host
   // lower-cased), so match on the same normalized form we asked with.
@@ -149,6 +154,8 @@ export function requestNewestWithReach(
       tap((message) => {
         const from = normalize(message?.from);
         if (message?.type === "EVENT" && message.event) {
+          const id = (message.event as NostrEvent).id;
+          if (typeof id === "string" && !(sentBy[id] ??= []).includes(from)) sentBy[id].push(from);
           const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
           if (beats(stored, newest)) newest = stored;
         } else if (message?.type === "EOSE") {
@@ -167,7 +174,7 @@ export function requestNewestWithReach(
       map(() => undefined),
     ),
     { defaultValue: undefined },
-  ).then(() => ({ newest, reach: { asked, answered: asked.filter((url) => answered.has(url)) } }));
+  ).then(() => ({ newest, reach: { asked, answered: asked.filter((url) => answered.has(url)) }, sentBy }));
 }
 
 /**
