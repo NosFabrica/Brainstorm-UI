@@ -224,9 +224,25 @@ function publishTo(relays: string[], event: NostrEvent, need: number) {
  * took the write. Succeeds, signing nothing, when `change` hands back the tags it was
  * given, once the copy it read is on more than half of them (republished, as it is, to
  * those that lack it). `claim` and `ran` are only ever carried over; a public `client` tag is the one
- * tag dropped.
+ * tag dropped. Edits run one after another, never two at once.
  */
-export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
+export function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
+  // One edit at a time, whoever asks (the card, the pickers): two edits read at once would
+  // build on the same copy and sign the same `created_at`, and the relays would keep one.
+  // Each waits for the one before it, so it reads (from the store, at least) what that one
+  // wrote. A failed edit doesn't stop the next.
+  const run = editQueue.then(() => updateNow(change));
+  editQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** The last edit asked for: the next one starts when it has settled. */
+let editQueue: Promise<void> = Promise.resolve();
+
+async function updateNow(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   try {

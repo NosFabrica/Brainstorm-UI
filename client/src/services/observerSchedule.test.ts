@@ -770,3 +770,41 @@ describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => 
     expect(publish).not.toHaveBeenCalled();
   });
 });
+
+describe("edits one at a time (audit, 2026-11-12)", () => {
+  it("serializes two quick edits: the second reads what the first wrote, so neither is lost", async () => {
+    // The relays lag: every read answers with the copy from before both edits.
+    const before = scheduleEvent(amethystPrivate);
+    requestNewestWithReach.mockResolvedValue({ newest: before, reach: reachAll });
+
+    const [first, second] = await Promise.all([
+      service.updateObserverSchedule((d) => lib.withObserverModel(d, "model-one")),
+      service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW)),
+    ]);
+
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    // One event per edit, each sent to both write relays.
+    type Sent = { id: string; content: string; created_at: number };
+    const events = [...new Map(publish.mock.calls.map((c) => [(c[1] as Sent).id, c[1] as Sent])).values()];
+    expect(events).toHaveLength(2);
+    const tags = JSON.parse(nip44.decrypt(events[1].content, toSelf)) as string[][];
+    expect(tags).toContainEqual(["param", "model", "model-one"]);
+    expect(tags).toContainEqual(["paused"]);
+    expect(events[1].created_at).toBeGreaterThan(events[0].created_at);
+  });
+
+  it("a failed edit doesn't stop the next one", async () => {
+    requestNewestWithReach
+      .mockResolvedValueOnce({ newest: undefined, reach: reachNone })
+      .mockResolvedValue({ newest: scheduleEvent(amethystPrivate), reach: reachAll });
+
+    const [first, second] = await Promise.all([
+      service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW)),
+      service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW)),
+    ]);
+
+    expect(first.success).toBe(false);
+    expect(second.success).toBe(true);
+  });
+});

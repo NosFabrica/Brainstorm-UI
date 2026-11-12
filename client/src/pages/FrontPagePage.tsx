@@ -412,8 +412,9 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   }, [key?.url, models, scheduledModel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A choice made here goes to the schedule, so every app prints with it.
+  // The pickers hold while one saves (the service runs every edit after the one before).
   const [setting, setSetting] = useState<{ saving: boolean; error: string | null }>({ saving: false, error: null });
-  const saveSetting = async (change: (doc: TaskTags) => TaskTags) => {
+  const saveSetting = async (change: (doc: TaskTags) => TaskTags): Promise<boolean> => {
     setSetting({ saving: true, error: null });
     const outcome = await updateObserverSchedule((d) => {
       const out = change(d);
@@ -423,7 +424,11 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
       saving: false,
       error: outcome.success || outcome.cancelled ? null : (outcome.error ?? "Couldn't save it to your schedule."),
     });
+    return outcome.success;
   };
+  // The typed model last sent to the schedule, for this key: Enter and then leaving the
+  // field are one commit, not two. Forgotten when the save fails, so it can be sent again.
+  const committedModel = useRef<{ url: string; id: string } | null>(null);
 
   const chooseModel = (id: string) => {
     if (!key) return;
@@ -431,17 +436,25 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     writeModel(key.url, id);
   };
   /** The model as picked, written to the schedule (a typed id once the field is left). */
-  const commitModel = (id: string) => {
-    if (!key || !id.trim() || id.trim() === scheduledModel) return;
+  const commitModel = (typed: string) => {
+    const id = typed.trim();
+    if (!key || !id || id === scheduledModel) return;
+    const last = committedModel.current;
+    if (last && last.url === key.url && last.id === id) return;
+    const commit = { url: key.url, id };
+    committedModel.current = commit;
     void saveSetting((d) => {
       const out = withObserverModel(d, id);
       // The model is the key's endpoint's: a `key` naming another endpoint goes with it.
       const choice = observerKeyChoice(readTask(out));
       return choice && apiRoot(choice.url) !== apiRoot(key.url) ? withObserverKey(out, key) : out;
+    }).then((saved) => {
+      if (!saved && committedModel.current === commit) committedModel.current = null;
     });
   };
   const chooseKey = (next: AgentKey) => {
-    if (key && sameKey(next, key)) return;
+    if (setting.saving || (key && sameKey(next, key))) return;
+    committedModel.current = null;
     setPickedKey({ eventId: scheduleEventId, key: next });
     void saveSetting((d) => {
       const out = withObserverKey(d, next);
@@ -504,11 +517,12 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
 
   const picker = key && blocker === null && (
     <div className="flex flex-col gap-2">
-      {allKeys.length > 1 && <KeyPicker keys={allKeys} chosen={key} onChoose={chooseKey} />}
+      {allKeys.length > 1 && <KeyPicker keys={allKeys} chosen={key} disabled={setting.saving} onChoose={chooseKey} />}
       <ModelPicker
         keyUrl={key.url}
         models={models}
         model={model}
+        saving={setting.saving}
         onChoose={(id) => {
           chooseModel(id);
           if (models.status === "listed") commitModel(id);
@@ -1281,15 +1295,22 @@ function ObserverLinks({ pubkey }: { pubkey: string }) {
 function KeyPicker({
   keys,
   chosen,
+  disabled = false,
   onChoose,
 }: {
   keys: AgentKey[];
   chosen: AgentKey;
+  /** A choice is being saved: the next waits for it. */
+  disabled?: boolean;
   onChoose: (key: AgentKey) => void;
 }) {
   const index = keys.findIndex((k) => sameKey(k, chosen));
   return (
-    <Select value={String(index)} onValueChange={(v) => keys[Number(v)] && onChoose(keys[Number(v)])}>
+    <Select
+      value={String(index)}
+      disabled={disabled}
+      onValueChange={(v) => keys[Number(v)] && onChoose(keys[Number(v)])}
+    >
       <SelectTrigger aria-label="AI key" data-testid="front-page-key">
         <SelectValue placeholder="AI key" />
       </SelectTrigger>
@@ -1326,12 +1347,15 @@ function ModelPicker({
   keyUrl,
   models,
   model,
+  saving = false,
   onChoose,
   onCommit,
 }: {
   keyUrl: string;
   models: Models;
   model: string;
+  /** A choice is being saved: the field holds still (and keeps focus) until it is. */
+  saving?: boolean;
   onChoose: (id: string) => void;
   /** A typed model id, once the field is left or Enter pressed. */
   onCommit?: (id: string) => void;
@@ -1347,6 +1371,8 @@ function ModelPicker({
     return (
       <Input
         value={model}
+        readOnly={saving}
+        aria-busy={saving || undefined}
         onChange={(e) => onChoose(e.target.value.trim())}
         onBlur={(e) => onCommit?.(e.target.value.trim())}
         onKeyDown={(e) => {
@@ -1359,7 +1385,7 @@ function ModelPicker({
     );
   }
   return (
-    <Select value={model} onValueChange={onChoose}>
+    <Select value={model} onValueChange={onChoose} disabled={saving}>
       <SelectTrigger aria-label="Model" data-testid="front-page-model">
         <SelectValue placeholder="Model" />
       </SelectTrigger>

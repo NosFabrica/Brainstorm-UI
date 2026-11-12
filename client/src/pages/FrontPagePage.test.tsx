@@ -1015,6 +1015,33 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     ]);
   });
 
+  it("writes a typed model once when Enter is pressed and the field then left (audit, 2026-11-12)", async () => {
+    state.models = [];
+    renderWithProviders(<FrontPagePage />);
+    const input = await screen.findByTestId("front-page-model-input");
+    fireEvent.change(input, { target: { value: "llama3.3" } });
+    await act(async () => fireEvent.keyDown(input, { key: "Enter" }));
+    await act(async () => fireEvent.blur(input));
+    expect(state.updateSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds the pickers while a setting is being saved (audit, 2026-11-12)", async () => {
+    state.models = [];
+    let finish: (v: unknown) => void = () => undefined;
+    state.updateSchedule.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWithProviders(<FrontPagePage />);
+    const input = await screen.findByTestId("front-page-model-input");
+    expect(screen.getByTestId("front-page-key")).not.toBeDisabled();
+    fireEvent.change(input, { target: { value: "llama3.3" } });
+    await act(async () => fireEvent.blur(input));
+    expect(screen.getByTestId("front-page-setting-saving")).toBeInTheDocument();
+    expect(screen.getByTestId("front-page-key")).toBeDisabled();
+    expect(input).toHaveAttribute("readonly");
+    await act(async () => finish({ success: true }));
+    expect(screen.getByTestId("front-page-key")).not.toBeDisabled();
+    expect(input).not.toHaveAttribute("readonly");
+  });
+
   it("says when a picked setting couldn't be saved for the other apps", async () => {
     state.models = [];
     state.updateSchedule.mockResolvedValue({ success: false, error: "Only 1 of your 3 write relays answered." });
