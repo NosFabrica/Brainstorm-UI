@@ -111,6 +111,16 @@ beforeEach(async () => {
   store = await import("@/lib/eventStore");
 });
 
+describe("loading the schedule", () => {
+  it("asks the write relays and the floor at once, settled by the write relays", async () => {
+    await service.loadObserverSchedule("a".repeat(64));
+    const [relays, , , opts] = requestNewestWithReach.mock.calls.at(-1)!;
+    expect(relays).toEqual(expect.arrayContaining(["wss://r0/", "wss://r1/"]));
+    expect((relays as string[]).length).toBeGreaterThan(2);
+    expect(opts).toEqual({ settleOn: ["wss://r0/", "wss://r1/"] });
+  });
+});
+
 describe("no write without a read", () => {
   it("writes nothing when no relay answered and nothing is held", async () => {
     requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachNone });

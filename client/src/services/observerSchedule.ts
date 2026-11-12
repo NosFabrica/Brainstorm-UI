@@ -92,7 +92,11 @@ export async function loadObserverSchedule(pubkey: string, timeoutMs = 6000): Pr
   const list = await loadRelayList(pubkey, { timeoutMs: Math.min(timeoutMs, 2500) }).catch(() => null);
   const write = dedupeRelays(list?.write ?? []);
   const relays = dedupeRelays([...write, ...PROFILE_RELAYS]);
-  const { newest, reach } = await requestNewestWithReach(relays, scheduleFilter(pubkey), timeoutMs);
+  // Settled by their own relays: a fallback relay that is slow or down keeps looking in
+  // the background, and a copy only it holds lands in the store when it comes.
+  const { newest, reach } = await requestNewestWithReach(relays, scheduleFilter(pubkey), timeoutMs, {
+    settleOn: write,
+  });
   const counted = write.length ? write : relays;
   if (reach.answered.filter((url) => counted.includes(url)).length >= majority(counted.length)) {
     answeredAt.set(pubkey, Date.now());
