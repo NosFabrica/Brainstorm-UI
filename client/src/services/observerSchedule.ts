@@ -12,6 +12,11 @@
  * naming no write relay, nothing is written. Nor is anything written when the content
  * doesn't decrypt to a tag array.
  *
+ * When the schedule names a runner (a public `p`, NIP-FB Runner: the reader's Brainstorm
+ * Assistant), its private tags are NIP-44 between the reader and that key; with none, to
+ * the reader themselves. Reads try each in turn, writes encrypt to whichever the new tags
+ * name, so naming or clearing the runner re-encrypts.
+ *
  * The decrypted schedule never goes to a log.
  */
 import type { NostrEvent } from "nostr-tools";
@@ -22,11 +27,17 @@ import { publishUntilEnough } from "@/lib/publishQuorum";
 import { beats, requestNewestWithReach } from "@/lib/relayRequest";
 import { dedupeRelays, loadFreshRelayList, loadRelayList } from "@/lib/relayRouting";
 import { OBSERVER_TASK, SCHEDULE_D, SCHEDULE_KIND, emptyObserverSchedule } from "@/lib/frontPage/observerSchedule";
-import { withTaskName, withoutPublicClient, type TaskTags } from "@/lib/scheduledTasks";
+import {
+  privateTagsPeer,
+  privateTagsReadPeers,
+  withTaskName,
+  withoutPublicClient,
+  type TaskTags,
+} from "@/lib/scheduledTasks";
 import { decodePrivateTags } from "@/lib/agentKeys";
 import {
   activeAccount,
-  encryptToSelf,
+  encryptFor,
   hasExternalSigner,
   signAs,
   signingFailure,
@@ -104,28 +115,38 @@ export async function loadObserverSchedule(pubkey: string, timeoutMs = 6000): Pr
   return newest ?? (eventStore.getReplaceable(SCHEDULE_KIND, pubkey, SCHEDULE_D) as NostrEvent | undefined);
 }
 
+/**
+ * The private tags, decrypted with each key they may be written with in turn
+ * (`privateTagsReadPeers`): a runner the event names (NIP-FB, Runner: the tags are then
+ * NIP-44 between the reader and it), then the reader themselves. A peer that doesn't open
+ * it hands on to the next; a signer that failed to try (it timed out, it said no) stops.
+ */
 async function readOnce(account: BrainstormAccount, event: NostrEvent): Promise<ScheduleRead> {
   const publicTags = event.tags.filter((t) => t[0] !== "d");
   if (!event.content) return { status: "ready", tags: { public: publicTags, private: [] } };
   if (!account.nip44) return { status: "unreadable" };
-  let plain: string;
-  try {
-    plain = await account.nip44.decrypt(account.pubkey, event.content);
-  } catch (error) {
-    const kind = classifySignerError(error);
-    // They declined to unlock: the caller keeps it locked.
-    if (kind === "cancelled") throw error;
-    // A key held here with no way to unlock it in this browser now: that can change (a
-    // prompt installed, a password set), so it is asked again, never remembered.
-    if (error instanceof NoUnlockPathError) {
-      return { status: "failed", error: "Your key couldn't be unlocked in this browser." };
+  for (const peer of privateTagsReadPeers(publicTags, account.pubkey)) {
+    let plain: string;
+    try {
+      plain = await account.nip44.decrypt(peer, event.content);
+    } catch (error) {
+      const kind = classifySignerError(error);
+      // They declined to unlock: the caller keeps it locked.
+      if (kind === "cancelled") throw error;
+      // A key held here with no way to unlock it in this browser now: that can change (a
+      // prompt installed, a password set), so it is asked again, never remembered.
+      if (error instanceof NoUnlockPathError) {
+        return { status: "failed", error: "Your key couldn't be unlocked in this browser." };
+      }
+      // A key held here that can't open it with this peer, or a signer that tried and
+      // couldn't: the next peer may.
+      if (!hasExternalSigner(account) || kind === "bad-payload") continue;
+      return { status: "failed", error: signingFailure(error, "Your signer didn't decrypt the schedule.").error! };
     }
-    // A key held here that can't open it never will; nor will a signer that tried.
-    if (!hasExternalSigner(account) || kind === "bad-payload") return { status: "unreadable" };
-    return { status: "failed", error: signingFailure(error, "Your signer didn't decrypt the schedule.").error! };
+    const read = typeof plain === "string" ? decodePrivateTags(plain) : null;
+    if (read) return { status: "ready", tags: { public: publicTags, private: read } };
   }
-  const read = typeof plain === "string" ? decodePrivateTags(plain) : null;
-  return read ? { status: "ready", tags: { public: publicTags, private: read } } : { status: "unreadable" };
+  return { status: "unreadable" };
 }
 
 /** The read of `eventId` this session already settled, if it has: no signer asked. */
@@ -297,8 +318,11 @@ export async function updateObserverSchedule(change: (doc: TaskTags) => TaskTags
     // `d` private (SHOULD), and this one would say which app they schedule with.
     const next = withoutPublicClient(withTaskName(changed, OBSERVER_TASK));
 
-    // Always the JSON, `[]` included: NIP-44 can't encrypt an empty string.
-    const ciphertext = await encryptToSelf(account, JSON.stringify(next.private));
+    // Always the JSON, `[]` included: NIP-44 can't encrypt an empty string. To the runner
+    // the schedule names, so it reads them too, else to self (NIP-FB, Runner): naming or
+    // clearing the runner re-encrypts.
+    const peer = privateTagsPeer(next, account.pubkey);
+    const ciphertext = await encryptFor(account, peer, JSON.stringify(next.private));
     if (!ciphertext) return { success: false, error: "Could not encrypt" };
 
     const now = Math.floor(Date.now() / 1000);

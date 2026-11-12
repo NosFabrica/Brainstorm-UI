@@ -31,6 +31,13 @@ import {
   withoutPublicClient,
   dateIn,
   sameZone,
+  formatAgo,
+  paramValues,
+  privateTagsPeer,
+  privateTagsReadPeers,
+  removeParam,
+  setParam,
+  setRunner,
   type Weekday,
   type TaskTags,
 } from "./scheduledTasks";
@@ -99,6 +106,10 @@ describe("tags, public and private", () => {
       setAt: 1794300000,
       claim: { due: 1794398400, id: "3f1c9a0e5b7d4c21", by: "Desktop (Linux)", at: null },
       ran: 1794398520,
+      params: [],
+      runners: [],
+      runner: null,
+      runnerConflict: false,
     });
     expect(readTask({ public: [["paused"]], private: [] }).enabled).toBe(false);
   });
@@ -181,6 +192,10 @@ describe("tags, public and private", () => {
       setAt: 0,
       claim: null,
       ran: null,
+      params: [],
+      runners: [],
+      runner: null,
+      runnerConflict: false,
     });
   });
 
@@ -198,6 +213,10 @@ describe("tags, public and private", () => {
       setAt: 0,
       claim: null,
       ran: null,
+      params: [],
+      runners: [],
+      runner: null,
+      runnerConflict: false,
     });
     expect(setEnabled(odd, false, WED).private).toEqual([...odd.private, ["paused"]]);
     // A zone this browser doesn't know: the expression is read, the zone isn't, and what
@@ -1060,5 +1079,331 @@ describe("one zone by any of its names (audit, 2026-11-12)", () => {
     });
     const moved = editSimpleSchedule(tags, { time: "07:00", days: ["mon"] }, "Asia/Kolkata", WED);
     expect(readTask(moved)).toMatchObject({ cron: "0 7 * * 1", tz: "Asia/Calcutta" });
+  });
+});
+
+describe("params (NIP-FB `param`)", () => {
+  const tags: TaskTags = {
+    public: [["param", "desk", "tech"]],
+    private: [
+      ["task", "observer"],
+      ["param", "model", "anthropic/claude-sonnet-4.5"],
+      ["param", "desk", "art"],
+      ["param", "size", "a3"],
+    ],
+  };
+
+  it("reads every param in order, private first, repeats included", () => {
+    expect(readTask(tags).params).toEqual([
+      { name: "model", values: ["anthropic/claude-sonnet-4.5"] },
+      { name: "desk", values: ["art"] },
+      { name: "size", values: ["a3"] },
+      { name: "desk", values: ["tech"] },
+    ]);
+    expect(paramValues(readTask(tags), "desk")).toEqual(["art"]);
+    expect(paramValues(readTask(tags), "key")).toBeNull();
+    // A param without a name isn't one.
+    expect(readTask({ public: [], private: [["param"], ["param", " "]] }).params).toEqual([]);
+  });
+
+  it("sets one in the first one's place and drops the rest of that name, keeping every other param where it was", () => {
+    const out = setParam(tags, "desk", ["science"]);
+    expect(out.private).toEqual([
+      ["task", "observer"],
+      ["param", "model", "anthropic/claude-sonnet-4.5"],
+      ["param", "desk", "science"],
+      ["param", "size", "a3"],
+    ]);
+    expect(out.public).toEqual([]);
+  });
+
+  it("keeps a param on the public side when that's where it was", () => {
+    const pub: TaskTags = { public: [["param", "model", "x"]], private: [["task", "observer"]] };
+    expect(setParam(pub, "model", ["y"])).toEqual({
+      public: [["param", "model", "y"]],
+      private: [["task", "observer"]],
+    });
+  });
+
+  it("adds a new one to the private side, and no change is the same object", () => {
+    const out = setParam(tags, "key", ["https://openrouter.ai/api/v1", "a3f9"]);
+    expect(out.private.at(-1)).toEqual(["param", "key", "https://openrouter.ai/api/v1", "a3f9"]);
+    expect(out.public).toBe(tags.public);
+    expect(setParam(out, "key", ["https://openrouter.ai/api/v1", "a3f9"])).toBe(out);
+  });
+
+  it("removes one on both sides, and the same object when there was none", () => {
+    expect(removeParam(tags, "desk")).toEqual({
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["param", "model", "anthropic/claude-sonnet-4.5"],
+        ["param", "size", "a3"],
+      ],
+    });
+    expect(removeParam(tags, "key")).toBe(tags);
+  });
+
+  it("keeps unknown params through every other edit", () => {
+    const edited = setEnabled(setSimpleSchedule(tags, { time: "06:00", days: [...WEEKDAYS] }, "UTC", WED), true, WED);
+    expect(readTask(edited).params.map((p) => p.name)).toEqual(["model", "desk", "size", "desk"]);
+  });
+});
+
+describe("the runner (NIP-FB `p`)", () => {
+  const ME = "a".repeat(64);
+  const ASSISTANT = "b".repeat(64);
+  const OTHER = "c".repeat(64);
+  const base: TaskTags = {
+    public: [],
+    private: [
+      ["task", "observer"],
+      ["cron", "0 6 * * *", "UTC", "1"],
+    ],
+  };
+
+  it("names none until a public p does; a private p is just a tag", () => {
+    expect(readTask(base)).toMatchObject({ runners: [], runner: null, runnerConflict: false });
+    expect(readTask({ public: [], private: [["p", ASSISTANT]] }).runner).toBeNull();
+    expect(readTask({ public: [["p", ASSISTANT]], private: [] })).toMatchObject({
+      runners: [ASSISTANT],
+      runner: ASSISTANT,
+      runnerConflict: false,
+    });
+  });
+
+  it("calls two a conflict, and a p that isn't a key no runner", () => {
+    expect(
+      readTask({
+        public: [
+          ["p", ASSISTANT],
+          ["p", OTHER],
+        ],
+        private: [],
+      }),
+    ).toMatchObject({
+      runner: null,
+      runnerConflict: true,
+    });
+    expect(readTask({ public: [["p", "npub1nope"]], private: [] })).toMatchObject({
+      runner: null,
+      runnerConflict: false,
+    });
+  });
+
+  it("names a runner publicly, replaces every public p, and clears to none", () => {
+    const named = setRunner(base, ASSISTANT);
+    expect(named).toEqual({ public: [["p", ASSISTANT]], private: base.private });
+    expect(setRunner(named, ASSISTANT)).toBe(named);
+    const conflict: TaskTags = {
+      public: [
+        ["p", ASSISTANT],
+        ["x", "1"],
+        ["p", OTHER],
+      ],
+      private: [["p", OTHER]],
+    };
+    expect(setRunner(conflict, ASSISTANT)).toEqual({
+      public: [
+        ["x", "1"],
+        ["p", ASSISTANT],
+      ],
+      private: [["p", OTHER]],
+    });
+    expect(setRunner(conflict, null)).toEqual({ public: [["x", "1"]], private: [["p", OTHER]] });
+    expect(setRunner(base, null)).toBe(base);
+    expect(() => setRunner(base, "not a key")).toThrow(RangeError);
+  });
+
+  it("encrypts to the runner when there is one, else to self (a conflict too)", () => {
+    expect(privateTagsPeer(base, ME)).toBe(ME);
+    expect(privateTagsPeer(setRunner(base, ASSISTANT), ME)).toBe(ASSISTANT);
+    expect(
+      privateTagsPeer(
+        {
+          public: [
+            ["p", ASSISTANT],
+            ["p", OTHER],
+          ],
+          private: [],
+        },
+        ME,
+      ),
+    ).toBe(ME);
+  });
+
+  it("reads with each named key, then self", () => {
+    expect(privateTagsReadPeers([], ME)).toEqual([ME]);
+    expect(privateTagsReadPeers([["p", ASSISTANT]], ME)).toEqual([ASSISTANT, ME]);
+    expect(
+      privateTagsReadPeers(
+        [
+          ["p", ASSISTANT],
+          ["p", "junk"],
+          ["p", OTHER],
+          ["p", ME],
+        ],
+        ME,
+      ),
+    ).toEqual([ASSISTANT, OTHER, ME]);
+  });
+});
+
+describe("formatAgo", () => {
+  const T = Date.UTC(2026, 10, 12, 12, 0);
+  it("says how long ago, in the largest whole unit up to days", () => {
+    expect(formatAgo(T - 20_000, T)).toBe("just now");
+    expect(formatAgo(T - 5 * 60_000, T)).toBe("5 minutes ago");
+    expect(formatAgo(T - 3 * 3_600_000, T)).toBe("3 hours ago");
+    expect(formatAgo(T - 30 * 3_600_000, T)).toBe("30 hours ago");
+    expect(formatAgo(T - 3 * 86_400_000, T)).toBe("3 days ago");
+  });
+});
+
+/** Quartz's ScheduledTaskParamsTest, case for case, so both apps edit params the same way. */
+describe("ported: Quartz ScheduledTaskParamsTest", () => {
+  const task: TaskTags = {
+    public: [
+      ["param", "size", "big"],
+      ["param", "topic", "public"],
+    ],
+    private: [
+      ["task", "observer"],
+      ["param", "topic", "nostr"],
+      ["cron", "0 6 * * *", "UTC"],
+      ["param", "model", "m1"],
+      ["param", "topic", "bitcoin"],
+    ],
+  };
+  const values = (tags: TaskTags, name: string) =>
+    readTask(tags)
+      .params.filter((p) => p.name === name)
+      .map((p) => p.values);
+
+  it("theParamTagCarriesANameThenItsValues", () => {
+    const one = (tag: string[]) => readTask({ public: [], private: [tag] }).params;
+    expect(one(["param", "model", "anthropic/claude-sonnet-4.5"])).toEqual([
+      { name: "model", values: ["anthropic/claude-sonnet-4.5"] },
+    ]);
+    expect(one(["param", "flag"])).toEqual([{ name: "flag", values: [] }]);
+    expect(one(["param"])).toEqual([]);
+    expect(one(["param", " "])).toEqual([]);
+    expect(one(["cron", "model"])).toEqual([]);
+  });
+
+  it("paramsAreOrderedAndRepeatablePrivateFirst", () => {
+    expect(readTask(task).params.map((p) => p.name)).toEqual(["topic", "model", "topic", "size", "topic"]);
+    expect(values(task, "topic").map((v) => v[0])).toEqual(["nostr", "bitcoin", "public"]);
+    expect(paramValues(readTask(task), "model")).toEqual(["m1"]);
+    expect(paramValues(readTask(task), "size")).toEqual(["big"]);
+    expect(paramValues(readTask(task), "missing")).toBeNull();
+  });
+
+  it("settingANameReplacesEveryTagOfItAtTheFirstOnesPlace", () => {
+    const set = setParam(task, "topic", ["art"]);
+    expect(values(set, "topic")).toEqual([["art"]]);
+    expect(set.private[1]).toEqual(["param", "topic", "art"]);
+    expect(set.private.map((t) => t[0])).toEqual(["task", "param", "cron", "param"]);
+    expect(set.public.map((t) => t[0])).toEqual(["param"]);
+    expect(set.public[0][2]).toBe("big");
+    expect(paramValues(readTask(set), "model")).toEqual(["m1"]);
+  });
+
+  it("aPublicOnlyParamIsSetOnThePublicSideAndANewOneGoesPrivate", () => {
+    const size = setParam(task, "size", ["small"]);
+    expect(size.public[0]).toEqual(["param", "size", "small"]);
+    expect(size.private).toHaveLength(task.private.length);
+    const added = setParam(task, "length", ["short"]);
+    expect(added.private.at(-1)).toEqual(["param", "length", "short"]);
+    expect(added.public).toHaveLength(task.public.length);
+  });
+
+  it("removingANameKeepsEveryOtherParam", () => {
+    const removed = removeParam(task, "topic");
+    expect(readTask(removed).params.map((p) => p.name)).toEqual(["model", "size"]);
+    expect(removed.public.map((t) => t[0])).toEqual(["param"]);
+    expect(removeParam(task, "missing")).toBe(task);
+  });
+});
+
+/** Quartz's ScheduledTaskRunnerTest, where it applies to the author's client (not the runner's decisions). */
+describe("ported: Quartz ScheduledTaskRunnerTest", () => {
+  const ASSISTANT = "b".repeat(64);
+  const STRANGER = "c".repeat(64);
+  const daily: TaskTags = {
+    public: [],
+    private: [
+      ["task", "observer"],
+      ["cron", "0 6 * * *", "America/New_York", "0"],
+      ["param", "model", "anthropic/claude-sonnet-4.5"],
+    ],
+  };
+
+  it("aPublicPNamesTheRunner", () => {
+    expect(readTask(daily).runner).toBeNull();
+    expect(readTask(daily).runners).toEqual([]);
+    const run = setRunner(daily, ASSISTANT);
+    expect(readTask(run)).toMatchObject({ runner: ASSISTANT, runnerConflict: false });
+    expect(run.public.at(-1)).toEqual(["p", ASSISTANT]);
+    // Read from the public tags only: a private `p` is just a tag that stays.
+    const privateP: TaskTags = { public: daily.public, private: [...daily.private, ["p", ASSISTANT]] };
+    expect(readTask(privateP)).toMatchObject({ runner: null, runners: [] });
+    expect(setRunner(privateP, null).private.filter((t) => t[0] === "p")).toHaveLength(1);
+  });
+
+  it("twoRunnersAreAConflictAndNobodyRunsIt", () => {
+    const two: TaskTags = {
+      public: [
+        ["p", ASSISTANT],
+        ["p", STRANGER],
+      ],
+      private: daily.private,
+    };
+    expect(readTask(two)).toMatchObject({ runnerConflict: true, runner: null });
+    expect(readTask(two).runners.length > 0).toBe(true);
+    expect(readTask(setRunner(two, ASSISTANT)).runner).toBe(ASSISTANT);
+    // A `p` that isn't a key names nobody who can run it, and the author's devices still don't.
+    const odd: TaskTags = { public: [["p", "not-a-key"]], private: daily.private };
+    expect(readTask(odd)).toMatchObject({ runner: null, runnerConflict: false, runners: ["not-a-key"] });
+  });
+
+  it("theAuthorStillReadsAConflict, and our writer encrypts a conflict to self", () => {
+    const two: TaskTags = {
+      public: [
+        ["p", STRANGER],
+        ["p", ASSISTANT],
+      ],
+      private: daily.private,
+    };
+    const me = "a".repeat(64);
+    expect(privateTagsReadPeers(two.public, me)).toEqual([STRANGER, ASSISTANT, me]);
+    expect(privateTagsPeer(two, me)).toBe(me);
+  });
+
+  it("otherwise decrypts to self only", () => {
+    const me = "a".repeat(64);
+    expect(privateTagsReadPeers(daily.public, me)).toEqual([me]);
+    expect(privateTagsPeer(daily, me)).toBe(me);
+    // A single p that isn't a key: no runner to encrypt to.
+    expect(privateTagsPeer({ public: [["p", "not-a-key"]], private: [] }, me)).toBe(me);
+  });
+
+  it("aHandRunTaskWithParamsAndNoCronNeverRunsOnItsOwn", () => {
+    const settingsOnly: TaskTags = {
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["param", "model", "m"],
+      ],
+    };
+    expect(taskStatus(readTask(settingsOnly), WED)).toBe("no-schedule");
+  });
+
+  it("clearingAndMovingTheRunnerKeepsEverythingElse", () => {
+    const run = setRunner(setSimpleSchedule(daily, { time: "06:00", days: [...WEEKDAYS] }, "UTC", WED), ASSISTANT);
+    const moved = setRunner(run, STRANGER);
+    expect(readTask(moved).runner).toBe(STRANGER);
+    expect(moved.private).toBe(run.private);
+    expect(setRunner(moved, null).public).toEqual([]);
   });
 });

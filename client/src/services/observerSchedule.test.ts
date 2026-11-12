@@ -51,12 +51,13 @@ vi.mock("@/accounts/signing", async (original) => ({
 const SECRET = new Uint8Array(32).fill(5);
 const PUBKEY = getPublicKey(SECRET);
 const toSelf = nip44.getConversationKey(SECRET, PUBKEY);
+// A real NIP-44 conversation with whichever peer is asked: self, or the Assistant.
 const account = {
   pubkey: PUBKEY,
   type: "test",
   nip44: {
-    encrypt: async (_to: string, plain: string) => nip44.encrypt(plain, toSelf),
-    decrypt: async (_from: string, cipher: string) => nip44.decrypt(cipher, toSelf),
+    encrypt: async (to: string, plain: string) => nip44.encrypt(plain, nip44.getConversationKey(SECRET, to)),
+    decrypt: async (from: string, cipher: string) => nip44.decrypt(cipher, nip44.getConversationKey(SECRET, from)),
   },
 };
 
@@ -621,5 +622,151 @@ describe("a key that can't be unlocked here is a failure to retry (audit, 2026-1
     expect(await service.readSchedule(stuck as never, ev)).toMatchObject({ status: "failed" });
     expect(service.heldSchedule(ev.id)).toBeUndefined();
     expect(await service.readSchedule(account as never, ev)).toMatchObject({ status: "ready" });
+  });
+});
+
+describe("the runner: params and the Assistant (NIP-FB `param`, Runner)", () => {
+  // The Assistant's own key pair: what brainstorm_server holds for this reader.
+  const ASSISTANT_SECRET = new Uint8Array(32).fill(9);
+  const ASSISTANT = getPublicKey(ASSISTANT_SECRET);
+  const OTHER = getPublicKey(new Uint8Array(32).fill(11));
+  /** What the Assistant reads: the reader is its peer. */
+  const assistantReads = (content: string) =>
+    JSON.parse(nip44.decrypt(content, nip44.getConversationKey(ASSISTANT_SECRET, PUBKEY))) as string[][];
+  const withParams = [
+    ...amethystPrivate,
+    ["param", "model", "anthropic/claude-sonnet-4.5"],
+    ["param", "key", "https://openrouter.ai/api/v1", "a3f9"],
+    ["param", "size", "a3"],
+  ];
+  const toAssistant = (
+    tags: string[][],
+    createdAt = 2_000_000_000,
+    publicTags: string[][] = [
+      ["d", "observer"],
+      ["p", ASSISTANT],
+    ],
+  ) =>
+    finalizeEvent(
+      {
+        kind: 34817,
+        created_at: createdAt,
+        tags: publicTags,
+        content: nip44.encrypt(JSON.stringify(tags), nip44.getConversationKey(SECRET, ASSISTANT)),
+      },
+      SECRET,
+    );
+
+  it("naming the Assistant adds the public p and re-encrypts so both read it, every param kept", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent(withParams), reach: reachAll });
+
+    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, ASSISTANT));
+
+    expect(res.success).toBe(true);
+    const event = published();
+    expect(event.tags).toEqual([
+      ["d", "observer"],
+      ["p", ASSISTANT],
+    ]);
+    // The Assistant reads it with the reader as peer; the reader with the Assistant as peer.
+    expect(assistantReads(event.content)).toEqual(withParams);
+    expect(() => nip44.decrypt(event.content, toSelf)).toThrow();
+    const read = await service.readSchedule(account as never, event as never);
+    expect(read).toEqual({ status: "ready", tags: { public: [["p", ASSISTANT]], private: withParams } });
+  });
+
+  it("reads an event encrypted to the Assistant, and choosing devices re-encrypts to self without the p", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: toAssistant(withParams), reach: reachAll });
+
+    const res = await service.updateObserverSchedule((d) => {
+      expect(d.private).toEqual(withParams);
+      return tasks.setRunner(d, null);
+    });
+
+    expect(res.success).toBe(true);
+    expect(published().tags).toEqual([["d", "observer"]]);
+    expect(decrypted()).toEqual(withParams);
+    expect(() => assistantReads(published().content)).toThrow();
+  });
+
+  it("an edit while the Assistant prints stays encrypted to it, unknown params where they were", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: toAssistant(withParams), reach: reachAll });
+
+    const res = await service.updateObserverSchedule((d) => lib.withObserverModel(d, "openai/gpt-4o-mini"));
+
+    expect(res.success).toBe(true);
+    const tags = assistantReads(published().content);
+    expect(tags.filter((t) => t[0] === "param")).toEqual([
+      ["param", "model", "openai/gpt-4o-mini"],
+      ["param", "key", "https://openrouter.ai/api/v1", "a3f9"],
+      ["param", "size", "a3"],
+    ]);
+    expect(published().tags).toEqual([
+      ["d", "observer"],
+      ["p", ASSISTANT],
+    ]);
+  });
+
+  it("moving to another runner re-encrypts to it, and the first one no longer reads it", async () => {
+    const OTHER_SECRET = new Uint8Array(32).fill(11);
+    requestNewestWithReach.mockResolvedValue({ newest: toAssistant(withParams), reach: reachAll });
+
+    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, OTHER));
+
+    expect(res.success).toBe(true);
+    expect(published().tags).toEqual([
+      ["d", "observer"],
+      ["p", OTHER],
+    ]);
+    const otherReads = JSON.parse(nip44.decrypt(published().content, nip44.getConversationKey(OTHER_SECRET, PUBKEY)));
+    expect(otherReads).toEqual(withParams);
+    expect(() => assistantReads(published().content)).toThrow();
+  });
+
+  it("a conflict is read with whichever named key opens it, and written to self", async () => {
+    // Two p tags: some client encrypted to the second one.
+    const conflict = finalizeEvent(
+      {
+        kind: 34817,
+        created_at: 2_000_000_000,
+        tags: [
+          ["d", "observer"],
+          ["p", OTHER],
+          ["p", ASSISTANT],
+        ],
+        content: nip44.encrypt(JSON.stringify(withParams), nip44.getConversationKey(SECRET, ASSISTANT)),
+      },
+      SECRET,
+    );
+    const read = await service.readSchedule(account as never, conflict as never);
+    expect(read.status).toBe("ready");
+    expect(tasks.readTask((read as { tags: never }).tags)).toMatchObject({ runnerConflict: true, runner: null });
+
+    requestNewestWithReach.mockResolvedValue({ newest: conflict, reach: reachAll });
+    const res = await service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    expect(res.success).toBe(true);
+    // Nobody runs a conflict, and only the reader must read it.
+    expect(decrypted().some((t) => t[0] === "paused")).toBe(true);
+    expect(published().tags.filter((t) => t[0] === "p")).toHaveLength(2);
+  });
+
+  it("a ciphertext neither the Assistant's nor the reader's own is unreadable, and never overwritten", async () => {
+    const stranger = finalizeEvent(
+      {
+        kind: 34817,
+        created_at: 2_000_000_000,
+        tags: [
+          ["d", "observer"],
+          ["p", ASSISTANT],
+        ],
+        content: nip44.encrypt("[]", nip44.getConversationKey(SECRET, OTHER)),
+      },
+      SECRET,
+    );
+    expect(await service.readSchedule(account as never, stranger as never)).toEqual({ status: "unreadable" });
+    requestNewestWithReach.mockResolvedValue({ newest: stranger, reach: reachAll });
+    const res = await service.updateObserverSchedule((d) => tasks.setRunner(d, null));
+    expect(res.success).toBe(false);
+    expect(publish).not.toHaveBeenCalled();
   });
 });

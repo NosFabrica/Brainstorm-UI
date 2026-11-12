@@ -7,7 +7,13 @@
  *   ["task", "observer"]   ["cron", "0 6 * * 1-5", "America/New_York", "<set at>"]   ["paused"]
  *   ["claim", "<due unix>", "<install id>", "<device name>", "<claimed at>"]   ["ran", "<unix>"]
  *
- * and any other tag is one of the task's own options. `cron` is a POSIX five-field
+ *   ["param", "<name>", "<values>…"]   (public) ["p", "<runner>"]
+ *
+ * `param`s are the task's own options, ordered and repeatable, kept as read; any other tag
+ * is kept too. A public `p` names a runner (NIP-FB, Runner): another key, such as the
+ * reader's Brainstorm Assistant, that runs the task for them. The private tags are then
+ * NIP-44 between the author and the runner, so both read them, and no device of the author
+ * runs it; more than one `p` is a conflict and nobody does. `cron` is a POSIX five-field
  * expression read in its zone, so every device agrees on the instant. Nobody is designated
  * to run it: each device the user turned it on for races to `claim` an occurrence when it
  * falls due, and the winner stamps `ran` when done. Brainstorm never claims, never runs
@@ -70,6 +76,26 @@ export interface ScheduledTask {
   claim: TaskClaim | null;
   /** Unix seconds the claimed occurrence finished; null when absent. */
   ran: number | null;
+  /**
+   * Every `param`, the private ones first, then the public ones, each side in its order.
+   * NIP-FB: a name may repeat, and every one is kept as read, understood or not.
+   */
+  params: TaskParam[];
+  /**
+   * The value of every public `p`: the keys the task names as its runner (NIP-FB,
+   * Runner). A private `p` is just a tag that is kept.
+   */
+  runners: string[];
+  /** The one key that runs the task for its author; null with none, more than one, or a `p` that isn't a key. */
+  runner: string | null;
+  /** More than one public `p`: NIP-FB says nobody runs the task. */
+  runnerConflict: boolean;
+}
+
+/** `["param", name, values…]`: one of the task's own options (NIP-FB gives them no meaning). */
+export interface TaskParam {
+  name: string;
+  values: string[];
 }
 
 /** A task nobody has written yet: named, paused, no schedule (all private). */
@@ -118,6 +144,7 @@ function readClaim(tag: string[] | undefined): TaskClaim | null {
 export function readTask(tags: TaskTags): ScheduledTask {
   const cron = first(tags, "cron");
   const task = first(tags, "task")?.[1];
+  const runners = runnersOf(tags.public);
   return {
     task: task ? task : null,
     enabled: !merged(tags).some((t) => t[0] === "paused"),
@@ -127,7 +154,113 @@ export function readTask(tags: TaskTags): ScheduledTask {
     setAt: seconds(cron?.[3]) ?? 0,
     claim: readClaim(first(tags, "claim")),
     ran: seconds(first(tags, "ran")?.[1]),
+    params: merged(tags).flatMap((t) => {
+      const param = readParam(t);
+      return param ? [param] : [];
+    }),
+    runners,
+    runner: soleRunner(runners),
+    runnerConflict: runners.length > 1,
   };
+}
+
+// --- params: the task's own options ------------------------------------------------
+
+const PARAM = "param";
+
+/** A `param` tag as a name and its values; null for one without a name. */
+function readParam(tag: string[]): TaskParam | null {
+  if (tag[0] !== PARAM || typeof tag[1] !== "string" || !tag[1].trim()) return null;
+  return { name: tag[1], values: tag.slice(2) };
+}
+
+const isParam = (name: string) => (t: string[]) => t[0] === PARAM && t[1] === name;
+const sameTag = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** The values of the first `param` named `name` (private first, as readers see them); null when there is none. */
+export function paramValues(task: ScheduledTask, name: string): string[] | null {
+  return task.params.find((p) => p.name === name)?.values ?? null;
+}
+
+/**
+ * The `param`s named `name` set to one holding `values`: it takes the place of the first
+ * one (private side first, as readers see them), and every other one of that name goes,
+ * on either side. With none, it is added to the private side. Every other tag, unknown
+ * params included, stays where it was (Quartz's `ScheduledTask.withParam`). The same
+ * tags come back when that one param already says exactly this.
+ */
+export function setParam(tags: TaskTags, name: string, values: readonly string[]): TaskTags {
+  const tag = [PARAM, name, ...values];
+  const is = isParam(name);
+  const all = [...tags.private.filter(is), ...tags.public.filter(is)];
+  if (all.length === 1 && sameTag(all[0], tag)) return tags;
+  const swapFirst = (list: string[][]) => {
+    let done = false;
+    return list.flatMap((t) => {
+      if (!is(t)) return [t];
+      if (done) return [];
+      done = true;
+      return [tag];
+    });
+  };
+  if (tags.private.some(is)) return { public: tags.public.filter((t) => !is(t)), private: swapFirst(tags.private) };
+  if (tags.public.some(is)) return { public: swapFirst(tags.public), private: tags.private };
+  return { public: tags.public, private: [...tags.private, tag] };
+}
+
+/** No `param` named `name`, on either side; the same tags when there was none. */
+export function removeParam(tags: TaskTags, name: string): TaskTags {
+  const is = isParam(name);
+  if (!tags.public.some(is) && !tags.private.some(is)) return tags;
+  return { public: tags.public.filter((t) => !is(t)), private: tags.private.filter((t) => !is(t)) };
+}
+
+// --- the runner: another key that runs the task for its author ----------------------
+
+const HEX_KEY = /^[0-9a-f]{64}$/;
+
+/** The value of every public `p`, in order. */
+export function runnersOf(publicTags: readonly string[][]): string[] {
+  return publicTags.filter((t) => t[0] === "p" && typeof t[1] === "string").map((t) => t[1]);
+}
+
+/** The one runner `runners` names: exactly one, and a key; null otherwise. */
+function soleRunner(runners: readonly string[]): string | null {
+  return runners.length === 1 && HEX_KEY.test(runners[0]) ? runners[0] : null;
+}
+
+/**
+ * Run by `runner`, or by the author's own devices when it is null: every public `p` goes,
+ * and for a runner one public `["p", runner]` is added. A private `p` isn't a runner and
+ * stays. Whoever writes the event next encrypts the private tags to the new peer
+ * (`privateTagsPeer`): the runner, or the author when cleared. The same tags come back when
+ * the task already names exactly that runner, or none.
+ */
+export function setRunner(tags: TaskTags, runner: string | null): TaskTags {
+  const current = runnersOf(tags.public);
+  if (runner === null ? current.length === 0 : current.length === 1 && current[0] === runner) return tags;
+  if (runner !== null && !HEX_KEY.test(runner)) throw new RangeError("Not a key.");
+  const kept = tags.public.filter((t) => t[0] !== "p");
+  return { public: runner === null ? kept : [...kept, ["p", runner]], private: tags.private };
+}
+
+/**
+ * The other key of the NIP-44 conversation the private tags are written in, for `author`:
+ * the runner when the task names one, else the author (NIP-51's to-self). A conflict is
+ * written to self: nobody runs it, and only the author must read it.
+ */
+export function privateTagsPeer(tags: TaskTags, author: string): string {
+  return soleRunner(runnersOf(tags.public)) ?? author;
+}
+
+/**
+ * Which keys the author tries, in order, to read the private tags of an event with these
+ * public tags: each key a public `p` names (a conflict was written by some client to one
+ * of them), then themselves (Quartz's `ScheduledTaskEvent.privateTagsPeers`).
+ */
+export function privateTagsReadPeers(publicTags: readonly string[][], author: string): string[] {
+  const peers = runnersOf(publicTags).filter((p) => HEX_KEY.test(p) && p !== author);
+  return [...new Set([...peers, author])];
 }
 
 /**
@@ -927,6 +1060,25 @@ export function relativeDay(instant: number, now: number, tz?: string, locale?: 
   if (ago === 1) return "yesterday";
   if (ago < 7) return dtf(locale, { weekday: "long", timeZone: zone }).format(new Date(instant));
   return dtf(locale, { month: "short", day: "numeric", timeZone: zone }).format(new Date(instant));
+}
+
+const agoFormats = new Map<string, Intl.RelativeTimeFormat>();
+
+/** `3 hours ago`, `2 days ago`, `just now`: how long before `now` a past instant was. */
+export function formatAgo(instant: number, now: number, locale?: string): string {
+  const seconds = Math.max(0, Math.round((now - instant) / 1000));
+  if (seconds < 60) return "just now";
+  const key = locale ?? "";
+  let rtf = agoFormats.get(key);
+  if (!rtf) {
+    rtf = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
+    agoFormats.set(key, rtf);
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return rtf.format(-minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return rtf.format(-hours, "hour");
+  return rtf.format(-Math.floor(hours / 24), "day");
 }
 
 /** `HH:MM` on the wall clock in `tz` at `instant`. */

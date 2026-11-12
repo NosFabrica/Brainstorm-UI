@@ -3,7 +3,7 @@ import { useActiveAccount } from "applesauce-react/hooks";
 import { canSignUnasked } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { SCHEDULE_D, SCHEDULE_KIND } from "@/lib/frontPage/observerSchedule";
-import { readTask, type ScheduledTask, type TaskTags } from "@/lib/scheduledTasks";
+import { readTask, runnersOf, type ScheduledTask, type TaskTags } from "@/lib/scheduledTasks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { onAppResume } from "@/lib/appResume";
 import {
@@ -40,7 +40,15 @@ export type ObserverSchedule = ObserverScheduleState & {
    * rest on.
    */
   checkedAt: number | null;
+  /**
+   * The public `p` values of the reader's own signed schedule: who it names to print
+   * (NIP-FB, Runner). Public, so known before the private tags are unlocked; empty with no
+   * event. Only this event's count: a site by any other key that tags the reader doesn't.
+   */
+  runners: readonly string[];
 };
+
+const NO_RUNNERS: readonly string[] = [];
 
 /** The states with nothing in them, shared so the hook's answer keeps its identity. */
 const LOADING: ObserverScheduleState = { status: "loading" };
@@ -182,7 +190,15 @@ export function useObserverSchedule(): ObserverSchedule {
   else if (read && read.pubkey === pubkey) value = read.value;
   else value = LOADING;
   const checkedAt = checked && checked.pubkey === pubkey ? checked.at : null;
+  const runnersKey = event ? JSON.stringify(runnersOf(event.tags)) : "[]";
+  const runners = useMemo(
+    () => (runnersKey === "[]" ? NO_RUNNERS : (JSON.parse(runnersKey) as string[])),
+    [runnersKey],
+  );
   // The same object until something in it changes: the page holds it and hands it to the
   // memoized card, which must not re-render on every streamed chunk of a print.
-  return useMemo(() => ({ ...value, reveal, refresh, checkedAt }), [value, reveal, refresh, checkedAt]);
+  return useMemo(
+    () => ({ ...value, reveal, refresh, checkedAt, runners }),
+    [value, reveal, refresh, checkedAt, runners],
+  );
 }
