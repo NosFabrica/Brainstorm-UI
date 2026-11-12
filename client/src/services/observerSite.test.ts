@@ -52,7 +52,14 @@ vi.mock("@/services/blossom", async (orig) => ({
 }));
 vi.mock("@/services/nostr", () => ({ publishToRelays: (...args: unknown[]) => mocks.publish(...args) }));
 
-import { fetchBlob, leadHeadline, loadObserverSite, publishToObserver, PublishError } from "./observerSite";
+import {
+  fetchBlob,
+  leadHeadline,
+  loadObserverSite,
+  loadRunnerSite,
+  publishToObserver,
+  PublishError,
+} from "./observerSite";
 
 const PAPER = `<!doctype html><html><body><header class="masthead"><h1>The Nostr Observer</h1></header><h2 class="lead-head">Twelve relays, one lesson</h2></body></html>`;
 const NOV11 = Date.UTC(2026, 10, 11, 9, 0);
@@ -310,6 +317,53 @@ describe("loadObserverSite", () => {
     const site = await loadObserverSite(PK);
     expect(site.event).toBeNull();
     expect(site.index.editions).toEqual([]);
+  });
+});
+
+describe("loadRunnerSite", () => {
+  const RUNNER = "b".repeat(64);
+  const runnerSite = async (over: Record<string, unknown> = {}) => {
+    const json = serializeEditions({
+      v: 1,
+      title: "Lira's Observer",
+      editions: [{ day: "2026-11-12", path: "/2026-11-12.html", sha256: "3".repeat(64), printedAt: 1794480000 }],
+    });
+    const hash = await sha256Text(json);
+    blobs.set(hash, json);
+    return {
+      kind: 35128,
+      pubkey: RUNNER,
+      created_at: 1,
+      tags: [
+        ["d", "observer"],
+        ["p", PK],
+        ["path", "/2026-11-12.html", "3".repeat(64)],
+        ["path", EDITIONS_PATH, hash],
+      ],
+      ...over,
+    };
+  };
+
+  it("reads the Assistant's site for this reader, its files on the reader's servers", async () => {
+    mocks.site = await runnerSite();
+    const site = await loadRunnerSite(RUNNER, PK);
+    expect(site.event).not.toBeNull();
+    expect(site.index.editions.map((e) => [e.day, e.printedAt])).toEqual([["2026-11-12", 1794480000]]);
+    expect(site.servers).toEqual(["https://files.example"]);
+  });
+
+  it("ignores a site by another key, or one that doesn't tag this reader", async () => {
+    mocks.site = await runnerSite({ pubkey: "c".repeat(64) });
+    expect((await loadRunnerSite(RUNNER, PK)).event).toBeNull();
+    mocks.site = await runnerSite({
+      tags: [
+        ["d", "observer"],
+        ["p", "d".repeat(64)],
+      ],
+    });
+    expect((await loadRunnerSite(RUNNER, PK)).index.editions).toEqual([]);
+    mocks.site = await runnerSite({ tags: [["d", "observer"]] });
+    expect((await loadRunnerSite(RUNNER, PK)).event).toBeNull();
   });
 });
 

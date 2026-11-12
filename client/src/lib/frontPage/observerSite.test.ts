@@ -8,6 +8,9 @@ import {
   INDEX_PATH,
   aggregateHash,
   archiveHtml,
+  isRunnerSiteFor,
+  mergeSiteEditions,
+  runnerSiteFilter,
   editionPath,
   eventBudget,
   isRealDay,
@@ -270,5 +273,80 @@ describe("archive.html", () => {
     const odd = archiveHtml({ v: 1, title: "", editions: [{ ...entry("2026-11-12", 1), path: "//evil.example/x" }] });
     expect(odd).toContain('href="./2026-11-12.html"');
     expect(odd).not.toContain("evil.example");
+  });
+});
+
+describe("a runner's site", () => {
+  const RUNNER = "b".repeat(64);
+  const READER = "a".repeat(64);
+  const site = (over: Partial<{ kind: number; pubkey: string; tags: string[][] }> = {}) => ({
+    kind: 35128,
+    pubkey: RUNNER,
+    tags: [
+      ["d", "observer"],
+      ["p", READER],
+    ],
+    ...over,
+  });
+
+  it("asks for the runner's observer site that tags the reader", () => {
+    expect(runnerSiteFilter(RUNNER, READER)).toEqual({
+      kinds: [35128],
+      authors: [RUNNER],
+      "#d": ["observer"],
+      "#p": [READER],
+    });
+  });
+
+  it("accepts only the runner's observer site tagging this reader", () => {
+    expect(isRunnerSiteFor(site(), RUNNER, READER)).toBe(true);
+    // Another key that tags the reader is not the runner their schedule names.
+    expect(isRunnerSiteFor(site({ pubkey: "c".repeat(64) }), RUNNER, READER)).toBe(false);
+    // The runner's site for someone else.
+    expect(
+      isRunnerSiteFor(
+        site({
+          tags: [
+            ["d", "observer"],
+            ["p", "d".repeat(64)],
+          ],
+        }),
+        RUNNER,
+        READER,
+      ),
+    ).toBe(false);
+    expect(isRunnerSiteFor(site({ tags: [["d", "observer"]] }), RUNNER, READER)).toBe(false);
+    expect(
+      isRunnerSiteFor(
+        site({
+          tags: [
+            ["d", "other"],
+            ["p", READER],
+          ],
+        }),
+        RUNNER,
+        READER,
+      ),
+    ).toBe(false);
+    expect(isRunnerSiteFor(site({ kind: 15128 }), RUNNER, READER)).toBe(false);
+    expect(isRunnerSiteFor(null, RUNNER, READER)).toBe(false);
+  });
+
+  it("merges two sites one edition a day, newest first, each saying where it came from", () => {
+    const e = (day: string, printedAt?: number, sha = day) => ({
+      day,
+      path: `/${day}.html`,
+      sha256: sha,
+      ...(printedAt !== undefined ? { printedAt } : {}),
+    });
+    const merged = mergeSiteEditions(
+      [e("2026-11-10", 100, "mine10"), e("2026-11-08", 50)],
+      [e("2026-11-10", 200, "theirs10"), e("2026-11-09", 10), e("2026-11-10", 300, "dup")],
+    );
+    expect(merged.map((m) => [m.entry.sha256, m.byRunner])).toEqual([
+      ["theirs10", true],
+      ["2026-11-09", true],
+      ["2026-11-08", false],
+    ]);
   });
 });

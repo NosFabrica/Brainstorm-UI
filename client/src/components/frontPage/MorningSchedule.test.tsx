@@ -400,3 +400,117 @@ describe("focus and the editor's semantics (audit, 2026-11-12)", () => {
     await waitFor(() => expect(screen.queryByTestId("front-page-schedule-error")).toBeNull());
   });
 });
+
+describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () => {
+  const ASSISTANT = "b".repeat(64);
+  const NO_SITES = { reader: null, runner: null };
+  const withRunner = (runners: string[], extra: string[][] = [], cron = "0 6 * * *") => {
+    const doc: TaskTags = {
+      public: runners.map((r) => ["p", r]),
+      private: [["task", "observer"], ["cron", cron, tz, "1"], ...extra],
+    };
+    return { ...ready(cron), doc, schedule: readTask(doc), runners } as unknown as ObserverSchedule;
+  };
+  const sec = (ms: number) => Math.floor(ms / 1000);
+
+  it("isn't offered to a reader without an Assistant", () => {
+    render(<MorningSchedule schedule={ready("0 6 * * *") as unknown as ObserverSchedule} assistant={null} />);
+    expect(screen.queryByTestId("front-page-schedule-who")).toBeNull();
+  });
+
+  it("is offered with an Assistant, on devices by default, and choosing it names the Assistant", async () => {
+    update.mockResolvedValue({ success: true });
+    render(<MorningSchedule schedule={ready("0 6 * * *") as unknown as ObserverSchedule} assistant={ASSISTANT} />);
+    const devices = screen.getByTestId("front-page-schedule-who-devices");
+    expect(devices).toHaveAttribute("data-state", "on");
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-assistant")));
+    expect(update).toHaveBeenCalledTimes(1);
+    const change = update.mock.calls[0][0] as (d: TaskTags) => TaskTags;
+    const doc: TaskTags = {
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["param", "size", "a3"],
+      ],
+    };
+    expect(change(doc)).toEqual({ public: [["p", ASSISTANT]], private: doc.private });
+  });
+
+  it("switching back to devices removes the runner", async () => {
+    update.mockResolvedValue({ success: true });
+    render(<MorningSchedule schedule={withRunner([ASSISTANT])} assistant={ASSISTANT} sites={NO_SITES} />);
+    expect(screen.getByTestId("front-page-schedule-who-assistant")).toHaveAttribute("data-state", "on");
+    expect(screen.getByTestId("front-page-schedule-who-note")).toHaveTextContent("It prints with keys you give it");
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-devices")));
+    const change = update.mock.calls[0][0] as (d: TaskTags) => TaskTags;
+    expect(change({ public: [["p", ASSISTANT]], private: [] })).toEqual({ public: [], private: [] });
+  });
+
+  it("migrates the remembered model into an edit that changes something, and only then", async () => {
+    update.mockResolvedValue({ success: true });
+    const migrate = (d: TaskTags) => ({ ...d, private: [...d.private, ["param", "model", "m"]] });
+    render(
+      <MorningSchedule
+        schedule={ready("0 6 * * *") as unknown as ObserverSchedule}
+        assistant={ASSISTANT}
+        migrate={migrate}
+      />,
+    );
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-assistant")));
+    const change = update.mock.calls[0][0] as (d: TaskTags) => TaskTags;
+    expect(change({ public: [], private: [] }).private).toEqual([["param", "model", "m"]]);
+    const named: TaskTags = { public: [["p", ASSISTANT]], private: [] };
+    expect(change(named)).toBe(named);
+  });
+
+  it("says the Assistant printed last, from the newest printedAt on either site", () => {
+    const at = Date.now() - 3 * HOUR;
+    render(
+      <MorningSchedule
+        schedule={withRunner([ASSISTANT])}
+        assistant={ASSISTANT}
+        sites={{
+          reader: [{ day: "2026-01-01", printedAt: sec(at - 48 * HOUR) }],
+          runner: [{ day: "x", printedAt: sec(at) }],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("front-page-schedule-ran")).toHaveTextContent(
+      "Last printed by your Assistant, 3 hours ago",
+    );
+    expect(screen.queryByTestId("front-page-schedule-device-hint")).toBeNull();
+  });
+
+  it("warns, from both sites, when a morning more than 3 hours past has no paper, and not before they answered", () => {
+    // Due every minute's hour: an hourly schedule always has a run more than 3 hours past.
+    const hourly = withRunner([ASSISTANT], [], "0 * * * *");
+    const old = Date.now() - 30 * HOUR;
+    const { rerender } = render(<MorningSchedule schedule={hourly} assistant={ASSISTANT} sites={NO_SITES} />);
+    expect(screen.queryByTestId("front-page-schedule-missed")).toBeNull();
+    expect(screen.getByTestId("front-page-schedule-ran")).toHaveTextContent("Checking its papers");
+    rerender(
+      <MorningSchedule
+        schedule={hourly}
+        assistant={ASSISTANT}
+        sites={{ reader: [], runner: [{ day: "x", printedAt: sec(old) }] }}
+      />,
+    );
+    expect(screen.getByTestId("front-page-schedule-missed")).toHaveTextContent("Not printed since");
+  });
+
+  it("names a conflict when two keys are named, and nobody prints", () => {
+    render(
+      <MorningSchedule schedule={withRunner([ASSISTANT, "c".repeat(64)])} assistant={ASSISTANT} sites={NO_SITES} />,
+    );
+    expect(screen.getByTestId("front-page-schedule-conflict")).toHaveTextContent(
+      "Conflict: 2 keys are named to print it, so nobody does.",
+    );
+    expect(screen.getByTestId("front-page-schedule-who-devices")).toHaveAttribute("data-state", "off");
+    expect(screen.getByTestId("front-page-schedule-who-assistant")).toHaveAttribute("data-state", "off");
+  });
+
+  it("names another key when the runner isn't this account's Assistant", () => {
+    render(<MorningSchedule schedule={withRunner(["c".repeat(64)])} assistant={ASSISTANT} sites={NO_SITES} />);
+    expect(screen.getByTestId("front-page-schedule-who-other")).toBeTruthy();
+  });
+});

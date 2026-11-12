@@ -37,7 +37,7 @@ import { Switch } from "@/components/ui/switch";
 import { copyToClipboard } from "@/lib/clipboard";
 import { observerNaddr, observerUrl, type EditionEntry } from "@/lib/frontPage/observerSite";
 import { observerToday, type Edition } from "@/lib/frontPage/today";
-import { fetchBlob, leadHeadline } from "@/services/observerSite";
+import { fetchBlob, leadHeadline, loadRunnerSite } from "@/services/observerSite";
 import { useObserverSite } from "@/hooks/useObserverSite";
 import {
   cancelPrint,
@@ -74,18 +74,29 @@ import { useHasMywot } from "@/hooks/useHasMywot";
 import { useAgentKeys } from "@/hooks/useAgentKeys";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { logout } from "@/accounts/login-flow";
-import { providerName, type AgentKey } from "@/lib/agentKeys";
+import { apiRoot, providerName, type AgentKey } from "@/lib/agentKeys";
+import { keyName, sameKey } from "@/lib/assistantKeys";
 import { rankModels } from "@/lib/frontPage/writer";
 import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
 import { withPaperCsp } from "@/lib/frontPage/validate";
-import { printedTodayZone } from "@/lib/frontPage/observerSchedule";
-import { browserTimeZone, formatClock } from "@/lib/scheduledTasks";
+import {
+  observerKeyChoice,
+  observerModel,
+  pickObserverKey,
+  printedTodayZone,
+  withObserverKey,
+  withObserverModel,
+  withRememberedModel,
+} from "@/lib/frontPage/observerSchedule";
+import { browserTimeZone, formatClock, readTask, type TaskTags } from "@/lib/scheduledTasks";
+import { updateObserverSchedule } from "@/services/observerSchedule";
 import { useObserverSchedule } from "@/hooks/useObserverSchedule";
-import { MorningSchedule } from "@/components/frontPage/MorningSchedule";
+import { MorningSchedule, type ScheduleSites } from "@/components/frontPage/MorningSchedule";
 import { useNow } from "@/hooks/useNow";
+import { onAppResume } from "@/lib/appResume";
 import { fetchModels } from "@/services/frontPage";
 
 /**
@@ -120,9 +131,25 @@ interface SiteState {
   exists: boolean;
 }
 
+/**
+ * The site of the runner the reader's schedule names: whose it is, what it holds, and
+ * whether a relay answered (so "no editions" is an answer, not a silence).
+ */
+type RunnerSiteState = SiteState & { runner: string; reached: boolean };
+
+/** Away this long, the runner's site is asked again on return: it may have printed meanwhile. */
+const RUNNER_REASK_AWAY_MS = 60_000;
+
+const HEX_KEY = /^[0-9a-f]{64}$/;
+
 /** Where Brainstorm keeps the reader's Blossom servers (Settings › Messages › File servers). */
 const FILE_SERVERS_SETTINGS = "/settings?tab=messages&focus=file-servers";
 
+/**
+ * The model this browser last used per endpoint: what a print fell back to before the
+ * schedule carried the reader's choice (`param` `model`), and what the plan's migration
+ * writes there on Brainstorm's first edit. A choice here still goes to the schedule.
+ */
 const modelKey = (url: string) => `frontPage:model:${url}`;
 
 function readModel(url: string): string | null {
@@ -190,7 +217,6 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const pubkey = user?.pubkey ?? null;
   const readerName = user?.displayName || (pubkey ? shortNpub(pubkey) : "");
   const keys = useAgentKeys();
-  const key = keys.status === "ready" ? (keys.keys[0] ?? null) : null;
   const mywot = useHasMywot();
   const { canUseMywot, hasMywot, isSearchObserver, observerCheckedAt } = useCanSearchMywot();
   const queryClient = useQueryClient();
@@ -235,11 +261,89 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const scheduleState = useObserverSchedule();
   const syncedSchedule = scheduleState.status === "ready" ? scheduleState.schedule : null;
   const todayZone = printedTodayZone(syncedSchedule, browserTimeZone());
+
+  // The runner the reader's own signed schedule names (its one public `p`; NIP-FB, Runner):
+  // their Brainstorm Assistant prints their paper as its own Observer site, which is read
+  // beside theirs. A site from any other key that tags them is never asked for.
+  const runner =
+    scheduleState.runners.length === 1 && HEX_KEY.test(scheduleState.runners[0]) ? scheduleState.runners[0] : null;
+  const [runnerSite, setRunnerSite] = useState<RunnerSiteState | null>(null);
+  const [runnerAsk, setRunnerAsk] = useState(0);
+  useEffect(
+    () =>
+      onAppResume((away) => {
+        if (away >= RUNNER_REASK_AWAY_MS) setRunnerAsk((n) => n + 1);
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (!pubkey || !runner) return;
+    let live = true;
+    loadRunnerSite(runner, pubkey)
+      .then((loaded) => {
+        if (!live) return;
+        setRunnerSite({
+          runner,
+          editions: loaded.index.editions,
+          servers: loaded.servers,
+          exists: !!loaded.event,
+          reached: loaded.reached,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [pubkey, runner, runnerAsk]);
+  const runnerShown = runner && runnerSite?.runner === runner ? runnerSite : null;
+  // Either site's files are fetched by hash from wherever they are: the runner uploads to
+  // the reader's own servers, and every download is checked against its hash.
+  const sites: SiteState | null = useMemo(() => {
+    if (!runnerShown) return site;
+    return {
+      editions: site?.editions ?? [],
+      servers: [...new Set([...(site?.servers ?? []), ...runnerShown.servers])],
+      exists: !!site?.exists,
+    };
+  }, [site, runnerShown]);
+  const scheduleSites: ScheduleSites = useMemo(
+    () => ({
+      // Null while the reader's own site is unknown: no warning rests on a silence.
+      reader: site ? site.editions : null,
+      runner: runner ? (runnerShown?.reached ? runnerShown.editions : null) : [],
+    }),
+    [site, runner, runnerShown],
+  );
   const { today, past } = useMemo(
-    () => observerToday({ site: site?.editions ?? [], session: page, now, zone: todayZone }),
-    [site, page, now, todayZone],
+    () =>
+      observerToday({
+        site: site?.editions ?? [],
+        runnerSite: runnerShown?.editions ?? [],
+        session: page,
+        now,
+        zone: todayZone,
+      }),
+    [site, runnerShown, page, now, todayZone],
   );
   const when: When = useMemo(() => ({ now, zone: todayZone }), [now, todayZone]);
+
+  // The key to print with: the schedule's `key` (its endpoint and last four characters,
+  // one choice for every app), else the first. One picked here shows at once, until the
+  // schedule it was written to lands (or another device's edit does).
+  const allKeys = useMemo(() => (keys.status === "ready" ? keys.keys : []), [keys]);
+  const scheduleEventId = scheduleState.status === "ready" ? scheduleState.eventId : null;
+  const [pickedKey, setPickedKey] = useState<{ eventId: string | null; key: AgentKey } | null>(null);
+  const picked =
+    pickedKey && pickedKey.eventId === scheduleEventId && allKeys.some((k) => sameKey(k, pickedKey.key))
+      ? pickedKey.key
+      : null;
+  const key = keys.status === "ready" ? (picked ?? pickObserverKey(syncedSchedule, allKeys)) : null;
+  // Whether the schedule's settings are this key's: no `key` (the default applies) or one
+  // naming this key's endpoint. Another endpoint's model is not this one's.
+  const keyChoice = observerKeyChoice(syncedSchedule);
+  const keyFits = !!key && !picked && (!keyChoice || apiRoot(keyChoice.url) === apiRoot(key.url));
+  // The plan's migration: Brainstorm's first edit writes the model this browser remembered.
+  const migrate = useMemo(() => (doc: TaskTags) => withRememberedModel(doc, allKeys, readModel), [allKeys]);
   // A past edition, read in the paper's place: its day is in the URL, so the browser's
   // Back returns to today and the link can be passed around the app.
   const [, navigate] = useLocation();
@@ -261,13 +365,13 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     } else navigate(FRONT_PAGE, { replace: true });
   };
   const [pastOpen, setPastOpen] = useState(false);
-  useEditionHtml(today?.from === "site" ? today.entry : undefined, site, fetched, setFetched);
-  useEditionHtml(opened?.from === "site" ? opened.entry : undefined, site, fetched, setFetched);
+  useEditionHtml(today?.from === "site" ? today.entry : undefined, sites, fetched, setFetched);
+  useEditionHtml(opened?.from === "site" ? opened.entry : undefined, sites, fetched, setFetched);
   const paperOf = (e: Edition<Printed>): Printed =>
     e.from === "session" ? e.paper : fromEntry(e.entry, fetched[e.entry.sha256] ?? "");
   // No servers to ask is not an answer: nothing is remembered, so a later load can try.
   const failedOf = (e: Edition<Printed>) =>
-    e.from === "site" && (fetched[e.entry.sha256] === null || site?.servers.length === 0);
+    e.from === "site" && (fetched[e.entry.sha256] === null || sites?.servers.length === 0);
   const shown = today ? paperOf(today) : null;
   // The edition on the page: the asked past one, else today's.
   const viewing: Edition<Printed> | null = asked ? opened : today;
@@ -288,25 +392,64 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
 
   const models = useModels(key);
   // The model is one provider's: when the key changes, the last provider's choice is
-  // not sent to the new one while its list loads.
+  // not sent to the new one while its list loads. The schedule's `model` (one choice for
+  // every app) comes first, when it is for this key's endpoint; then what this browser
+  // last used there; then the endpoint's first.
+  const scheduledModel = keyFits ? observerModel(syncedSchedule) : null;
   const [chosen, setChosen] = useState<{ url: string; id: string } | null>(null);
   const model = key && chosen?.url === key.url ? chosen.id : "";
   useEffect(() => {
     if (!key) return;
-    const remembered = readModel(key.url);
+    const remembered = scheduledModel ?? readModel(key.url);
     if (models.status === "listed") {
-      setChosen({ url: key.url, id: remembered && models.ids.includes(remembered) ? remembered : models.ids[0] });
+      const usable = remembered && (remembered === scheduledModel || models.ids.includes(remembered));
+      setChosen({ url: key.url, id: usable ? remembered : models.ids[0] });
     } else if (models.status === "unlisted") {
       setChosen({ url: key.url, id: remembered ?? "" });
     } else {
       setChosen(null);
     }
-  }, [key?.url, models]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key?.url, models, scheduledModel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A choice made here goes to the schedule, so every app prints with it.
+  const [setting, setSetting] = useState<{ saving: boolean; error: string | null }>({ saving: false, error: null });
+  const saveSetting = async (change: (doc: TaskTags) => TaskTags) => {
+    setSetting({ saving: true, error: null });
+    const outcome = await updateObserverSchedule((d) => {
+      const out = change(d);
+      return out === d ? d : migrate(out);
+    });
+    setSetting({
+      saving: false,
+      error: outcome.success || outcome.cancelled ? null : (outcome.error ?? "Couldn't save it to your schedule."),
+    });
+  };
 
   const chooseModel = (id: string) => {
     if (!key) return;
     setChosen({ url: key.url, id });
     writeModel(key.url, id);
+  };
+  /** The model as picked, written to the schedule (a typed id once the field is left). */
+  const commitModel = (id: string) => {
+    if (!key || !id.trim() || id.trim() === scheduledModel) return;
+    void saveSetting((d) => {
+      const out = withObserverModel(d, id);
+      // The model is the key's endpoint's: a `key` naming another endpoint goes with it.
+      const choice = observerKeyChoice(readTask(out));
+      return choice && apiRoot(choice.url) !== apiRoot(key.url) ? withObserverKey(out, key) : out;
+    });
+  };
+  const chooseKey = (next: AgentKey) => {
+    if (key && sameKey(next, key)) return;
+    setPickedKey({ eventId: scheduleEventId, key: next });
+    void saveSetting((d) => {
+      const out = withObserverKey(d, next);
+      // Another endpoint's model doesn't apply to this one: its default (or what this
+      // browser last used there) does.
+      const prev = pickObserverKey(readTask(d), allKeys);
+      return prev && apiRoot(prev.url) === apiRoot(next.url) ? out : withObserverModel(out, null);
+    });
   };
 
   const print = () => {
@@ -360,7 +503,20 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const setupShown = blocker === "setup";
 
   const picker = key && blocker === null && (
-    <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
+    <div className="flex flex-col gap-2">
+      {allKeys.length > 1 && <KeyPicker keys={allKeys} chosen={key} onChoose={chooseKey} />}
+      <ModelPicker
+        keyUrl={key.url}
+        models={models}
+        model={model}
+        onChoose={(id) => {
+          chooseModel(id);
+          if (models.status === "listed") commitModel(id);
+        }}
+        onCommit={commitModel}
+      />
+      <SettingNote saving={setting.saving} error={setting.error} />
+    </div>
   );
   const publishSwitch = <PublishSwitch on={publish} onChange={choosePublish} />;
   // Today's paper is the hint: it shows where Print does while there is one (the dialog).
@@ -406,7 +562,9 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
       <Loader2 className="h-4 w-4 animate-spin" /> Checking…
     </div>
   );
-  const schedule = pubkey && <MorningSchedule schedule={scheduleState} />;
+  const schedule = pubkey && (
+    <MorningSchedule schedule={scheduleState} assistant={mywot.taPubkey} sites={scheduleSites} migrate={migrate} />
+  );
   const statusShown =
     !!notice || (publishState.state !== "idle" && publishState.state !== "confirm") || run.state !== "idle";
 
@@ -1119,16 +1277,64 @@ function ObserverLinks({ pubkey }: { pubkey: string }) {
   );
 }
 
+/** Which of the reader's keys prints, when they have more than one: provider and last four characters only. */
+function KeyPicker({
+  keys,
+  chosen,
+  onChoose,
+}: {
+  keys: AgentKey[];
+  chosen: AgentKey;
+  onChoose: (key: AgentKey) => void;
+}) {
+  const index = keys.findIndex((k) => sameKey(k, chosen));
+  return (
+    <Select value={String(index)} onValueChange={(v) => keys[Number(v)] && onChoose(keys[Number(v)])}>
+      <SelectTrigger aria-label="AI key" data-testid="front-page-key">
+        <SelectValue placeholder="AI key" />
+      </SelectTrigger>
+      <SelectContent>
+        {keys.map((k, i) => (
+          // The index, never the key, names the option.
+          <SelectItem key={i} value={String(i)}>
+            {keyName(k)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Saving a choice to the schedule, or why it stayed in this browser. */
+function SettingNote({ saving, error }: { saving: boolean; error: string | null }) {
+  if (saving) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="front-page-setting-saving">
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> Saving for your other apps…
+      </p>
+    );
+  }
+  if (!error) return null;
+  return (
+    <p className="text-xs text-muted-foreground" data-testid="front-page-setting-error">
+      Used here only: {error}
+    </p>
+  );
+}
+
 function ModelPicker({
   keyUrl,
   models,
   model,
   onChoose,
+  onCommit,
 }: {
   keyUrl: string;
   models: Models;
   model: string;
   onChoose: (id: string) => void;
+  /** A typed model id, once the field is left or Enter pressed. */
+  onCommit?: (id: string) => void;
 }) {
   if (models.status === "loading") {
     return (
@@ -1142,6 +1348,10 @@ function ModelPicker({
       <Input
         value={model}
         onChange={(e) => onChoose(e.target.value.trim())}
+        onBlur={(e) => onCommit?.(e.target.value.trim())}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onCommit?.(e.currentTarget.value.trim());
+        }}
         placeholder={`Model id on ${providerName(keyUrl)}`}
         aria-label="Model"
         data-testid="front-page-model-input"
@@ -1154,7 +1364,8 @@ function ModelPicker({
         <SelectValue placeholder="Model" />
       </SelectTrigger>
       <SelectContent className="max-h-72">
-        {models.ids.map((id) => (
+        {/* The schedule's model, when the endpoint's list doesn't name it: still the reader's choice. */}
+        {(model && !models.ids.includes(model) ? [model, ...models.ids] : models.ids).map((id) => (
           <SelectItem key={id} value={id}>
             {id}
           </SelectItem>

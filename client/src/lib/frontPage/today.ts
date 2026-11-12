@@ -1,13 +1,14 @@
 import { printedToday } from "@/lib/frontPage/observerSchedule";
-import { utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
+import { mergeSiteEditions, utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
 
 /**
- * One paper the reader has: this tab's own print, or an edition on their Observer site.
- * `day` is the UTC day that names the site's file; `printedAt` is in Unix seconds.
+ * One paper the reader has: this tab's own print, or an edition on their Observer site
+ * or on the site of the Assistant their schedule names to print (`byRunner`). `day` is
+ * the UTC day that names the site's file; `printedAt` is in Unix seconds.
  */
 export type Edition<S> =
   | { from: "session"; paper: S; day: string; printedAt: number }
-  | { from: "site"; entry: EditionEntry; day: string; printedAt?: number };
+  | { from: "site"; entry: EditionEntry; day: string; printedAt?: number; byRunner?: boolean };
 
 export interface TodayView<S> {
   /** Today's paper, shown as the page; null when none is printed today: the print view. */
@@ -30,24 +31,32 @@ const sortKey = (e: Edition<unknown>) =>
  * tab's on a tie (it is the same print, with more known about it). An edition whose UTC day
  * is today's file is that file, so it is not listed again among the past ones; this tab's
  * paper from an earlier day is listed only when the site holds nothing for its day.
+ *
+ * While the reader's schedule names a runner (their Brainstorm Assistant), its site is
+ * read too (`runnerSite`): today's paper comes from either, and the two histories merge,
+ * one edition per day (`mergeSiteEditions`).
  */
 export function observerToday<S extends { printedAt: number }>({
   site,
+  runnerSite = [],
   session,
   now,
   zone,
 }: {
   site: readonly EditionEntry[];
+  /** The editions on the site of the runner the reader's own schedule names; none without one. */
+  runnerSite?: readonly EditionEntry[];
   /** This tab's paper; `printedAt` in milliseconds. */
   session: S | null;
   now: number;
   zone: string;
 }): TodayView<S> {
-  const fromSite: Edition<S>[] = site.map((entry) => ({
+  const fromSite: Edition<S>[] = mergeSiteEditions(site, runnerSite).map(({ entry, byRunner }) => ({
     from: "site",
     entry,
     day: entry.day,
     printedAt: entry.printedAt,
+    ...(byRunner ? { byRunner } : {}),
   }));
   const mine: Edition<S> | null = session
     ? {

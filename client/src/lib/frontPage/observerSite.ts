@@ -382,3 +382,57 @@ export function observerNaddr(pubkeyHex: string, relays: string[] = []): string 
     relays: relays.slice(0, 2),
   });
 }
+
+// --- a runner's site: the paper the reader's Assistant prints for them --------------
+
+/** What the check needs of an event: its author, kind and tags. */
+interface SiteEventLike {
+  kind: number;
+  pubkey: string;
+  tags: string[][];
+}
+
+/**
+ * The relay read for the Observer site `runner` publishes for `reader` (NIP-FB, Runner;
+ * quartz `ObserverSite.runnerSiteFilter`): kind 35128, by the runner, `d` = `observer`,
+ * tagging the reader. Check each answer with `isRunnerSiteFor`.
+ */
+export function runnerSiteFilter(runner: string, reader: string) {
+  return { kinds: [OBSERVER_SITE_KIND], authors: [runner], "#d": [OBSERVER_D], "#p": [reader] };
+}
+
+/**
+ * Whether `event` is the Observer site `runner` publishes for `reader`: a kind 35128 by the
+ * runner with `d` = `observer` and a `p` naming the reader. The runner is the one the
+ * reader's own signed schedule names; a site by any other key that tags the reader, or
+ * the runner's site for someone else, is not it.
+ */
+export function isRunnerSiteFor(event: SiteEventLike | null | undefined, runner: string, reader: string): boolean {
+  if (!event || event.kind !== OBSERVER_SITE_KIND || event.pubkey !== runner) return false;
+  const d = event.tags.find((t) => t[0] === "d")?.[1];
+  return d === OBSERVER_D && event.tags.some((t) => t[0] === "p" && t[1] === reader);
+}
+
+/**
+ * Two sites' editions as one history, newest day first: one per day (a day names one
+ * file), the one printed later where both have it, else the reader's own (a tie, or a
+ * time either doesn't say). Each keeps which site it came from.
+ */
+export function mergeSiteEditions(
+  reader: readonly EditionEntry[],
+  runner: readonly EditionEntry[],
+): { entry: EditionEntry; byRunner: boolean }[] {
+  const byDay = new Map<string, { entry: EditionEntry; byRunner: boolean }>();
+  for (const entry of reader) if (!byDay.has(entry.day)) byDay.set(entry.day, { entry, byRunner: false });
+  for (const entry of runner) {
+    const held = byDay.get(entry.day);
+    const later =
+      !!held &&
+      !held.byRunner &&
+      typeof entry.printedAt === "number" &&
+      typeof held.entry.printedAt === "number" &&
+      entry.printedAt > held.entry.printedAt;
+    if (!held || later) byDay.set(entry.day, { entry, byRunner: true });
+  }
+  return [...byDay.values()].sort((a, b) => newestFirst(a.entry, b.entry));
+}

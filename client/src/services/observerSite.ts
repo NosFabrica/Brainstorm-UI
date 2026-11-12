@@ -32,6 +32,7 @@ import {
   archiveHtml,
   eventBudget,
   editionPath,
+  isRunnerSiteFor,
   latestDay,
   manifestTemplate,
   mergeEntries,
@@ -40,6 +41,7 @@ import {
   parseEditions,
   rebuildFromPaths,
   rollOff,
+  runnerSiteFilter,
   serializeEditions,
   sha256Text,
   siteDescription,
@@ -264,6 +266,41 @@ export async function loadObserverSite(
   const site = held && beats(held, read.newest) ? held : read.newest;
   const reached = read.reach.answered.length > 0;
   if (reached) siteReachedAt.set(pubkey, Date.now());
+  const servers = siteServers(site, own.servers);
+  const base = { servers, own: own.servers, relays, reached };
+  if (!site) return { ...base, event: null, index: { v: 1, title: "", editions: [] } };
+  return { ...base, event: site, index: await editionsOf(site, servers, signal) };
+}
+
+/**
+ * The Observer site `runner` publishes for `reader` (NIP-FB, Runner: their Brainstorm
+ * Assistant prints their paper as its own site, `["p", reader]`). Read from the runner's
+ * write relays and the reader's (and the floor), and only a manifest `isRunnerSiteFor`
+ * accepts counts: anything else, a site for someone else included, reads as no site. Its
+ * files are on the reader's own Blossom servers, where the runner uploads them.
+ *
+ * The caller passes the runner the reader's own signed schedule names, never a key a site
+ * names for itself.
+ */
+export async function loadRunnerSite(
+  runner: string,
+  reader: string,
+  { timeoutMs = 6_000, signal }: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<ObserverSite> {
+  const relays = await outboxRelays([runner, reader], PROFILE_RELAYS, { timeoutMs: 2_500 }).catch(() => PROFILE_RELAYS);
+  const [read, own] = await Promise.all([
+    requestNewestWithReach(relays, runnerSiteFilter(runner, reader), timeoutMs).catch(() => ({
+      newest: undefined,
+      reach: { asked: relays, answered: [] as string[] },
+    })),
+    loadBlossomServers(reader, { timeoutMs }).catch(() => ({ servers: [] as string[], found: false })),
+  ]);
+  const accept = (event: NostrEvent | undefined) =>
+    event && isRunnerSiteFor(event, runner, reader) ? event : undefined;
+  const fetched = accept(read.newest);
+  const held = accept(eventStore.getReplaceable(OBSERVER_SITE_KIND, runner, OBSERVER_D) as NostrEvent | undefined);
+  const site = held && beats(held, fetched) ? held : fetched;
+  const reached = read.reach.answered.length > 0;
   const servers = siteServers(site, own.servers);
   const base = { servers, own: own.servers, relays, reached };
   if (!site) return { ...base, event: null, index: { v: 1, title: "", editions: [] } };

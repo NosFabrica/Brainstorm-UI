@@ -27,6 +27,9 @@ const state = vi.hoisted(() => ({
   /** When the search relay was last asked whether it ranks through the reader. */
   observerCheckedAt: 1,
   siteLoad: null as null | (() => Promise<unknown>),
+  updateSchedule: vi.fn(),
+  runnerSite: null as null | Record<string, unknown>,
+  runnerSiteFor: vi.fn(),
 }));
 
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
@@ -38,7 +41,11 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 vi.mock("@/hooks/useAgentKeys", () => ({ useAgentKeys: () => ({ reveal: vi.fn(), ...state.keys }) }));
 // The morning schedule card has its own tests (lib/scheduledTasks, services/observerSchedule).
 vi.mock("@/hooks/useObserverSchedule", () => ({
-  useObserverSchedule: () => ({ reveal: vi.fn(), refresh: vi.fn(), checkedAt: null, ...state.schedule }),
+  useObserverSchedule: () => ({ reveal: vi.fn(), refresh: vi.fn(), checkedAt: null, runners: [], ...state.schedule }),
+}));
+// A setting picked in the print view goes to the schedule; no relay is reached here.
+vi.mock("@/services/observerSchedule", () => ({
+  updateObserverSchedule: (...args: unknown[]) => state.updateSchedule(...args),
 }));
 vi.mock("@/hooks/useScoringStatus", () => ({
   useScoringStatus: () => ({ status: state.scoring, isLoading: state.scoringLoading }),
@@ -89,6 +96,18 @@ vi.mock("@/hooks/useObserverSite", async () => {
 
 vi.mock("@/services/observerSite", async (importOriginal) => ({
   ...(await importOriginal<object>()),
+  loadRunnerSite: (...args: unknown[]) => {
+    state.runnerSiteFor(...args);
+    return Promise.resolve(
+      state.runnerSite ?? {
+        event: null,
+        index: { v: 1, title: "", editions: [] },
+        servers: [],
+        relays: [],
+        reached: true,
+      },
+    );
+  },
   publishToObserver: (...args: unknown[]) => state.publish(...args),
   fetchBlob: (...args: unknown[]) => state.fetchBlob(...args),
 }));
@@ -144,6 +163,9 @@ describe("FrontPagePage", () => {
     state.trustProvider = "brainstorm";
     state.observerCheckedAt = 1;
     state.siteLoad = null;
+    state.updateSchedule.mockReset().mockResolvedValue({ success: true });
+    state.runnerSite = null;
+    state.runnerSiteFor.mockReset();
   });
 
   it("when the provider lists no models, says what to type before Print is offered", async () => {
@@ -914,5 +936,122 @@ describe("FrontPagePage", () => {
       await screen.findByTestId("front-page-past-view");
       expect(screen.getByTestId("front-page-day")).toHaveTextContent("Yesterday");
     });
+  });
+});
+
+describe("FrontPagePage: settings and the Assistant through the schedule", () => {
+  const ASSISTANT = "b".repeat(64);
+  const OR = "https://openrouter.ai/api/v1";
+  const scheduleWith = (privateTags: string[][], publicTags: string[][] = []) => {
+    const doc = { public: publicTags, private: [["task", "observer"], ...privateTags] };
+    return {
+      status: "ready",
+      doc,
+      schedule: readTask(doc),
+      eventId: "e1",
+      createdAt: 1,
+      runners: publicTags.filter((t) => t[0] === "p").map((t) => t[1]),
+    };
+  };
+
+  beforeEach(() => {
+    resetPrintJob();
+    window.history.replaceState(null, "", "/front-page");
+    sessionStorage.clear();
+    localStorage.clear();
+    state.keys = {
+      status: "ready",
+      keys: [
+        { key: "sk-or-v1-first-1111", url: OR },
+        { key: "sk-or-v1-second-a3f9", url: OR },
+      ],
+    };
+    state.hasMywot = true;
+    state.isSearchObserver = true;
+    state.models = ["openai/gpt-4o-mini", "anthropic/claude-sonnet-4.5"];
+    state.modelsFor = null;
+    state.print.mockReset();
+    state.site = { event: null, index: { v: 1, title: "", editions: [] }, servers: [], relays: [], reached: true };
+    state.fetchBlob.mockReset().mockResolvedValue(null);
+    state.schedule = { status: "none" };
+    state.trustProvider = "brainstorm";
+    state.siteLoad = null;
+    state.updateSchedule.mockReset().mockResolvedValue({ success: true });
+    state.runnerSite = null;
+    state.runnerSiteFor.mockReset();
+  });
+
+  it("prints with the key and model the schedule names", async () => {
+    state.schedule = scheduleWith([
+      ["param", "key", OR, "a3f9"],
+      ["param", "model", "openai/gpt-4o-mini"],
+    ]);
+    state.print.mockResolvedValue(printed);
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    expect(screen.getByTestId("front-page-key")).toHaveTextContent("OpenRouter ····a3f9");
+    fireEvent.click(screen.getByTestId("front-page-print"));
+    await waitFor(() => expect(state.print).toHaveBeenCalled());
+    expect(state.print.mock.calls[0][0]).toMatchObject({ model: "openai/gpt-4o-mini" });
+    expect(state.print.mock.calls[0][0].key).toMatchObject({ key: "sk-or-v1-second-a3f9" });
+    // Reading the settings writes nothing.
+    expect(state.updateSchedule).not.toHaveBeenCalled();
+  });
+
+  it("writes a model picked here back to the schedule, so every app shares it", async () => {
+    state.models = [];
+    renderWithProviders(<FrontPagePage />);
+    const input = await screen.findByTestId("front-page-model-input");
+    fireEvent.change(input, { target: { value: "llama3.3" } });
+    // Not per keystroke: once the field is left.
+    expect(state.updateSchedule).not.toHaveBeenCalled();
+    await act(async () => fireEvent.blur(input));
+    expect(state.updateSchedule).toHaveBeenCalledTimes(1);
+    const change = state.updateSchedule.mock.calls[0][0] as (d: unknown) => { private: string[][] };
+    expect(change({ public: [], private: [["task", "observer"]] }).private).toContainEqual([
+      "param",
+      "model",
+      "llama3.3",
+    ]);
+  });
+
+  it("says when a picked setting couldn't be saved for the other apps", async () => {
+    state.models = [];
+    state.updateSchedule.mockResolvedValue({ success: false, error: "Only 1 of your 3 write relays answered." });
+    renderWithProviders(<FrontPagePage />);
+    const input = await screen.findByTestId("front-page-model-input");
+    fireEvent.change(input, { target: { value: "llama3.3" } });
+    await act(async () => fireEvent.blur(input));
+    expect(await screen.findByTestId("front-page-setting-error")).toHaveTextContent("Used here only");
+  });
+
+  it("with no runner, reads only the reader's own site", async () => {
+    renderWithProviders(<FrontPagePage />);
+    await screen.findByTestId("front-page-print-view");
+    expect(state.runnerSiteFor).not.toHaveBeenCalled();
+  });
+
+  it("reads the Assistant's site when the schedule names it, and shows today's paper from it", async () => {
+    state.schedule = scheduleWith([["cron", "0 6 * * *", "UTC", "1"]], [["p", ASSISTANT]]);
+    state.runnerSite = { ...siteWith([todayEntry("c")]), reached: true };
+    state.fetchBlob.mockResolvedValue(printed.html);
+    renderWithProviders(<FrontPagePage />);
+    const frame = await screen.findByTestId("front-page-frame");
+    expect(frame.getAttribute("srcdoc")).toContain("The Nostr Observer");
+    expect(state.runnerSiteFor).toHaveBeenCalledWith(ASSISTANT, "a".repeat(64));
+    expect(state.fetchBlob.mock.calls[0][0]).toBe(hash("c"));
+  });
+
+  it("never reads a runner's site with a conflict", async () => {
+    state.schedule = scheduleWith(
+      [],
+      [
+        ["p", ASSISTANT],
+        ["p", "c".repeat(64)],
+      ],
+    );
+    renderWithProviders(<FrontPagePage />);
+    await screen.findByTestId("front-page-print-view");
+    expect(state.runnerSiteFor).not.toHaveBeenCalled();
   });
 });

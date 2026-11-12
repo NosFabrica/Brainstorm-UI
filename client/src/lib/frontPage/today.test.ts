@@ -94,3 +94,62 @@ describe("observerToday", () => {
     expect(observerToday({ site, session: null, now: NOW, zone: NY }).today).toBeNull();
   });
 });
+
+describe("observerToday with the Assistant's site", () => {
+  it("shows today's paper from the Assistant's site when the reader's has none", () => {
+    const view = observerToday({
+      site: [entry("2026-11-10T10:00:00Z")],
+      runnerSite: [entry("2026-11-11T11:05:00Z", { sha256: "r" })],
+      session: null,
+      now: NOW,
+      zone: NY,
+    });
+    expect(view.today).toMatchObject({ from: "site", day: "2026-11-11", byRunner: true });
+    expect(view.past.map((e) => e.day)).toEqual(["2026-11-10"]);
+  });
+
+  it("merges both histories, one edition a day, the later print where both have one", () => {
+    const view = observerToday({
+      site: [entry("2026-11-09T10:00:00Z"), entry("2026-11-08T10:00:00Z", { sha256: "mine" })],
+      runnerSite: [entry("2026-11-10T11:00:00Z"), entry("2026-11-08T12:00:00Z", { sha256: "theirs" })],
+      session: null,
+      now: NOW,
+      zone: NY,
+    });
+    expect(view.today).toBeNull();
+    expect(view.past.map((e) => e.day)).toEqual(["2026-11-10", "2026-11-09", "2026-11-08"]);
+    const eighth = view.past[2];
+    expect(eighth.from === "site" && eighth.entry.sha256).toBe("theirs");
+    expect(eighth.from === "site" && eighth.byRunner).toBe(true);
+  });
+
+  it("keeps the reader's own on a tie, and when a print time is missing", () => {
+    const view = observerToday({
+      site: [
+        entry("2026-11-08T10:00:00Z", { sha256: "mine" }),
+        { day: "2026-11-07", path: "/2026-11-07.html", sha256: "m7" },
+      ],
+      runnerSite: [
+        entry("2026-11-08T10:00:00Z", { sha256: "theirs" }),
+        entry("2026-11-07T10:00:00Z", { sha256: "t7" }),
+      ],
+      session: null,
+      now: NOW,
+      zone: NY,
+    });
+    const sha = view.past.map((e) => (e.from === "site" ? e.entry.sha256 : ""));
+    expect(sha).toEqual(["mine", "m7"]);
+  });
+
+  it("prefers whichever printed later today, this tab's paper included", () => {
+    const view = observerToday({
+      site: [],
+      runnerSite: [entry("2026-11-11T11:05:00Z")],
+      session: paper("2026-11-11T11:20:00Z"),
+      now: NOW,
+      zone: NY,
+    });
+    expect(view.today).toMatchObject({ from: "session" });
+    expect(view.past).toEqual([]);
+  });
+});

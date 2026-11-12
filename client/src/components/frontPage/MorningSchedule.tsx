@@ -1,4 +1,5 @@
 import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { AlarmClock, AlertTriangle, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,14 @@ import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { ObserverSchedule } from "@/hooks/useObserverSchedule";
 import { useNow } from "@/hooks/useNow";
-import { emptyObserverSchedule } from "@/lib/frontPage/observerSchedule";
+import {
+  emptyObserverSchedule,
+  lastPrinted,
+  missedOnSites,
+  whoPrints,
+  type PrintedEdition,
+  type WhoPrints,
+} from "@/lib/frontPage/observerSchedule";
 import { cn } from "@/lib/utils";
 import {
   WEEKDAYS,
@@ -16,6 +24,7 @@ import {
   describeCron,
   describeDays,
   editSimpleSchedule,
+  formatAgo,
   formatClock,
   formatNext,
   formatTimeOfDay,
@@ -29,6 +38,7 @@ import {
   runsBeforeNoon,
   sameZone,
   setEnabled,
+  setRunner,
   setSimpleSchedule,
   taskStatus,
   weekdayName,
@@ -51,11 +61,29 @@ interface Pending {
   wrote?: { id: string; createdAt: number };
 }
 
+/** Where the reader gives their Assistant a key. */
+const AI_SETTINGS = "/settings?tab=assistants&view=ai";
+
+/**
+ * The editions on the reader's own Observer site and on their runner's (the Assistant's),
+ * as the page read them; null until that site answered. What the status reads while the
+ * schedule names a runner, which can't write `claim` or `ran`.
+ */
+export interface ScheduleSites {
+  reader: readonly PrintedEdition[] | null;
+  runner: readonly PrintedEdition[] | null;
+}
+
+const NO_SITES: ScheduleSites = { reader: null, runner: null };
+const KEEP = (doc: TaskTags) => doc;
+
 /**
  * The Observer's morning paper, a NIP-FB scheduled task (quartz
  * `plans/2026-11-11-observer-site.md`): when it prints, who printed it last, and whether
  * a morning was missed. Whichever of the reader's Amethyst devices has "Print from this
- * device" on claims each morning; Brainstorm never does.
+ * device" on claims each morning; Brainstorm never does. Or, when the reader names it
+ * ("Who prints"), their Brainstorm Assistant prints it (a NIP-FB runner): then the
+ * status reads from the papers on the two sites, since the Assistant can't sign `ran`.
  *
  * Calm by default: one sentence, the last run, the switch. Tapping the card (or Edit)
  * opens the time and weekdays when the schedule is that simple, or what was written when
@@ -66,7 +94,19 @@ interface Pending {
  * while it prints, and none of that is this card's. What it shows is worked out once a
  * minute.
  */
-export const MorningSchedule = memo(function MorningSchedule({ schedule: state }: { schedule: ObserverSchedule }) {
+export const MorningSchedule = memo(function MorningSchedule({
+  schedule: state,
+  assistant = null,
+  sites = NO_SITES,
+  migrate = KEEP,
+}: {
+  schedule: ObserverSchedule;
+  /** The reader's Brainstorm Assistant (`ta_pubkey`); null without one, and then there's no choice of who prints. */
+  assistant?: string | null;
+  sites?: ScheduleSites;
+  /** Added to every edit that changes something (the plan's migration of the remembered model). */
+  migrate?: (doc: TaskTags) => TaskTags;
+}) {
   const now = useNow(60_000);
   const zone = browserTimeZone();
   const held = state.status === "ready" ? state.doc : state.status === "none" ? NONE : null;
@@ -112,7 +152,16 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
    * Applies `change`, then `onSaved` once it is saved. One at a time. A failure a retry may
    * fix keeps both for Retry.
    */
-  const save = async (change: (doc: TaskTags) => TaskTags, onSaved?: () => void): Promise<boolean> => {
+  const save = async (
+    change: (doc: TaskTags) => TaskTags,
+    onSaved?: () => void,
+    // An edit that changes nothing stays nothing: confirming what is shown writes no event.
+    // Built once per edit, so Retry sends the very same change.
+    write: (doc: TaskTags) => TaskTags = (d) => {
+      const out = change(d);
+      return out === d ? d : migrate(out);
+    },
+  ): Promise<boolean> => {
     if (!doc || saving.current) return false;
     let optimistic: TaskTags;
     try {
@@ -128,7 +177,7 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
     setRetry(null);
     setPending({ doc: optimistic });
     try {
-      const outcome = await updateObserverSchedule(change);
+      const outcome = await updateObserverSchedule(write);
       if (outcome.success) {
         setPending(
           outcome.id
@@ -141,7 +190,7 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
       setPending(null);
       if (!outcome.cancelled) {
         setError(outcome.error ?? "Couldn't save your schedule.");
-        if (outcome.retryable) setRetry(() => () => void save(change, onSaved));
+        if (outcome.retryable) setRetry(() => () => void save(change, onSaved, write));
       }
       return false;
     } finally {
@@ -168,10 +217,18 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
   // device that printed since then hasn't been heard from yet. When a morning comes due
   // after that, ask again before saying it was missed.
   const checkedAt = state.checkedAt;
+  const namesRunner = !!schedule && schedule.runners.length > 0;
   const missed = useMemo(() => {
-    if (!schedule || checkedAt === null || taskStatus(schedule, now) !== "scheduled") return null;
+    if (!schedule || namesRunner || checkedAt === null || taskStatus(schedule, now) !== "scheduled") return null;
     return missedRun(schedule, Math.min(now, checkedAt));
-  }, [schedule, now, checkedAt]);
+  }, [schedule, namesRunner, now, checkedAt]);
+  const who: WhoPrints | null = schedule ? whoPrints(schedule, assistant) : null;
+  const choose = (next: "devices" | "assistant") => {
+    if (next === who || (next === "assistant" && !assistant)) return;
+    void save((d) => setRunner(d, next === "assistant" ? assistant : null));
+  };
+  // The choice is offered to a reader with an Assistant, on a schedule this account reads.
+  const canChoose = !!assistant && !!schedule && (state.status === "ready" || state.status === "none");
   const { refresh } = state;
   useEffect(() => {
     if (!schedule || checkedAt === null || checkedAt >= now) return;
@@ -232,7 +289,14 @@ export const MorningSchedule = memo(function MorningSchedule({ schedule: state }
               {zoneNote}
             </span>
           )}
-          {schedule && state.status === "ready" && <RunLine schedule={schedule} missed={missed} now={now} />}
+          {schedule &&
+            state.status === "ready" &&
+            (namesRunner ? (
+              <RunnerLine schedule={schedule} who={who!} sites={sites} now={now} />
+            ) : (
+              <RunLine schedule={schedule} missed={missed} now={now} />
+            ))}
+          {canChoose && <WhoPrintsChoice who={who!} busy={busy} onChoose={choose} />}
           <p
             role="status"
             className="text-xs text-muted-foreground empty:hidden"
@@ -460,6 +524,153 @@ function RunLine({ schedule, missed, now }: { schedule: ScheduledTask; missed: {
         </span>
       )}
     </p>
+  );
+}
+
+/**
+ * Who prints it and how it went, while the schedule names a runner. The runner can't sign
+ * the reader's event, so this reads its paper instead (NIP-FB, Runner): the newest
+ * `printedAt` on either site, and, unless paused, the 3-hour warning when the newest due
+ * morning has a paper on neither. Both sites must have answered before anything is called
+ * missed. More than one runner is a conflict: nobody prints.
+ */
+function RunnerLine({
+  schedule,
+  who,
+  sites,
+  now,
+}: {
+  schedule: ScheduledTask;
+  who: WhoPrints;
+  sites: ScheduleSites;
+  now: number;
+}) {
+  if (who === "conflict") {
+    return (
+      <p
+        className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground"
+        data-testid="front-page-schedule-conflict"
+      >
+        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        Conflict: {schedule.runners.length} keys are named to print it, so nobody does. Choose who prints.
+      </p>
+    );
+  }
+  if (who === "invalid") {
+    return (
+      <p
+        className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground"
+        data-testid="front-page-schedule-conflict"
+      >
+        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        It names a runner that isn&apos;t a key, so nobody prints it. Choose who prints.
+      </p>
+    );
+  }
+  const reader = sites.reader ?? [];
+  const runner = sites.runner ?? [];
+  const last = lastPrinted(reader, runner);
+  const answered = sites.reader !== null && sites.runner !== null;
+  const due =
+    answered && taskStatus(schedule, now) === "scheduled" ? missedOnSites(schedule, reader, runner, now) : null;
+  const by = who === "assistant" ? "your Assistant" : "the key it names";
+  if (due !== null) {
+    return (
+      <p
+        className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground"
+        data-testid="front-page-schedule-missed"
+      >
+        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        {last ? `Not printed since ${relativeDay(last.at, now)}` : `Not printed ${relativeDay(due, now)}`}
+      </p>
+    );
+  }
+  if (last) {
+    return (
+      <p className="mt-0.5 text-xs text-muted-foreground" data-testid="front-page-schedule-ran">
+        Last printed{last.byRunner ? ` by ${by}` : ""}, {formatAgo(last.at, now)}
+      </p>
+    );
+  }
+  return (
+    <p className="mt-0.5 text-xs text-muted-foreground" data-testid="front-page-schedule-ran">
+      {answered ? "Not printed yet." : "Checking its papers…"}
+    </p>
+  );
+}
+
+/**
+ * "Who prints": the reader's own devices, or their Brainstorm Assistant. Choosing the
+ * Assistant names it in the schedule (a public `p`) and re-encrypts the private tags to
+ * it; choosing devices removes it and encrypts to self. Brainstorm never prints either
+ * way: this only changes the event and the status.
+ */
+function WhoPrintsChoice({
+  who,
+  busy,
+  onChoose,
+}: {
+  who: WhoPrints;
+  busy: boolean;
+  onChoose: (next: "devices" | "assistant") => void;
+}) {
+  const id = useId();
+  const value = who === "devices" || who === "assistant" ? who : "";
+  return (
+    <div className="mt-2 space-y-1" data-testid="front-page-schedule-who">
+      <div className="flex flex-wrap items-center gap-2">
+        <span id={id} className="text-xs text-muted-foreground">
+          Who prints
+        </span>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          value={value}
+          onValueChange={(v) => {
+            if (v === "devices" || v === "assistant") onChoose(v);
+          }}
+          disabled={busy}
+          aria-labelledby={id}
+          className="flex-wrap justify-start gap-1"
+        >
+          {(
+            [
+              ["devices", "My devices"],
+              ["assistant", "My Brainstorm Assistant"],
+            ] as const
+          ).map(([v, label]) => (
+            <ToggleGroupItem
+              key={v}
+              value={v}
+              className={cn(
+                "h-8 px-2.5 text-xs",
+                "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                "data-[state=on]:border-brand-primary data-[state=on]:bg-brand-primary data-[state=on]:text-white",
+                "data-[state=on]:hover:bg-brand-primary-hover data-[state=on]:hover:text-white",
+              )}
+              data-testid={`front-page-schedule-who-${v}`}
+            >
+              {label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      {who === "assistant" && (
+        <p className="text-xs text-muted-foreground" data-testid="front-page-schedule-who-note">
+          It prints with keys you{" "}
+          <Link href={AI_SETTINGS} className="font-medium text-brand-primary hover:underline">
+            give it
+          </Link>
+          , even when your devices are off.
+        </p>
+      )}
+      {who === "other" && (
+        <p className="text-xs text-muted-foreground" data-testid="front-page-schedule-who-other">
+          Another key is named to print it.
+        </p>
+      )}
+    </div>
   );
 }
 
