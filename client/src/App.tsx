@@ -33,6 +33,7 @@ import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { DmNotifications } from "@/components/messages/DmNotifications";
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
+import { PrintJobHost } from "@/components/frontPage/PrintJobHost";
 import { InstallAppDialog } from "@/components/InstallApp";
 import { openTarget } from "@/lib/openTarget";
 import { DmShelvesProvider } from "@/hooks/useDirectMessages";
@@ -345,6 +346,7 @@ function App() {
                 <NowPlayingBar />
                 <CommandPalette />
                 <DmNotifications />
+                <PrintJobHost />
                 <AppUpdatePrompt />
                 <InstallAppDialog />
                 <MobileSearchOverlay />

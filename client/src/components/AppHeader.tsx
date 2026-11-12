@@ -4,6 +4,7 @@ import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { MessagesNavButton } from "@/components/messages/MessagesNavButton";
+import { PrintingIndicator } from "@/components/frontPage/PrintJobHost";
 import { type AccountDisplay } from "@/accounts/display";
 import { type ReactNode } from "react";
 
@@ -42,6 +43,7 @@ export function AppHeader({ user, onLogout, active, actions, search, layout = "p
       <FinishSetupBanner labelFrom={app ? "never" : "xl"} />
       {actions && <div className="mr-1 hidden items-center lg:flex">{actions}</div>}
       {user.isAdmin && <AdminBadge />}
+      <PrintingIndicator />
       <MessagesNavButton />
       <AccountMenu user={user} onLogout={onLogout} active={active} />
     </HeaderBar>

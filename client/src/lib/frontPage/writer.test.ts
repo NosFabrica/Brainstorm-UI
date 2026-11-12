@@ -82,6 +82,8 @@ describe("the answer", () => {
     });
     expect(parseStreamLine("data: [DONE]").done).toBe(true);
     expect(parseStreamLine(": keep-alive").text).toBe("");
+    expect(parseStreamLine(": OPENROUTER PROCESSING").alive).toBe(true);
+    expect(parseStreamLine('data: {"choices":[{"delta":{"content":"x"}}]}').alive).toBe(false);
     expect(parseStreamLine("data: {broken").text).toBe("");
   });
 
@@ -145,5 +147,36 @@ describe("choosing a model", () => {
     expect(readModelIds({ data: [{ id: "a" }, { id: "b" }] })).toEqual(["a", "b"]);
     expect(readModelIds({ models: [{ name: "models/gemini-2.5-pro" }] })).toEqual(["gemini-2.5-pro"]);
     expect(readModelIds(null)).toEqual([]);
+  });
+});
+
+describe("parseStreamLine: thinking", () => {
+  const line = (delta: unknown) => `data: ${JSON.stringify({ choices: [{ delta }] })}`;
+  it("reads OpenRouter's reasoning_details once, not again from its plain reasoning", () => {
+    const chunk = parseStreamLine(
+      line({
+        content: "",
+        reasoning: "weighing the lead",
+        reasoning_details: [{ type: "reasoning.text", text: "weighing the lead", index: 0 }],
+      }),
+    );
+    expect(chunk.reasoning).toBe("weighing the lead");
+    expect(chunk.text).toBe("");
+  });
+
+  it("reads a summary, skips an encrypted block, and falls back to the plain field", () => {
+    expect(
+      parseStreamLine(line({ reasoning_details: [{ type: "reasoning.summary", summary: "In short" }] })).reasoning,
+    ).toBe("In short");
+    expect(
+      parseStreamLine(line({ reasoning: "plain", reasoning_details: [{ type: "reasoning.encrypted", data: "xx" }] }))
+        .reasoning,
+    ).toBe("plain");
+    expect(parseStreamLine(line({ reasoning: "only plain" })).reasoning).toBe("only plain");
+  });
+
+  it("reads DeepSeek's reasoning_content", () => {
+    expect(parseStreamLine(line({ content: null, reasoning_content: "step one" })).reasoning).toBe("step one");
+    expect(parseStreamLine(line({ content: "<p>", reasoning_content: null })).reasoning).toBe("");
   });
 });

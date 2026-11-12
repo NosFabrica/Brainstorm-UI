@@ -1,19 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   Copy,
   Download,
   ChevronRight,
   ExternalLink,
   Globe,
+  History,
   Hourglass,
   Info,
   Loader2,
   Lock,
-  Maximize2,
   Newspaper,
   RotateCcw,
   Share2,
@@ -29,22 +30,38 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { copyToClipboard } from "@/lib/clipboard";
-import { observerNaddr, observerUrl, utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
+import { observerNaddr, observerUrl, type EditionEntry } from "@/lib/frontPage/observerSite";
+import { observerToday, type Edition } from "@/lib/frontPage/today";
+import { fetchBlob, leadHeadline, loadObserverSite } from "@/services/observerSite";
 import {
-  PublishError,
-  fetchBlob,
-  leadHeadline,
-  loadObserverSite,
-  publishToObserver,
-  type PublishFailure,
-} from "@/services/observerSite";
+  cancelPrint,
+  confirmPublish,
+  declinePublish,
+  offerPublish,
+  readLast,
+  readPublish,
+  settlePending,
+  startPrint,
+  usePrintJob,
+  writePublish,
+  type Printed,
+  type PublishState,
+  type Run,
+} from "@/services/printJob";
+import {
+  editionDayLabel,
+  editionFullDate,
+  elapsed,
+  statusLine,
+  writeDetail,
+  writeLine,
+  type PrintProgress,
+} from "@/lib/frontPage/printProgress";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
@@ -62,111 +79,25 @@ import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
-import { accountKey, tabKey } from "@/lib/accountStorage";
 import { withPaperCsp } from "@/lib/frontPage/validate";
-import { printedToday, printedTodayZone, type PrintedEdition } from "@/lib/frontPage/observerSchedule";
+import { printedTodayZone } from "@/lib/frontPage/observerSchedule";
 import { browserTimeZone, formatClock } from "@/lib/scheduledTasks";
 import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule } from "@/components/frontPage/MorningSchedule";
 import { useNow } from "@/hooks/useNow";
 import { onAppResume } from "@/lib/appResume";
-import { WriterError, fetchModels, printFrontPage, type PrintStep, type PullProgress } from "@/services/frontPage";
-import type { Usage } from "@/lib/frontPage/writer";
+import { fetchModels } from "@/services/frontPage";
 
 /**
  * Today's front page: the Nostr Observer's daily paper, written from the reader's own
- * web of trust by the reader's own AI key. With "Publish to my Observer" on, each clean
- * paper also goes to the reader's public Observer site (quartz
- * `plans/2026-11-11-observer-site.md`), and the day tabs read the earlier editions back
- * from it — printed here, in Amethyst, or anywhere else. The just-printed paper also
- * survives a reload of this tab.
+ * web of trust by the reader's own AI key. The page is about today: today's paper filling
+ * the page when there is one (printed here, in Amethyst, or anywhere else), else the print
+ * view. With "Publish to my Observer" on, each clean paper also goes to the reader's public
+ * Observer site (quartz `plans/2026-11-11-observer-site.md`), and Past editions reads the
+ * earlier ones back from it. The just-printed paper also survives a reload of this tab.
  */
 
 const AI_SETTINGS = "/settings?tab=assistants&view=ai";
-
-interface Printed {
-  html: string;
-  code: string;
-  /** Which model wrote it; absent on a paper printed before this was kept. */
-  model?: string;
-  printedAt: number;
-  /** Absent for an edition read back from the site that didn't record it. */
-  events?: number;
-  quotes?: number;
-  rounds: number;
-  usage: Usage | null;
-  changes: ResolveChange[];
-  /** Desks the search relay didn't answer this run: their sections may be thin. */
-  unanswered?: number;
-}
-
-// The paper on show lives apart from the run, so a reprint's progress sits above the
-// paper the reader is still reading instead of replacing it.
-type Run =
-  | { state: "idle" }
-  | { state: "running"; step: PrintStep; pull: PullProgress | null }
-  | { state: "refused"; violations: Violation[]; changes: ResolveChange[] }
-  /** The relay turned the print away: not ranking yet. `at`: when, so a later check clears it. */
-  | { state: "pending"; at: number }
-  | { state: "error"; message: string };
-
-// --- session-only memory ------------------------------------------------------
-
-const lastKey = (pubkey: string) => tabKey("frontPage:last", pubkey);
-
-function readLast(pubkey: string): Printed | null {
-  try {
-    const raw = sessionStorage.getItem(lastKey(pubkey));
-    return raw ? (JSON.parse(raw) as Printed) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLast(pubkey: string, page: Printed | null) {
-  try {
-    if (page) sessionStorage.setItem(lastKey(pubkey), JSON.stringify(page));
-    else sessionStorage.removeItem(lastKey(pubkey));
-  } catch {
-    // private window or full storage: the page still shows, it just won't survive a reload
-  }
-}
-
-const publishKey = (pubkey: string) => accountKey("frontPage:publish", pubkey);
-const noticeKey = (pubkey: string) => accountKey("frontPage:observerNotice", pubkey);
-
-/** "Publish to my Observer": on unless this account turned it off. */
-function readPublish(pubkey: string): boolean {
-  try {
-    return localStorage.getItem(publishKey(pubkey)) !== "off";
-  } catch {
-    return true;
-  }
-}
-
-function writePublish(pubkey: string, on: boolean) {
-  try {
-    localStorage.setItem(publishKey(pubkey), on ? "on" : "off");
-  } catch {
-    // remembered for this visit only
-  }
-}
-
-function noticeSeen(pubkey: string): boolean {
-  try {
-    return localStorage.getItem(noticeKey(pubkey)) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markNoticeSeen(pubkey: string) {
-  try {
-    localStorage.setItem(noticeKey(pubkey), "1");
-  } catch {
-    // shown again next time
-  }
-}
 
 /** An edition read back from the site, as the page shows it; empty html until fetched. */
 function fromEntry(entry: EditionEntry, html: string): Printed {
@@ -188,14 +119,6 @@ interface SiteState {
   servers: string[];
   exists: boolean;
 }
-
-type PublishState =
-  | { state: "idle" }
-  /** Waiting for the reader to say yes to a public site, the first time. */
-  | { state: "confirm"; paper: Printed }
-  | { state: "publishing" }
-  | { state: "published" }
-  | { state: "failed"; message: string; reason: PublishFailure | null };
 
 /** Where Brainstorm keeps the reader's Blossom servers (Settings › Messages › File servers). */
 const FILE_SERVERS_SETTINGS = "/settings?tab=messages&focus=file-servers";
@@ -245,6 +168,16 @@ function useModels(key: AgentKey | null): Models {
 
 // --- the page --------------------------------------------------------------------
 
+const IDLE_RUN: Run = { state: "idle" };
+const FRONT_PAGE = "/front-page";
+
+/** `?day=YYYY-MM-DD`: a past edition to read; anything else is no day. */
+function dayParam(search: string): string | null {
+  const day = new URLSearchParams(search).get("day");
+  return day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}
+const IDLE_PUBLISH: PublishState = { state: "idle" };
+
 /** Away this long, the site is asked again on return: a device may have printed meanwhile. */
 const SITE_REASK_AWAY_MS = 60_000;
 
@@ -265,19 +198,32 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const { canUseMywot, hasMywot, isSearchObserver, observerCheckedAt } = useCanSearchMywot();
   const queryClient = useQueryClient();
 
-  const [page, setPage] = useState<Printed | null>(() => (pubkey ? readLast(pubkey) : null));
-  const [run, setRun] = useState<Run>({ state: "idle" });
+  // The print is the app's (services/printJob), not this page's: it keeps running while the
+  // reader is elsewhere in Brainstorm, and this page shows it, or how it ended, when open.
+  const job = usePrintJob(pubkey);
+  const [stored] = useState<Printed | null>(() => (pubkey ? readLast(pubkey) : null));
+  const page = job ? job.paper : stored;
+  const run: Run = job?.run ?? IDLE_RUN;
+  const publishState: PublishState = job?.publish ?? IDLE_PUBLISH;
   const [publish, setPublish] = useState(() => (pubkey ? readPublish(pubkey) : true));
-  const [publishState, setPublishState] = useState<PublishState>({ state: "idle" });
   const [site, setSite] = useState<SiteState | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  // A publish's answer is the site as it now stands: shown without asking again.
+  const published = job?.published;
+  useEffect(() => {
+    if (!published) return;
+    setSite((prev) => ({
+      editions: published.editions,
+      servers: [...new Set([...published.servers, ...(prev?.servers ?? [])])],
+      exists: true,
+    }));
+  }, [published]);
   // Editions fetched from the site, by sha256 (a day reprinted is other bytes): html, or
   // null when no server had them.
   const [fetched, setFetched] = useState<Record<string, string | null>>({});
 
-  // The reader's Observer site: what the day tabs list. Asked again when the page is shown
-  // again after a while away, so a paper a device printed meanwhile is known before the
-  // "already printed today" hint is worked out.
+  // The reader's Observer site: today's edition when another device printed it, and the
+  // past editions. Asked again when the page is shown again after a while away, so a paper
+  // a device printed meanwhile is known before today is worked out.
   const [siteAsk, setSiteAsk] = useState(0);
   useEffect(
     () =>
@@ -299,100 +245,66 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     };
   }, [pubkey, siteAsk]);
 
-  const sessionDay = page ? utcDay(page.printedAt) : null;
-  // A paper already printed today (here, on another device, by Amethyst's schedule): a
-  // hint beside Print, never a block on it. The spec's rule for a scheduled print: today
-  // is a calendar day in the schedule's zone when there is one this account can read,
-  // else in the viewer's. The schedule's read is shared with the card (one ask, one
-  // decrypt). `now` ticks each minute (paused while hidden): the hint lapses at midnight.
+  // The page is about today: today's paper (this tab's print, or one on the site printed
+  // today) or, with none, the print view. An older paper is only ever a past edition. Today
+  // is the spec's rule for a scheduled print, the one the "already printed today" hint uses:
+  // a calendar day in the schedule's zone when there is one this account can read, else in
+  // the viewer's. The schedule's read is shared with the card (one ask, one decrypt). `now`
+  // ticks each minute (paused while hidden), so the page turns over at midnight.
   const now = useNow(60_000);
   const scheduleState = useObserverSchedule();
   const syncedSchedule = scheduleState.status === "ready" ? scheduleState.schedule : null;
   const todayZone = printedTodayZone(syncedSchedule, browserTimeZone());
-  const todays = useMemo(() => {
-    const editions: PrintedEdition[] = [...(site?.editions ?? [])];
-    if (page) editions.push({ day: utcDay(page.printedAt), printedAt: Math.floor(page.printedAt / 1000) });
-    return printedToday(editions, now, todayZone);
-  }, [site, page, now, todayZone]);
-  const days = useMemo(() => {
-    const all = new Set<string>(site?.editions.map((e) => e.day) ?? []);
-    if (sessionDay) all.add(sessionDay);
-    return [...all].sort().reverse();
-  }, [site, sessionDay]);
-  const day = selectedDay && days.includes(selectedDay) ? selectedDay : (days[0] ?? null);
-  const siteEntry = day && day !== sessionDay ? site?.editions.find((e) => e.day === day) : undefined;
-  const shown: Printed | null =
-    day === sessionDay ? page : siteEntry ? fromEntry(siteEntry, fetched[siteEntry.sha256] ?? "") : null;
+  const { today, past } = useMemo(
+    () => observerToday({ site: site?.editions ?? [], session: page, now, zone: todayZone }),
+    [site, page, now, todayZone],
+  );
+  const when: When = useMemo(() => ({ now, zone: todayZone }), [now, todayZone]);
+  // A past edition, read in the paper's place: its day is in the URL, so the browser's
+  // Back returns to today and the link can be passed around the app.
+  const [, navigate] = useLocation();
+  const askedDay = dayParam(useSearch());
+  const asked = askedDay && askedDay !== today?.day ? askedDay : null;
+  const opened = asked ? (past.find((e) => e.day === asked) ?? null) : null;
+  // Whether Back to today can step back in history (the reader came from today here) or
+  // must replace a link that was opened directly.
+  const pushedPast = useRef(false);
+  const openPast = (edition: Edition<Printed>) => {
+    setPastOpen(false);
+    pushedPast.current = !asked || pushedPast.current;
+    navigate(`${FRONT_PAGE}?day=${edition.day}`, { replace: !!asked });
+  };
+  const backToToday = () => {
+    if (pushedPast.current) {
+      pushedPast.current = false;
+      window.history.back();
+    } else navigate(FRONT_PAGE, { replace: true });
+  };
+  const [pastOpen, setPastOpen] = useState(false);
+  useEditionHtml(today?.from === "site" ? today.entry : undefined, site, fetched, setFetched);
+  useEditionHtml(opened?.from === "site" ? opened.entry : undefined, site, fetched, setFetched);
+  const paperOf = (e: Edition<Printed>): Printed =>
+    e.from === "session" ? e.paper : fromEntry(e.entry, fetched[e.entry.sha256] ?? "");
   // No servers to ask is not an answer: nothing is remembered, so a later load can try.
-  const shownFailed = !!siteEntry && (fetched[siteEntry.sha256] === null || site?.servers.length === 0);
+  const failedOf = (e: Edition<Printed>) =>
+    e.from === "site" && (fetched[e.entry.sha256] === null || site?.servers.length === 0);
+  const shown = today ? paperOf(today) : null;
+  // The edition on the page: the asked past one, else today's.
+  const viewing: Edition<Printed> | null = asked ? opened : today;
+  const viewed = viewing ? paperOf(viewing) : null;
+  // An asked day the site doesn't hold (once it has answered): said in the paper's place.
+  const askedMissing = !!asked && !opened && site !== null;
 
-  useEffect(() => {
-    if (!siteEntry || !site || site.servers.length === 0 || fetched[siteEntry.sha256] !== undefined) return;
-    const controller = new AbortController();
-    const { sha256 } = siteEntry;
-    fetchBlob(sha256, site.servers, { signal: controller.signal }).then((html) => {
-      if (!controller.signal.aborted) setFetched((m) => ({ ...m, [sha256]: html }));
-    });
-    return () => controller.abort();
-  }, [siteEntry, site, fetched]);
-
-  // Read when a paper is ready, not when Print was pressed: turning publishing off while
-  // the paper is being written must keep that paper private.
-  const publishOn = useRef(publish);
-  publishOn.current = publish;
+  // Read by the print job when a paper is ready, not when Print was pressed: turning
+  // publishing off while the paper is being written keeps that paper private.
   const choosePublish = (on: boolean) => {
     setPublish(on);
-    publishOn.current = on;
-    if (pubkey) writePublish(pubkey, on);
-    if (!on) setPublishState((s) => (s.state === "confirm" ? { state: "idle" } : s));
+    if (!pubkey) return;
+    writePublish(pubkey, on);
+    if (!on) declinePublish(pubkey);
   };
-
-  const publishPaper = useCallback(
-    async (printed: Printed) => {
-      if (!pubkey) return;
-      setPublishState({ state: "publishing" });
-      try {
-        const out = await publishToObserver({
-          pubkey,
-          html: printed.html,
-          name: user?.displayName ?? "",
-          printedAt: printed.printedAt,
-          headline: leadHeadline(printed.html),
-          code: printed.code,
-          posts: printed.events,
-          quotesVerified: printed.quotes,
-          model: printed.model,
-        });
-        setSite((prev) => ({
-          editions: out.editions,
-          servers: [...new Set([...out.servers, ...(prev?.servers ?? [])])],
-          exists: true,
-        }));
-        setPublishState({ state: "published" });
-      } catch (err) {
-        setPublishState({
-          state: "failed",
-          message: err instanceof PublishError ? err.message : "Couldn't publish to your Observer.",
-          reason: err instanceof PublishError ? err.reason : null,
-        });
-      }
-    },
-    [pubkey, user?.displayName],
-  );
-
-  /** Publish, once the reader has said yes to a public site: asked before the first one. */
-  const offerPublish = useCallback(
-    (printed: Printed) => {
-      if (!pubkey) return;
-      if (noticeSeen(pubkey)) void publishPaper(printed);
-      else setPublishState({ state: "confirm", paper: printed });
-    },
-    [pubkey, publishPaper],
-  );
+  const displayName = user?.displayName ?? "";
   const [printOpen, setPrintOpen] = useState(false);
-  const [fullScreen, setFullScreen] = useState(false);
-  const abort = useRef<AbortController | null>(null);
-  useEffect(() => () => abort.current?.abort(), []);
 
   const models = useModels(key);
   // The model is one provider's: when the key changes, the last provider's choice is
@@ -417,81 +329,18 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     writeModel(key.url, id);
   };
 
-  const print = useCallback(async () => {
+  const print = () => {
     if (!key || !pubkey || !model) return;
     setPrintOpen(false);
-    abort.current?.abort();
-    const controller = new AbortController();
-    abort.current = controller;
-    let pull: PullProgress | null = null;
-    setRun({ state: "running", step: { step: "probe" }, pull });
-    try {
-      const result = await printFrontPage({
-        key,
-        model,
-        observer: pubkey,
-        readerName,
-        signal: controller.signal,
-        onStep: (step) => {
-          if (step.step === "pull") pull = step.progress;
-          setRun({ state: "running", step, pull });
-        },
-      });
-      if (result.status === "not-ready") {
-        setRun(
-          result.reason === "relay-unreachable"
-            ? {
-                state: "error",
-                message: "The search relay didn't answer, so nothing was sent to your AI. Try again in a few minutes.",
-              }
-            : { state: "pending", at: Date.now() },
-        );
-        // The gate said yes and the relay said not yet: ask the gate again, so the row
-        // follows its next answer instead of staying in progress until the next print.
-        if (result.reason !== "relay-unreachable") {
-          void queryClient.invalidateQueries({ queryKey: ["search-observer", pubkey] });
-        }
-      } else if (result.status === "refused") {
-        writeLast(pubkey, null);
-        setPage(null);
-        setRun({ state: "refused", violations: result.violations, changes: result.changes });
-      } else {
-        const printed: Printed = {
-          html: result.html,
-          code: result.corpus.code,
-          model,
-          printedAt: Date.now(),
-          events: Object.values(result.corpus.desks).reduce((n, list) => n + list.length, 0),
-          quotes: result.quotes,
-          rounds: result.rounds,
-          usage: result.usage,
-          changes: result.changes,
-          unanswered: result.corpus.unanswered?.length ?? 0,
-        };
-        writeLast(pubkey, printed);
-        setPage(printed);
-        setSelectedDay(null);
-        setRun({ state: "idle" });
-        // Only a page the check passed gets here: that is the only one published.
-        if (publishOn.current) offerPublish(printed);
-        else setPublishState({ state: "idle" });
-      }
-    } catch (err) {
-      if (controller.signal.aborted) {
-        setRun({ state: "idle" });
-        return;
-      }
-      setRun({
-        state: "error",
-        message: err instanceof WriterError ? err.message : "Something went wrong while printing. Try again.",
-      });
-    }
-  }, [key, pubkey, model, readerName, offerPublish, queryClient]);
-
-  const cancel = () => {
-    abort.current?.abort();
-    setRun({ state: "idle" });
+    startPrint({ pubkey, key, model, readerName, displayName });
   };
+
+  // The gate said yes and the relay said not yet: ask the gate again, so the row follows
+  // its next answer instead of staying in progress until the next print.
+  const turnedAwayAt = run.state === "pending" ? run.at : null;
+  useEffect(() => {
+    if (turnedAwayAt !== null && pubkey) void queryClient.invalidateQueries({ queryKey: ["search-observer", pubkey] });
+  }, [turnedAwayAt, pubkey, queryClient]);
 
   // What stands between the reader and a paper: both needs, each on its own row.
   const keyStep: KeyStep =
@@ -517,8 +366,8 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const turnedAway = run.state === "pending" && observerCheckedAt <= run.at;
   const wotStep = wotStepOf({ hasAssistant: hasMywot, ranked: ranked && !turnedAway, scoring, activated });
   useEffect(() => {
-    if (run.state === "pending" && !turnedAway) setRun({ state: "idle" });
-  }, [run, turnedAway]);
+    if (run.state === "pending" && !turnedAway && pubkey) settlePending(pubkey);
+  }, [run, turnedAway, pubkey]);
   const checking =
     keys.status === "loading" ||
     (!mywot.known && mywot.isLoading) ||
@@ -527,39 +376,123 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const blocker = checking ? "checking" : keyStep.state !== "done" || wotStep.state !== "done" ? "setup" : null;
   // Whether the reader has papers already: unknown until the site has answered (or a paper
   // was printed here), and unknown is never read as "none".
-  const hasEditions = days.length > 0 ? true : site ? false : null;
+  const hasEditions = (site?.editions.length ?? 0) > 0 || page ? true : site ? false : null;
   const setupShown = blocker === "setup";
 
   const picker = key && blocker === null && (
     <ModelPicker keyUrl={key.url} models={models} model={model} onChoose={chooseModel} />
   );
   const publishSwitch = <PublishSwitch on={publish} onChange={choosePublish} />;
-  const printedHint = todays && (
-    <PrintedTodayHint
-      printedAt={todays.printedAt}
-      onOpen={() => {
-        setSelectedDay(todays.day);
-        setPrintOpen(false);
-      }}
+  // Today's paper is the hint: it shows where Print does while there is one (the dialog).
+  const printedHint = today && <PrintedTodayHint printedAt={today.printedAt} onOpen={() => setPrintOpen(false)} />;
+  const observerLinks = pubkey && (site?.exists || publishState.state === "published") ? pubkey : null;
+  const busy = run.state === "running";
+
+  const notice = publishState.state === "confirm" && pubkey && (
+    <ObserverNotice
+      pubkey={pubkey}
+      onPublish={() => confirmPublish(pubkey, displayName)}
+      onNotNow={() => declinePublish(pubkey)}
     />
   );
-  const observerLinks = pubkey && (site?.exists || publishState.state === "published") ? pubkey : null;
-  // Reader-first: once there is a paper, it leads and the controls step back into a
-  // header and a dialog. The hero is for the first print and for setup.
-  const showHero = !shown || blocker !== null;
+  const runStatus = (
+    <AnimatePresence mode="wait">
+      {run.state === "running" && (
+        <Fade key="running">
+          <Progress progress={job!.progress} onCancel={cancelPrint} />
+        </Fade>
+      )}
+      {run.state === "error" && (
+        <Fade key="error">
+          <Alert variant="destructive" data-testid="front-page-error">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>No paper today</AlertTitle>
+            <AlertDescription>{run.message}</AlertDescription>
+          </Alert>
+        </Fade>
+      )}
+      {run.state === "refused" && (
+        <Fade key="refused">
+          <Refused violations={run.violations} changes={run.changes} />
+        </Fade>
+      )}
+    </AnimatePresence>
+  );
+  const setupCard = setupShown && (
+    <SetupChecklist keyStep={keyStep} wot={wotStep} hasEditions={hasEditions} onUnlock={keys.reveal} />
+  );
+  const checkingLine = blocker === "checking" && (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="front-page-checking">
+      <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+    </div>
+  );
+  const schedule = pubkey && <MorningSchedule schedule={scheduleState} />;
+  const statusShown =
+    !!notice || (publishState.state !== "idle" && publishState.state !== "confirm") || run.state !== "idle";
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex min-h-page flex-col bg-background">
-        {user && <AppHeader user={user} onLogout={() => logout()} />}
-        <main className={cn(pageWidth("wide"), "flex-1 py-6 sm:py-8")}>
-          {/* The header lines up with the paper's edges once there is one; the hero keeps the
-              narrower column the rest of the app reads in. */}
-          <div className={cn("space-y-5", showHero && "mx-auto max-w-5xl")}>
-            {showHero ? (
+      {(viewed && viewing) || asked ? (
+        // A paper reads like a reader: the whole space under the app header, one slim
+        // toolbar above it, and the paper scrolling inside its own frame. Today's, or a past
+        // edition in the same place.
+        <div className="flex h-[calc(100dvh-var(--bs-bottom-chrome,0px))] flex-col bg-background">
+          {user && <AppHeader user={user} onLogout={() => logout()} />}
+          <main
+            className="flex min-h-0 flex-1 flex-col"
+            data-testid={asked ? "front-page-past-view" : "front-page-today"}
+            data-day={viewing?.day}
+          >
+            <div className="shrink-0 border-b border-border px-3 py-1.5 sm:px-4">
+              <PaperHeader
+                when={when}
+                page={viewed}
+                busy={busy}
+                observer={observerLinks}
+                hasPast={past.length > 0}
+                past={!!asked}
+                missingDay={askedMissing ? asked : null}
+                onPrintAgain={() => setPrintOpen(true)}
+                onPast={() => setPastOpen(true)}
+                onBackToToday={backToToday}
+              />
+            </div>
+            {statusShown && (
+              <div className={cn(pageWidth("wide"), "max-h-[45%] shrink-0 space-y-3 overflow-y-auto py-3")}>
+                {notice}
+                <PublishStatus
+                  state={publishState}
+                  onRetry={() => page && pubkey && offerPublish(pubkey, page, displayName)}
+                />
+                {runStatus}
+              </div>
+            )}
+            {viewed && viewing ? (
+              <PaperFrame
+                key={`${viewing.day}-${viewed.code}-${viewed.printedAt}`}
+                page={viewed}
+                zone={when.zone}
+                failed={failedOf(viewing)}
+              />
+            ) : (
+              <div className="grid min-h-0 flex-1 place-items-center bg-[#faf8f3] p-4 text-sm text-slate-600">
+                {askedMissing ? (
+                  <span data-testid="front-page-day-missing">There's no edition for that day.</span>
+                ) : (
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" data-testid="front-page-frame-loading" />
+                )}
+              </div>
+            )}
+          </main>
+        </div>
+      ) : (
+        <div className="flex min-h-page flex-col bg-background">
+          {user && <AppHeader user={user} onLogout={() => logout()} />}
+          <main className={cn(pageWidth("wide"), "flex-1 py-6 sm:py-8")} data-testid="front-page-print-view">
+            <div className="mx-auto max-w-5xl space-y-5">
               <Hero
                 ready={blocker === null}
-                busy={run.state === "running"}
+                busy={busy}
                 onPrint={print}
                 picker={picker}
                 publishSwitch={publishSwitch}
@@ -567,100 +500,73 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                 hint={models.status === "unlisted" && !model}
                 canPrint={!!model}
               />
-            ) : (
-              shown && (
-                <PaperHeader
-                  page={shown}
-                  busy={run.state === "running"}
-                  observer={observerLinks}
-                  onPrintAgain={() => setPrintOpen(true)}
-                  onFullScreen={() => setFullScreen(true)}
-                />
-              )
-            )}
+              {past.length > 0 && <PastEditionsLink count={past.length} onOpen={() => setPastOpen(true)} />}
+              {notice}
+              {setupCard}
+              {checkingLine}
+              {schedule}
+              {runStatus}
+            </div>
+          </main>
+          <Footer />
+        </div>
+      )}
 
-            {publishState.state === "confirm" && pubkey && (
-              <ObserverNotice
-                pubkey={pubkey}
-                onPublish={() => {
-                  markNoticeSeen(pubkey);
-                  void publishPaper(publishState.paper);
-                }}
-                onNotNow={() => setPublishState({ state: "idle" })}
-              />
-            )}
-            {!showHero && publishState.state !== "idle" && publishState.state !== "confirm" && (
-              <PublishStatus state={publishState} onRetry={() => page && offerPublish(page)} />
-            )}
-
-            {setupShown && (
-              <SetupChecklist keyStep={keyStep} wot={wotStep} hasEditions={hasEditions} onUnlock={keys.reveal} />
-            )}
-            {blocker === "checking" && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="front-page-checking">
-                <Loader2 className="h-4 w-4 animate-spin" /> Checking…
-              </div>
-            )}
-
-            {pubkey && <MorningSchedule schedule={scheduleState} />}
-
-            <AnimatePresence mode="wait">
-              {run.state === "running" && (
-                <Fade key="running">
-                  <Progress step={run.step} pull={run.pull} onCancel={cancel} />
-                </Fade>
-              )}
-              {run.state === "error" && (
-                <Fade key="error">
-                  <Alert variant="destructive" data-testid="front-page-error">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>No paper today</AlertTitle>
-                    <AlertDescription>{run.message}</AlertDescription>
-                  </Alert>
-                </Fade>
-              )}
-              {run.state === "refused" && (
-                <Fade key="refused">
-                  <Refused violations={run.violations} changes={run.changes} />
-                </Fade>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* The days the reader's Observer holds, right above the paper they switch. */}
-          {shown && days.length > 1 && <DayTabs days={days} day={day!} onChange={setSelectedDay} />}
-
-          {/* Wider than the controls: a newspaper wants the width a wide window has. */}
-          {shown && (
-            <Fade key={`paper-${day}-${shown.printedAt}`}>
-              <PaperFrame page={shown} failed={shownFailed} />
-            </Fade>
-          )}
-        </main>
-        <Footer />
-
-        <Dialog open={printOpen} onOpenChange={setPrintOpen}>
-          <DialogContent className="sm:max-w-md" data-testid="front-page-print-dialog">
-            <DialogHeader>
-              <DialogTitle>Print again</DialogTitle>
-            </DialogHeader>
+      {/* Print again, over today's paper: the controls (or what setup still needs) and the
+          morning schedule, which the paper's view has no room for. Shut when the page turns
+          back into the print view (midnight), which shows them itself. */}
+      <Dialog open={printOpen && !!shown && !asked} onOpenChange={setPrintOpen}>
+        <DialogContent
+          className="max-h-[90dvh] overflow-y-auto sm:max-w-md"
+          aria-describedby={undefined}
+          data-testid="front-page-print-dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Print again</DialogTitle>
+          </DialogHeader>
+          {setupCard}
+          {checkingLine}
+          {blocker === null && (
             <PrintControls
               picker={picker}
               publishSwitch={publishSwitch}
               printedHint={printedHint}
               hint={models.status === "unlisted" && !model}
-              busy={run.state === "running"}
+              busy={busy}
               canPrint={!!model}
               again
               onPrint={print}
             />
-          </DialogContent>
-        </Dialog>
+          )}
+          {schedule}
+        </DialogContent>
+      </Dialog>
 
-        {shown?.html && <FullScreenPaper page={shown} open={fullScreen} onClose={() => setFullScreen(false)} />}
-      </div>
+      <PastEditions when={when} open={pastOpen} onOpenChange={setPastOpen} editions={past} onOpen={openPast} />
     </TooltipProvider>
   );
+}
+
+/** Fetches a site edition's html once, into `fetched`; a later site answer can try again. */
+function useEditionHtml(
+  entry: EditionEntry | undefined,
+  site: SiteState | null,
+  fetched: Record<string, string | null>,
+  setFetched: React.Dispatch<React.SetStateAction<Record<string, string | null>>>,
+) {
+  const sha = entry?.sha256;
+  const known = sha !== undefined && fetched[sha] !== undefined;
+  const servers = site?.servers;
+  useEffect(() => {
+    if (!sha || known || !servers || servers.length === 0) return;
+    const controller = new AbortController();
+    fetchBlob(sha, servers, { signal: controller.signal })
+      .catch(() => null)
+      .then((html) => {
+        if (!controller.signal.aborted) setFetched((m) => ({ ...m, [sha]: html }));
+      });
+    return () => controller.abort();
+  }, [sha, known, servers, setFetched]);
 }
 
 function Fade({ children }: { children: React.ReactNode }) {
@@ -917,41 +823,107 @@ function ObserverNotice({
   );
 }
 
-/** Today / Yesterday / a weekday: the editions the reader's Observer holds. */
-function DayTabs({ days, day, onChange }: { days: string[]; day: string; onChange: (day: string) => void }) {
-  const today = utcDay(Date.now());
-  const yesterday = utcDay(Date.now() - 86_400_000);
-  const label = (d: string) =>
-    d === today
-      ? "Today"
-      : d === yesterday
-        ? "Yesterday"
-        : new Intl.DateTimeFormat(undefined, {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            timeZone: "UTC",
-          }).format(new Date(`${d}T12:00:00Z`));
+/** The way to the papers before today's, on the print view. */
+function PastEditionsLink({ count, onOpen }: { count: number; onOpen: () => void }) {
   return (
-    <Tabs value={day} onValueChange={onChange} className="mt-5">
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
-        <TabsList data-testid="front-page-day-tabs">
-          {days.slice(0, 14).map((d) => (
-            <TabsTrigger key={d} value={d} data-testid={`front-page-day-${d}`}>
-              {label(d)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
-    </Tabs>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="-ml-2 text-muted-foreground hover:text-foreground"
+      onClick={onOpen}
+      data-testid="front-page-past-editions-open"
+    >
+      <History className="mr-1.5 h-4 w-4" aria-hidden="true" />
+      Past editions
+      <span className="ml-1.5 tabular-nums text-muted-foreground">{count}</span>
+    </Button>
   );
 }
 
-const editionDate = (at: number) =>
-  new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date(at));
-/** The phone's form: "Wed, Nov 11" fits where the long date gets cut off. */
-const editionDateShort = (at: number) =>
-  new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(new Date(at));
+/** When the page reads the time: now (ticking), and the zone today is a calendar day in. */
+interface When {
+  now: number;
+  zone: string;
+}
+
+/** An edition's moment: when it was printed, else midday of the UTC day that names it. */
+const editionAt = (edition: Edition<Printed>) =>
+  edition.printedAt !== undefined ? edition.printedAt * 1000 : Date.parse(`${edition.day}T12:00:00Z`);
+
+function pastHeadline(edition: Edition<Printed>): string | null {
+  if (edition.from === "site") return edition.entry.headline?.trim() || null;
+  return leadHeadline(edition.paper.html) || null;
+}
+
+/** The reader's earlier papers, newest first: the day and its headline, each opening in the paper's place. */
+function PastEditions({
+  when,
+  open,
+  onOpenChange,
+  editions,
+  onOpen,
+}: {
+  when: When;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editions: Edition<Printed>[];
+  onOpen: (edition: Edition<Printed>) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="max-h-[85dvh] overflow-y-auto sm:max-w-md"
+        aria-describedby={undefined}
+        data-testid="front-page-past-editions"
+      >
+        <DialogHeader>
+          <DialogTitle>Past editions</DialogTitle>
+        </DialogHeader>
+        {editions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No earlier papers yet.</p>
+        ) : (
+          <ul className="-mx-2 space-y-1">
+            {editions.map((edition) => {
+              const headline = pastHeadline(edition);
+              const code = edition.from === "site" ? edition.entry.code : edition.paper.code;
+              const at = editionAt(edition);
+              return (
+                <li key={`${edition.from}-${edition.day}`}>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(edition)}
+                    className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    data-testid={`front-page-past-edition-${edition.day}`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="block text-xs text-muted-foreground"
+                        title={editionFullDate(at, when.zone)}
+                        data-testid="front-page-past-edition-day"
+                      >
+                        <span aria-hidden="true">{editionDayLabel(at, when.now, when.zone)}</span>
+                        <span className="sr-only">{editionFullDate(at, when.zone)}</span>
+                      </span>
+                      <span
+                        className={cn(
+                          "line-clamp-2 text-sm",
+                          headline ? "font-medium text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {headline ?? (code ? `Edition No. ${code}` : "No headline")}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function IconAction({
   label,
@@ -987,68 +959,115 @@ function IconAction({
 }
 
 /**
- * The returning reader's header: the edition's date, one quiet line of facts, and the
- * actions as icons. The rest (edition number, model, tokens, what the check removed) is
- * one tap away in the info popover, not chips in the reader's way.
+ * The paper's toolbar: the edition's day, one quiet line of facts, and the actions as
+ * icons. The rest (edition number, model, tokens, what the check removed) is one tap away
+ * in the info popover, not chips in the reader's way. A past edition trades Print again for
+ * the way back to today.
  */
 function PaperHeader({
+  when,
   page,
   busy,
   observer,
+  hasPast,
+  past,
+  missingDay,
   onPrintAgain,
-  onFullScreen,
+  onPast,
+  onBackToToday,
 }: {
-  page: Printed;
+  when: When;
+  /** Null while an asked past edition loads, or when there is none for its day. */
+  page: Printed | null;
   busy: boolean;
   /** The reader's pubkey once they have an Observer site to link to. */
   observer: string | null;
+  hasPast: boolean;
+  /** A past edition is on show, not today's. */
+  past: boolean;
+  /** An asked day with no edition: named in the title all the same. */
+  missingDay: string | null;
   onPrintAgain: () => void;
-  onFullScreen: () => void;
+  onPast: () => void;
+  onBackToToday: () => void;
 }) {
-  const removed = noteworthy(page.changes).length;
-  const facts = [
-    page.events !== undefined ? `${page.events.toLocaleString()} posts` : null,
-    page.quotes !== undefined ? `${page.quotes} ${page.quotes === 1 ? "quote" : "quotes"} verified` : null,
-    removed > 0 ? `${removed} removed` : null,
-    page.unanswered ? `${page.unanswered} ${page.unanswered === 1 ? "desk" : "desks"} didn't answer` : null,
-  ].filter(Boolean);
+  const removed = page ? noteworthy(page.changes).length : 0;
+  const facts = page
+    ? [
+        page.events !== undefined ? `${page.events.toLocaleString()} posts` : null,
+        page.quotes !== undefined ? `${page.quotes} ${page.quotes === 1 ? "quote" : "quotes"} verified` : null,
+        removed > 0 ? `${removed} removed` : null,
+        page.unanswered ? `${page.unanswered} ${page.unanswered === 1 ? "desk" : "desks"} didn't answer` : null,
+      ].filter(Boolean)
+    : [];
+  const at = page ? page.printedAt : missingDay ? Date.parse(`${missingDay}T12:00:00Z`) : null;
   return (
-    <div className="flex items-center gap-3" data-testid="front-page-header">
+    <div className="flex items-center gap-2" data-testid="front-page-header">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-          <span className="sm:hidden">{editionDateShort(page.printedAt)}</span>
-          <span className="hidden sm:inline">{editionDate(page.printedAt)}</span>
+        <h1 className="truncate font-display text-base font-semibold tracking-tight text-foreground sm:text-lg">
+          {at !== null ? (
+            <>
+              <span aria-hidden="true" title={editionFullDate(at, when.zone)} data-testid="front-page-day">
+                {editionDayLabel(at, when.now, when.zone)}
+              </span>
+              <span className="sr-only">{editionFullDate(at, when.zone)}</span>
+            </>
+          ) : (
+            "The Observer"
+          )}
         </h1>
         {facts.length > 0 && (
-          <p className="text-sm text-muted-foreground" data-testid="front-page-facts">
+          <p className="truncate text-xs text-muted-foreground" data-testid="front-page-facts">
             {facts.join(" · ")}
           </p>
         )}
       </div>
-      <div className="flex shrink-0 items-center">
-        <IconAction label="Print again" onClick={onPrintAgain} disabled={busy} testId="front-page-print-again">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-        </IconAction>
-        <IconAction label="Download" onClick={() => download(page)} disabled={!page.html} testId="front-page-download">
-          <Download className="h-4 w-4" />
-        </IconAction>
-        <IconAction
-          label="Read full screen"
-          onClick={onFullScreen}
-          disabled={!page.html}
-          testId="front-page-fullscreen"
+      {past && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-8 shrink-0 rounded-full px-3"
+          onClick={onBackToToday}
+          aria-label="Back to today"
+          data-testid="front-page-back-today"
         >
-          <Maximize2 className="h-4 w-4" />
-        </IconAction>
-        <EditionInfo page={page} observer={observer} />
+          <ArrowLeft className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          {/* On a phone the arrow says "back": the day's name keeps its room. */}
+          <span className="sm:hidden">Today</span>
+          <span className="hidden sm:inline">Back to today</span>
+        </Button>
+      )}
+      <div className="flex shrink-0 items-center">
+        {!past && (
+          <IconAction label="Print again" onClick={onPrintAgain} disabled={busy} testId="front-page-print-again">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          </IconAction>
+        )}
+        {hasPast && (
+          <IconAction label="Past editions" onClick={onPast} testId="front-page-past">
+            <History className="h-4 w-4" />
+          </IconAction>
+        )}
+        {page && (
+          <IconAction
+            label="Download"
+            onClick={() => download(page)}
+            disabled={!page.html}
+            testId="front-page-download"
+          >
+            <Download className="h-4 w-4" />
+          </IconAction>
+        )}
+        {page && <EditionInfo page={page} observer={observer} zone={when.zone} />}
       </div>
     </div>
   );
 }
 
-function EditionInfo({ page, observer }: { page: Printed; observer: string | null }) {
+function EditionInfo({ page, observer, zone }: { page: Printed; observer: string | null; zone: string }) {
   const tokens = page.usage ? (page.usage.promptTokens ?? 0) + (page.usage.completionTokens ?? 0) : null;
-  const rows: [string, string][] = page.code ? [["Edition", `No. ${page.code}`]] : [];
+  const rows: [string, string][] = [["Date", editionFullDate(page.printedAt, zone)]];
+  if (page.code) rows.push(["Edition", `No. ${page.code}`]);
   if (page.model) rows.push(["Model", page.model]);
   if (tokens) rows.push(["Tokens", tokens.toLocaleString()]);
   if (page.rounds === 2) rows.push(["Check", "Fixed once"]);
@@ -1394,27 +1413,37 @@ function ChangeLink({
 
 const STEPS = ["probe", "pull", "write", "check"] as const;
 
-function Progress({ step, pull, onCancel }: { step: PrintStep; pull: PullProgress | null; onCancel: () => void }) {
-  const at = STEPS.indexOf(step.step);
-  const repair = (step.step === "write" || step.step === "check") && step.round === 2;
+function Progress({ progress, onCancel }: { progress: PrintProgress; onCancel: () => void }) {
+  // Each second while the model is quiet, so the wait's clock moves; each minute otherwise.
+  const waiting = progress.step === "write" && progress.write?.phase === "waiting";
+  const now = useNow(waiting ? 1_000 : 60_000);
+  const at = STEPS.indexOf(progress.step);
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
+  const pull = progress.pull;
   const label: Record<(typeof STEPS)[number], string> = {
     probe: "Checking your ranking",
     pull: pull ? `Reading the desks · ${pull.events.toLocaleString()} posts` : `Reading ${DESKS.length} desks`,
-    write:
-      step.step === "write" && step.chars > 0
-        ? `${repair ? "Fixing the page" : "Writing"} · ${(step.chars / 1000).toFixed(1)}k characters`
-        : repair
-          ? "Fixing the page"
-          : "Writing",
+    write: progress.step === "write" ? writeLine(progress, now) : progress.round === 2 ? "Fixing the page" : "Writing",
     check: "Checking quotes, pictures and links",
   };
+  const secondary = progress.step === "write" ? writeDetail(progress) : null;
   return (
     <Card className="p-4 sm:p-5" data-testid="front-page-progress">
-      <ol className="space-y-3">
+      {/* The one line read out as it changes: the step, never the clock or the log. */}
+      <p className="sr-only" role="status" aria-live="polite" data-testid="front-page-progress-status">
+        {statusLine(progress, now, false)}
+      </p>
+      <ol className="space-y-3" aria-hidden="true">
         {STEPS.map((s, i) => {
           const state = i < at ? "done" : i === at ? "now" : "todo";
           return (
-            <li key={s} className="flex items-center gap-3 text-sm">
+            <li
+              key={s}
+              className="flex items-center gap-3 text-sm"
+              data-testid={`front-page-step-${s}`}
+              data-state={state}
+            >
               <span
                 className={cn(
                   "grid h-6 w-6 shrink-0 place-items-center rounded-full",
@@ -1431,22 +1460,90 @@ function Progress({ step, pull, onCancel }: { step: PrintStep; pull: PullProgres
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 )}
               </span>
-              <span className={cn(state === "todo" ? "text-muted-foreground" : "text-foreground")}>{label[s]}</span>
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  state === "todo" ? "text-muted-foreground" : "text-foreground",
+                )}
+                data-testid={s === "write" ? "front-page-write-line" : undefined}
+              >
+                {label[s]}
+              </span>
               {s === "pull" && state !== "todo" && pull && (
-                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                   {pull.desksDone}/{pull.desksTotal}
                 </span>
+              )}
+              {s === "write" && state === "now" && secondary && (
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{secondary}</span>
               )}
             </li>
           );
         })}
       </ol>
-      <div className="mt-4 flex justify-end">
+      <p className="mt-4 text-xs text-muted-foreground" data-testid="front-page-keep-browsing">
+        You can keep browsing Brainstorm. Keep this tab open.
+      </p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 text-muted-foreground"
+          aria-expanded={open}
+          aria-controls={detailsId}
+          onClick={() => setOpen((o) => !o)}
+          data-testid="front-page-details-toggle"
+        >
+          <ChevronRight className={cn("mr-1 h-4 w-4 transition-transform", open && "rotate-90")} aria-hidden="true" />
+          {open ? "Hide details" : "Show details"}
+        </Button>
         <Button variant="ghost" size="sm" onClick={onCancel} data-testid="front-page-cancel">
           <X className="mr-1.5 h-4 w-4" /> Cancel
         </Button>
       </div>
+      <div id={detailsId} hidden={!open}>
+        {open && <PrintLog progress={progress} />}
+      </div>
     </Card>
+  );
+}
+
+/**
+ * The print, line by line, and the model's thinking as it streams: for the curious and for
+ * a print that seems stuck. Not a live region: read when the reader goes to it.
+ */
+function PrintLog({ progress }: { progress: PrintProgress }) {
+  const thinkingRef = useRef<HTMLPreElement | null>(null);
+  useEffect(() => {
+    const el = thinkingRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [progress.thinking]);
+  const since = (at: number) => `+${elapsed(at - progress.startedAt)}`;
+  return (
+    <div className="mt-2 space-y-3 border-t border-border pt-3" aria-live="off" data-testid="front-page-details">
+      <ol className="space-y-1 text-xs" aria-label="Print log">
+        {progress.log.map((line, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{since(line.at)}</span>
+            <span className="min-w-0 break-words text-foreground">{line.text}</span>
+          </li>
+        ))}
+      </ol>
+      {progress.thinking && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">Thinking</p>
+          <pre
+            ref={thinkingRef}
+            tabIndex={0}
+            aria-label="The model's thinking"
+            className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-2 font-mono text-[11px] leading-relaxed text-muted-foreground"
+            data-testid="front-page-thinking"
+          >
+            {progress.thinking}
+          </pre>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1511,151 +1608,48 @@ function download(page: Printed) {
 const SANDBOX = "allow-popups allow-popups-to-escape-sandbox";
 
 /**
- * The paper inline. Until the frame has loaded it takes a slim placeholder, not the
- * full height: a tall empty sheet reads as broken.
+ * The paper on show (today's or a past edition), filling the space under the toolbar: it
+ * scrolls inside its own frame, so the page itself never does (one scrollbar, on a phone
+ * too). An edition read back from the site shows a spinner while its bytes are on their
+ * way, and says so when no server had them.
  */
-function PaperFrame({ page, failed = false }: { page: Printed; failed?: boolean }) {
+function PaperFrame({ page, zone, failed = false }: { page: Printed; zone: string; failed?: boolean }) {
   const [loaded, setLoaded] = useState(false);
-  // An edition read back from the site: its bytes are still on their way, or no server had them.
-  if (!page.html) {
-    return (
-      <div className="mt-5 grid h-40 place-items-center rounded-2xl border border-border bg-[#faf8f3] p-3 text-sm text-slate-600 shadow-sm">
-        {failed ? (
-          <span data-testid="front-page-frame-missing">None of your file servers had this edition.</span>
-        ) : (
-          <Loader2 className="h-5 w-5 animate-spin text-slate-400" data-testid="front-page-frame-loading" />
-        )}
-      </div>
-    );
-  }
   return (
     // The model writes the layout, and some pages run edge to edge: a margin of newsprint
-    // (house.css --paper) keeps the rounded corners from clipping a folio's first letter.
-    <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-[#faf8f3] p-3 shadow-sm sm:p-5">
-      {!loaded && (
-        <div className="grid h-24 place-items-center" data-testid="front-page-frame-loading">
-          <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+    // (house.css --paper) keeps the window's edge from clipping a folio's first letter.
+    <div className="relative flex min-h-0 flex-1 bg-[#faf8f3] p-2 sm:p-4">
+      {!page.html ? (
+        <div className="grid flex-1 place-items-center p-3 text-sm text-slate-600">
+          {failed ? (
+            <span data-testid="front-page-frame-missing">None of your file servers had this edition.</span>
+          ) : (
+            <Loader2 className="h-5 w-5 animate-spin text-slate-400" data-testid="front-page-frame-loading" />
+          )}
         </div>
-      )}
-      {/* The paper is always light, whatever the app's theme: newsprint. No scripts can run in it
-          (no allow-scripts), and its links open in a new tab, outside the sandbox. */}
-      <iframe
-        title="Today's Observer"
-        srcDoc={page.html}
-        sandbox={SANDBOX}
-        referrerPolicy="no-referrer"
-        onLoad={() => setLoaded(true)}
-        className={cn("block w-full border-0 bg-[#faf8f3]", loaded ? "h-[85vh] min-h-[600px]" : "h-0")}
-        data-testid="front-page-frame"
-      />
-    </div>
-  );
-}
-
-/** How long after a Tab press a move into the paper's frame still counts as keyboard. */
-const TAB_INTO_FRAME_MS = 400;
-
-/**
- * The paper filling the window, for reading: same sandbox, Esc or ✕ to leave. A Radix
- * dialog, so focus is trapped inside it and returns to the button that opened it.
- *
- * Esc after clicking into the paper: the frame is sandboxed without allow-scripts or
- * allow-same-origin, so a key pressed while it has focus never reaches this document and
- * nothing here can listen inside it. So when a click or tap moves focus into the frame,
- * focus is handed straight back to the dialog: the click itself still lands in the paper
- * (links open, text can be selected), wheel and touch still scroll it, and Esc closes.
- * The cost: with the mouse, the paper can't be scrolled with the keyboard (arrows, Space,
- * PageDown), because the parent can't scroll an opaque-origin frame. A keyboard user who
- * Tabs into the paper keeps focus there instead, to reach its links and scroll it, and
- * Shift+Tab or ✕ leaves. Giving the frame allow-same-origin would fix both, but would
- * loosen the sandbox the paper boundary was reviewed under.
- */
-function FullScreenPaper({ page, open, onClose }: { page: Printed; open: boolean; onClose: () => void }) {
-  // What had focus when it opened (the opener has no Dialog.Trigger to return to).
-  const opener = useRef<HTMLElement | null>(null);
-  const content = useRef<HTMLDivElement | null>(null);
-  const frame = useRef<HTMLIFrameElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    let lastTab = 0;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Tab") lastTab = Date.now();
-    };
-    // The window blurs when focus moves into the frame (it is another document).
-    const onBlur = () => {
-      const byKeyboard = Date.now() - lastTab < TAB_INTO_FRAME_MS;
-      window.setTimeout(() => {
-        if (!byKeyboard && frame.current && document.activeElement === frame.current) {
-          content.current?.focus({ preventScroll: true });
-        }
-      }, 0);
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, [open]);
-
-  return (
-    <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Content
-          ref={content}
-          aria-describedby={undefined}
-          onOpenAutoFocus={() => {
-            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-          }}
-          onCloseAutoFocus={(e) => {
-            if (opener.current?.isConnected) {
-              e.preventDefault();
-              opener.current.focus();
-            }
-          }}
-          className="fixed inset-0 z-50 flex flex-col bg-[#faf8f3] focus:outline-none"
-          data-testid="front-page-fullscreen-view"
-        >
-          <div className="flex items-center gap-2 border-b border-black/10 px-3 py-2 text-slate-800">
-            <DialogPrimitive.Title className="min-w-0 flex-1 truncate text-sm font-medium">
-              {editionDate(page.printedAt)}
-            </DialogPrimitive.Title>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
-              onClick={() => download(page)}
-              aria-label="Download"
+      ) : (
+        <>
+          {!loaded && (
+            <div
+              className="pointer-events-none absolute inset-0 grid place-items-center"
+              data-testid="front-page-frame-loading"
             >
-              <Download className="h-4 w-4" />
-            </Button>
-            <DialogPrimitive.Close asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-slate-700 hover:bg-black/5 hover:text-slate-900"
-                aria-label="Close"
-                data-testid="front-page-fullscreen-close"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </DialogPrimitive.Close>
-          </div>
-          {/* The same margin of newsprint as inline: a page run edge to edge loses its folio's
-              first letter to the window's edge otherwise. */}
-          <div className="flex min-h-0 flex-1 p-2 sm:p-4">
-            <iframe
-              ref={frame}
-              title="Today's Observer, full screen"
-              srcDoc={page.html}
-              sandbox={SANDBOX}
-              referrerPolicy="no-referrer"
-              className="block h-full w-full flex-1 border-0 bg-[#faf8f3]"
-            />
-          </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+              <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+            </div>
+          )}
+          {/* The paper is always light, whatever the app's theme: newsprint. No scripts can run
+              in it (no allow-scripts), and its links open in a new tab, outside the sandbox. */}
+          <iframe
+            title={`The Observer, ${editionFullDate(page.printedAt, zone)}`}
+            srcDoc={page.html}
+            sandbox={SANDBOX}
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoaded(true)}
+            className="block h-full w-full flex-1 border-0 bg-[#faf8f3]"
+            data-testid="front-page-frame"
+          />
+        </>
+      )}
+    </div>
   );
 }

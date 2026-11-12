@@ -92,9 +92,17 @@ export function authHeaders(key: AgentKey): Record<string, string> {
  */
 const ANTHROPIC_MAX_TOKENS = 32_000;
 
+/**
+ * OpenRouter streams a reasoning model's thinking only when asked to return it
+ * (`reasoning.exclude: false`; its docs: openrouter.ai/docs/use-cases/reasoning-tokens).
+ * Sent to OpenRouter alone: another provider may refuse a field it doesn't know.
+ */
+const isOpenRouter = (url: string) => hostOf(url) === "openrouter.ai";
+
 export function chatRequest(key: AgentKey, model: string, messages: ChatMessage[], stream: boolean) {
   const body: Record<string, unknown> = { model, messages, stream };
   if (stream) body.stream_options = { include_usage: true };
+  if (stream && isOpenRouter(key.url)) body.reasoning = { exclude: false };
   if (hostOf(key.url) === "api.anthropic.com") body.max_tokens = ANTHROPIC_MAX_TOKENS;
   return {
     url: `${apiRoot(key.url)}/chat/completions`,
@@ -121,6 +129,10 @@ export function readUsage(raw: unknown): Usage | null {
 /** What one line of a Chat Completions event stream says. */
 export interface StreamChunk {
   text: string;
+  /** Thinking a reasoning model streams before (or beside) the page. */
+  reasoning: string;
+  /** An SSE comment (`: OPENROUTER PROCESSING`): no data, but the provider is still there. */
+  alive: boolean;
   usage: Usage | null;
   /** `[DONE]`: stop reading. */
   done: boolean;
@@ -141,14 +153,26 @@ function errorText(raw: unknown): string {
  * Returns the text added by this chunk, any usage it carried, and how it ends.
  */
 export function parseStreamLine(line: string): StreamChunk {
-  const none: StreamChunk = { text: "", usage: null, done: false, finishReason: null, error: null };
+  const none: StreamChunk = {
+    text: "",
+    reasoning: "",
+    alive: false,
+    usage: null,
+    done: false,
+    finishReason: null,
+    error: null,
+  };
   const trimmed = line.trim();
+  if (trimmed.startsWith(":")) return { ...none, alive: true };
   if (!trimmed.startsWith("data:")) return none;
   const data = trimmed.slice(5).trim();
   if (data === "[DONE]") return { ...none, done: true };
   try {
     const json = JSON.parse(data) as {
-      choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
+      choices?: {
+        delta?: { content?: unknown; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown };
+        finish_reason?: unknown;
+      }[];
       usage?: unknown;
       error?: unknown;
     };
@@ -158,12 +182,36 @@ export function parseStreamLine(line: string): StreamChunk {
     return {
       ...none,
       text: typeof content === "string" ? content : "",
+      reasoning: reasoningOf(choice?.delta),
       usage: readUsage(json.usage),
       finishReason: typeof choice?.finish_reason === "string" ? choice.finish_reason : null,
     };
   } catch {
     return none;
   }
+}
+
+/**
+ * The thinking in one delta, however the provider spells it: OpenRouter's
+ * `reasoning_details` (its `reasoning.text` and `reasoning.summary` items; an encrypted one
+ * has nothing to read), else its plain `reasoning`, which carries the same text; DeepSeek's
+ * and others' `reasoning_content`.
+ */
+function reasoningOf(
+  delta: { reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown } | undefined,
+): string {
+  if (!delta) return "";
+  if (Array.isArray(delta.reasoning_details) && delta.reasoning_details.length > 0) {
+    let out = "";
+    for (const d of delta.reasoning_details as { type?: unknown; text?: unknown; summary?: unknown }[]) {
+      if (d?.type === "reasoning.text" && typeof d.text === "string") out += d.text;
+      else if (d?.type === "reasoning.summary" && typeof d.summary === "string") out += d.summary;
+    }
+    if (out) return out;
+  }
+  if (typeof delta.reasoning === "string") return delta.reasoning;
+  if (typeof delta.reasoning_content === "string") return delta.reasoning_content;
+  return "";
 }
 
 /** A non-streamed answer: its text, usage, and how it ended (`error` when it failed). */

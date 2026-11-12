@@ -27,7 +27,8 @@ import {
   rankedProbe,
 } from "@/lib/frontPage/desks";
 import { assemble, digest, profilesFrom, type Corpus } from "@/lib/frontPage/corpus";
-import { resolve, type ResolveChange } from "@/lib/frontPage/resolve";
+import { noteworthy, resolve, type ResolveChange } from "@/lib/frontPage/resolve";
+import type { ServiceEvent, WriteEvent } from "@/lib/frontPage/printProgress";
 import { check, serialize, withPaperCsp, type Violation } from "@/lib/frontPage/validate";
 import {
   authHeaders,
@@ -328,15 +329,25 @@ export async function writePage({
   messages,
   signal,
   onText,
+  onEvent,
 }: {
   key: AgentKey;
   model: string;
   messages: ChatMessage[];
   signal?: AbortSignal;
   onText?: (chars: number) => void;
+  /** What the request is doing, for the progress and its log. */
+  onEvent?: (event: WriteEvent) => void;
 }): Promise<Written> {
+  const whole = (written: Written) => {
+    onText?.(written.text.length);
+    onEvent?.({ type: "content", text: written.text });
+    onEvent?.({ type: "done", chars: written.text.length, usage: written.usage });
+    return written;
+  };
   const streamed = chatRequest(key, model, messages, true);
   let response: Response;
+  onEvent?.({ type: "sent", streamed: true });
   try {
     response = await fetch(streamed.url, { ...streamed.init, signal });
   } catch (err) {
@@ -345,22 +356,25 @@ export async function writePage({
   }
 
   const isStream = (response.headers.get("content-type") ?? "").includes("text/event-stream");
-  if (response.ok && isStream && response.body) return readStream(response.body, onText);
-  if (response.ok) {
-    const written = completed(await response.json().catch(() => null));
-    onText?.(written.text.length);
+  if (response.ok && isStream && response.body) {
+    const written = await readStream(response.body, onText, onEvent);
+    onEvent?.({ type: "done", chars: written.text.length, usage: written.usage });
     return written;
+  }
+  if (response.ok) {
+    // Asked for a stream, answered in one piece: nothing to show until it is all here.
+    onEvent?.({ type: "whole" });
+    return whole(completed(await response.json().catch(() => null)));
   }
   if (![400, 415, 422].includes(response.status)) {
     throw new WriterError(explain(response.status, await response.text().catch(() => "")), response.status);
   }
 
   const plain = chatRequest(key, model, messages, false);
+  onEvent?.({ type: "sent", streamed: false });
   const second = await fetch(plain.url, { ...plain.init, signal });
   if (!second.ok) throw new WriterError(explain(second.status, await second.text().catch(() => "")), second.status);
-  const written = completed(await second.json().catch(() => null));
-  onText?.(written.text.length);
-  return written;
+  return whole(completed(await second.json().catch(() => null)));
 }
 
 /**
@@ -368,7 +382,11 @@ export async function writePage({
  * or a stream that just stops (no `[DONE]`, no `stop`) is a failure: a page cut off
  * halfway is never handed to the check as if it were the paper.
  */
-export async function readStream(body: ReadableStream<Uint8Array>, onText?: (chars: number) => void): Promise<Written> {
+export async function readStream(
+  body: ReadableStream<Uint8Array>,
+  onText?: (chars: number) => void,
+  onEvent?: (event: WriteEvent) => void,
+): Promise<Written> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -376,12 +394,16 @@ export async function readStream(body: ReadableStream<Uint8Array>, onText?: (cha
   let usage: Usage | null = null;
   let finishReason: string | null = null;
   let sawDone = false;
+  let firstByte = false;
   const take = (line: string) => {
     const chunk = parseStreamLine(line);
     if (chunk.error) throw new WriterError(`Your AI provider failed partway: ${chunk.error.slice(0, 160)}`);
+    if (chunk.alive) onEvent?.({ type: "alive" });
+    if (chunk.reasoning) onEvent?.({ type: "reasoning", text: chunk.reasoning });
     if (chunk.text) {
       text += chunk.text;
       onText?.(text.length);
+      onEvent?.({ type: "content", text: chunk.text });
     }
     if (chunk.usage) usage = chunk.usage;
     if (chunk.finishReason) finishReason = chunk.finishReason;
@@ -391,6 +413,10 @@ export async function readStream(body: ReadableStream<Uint8Array>, onText?: (cha
     while (!sawDone) {
       const { value, done } = await reader.read();
       if (done) break;
+      if (!firstByte) {
+        firstByte = true;
+        onEvent?.({ type: "first-byte" });
+      }
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
@@ -461,6 +487,7 @@ export async function printFrontPage({
   relay = searchRelay(),
   signal,
   onStep,
+  onEvent,
 }: {
   key: AgentKey;
   model: string;
@@ -469,11 +496,14 @@ export async function printFrontPage({
   relay?: ReqRelay | null;
   signal?: AbortSignal;
   onStep?: (step: PrintStep) => void;
+  /** The run in detail, for its progress and log (lib/frontPage/printProgress). */
+  onEvent?: (event: ServiceEvent) => void;
 }): Promise<PrintResult> {
   if (!relay) throw new WriterError("The search relay isn't configured.");
   const until = Math.floor(Date.now() / 1000);
 
   onStep?.({ step: "probe" });
+  onEvent?.({ type: "probe" });
   const verdict = await probeRanking(relay, observer, until - WINDOW_SECONDS, signal);
   signal?.throwIfAborted();
   if (verdict !== "ready") return { status: "not-ready", reason: verdict };
@@ -483,7 +513,10 @@ export async function printFrontPage({
     observer,
     until,
     signal,
-    onProgress: (progress) => onStep?.({ step: "pull", progress }),
+    onProgress: (progress) => {
+      onStep?.({ step: "pull", progress });
+      onEvent?.({ type: "pull", progress });
+    },
   });
 
   const messages: ChatMessage[] = [
@@ -500,14 +533,23 @@ export async function printFrontPage({
       messages,
       signal,
       onText: (chars) => onStep?.({ step: "write", round, chars }),
+      onEvent: (event) => onEvent?.({ type: "write", round, event }),
     });
     usage = addUsage(usage, written.usage);
     const page = extractDocument(written.text);
     if (!page) throw new WriterError("Your AI answered without a page. Try again, or pick another model.");
 
     onStep?.({ step: "check", round });
+    onEvent?.({ type: "check", round });
     const resolved = resolve(page, corpus);
     const verdict = check(resolved.doc, corpus);
+    onEvent?.({
+      type: "checked",
+      round,
+      quotes: verdict.quotes.length,
+      violations: verdict.violations.length,
+      removed: noteworthy(resolved.changes).length,
+    });
     if (verdict.violations.length === 0) {
       return {
         status: "printed",

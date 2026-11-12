@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Observable } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
-import { RelayOutageError, askRelay, printFrontPage, pullCorpus, probeRanking, writePage } from "./frontPage";
+import {
+  RelayOutageError,
+  askRelay,
+  printFrontPage,
+  pullCorpus,
+  probeRanking,
+  readStream,
+  writePage,
+} from "./frontPage";
+import type { WriteEvent } from "@/lib/frontPage/printProgress";
 import { PAPER_CSP, parsePage, toPermalink } from "@/lib/frontPage/validate";
 
 const OBSERVER = "aa".repeat(32);
@@ -228,6 +237,123 @@ describe("pullCorpus when the relay fails", () => {
     const corpus = await pullCorpus({ relay: relay as never, observer: OBSERVER, until: 1_786_900_000 });
     expect(corpus.unanswered?.length).toBeGreaterThan(0);
     expect(corpus.unanswered!.length).toBeLessThan(7);
+  });
+});
+
+/** A recorded event stream, as the provider sent it, split into network chunks at `cuts`. */
+const recorded = (raw: string, cuts: number[] = []) => {
+  const encoder = new TextEncoder();
+  const bounds = [0, ...cuts, raw.length];
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let i = 0; i < bounds.length - 1; i++)
+        controller.enqueue(encoder.encode(raw.slice(bounds[i], bounds[i + 1])));
+      controller.close();
+    },
+  });
+};
+
+// OpenRouter with a reasoning model: keep-alive comments while it queues, the thinking in
+// both `reasoning` and `reasoning_details` (the same text twice), then the page.
+const OPENROUTER_SSE = [
+  ": OPENROUTER PROCESSING",
+  "",
+  ": OPENROUTER PROCESSING",
+  "",
+  `data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":"Lead with the relay ","reasoning_details":[{"type":"reasoning.text","text":"Lead with the relay ","format":"unknown","index":0}]},"finish_reason":null}]}`,
+  "",
+  `data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":"outage story.","reasoning_details":[{"type":"reasoning.text","text":"outage story.","format":"unknown","index":0}]},"finish_reason":null}]}`,
+  "",
+  `data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"<!doctype html><h1>The Nostr Observer</h1><h2>Relays went "},"finish_reason":null}]}`,
+  "",
+  `data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":"quiet</h2><p>Body</p>"},"finish_reason":"stop"}]}`,
+  "",
+  `data: {"id":"gen-1","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}],"usage":{"prompt_tokens":900,"completion_tokens":300}}`,
+  "",
+  "data: [DONE]",
+  "",
+  "",
+].join("\n");
+
+// DeepSeek: the thinking in `reasoning_content`, `content` null until the answer starts.
+const DEEPSEEK_SSE = [
+  `data: {"id":"d1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"finish_reason":null}]}`,
+  "",
+  `data: {"id":"d1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":null,"reasoning_content":"Pick the lead."},"finish_reason":null}]}`,
+  "",
+  ": keep-alive",
+  "",
+  `data: {"id":"d1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"<h2>Zaps</h2>","reasoning_content":null},"finish_reason":"stop"}]}`,
+  "",
+  "data: [DONE]",
+  "",
+  "",
+].join("\n");
+
+describe("readStream on recorded streams", () => {
+  it("OpenRouter: counts keep-alives as alive, reads the thinking once, then the page", async () => {
+    const events: WriteEvent[] = [];
+    // Cut mid-line too: a frame split across network chunks is read whole.
+    const out = await readStream(recorded(OPENROUTER_SSE, [10, 200, 431]), undefined, (e) => events.push(e));
+    expect(out.text).toBe("<!doctype html><h1>The Nostr Observer</h1><h2>Relays went quiet</h2><p>Body</p>");
+    expect(out.usage).toEqual({ promptTokens: 900, completionTokens: 300 });
+    expect(events[0]).toEqual({ type: "first-byte" });
+    expect(events.filter((e) => e.type === "alive")).toHaveLength(2);
+    const thinking = events.flatMap((e) => (e.type === "reasoning" ? [e.text] : [])).join("");
+    expect(thinking).toBe("Lead with the relay outage story.");
+    // The thinking comes before the page.
+    const firstContent = events.findIndex((e) => e.type === "content");
+    expect(events.findIndex((e) => e.type === "reasoning")).toBeLessThan(firstContent);
+  });
+
+  it("DeepSeek: reads reasoning_content, and a keep-alive changes nothing in the page", async () => {
+    const events: WriteEvent[] = [];
+    const out = await readStream(recorded(DEEPSEEK_SSE), undefined, (e) => events.push(e));
+    expect(out.text).toBe("<h2>Zaps</h2>");
+    expect(events.filter((e) => e.type === "reasoning")).toEqual([{ type: "reasoning", text: "Pick the lead." }]);
+    expect(events.filter((e) => e.type === "alive")).toHaveLength(1);
+  });
+});
+
+describe("writePage's events", () => {
+  it("says it sent, then streams, then is done", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sse(["<p>", "hello</p>"])));
+    const events: WriteEvent[] = [];
+    await writePage({ key, model: "m", messages: [], onEvent: (e) => events.push(e) });
+    expect(events.map((e) => e.type)).toEqual(["sent", "first-byte", "content", "content", "done"]);
+    expect(events.at(-1)).toEqual({ type: "done", chars: 12, usage: { promptTokens: 1200, completionTokens: 800 } });
+  });
+
+  it("a provider that answers in one piece says so, with no stream to count", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response("no streams here", { status: 400 }))
+        .mockResolvedValueOnce(Response.json({ choices: [{ message: { content: "<p>plain</p>" } }] })),
+    );
+    const events: WriteEvent[] = [];
+    await writePage({ key, model: "m", messages: [], onEvent: (e) => events.push(e) });
+    expect(events.map((e) => e.type)).toEqual(["sent", "sent", "content", "done"]);
+    expect(events[1]).toEqual({ type: "sent", streamed: false });
+
+    // Asked for a stream, answered with the whole thing.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(Response.json({ choices: [{ message: { content: "<p>x</p>" } }] })),
+    );
+    const again: WriteEvent[] = [];
+    await writePage({ key, model: "m", messages: [], onEvent: (e) => again.push(e) });
+    expect(again.map((e) => e.type)).toEqual(["sent", "whole", "content", "done"]);
+  });
+
+  it("asks OpenRouter, and only OpenRouter, to return the thinking", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(sse(["<p>x</p>"])));
+    vi.stubGlobal("fetch", fetch);
+    await writePage({ key, model: "m", messages: [] });
+    expect(JSON.parse(fetch.mock.calls[0][1].body).reasoning).toEqual({ exclude: false });
+    await writePage({ key: { key: "sk", url: "https://api.deepseek.com/v1" }, model: "m", messages: [] });
+    expect(JSON.parse(fetch.mock.calls[1][1].body).reasoning).toBeUndefined();
   });
 });
 

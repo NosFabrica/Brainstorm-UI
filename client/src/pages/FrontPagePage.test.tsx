@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { readTask } from "@/lib/scheduledTasks";
+import { resetPrintJob } from "@/services/printJob";
 import FrontPagePage from "./FrontPagePage";
 
 const state = vi.hoisted(() => ({
@@ -69,6 +70,20 @@ vi.mock("@/services/observerSite", async (importOriginal) => ({
   fetchBlob: (...args: unknown[]) => state.fetchBlob(...args),
 }));
 
+const hash = (c: string) => c.repeat(64);
+const nowSec = () => Math.floor(Date.now() / 1000);
+/** An edition on the site printed just now: today on any clock, whatever the hour the suite runs at. */
+const todayEntry = (c: string, extra: Record<string, unknown> = {}) => {
+  const day = new Date().toISOString().slice(0, 10);
+  return { day, path: `/${day}.html`, sha256: hash(c), printedAt: nowSec(), ...extra };
+};
+const siteWith = (editions: Record<string, unknown>[], servers = ["https://files.example"]) => ({
+  event: { kind: 35128 },
+  index: { v: 1, title: "Lira's Observer", editions },
+  servers,
+  relays: [],
+});
+
 const printed = {
   status: "printed",
   html: "<!doctype html><html><body><h1>The Nostr Observer</h1></body></html>",
@@ -81,6 +96,8 @@ const printed = {
 
 describe("FrontPagePage", () => {
   beforeEach(() => {
+    resetPrintJob();
+    window.history.replaceState(null, "", "/front-page");
     sessionStorage.clear();
     localStorage.clear();
     state.keys = { status: "ready", keys: [{ key: "sk-or-v1-x", url: "https://openrouter.ai/api/v1" }] };
@@ -140,7 +157,8 @@ describe("FrontPagePage", () => {
     it("doesn't call it the first paper when the reader already has some", async () => {
       state.hasMywot = false;
       state.isSearchObserver = false;
-      const day = new Date().toISOString().slice(0, 10);
+      // An older paper: none today, so the print view and its checklist show.
+      const day = "2026-01-05";
       state.site = {
         event: { tags: [] },
         index: { v: 1, title: "", editions: [{ day, path: `/${day}.html`, sha256: "b".repeat(64) }] },
@@ -150,6 +168,21 @@ describe("FrontPagePage", () => {
       renderWithProviders(<FrontPagePage />);
       await waitFor(() => expect(screen.getByTestId("front-page-setup")).toHaveTextContent("To print your paper"));
       expect(screen.getByTestId("front-page-setup")).not.toHaveTextContent("Before your first paper");
+      expect(screen.queryByTestId("front-page-frame")).toBeNull();
+    });
+
+    it("with today's paper on the site, shows it, and keeps what setup needs in Print again", async () => {
+      state.hasMywot = false;
+      state.isSearchObserver = false;
+      state.site = siteWith([todayEntry("b")]);
+      state.fetchBlob.mockResolvedValue(printed.html);
+      renderWithProviders(<FrontPagePage />);
+      expect(await screen.findByTestId("front-page-frame")).toBeInTheDocument();
+      expect(screen.queryByTestId("front-page-setup")).toBeNull();
+      fireEvent.click(screen.getByTestId("front-page-print-again"));
+      const dialog = await screen.findByTestId("front-page-print-dialog");
+      expect(within(dialog).getByTestId("front-page-setup")).toHaveTextContent("To print your paper");
+      expect(within(dialog).queryByTestId("front-page-print")).toBeNull();
     });
 
     it("with the key only, says which provider and still asks for the web of trust", () => {
@@ -346,7 +379,9 @@ describe("FrontPagePage", () => {
       observer: "a".repeat(64),
       readerName: "Lira",
     });
-    // Reader-first: the hero gives way to a header with one quiet line of facts.
+    // Today's paper takes the print view's place: a toolbar with one quiet line of facts.
+    expect(screen.getByTestId("front-page-today")).toContainElement(frame);
+    expect(screen.queryByTestId("front-page-print-view")).toBeNull();
     expect(screen.queryByTestId("front-page-hero")).toBeNull();
     expect(screen.getByTestId("front-page-facts").textContent).toBe("2 posts · 3 quotes verified · 1 removed");
     // The edition number, model and what the check removed sit behind the info button.
@@ -360,26 +395,23 @@ describe("FrontPagePage", () => {
     expect(sessionStorage.getItem(`frontPage:last:${"a".repeat(64)}`)).toContain("4F2A9C");
   });
 
-  it("says today's paper was already printed, with a way to read it, and still lets the reader print", async () => {
-    const day = new Date().toISOString().slice(0, 10);
-    state.site = {
-      event: { tags: [] },
-      index: {
-        v: 1,
-        title: "",
-        editions: [
-          // Printed now: today on any clock, whatever the hour the suite runs at.
-          { day, path: `/${day}.html`, sha256: "b".repeat(64), printedAt: Math.floor(Date.now() / 1000) },
-        ],
-      },
-      servers: ["https://files.example"],
-      relays: [],
-    };
+  it("shows today's paper from the site as the page, and Print again says it was already printed", async () => {
+    state.site = siteWith([todayEntry("b", { posts: 12 })]);
     state.fetchBlob.mockResolvedValue(printed.html);
     renderWithProviders(<FrontPagePage />);
 
-    expect(screen.getByTestId("front-page-schedule")).toHaveTextContent("Not scheduled");
-    fireEvent.click(await screen.findByTestId("front-page-print-again"));
+    const frame = await screen.findByTestId("front-page-frame");
+    expect(screen.getByTestId("front-page-today")).toContainElement(frame);
+    expect(frame.getAttribute("srcdoc")).toContain("The Nostr Observer");
+    expect(screen.getByTestId("front-page-facts")).toHaveTextContent("12 posts");
+    // Nothing around the paper: no hero, and the schedule card sits in Print again.
+    expect(screen.queryByTestId("front-page-hero")).toBeNull();
+    expect(screen.queryByTestId("front-page-schedule")).toBeNull();
+    // Nothing before today: no way to past editions.
+    expect(screen.queryByTestId("front-page-past")).toBeNull();
+    fireEvent.click(screen.getByTestId("front-page-print-again"));
+    const dialog = await screen.findByTestId("front-page-print-dialog");
+    expect(within(dialog).getByTestId("front-page-schedule")).toHaveTextContent("Not scheduled");
     const hint = await screen.findByTestId("front-page-printed-today");
     expect(hint).toHaveTextContent("Already printed today");
     await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
@@ -421,26 +453,56 @@ describe("FrontPagePage", () => {
       return { status: "ready", doc, schedule: readTask(doc), eventId: "e1", createdAt: 1 };
     };
 
+    state.fetchBlob.mockResolvedValue(printed.html);
+
+    // Where it is 23:xx, that paper is today's: it is the page, and the hint agrees.
     state.schedule = scheduleIn(zoneAt(23));
     const late = renderWithProviders(<FrontPagePage />);
-    fireEvent.click(await screen.findByTestId("front-page-print-again"));
+    expect(await screen.findByTestId("front-page-frame")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("front-page-print-again"));
     expect(await screen.findByTestId("front-page-printed-today")).toHaveTextContent("Already printed today");
     late.unmount();
 
+    // Where it is noon, it is yesterday's: the print view, no hint, and the paper is a past edition.
     state.schedule = scheduleIn(zoneAt(12));
     renderWithProviders(<FrontPagePage />);
-    fireEvent.click(await screen.findByTestId("front-page-print-again"));
+    expect(await screen.findByTestId("front-page-past-editions-open")).toHaveTextContent(/Past editions\s*1$/);
     await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    expect(screen.getByTestId("front-page-print-view")).toBeInTheDocument();
     expect(screen.queryByTestId("front-page-printed-today")).toBeNull();
+    expect(screen.queryByTestId("front-page-frame")).toBeNull();
   });
 
-  it("a returning reader prints again from a dialog, and reads full screen", async () => {
+  it("with only older papers, shows the print view, never the last paper as today's", async () => {
+    state.site = siteWith([
+      { day: "2026-11-10", path: "/2026-11-10.html", sha256: hash("2"), printedAt: 1_794_300_000 },
+    ]);
+    state.fetchBlob.mockResolvedValue(printed.html);
+    renderWithProviders(<FrontPagePage />);
+    expect(await screen.findByTestId("front-page-past-editions-open")).toBeInTheDocument();
+    expect(screen.getByTestId("front-page-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("front-page-schedule")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    expect(screen.queryByTestId("front-page-frame")).toBeNull();
+    expect(screen.queryByTestId("front-page-printed-today")).toBeNull();
+    expect(state.fetchBlob).not.toHaveBeenCalled();
+  });
+
+  it("with no papers at all, shows the print view with no way to past editions", async () => {
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    expect(screen.getByTestId("front-page-print-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("front-page-past-editions-open")).toBeNull();
+    expect(screen.queryByTestId("front-page-frame")).toBeNull();
+  });
+
+  it("a returning reader prints again from a dialog", async () => {
     sessionStorage.setItem(
       `frontPage:last:${"a".repeat(64)}`,
       JSON.stringify({
         html: printed.html,
         code: "OLD001",
-        printedAt: 1,
+        printedAt: Date.now(),
         events: 5,
         quotes: 1,
         rounds: 1,
@@ -460,57 +522,8 @@ describe("FrontPagePage", () => {
     fireEvent.click(screen.getByTestId("front-page-print"));
     await waitFor(() => expect(state.print).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByTestId("front-page-print-dialog")).toBeNull());
-
-    const opener = screen.getByTestId("front-page-fullscreen");
-    opener.focus();
-    fireEvent.click(opener);
-    const view = await screen.findByTestId("front-page-fullscreen-view");
-    expect(view.getAttribute("role")).toBe("dialog");
-    expect(view.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-popups allow-popups-to-escape-sandbox");
-    // Focus moves into the reader and is held there.
-    await waitFor(() => expect(view.contains(document.activeElement)).toBe(true));
-    fireEvent.keyDown(view, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByTestId("front-page-fullscreen-view")).toBeNull());
-    // ... and comes back to the button that opened it.
-    await waitFor(() => expect(document.activeElement).toBe(opener));
-  });
-
-  it("clicking into the full-screen paper hands focus back so Esc still closes; tabbing in keeps it there", async () => {
-    sessionStorage.setItem(
-      `frontPage:last:${"a".repeat(64)}`,
-      JSON.stringify({
-        html: printed.html,
-        code: "OLD001",
-        printedAt: 1,
-        events: 5,
-        quotes: 1,
-        rounds: 1,
-        usage: null,
-        changes: [],
-      }),
-    );
-    renderWithProviders(<FrontPagePage />);
-    fireEvent.click(screen.getByTestId("front-page-fullscreen"));
-    const view = await screen.findByTestId("front-page-fullscreen-view");
-    const frame = view.querySelector("iframe")!;
-
-    // A click into the frame: focus lands on the frame and the window blurs.
-    frame.focus();
-    expect(document.activeElement).toBe(frame);
-    fireEvent.blur(window);
-    await waitFor(() => expect(document.activeElement).toBe(view));
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByTestId("front-page-fullscreen-view")).toBeNull());
-
-    // A keyboard user tabbing into the paper keeps focus there, to reach its links.
-    fireEvent.click(screen.getByTestId("front-page-fullscreen"));
-    const again = await screen.findByTestId("front-page-fullscreen-view");
-    const frame2 = again.querySelector("iframe")!;
-    fireEvent.keyDown(window, { key: "Tab" });
-    frame2.focus();
-    fireEvent.blur(window);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(document.activeElement).toBe(frame2);
+    // One paper surface: no separate full-screen reader.
+    expect(screen.queryByTestId("front-page-fullscreen")).toBeNull();
   });
 
   it("a refused page is never shown; the violations are", async () => {
@@ -648,55 +661,230 @@ describe("FrontPagePage", () => {
     await waitFor(() => expect(state.publish).toHaveBeenCalledTimes(2));
   });
 
-  it("reads earlier editions back from the Observer site, switched by day tabs", async () => {
-    const hash = (c: string) => c.repeat(64);
-    state.site = {
-      event: { kind: 35128 },
-      index: {
-        v: 1,
-        title: "Lira's Observer",
-        editions: [
-          {
-            day: "2026-11-10",
-            path: "/2026-11-10.html",
-            sha256: hash("2"),
-            code: "NEW002",
-            posts: 40,
-            quotesVerified: 2,
-          },
-          { day: "2026-11-09", path: "/2026-11-09.html", sha256: hash("1"), code: "OLD001" },
-        ],
+  it("lists past editions newest first and reads one in the paper's place, with Download", async () => {
+    state.site = siteWith([
+      todayEntry("3", { code: "NOW003", headline: "Today's lead" }),
+      { day: "2026-11-09", path: "/2026-11-09.html", sha256: hash("1"), code: "OLD001" },
+      {
+        day: "2026-11-10",
+        path: "/2026-11-10.html",
+        sha256: hash("2"),
+        code: "NEW002",
+        headline: "Relays went quiet",
+        printedAt: 1_794_300_000,
       },
-      servers: ["https://files.example"],
-      relays: [],
-    };
+    ]);
     state.fetchBlob.mockImplementation((sha: string) =>
       Promise.resolve(`<html><body><p>edition ${sha.slice(0, 1)}</p></body></html>`),
     );
     renderWithProviders(<FrontPagePage />);
 
-    const tabs = await screen.findByTestId("front-page-day-tabs");
-    expect(tabs.querySelectorAll("[role=tab]")).toHaveLength(2);
-    const frame = await screen.findByTestId("front-page-frame");
-    expect(frame.getAttribute("srcdoc")).toContain("edition 2");
-    expect(state.fetchBlob).toHaveBeenCalledWith(hash("2"), ["https://files.example"], expect.anything());
-    expect(screen.getByTestId("front-page-facts").textContent).toBe("40 posts · 2 quotes verified");
+    // Today's paper is the page; only it is fetched.
+    await waitFor(() => expect(screen.getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 3"));
+    expect(state.fetchBlob).toHaveBeenCalledTimes(1);
+    expect(state.fetchBlob).toHaveBeenCalledWith(hash("3"), ["https://files.example"], expect.anything());
 
-    const older = screen.getByTestId("front-page-day-2026-11-09");
-    fireEvent.mouseDown(older);
-    fireEvent.click(older);
-    await waitFor(() => expect(screen.getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 1"));
+    fireEvent.click(screen.getByTestId("front-page-past"));
+    const list = await screen.findByTestId("front-page-past-editions");
+    const rows = within(list).getAllByTestId(/^front-page-past-edition-\d/);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
+      "front-page-past-edition-2026-11-10",
+      "front-page-past-edition-2026-11-09",
+    ]);
+    // Today's isn't listed among them.
+    expect(within(list).queryByText("Today's lead")).toBeNull();
+    expect(rows[0]).toHaveTextContent("Relays went quiet");
+    expect(rows[1]).toHaveTextContent("Edition No. OLD001");
+
+    fireEvent.click(rows[1]);
+    const view = await screen.findByTestId("front-page-past-view");
+    expect(window.location.search).toBe("?day=2026-11-09");
+    await waitFor(() =>
+      expect(within(view).getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 1"),
+    );
+    expect(screen.getAllByTestId("front-page-frame")).toHaveLength(1);
+    expect(screen.queryByTestId("front-page-past-editions")).toBeNull();
+    expect(screen.queryByTestId("front-page-today")).toBeNull();
+    expect(screen.getByTestId("front-page-download")).not.toBeDisabled();
+    // Print again is today's; a past edition offers the way back instead.
+    expect(screen.queryByTestId("front-page-print-again")).toBeNull();
+    fireEvent.click(screen.getByTestId("front-page-info"));
+    expect(await screen.findByTestId("front-page-info-panel")).toHaveTextContent("No. OLD001");
+    fireEvent.click(screen.getByTestId("front-page-back-today"));
+    await waitFor(() => expect(screen.getByTestId("front-page-today")).toBeInTheDocument());
+    expect(window.location.search).toBe("");
+    expect(screen.getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 3");
+  });
+
+  it("the browser's Back from a past edition returns to today", async () => {
+    state.site = siteWith([
+      todayEntry("3"),
+      { day: "2026-11-10", path: "/2026-11-10.html", sha256: hash("2"), headline: "Quiet day" },
+    ]);
+    state.fetchBlob.mockImplementation((sha: string) => Promise.resolve(`<p>edition ${sha.slice(0, 1)}</p>`));
+    renderWithProviders(<FrontPagePage />);
+    fireEvent.click(await screen.findByTestId("front-page-past"));
+    fireEvent.click(await screen.findByTestId("front-page-past-edition-2026-11-10"));
+    expect(await screen.findByTestId("front-page-past-view")).toBeInTheDocument();
+    act(() => window.history.back());
+    await waitFor(() => expect(screen.getByTestId("front-page-today")).toBeInTheDocument());
+    expect(window.location.search).toBe("");
+  });
+
+  it("opens the day a link names, and says so when there is no edition for it", async () => {
+    state.site = siteWith([{ day: "2026-11-10", path: "/2026-11-10.html", sha256: hash("2"), headline: "Quiet" }]);
+    state.fetchBlob.mockResolvedValue("<p>edition 2</p>");
+    window.history.replaceState(null, "", "/front-page?day=2026-11-10");
+    const first = renderWithProviders(<FrontPagePage />);
+    const view = await screen.findByTestId("front-page-past-view");
+    await waitFor(() =>
+      expect(within(view).getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 2"),
+    );
+    // Opened from a link: Back to today replaces it, to the print view (nothing today).
+    fireEvent.click(screen.getByTestId("front-page-back-today"));
+    expect(await screen.findByTestId("front-page-print-view")).toBeInTheDocument();
+    first.unmount();
+
+    window.history.replaceState(null, "", "/front-page?day=2026-01-01");
+    renderWithProviders(<FrontPagePage />);
+    expect(await screen.findByTestId("front-page-day-missing")).toBeInTheDocument();
+    expect(screen.getByTestId("front-page-back-today")).toBeInTheDocument();
+  });
+
+  it("opens a past edition from the print view's link", async () => {
+    state.site = siteWith([{ day: "2026-11-10", path: "/2026-11-10.html", sha256: hash("2"), headline: "Quiet day" }]);
+    state.fetchBlob.mockResolvedValue("<html><body><p>edition 2</p></body></html>");
+    renderWithProviders(<FrontPagePage />);
+    fireEvent.click(await screen.findByTestId("front-page-past-editions-open"));
+    fireEvent.click(await screen.findByTestId("front-page-past-edition-2026-11-10"));
+    const view = await screen.findByTestId("front-page-past-view");
+    await waitFor(() =>
+      expect(within(view).getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 2"),
+    );
+    expect(screen.getByTestId("front-page-back-today")).toBeInTheDocument();
   });
 
   it("with no servers to ask, asks none and remembers no failure", async () => {
-    state.site = {
-      event: { kind: 35128 },
-      index: { v: 1, title: "", editions: [{ day: "2026-11-10", path: "/2026-11-10.html", sha256: "2".repeat(64) }] },
-      servers: [],
-      relays: [],
-    };
+    state.site = siteWith([todayEntry("2", { printedAt: undefined })], []);
     renderWithProviders(<FrontPagePage />);
     expect(await screen.findByTestId("front-page-frame-missing")).toBeInTheDocument();
     expect(state.fetchBlob).not.toHaveBeenCalled();
+  });
+
+  describe("a print that outlives the page", () => {
+    /** The print, held open: the test reports its events and finishes it. */
+    function heldPrint() {
+      const held = {
+        finish: (_: unknown) => {},
+        emit: (_: unknown) => {},
+      };
+      state.print.mockImplementation(
+        (opts: { onEvent?: (e: unknown) => void }) =>
+          new Promise((resolve) => {
+            held.finish = resolve;
+            held.emit = (e) => opts.onEvent?.(e);
+          }),
+      );
+      return held;
+    }
+
+    it("keeps running when the reader leaves, and shows today's paper when they come back", async () => {
+      const held = heldPrint();
+      const first = renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      expect(await screen.findByTestId("front-page-progress")).toBeInTheDocument();
+      expect(screen.getByTestId("front-page-keep-browsing")).toHaveTextContent(
+        "You can keep browsing Brainstorm. Keep this tab open.",
+      );
+      // Elsewhere in the app: the page is gone, the print is not.
+      first.unmount();
+      const signal = (state.print.mock.calls[0][0] as { signal: AbortSignal }).signal;
+      expect(signal.aborted).toBe(false);
+      await act(async () => held.finish(printed));
+
+      renderWithProviders(<FrontPagePage />);
+      const frame = await screen.findByTestId("front-page-frame");
+      expect(frame.getAttribute("srcdoc")).toContain("The Nostr Observer");
+      expect(screen.getByTestId("front-page-today")).toBeInTheDocument();
+      expect(state.print).toHaveBeenCalledTimes(1);
+    });
+
+    it("comes back to a print still running: its progress, not a second print", async () => {
+      heldPrint();
+      const first = renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      first.unmount();
+      renderWithProviders(<FrontPagePage />);
+      expect(screen.getByTestId("front-page-progress")).toBeInTheDocument();
+      expect(screen.getByTestId("front-page-print")).toBeDisabled();
+    });
+
+    it("says Thinking, then Writing: the headline, with the details behind a disclosure", async () => {
+      const held = heldPrint();
+      renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      const write = (event: unknown) => act(async () => held.emit({ type: "write", round: 1, event }));
+      await write({ type: "sent", streamed: true });
+      await waitFor(() =>
+        expect(screen.getByTestId("front-page-write-line")).toHaveTextContent("Waiting for the model…"),
+      );
+      await write({ type: "first-byte" });
+      await write({ type: "reasoning", text: "The relay outage leads." });
+      await waitFor(() => expect(screen.getByTestId("front-page-write-line")).toHaveTextContent("Thinking…"));
+      expect(screen.getByTestId("front-page-progress-status")).toHaveTextContent("Thinking…");
+      await write({ type: "content", text: "<h1>The Nostr Observer</h1><h2>Relays went quiet</h2>" });
+      await waitFor(() =>
+        expect(screen.getByTestId("front-page-write-line")).toHaveTextContent("Writing: Relays went quiet"),
+      );
+
+      const toggle = screen.getByTestId("front-page-details-toggle");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByTestId("front-page-details")).toBeNull();
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      const details = screen.getByTestId("front-page-details");
+      expect(details).toHaveAttribute("aria-live", "off");
+      expect(details).toHaveTextContent("OpenRouter · anthropic/claude-sonnet-4.5");
+      expect(details).not.toHaveTextContent("sk-or-v1-x");
+      expect(details).toHaveTextContent("Request sent");
+      expect(details).toHaveTextContent("Section: Relays went quiet");
+      expect(screen.getByTestId("front-page-thinking")).toHaveTextContent("The relay outage leads.");
+      // Only the status line is a live region.
+      expect(screen.getByTestId("front-page-progress-status")).toHaveAttribute("aria-live", "polite");
+    });
+  });
+
+  describe("relative days", () => {
+    it("names today's paper Today, with the full date for screen readers and in the details", async () => {
+      state.site = siteWith([todayEntry("b")]);
+      state.fetchBlob.mockResolvedValue(printed.html);
+      renderWithProviders(<FrontPagePage />);
+      await screen.findByTestId("front-page-frame");
+      expect(screen.getByTestId("front-page-day")).toHaveTextContent("Today");
+      const heading = screen.getByRole("heading", { level: 1 });
+      const year = String(new Date().getFullYear());
+      expect(heading).toHaveTextContent(year);
+      fireEvent.click(screen.getByTestId("front-page-info"));
+      expect(await screen.findByTestId("front-page-info-panel")).toHaveTextContent(year);
+    });
+
+    it("names past editions by relative day in the list and the toolbar", async () => {
+      const yesterday = Math.floor(Date.now() / 1000) - 86_400;
+      const day = new Date(yesterday * 1000).toISOString().slice(0, 10);
+      state.site = siteWith([
+        { day, path: `/${day}.html`, sha256: hash("2"), printedAt: yesterday, headline: "Quiet" },
+      ]);
+      state.fetchBlob.mockResolvedValue("<html><body>old</body></html>");
+      renderWithProviders(<FrontPagePage />);
+      fireEvent.click(await screen.findByTestId("front-page-past-editions-open"));
+      const row = await screen.findByTestId(`front-page-past-edition-${day}`);
+      expect(within(row).getByTestId("front-page-past-edition-day")).toHaveTextContent("Yesterday");
+      fireEvent.click(row);
+      await screen.findByTestId("front-page-past-view");
+      expect(screen.getByTestId("front-page-day")).toHaveTextContent("Yesterday");
+    });
   });
 });
