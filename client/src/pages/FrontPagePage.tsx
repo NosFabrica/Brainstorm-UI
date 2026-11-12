@@ -37,7 +37,8 @@ import { Switch } from "@/components/ui/switch";
 import { copyToClipboard } from "@/lib/clipboard";
 import { observerNaddr, observerUrl, type EditionEntry } from "@/lib/frontPage/observerSite";
 import { observerToday, type Edition } from "@/lib/frontPage/today";
-import { fetchBlob, leadHeadline, loadObserverSite } from "@/services/observerSite";
+import { fetchBlob, leadHeadline } from "@/services/observerSite";
+import { useObserverSite } from "@/hooks/useObserverSite";
 import {
   cancelPrint,
   confirmPublish,
@@ -85,7 +86,6 @@ import { browserTimeZone, formatClock } from "@/lib/scheduledTasks";
 import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule } from "@/components/frontPage/MorningSchedule";
 import { useNow } from "@/hooks/useNow";
-import { onAppResume } from "@/lib/appResume";
 import { fetchModels } from "@/services/frontPage";
 
 /**
@@ -178,9 +178,6 @@ function dayParam(search: string): string | null {
 }
 const IDLE_PUBLISH: PublishState = { state: "idle" };
 
-/** Away this long, the site is asked again on return: a device may have printed meanwhile. */
-const SITE_REASK_AWAY_MS = 60_000;
-
 export default function FrontPagePage() {
   const user = useActiveAccountDisplay();
   // Everything below is one account's: its paper, its site, the editions fetched from
@@ -206,44 +203,27 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const run: Run = job?.run ?? IDLE_RUN;
   const publishState: PublishState = job?.publish ?? IDLE_PUBLISH;
   const [publish, setPublish] = useState(() => (pubkey ? readPublish(pubkey) : true));
-  const [site, setSite] = useState<SiteState | null>(null);
-  // A publish's answer is the site as it now stands: shown without asking again.
+  // The reader's Observer site: today's edition when another device printed it, and the
+  // past editions. From the store, and so from this device's copy on the first render;
+  // asked again when the page is shown after a while away, so a paper a device printed
+  // meanwhile is known before today is worked out (hooks/useObserverSite).
+  const held = useObserverSite(pubkey);
+  // A publish's answer is the site as it now stands: shown without waiting for the store.
   const published = job?.published;
-  useEffect(() => {
-    if (!published) return;
-    setSite((prev) => ({
-      editions: published.editions,
-      servers: [...new Set([...published.servers, ...(prev?.servers ?? [])])],
-      exists: true,
-    }));
-  }, [published]);
+  const site = useMemo<SiteState | null>(
+    () =>
+      published
+        ? {
+            editions: published.editions,
+            servers: [...new Set([...published.servers, ...(held?.servers ?? [])])],
+            exists: true,
+          }
+        : held,
+    [published, held],
+  );
   // Editions fetched from the site, by sha256 (a day reprinted is other bytes): html, or
   // null when no server had them.
   const [fetched, setFetched] = useState<Record<string, string | null>>({});
-
-  // The reader's Observer site: today's edition when another device printed it, and the
-  // past editions. Asked again when the page is shown again after a while away, so a paper
-  // a device printed meanwhile is known before today is worked out.
-  const [siteAsk, setSiteAsk] = useState(0);
-  useEffect(
-    () =>
-      onAppResume((away) => {
-        if (away >= SITE_REASK_AWAY_MS) setSiteAsk((n) => n + 1);
-      }),
-    [],
-  );
-  useEffect(() => {
-    if (!pubkey) return;
-    let live = true;
-    loadObserverSite(pubkey)
-      .then((loaded) => {
-        if (live) setSite({ editions: loaded.index.editions, servers: loaded.servers, exists: !!loaded.event });
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [pubkey, siteAsk]);
 
   // The page is about today: today's paper (this tab's print, or one on the site printed
   // today) or, with none, the print view. An older paper is only ever a past edition. Today

@@ -63,9 +63,32 @@ vi.mock("@/services/frontPage", async (importOriginal) => ({
   printFrontPage: (...args: unknown[]) => state.print(...args),
 }));
 
+// The site as `useObserverSite` hands it over (its own tests: hooks/useObserverSite):
+// unknown until the staged read answers, and unknown still when it fails.
+vi.mock("@/hooks/useObserverSite", async () => {
+  const { useEffect, useState } = await import("react");
+  return {
+    useObserverSite: () => {
+      const [view, setView] = useState<unknown>(null);
+      useEffect(() => {
+        let live = true;
+        (state.siteLoad ? state.siteLoad() : Promise.resolve(state.site))
+          .then((loaded) => {
+            const site = loaded as { event: unknown; index: { editions: unknown[] }; servers: string[] };
+            if (live) setView({ editions: site.index.editions, servers: site.servers, exists: !!site.event });
+          })
+          .catch(() => undefined);
+        return () => {
+          live = false;
+        };
+      }, []);
+      return view;
+    },
+  };
+});
+
 vi.mock("@/services/observerSite", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  loadObserverSite: () => (state.siteLoad ? state.siteLoad() : Promise.resolve(state.site)),
   publishToObserver: (...args: unknown[]) => state.publish(...args),
   fetchBlob: (...args: unknown[]) => state.fetchBlob(...args),
 }));
