@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
   /** This device's copies, by hash. */
   held: new Map<string, string>(),
+  /** Who is signed in now. */
+  active: { pubkey: "a".repeat(64), name: "A" } as { pubkey: string; name: string } | undefined,
 }));
 
 vi.mock("@/lib/blobCache", () => ({
@@ -43,7 +45,7 @@ vi.mock("@/lib/blossomServers", async (orig) => ({
 }));
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: vi.fn(), getReplaceable: () => undefined } }));
 vi.mock("@/accounts/signing", () => ({
-  activeAccount: () => ({ pubkey: PK }),
+  activeAccount: () => mocks.active,
   signAs: (...args: unknown[]) => mocks.signAs(...args),
 }));
 vi.mock("@/services/blossom", async (orig) => ({
@@ -74,6 +76,7 @@ beforeEach(() => {
   mocks.servers = ["https://files.example"];
   mocks.blossomLookups = 0;
   mocks.held.clear();
+  mocks.active = { pubkey: PK, name: "A" };
   mocks.signAs
     .mockReset()
     .mockImplementation((_a, t) => Promise.resolve({ ...t, id: "e".repeat(64), pubkey: PK, sig: "s" }));
@@ -448,5 +451,33 @@ describe("leadHeadline", () => {
     expect(leadHeadline(PAPER)).toBe("Twelve relays, one lesson");
     expect(leadHeadline(`<header class="masthead"><h1>Paper</h1></header><h2>Plain lead</h2>`)).toBe("Plain lead");
     expect(leadHeadline("<p>nothing</p>")).toBeNull();
+  });
+});
+
+describe("publishing as the account it started for (audit, 2026-11-12)", () => {
+  it("signs every upload token with that account, even when another signs in meanwhile", async () => {
+    const started = mocks.active;
+    mocks.auth.mockImplementation(async () => {
+      // Account B signs in while the first token is out.
+      mocks.active = { pubkey: "b".repeat(64), name: "B" };
+      return "Nostr x";
+    });
+    await publishToObserver(input);
+    expect(mocks.auth).toHaveBeenCalledTimes(3);
+    for (const call of mocks.auth.mock.calls) expect(call[1]).toBe(started);
+    expect(mocks.signAs.mock.calls[0][0]).toBe(started);
+  });
+
+  it("stops, publishing nothing, once its signal aborts", async () => {
+    const controller = new AbortController();
+    mocks.auth.mockImplementation(async () => {
+      controller.abort();
+      return "Nostr x";
+    });
+    await expect(publishToObserver({ ...input, signal: controller.signal })).rejects.toThrow();
+    expect(mocks.auth).toHaveBeenCalledTimes(1);
+    expect(puts).toHaveLength(0);
+    expect(mocks.signAs).not.toHaveBeenCalled();
+    expect(mocks.publish).not.toHaveBeenCalled();
   });
 });

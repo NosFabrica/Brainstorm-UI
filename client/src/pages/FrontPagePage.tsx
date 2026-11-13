@@ -540,6 +540,19 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const observerLinks = pubkey && (site?.exists || publishState.state === "published") ? pubkey : null;
   const busy = run.state === "running";
 
+  // This tab's paper for today that never reached the site (the tab was reloaded before it
+  // was published, or the reader said Not now): offered again while publishing is on.
+  const unpublished =
+    !!pubkey &&
+    publish &&
+    today?.from === "session" &&
+    !today.paper.published &&
+    run.state !== "running" &&
+    publishState.state === "idle" &&
+    !site?.editions.some((e) => e.printedAt === today.printedAt);
+  const publishOffer = unpublished && page && (
+    <PublishOffer onPublish={() => offerPublish(pubkey, page, displayName)} />
+  );
   const notice = publishState.state === "confirm" && pubkey && (
     <ObserverNotice
       pubkey={pubkey}
@@ -588,7 +601,10 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     />
   );
   const statusShown =
-    !!notice || (publishState.state !== "idle" && publishState.state !== "confirm") || run.state !== "idle";
+    !!notice ||
+    !!publishOffer ||
+    (publishState.state !== "idle" && publishState.state !== "confirm") ||
+    run.state !== "idle";
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -620,6 +636,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
             {statusShown && (
               <div className={cn(pageWidth("wide"), "max-h-[45%] shrink-0 space-y-3 overflow-y-auto py-3")}>
                 {notice}
+                {publishOffer}
                 <PublishStatus
                   state={publishState}
                   onRetry={() => page && pubkey && offerPublish(pubkey, page, displayName)}
@@ -929,6 +946,25 @@ function PublishStatus({ state, onRetry }: { state: PublishState; onRetry: () =>
           </Button>
         </>
       )}
+    </div>
+  );
+}
+
+/** Today's paper, printed in this tab, isn't on the reader's Observer: the way to put it there. */
+function PublishOffer({ onPublish }: { onPublish: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="front-page-publish-offer">
+      <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 text-muted-foreground">Not on your Observer yet</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 px-2"
+        onClick={onPublish}
+        data-testid="front-page-publish-offer-ok"
+      >
+        Publish
+      </Button>
     </div>
   );
 }

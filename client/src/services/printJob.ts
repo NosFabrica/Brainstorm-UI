@@ -15,7 +15,9 @@ import { PublishError, leadHeadline, publishToObserver, type PublishFailure } fr
  * page shows it, or its result, whenever it is open. One print at a time, for one
  * account: switching accounts cancels it (`cancelPrintUnlessFor`), since its paper would
  * be published under the account that is signed in. In memory only: closing the tab ends
- * it, which PrintJobHost asks the reader to confirm.
+ * it, which PrintJobHost asks the reader to confirm (`holdsTab`). The paper itself outlives
+ * the tab's reload (`readLast`), and one never published is offered again
+ * (`offerPublish`).
  */
 
 export interface Printed {
@@ -32,6 +34,8 @@ export interface Printed {
   changes: ResolveChange[];
   /** Desks the search relay didn't answer this run: their sections may be thin. */
   unanswered?: number;
+  /** It is on the account's Observer site: a publish of it went through. */
+  published?: boolean;
 }
 
 export type Run =
@@ -139,6 +143,8 @@ function markNoticeSeen(pubkey: string) {
 
 let job: PrintJob | null = null;
 let abort: AbortController | null = null;
+/** The publish in flight, stopped when its account's job goes. */
+let publishAbort: AbortController | null = null;
 let nextId = 1;
 const listeners = new Set<() => void>();
 let notifyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -181,6 +187,14 @@ export function usePrintJob(pubkey: string | null): PrintJob | null {
 }
 
 export const isRunning = (j: PrintJob | null) => j?.run.state === "running";
+
+/**
+ * Whether closing the tab now would lose something: a print running, or a paid paper
+ * waiting for the reader's yes to a public site, or on its way there. Lost, the next
+ * occurrence would pay for it again.
+ */
+export const holdsTab = (j: PrintJob | null) =>
+  isRunning(j) || j?.publish.state === "confirm" || j?.publish.state === "publishing";
 
 /** Print, replacing any print before it. */
 export function startPrint({ pubkey, key, model, readerName, displayName }: StartPrint) {
@@ -230,9 +244,10 @@ async function runPrint(id: number, controller: AbortController, opts: StartPrin
         finish("pending", { state: "pending", at: Date.now() });
       }
     } else if (result.status === "refused") {
-      writeLast(pubkey, null);
+      // Nothing new to show, and nothing lost: the paper the account had (today's, paid
+      // for) stays, here and in the tab.
       log(id, { type: "end", outcome: "refused" });
-      finish("refused", { state: "refused", violations: result.violations, changes: result.changes }, { paper: null });
+      finish("refused", { state: "refused", violations: result.violations, changes: result.changes });
     } else {
       const printed: Printed = {
         html: result.html,
@@ -274,11 +289,17 @@ export function cancelPrint() {
   update(id, (j) => ({ ...j, run: { state: "idle" }, outcome: "cancelled", finishedAt: Date.now() }));
 }
 
-/** Another account is signed in: its print, publish and paper don't carry over. */
+/**
+ * Another account is signed in: its print, publish and paper don't carry over. A publish
+ * in flight stops before it signs anything more: the new account must never sign for the
+ * last one's paper. That paper stays in the last account's tab storage, to publish later.
+ */
 export function cancelPrintUnlessFor(pubkey: string | null) {
   if (!job || job.pubkey === pubkey) return;
   abort?.abort();
   abort = null;
+  publishAbort?.abort();
+  publishAbort = null;
   job = null;
   notifyNow();
 }
@@ -289,9 +310,26 @@ export function settlePending(pubkey: string) {
   update(job.id, (j) => ({ ...j, run: { state: "idle" } }));
 }
 
-/** Publish, once the reader has said yes to a public site: asked before the first one. */
+/**
+ * Publish, once the reader has said yes to a public site: asked before the first one. Also
+ * for a paper this tab kept from before a reload that never reached the site: with no job
+ * yet, one starts that holds it (no print runs).
+ */
 export function offerPublish(pubkey: string, paper: Printed, displayName: string) {
-  if (!job || job.pubkey !== pubkey) return;
+  if (!job) {
+    job = {
+      id: nextId++,
+      pubkey,
+      run: { state: "idle" },
+      progress: startProgress("", paper.model ?? "", Date.now()),
+      paper,
+      publish: { state: "idle" },
+      published: null,
+      finishedAt: null,
+      outcome: null,
+    };
+  }
+  if (job.pubkey !== pubkey || job.publish.state === "publishing") return;
   if (noticeSeen(pubkey)) void publishPaper(pubkey, paper, displayName);
   else {
     log(job.id, { type: "publish", state: "confirm" });
@@ -315,10 +353,14 @@ export function declinePublish(pubkey: string) {
 async function publishPaper(pubkey: string, printed: Printed, displayName: string) {
   if (!job || job.pubkey !== pubkey) return;
   const id = job.id;
+  publishAbort?.abort();
+  const controller = new AbortController();
+  publishAbort = controller;
   log(id, { type: "publish", state: "publishing" });
   update(id, (j) => ({ ...j, publish: { state: "publishing" } }));
   try {
     const out = await publishToObserver({
+      signal: controller.signal,
       pubkey,
       html: printed.html,
       name: displayName,
@@ -329,19 +371,28 @@ async function publishPaper(pubkey: string, printed: Printed, displayName: strin
       quotesVerified: printed.quotes,
       model: printed.model,
     });
+    if (controller.signal.aborted) return;
+    // The paper is on the site now: a reload of the tab doesn't offer it again.
+    const onSite: Printed = { ...printed, published: true };
+    if (readLast(pubkey)?.printedAt === printed.printedAt) writeLast(pubkey, onSite);
     log(id, { type: "publish", state: "published" });
     update(id, (j) => ({
       ...j,
+      paper: j.paper && j.paper.printedAt === printed.printedAt ? onSite : j.paper,
       publish: { state: "published" },
       published: { editions: out.editions, servers: out.servers },
     }));
   } catch (err) {
+    // Stopped because the account went: nothing to say, and nobody to say it to.
+    if (controller.signal.aborted) return;
     const message = err instanceof PublishError ? err.message : "Couldn't publish to your Observer.";
     log(id, { type: "publish", state: "failed", message });
     update(id, (j) => ({
       ...j,
       publish: { state: "failed", message, reason: err instanceof PublishError ? err.reason : null },
     }));
+  } finally {
+    if (publishAbort === controller) publishAbort = null;
   }
 }
 
@@ -349,6 +400,8 @@ async function publishPaper(pubkey: string, printed: Printed, displayName: strin
 export function resetPrintJob() {
   abort?.abort();
   abort = null;
+  publishAbort?.abort();
+  publishAbort = null;
   job = null;
   if (notifyTimer !== null) clearTimeout(notifyTimer);
   notifyTimer = null;

@@ -576,6 +576,47 @@ describe("FrontPagePage", () => {
     expect(screen.queryByTestId("front-page-fullscreen")).toBeNull();
   });
 
+  it("offers Publish for this tab's paper from before a reload that never reached the site (audit, 2026-11-12)", async () => {
+    localStorage.setItem(`frontPage:observerNotice:${"a".repeat(64)}`, "1");
+    const paper = {
+      html: printed.html,
+      code: "OLD001",
+      printedAt: Date.now(),
+      rounds: 1,
+      usage: null,
+      changes: [],
+    };
+    sessionStorage.setItem(`frontPage:last:${"a".repeat(64)}`, JSON.stringify(paper));
+    renderWithProviders(<FrontPagePage />);
+    const offer = await screen.findByTestId("front-page-publish-offer");
+    expect(offer).toHaveTextContent("Not on your Observer yet");
+    fireEvent.click(within(offer).getByTestId("front-page-publish-offer-ok"));
+    await waitFor(() => expect(state.publish).toHaveBeenCalledTimes(1));
+    expect(state.publish.mock.calls[0][0]).toMatchObject({ code: "OLD001", printedAt: paper.printedAt });
+    expect(await screen.findByTestId("front-page-publish-status")).toHaveTextContent("On your Observer");
+    expect(screen.queryByTestId("front-page-publish-offer")).toBeNull();
+    // Published: the tab's copy says so, and a reload doesn't offer it again.
+    expect(JSON.parse(sessionStorage.getItem(`frontPage:last:${"a".repeat(64)}`)!).published).toBe(true);
+  });
+
+  it("doesn't offer a paper the tab marked published, or one the site already holds", async () => {
+    sessionStorage.setItem(
+      `frontPage:last:${"a".repeat(64)}`,
+      JSON.stringify({
+        html: printed.html,
+        code: "P1",
+        printedAt: Date.now(),
+        rounds: 1,
+        usage: null,
+        changes: [],
+        published: true,
+      }),
+    );
+    renderWithProviders(<FrontPagePage />);
+    await screen.findByTestId("front-page-header");
+    expect(screen.queryByTestId("front-page-publish-offer")).toBeNull();
+  });
+
   it("a refused page is never shown; the violations are", async () => {
     state.print.mockResolvedValue({
       status: "refused",

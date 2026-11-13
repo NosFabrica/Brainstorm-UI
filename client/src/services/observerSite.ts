@@ -9,6 +9,7 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import { activeAccount, signAs } from "@/accounts/signing";
+import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { beats, requestNewestWithReach } from "@/lib/relayRequest";
@@ -327,29 +328,41 @@ interface Upload {
 
 /**
  * Every file to every one of the author's servers, in parallel, each under its own
- * BUD-11 token (one `x` each: some servers refuse a token naming other blobs). A file
- * must land on at least one server, or nothing is published; the other servers are
- * mirrors, best effort. Returns the servers that took every file.
+ * BUD-11 token (one `x` each: some servers refuse a token naming other blobs), signed by
+ * `account`, the author, whoever is signed in by then. A file must land on at least one
+ * server, or nothing is published; the other servers are mirrors, best effort. Returns
+ * the servers that took every file. Stops at `signal`, between tokens and uploads alike.
  */
-async function uploadAll(uploads: Upload[], servers: string[]): Promise<string[]> {
+async function uploadAll(
+  account: BrainstormAccount,
+  uploads: Upload[],
+  servers: string[],
+  signal?: AbortSignal,
+): Promise<string[]> {
   const expiration = String(Math.floor(Date.now() / 1000) + 600);
   // Signed one after another: a signer that prompts shows one prompt at a time.
   const tokens: string[] = [];
   for (const upload of uploads) {
+    signal?.throwIfAborted();
     tokens.push(
-      await nostrAuthHeader({
-        kind: 24242,
-        tags: [["t", "upload"], ["x", upload.sha256], ...serverScopeTags(servers), ["expiration", expiration]],
-        content: "Publish my Observer",
-      }),
+      await nostrAuthHeader(
+        {
+          kind: 24242,
+          tags: [["t", "upload"], ["x", upload.sha256], ...serverScopeTags(servers), ["expiration", expiration]],
+          content: "Publish my Observer",
+        },
+        account,
+      ),
     );
   }
+  signal?.throwIfAborted();
   const put = async (upload: Upload, auth: string, server: string): Promise<boolean> => {
     try {
       const response = await fetch(`${server}/upload`, {
         method: "PUT",
         headers: { Authorization: auth, "Content-Type": upload.type },
         body: new Blob([upload.text], { type: upload.type }),
+        signal,
       });
       if (!response.ok) return false;
       const descriptor = (await response.json().catch(() => null)) as { sha256?: string } | null;
@@ -361,6 +374,7 @@ async function uploadAll(uploads: Upload[], servers: string[]): Promise<string[]
   const results = await Promise.all(
     uploads.map((upload, i) => Promise.all(servers.map((server) => put(upload, tokens[i], server)))),
   );
+  signal?.throwIfAborted();
   if (results.some((perServer) => !perServer.some(Boolean))) {
     throw new PublishError("None of your file servers took the page.", "upload");
   }
@@ -378,6 +392,11 @@ export interface PublishInput {
   posts?: number;
   quotesVerified?: number;
   model?: string;
+  /**
+   * Stops the publish, signing and publishing nothing more: the account it was for signed
+   * out, or another signed in. Throws the signal's reason.
+   */
+  signal?: AbortSignal;
 }
 
 export interface Published {
@@ -394,13 +413,16 @@ export interface Published {
  * Throws `PublishError` (or a signer error) and publishes nothing when a step fails —
  * including when the author has no Blossom server list (nothing goes to a server they
  * didn't choose) and when none of their relays answered the read (a rewrite from
- * nothing would drop every earlier edition).
+ * nothing would drop every earlier edition). Every signature is the account that was
+ * signed in when it started, never one signed in since.
  */
 export async function publishToObserver(input: PublishInput): Promise<Published> {
+  const { signal } = input;
   const account = activeAccount();
   if (!account || account.pubkey !== input.pubkey) throw new PublishError("Sign in as yourself to publish.", "account");
 
-  const site = await loadObserverSite(input.pubkey);
+  const site = await loadObserverSite(input.pubkey, { signal });
+  signal?.throwIfAborted();
   if (site.own.length === 0) {
     throw new PublishError("Add a Blossom file server to publish your Observer.", "no-servers");
   }
@@ -449,12 +471,14 @@ export async function publishToObserver(input: PublishInput): Promise<Published>
   const files = { archive: await sha256Text(archive), editions: await sha256Text(editionsJson) };
 
   const stored = await uploadAll(
+    account,
     [
       { text: html, type: "text/html", sha256 },
       { text: archive, type: "text/html", sha256: files.archive },
       { text: editionsJson, type: "application/json", sha256: files.editions },
     ],
     servers,
+    signal,
   );
   const listed = dedupe([...stored, ...servers]);
   // Kept here as well: the page reads the new edition and index back by hash, and the
@@ -469,7 +493,9 @@ export async function publishToObserver(input: PublishInput): Promise<Published>
     manifestTemplate({ entries: kept, files, servers: listed, title, description, aggregate, maxDay });
   const template = manifest(await aggregateHash(manifest("").tags));
 
+  signal?.throwIfAborted();
   const signed = await signAs(account, { ...template, created_at: createdAt });
+  signal?.throwIfAborted();
   const outcome = await publishToRelays(signed, site.relays, { need: 1, timeoutMs: 8000 });
   if (!outcome.success) throw new PublishError("None of your relays took the site.", "relays");
   eventStore.add(signed);

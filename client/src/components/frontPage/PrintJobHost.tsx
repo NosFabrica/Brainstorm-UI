@@ -1,8 +1,9 @@
 /**
  * Mounted once for the whole app, beside the other global surfaces: what a running
  * Observer print needs while the reader is elsewhere in Brainstorm (services/printJob).
- * It cancels the print when another account signs in, asks before the tab closes while
- * one runs, and says how it ended when the reader isn't on the Observer page.
+ * It cancels the print (and a publish) when another account signs in, asks before the tab
+ * closes while one runs or its paper waits to be published, and says how it ended when the
+ * reader isn't on the Observer page.
  */
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
@@ -12,7 +13,15 @@ import { ToastAction } from "@/components/ui/toast";
 import { toast } from "@/hooks/use-toast";
 import { useNow } from "@/hooks/useNow";
 import { statusLine } from "@/lib/frontPage/printProgress";
-import { cancelPrintUnlessFor, getPrintJob, isRunning, subscribePrintJob, usePrintJob } from "@/services/printJob";
+import {
+  cancelPrintUnlessFor,
+  getPrintJob,
+  holdsTab,
+  isRunning,
+  subscribePrintJob,
+  usePrintJob,
+  type PrintJob,
+} from "@/services/printJob";
 import { cn } from "@/lib/utils";
 
 export const FRONT_PAGE_PATH = "/front-page";
@@ -24,22 +33,23 @@ export function PrintJobHost() {
   const onPage = useRef(location === FRONT_PAGE_PATH);
   onPage.current = location === FRONT_PAGE_PATH;
   const job = usePrintJob(pubkey);
-  const running = isRunning(job);
+  const holding = holdsTab(job);
 
   // A print belongs to the account that started it: its paper would be published as
   // whoever is signed in now, so a switch cancels it.
   useEffect(() => cancelPrintUnlessFor(pubkey), [pubkey]);
 
-  // Closing or reloading the tab ends the print: ask first, and only while one runs.
+  // Closing or reloading the tab ends the print, or loses a paid paper on its way to the
+  // site: ask first, and only then (`holdsTab`).
   useEffect(() => {
-    if (!running) return;
+    if (!holding) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [running]);
+  }, [holding]);
 
   // How it ended, said where the reader is: the Observer page says it itself.
   useEffect(() => {
@@ -82,8 +92,13 @@ export function PrintingIndicator() {
   const account = useActiveAccount();
   const [location] = useLocation();
   const job = usePrintJob(account?.pubkey ?? null);
-  const now = useNow(1_000);
   if (!job || !isRunning(job) || location === FRONT_PAGE_PATH) return null;
+  return <Printing job={job} />;
+}
+
+/** The indicator itself: its clock ticks only while it is mounted, so only while a print runs. */
+function Printing({ job }: { job: PrintJob }) {
+  const now = useNow(1_000);
   const step = statusLine(job.progress, now, false);
   return (
     <Link
