@@ -19,7 +19,7 @@ vi.mock("@/lib/relayRequest", () => ({ requestAll: (...a: unknown[]) => requestA
 import { checkUserLists, designationKey, listsAskKey, listsToName } from "./trustLists";
 import { eventStore } from "@/lib/eventStore";
 import { track } from "@/lib/askOnce";
-import { listRows } from "@/lib/nip85Declaration";
+import { listRows, planDesignation } from "@/lib/nip85Declaration";
 import { queryClient } from "@/lib/queryClient";
 
 const ME = "a".repeat(64);
@@ -117,6 +117,23 @@ describe("checkUserLists", () => {
       ],
     });
     expect((await checkUserLists(ME, TA)).status).toBe("missing");
+  });
+
+  // Missing is what a publish would change. Once Update has filled the two
+  // empty kinds there is nothing left to write, so the pill has to clear:
+  // the third is another Assistant's, and stays theirs.
+  it("after Update fills the empty kinds, a split Map reads elsewhere, not missing again", async () => {
+    requestAll.mockResolvedValue([list()]);
+    const split = [
+      ["30382:rank", TA, "wss://nip85.example"],
+      ["30392", "e".repeat(64), "wss://other-deployment.example"],
+    ];
+    const designation = { key: LIST_KEY, relay: LIST_RELAY };
+    const updated = planDesignation(split, listRows(designation), { self: LIST_KEY });
+    expect(updated).toEqual([...split, ["30393", LIST_KEY, LIST_RELAY], ["30394", LIST_KEY, LIST_RELAY]]);
+
+    fetchTrustProviderList.mockResolvedValue({ tags: updated });
+    expect((await checkUserLists(ME, TA)).status).toBe("elsewhere");
   });
 
   it("a 10040 that already names them is declared", async () => {
