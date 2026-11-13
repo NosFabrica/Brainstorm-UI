@@ -79,7 +79,7 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { logout } from "@/accounts/login-flow";
 import { apiRoot, providerName, type AgentKey } from "@/lib/agentKeys";
 import { keyName, sameKey } from "@/lib/assistantKeys";
-import { rankModels } from "@/lib/frontPage/writer";
+import { rankModels, type ModelLimits } from "@/lib/frontPage/writer";
 import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
@@ -87,13 +87,16 @@ import { cn } from "@/lib/utils";
 import { dropUnownedModels, readModel, writeModel } from "@/lib/frontPage/modelMemory";
 import { withPaperCsp } from "@/lib/frontPage/validate";
 import {
+  observerEffort,
   observerKeyChoice,
   observerModel,
   pickObserverKey,
   printedTodayZone,
+  withObserverEffort,
   withObserverKey,
   withObserverModel,
   withRememberedModel,
+  type WritingEffort,
 } from "@/lib/frontPage/observerSchedule";
 import { browserTimeZone, formatClock, readTask, type TaskTags } from "@/lib/scheduledTasks";
 import { updateObserverSchedule } from "@/services/observerSchedule";
@@ -148,8 +151,11 @@ const FILE_SERVERS_SETTINGS = "/settings?tab=messages&focus=file-servers";
 
 type Models =
   | { status: "loading" }
-  /** `routstr`: a Routstr node's entries, with their prices in sats; null for any other endpoint. */
-  | { status: "listed"; ids: string[]; routstr: Map<string, RoutstrModel> | null }
+  /**
+   * `routstr`: a Routstr node's entries, with their prices in sats; null for any other endpoint.
+   * `limits`: each model's output limit and context window, where the endpoint says them.
+   */
+  | { status: "listed"; ids: string[]; routstr: Map<string, RoutstrModel> | null; limits: Map<string, ModelLimits> }
   | { status: "unlisted" };
 
 function useModels(key: AgentKey | null): Models {
@@ -159,7 +165,7 @@ function useModels(key: AgentKey | null): Models {
     const controller = new AbortController();
     setModels({ status: "loading" });
     fetchModelList(key, controller.signal)
-      .then(({ ids, routstr }) => {
+      .then(({ ids, routstr, limits }) => {
         // A key changed mid-flight: this list is the old key's.
         if (controller.signal.aborted) return;
         if (routstr) markRoutstr(key.url);
@@ -167,7 +173,11 @@ function useModels(key: AgentKey | null): Models {
         const writes = routstr ? new Set(textModels(routstr).map((m) => m.id)) : null;
         const ranked = rankModels(writes ? ids.filter((id) => writes.has(id)) : ids);
         const prices = routstr ? new Map(routstr.map((m) => [m.id, m])) : null;
-        setModels(ranked.length ? { status: "listed", ids: ranked, routstr: prices } : { status: "unlisted" });
+        setModels(
+          ranked.length
+            ? { status: "listed", ids: ranked, routstr: prices, limits: limits ?? new Map() }
+            : { status: "unlisted" },
+        );
       })
       .catch(() => {
         if (!controller.signal.aborted) setModels({ status: "unlisted" });
@@ -444,18 +454,44 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     });
   };
 
+  // The writing effort: the schedule's `effort` (one choice for every app, the Assistant
+  // included). One picked here shows at once, until the schedule it was written to lands (or
+  // another device's edit does).
+  const scheduledEffort = observerEffort(syncedSchedule);
+  const [pickedEffort, setPickedEffort] = useState<{ eventId: string | null; effort: WritingEffort } | null>(null);
+  const effort = pickedEffort && pickedEffort.eventId === scheduleEventId ? pickedEffort.effort : scheduledEffort;
+  const chooseEffort = (next: WritingEffort) => {
+    if (setting.saving || next === effort) return;
+    setPickedEffort({ eventId: scheduleEventId, effort: next });
+    void saveSetting((d) => withObserverEffort(d, next));
+  };
+
   // The picked model's Routstr prices, for the estimate and the balance check.
   const routstrModel = (models.status === "listed" && models.routstr?.get(model)) || null;
   // Held still between renders: the schedule card is memoized against the streamed chunks.
   const scheduleKeyNote = useMemo(
-    () => <RoutstrPrintNote entry={key} model={routstrModel} variant="schedule" />,
-    [key, routstrModel],
+    () => <RoutstrPrintNote entry={key} model={routstrModel} variant="schedule" effort={effort} />,
+    [key, routstrModel, effort],
   );
 
   const print = () => {
     if (!key || !pubkey || !model) return;
     setPrintOpen(false);
-    startPrint({ pubkey, key, model, readerName, displayName });
+    startPrint({
+      pubkey,
+      key,
+      model,
+      readerName,
+      displayName,
+      effort,
+      limits: (models.status === "listed" && models.limits.get(model)) || null,
+      zone: syncedSchedule?.tz ?? null,
+      history: {
+        site: site?.editions ?? [],
+        runnerSite: runnerShown?.editions ?? [],
+        servers: sites?.servers ?? [],
+      },
+    });
   };
 
   // The gate said yes and the relay said not yet: ask the gate again, so the row follows
@@ -515,8 +551,10 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
           if (models.status === "listed") commitModel(id);
         }}
         onCommit={commitModel}
+        effort={effort}
       />
-      <RoutstrPrintNote entry={key} model={routstrModel} />
+      <EffortPicker effort={effort} saving={setting.saving} onChoose={chooseEffort} />
+      <RoutstrPrintNote entry={key} model={routstrModel} effort={effort} />
       <SettingNote saving={setting.saving} error={setting.error} />
     </div>
   );
@@ -1383,10 +1421,13 @@ function ModelPicker({
   saving = false,
   onChoose,
   onCommit,
+  effort = "standard",
 }: {
   keyUrl: string;
   models: Models;
   model: string;
+  /** The writing effort the sats estimate is for. */
+  effort?: WritingEffort;
   /** A choice is being saved: the field holds still (and keeps focus) until it is. */
   saving?: boolean;
   onChoose: (id: string) => void;
@@ -1425,7 +1466,7 @@ function ModelPicker({
       <SelectContent className="max-h-72">
         {/* The schedule's model, when the endpoint's list doesn't name it: still the reader's choice. */}
         {(model && !models.ids.includes(model) ? [model, ...models.ids] : models.ids).map((id) => {
-          const sats = models.routstr ? estimateSats(models.routstr.get(id), editionEstimate()) : null;
+          const sats = models.routstr ? estimateSats(models.routstr.get(id), editionEstimate(effort)) : null;
           return (
             <SelectItem key={id} value={id}>
               {id}
@@ -1439,6 +1480,60 @@ function ModelPicker({
         })}
       </SelectContent>
     </Select>
+  );
+}
+
+const EFFORTS: { value: WritingEffort; label: string }[] = [
+  { value: "standard", label: "Standard" },
+  { value: "deep", label: "Deep" },
+];
+
+/**
+ * "Writing effort": Standard or Deep, kept in the schedule (its `effort` param) so every app
+ * and the Assistant print with it. Deep says it costs more; a Routstr key's estimate shows how much.
+ */
+function EffortPicker({
+  effort,
+  saving,
+  onChoose,
+}: {
+  effort: WritingEffort;
+  saving: boolean;
+  onChoose: (effort: WritingEffort) => void;
+}) {
+  const labelId = useId();
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="front-page-effort">
+      <span id={labelId} className="text-xs font-medium text-muted-foreground">
+        Writing effort
+      </span>
+      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+        {EFFORTS.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={effort === value}
+            disabled={saving}
+            onClick={() => onChoose(value)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+              effort === value
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            data-testid={`front-page-effort-${value}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {effort === "deep" && (
+        <p className="text-xs text-muted-foreground" data-testid="front-page-effort-note">
+          Deep lets the model think longer before it plans and writes. It costs more.
+        </p>
+      )}
+    </div>
   );
 }
 

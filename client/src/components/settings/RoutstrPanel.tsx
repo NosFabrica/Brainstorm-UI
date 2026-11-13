@@ -55,6 +55,7 @@ import { isWebLNAvailable, lightningUriForInvoice, payWithWebLN } from "@/lib/za
 import type { AgentKey } from "@/lib/agentKeys";
 import { keySuffix } from "@/lib/assistantKeys";
 import { rankModels, editionTokens } from "@/lib/frontPage/writer";
+import type { WritingEffort } from "@/lib/frontPage/observerSchedule";
 import { DEFAULT_DIGEST_BUDGET } from "@/lib/frontPage/corpus";
 import { readModel } from "@/lib/frontPage/modelMemory";
 import {
@@ -109,11 +110,15 @@ const NODE_FILTERS = [{ kinds: [ROUTSTR_KIND] }];
 const NODES_WINDOW = { minMs: 10 * 60_000 };
 const AI_SETTINGS = "/settings?tab=assistants&view=ai";
 
-/** The tokens one edition is estimated at: the same estimate as the print card's. */
-let editionCache: ReturnType<typeof editionTokens> | null = null;
-export function editionEstimate() {
-  editionCache ??= editionTokens(DEFAULT_DIGEST_BUDGET);
-  return editionCache;
+/** The tokens one edition is estimated at, by writing effort: the same estimate as the print card's. */
+const editionCache = new Map<WritingEffort, ReturnType<typeof editionTokens>>();
+export function editionEstimate(effort: WritingEffort = "standard") {
+  let tokens = editionCache.get(effort);
+  if (!tokens) {
+    tokens = editionTokens(DEFAULT_DIGEST_BUDGET, undefined, effort);
+    editionCache.set(effort, tokens);
+  }
+  return tokens;
 }
 
 function errorText(err: unknown, fallback: string): string {
@@ -1324,15 +1329,18 @@ export function RoutstrPrintNote({
   entry,
   model,
   variant = "print",
+  effort = "standard",
 }: {
   entry: AgentKey | null;
   model: RoutstrModel | null;
   variant?: "print" | "schedule";
+  /** The writing effort the paper is printed with: Deep's reasoning costs more. */
+  effort?: WritingEffort;
 }) {
   const isRoutstr = useIsRoutstr(entry?.url);
   const balance = useRoutstrBalance(isRoutstr && entry ? entry : null);
   if (!isRoutstr || !entry) return null;
-  const estimate = estimateSats(model, editionEstimate());
+  const estimate = estimateSats(model, editionEstimate(effort));
   const low = balance?.status === "ready" ? lowBalance(balance.balance, model, estimate) : null;
   if (variant === "schedule") {
     if (!low?.low) return null;

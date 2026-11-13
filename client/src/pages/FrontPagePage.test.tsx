@@ -987,6 +987,23 @@ describe("FrontPagePage", () => {
       // Only the status line is a live region.
       expect(screen.getByTestId("front-page-progress-status")).toHaveAttribute("aria-live", "polite");
     });
+    it("says Planning the paper first, and shows the plan's lead angle in the details", async () => {
+      const held = heldPrint();
+      renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      await act(async () => held.emit({ type: "plan", event: { type: "sent", streamed: true } }));
+      await waitFor(() => expect(screen.getByTestId("front-page-step-plan")).toHaveAttribute("data-state", "now"));
+      expect(screen.getByTestId("front-page-step-plan")).toHaveTextContent("Planning the paper");
+      expect(screen.getByTestId("front-page-progress-status")).toHaveTextContent("Planning the paper");
+      await act(async () => held.emit({ type: "planned", lead: "The relay held, then went quiet", full: 7 }));
+      await act(async () => held.emit({ type: "write", round: 1, event: { type: "sent", streamed: true } }));
+      await waitFor(() => expect(screen.getByTestId("front-page-step-plan")).toHaveAttribute("data-state", "done"));
+      fireEvent.click(screen.getByTestId("front-page-details-toggle"));
+      expect(screen.getByTestId("front-page-details")).toHaveTextContent(
+        "Planned · posts read in full: 7 · lead: The relay held, then went quiet",
+      );
+    });
   });
 
   describe("relative days", () => {
@@ -1080,6 +1097,39 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     expect(state.print.mock.calls[0][0].key).toMatchObject({ key: "sk-or-v1-second-a3f9" });
     // Reading the settings writes nothing.
     expect(state.updateSchedule).not.toHaveBeenCalled();
+  });
+
+  it("prints with the writing effort the schedule names, and a pick goes back to the schedule", async () => {
+    state.schedule = scheduleWith([["param", "effort", "deep"]]);
+    state.print.mockResolvedValue(printed);
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    expect(screen.getByTestId("front-page-effort-deep")).toHaveAttribute("aria-checked", "true");
+    // Deep says it costs more.
+    expect(screen.getByTestId("front-page-effort-note")).toHaveTextContent(/costs more/);
+    expect(state.updateSchedule).not.toHaveBeenCalled();
+
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-effort-standard")));
+    expect(state.updateSchedule).toHaveBeenCalledTimes(1);
+    const change = state.updateSchedule.mock.calls[0][0] as (d: unknown) => { private: string[][] };
+    const out = change({
+      public: [],
+      private: [
+        ["task", "observer"],
+        ["param", "effort", "deep"],
+      ],
+    });
+    // Standard is the param's absence.
+    expect(out.private.some((t) => t[0] === "param" && t[1] === "effort")).toBe(false);
+    expect(screen.getByTestId("front-page-effort-standard")).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByTestId("front-page-effort-note")).toBeNull();
+
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-effort-deep")));
+    const back = state.updateSchedule.mock.calls[1][0] as (d: unknown) => { private: string[][] };
+    expect(back({ public: [], private: [["task", "observer"]] }).private).toContainEqual(["param", "effort", "deep"]);
+    fireEvent.click(screen.getByTestId("front-page-print"));
+    await waitFor(() => expect(state.print).toHaveBeenCalled());
+    expect(state.print.mock.calls[0][0]).toMatchObject({ effort: "deep" });
   });
 
   it("writes a model picked here back to the schedule, so every app shares it", async () => {
