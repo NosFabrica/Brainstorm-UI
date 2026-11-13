@@ -30,6 +30,16 @@ const state = vi.hoisted(() => ({
   updateSchedule: vi.fn(),
   runnerSite: null as null | Record<string, unknown>,
   runnerSiteFor: vi.fn(),
+  /** The runner this device remembers each reader's schedule naming (lib/eventCache). */
+  rememberedRunner: {} as Record<string, string | null>,
+}));
+
+vi.mock("@/lib/eventCache", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  rememberedObserverRunner: (reader: string) => state.rememberedRunner[reader] ?? null,
+  rememberObserverRunner: (reader: string, runner: string | null) => {
+    state.rememberedRunner[reader] = runner;
+  },
 }));
 
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
@@ -1051,6 +1061,7 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     state.updateSchedule.mockReset().mockResolvedValue({ success: true });
     state.runnerSite = null;
     state.runnerSiteFor.mockReset();
+    state.rememberedRunner = {};
     state.user = { pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" };
   });
 
@@ -1180,6 +1191,31 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     view.rerender(<FrontPagePage />);
     expect(state.fetchBlob).toHaveBeenCalledTimes(1);
     expect((state.fetchBlob.mock.calls[0][2] as { signal: AbortSignal }).signal.aborted).toBe(false);
+  });
+
+  it("while the schedule is read, shows the site of the runner it named last time on this device", async () => {
+    state.schedule = { status: "loading" };
+    state.rememberedRunner = { ["a".repeat(64)]: ASSISTANT };
+    state.runnerSite = { ...siteWith([todayEntry("c")]), reached: true };
+    state.fetchBlob.mockResolvedValue(printed.html);
+    renderWithProviders(<FrontPagePage />);
+    await screen.findByTestId("front-page-frame");
+    expect(state.runnerSiteFor).toHaveBeenCalledWith(ASSISTANT, "a".repeat(64));
+  });
+
+  it("remembers the runner the schedule names, and forgets it once a read finds none", async () => {
+    state.schedule = scheduleWith([["cron", "0 6 * * *", "UTC", "1"]], [["p", ASSISTANT]]);
+    const view = renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(state.rememberedRunner["a".repeat(64)]).toBe(ASSISTANT));
+
+    // A read no relay answered says nothing.
+    state.schedule = { status: "none" };
+    view.rerender(<FrontPagePage />);
+    expect(state.rememberedRunner["a".repeat(64)]).toBe(ASSISTANT);
+
+    state.schedule = { status: "none", checkedAt: 1 };
+    view.rerender(<FrontPagePage />);
+    await waitFor(() => expect(state.rememberedRunner["a".repeat(64)]).toBeNull());
   });
 
   it("never reads a runner's site with a conflict", async () => {

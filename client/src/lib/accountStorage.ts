@@ -68,6 +68,9 @@ const NAMESPACES = {
   // has seen (and accepted) the notice that the Observer is public.
   "frontPage:publish": "device",
   "frontPage:observerNotice": "device",
+  // The runner (their Brainstorm Assistant) the account's own schedule last named: whose
+  // Observer site for them the device keeps (lib/eventCache).
+  brainstorm_observer_runner: "device",
   // The model this account last printed with per endpoint (`frontPage:model:<pubkey>:<url>`):
   // what the schedule's first edit migrates as its `model`.
   "frontPage:model": "device",

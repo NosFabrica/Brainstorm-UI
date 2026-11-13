@@ -40,6 +40,7 @@ import { observerToday, type Edition } from "@/lib/frontPage/today";
 import { fetchBlob, leadHeadline } from "@/services/observerSite";
 import { useObserverSite } from "@/hooks/useObserverSite";
 import { useRunnerSite } from "@/hooks/useRunnerSite";
+import { rememberedObserverRunner, rememberObserverRunner } from "@/lib/eventCache";
 import {
   cancelPrint,
   confirmPublish,
@@ -248,10 +249,20 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   // The runner the reader's own signed schedule names (its one public `p`; NIP-FB, Runner):
   // their Brainstorm Assistant prints their paper as its own Observer site, which is read
   // beside theirs. A site from any other key that tags them is never asked for.
-  const runner =
+  const named =
     scheduleState.runners.length === 1 && HEX_KEY.test(scheduleState.runners[0]) && scheduleState.runners[0] !== pubkey
       ? scheduleState.runners[0]
       : null;
+  // Until the schedule is read, the runner it named last time on this device: its site is
+  // then in the store from boot (lib/eventCache), so their paper is on the first render.
+  const scheduleLoading = scheduleState.status === "loading";
+  const runner = named ?? (scheduleLoading && pubkey ? rememberedObserverRunner(pubkey) : null);
+  // Remembered once the schedule says, a runner or none; a read no relay answered says nothing.
+  useEffect(() => {
+    if (!pubkey) return;
+    if (named) rememberObserverRunner(pubkey, named);
+    else if (!scheduleLoading && scheduleState.checkedAt !== null) rememberObserverRunner(pubkey, null);
+  }, [pubkey, named, scheduleLoading, scheduleState.checkedAt]);
   // From the store, so a late site shows when it lands, and a silence is said (`failed`).
   const runnerSite = useRunnerSite(runner, pubkey);
   const runnerShown = runnerSite?.status === "ready" ? runnerSite.view : null;
