@@ -43,7 +43,7 @@ import {
   signingFailure,
   type PublishOutcome,
 } from "@/accounts/signing";
-import { classifySignerError } from "@/accounts/signer-errors";
+import { classifySignerError, type SignerErrorKind } from "@/accounts/signer-errors";
 import { NoUnlockPathError } from "@/accounts/local-signer";
 import type { BrainstormAccount } from "@/accounts/metadata";
 
@@ -117,14 +117,22 @@ export async function loadObserverSchedule(pubkey: string, timeoutMs = 6000): Pr
 
 /**
  * The private tags, decrypted with each key they may be written with in turn
- * (`privateTagsReadPeers`): a runner the event names (NIP-FB, Runner: the tags are then
- * NIP-44 between the reader and it), then the reader themselves. A peer that doesn't open
- * it hands on to the next; a signer that failed to try (it timed out, it said no) stops.
+ * (`privateTagsReadPeers`): the single valid runner the event names (NIP-FB, Runner: the
+ * tags are then NIP-44 between the reader and it), else the reader; then the other keys in
+ * a public `p`; then the reader. A peer that doesn't open it hands on to the next.
+ *
+ * What stops the loop is what holds for every peer: the reader dismissed our own unlock, a
+ * key here that can't be unlocked, a signer gone quiet (`timeout`), missing, answering as
+ * someone else or asking us to slow down, and a NIP-07 extension's own "no", which is the
+ * reader's. A NIP-46 bunker (or Amber) reports a decrypt it couldn't do with that peer as an
+ * error, often worded as a rejection: the next peer is tried, and when none opens it, the
+ * read failed (worth asking again), never "unreadable".
  */
 async function readOnce(account: BrainstormAccount, event: NostrEvent): Promise<ScheduleRead> {
   const publicTags = event.tags.filter((t) => t[0] !== "d");
   if (!event.content) return { status: "ready", tags: { public: publicTags, private: [] } };
   if (!account.nip44) return { status: "unreadable" };
+  let signerFailure: unknown = null;
   for (const peer of privateTagsReadPeers(publicTags, account.pubkey)) {
     let plain: string;
     try {
@@ -141,13 +149,27 @@ async function readOnce(account: BrainstormAccount, event: NostrEvent): Promise<
       // A key held here that can't open it with this peer, or a signer that tried and
       // couldn't: the next peer may.
       if (!hasExternalSigner(account) || kind === "bad-payload") continue;
-      return { status: "failed", error: signingFailure(error, "Your signer didn't decrypt the schedule.").error! };
+      if (STOPS_EVERY_PEER.has(kind) || (kind === "declined" && account.type === "extension")) {
+        return { status: "failed", error: signingFailure(error, "Your signer didn't decrypt the schedule.").error! };
+      }
+      // A bunker's answer for this peer: the next one may open it.
+      signerFailure = error;
+      continue;
     }
     const read = typeof plain === "string" ? decodePrivateTags(plain) : null;
     if (read) return { status: "ready", tags: { public: publicTags, private: read } };
   }
+  if (signerFailure !== null) {
+    return {
+      status: "failed",
+      error: signingFailure(signerFailure, "Your signer didn't decrypt the schedule.").error!,
+    };
+  }
   return { status: "unreadable" };
 }
+
+/** Signer answers that hold whatever the peer: asking with the next one only asks again. */
+const STOPS_EVERY_PEER = new Set<SignerErrorKind>(["timeout", "missing", "wrong-account", "rate-limited"]);
 
 /** The read of `eventId` this session already settled, if it has: no signer asked. */
 export function heldSchedule(eventId: string): ScheduleRead | undefined {

@@ -207,6 +207,22 @@ describe("who prints", () => {
       ),
     ).toBe("conflict");
     expect(whoPrints(readTask({ public: [["p", "not-a-key"]], private: [] }), ASSISTANT)).toBe("invalid");
+    // As Quartz counts them (round-2 audit): a blank `p` names a runner nobody is, so the
+    // devices stop; a `p` with no value names nobody.
+    expect(whoPrints(readTask({ public: [["p", ""]], private: [] }), ASSISTANT)).toBe("invalid");
+    expect(whoPrints(readTask({ public: [["p"]], private: [] }), ASSISTANT)).toBe("devices");
+    expect(
+      whoPrints(
+        readTask({
+          public: [
+            ["p", ASSISTANT],
+            ["p", ""],
+          ],
+          private: [],
+        }),
+        ASSISTANT,
+      ),
+    ).toBe("conflict");
   });
 });
 

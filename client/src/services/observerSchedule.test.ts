@@ -811,6 +811,55 @@ describe("edits one at a time (audit, 2026-11-12)", () => {
   });
 });
 
+describe("a bunker's rejection while trying peers (audit, 2026-11-13)", () => {
+  const ASSISTANT = getPublicKey(new Uint8Array(32).fill(9));
+
+  it("tries the next peer: a NIP-46 bunker reports a wrong peer as a rejection", async () => {
+    // One valid runner, but written to self (another client's way): the runner is tried first.
+    const event = scheduleEvent(amethystPrivate, 30, [
+      ["d", "observer"],
+      ["p", ASSISTANT],
+    ]);
+    const peers: string[] = [];
+    const bunker = {
+      ...account,
+      type: "nostr-connect",
+      nip44: {
+        ...account.nip44,
+        decrypt: async (from: string, cipher: string) => {
+          peers.push(from);
+          if (from !== PUBKEY) throw new Error("user rejected");
+          return account.nip44.decrypt(from, cipher);
+        },
+      },
+    };
+    expect((await service.readSchedule(bunker as never, event)).status).toBe("ready");
+    expect(peers).toEqual([ASSISTANT, PUBKEY]);
+  });
+
+  it("a bunker that refuses every peer is a failure to ask again, never unreadable", async () => {
+    const event = scheduleEvent(amethystPrivate, 31, [
+      ["d", "observer"],
+      ["p", ASSISTANT],
+    ]);
+    const decrypt = vi.fn(async () => Promise.reject(new Error("user rejected")));
+    const bunker = { ...account, type: "nostr-connect", nip44: { ...account.nip44, decrypt } };
+    expect((await service.readSchedule(bunker as never, event)).status).toBe("failed");
+    expect(decrypt).toHaveBeenCalledTimes(2);
+  });
+
+  it("an extension's explicit no stops at the first peer", async () => {
+    const event = scheduleEvent(amethystPrivate, 32, [
+      ["d", "observer"],
+      ["p", ASSISTANT],
+    ]);
+    const decrypt = vi.fn(async () => Promise.reject(new Error("User rejected the request")));
+    const extension = { ...account, type: "extension", nip44: { ...account.nip44, decrypt } };
+    expect((await service.readSchedule(extension as never, event)).status).toBe("failed");
+    expect(decrypt).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("a queued edit runs as the account that asked (audit, 2026-11-13)", () => {
   it("is refused, writing nothing, when another account is active at its turn", async () => {
     let release!: () => void;
@@ -895,10 +944,15 @@ describe("ported: Quartz ScheduledTaskRunnerTest, fae3e873 (the decrypt asks onc
     expect(peers).toEqual([PUBKEY, STRANGER, ASSISTANT]);
   });
 
-  it("aRejectedDecryptionIsAskedOnceNotOncePerPeer", async () => {
-    for (const [i, message] of ["User rejected the request", "The bunker timed out"].entries()) {
-      const decrypt = vi.fn(async () => Promise.reject(new Error(message)));
-      const rejecting = { ...account, nip44: { ...account.nip44, decrypt } };
+  it("aRejectedDecryptionIsAskedOnceNotOncePerPeer: an extension's own no, or a signer gone quiet", async () => {
+    const { RemoteSignerTimeoutError } = await import("@/accounts/remote-signer");
+    const cases: [string, unknown][] = [
+      ["extension", new Error("User rejected the request")],
+      ["nostr-connect", new RemoteSignerTimeoutError()],
+    ];
+    for (const [i, [type, error]] of cases.entries()) {
+      const decrypt = vi.fn(async () => Promise.reject(error));
+      const rejecting = { ...account, type, nip44: { ...account.nip44, decrypt } };
       const event = scheduleEvent(amethystPrivate, 10 + i, conflictTags);
       expect((await service.readSchedule(rejecting as never, event)).status).toBe("failed");
       expect(decrypt).toHaveBeenCalledTimes(1);
