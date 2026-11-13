@@ -47,6 +47,11 @@ vi.mock("@/hooks/useNow", async (importOriginal) => {
 });
 const update = vi.fn();
 vi.mock("@/services/observerSchedule", () => ({ updateObserverSchedule: (c: unknown) => update(c) }));
+// The Assistant's own keys, as the AI Model tab's endpoint gives them (hooks/useAssistantAgentKeys).
+const assistantKeys = vi.hoisted(() => ({ value: { status: "loading" } as Record<string, unknown> }));
+vi.mock("@/hooks/useAssistantAgentKeys", () => ({
+  useAssistantAgentKeys: () => ({ reveal: () => {}, reload: () => {}, wrote: () => {}, ...assistantKeys.value }),
+}));
 
 import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule } from "./MorningSchedule";
@@ -74,9 +79,13 @@ const deferred = () => {
   return { promise, resolve };
 };
 
+const READER = "a".repeat(64);
+
 beforeEach(() => {
   update.mockReset();
   refresh.mockReset();
+  localStorage.clear();
+  assistantKeys.value = { status: "loading" };
 });
 
 describe("calm by default", () => {
@@ -420,7 +429,14 @@ describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () =
 
   it("is offered with an Assistant, on devices by default, and choosing it names the Assistant", async () => {
     update.mockResolvedValue({ success: true });
-    render(<MorningSchedule schedule={ready("0 6 * * *") as unknown as ObserverSchedule} assistant={ASSISTANT} />);
+    localStorage.setItem(`frontPage:observerNotice:${READER}`, "1");
+    render(
+      <MorningSchedule
+        schedule={ready("0 6 * * *") as unknown as ObserverSchedule}
+        reader={READER}
+        assistant={ASSISTANT}
+      />,
+    );
     const devices = screen.getByTestId("front-page-schedule-who-devices");
     expect(devices).toHaveAttribute("data-state", "on");
     await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-assistant")));
@@ -453,9 +469,11 @@ describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () =
   it("migrates the remembered model into an edit that changes something, and only then", async () => {
     update.mockResolvedValue({ success: true });
     const migrate = (d: TaskTags) => ({ ...d, private: [...d.private, ["param", "model", "m"]] });
+    localStorage.setItem(`frontPage:observerNotice:${READER}`, "1");
     render(
       <MorningSchedule
         schedule={ready("0 6 * * *") as unknown as ObserverSchedule}
+        reader={READER}
         assistant={ASSISTANT}
         migrate={migrate}
       />,
@@ -522,6 +540,87 @@ describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () =
     );
     expect(screen.getByTestId("front-page-schedule-who-devices")).toHaveAttribute("data-state", "off");
     expect(screen.getByTestId("front-page-schedule-who-assistant")).toHaveAttribute("data-state", "off");
+  });
+
+  it("asks first that the Observer is public, when the reader hasn't agreed yet (audit, 2026-11-12)", async () => {
+    update.mockResolvedValue({ success: true });
+    render(
+      <MorningSchedule
+        schedule={ready("0 6 * * *") as unknown as ObserverSchedule}
+        reader={READER}
+        assistant={ASSISTANT}
+      />,
+    );
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-assistant")));
+    const consent = screen.getByTestId("front-page-schedule-who-consent");
+    expect(consent).toHaveTextContent("Anyone can read your Observer");
+    expect(update).not.toHaveBeenCalled();
+
+    // Not now: nothing is named, and nothing is remembered.
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-consent-later")));
+    expect(screen.queryByTestId("front-page-schedule-who-consent")).toBeNull();
+    expect(update).not.toHaveBeenCalled();
+    expect(localStorage.getItem(`frontPage:observerNotice:${READER}`)).toBeNull();
+
+    // Yes: the same agreement the publish flow asks for, then the Assistant is named.
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-assistant")));
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-consent-ok")));
+    expect(localStorage.getItem(`frontPage:observerNotice:${READER}`)).toBe("1");
+    expect(update).toHaveBeenCalledTimes(1);
+    const change = update.mock.calls[0][0] as (d: TaskTags) => TaskTags;
+    expect(change({ public: [], private: [] }).public).toEqual([["p", ASSISTANT]]);
+  });
+
+  it("asks nothing again of a reader who agreed when they first published", async () => {
+    update.mockResolvedValue({ success: true });
+    localStorage.setItem(`frontPage:observerNotice:${READER}`, "1");
+    render(
+      <MorningSchedule
+        schedule={ready("0 6 * * *") as unknown as ObserverSchedule}
+        reader={READER}
+        assistant={ASSISTANT}
+      />,
+    );
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-who-assistant")));
+    expect(screen.queryByTestId("front-page-schedule-who-consent")).toBeNull();
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it("warns when the Assistant doesn't hold the schedule's key, linking to where it's given one (audit, 2026-11-12)", () => {
+    const OR = "https://openrouter.ai/api/v1";
+    const named = withRunner([ASSISTANT], [["param", "key", OR, "a3f9"]]);
+    assistantKeys.value = { status: "ready", keys: [{ key: "sk-or-v1-other-0000", url: OR }] };
+    const { rerender } = render(<MorningSchedule schedule={named} assistant={ASSISTANT} sites={NO_SITES} />);
+    const warning = screen.getByTestId("front-page-schedule-who-no-key");
+    expect(warning).toHaveTextContent("Your Assistant doesn't have this key: give it one");
+    expect(warning.querySelector("a")?.getAttribute("href")).toBe("/settings?tab=assistants&view=ai");
+
+    assistantKeys.value = { status: "ready", keys: [{ key: "sk-or-v1-given-a3f9", url: OR }] };
+    rerender(
+      <MorningSchedule
+        schedule={withRunner([ASSISTANT], [["param", "key", OR, "a3f9"]])}
+        assistant={ASSISTANT}
+        sites={NO_SITES}
+      />,
+    );
+    expect(screen.queryByTestId("front-page-schedule-who-no-key")).toBeNull();
+
+    // A list it couldn't read says nothing.
+    assistantKeys.value = { status: "locked" };
+    rerender(
+      <MorningSchedule
+        schedule={withRunner([ASSISTANT], [["param", "key", OR, "a3f9"]])}
+        assistant={ASSISTANT}
+        sites={NO_SITES}
+      />,
+    );
+    expect(screen.queryByTestId("front-page-schedule-who-no-key")).toBeNull();
+  });
+
+  it("doesn't look at the Assistant's keys while the devices print", () => {
+    assistantKeys.value = { status: "ready", keys: [] };
+    render(<MorningSchedule schedule={ready("0 6 * * *") as unknown as ObserverSchedule} assistant={ASSISTANT} />);
+    expect(screen.queryByTestId("front-page-schedule-who-no-key")).toBeNull();
   });
 
   it("names another key when the runner isn't this account's Assistant", () => {

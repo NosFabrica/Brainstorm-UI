@@ -135,6 +135,19 @@ export function pickObserverKey(task: ScheduledTask | null | undefined, keys: re
   );
 }
 
+/**
+ * Whether `keys` (a runner's own NIP-FA list: the Assistant prints with its keys, never
+ * the reader's) hold the key the schedule names: one at the `key` param's URL ending with
+ * its suffix (any key there, for a param without one). With no `key` param, any key at all
+ * (NIP-FA's default, the first). False means the runner prints with another key, or none.
+ */
+export function holdsObserverKey(task: ScheduledTask | null | undefined, keys: readonly AgentKey[]): boolean {
+  const choice = observerKeyChoice(task);
+  if (!choice) return keys.length > 0;
+  const { suffix } = choice;
+  return keys.some((k) => atUrl(choice, k) && (!suffix || (!!k.key && k.key.endsWith(suffix))));
+}
+
 /** The `key` param's values for `key`: its URL, then its last four characters (none for a key-less endpoint). */
 export function keyParamValues(key: AgentKey): string[] {
   return key.key ? [key.url, key.key.slice(-KEY_SUFFIX_LENGTH)] : [key.url];

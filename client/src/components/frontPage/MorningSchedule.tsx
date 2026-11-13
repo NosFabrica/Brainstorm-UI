@@ -7,9 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { ObserverSchedule } from "@/hooks/useObserverSchedule";
+import { useAssistantAgentKeys } from "@/hooks/useAssistantAgentKeys";
 import { useNow } from "@/hooks/useNow";
+import { observerUrl } from "@/lib/frontPage/observerSite";
+import { acceptObserverNotice, observerNoticeSeen } from "@/services/printJob";
 import {
   emptyObserverSchedule,
+  holdsObserverKey,
+  observerKeyChoice,
   lastPrinted,
   missedOnSites,
   whoPrints,
@@ -228,9 +233,25 @@ export const MorningSchedule = memo(function MorningSchedule({
     return missedRun(schedule, Math.min(now, checkedAt));
   }, [schedule, namesRunner, now, checkedAt]);
   const who: WhoPrints | null = schedule ? whoPrints(schedule, assistant) : null;
+  // The Assistant publishes the reader's Observer publicly, as its own site: naming it
+  // waits for the same yes the first publish asks for, when the reader hasn't given it.
+  const [asking, setAsking] = useState(false);
+  const name = (next: "devices" | "assistant") =>
+    void save((d) => setRunner(d, next === "assistant" ? assistant : null, Date.now()));
   const choose = (next: "devices" | "assistant") => {
     if (next === who || (next === "assistant" && !assistant)) return;
-    void save((d) => setRunner(d, next === "assistant" ? assistant : null, Date.now()));
+    if (next === "assistant" && !(reader && observerNoticeSeen(reader))) {
+      setAsking(true);
+      return;
+    }
+    setAsking(false);
+    name(next);
+  };
+  const consent = (yes: boolean) => {
+    setAsking(false);
+    if (!yes || !reader) return;
+    acceptObserverNotice(reader);
+    name("assistant");
   };
   // The choice is offered to a reader with an Assistant, on a schedule this account reads.
   const canChoose = !!assistant && !!schedule && (state.status === "ready" || state.status === "none");
@@ -301,7 +322,16 @@ export const MorningSchedule = memo(function MorningSchedule({
             ) : (
               <RunLine schedule={schedule} missed={missed} now={now} />
             ))}
-          {canChoose && <WhoPrintsChoice who={who!} busy={busy} onChoose={choose} />}
+          {canChoose && (
+            <WhoPrintsChoice
+              who={who!}
+              busy={busy}
+              onChoose={choose}
+              asking={asking && !!reader ? reader : null}
+              onConsent={consent}
+              schedule={schedule}
+            />
+          )}
           <p
             role="status"
             className="text-xs text-muted-foreground empty:hidden"
@@ -618,10 +648,17 @@ function WhoPrintsChoice({
   who,
   busy,
   onChoose,
+  asking = null,
+  onConsent,
+  schedule,
 }: {
   who: WhoPrints;
   busy: boolean;
   onChoose: (next: "devices" | "assistant") => void;
+  /** The reader, while the "your Observer is public" notice waits for their answer. */
+  asking?: string | null;
+  onConsent?: (yes: boolean) => void;
+  schedule?: ScheduledTask | null;
 }) {
   const id = useId();
   const value = who === "devices" || who === "assistant" ? who : "";
@@ -674,12 +711,69 @@ function WhoPrintsChoice({
           , even when your devices are off.
         </p>
       )}
+      {who === "assistant" && schedule && <AssistantKeyCheck schedule={schedule} />}
+      {asking && (
+        <div
+          className="mt-1 space-y-2 rounded-lg border border-border p-3 text-xs text-muted-foreground"
+          role="group"
+          aria-label="Your Observer is public"
+          data-testid="front-page-schedule-who-consent"
+        >
+          <p>
+            <span className="font-medium text-foreground">Your Assistant publishes your Observer.</span> Anyone can read{" "}
+            <a
+              href={observerUrl(asking)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              your Observer
+            </a>
+            , and each paper it prints goes there.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onConsent?.(false)}
+              data-testid="front-page-schedule-who-consent-later"
+            >
+              Not now
+            </Button>
+            <Button size="sm" onClick={() => onConsent?.(true)} data-testid="front-page-schedule-who-consent-ok">
+              Let it print
+            </Button>
+          </div>
+        </div>
+      )}
       {who === "other" && (
         <p className="text-xs text-muted-foreground" data-testid="front-page-schedule-who-other">
           Another key is named to print it.
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Whether the Assistant holds the key the schedule names (its own NIP-FA list, from the AI
+ * Model tab's endpoint): it prints with its keys, never the reader's. Said only when its
+ * list was read; a locked or unreachable list says nothing here.
+ */
+function AssistantKeyCheck({ schedule }: { schedule: ScheduledTask }) {
+  const keys = useAssistantAgentKeys();
+  if (keys.status !== "ready" || holdsObserverKey(schedule, keys.keys)) return null;
+  return (
+    <p className="flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="front-page-schedule-who-no-key">
+      <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+      <span>
+        Your Assistant doesn&apos;t have {observerKeyChoice(schedule) ? "this key" : "a key"}:{" "}
+        <Link href={AI_SETTINGS} className="font-medium text-brand-primary hover:underline">
+          give it one
+        </Link>
+        .
+      </span>
+    </p>
   );
 }
 

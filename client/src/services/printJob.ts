@@ -123,6 +123,19 @@ export function writePublish(pubkey: string, on: boolean) {
   }
 }
 
+/**
+ * Whether this account has agreed that its Observer is public (the notice before the first
+ * publish). Naming the Assistant as runner asks the same: it publishes the reader's paper.
+ */
+export function observerNoticeSeen(pubkey: string): boolean {
+  return noticeSeen(pubkey);
+}
+
+/** The reader agreed: their Observer is public. Asked once, by whichever comes first. */
+export function acceptObserverNotice(pubkey: string) {
+  markNoticeSeen(pubkey);
+}
+
 function noticeSeen(pubkey: string): boolean {
   try {
     return localStorage.getItem(noticeKey(pubkey)) === "1";

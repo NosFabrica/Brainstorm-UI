@@ -6,6 +6,7 @@ import {
   SCHEDULE_D,
   SCHEDULE_KIND,
   emptyObserverSchedule,
+  holdsObserverKey,
   keyParamValues,
   lastPrinted,
   observerUnderstands,
@@ -418,5 +419,33 @@ describe("ported: Quartz ObserverRunnerSiteTest", () => {
       ],
     };
     expect(missed(reset, [], [], LATER)).toBeNull();
+  });
+});
+
+describe("whether the Assistant holds the schedule's key (audit, 2026-11-12)", () => {
+  const OR = "https://openrouter.ai/api/v1";
+  const task = (params: string[][]) => readTask({ public: [], private: [["task", "observer"], ...params] });
+  const theirs = [
+    { key: "sk-or-v1-theirs-a3f9", url: OR },
+    { key: "", url: "http://localhost:11434/v1" },
+  ];
+
+  it("holds it when a key at that URL ends with its suffix", () => {
+    expect(holdsObserverKey(task([["param", "key", OR, "a3f9"]]), theirs)).toBe(true);
+    expect(holdsObserverKey(task([["param", "key", `${OR}/`, "a3f9"]]), theirs)).toBe(true);
+  });
+
+  it("doesn't with another key at that URL, or none there", () => {
+    expect(holdsObserverKey(task([["param", "key", OR, "0000"]]), theirs)).toBe(false);
+    expect(holdsObserverKey(task([["param", "key", "https://api.anthropic.com/v1", "a3f9"]]), theirs)).toBe(false);
+  });
+
+  it("a param without a suffix needs only a key at its URL", () => {
+    expect(holdsObserverKey(task([["param", "key", "http://localhost:11434/v1"]]), theirs)).toBe(true);
+  });
+
+  it("with no key param, any key will do, and none won't", () => {
+    expect(holdsObserverKey(task([]), theirs)).toBe(true);
+    expect(holdsObserverKey(task([]), [])).toBe(false);
   });
 });
