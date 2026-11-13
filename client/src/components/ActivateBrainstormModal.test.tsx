@@ -45,6 +45,8 @@ vi.mock("@/services/nostr", async () => ({
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   getNip85RelayUrl: () => "wss://nip85-staging.example",
   fetchTrustProviderList: async () => relayMap.value,
+  // The relays answered: the Map they hold, or their word that there is none.
+  probeTrustProviderList: async () => ({ event: relayMap.value, provenAbsent: !relayMap.value }),
   fetchOutboxRelayList: async () => [],
 }));
 

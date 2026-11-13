@@ -2,7 +2,7 @@
 
 For any change that signs a kind 10040, touches the setup or Activate flow, the
 Treasure Map editor, or how an Assistant is named to people. The terms —
-Deployment, this deployment's Assistant, Duty, Duty category — are defined in
+Deployment, this deployment's Assistant, Duty, Duty group — are defined in
 [CONTEXT.md](../../CONTEXT.md) § Assistants and the Treasure Map.
 
 ## The four events
@@ -35,18 +35,32 @@ Each Duty row names one Assistant, so giving a Duty to this deployment's
 Assistant takes it from whoever had it — another Deployment included. `signNip85`
 writes through `planDesignation` (`lib/nip85Declaration`): it fills Duties nobody
 holds or this Assistant already holds, and replaces another Assistant's row only
-in the Duty categories the caller passes as `take`. The editor is the one other
+in the Duty groups the caller passes as `take`. The editor is the one other
 writer: it saves the User's own draft, so every change there is their choice.
 
-| Path                                                           | `take`                                                                              |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Activate page and the dashboard's Activate modal ("Switch")    | `["scores"]`                                                                        |
-| Lists update pill, Settings › Republish, the automatic publish | none                                                                                |
-| Treasure Map editor (its own save, no `take`)                  | whatever category the User changes, shown before Save as "Moves from X (site) to Y" |
+- **Held is how the Map resolves it** (`holderOf`): the Duty's own row, or the
+  most specific broader key that reaches it. The editor's "Everything" writes
+  `*` and a group without its own rows gets `3038x` / `3039x`, so a Duty with no
+  row of its own is often held. Never compare row labels.
+- **One rule, asked everywhere**: what a publish would write is `fillableRows`.
+  The lists pill's `missing` / `elsewhere` and the Activate warning
+  (`trustProviderStatusOf`, `rankProviderOf`) read the same resolution, so a
+  surface can't offer what the write would refuse.
+- **A publish needs the Map it merges into**: the new 10040 replaces the whole
+  Map, so `publishBrainstormTrustAnchor` and the automatic publish go ahead only
+  on a Map that was read or that the relays prove absent
+  (`probeTrustProviderList`). Otherwise they stop: "Couldn't read your current
+  Treasure Map. Nothing was changed."
+
+| Path                                                           | `take`                                                                           |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Activate page and the dashboard's Activate modal ("Switch")    | `["scores"]`                                                                     |
+| Lists update pill, Settings › Republish, the automatic publish | none                                                                             |
+| Treasure Map editor (its own save, no `take`)                  | whatever group the User changes, shown before Save as "Moves from X (site) to Y" |
 
 A new path passes `take` explicitly and joins this table. Lists another
-Assistant holds read as `elsewhere` in `services/trustLists`, never `missing`,
-so nothing offers to move them.
+Assistant holds — every list kind, by any key — read as `elsewhere` in
+`services/trustLists`, never `missing`, so nothing offers to move them.
 
 ## Naming an Assistant to people
 

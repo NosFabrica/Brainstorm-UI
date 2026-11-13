@@ -83,7 +83,32 @@ describe("checkUserLists", () => {
    * deployment's, or an external service's — are theirs. They read as
    * "elsewhere", never "missing", so no update offers to take them.
    */
-  it("a 10040 naming another Assistant for the lists reads as elsewhere, not missing", async () => {
+  it("a 10040 naming another Assistant for every list kind reads as elsewhere, not missing", async () => {
+    requestAll.mockResolvedValue([list()]);
+    fetchTrustProviderList.mockResolvedValue({
+      tags: [
+        ["30382:rank", TA, "wss://nip85.example"],
+        ...listRows({ key: "e".repeat(64), relay: "wss://other-deployment.example" }),
+      ],
+    });
+    const res = await checkUserLists(ME, TA);
+    expect(res.status).toBe("elsewhere");
+  });
+
+  // Held is how the Map resolves it, not only a row with the same key: the
+  // editor gives the Lists through their family key, or everything through `*`.
+  it.each([
+    ["the Lists family", "3039x"],
+    ["everything", "*"],
+  ])("lists another Assistant holds through %s read as elsewhere too", async (_what, key) => {
+    requestAll.mockResolvedValue([list()]);
+    fetchTrustProviderList.mockResolvedValue({ tags: [[key, "e".repeat(64), "wss://other-deployment.example"]] });
+    expect((await checkUserLists(ME, TA)).status).toBe("elsewhere");
+  });
+
+  // The pill offers exactly what the publish would write: one kind held
+  // elsewhere leaves two nobody holds, and those are still missing.
+  it("a list kind nobody holds is still missing beside one another Assistant holds", async () => {
     requestAll.mockResolvedValue([list()]);
     fetchTrustProviderList.mockResolvedValue({
       tags: [
@@ -91,8 +116,7 @@ describe("checkUserLists", () => {
         ["30392", "e".repeat(64), "wss://other-deployment.example"],
       ],
     });
-    const res = await checkUserLists(ME, TA);
-    expect(res.status).toBe("elsewhere");
+    expect((await checkUserLists(ME, TA)).status).toBe("missing");
   });
 
   it("a 10040 that already names them is declared", async () => {
