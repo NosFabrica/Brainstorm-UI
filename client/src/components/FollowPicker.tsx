@@ -28,10 +28,19 @@ function readInviterHex(): string {
 interface FollowPickerProps {
   /** Called with the selected pubkeys when the user clicks the continue button. */
   onContinue: (pubkeys: string[]) => void;
-  /** Label for the primary button (e.g. "Follow & calculate my scores" / "Continue"). */
-  continueLabel: string;
+  /**
+   * Label for the primary button (e.g. "Follow & calculate my scores"); the
+   * count is appended. A function writes the whole label from the count.
+   */
+  continueLabel: string | ((count: number) => string);
   /** Disable the button while the parent is publishing. */
   busy?: boolean;
+  /**
+   * For an account that already follows people: nothing is ticked in advance
+   * (NosFabrica and the inviter included), and the selection reads as what
+   * will be added — the publish merges, it never removes anyone.
+   */
+  addOnly?: boolean;
 }
 
 /**
@@ -41,7 +50,7 @@ interface FollowPickerProps {
  * do on continue (publish follows + score, then navigate or advance a wizard) —
  * shared by WelcomePage and the onboarding wizard.
  */
-export function FollowPicker({ onContinue, continueLabel, busy = false }: FollowPickerProps) {
+export function FollowPicker({ onContinue, continueLabel, busy = false, addOnly = false }: FollowPickerProps) {
   const inviterHex = useMemo(readInviterHex, []);
 
   // Suggested follows: NosFabrica + the inviter are preselected (low friction so
@@ -61,7 +70,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
   }, [inviterHex]);
 
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(curated.filter((c) => c.preselect).map((c) => c.pubkey)),
+    () => new Set(addOnly ? [] : curated.filter((c) => c.preselect).map((c) => c.pubkey)),
   );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -230,7 +239,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
           {selectedPeople.length > 0 && (
             <div className="mb-2.5" data-testid="welcome-selected">
               <p className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                Following {selectedPeople.length}
+                {addOnly ? "Adding" : "Following"} {selectedPeople.length}
               </p>
               <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                 {selectedPeople.map((p) => {
@@ -268,11 +277,14 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
             data-testid="welcome-finish"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {continueLabel} {count > 0 ? `(${count})` : ""} <ArrowRight className="h-4 w-4" />
+            {typeof continueLabel === "function"
+              ? continueLabel(count)
+              : `${continueLabel}${count > 0 ? ` (${count})` : ""}`}{" "}
+            <ArrowRight className="h-4 w-4" />
           </button>
           {count === 0 && (
             <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
-              Select at least one account to continue.
+              {addOnly ? "Pick anyone you'd like to add." : "Select at least one account to continue."}
             </p>
           )}
         </div>

@@ -409,3 +409,41 @@ describe("the admin dashboard's time range", () => {
     expect(screen.getByTestId("system-state-note")).toHaveTextContent(/last 14 days/i);
   });
 });
+
+describe("runs that fail because of the user's own graph", () => {
+  const run = (id: number, error: Record<string, unknown>) => ({
+    private_id: id,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    status: "failure",
+    ta_status: "failure",
+    internal_publication_status: "failure",
+    error,
+    count_values: null,
+    password: "",
+    algorithm: "graperank",
+    parameters: "",
+    how_many_others_with_priority: 0,
+    pubkey: String(id).repeat(64).slice(0, 64),
+    trigger_source: "scheduled",
+  });
+
+  it("show as warnings, not failures", async () => {
+    api.getAdminActivity.mockResolvedValue({
+      items: [
+        run(1, { code: "NO_ELIGIBLE_USERS", message: "Observer is not connected", severity: "warning" }),
+        run(2, { code: "NEO4J_ERROR", message: "neo4j down", severity: "error" }),
+      ],
+      total: 2,
+      pages: 1,
+    } as never);
+    window.history.replaceState({}, "", "/admin?range=24h&tab=activity");
+    renderPage();
+    const card = await screen.findByTestId("card-failure-breakdown");
+    await waitFor(() => expect(card).toHaveTextContent(/1 failed request/i));
+    expect(card).not.toHaveTextContent(/not connected/i);
+    expect(await screen.findByTestId("row-activity-warning-preview-1")).toHaveTextContent(/not connected/i);
+    expect(screen.queryByTestId("row-activity-failure-preview-1")).toBeNull();
+    expect(screen.getByTestId("row-activity-failure-preview-2")).toBeInTheDocument();
+  });
+});

@@ -122,6 +122,7 @@ import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
 import { hasOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
 
 const NO_RELAYS: string[] = [];
 
@@ -1652,8 +1653,8 @@ function ProfileShareSheet({
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">{children}</main>
+      <PublicPageHeader width="standard" actions={actions} />
+      <main className={cn(pageWidth("standard"), "flex-1 py-6")}>{children}</main>
     </div>
   );
 }

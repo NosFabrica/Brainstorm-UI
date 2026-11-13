@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
 import { OnboardingHeader } from "@/components/OnboardingHeader";
 import { Nip05Check } from "@/components/Nip05Check";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * First-run for EXISTING Nostr users (logged in via extension/nsec) who already
@@ -95,7 +97,7 @@ export default function ActivatePage() {
         skipTestId="activate-skip"
       />
 
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-12">
+      <main className={cn(pageWidth("reading"), "py-8 sm:py-12")}>
         {/* Editorial header */}
         <div className="mb-5 flex items-center gap-2.5">
           <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">

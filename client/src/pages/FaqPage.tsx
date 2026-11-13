@@ -7,6 +7,8 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const userFaqs = [
   {
@@ -108,7 +110,7 @@ export default function FaqPage() {
 
   return (
     <InfoPageLayout testId="page-faq" active="faq">
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className={cn(pageWidth("standard"), "py-6 sm:py-8")}>
         <div className="animate-fade-up space-y-6">
           <PageHeader
             kicker="Brainstorm FAQ"
@@ -260,7 +262,7 @@ export default function FaqPage() {
                           >
                             <div className="px-4 pb-4 pl-[52px] sm:px-5 sm:pl-[56px]">
                               <p
-                                className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                                className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300"
                                 data-testid={`faq-answer-${i}`}
                               >
                                 {faq.answer}

@@ -7,6 +7,7 @@ import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection } from "@/componen
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { tone as getTone } from "@/lib/tones";
+import { pageWidth } from "@/lib/pageWidth";
 
 // The developer landing/index: an editorial hero + one clickable card per way to
 // bring Brainstorm's web-of-trust scores into a nostr client. Each card links to
@@ -50,7 +51,7 @@ export default function DevelopersPage() {
   const accent = getTone("accent");
   return (
     <InfoPageLayout testId="page-developers">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-10">
           {/* Editorial hero */}
           <header className="max-w-3xl" data-testid="section-dev-header">
