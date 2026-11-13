@@ -34,6 +34,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { DmNotifications } from "@/components/messages/DmNotifications";
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { PrintJobHost } from "@/components/frontPage/PrintJobHost";
+import { RoutstrPurchaseHost } from "@/components/settings/RoutstrPurchaseHost";
 import { InstallAppDialog } from "@/components/InstallApp";
 import { openTarget } from "@/lib/openTarget";
 import { DmShelvesProvider } from "@/hooks/useDirectMessages";
@@ -347,6 +348,7 @@ function App() {
                 <CommandPalette />
                 <DmNotifications />
                 <PrintJobHost />
+                <RoutstrPurchaseHost />
                 <AppUpdatePrompt />
                 <InstallAppDialog />
                 <MobileSearchOverlay />
