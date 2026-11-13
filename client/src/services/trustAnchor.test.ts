@@ -87,6 +87,8 @@ beforeEach(() => {
   // Keeps `pollAndPublishTrustAnchor` a no-op so consenting trigger tests don't
   // leave a 15-second timer running behind the assertions.
   isNip85Activated.mockReturnValue(true);
+  // clearAllMocks keeps implementations: by default the Map could not be read.
+  probeTrustProviderList.mockResolvedValue({ event: undefined, provenAbsent: false });
 });
 
 describe("shouldAutoPublishNip85 — who may be published for without a click", () => {
@@ -132,6 +134,33 @@ describe("triggerScoringAndAnchor", () => {
 });
 
 describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
+  // The relays answered, and they hold no Map: a first one may be written.
+  beforeEach(() => {
+    probeTrustProviderList.mockResolvedValue({ event: undefined, provenAbsent: true });
+  });
+
+  /**
+   * The new 10040 replaces the whole Map, so what it is merged into has to be
+   * the Map — read, or proven absent. A read that came back empty because the
+   * relays didn't answer is neither: published on, our rows alone would wipe
+   * every other Assistant's. Deactivating already refuses on the same ground.
+   */
+  it("stops when their current Map can't be read: nothing signed, nothing changed", async () => {
+    probeTrustProviderList.mockResolvedValue({ event: undefined, provenAbsent: false });
+    const phases: string[] = [];
+
+    const res = await publishBrainstormTrustAnchor(ME, TA, (p) => phases.push(p), { take: ["scores"] });
+
+    expect(res).toEqual({
+      status: "error",
+      message: "Couldn't read your current Treasure Map. Nothing was changed.",
+    });
+    expect(signNip85).not.toHaveBeenCalled();
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(markNip85Activated).not.toHaveBeenCalled();
+    expect(phases).toEqual([]);
+  });
+
   it("signs, publishes, marks activated, and narrates its phases", async () => {
     const phases: string[] = [];
     const res = await publishBrainstormTrustAnchor(ME, TA, (p) => phases.push(p));
@@ -161,7 +190,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
   it("with lists, signs our rows merged into the 10040 they have", async () => {
     const LISTS = { key: "c".repeat(64), relay: "wss://nip85-staging.example" };
     const theirs = [["30383:rank", "f".repeat(64), "wss://elsewhere.example"]];
-    fetchTrustProviderList.mockResolvedValueOnce({ tags: theirs });
+    probeTrustProviderList.mockResolvedValue({ event: { tags: theirs }, provenAbsent: false });
 
     const res = await publishBrainstormTrustAnchor(ME, TA, undefined, { lists: LISTS });
 
@@ -300,10 +329,15 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
     // clearAllMocks keeps implementations — pin the inert defaults so a
     // persistent mockResolvedValue can't leak between these tests.
     fetchTrustProviderList.mockResolvedValue(undefined);
+    // The relays answered, and they hold no Map.
+    probeTrustProviderList.mockResolvedValue({ event: undefined, provenAbsent: true });
   });
 
   it("backs off from a declaration naming a different assistant — never a silent replace", async () => {
-    fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", "c".repeat(64), "wss://elsewhere"]] });
+    probeTrustProviderList.mockResolvedValue({
+      event: { tags: [["30382:rank", "c".repeat(64), "wss://elsewhere"]] },
+      provenAbsent: false,
+    });
 
     await ensureBrainstormTrustAnchor(ME, TA);
 
@@ -313,11 +347,14 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
   });
 
   it("records an existing Brainstorm declaration and stops", async () => {
-    fetchTrustProviderList.mockResolvedValueOnce({
-      tags: [
-        ["30382:rank", TA, "wss://nip85.example"],
-        ["30382:followers", TA, "wss://nip85.example"],
-      ],
+    probeTrustProviderList.mockResolvedValue({
+      event: {
+        tags: [
+          ["30382:rank", TA, "wss://nip85.example"],
+          ["30382:followers", TA, "wss://nip85.example"],
+        ],
+      },
+      provenAbsent: false,
     });
 
     await ensureBrainstormTrustAnchor(ME, TA);
@@ -331,6 +368,36 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
 
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [], take: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
+  });
+  // Nobody is present to retry, and "found nothing" is also what a missed read
+  // looks like. Started from nothing, our rows would replace their whole Map.
+  it("does nothing when the Map can't be read", async () => {
+    probeTrustProviderList.mockResolvedValue({ event: undefined, provenAbsent: false });
+
+    await ensureBrainstormTrustAnchor(ME, TA);
+
+    expect(signNip85).not.toHaveBeenCalled();
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(markNip85Activated).not.toHaveBeenCalled();
+  });
+
+  it("backs off from Scores another Assistant holds through a broader key", async () => {
+    probeTrustProviderList.mockResolvedValue({ event: { tags: [["*", "c".repeat(64), ""]] }, provenAbsent: false });
+
+    await ensureBrainstormTrustAnchor(ME, TA);
+
+    expect(signNip85).not.toHaveBeenCalled();
+  });
+
+  // A Map that gives Scores to nobody still has rows — another Assistant's
+  // Lists, say. Ours are merged into it; it is never replaced.
+  it("merges into a Map that gives Scores to nobody", async () => {
+    const theirs = [["30392", "c".repeat(64), "wss://elsewhere"]];
+    probeTrustProviderList.mockResolvedValue({ event: { tags: theirs }, provenAbsent: false });
+
+    await ensureBrainstormTrustAnchor(ME, TA);
+
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: theirs, take: [] });
   });
 });
 

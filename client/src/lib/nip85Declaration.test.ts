@@ -11,6 +11,7 @@ import {
   planDesignation,
   rankProviderOf,
   signalRows,
+  trustProviderStatusOf,
   withoutProvider,
 } from "./nip85Declaration";
 
@@ -239,6 +240,64 @@ describe("planDesignation", () => {
     expect(plan).not.toContainEqual(["30392", TA, RELAY]);
   });
 
+  // A Duty is held by whoever the Map resolves it to — the most specific key
+  // that reaches it (Treasure Maps § 6) — not only by a row with the same key.
+  // The editor's "Everything" writes `*`; a category without its own rows gets
+  // a family key. A row of ours would be more specific, and so would take it.
+  it("never takes a Duty another Assistant holds through `*`", () => {
+    const everything = [["*", OTHER_TA, ""]];
+    const plan = planDesignation(everything, [...signalRows(TA, RELAY), ...listRows(LISTS)], { self: TA });
+    expect(plan).toEqual(everything);
+  });
+
+  it.each([
+    ["3038x", "the Scores family"],
+    ["30382", "the whole Scores kind"],
+  ])("never takes Scores another Assistant holds through %s (%s), and still fills the Lists", (key) => {
+    const plan = planDesignation([[key, OTHER_TA, ELSEWHERE]], [...signalRows(TA, RELAY), ...listRows(LISTS)], {
+      self: TA,
+    });
+    expect(plan).toEqual([[key, OTHER_TA, ELSEWHERE], ...listRows(LISTS)]);
+  });
+
+  it("never takes Lists another Assistant holds through the Lists family, and still fills the Scores", () => {
+    const plan = planDesignation([["3039x", OTHER_TA, ELSEWHERE]], [...signalRows(TA, RELAY), ...listRows(LISTS)], {
+      self: TA,
+    });
+    expect(plan).toEqual([["3039x", OTHER_TA, ELSEWHERE], ...signalRows(TA, RELAY)]);
+  });
+
+  it("takes a Duty held through a broader key only in the categories it was asked to move", () => {
+    const plan = planDesignation([["*", OTHER_TA, ""]], [...signalRows(TA, RELAY), ...listRows(LISTS)], {
+      self: TA,
+      take: ["scores"],
+    });
+    // The Lists and Concepts stay the other Assistant's: its `*` row is kept.
+    expect(plan).toEqual([["*", OTHER_TA, ""], ...signalRows(TA, RELAY)]);
+  });
+
+  // Ours is the Preferred row, another Assistant an Alternate: the Duty is
+  // ours, so our row is refreshed where it stands and the Alternate is kept.
+  it("refreshes its own Preferred row and keeps an Alternate beside it", () => {
+    const existing = [
+      ["30382:rank", TA, ELSEWHERE],
+      ["30382:rank", OTHER_TA, ELSEWHERE],
+    ];
+    const plan = planDesignation(existing, [["30382:rank", TA, RELAY]], { self: TA });
+    expect(plan).toEqual([
+      ["30382:rank", TA, RELAY],
+      ["30382:rank", OTHER_TA, ELSEWHERE],
+    ]);
+  });
+
+  it("leaves a Duty alone where it is only an Alternate", () => {
+    const existing = [
+      ["30382:rank", OTHER_TA, ELSEWHERE],
+      ["30382:rank", TA, ELSEWHERE],
+    ];
+    expect(planDesignation(existing, [["30382:rank", TA, RELAY]], { self: TA })).toEqual(existing);
+  });
+
   it("keeps every row it isn't setting", () => {
     const unrelated = [
       ["39998", OTHER_TA, ELSEWHERE],
@@ -309,6 +368,55 @@ describe("rankProviderOf", () => {
 
   it("reads a rank row with no relay hint as a provider with no relay", () => {
     expect(rankProviderOf(event10040([["30382:rank", TA]]))).toEqual({ pubkey: TA, relay: "" });
+  });
+
+  // Scores given through a broader key are still given: the Map resolves the
+  // rank duty to that Assistant (Treasure Maps § 6), and Switch must name it.
+  it.each([
+    ["the Scores family", "3038x"],
+    ["the whole Scores kind", "30382"],
+    ["everything", "*"],
+  ])("names the Assistant holding the rank duty through %s", (_what, key) => {
+    expect(rankProviderOf(event10040([[key, OTHER_TA, "wss://elsewhere.example.com"]]))).toEqual({
+      pubkey: OTHER_TA,
+      relay: "wss://elsewhere.example.com",
+    });
+  });
+
+  it("the most specific key wins, and of two rows with one key the first", () => {
+    expect(
+      rankProviderOf(
+        event10040([
+          ["*", OTHER_TA, ""],
+          ["30382:rank", TA, RELAY],
+        ]),
+      ),
+    ).toEqual({ pubkey: TA, relay: RELAY });
+    expect(
+      rankProviderOf(
+        event10040([
+          ["30382:rank", TA, RELAY],
+          ["30382:rank", OTHER_TA, "wss://elsewhere.example.com"],
+        ]),
+      ),
+    ).toEqual({ pubkey: TA, relay: RELAY });
+  });
+});
+
+describe("trustProviderStatusOf", () => {
+  it("is none with no Map, or one that gives Scores to nobody", () => {
+    expect(trustProviderStatusOf(null, TA, RELAY)).toBe("none");
+    expect(trustProviderStatusOf(event10040([["30392", OTHER_TA, RELAY]]), TA, RELAY)).toBe("none");
+  });
+
+  it("is brainstorm when the rank duty is this Assistant's, other when it is someone else's", () => {
+    expect(trustProviderStatusOf(event10040([["30382:rank", TA, RELAY]]), TA, RELAY)).toBe("brainstorm");
+    expect(trustProviderStatusOf(event10040([["30382:rank", OTHER_TA, RELAY]]), TA, RELAY)).toBe("other");
+  });
+
+  // Read as "none", Switch took Scores with no warning and nobody named.
+  it.each(["3038x", "30382", "*"])("another Assistant holding Scores through %s is other, not none", (key) => {
+    expect(trustProviderStatusOf(event10040([[key, OTHER_TA, ""]]), TA, RELAY)).toBe("other");
   });
 });
 

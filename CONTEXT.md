@@ -124,16 +124,20 @@ _Avoid_: the Assistant, your bot, service provider
 
 **Duty**:
 One row of the User's Treasure Map (kind 10040): a key such as `30382:rank`,
-the Assistant given it, and the relay it publishes to. Fill empty, never take: a
-path adding this Deployment's Assistant fills a Duty nobody holds, and moves one
-another Assistant holds only in a Duty category the User chose to move.
+the Assistant given it, and the relay it publishes to. A Duty is held by the
+Assistant the Map resolves it to — its own row, or the most specific broader
+key that reaches it (`3038x`, `*`). Fill empty, never take: a path adding this
+Deployment's Assistant fills a Duty nobody holds, and moves one another
+Assistant holds only in a Duty group the User chose to move.
 _Avoid_: tag, row, designation, assertion
 
-**Duty category**:
+**Duty group**:
 Scores, Lists or Concepts — how the Treasure Map groups Duties (kinds
 30380–30389, 30390–30399, 39998/39999), and the unit a User moves from one
-Assistant to another.
-_Avoid_: type, kind, role
+Assistant to another. `DutyGroup` in `lib/treasureMap`, which adds Everything
+(a bare `*`). Not the Treasure Maps drafts' "category", which is the content a
+key reaches (the Profiles category).
+_Avoid_: Duty category, type, kind, role
 
 ### Concepts and the Dictionary
 

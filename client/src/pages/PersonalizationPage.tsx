@@ -16,6 +16,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { tone as getTone } from "@/lib/tones";
 import ownPerspectiveImg from "@assets/generated_images/about_yours_identity.webp";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const steps = [
   { icon: Home, text: "Sign in with your key or extension." },
@@ -30,7 +32,7 @@ export default function PersonalizationPage() {
 
   return (
     <InfoPageLayout testId="page-personalization">
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-12 sm:space-y-16">
           {/* Editorial hero */}
           <PageHeader

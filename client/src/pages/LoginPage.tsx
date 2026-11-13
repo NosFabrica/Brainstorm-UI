@@ -458,12 +458,12 @@ export default function LoginPage() {
         inviterPubkey={inviterPubkey}
         onCreated={() => {
           setCreateOpen(false);
-          // Every new account goes through the guided onboarding wizard (profile
-          // photo/banner/bio → follow → backup) — including invitees, who used to
-          // skip it. If they came from a value gate / invite link with ?next=, we
-          // thread it so onboarding returns them there (e.g. the inviter's profile,
-          // now connected) when it finishes. Onboarding is skippable.
-          const dest = nextPath !== "/" ? `/setup?next=${encodeURIComponent(nextPath)}` : "/setup";
+          // Every new account goes through the first run (/start: what you're
+          // into → people to follow → all set) — invitees included. A ?next=
+          // from a value gate or invite link is threaded through, so finishing
+          // returns them there (e.g. the inviter's profile, now connected).
+          // The first run is skippable.
+          const dest = nextPath !== "/" ? `/start?next=${encodeURIComponent(nextPath)}` : "/start";
           navigate(dest, { replace: true });
         }}
       />

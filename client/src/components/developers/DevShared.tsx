@@ -82,7 +82,8 @@ export function SectionCard({
       className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
       data-testid={testId}
     >
-      <div className="space-y-4 p-6 sm:p-8">
+      {/* Paragraphs keep a readable measure; code and tables take the card's width. */}
+      <div className="space-y-4 p-6 sm:p-8 [&>p]:max-w-3xl">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10">
             {icon}

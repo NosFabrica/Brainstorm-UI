@@ -7,6 +7,8 @@ import { openMobileSearch } from "@/components/MobileSearchOverlay";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { historyDepth, trackHistoryEntry } from "@/lib/historyState";
 import { isInstalledPhoneApp } from "@/lib/installedApp";
+import { pageWidth, type PageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * The screens the phone tab bar opens, plus sign-in: a Back arrow there has
@@ -49,14 +51,15 @@ const SM = 640;
  * and a phone never shows it.
  */
 export function HeaderBar({
-  maxWidthClass = "max-w-4xl",
+  width = "wide",
   search = true,
   fullBleed = false,
   back,
   children,
   testId,
 }: {
-  maxWidthClass?: string;
+  /** The page's width (lib/pageWidth), so the bar's edges are its content's. */
+  width?: PageWidth;
   /** False on a page whose own content is a search box, or a flow a search would abandon. */
   search?: boolean;
   /**
@@ -103,7 +106,7 @@ export function HeaderBar({
           // a gap on either side whatever the right-hand cluster holds.
           fullBleed
             ? "grid min-h-14 grid-cols-[1fr_minmax(0,42rem)_1fr] items-center gap-3 px-4"
-            : `${maxWidthClass} mx-auto flex min-h-14 items-center gap-3 px-4 sm:px-6`
+            : cn(pageWidth(width), "flex min-h-14 items-center gap-3")
         }
       >
         <div className="flex shrink-0 items-center gap-3">

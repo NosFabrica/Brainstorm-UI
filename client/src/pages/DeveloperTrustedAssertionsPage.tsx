@@ -3,6 +3,8 @@ import { env } from "@/lib/runtimeEnv";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { CodeBlock } from "@/components/CodeBlock";
 import { SectionCard, OpenSourceSection, DevBackLink } from "@/components/developers/DevShared";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const NIP85_URL = "https://github.com/nostr-protocol/nips/blob/master/85.md";
 const NIP85_RELAY = (env.VITE_NIP85_RELAY_URL || "").trim().replace(/\/+$/, "");
@@ -10,7 +12,7 @@ const NIP85_RELAY = (env.VITE_NIP85_RELAY_URL || "").trim().replace(/\/+$/, "");
 export default function DeveloperTrustedAssertionsPage() {
   return (
     <InfoPageLayout testId="page-developers-trusted-assertions">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-10">
           {/* Editorial hero */}
           <header className="max-w-3xl">

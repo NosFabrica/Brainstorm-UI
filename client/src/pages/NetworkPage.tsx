@@ -63,6 +63,8 @@ import { networkPerspective } from "@/lib/networkPerspective";
 import { presetDisplayLabel } from "@/services/trustThreshold";
 import { UNKNOWN_EXPLAINER, ladderFor } from "@/lib/trustLadder";
 import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * The Network row expander now uses the lightweight `/user/:pk/overview`
@@ -1015,7 +1017,9 @@ export default function NetworkPage() {
             pinned to the top left the page looking truncated rather than composed.
             pb-24 offsets the optical weight of the header so it centres on the eye,
             not the box. */}
-        <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-start px-4 py-10 sm:justify-center sm:px-6 sm:pb-24">
+        <main
+          className={cn(pageWidth("reading"), "flex flex-1 flex-col justify-start py-10 sm:justify-center sm:pb-24")}
+        >
           <h1
             className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
             style={{ fontFamily: "var(--font-display)" }}
@@ -1075,7 +1079,7 @@ export default function NetworkPage() {
         active="network"
       />
 
-      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-12 sm:px-6">
+      <main className={cn(pageWidth("standard"), "relative z-10 py-12")}>
         <DeferredSessionNotice className="mb-8" />
         <div className="animate-fade-up space-y-8">
           <div className="relative z-10 mb-8 pt-2 text-left" data-testid="section-network-header">

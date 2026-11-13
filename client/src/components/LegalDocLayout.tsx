@@ -3,6 +3,8 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, FileText, ShieldCheck, HelpCircle, List, ChevronDown, Link2 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 export type Block = { type: "p"; text: string } | { type: "address"; lines: string[] };
 
@@ -163,7 +165,7 @@ export function LegalDocLayout({
 
   return (
     <InfoPageLayout testId={testId}>
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className={cn(pageWidth("standard"), "py-8 sm:py-12")}>
         {/* Header */}
         <header className="mb-8 animate-fade-up" data-testid={`header-${docKind}`}>
           <div
