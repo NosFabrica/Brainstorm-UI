@@ -18,7 +18,8 @@ export default defineConfig({
     globals: false,
     setupFiles: ["./client/src/test/setup.ts"],
     include: ["client/src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
-    css: false,
+    // CSS is empty in tests, but the paper's house stylesheet: it is text the engine sends and inserts.
+    css: { include: [/house\.css/] },
     pool: "forks",
     poolOptions: {
       // Node ≥25 enables Web Storage by default; its native localStorage global

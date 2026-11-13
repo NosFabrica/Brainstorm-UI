@@ -12,14 +12,19 @@ import {
   systemPrompt,
   userMessage,
 } from "./writer";
+import brief from "./editorial.md?raw";
+import houseCss from "./house.css?raw";
 
 const openRouter = { key: "sk-or-v1-x", url: "https://openrouter.ai/api/v1" };
 const anthropic = { key: "sk-ant-x", url: "https://api.anthropic.com/v1" };
 
 describe("the prompt", () => {
-  it("is the corrected brief plus the light-only house stylesheet", () => {
+  it("is the brief, then the light-only house stylesheet for reference, as Amethyst sends it", () => {
     const prompt = systemPrompt();
-    expect(prompt).toMatch(/Corrections for this harness/);
+    expect(prompt).toBe(
+      `\n${brief}\n\n## The house stylesheet\n\nFor reference: the app puts this into your page's \`<style id="house">\`. Do not copy it.\n\n\`\`\`css\n\n${houseCss}\n\`\`\``,
+    );
+    expect(prompt).not.toMatch(/Corrections for this harness/);
     expect(prompt).toMatch(/You are the editor of a one-reader daily newspaper/);
     expect(prompt).toMatch(/color-scheme: light/);
     // The paper is always newsprint: no dark theme can reach the frame.

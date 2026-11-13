@@ -4,7 +4,8 @@
  * speaks OpenAI Chat Completions.
  *
  * The prompt is NosFabrica/the-nostr-observer's editorial brief and house stylesheet
- * (MIT, see ./LICENSE.observer), corrected for this harness in ./editorial.md. Unlike
+ * (MIT, see ./LICENSE.observer), rewritten for the apps in ./editorial.md: the same text as
+ * Amethyst's `EditorialBrief.kt` (a test pins its hash in both). Unlike
  * the Observer server, this has no Message Batches and no fixed model: the reader's
  * key decides the provider, and the reader picks the model.
  */
@@ -16,9 +17,13 @@ import houseCss from "./house.css?raw";
 /** The paper's standing name. The Observer carries it forward day to day; this has no continuity. */
 export const MASTHEAD = { name: "The Nostr Observer" };
 
-/** The fixed system prompt: hidden from nothing (it ships in the bundle), but never written by the corpus. */
+/**
+ * The fixed system prompt: hidden from nothing (it ships in the bundle), but never written by
+ * the corpus. The brief, then the house stylesheet for reference; the leading newlines match
+ * Amethyst's constants, so the two apps send the same bytes.
+ */
 export function systemPrompt(): string {
-  return `${brief}\n\n## The house stylesheet\n\nInline this in a <style> block, as given:\n\n\`\`\`css\n${houseCss}\n\`\`\``;
+  return `\n${brief}\n\n## The house stylesheet\n\nFor reference: the app puts this into your page's \`<style id="house">\`. Do not copy it.\n\n\`\`\`css\n\n${houseCss}\n\`\`\``;
 }
 
 /**
