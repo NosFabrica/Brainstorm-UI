@@ -3,7 +3,7 @@
  * what the card says, when it lets the reader change it, and that a save in flight holds
  * until the event it wrote is what the hook shows.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import type { ObserverSchedule } from "@/hooks/useObserverSchedule";
@@ -411,6 +411,17 @@ describe("focus and the editor's semantics (audit, 2026-11-12)", () => {
 });
 
 describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () => {
+  // These cases read "3 hours ago" against a 06:00 schedule, so the wall clock decides which
+  // morning is due: between 06:00 and 09:00 that print lands on the next day and reads as missed.
+  // Only Date is frozen (midday, past the morning's grace) so user-event's timers still run.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 12, 13, 0, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const ASSISTANT = "b".repeat(64);
   const NO_SITES = { reader: null, runner: null };
   const withRunner = (runners: string[], extra: string[][] = [], cron = "0 6 * * *") => {
