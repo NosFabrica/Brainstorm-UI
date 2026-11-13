@@ -19,15 +19,23 @@ export type AssistantKeysState =
   | { status: "failed"; error: string }
   /** This sign-in can't decrypt them. */
   | { status: "unreadable" }
-  | { status: "ready"; assistant: string; tags: string[][]; keys: AgentKey[]; createdAt: number | null };
+  | {
+      status: "ready";
+      assistant: string;
+      tags: string[][];
+      keys: AgentKey[];
+      createdAt: number | null;
+      /** The list's event id: with `createdAt`, the version the next edit names. */
+      id: string | null;
+    };
 
 export type AssistantKeys = AssistantKeysState & {
   /** Decrypt at the reader's request: Unlock, or Retry after the signer failed. */
   reveal: () => void;
   /** Ask the server again (Retry after a 502 or an error). */
   reload: () => void;
-  /** What an edit wrote, shown without asking again. */
-  wrote: (assistant: string, tags: string[][], createdAt: number | null) => void;
+  /** What an edit wrote, shown without asking again, and built on by the next edit. */
+  wrote: (assistant: string, tags: string[][], createdAt: number | null, id: string | null) => void;
 };
 
 /**
@@ -84,6 +92,7 @@ export function useAssistantAgentKeys(): AssistantKeys {
             tags: read.tags,
             keys: parseAgentKeys(read.tags),
             createdAt: got.createdAt,
+            id: got.id,
           });
         } else set(read.status === "failed" ? { status: "failed", error: read.error } : { status: "unreadable" });
       } catch {
@@ -99,14 +108,14 @@ export function useAssistantAgentKeys(): AssistantKeys {
   const reveal = useCallback(() => setAskCount((n) => n + 1), []);
   const reload = useCallback(() => setFetchCount((n) => n + 1), []);
   const wrote = useCallback(
-    (assistant: string, tags: string[][], createdAt: number | null) => {
+    (assistant: string, tags: string[][], createdAt: number | null, id: string | null) => {
       if (!pubkey) return;
       // The written list stands over the read it was built from: a later Unlock mustn't
       // decrypt the older ciphertext back over it.
       setFetched(null);
       setState({
         pubkey,
-        value: { status: "ready", assistant, tags, keys: parseAgentKeys(tags), createdAt },
+        value: { status: "ready", assistant, tags, keys: parseAgentKeys(tags), createdAt, id },
       });
     },
     [pubkey],

@@ -48,6 +48,7 @@ const ready = (keys: AgentKey[]) =>
     tags: withAgentKeys([], keys),
     keys,
     createdAt: 1794300000,
+    id: "1".repeat(64),
   } as never);
 const mine = (keys: AgentKey[]): AgentKeysState => ({ status: "ready", keys });
 
@@ -64,6 +65,7 @@ beforeEach(() => {
     assistant: ASSISTANT,
     tags: change(withAgentKeys([], [SHARED])),
     createdAt: 1794300100,
+    id: "2".repeat(64),
   }));
   updateAgentKeys.mockResolvedValue({ success: true });
 });
@@ -119,7 +121,14 @@ describe("Give to Assistant", () => {
     expect(editAssistantKeys).toHaveBeenCalledTimes(1);
     expect(lastChange([])).toEqual([["key", MINE.key, OR]]);
     expect(updateAgentKeys).not.toHaveBeenCalled();
-    expect(wrote).toHaveBeenCalledWith(ASSISTANT, expect.any(Array), 1794300100);
+    expect(wrote).toHaveBeenCalledWith(ASSISTANT, expect.any(Array), 1794300100, "2".repeat(64));
+    // The edit builds on the version the screen holds, should the server's read lag behind it.
+    expect(editAssistantKeys.mock.calls[0][2]).toEqual({
+      assistant: ASSISTANT,
+      tags: [],
+      id: "1".repeat(64),
+      createdAt: 1794300000,
+    });
     await waitFor(() => expect(toast).toHaveBeenCalledWith({ title: "Given" }));
   });
 
@@ -141,6 +150,7 @@ describe("Give to Assistant", () => {
       [{ status: "no-assistant" }, /don't have an Assistant/],
       [{ status: "unavailable" }, /can't hand keys to your Assistant yet/],
       [{ status: "relays" }, /relays didn't answer/],
+      [{ status: "busy" }, /couldn't save your Assistant's keys just now/],
     ] as const) {
       editAssistantKeys.mockResolvedValueOnce(outcome);
       const result = await giveToAssistant(MINE, { removeFromMine: true }, wrote);
@@ -153,7 +163,25 @@ describe("Give to Assistant", () => {
 
   it("says nothing when the reader dismissed the unlock", async () => {
     editAssistantKeys.mockResolvedValueOnce({ status: "cancelled" });
-    expect(await giveToAssistant(MINE, { removeFromMine: false }, wrote)).toEqual({ ok: false, problem: null });
+    expect(await giveToAssistant(MINE, { removeFromMine: false }, wrote)).toMatchObject({ ok: false, problem: null });
+  });
+
+  it("offers Retry when the server's lock store was down (503), and Retry runs it again", async () => {
+    editAssistantKeys.mockResolvedValueOnce({ status: "busy" });
+    render(<AssistantKeys mine={mine([MINE])} assistant={ready([])} />);
+    fireEvent.click(screen.getByTestId("ai-model-assistant-give"));
+    await act(async () => fireEvent.click(screen.getByTestId("ai-model-assistant-give-confirm")));
+    const shown = toast.mock.calls.at(-1)![0] as { title: string; action?: { props: { onClick: () => void } } };
+    expect(shown.title).toBe("Couldn't save");
+    expect(shown.action).toBeDefined();
+    await act(async () => shown.action!.props.onClick());
+    expect(editAssistantKeys).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ title: "Given" }));
+  });
+
+  it("offers no Retry for what a retry won't change", async () => {
+    editAssistantKeys.mockResolvedValueOnce({ status: "no-assistant" });
+    expect((await giveToAssistant(MINE, { removeFromMine: false }, wrote)).retry).toBe(false);
   });
 });
 

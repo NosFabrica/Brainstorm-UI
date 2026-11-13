@@ -15,6 +15,7 @@ import { AlertTriangle, ArrowLeftRight, Bot, KeyRound, Loader2, Lock, RotateCcw,
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ToastAction } from "@/components/ui/toast";
 import { Chip } from "@/components/ui/chip";
 import {
   AlertDialog,
@@ -42,7 +43,7 @@ import {
   type HeldKey,
   type KeyHolder,
 } from "@/lib/assistantKeys";
-import { editAssistantKeys, type AssistantKeysEdit } from "@/services/assistantAgentKeys";
+import { editAssistantKeys, type AssistantKeysEdit, type KnownList } from "@/services/assistantAgentKeys";
 import { updateAgentKeys } from "@/services/agentKeys";
 import { activeAccount } from "@/accounts/signing";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,8 @@ export function editProblem(outcome: Exclude<AssistantKeysEdit, { status: "ok" }
       return "Brainstorm can't hand keys to your Assistant yet.";
     case "relays":
       return "Your Assistant's relays didn't answer. Try again.";
+    case "busy":
+      return "Brainstorm couldn't save your Assistant's keys just now. Try again.";
     case "conflict":
       return "Your Assistant's keys changed while this was saving. Try again.";
     case "error":
@@ -78,7 +81,14 @@ export interface GiveResult {
   ok: boolean;
   /** What to tell the reader when it didn't all go through; null for nothing. */
   problem: string | null;
+  /** Trying again may work (the relays, the server's lock, an edit landing meanwhile): offer Retry. */
+  retry?: boolean;
 }
+
+/** What the server may answer differently in a moment. */
+const RETRYABLE: ReadonlySet<AssistantKeysEdit["status"]> = new Set(["relays", "busy", "conflict"]);
+
+type OnWrote = (assistant: string, tags: string[][], createdAt: number | null, id: string | null) => void;
 
 /**
  * Give `key` to the Assistant: its list read, the key added, the whole list encrypted to
@@ -88,13 +98,14 @@ export interface GiveResult {
 export async function giveToAssistant(
   key: AgentKey,
   { removeFromMine }: { removeFromMine: boolean },
-  onWrote: (assistant: string, tags: string[][], createdAt: number | null) => void,
+  onWrote: OnWrote,
+  known?: KnownList,
 ): Promise<GiveResult> {
   const account = activeAccount();
   if (!account) return { ok: false, problem: "Not signed in." };
-  const given = await editAssistantKeys(account, (tags) => withKeyGiven(tags, key));
-  if (given.status !== "ok") return { ok: false, problem: editProblem(given) };
-  onWrote(given.assistant, given.tags, given.createdAt);
+  const given = await editAssistantKeys(account, (tags) => withKeyGiven(tags, key), known);
+  if (given.status !== "ok") return { ok: false, problem: editProblem(given), retry: RETRYABLE.has(given.status) };
+  onWrote(given.assistant, given.tags, given.createdAt, given.id);
   if (!removeFromMine) return { ok: true, problem: null };
   const removed = await updateAgentKeys((mine) => withKeyRemoved(mine, key));
   if (removed.success) return { ok: true, problem: null };
@@ -111,22 +122,23 @@ export async function giveToAssistant(
  * read-modify-write), and only once that is saved, removed from the Assistant's. A key
  * that couldn't be saved to theirs stays where it was.
  */
-export async function takeBackFromAssistant(
-  key: AgentKey,
-  onWrote: (assistant: string, tags: string[][], createdAt: number | null) => void,
-): Promise<GiveResult> {
+export async function takeBackFromAssistant(key: AgentKey, onWrote: OnWrote, known?: KnownList): Promise<GiveResult> {
   const account = activeAccount();
   if (!account) return { ok: false, problem: "Not signed in." };
   const copied = await updateAgentKeys((mine) => withKeyCopied(mine, key));
   if (!copied.success) {
     return { ok: false, problem: copied.cancelled ? null : (copied.error ?? "Couldn't save it to your keys.") };
   }
-  const taken = await editAssistantKeys(account, (tags) => withKeyTaken(tags, key));
+  const taken = await editAssistantKeys(account, (tags) => withKeyTaken(tags, key), known);
   if (taken.status !== "ok") {
     const why = editProblem(taken);
-    return { ok: false, problem: why ? `It's in your keys now, but your Assistant still has it. ${why}` : null };
+    return {
+      ok: false,
+      problem: why ? `It's in your keys now, but your Assistant still has it. ${why}` : null,
+      retry: RETRYABLE.has(taken.status),
+    };
   }
-  onWrote(taken.assistant, taken.tags, taken.createdAt);
+  onWrote(taken.assistant, taken.tags, taken.createdAt, taken.id);
   return { ok: true, problem: null };
 }
 
@@ -207,7 +219,13 @@ export function AssistantKeys({ mine, assistant }: { mine: AgentKeysState; assis
   const myKeys = mine.status === "ready" ? mine.keys : mine.status === "none" ? [] : null;
   const rows = assistant.status === "ready" && myKeys ? compareKeys(myKeys, assistant.keys) : null;
 
-  const run = async (work: () => Promise<GiveResult>, done: string) => {
+  // The list as this screen last read or wrote it: an edit builds on it when the server's
+  // read still has the version before (`editAssistantKeys`).
+  const known: KnownList | undefined =
+    assistant.status === "ready"
+      ? { assistant: assistant.assistant, tags: assistant.tags, id: assistant.id, createdAt: assistant.createdAt }
+      : undefined;
+  const run = async (work: () => Promise<GiveResult>, done: string): Promise<void> => {
     setBusy(true);
     try {
       const result = await work();
@@ -217,6 +235,15 @@ export function AssistantKeys({ mine, assistant }: { mine: AgentKeysState; assis
           title: result.ok ? done : "Couldn't save",
           description: result.problem,
           variant: result.ok ? undefined : "destructive",
+          action: result.retry ? (
+            <ToastAction
+              altText="Try again"
+              onClick={() => void run(work, done)}
+              data-testid="ai-model-assistant-retry"
+            >
+              Retry
+            </ToastAction>
+          ) : undefined,
         });
       }
     } finally {
@@ -292,7 +319,8 @@ export function AssistantKeys({ mine, assistant }: { mine: AgentKeysState; assis
                 const key = giving;
                 const remove = removeFromMine;
                 setGiving(null);
-                if (key) void run(() => giveToAssistant(key, { removeFromMine: remove }, assistant.wrote), "Given");
+                if (key)
+                  void run(() => giveToAssistant(key, { removeFromMine: remove }, assistant.wrote, known), "Given");
               }}
               data-testid="ai-model-assistant-give-confirm"
             >
@@ -317,7 +345,7 @@ export function AssistantKeys({ mine, assistant }: { mine: AgentKeysState; assis
               onClick={() => {
                 const key = taking;
                 setTaking(null);
-                if (key) void run(() => takeBackFromAssistant(key, assistant.wrote), "Taken back");
+                if (key) void run(() => takeBackFromAssistant(key, assistant.wrote, known), "Taken back");
               }}
               data-testid="ai-model-assistant-take-confirm"
             >
@@ -366,6 +394,13 @@ function AssistantState({ state, mineReady }: { state: AssistantKeys; mineReady:
       return line(
         "ai-model-assistant-relays",
         "Your Assistant's relays didn't answer.",
+        <RetryButton onClick={state.reload} />,
+        "warn",
+      );
+    case "busy":
+      return line(
+        "ai-model-assistant-busy",
+        "Brainstorm couldn't get your Assistant's keys just now.",
         <RetryButton onClick={state.reload} />,
         "warn",
       );

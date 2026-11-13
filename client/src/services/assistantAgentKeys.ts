@@ -6,9 +6,12 @@
  * reader, Assistant → reader, and takes a new one encrypted reader → Assistant. The pure
  * half is `lib/assistantKeys`.
  *
- * An edit is a read-modify-write: the GET, the change, the POST naming the `createdAt`
- * it read (`previousCreatedAt`). The server answers 409 when the list moved meanwhile,
- * and the edit reads again and retries once.
+ * An edit is a read-modify-write: the GET, the change, the POST naming the version it read
+ * (`previousId`, the GET's `id`, and `previousCreatedAt`; both null when there was none).
+ * The server answers 409 when the list moved meanwhile, or while another edit holds its
+ * lock, and the edit reads again and retries once; 503 when its lock store is down, which
+ * the screen offers to retry. A POST answers the new `id` and `createdAt`: the next edit
+ * builds on them when the GET still has the older version.
  *
  * Keys stay safe: never logged, never in a URL or a query key, never in browser storage.
  * What is decrypted lives in memory for as long as the screen shows it.
@@ -32,6 +35,8 @@ export type AssistantKeysProblem =
   | { status: "unavailable" }
   /** 502: too few of the Assistant's relays answered (or took the write). Worth retrying. */
   | { status: "relays" }
+  /** 503: the server couldn't take its edit lock just now. Worth retrying. */
+  | { status: "busy" }
   /** Anything else: the server's own words, never a key. */
   | { status: "error"; message: string };
 
@@ -44,20 +49,29 @@ export type AssistantKeysFetch =
       ciphertext: string | null;
       /** Its list's `created_at`; null when it has none. */
       createdAt: number | null;
+      /** Its list's event id; null when it has none. */
+      id: string | null;
     }
   | AssistantKeysProblem;
 
 export type AssistantKeysWrite =
-  | { status: "ok"; createdAt: number }
-  /** 409: the list changed since it was read. */
+  | { status: "ok"; createdAt: number; id: string }
+  /** 409: the list changed since it was read, or another edit holds the lock. */
   | { status: "conflict" }
   | AssistantKeysProblem;
+
+/** A version of the Assistant's list: what an edit names as the one it changed. Both null: none yet. */
+export interface ListVersion {
+  id: string | null;
+  createdAt: number | null;
+}
 
 async function problem(response: Response): Promise<AssistantKeysProblem> {
   if (response.status === 404) {
     return response.headers.get("X-Reason") === "no-assistant" ? { status: "no-assistant" } : { status: "unavailable" };
   }
   if (response.status === 502) return { status: "relays" };
+  if (response.status === 503) return { status: "busy" };
   const data = await response.json().catch(() => null);
   const detail = typeof data?.detail === "string" ? data.detail : typeof data?.message === "string" ? data.message : "";
   return { status: "error", message: detail || `The server answered ${response.status}.` };
@@ -82,26 +96,28 @@ export async function fetchAssistantKeys(): Promise<AssistantKeysFetch> {
   const assistant = data?.assistant;
   const ciphertext = data?.ciphertext ?? null;
   const createdAt = data?.createdAt ?? null;
+  const id = data?.id ?? null;
   if (
     typeof assistant !== "string" ||
     !HEX_KEY.test(assistant) ||
     (ciphertext !== null && typeof ciphertext !== "string") ||
-    (createdAt !== null && !Number.isSafeInteger(createdAt))
+    (createdAt !== null && !Number.isSafeInteger(createdAt)) ||
+    (id !== null && (typeof id !== "string" || !HEX_KEY.test(id)))
   ) {
     return { status: "error", message: "Brainstorm's answer didn't make sense." };
   }
-  return { status: "ok", assistant, ciphertext: ciphertext || null, createdAt };
+  return { status: "ok", assistant, ciphertext: ciphertext || null, createdAt, id };
 }
 
-/** Hands the server the Assistant's new list, encrypted reader → Assistant. */
-export async function postAssistantKeys(
-  ciphertext: string,
-  previousCreatedAt: number | null,
-): Promise<AssistantKeysWrite> {
+/**
+ * Hands the server the Assistant's new list, encrypted reader → Assistant, naming the
+ * version it was built on (`previous`: the GET's `id` and `createdAt`, both null for none).
+ */
+export async function postAssistantKeys(ciphertext: string, previous: ListVersion): Promise<AssistantKeysWrite> {
   let response: Response;
   try {
     response = await authenticatedFetch(`${getBrainstormApi()}${PATH}`, {
-      ...jsonBody("POST", { ciphertext, previousCreatedAt }),
+      ...jsonBody("POST", { ciphertext, previousId: previous.id, previousCreatedAt: previous.createdAt }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (err) {
@@ -110,9 +126,11 @@ export async function postAssistantKeys(
   if (response.status === 409) return { status: "conflict" };
   if (!response.ok) return problem(response);
   const json = await response.json().catch(() => null);
-  const createdAt = (json?.data ?? json)?.createdAt;
-  return Number.isSafeInteger(createdAt)
-    ? { status: "ok", createdAt }
+  const data = json?.data ?? json;
+  const createdAt = data?.createdAt;
+  const id = data?.id;
+  return Number.isSafeInteger(createdAt) && typeof id === "string" && HEX_KEY.test(id)
+    ? { status: "ok", createdAt, id }
     : { status: "error", message: "Brainstorm's answer didn't make sense." };
 }
 
@@ -150,9 +168,12 @@ export async function decryptAssistantKeys(
   return tags ? { status: "ready", tags } : { status: "unreadable" };
 }
 
-/** What an edit came to; on success, the list as written and its `createdAt`. */
+/** A list this session already holds in the clear: the last one it read or wrote. */
+export type KnownList = { assistant: string; tags: string[][] } & ListVersion;
+
+/** What an edit came to; on success, the list as written and its version. */
 export type AssistantKeysEdit =
-  | { status: "ok"; assistant: string; tags: string[][]; createdAt: number | null }
+  | ({ status: "ok"; assistant: string; tags: string[][] } & ListVersion)
   | AssistantKeysProblem
   | { status: "conflict" }
   /** The reader dismissed the unlock: nothing to tell them. */
@@ -160,22 +181,43 @@ export type AssistantKeysEdit =
 
 /**
  * Rewrites the Assistant's list as `change(current)`: read it, decrypt it, change it,
- * encrypt the whole list to the Assistant, and POST it naming the `createdAt` read. On a
- * 409 it reads again and tries once more. Writes nothing when it can't read what is there;
- * a change that changes nothing is no write.
+ * encrypt the whole list to the Assistant, and POST it naming the version read. On a 409
+ * (it moved, or another edit holds the lock) it reads again and tries once more. Writes
+ * nothing when it can't read what is there; a change that changes nothing is no write.
+ *
+ * `known` is the list this session last wrote (or read): when the GET answers with an
+ * older version (a relay that hasn't the write yet), the edit builds on `known` and names
+ * it, rather than undoing it.
  */
 export async function editAssistantKeys(
   account: BrainstormAccount,
   change: (tags: string[][]) => string[][],
+  known?: KnownList,
 ): Promise<AssistantKeysEdit> {
   for (let attempt = 0; ; attempt++) {
     const read = await fetchAssistantKeys();
     if (read.status !== "ok") return read;
+    const newer =
+      known &&
+      known.assistant === read.assistant &&
+      known.id !== null &&
+      known.createdAt !== null &&
+      (read.createdAt === null || known.createdAt > read.createdAt)
+        ? known
+        : null;
     let current: AssistantKeysRead;
-    try {
-      current = await decryptAssistantKeys(account, read.assistant, read.ciphertext);
-    } catch {
-      return { status: "cancelled" };
+    let version: ListVersion;
+    if (newer) {
+      current = { status: "ready", tags: newer.tags };
+      version = { id: newer.id, createdAt: newer.createdAt };
+    } else {
+      try {
+        current = await decryptAssistantKeys(account, read.assistant, read.ciphertext);
+      } catch {
+        return { status: "cancelled" };
+      }
+      // Both or neither: a version is named by its id and its time together.
+      version = read.id !== null && read.createdAt !== null ? { id: read.id, createdAt: read.createdAt } : NO_VERSION;
     }
     if (current.status === "failed") return { status: "error", message: current.error };
     if (current.status !== "ready") {
@@ -183,7 +225,7 @@ export async function editAssistantKeys(
     }
     const next = change(current.tags);
     if (next === current.tags) {
-      return { status: "ok", assistant: read.assistant, tags: current.tags, createdAt: read.createdAt };
+      return { status: "ok", assistant: read.assistant, tags: current.tags, ...version };
     }
     let ciphertext: string | null;
     try {
@@ -193,9 +235,15 @@ export async function editAssistantKeys(
       return { status: "cancelled" };
     }
     if (!ciphertext) return { status: "error", message: "Couldn't encrypt to your Assistant." };
-    const wrote = await postAssistantKeys(ciphertext, read.createdAt);
-    if (wrote.status === "conflict" && attempt === 0) continue;
+    const wrote = await postAssistantKeys(ciphertext, version);
+    if (wrote.status === "conflict" && attempt === 0) {
+      // Read again, from the server: what this session knew is what was refused.
+      known = undefined;
+      continue;
+    }
     if (wrote.status !== "ok") return wrote;
-    return { status: "ok", assistant: read.assistant, tags: next, createdAt: wrote.createdAt };
+    return { status: "ok", assistant: read.assistant, tags: next, createdAt: wrote.createdAt, id: wrote.id };
   }
 }
+
+const NO_VERSION: ListVersion = { id: null, createdAt: null };
