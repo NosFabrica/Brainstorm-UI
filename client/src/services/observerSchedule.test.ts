@@ -810,3 +810,79 @@ describe("edits one at a time (audit, 2026-11-12)", () => {
     expect(second.success).toBe(true);
   });
 });
+
+describe("ported: Quartz ScheduledTaskRunnerTest, fae3e873 (the decrypt asks once)", () => {
+  const ASSISTANT = getPublicKey(new Uint8Array(32).fill(9));
+  const STRANGER = getPublicKey(new Uint8Array(32).fill(11));
+  const conflictTags = [
+    ["d", "observer"],
+    ["p", STRANGER],
+    ["p", ASSISTANT],
+  ];
+
+  it("theAuthorTriesThePeerItsWriterEncryptsToFirst", async () => {
+    const peers: string[] = [];
+    const recording = {
+      ...account,
+      nip44: {
+        ...account.nip44,
+        decrypt: async (from: string, cipher: string) => {
+          peers.push(from);
+          return account.nip44.decrypt(from, cipher);
+        },
+      },
+    };
+    // One runner, encrypted to it: one decryption.
+    const one = finalizeEvent(
+      {
+        kind: 34817,
+        created_at: 1,
+        tags: [
+          ["d", "observer"],
+          ["p", ASSISTANT],
+        ],
+        content: nip44.encrypt(JSON.stringify(amethystPrivate), nip44.getConversationKey(SECRET, ASSISTANT)),
+      },
+      SECRET,
+    );
+    expect((await service.readSchedule(recording as never, one)).status).toBe("ready");
+    expect(peers).toEqual([ASSISTANT]);
+
+    // A conflict our writer wrote, to self: self first, and one decryption is enough.
+    peers.length = 0;
+    const ours = scheduleEvent(amethystPrivate, 2, conflictTags);
+    expect((await service.readSchedule(recording as never, ours)).status).toBe("ready");
+    expect(peers).toEqual([PUBKEY]);
+
+    // Another client's conflict, encrypted to a runner: still read, after the misses.
+    peers.length = 0;
+    const theirs = finalizeEvent(
+      {
+        kind: 34817,
+        created_at: 3,
+        tags: conflictTags,
+        content: nip44.encrypt(JSON.stringify(amethystPrivate), nip44.getConversationKey(SECRET, ASSISTANT)),
+      },
+      SECRET,
+    );
+    expect((await service.readSchedule(recording as never, theirs)).status).toBe("ready");
+    expect(peers).toEqual([PUBKEY, STRANGER, ASSISTANT]);
+  });
+
+  it("aRejectedDecryptionIsAskedOnceNotOncePerPeer", async () => {
+    for (const [i, message] of ["User rejected the request", "The bunker timed out"].entries()) {
+      const decrypt = vi.fn(async () => Promise.reject(new Error(message)));
+      const rejecting = { ...account, nip44: { ...account.nip44, decrypt } };
+      const event = scheduleEvent(amethystPrivate, 10 + i, conflictTags);
+      expect((await service.readSchedule(rejecting as never, event)).status).toBe("failed");
+      expect(decrypt).toHaveBeenCalledTimes(1);
+    }
+    // A failed decryption is a wrong peer: every peer is tried.
+    const failing = vi.fn(async () => Promise.reject(new Error("invalid MAC")));
+    const wrong = { ...account, nip44: { ...account.nip44, decrypt: failing } };
+    expect((await service.readSchedule(wrong as never, scheduleEvent(amethystPrivate, 20, conflictTags))).status).toBe(
+      "unreadable",
+    );
+    expect(failing).toHaveBeenCalledTimes(3);
+  });
+});

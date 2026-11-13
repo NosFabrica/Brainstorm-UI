@@ -227,7 +227,11 @@ export function removeParam(tags: TaskTags, name: string): TaskTags {
 
 const HEX_KEY = /^[0-9a-f]{64}$/;
 
-/** The value of every public `p`, in order. */
+/**
+ * The value of every public `p` with a value, in order, well-formed or not (blank included):
+ * any of them stops the author's devices, and only a single valid one runs the task. A bare
+ * `["p"]` names nobody.
+ */
 export function runnersOf(publicTags: readonly string[][]): string[] {
   return publicTags.filter((t) => t[0] === "p" && typeof t[1] === "string").map((t) => t[1]);
 }
@@ -270,16 +274,19 @@ export function privateTagsPeer(tags: TaskTags, author: string): string {
 
 /**
  * Which keys the author tries, in order, to read the private tags of an event with these
- * public tags: the runner, then themselves, when there is one runner; otherwise themselves
- * first (a conflict is written to self), then each other key a public `p` names, for a
- * conflict some client wrote to one of them.
+ * public tags (Quartz's `ScheduledTaskEvent.privateTagsPeers`): first the peer NIP-FB's
+ * writers encrypt to (`privateTagsPeer`: the valid runner, else themselves), then, for what
+ * other writers did with a conflict or an odd `p`, every other hex key in a public `p`
+ * (any case), then themselves. So a conflict tries self first.
  */
 export function privateTagsReadPeers(publicTags: readonly string[][], author: string): string[] {
   const runners = runnersOf(publicTags);
-  const runner = soleRunner(runners, author);
-  if (runner) return [runner, author];
-  return [...new Set([author, ...runners.filter((p) => HEX_KEY.test(p) && p !== author)])];
+  const others = runners.filter((p) => ANY_HEX_KEY.test(p) && p.toLowerCase() !== author);
+  return [...new Set([soleRunner(runners, author) ?? author, ...others, author])];
 }
+
+/** A hex key in either case: a peer worth trying to read with, though only lowercase names a runner. */
+const ANY_HEX_KEY = /^[0-9a-fA-F]{64}$/;
 
 /**
  * Every `name` tag replaced by `make(old)` on the side it is on; when there is none, one

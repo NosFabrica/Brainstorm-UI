@@ -1464,9 +1464,99 @@ describe("the runner and cron's setAt; who counts as a runner (audit, 2026-11-12
     expect(privateTagsReadPeers(self.public, ME)).toEqual([ME]);
   });
 
-  it("an invalid p is read with self, and written to self", () => {
+  it("an invalid p is read with self first, and written to self", () => {
     const upper: TaskTags = { public: [["p", ASSISTANT.toUpperCase()]], private: [] };
     expect(privateTagsPeer(upper, ME)).toBe(ME);
-    expect(privateTagsReadPeers(upper.public, ME)).toEqual([ME]);
+    // Another writer may have encrypted to it as written: tried after self.
+    expect(privateTagsReadPeers(upper.public, ME)).toEqual([ME, ASSISTANT.toUpperCase()]);
+  });
+});
+
+describe("ported: Quartz ScheduledTaskRunnerTest, fae3e873", () => {
+  const NY = "America/New_York";
+  const READER = "a".repeat(64);
+  const ASSISTANT = "b".repeat(64);
+  const STRANGER = "c".repeat(64);
+  const DAY = 86_400;
+  // 06:00 New York on Wednesday 2026-11-11, in seconds.
+  const six = Date.UTC(2026, 10, 11, 11, 0) / 1000;
+  const ms = (sec: number) => sec * 1000;
+  const daily: TaskTags = {
+    public: [],
+    private: [
+      ["task", "observer"],
+      ["cron", "0 6 * * *", NY, "0"],
+    ],
+  };
+  const withP = (tags: TaskTags, ...ps: string[][]): TaskTags => ({
+    public: [...tags.public, ...ps],
+    private: tags.private,
+  });
+
+  it("clearingTheRunnerAfterItPrintedNeverPrintsThatMorningAgain", () => {
+    // Named last month; a device last printed weeks ago; the runner printed 06:00 today.
+    const ran: TaskTags = { public: [], private: [...daily.private, ["ran", String(six - 30 * DAY)]] };
+    const run = setRunner(ran, ASSISTANT, ms(six - 30 * DAY));
+    const tenAm = six + 4 * 3_600;
+    const cleared = readTask(setRunner(run, null, ms(tenAm)));
+    expect(cleared.setAt).toBe(tenAm);
+    // Nothing is due for the devices this morning, and nothing warns about it.
+    expect(lastDue(cleared, ms(tenAm + 60))).toBeNull();
+    expect(missedRun(cleared, ms(tenAm + 60))).toBeNull();
+    expect(missedRun(cleared, ms(six + DAY - 1))).toBeNull();
+    // Tomorrow is the devices' again, and so is its warning (past NIP-FB's three hours).
+    expect(lastDue(cleared, ms(six + DAY + 4 * 3_600))).toBe(ms(six + DAY));
+    expect(missedRun(cleared, ms(six + DAY + 4 * 3_600))).toMatchObject({ due: ms(six + DAY) });
+  });
+
+  it("namingARunnerWhileADevicePrintsNeverPrintsTwice", () => {
+    const named = readTask(setRunner(daily, ASSISTANT, ms(six + 60)));
+    expect(named.setAt).toBe(six + 60);
+    // The schedule restarted after 06:00: today's morning is nobody's, the first is tomorrow.
+    expect(lastDue(named, ms(six + 4 * 3_600))).toBeNull();
+    expect(lastDue(named, ms(six + DAY + 4 * 3_600))).toBe(ms(six + DAY));
+  });
+
+  it("onlyAChangeOfRunnerRestartsTheSchedule", () => {
+    const run = setRunner(daily, ASSISTANT, ms(100));
+    expect(readTask(run).setAt).toBe(100);
+    expect(setRunner(run, ASSISTANT, ms(200))).toBe(run);
+    expect(setRunner(daily, null, ms(200))).toBe(daily);
+    expect(readTask(setRunner(run, STRANGER, ms(200))).setAt).toBe(200);
+    expect(readTask(setRunner(run, null, ms(200))).setAt).toBe(200);
+    // Two runners become one: a change.
+    const two = withP(run, ["p", STRANGER]);
+    expect(readTask(setRunner(two, ASSISTANT, ms(300))).setAt).toBe(300);
+    // Without a cron there is nothing to restart.
+    const settingsOnly: TaskTags = { public: [], private: [["task", "observer"]] };
+    expect(readTask(setRunner(settingsOnly, ASSISTANT, ms(300))).cron).toBeNull();
+    // The zone and the expression stay as they were.
+    expect(readTask(setRunner(run, null, ms(300)))).toMatchObject({ tz: NY, cron: "0 6 * * *" });
+  });
+
+  it("aPThatIsntALowercaseKeyOfSomeoneElseStopsDevicesAndNobodyRuns", () => {
+    for (const odd of [ASSISTANT.toUpperCase(), READER, "", "npub1xyz"]) {
+      const task = withP(daily, ["p", odd]);
+      expect(readTask(task, READER).runners.length > 0).toBe(true);
+      expect(readTask(task, READER).runner).toBeNull();
+      expect(privateTagsPeer(task, READER)).toBe(READER);
+    }
+    // A `p` with no value at all isn't one.
+    expect(readTask(withP(daily, ["p"]), READER).runners).toEqual([]);
+  });
+
+  it("theAuthorTriesThePeerItsWriterEncryptsToFirst", () => {
+    // One runner: the runner first.
+    expect(privateTagsReadPeers([["p", ASSISTANT]], READER)).toEqual([ASSISTANT, READER]);
+    // A conflict: our writer encrypts to self, so self first.
+    expect(
+      privateTagsReadPeers(
+        [
+          ["p", STRANGER],
+          ["p", ASSISTANT],
+        ],
+        READER,
+      ),
+    ).toEqual([READER, STRANGER, ASSISTANT]);
   });
 });
