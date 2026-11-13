@@ -292,7 +292,7 @@ export function runnerSiteReached(runner: string, reader: string): boolean {
  * The Observer site `runner` publishes for `reader` into the store: the ask behind
  * `useRunnerSite` (NIP-FB, Runner: their Brainstorm Assistant prints their paper as its own
  * site, `["p", reader]`). Read from the runner's write relays and the reader's (and the
- * floor). Only a manifest `isRunnerSiteFor` accepts is returned; the hook checks what the
+ * floor) at once, settled once the runner's own have answered. Only a manifest `isRunnerSiteFor` accepts is returned; the hook checks what the
  * store holds the same way, so a site for someone else reads as no site. Its files are on
  * the reader's own Blossom servers, where the runner uploads them.
  *
@@ -304,8 +304,16 @@ export async function askRunnerSite(
   reader: string,
   timeoutMs = 6_000,
 ): Promise<NostrEvent | undefined> {
-  const relays = await outboxRelays([runner, reader], PROFILE_RELAYS, { timeoutMs: 2_500 }).catch(() => PROFILE_RELAYS);
-  const read = await requestNewestWithReach(relays, runnerSiteFilter(runner, reader), timeoutMs).catch(() => ({
+  const [relays, write] = await Promise.all([
+    outboxRelays([runner, reader], PROFILE_RELAYS, { timeoutMs: 2_500 }).catch(() => PROFILE_RELAYS),
+    writeRelays(runner),
+  ]);
+  // Settled by the runner's own write relays, where it publishes; the reader's and the
+  // floor keep looking in the background, and a copy only they hold lands in the store —
+  // and so on the page — when it comes.
+  const read = await requestNewestWithReach(relays, runnerSiteFilter(runner, reader), timeoutMs, {
+    settleOn: write,
+  }).catch(() => ({
     newest: undefined,
     reach: { asked: relays, answered: [] as string[] },
   }));

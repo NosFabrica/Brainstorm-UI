@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   held: new Map<string, string>(),
   /** Who is signed in now. */
   active: { pubkey: "a".repeat(64), name: "A" } as { pubkey: string; name: string } | undefined,
+  /** The options the last relay read was given. */
+  readOptions: undefined as unknown,
+  /** Each author's write relays. */
+  write: {} as Record<string, string[]>,
 }));
 
 vi.mock("@/lib/blobCache", () => ({
@@ -29,12 +33,15 @@ vi.mock("@/lib/blobCache", () => ({
 
 vi.mock("@/lib/relayRequest", async (orig) => ({
   ...(await orig<object>()),
-  requestNewestWithReach: () =>
-    Promise.resolve({ newest: mocks.site, reach: { asked: ["wss://write.example"], answered: mocks.answered } }),
+  requestNewestWithReach: (...args: unknown[]) => {
+    mocks.readOptions = args[3];
+    return Promise.resolve({ newest: mocks.site, reach: { asked: ["wss://write.example"], answered: mocks.answered } });
+  },
 }));
 vi.mock("@/lib/relayRouting", () => ({
   outboxRelays: () => Promise.resolve(["wss://write.example"]),
-  loadRelayList: () => Promise.resolve({ read: [], write: ["wss://write.example"] }),
+  loadRelayList: (pubkey: string) =>
+    Promise.resolve({ read: [], write: mocks.write[pubkey] ?? ["wss://write.example"] }),
 }));
 vi.mock("@/lib/blossomServers", async (orig) => ({
   ...(await orig<object>()),
@@ -74,6 +81,7 @@ beforeEach(() => {
   clearRelayLimitsCache();
   mocks.site = undefined;
   mocks.answered = ["wss://write.example"];
+  mocks.write = {};
   mocks.servers = ["https://files.example"];
   mocks.blossomLookups = 0;
   mocks.held.clear();
@@ -357,6 +365,13 @@ describe("askRunnerSite", () => {
     expect(await askRunnerSite(RUNNER, PK)).toBeUndefined();
     mocks.site = runnerSite({ tags: [["d", "observer"]] });
     expect(await askRunnerSite(RUNNER, PK)).toBeUndefined();
+  });
+
+  it("is settled by the runner's own write relays, not the reader's or the floor", async () => {
+    mocks.write = { [RUNNER]: ["wss://runner.example"], [PK]: ["wss://reader.example"] };
+    mocks.site = runnerSite();
+    await askRunnerSite(RUNNER, PK);
+    expect(mocks.readOptions).toEqual({ settleOn: ["wss://runner.example"] });
   });
 
   it("a read no relay answered isn't an answer", async () => {
