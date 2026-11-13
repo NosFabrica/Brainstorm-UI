@@ -289,3 +289,29 @@ describe("edits run one at a time, as the account that asked (audit, 2026-11-13)
     expect(decrypt).not.toHaveBeenCalled();
   });
 });
+
+describe("whether kind 12000 holds a key (a bought key waits for it)", () => {
+  const bought = { key: `sk-${"b".repeat(64)}`, url: "https://routstr.example.org/v1" };
+
+  it("reads the relays' newest copy and looks for the key at its URL", async () => {
+    requestNewestWithReach.mockResolvedValueOnce({
+      newest: earlier([["key", bought.key, bought.url]]),
+      reach: reachAll,
+    });
+    expect(await service.agentKeysHold(PUBKEY, bought)).toBe(true);
+    requestNewestWithReach.mockResolvedValueOnce({
+      newest: earlier([["key", openRouter.key, openRouter.url]]),
+      reach: reachAll,
+    });
+    expect(await service.agentKeysHold(PUBKEY, bought)).toBe(false);
+  });
+
+  it("can't tell for another account, or when too few relays answered", async () => {
+    expect(await service.agentKeysHold("f".repeat(64), bought)).toBeNull();
+    requestNewestWithReach.mockResolvedValueOnce({
+      newest: undefined,
+      reach: { asked: reachAll.asked, answered: ["wss://r0"] },
+    });
+    expect(await service.agentKeysHold(PUBKEY, bought)).toBeNull();
+  });
+});
