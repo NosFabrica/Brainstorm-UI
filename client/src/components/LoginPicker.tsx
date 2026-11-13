@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { removeAccountFromDevice, signInWithAccount } from "@/accounts/login-flow";
+import { HeldPurchasesWarning } from "@/components/HeldPurchasesWarning";
 import { cn } from "@/lib/utils";
 import { useExtensionUnreachable } from "@/hooks/useExtensionUnreachable";
 
@@ -253,6 +254,7 @@ export function LoginPicker({ identities, onSignedIn, onUseKey, onRecheckExtensi
               Everything this browser holds for it goes, including its npub. Anyone holding the key elsewhere can add it
               again; nobody else can.
             </AlertDialogDescription>
+            <HeldPurchasesWarning account={forgetting} />
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>

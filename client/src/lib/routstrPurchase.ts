@@ -302,3 +302,18 @@ export function localId(): string {
   crypto.getRandomValues(bytes);
   return `local-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
+
+/**
+ * What of the reader's money this device holds for an account, in words, one phrase per
+ * kind: what removing the account from this device would delete for good. An invoice
+ * nobody paid is no money, and isn't named.
+ */
+export function heldMoney(pubkey: string): string[] {
+  const records = readPurchases(pubkey);
+  const held: string[] = [];
+  if (records.some((r) => !r.key && (r.paid || r.paidHere) && !r.change && r.purpose === "create"))
+    held.push("a paid Lightning invoice whose key hasn't arrived");
+  if (records.some((r) => r.key)) held.push("a bought Routstr key not yet confirmed in your saved keys");
+  if (records.some((r) => r.change)) held.push("Cashu change you haven't put in your wallet");
+  return held;
+}

@@ -34,6 +34,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { removeAccountFromDevice } from "@/accounts/login-flow";
+import { HeldPurchasesWarning } from "@/components/HeldPurchasesWarning";
 import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
@@ -157,6 +158,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
                   This account's key lives in this browser and nowhere else. Removing it deletes the key — without a
                   backup file it can't be recovered, here or anywhere. It takes a few seconds.
                 </AlertDialogDescription>
+                <HeldPurchasesWarning account={removing.account} />
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel
@@ -190,6 +192,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
                     ? "This account's key lives in this browser and nowhere else, and removing it deletes the key. Without a backup file it can't be recovered, here or anywhere."
                     : "Everything this browser holds for it goes, including its npub. Anyone holding the key elsewhere can add it again; nobody else can."}
                 </AlertDialogDescription>
+                <HeldPurchasesWarning account={removing?.account} />
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>

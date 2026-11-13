@@ -17,6 +17,7 @@ import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
 import { localAccountFor } from "@/accounts/login";
 import type { UnlockFailure } from "@/accounts/restore";
 import { removeAccountFromDevice } from "@/accounts/login-flow";
+import { HeldPurchasesWarning } from "@/components/HeldPurchasesWarning";
 import { afterPaint } from "@/lib/afterPaint";
 import { Button } from "@/components/ui/button";
 import {
@@ -371,6 +372,7 @@ export function UnlockModal() {
                 This deletes this browser's copy of the key. If it's your only copy, the account is gone for good —
                 nobody can bring it back.
               </DialogDescription>
+              <HeldPurchasesWarning account={localAccountFor(prompt.pubkey)} />
             </DialogHeader>
 
             <DialogFooter className="gap-2">
