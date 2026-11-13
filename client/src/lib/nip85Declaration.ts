@@ -182,7 +182,12 @@ export function declaresLists(
   { key, relay }: ListDesignation,
 ): boolean {
   if (!event || !key || !relay) return false;
-  return LIST_KINDS.every((kind) => event.tags.some((t) => t[0] === kind && t[1] === key && sameRelay(t[2], relay)));
+  return undeclaredRows(event.tags, listRows({ key, relay })).length === 0;
+}
+
+/** The `rows` the Map doesn't carry yet: same key and Assistant, on the same relay. */
+export function undeclaredRows(existing: string[][], rows: string[][]): string[][] {
+  return rows.filter((r) => !existing.some((t) => t[0] === r[0] && t[1] === r[1] && sameRelay(t[2], r[2])));
 }
 
 /** What a 10040 says, read for people — a row's line, a page's card. */
