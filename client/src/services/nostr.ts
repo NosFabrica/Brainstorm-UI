@@ -3,11 +3,12 @@ import { env } from "@/lib/runtimeEnv";
 import {
   declaresTrustProvider,
   listRows,
-  mergeDesignation,
+  planDesignation,
   signalRows,
   withoutProvider,
   type ListDesignation,
 } from "@/lib/nip85Declaration";
+import type { MapCategory } from "@/lib/treasureMapCards";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
@@ -1575,12 +1576,13 @@ export async function announceRelayList(): Promise<PublishOutcome> {
 export async function signNip85(
   serviceKey: string,
   relayHint: string,
-  opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
+  opts: { lists?: ListDesignation | null; existing?: string[][]; take?: readonly MapCategory[] } = {},
 ): Promise<NostrEvent> {
   const ours = [...signalRows(serviceKey, relayHint), ...(opts.lists ? listRows(opts.lists) : [])];
   return signAs(requireActiveAccount(), {
     kind: 10040,
-    tags: mergeDesignation(opts.existing ?? [], ours),
+    // Fill empty, never take: another Assistant's slots move only in the categories the caller chose.
+    tags: planDesignation(opts.existing ?? [], ours, { self: serviceKey, take: opts.take }),
     content: "",
   });
 }

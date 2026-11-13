@@ -25,6 +25,7 @@ import { accountKey } from "@/lib/accountStorage";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
 import { declaresTrustProvider, trustProviderStatusOf, type ListDesignation } from "@/lib/nip85Declaration";
+import type { MapCategory } from "@/lib/treasureMapCards";
 import { checkUserLists, listsToName } from "./trustLists";
 
 /**
@@ -101,19 +102,30 @@ export async function checkExistingTrustProvider(
   taPubkey?: string | null,
 ): Promise<TrustProviderStatus> {
   try {
-    const event = await askTrustProviderList(pubkey);
-    const relay = getNip85RelayUrl();
-    const status = trustProviderStatusOf(event, taPubkey, relay);
-    // Published from another device — record it so nothing re-asks. Only the
-    // exact declaration is recorded as fact. A foreign declaration is definitive
-    // contrary evidence (unlike a relay MISS): the local flag is now a lie.
-    if (event && taPubkey && declaresTrustProvider(event, taPubkey, relay)) markNip85Activated(pubkey);
-    else if (status === "other" && taPubkey) clearNip85Activated(pubkey);
-    return status;
+    return statusOfRead(pubkey, taPubkey, await askTrustProviderList(pubkey));
   } catch {
     return "unknown";
   }
 }
+
+/** What a 10040 that was read says, with the local "activated" flag brought in line with it. */
+function statusOfRead(
+  pubkey: string,
+  taPubkey: string | null | undefined,
+  event: Awaited<ReturnType<typeof fetchTrustProviderList>>,
+): "none" | "brainstorm" | "other" {
+  const relay = getNip85RelayUrl();
+  const status = trustProviderStatusOf(event, taPubkey, relay);
+  // Published from another device — record it so nothing re-asks. Only the
+  // exact declaration is recorded as fact. A foreign declaration is definitive
+  // contrary evidence (unlike a relay MISS): the local flag is now a lie.
+  if (event && taPubkey && declaresTrustProvider(event, taPubkey, relay)) markNip85Activated(pubkey);
+  else if (status === "other" && taPubkey) clearNip85Activated(pubkey);
+  return status;
+}
+
+/** Said when a publish stops because the Map it would be merged into couldn't be read. */
+const MAP_UNREADABLE = "Couldn't read your current Treasure Map. Nothing was changed.";
 
 export type TrustAnchorPublishResult =
   | { status: "success" }
@@ -170,7 +182,12 @@ export async function publishBrainstormTrustAnchor(
   pubkey: string,
   taPubkey: string,
   onPhase?: (phase: "signing" | "publishing") => void,
-  opts: { lists?: ListDesignation | null } = {},
+  /**
+   * `take`: the Duty groups this publish may move away from another
+   * Assistant — the Activate page's "Switch" chooses Scores. Nothing by
+   * default: fill empty, never take.
+   */
+  opts: { lists?: ListDesignation | null; take?: readonly MapCategory[] } = {},
 ): Promise<TrustAnchorPublishResult> {
   let nip85Relay: string;
   try {
@@ -179,23 +196,23 @@ export async function publishBrainstormTrustAnchor(
     return { status: "error", message: (err as Error | undefined)?.message || "NIP-85 relay URL is not configured." };
   }
 
-  const lists = opts.lists === undefined ? await listsToName(pubkey, taPubkey) : opts.lists;
-
   // Merge into what's there: naming Brainstorm (and the user's Trusted Lists)
-  // must never cost them another provider's rows.
-  let existing: string[][] = [];
-  try {
-    // From the relays, newest wins (fetchTrustProviderList): this is merged
-    // into and published back, so an older copy would cost rows declared elsewhere.
-    existing = (await fetchTrustProviderList(pubkey))?.tags ?? [];
-  } catch {
-    // Unreadable relays: publish ours alone, as before.
-  }
+  // must never cost them another provider's rows. The new 10040 replaces the
+  // whole Map, so "what's there" has to be known: the Map as the relays hold it
+  // (newest wins), or their word that there is none. A read that came back
+  // empty because they didn't answer is neither — "not loaded" and "declared
+  // nothing" look the same, and publishing on a guess would wipe rows declared
+  // elsewhere. Deactivating refuses on the same ground.
+  const map = await probeTrustProviderList(pubkey).catch(() => ({ event: undefined, provenAbsent: false }));
+  if (!map.event && !map.provenAbsent) return { status: "error", message: MAP_UNREADABLE };
+  const existing = map.event?.tags ?? [];
+
+  const lists = opts.lists === undefined ? await listsToName(pubkey, taPubkey) : opts.lists;
 
   onPhase?.("signing");
   let signed;
   try {
-    signed = await signNip85(taPubkey, nip85Relay, { lists, existing });
+    signed = await signNip85(taPubkey, nip85Relay, { lists, existing, take: opts.take ?? [] });
   } catch (err) {
     return cancelled(err);
   }
@@ -263,10 +280,21 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
   // "declared someone else", which is how a foreign 10040 could get silently
   // overwritten. Replacement happens only on the explicit surfaces (consent
   // card / modal), behind the replace warning.
+  //
+  // And it only ever adds to a Map it knows: one it read, or one the relays
+  // prove absent. "Found nothing" is also what a missed read looks like, and
+  // nobody is here to try again — started from nothing, our rows would replace
+  // their whole Map. The effect re-runs on the next app load.
+  let existing: string[][];
   try {
-    const existing = await checkExistingTrustProvider(pubkey, taPubkey);
-    if (existing === "brainstorm" || existing === "other") return;
-  } catch {}
+    await fetchOutboxRelayList(pubkey).catch(() => undefined);
+    const map = await probeTrustProviderList(pubkey);
+    if (statusOfRead(pubkey, taPubkey, map.event) !== "none") return;
+    if (!map.event && !map.provenAbsent) return;
+    existing = map.event?.tags ?? [];
+  } catch {
+    return;
+  }
   // A first declaration names their Trusted Lists too, when they have some —
   // one signature rather than a second prompt later.
   let lists: ListDesignation | null = null;
@@ -275,7 +303,7 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
     if (found.status === "missing") lists = found.designation;
   } catch {}
   try {
-    const signed = await signNip85(taPubkey, getNip85RelayUrl(), { lists, existing: [] });
+    const signed = await signNip85(taPubkey, getNip85RelayUrl(), { lists, existing, take: [] });
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);
