@@ -69,11 +69,12 @@ Assistant holds — every list kind, by any key — read as `elsewhere` in
 - **Which site it belongs to**: `useVerifiedHost` returns its NIP-05's host once
   that NIP-05 verifies for its key. A profile's `website` is only a claim; show
   the verified host or nothing.
-- **"Ours" is a key comparison.** Production's Assistant verifies on
-  `brainstorm.nosfabrica.com` while production is served at `brainstorm.world`,
-  so comparing a host to the app's origin misreads it.
+- **"Ours" is a key comparison.** An Assistant verifies on the host its
+  server's `FRONTEND_URL` names, and a Deployment can answer on more than one:
+  most of production's verify on `brainstorm.world`, a few on
+  `brainstorm.nosfabrica.com`. Comparing a host to the app's origin misreads it.
 - Name the holder — "This replaces Pip's Brainstorm Assistant
-  (brainstorm.nosfabrica.com)" — wherever a write moves a Duty.
+  (brainstorm.world)" — wherever a write moves a Duty.
 
 ## Specs
 

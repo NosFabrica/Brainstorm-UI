@@ -83,8 +83,17 @@ export function dutiesSummary(
   return sentences.join(" ");
 }
 
-/** The hosts a Brainstorm Assistant's NIP-05 verifies on: the Deployments, which serve this app. */
-const BRAINSTORM_HOSTS = new Set(["brainstorm.nosfabrica.com", "brainstorm-staging.nosfabrica.com"]);
+/**
+ * The hosts a Brainstorm Assistant's NIP-05 verifies on: the Deployments, which
+ * serve this app. The server takes the host from its `FRONTEND_URL`, so
+ * production's verify on brainstorm.world, and a few older ones on
+ * brainstorm.nosfabrica.com.
+ */
+const BRAINSTORM_HOSTS = new Set([
+  "brainstorm.world",
+  "brainstorm.nosfabrica.com",
+  "brainstorm-staging.nosfabrica.com",
+]);
 
 /**
  * Where an Assistant on another site is changed: only its own site holds its

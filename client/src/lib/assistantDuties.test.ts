@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assistantsOf, dutiesSummary, othersOf, sidekickLine } from "./assistantDuties";
+import { assistantSiteLink, assistantsOf, dutiesSummary, othersOf, sidekickLine } from "./assistantDuties";
 
 /**
  * "Your Assistants" on Settings › Assistants › Yours: which Assistant holds each
@@ -113,7 +113,7 @@ describe("assistantsOf", () => {
 });
 
 describe("dutiesSummary", () => {
-  const site = (pk: string) => (pk === PROD ? "brainstorm.nosfabrica.com" : null);
+  const site = (pk: string) => (pk === PROD ? "brainstorm.world" : null);
   const name = (pk: string) => (pk === EXT ? "Pip's Assistant" : pk.slice(0, 6));
 
   it("says when everything happens on this site", () => {
@@ -132,7 +132,7 @@ describe("dutiesSummary", () => {
         site,
         name,
       ),
-    ).toBe("Scores come from brainstorm.nosfabrica.com. Lists and Concepts come from this site.");
+    ).toBe("Scores come from brainstorm.world. Lists and Concepts come from this site.");
     expect(
       dutiesSummary(
         [
@@ -155,9 +155,7 @@ describe("dutiesSummary", () => {
         site,
         name,
       ),
-    ).toBe(
-      "Scores come from this site and brainstorm.nosfabrica.com. Lists come from this site. Nobody has Concepts yet.",
-    );
+    ).toBe("Scores come from this site and brainstorm.world. Lists come from this site. Nobody has Concepts yet.");
   });
 });
 
@@ -204,5 +202,35 @@ describe("othersOf", () => {
   it("is empty when everything happens on this site", () => {
     expect(othersOf([{ pubkey: HERE, here: true, categories: ["scores", "lists", "concepts"] }])).toEqual([]);
     expect(othersOf([{ pubkey: HERE, here: true, categories: [] }])).toEqual([]);
+  });
+});
+
+/**
+ * A Brainstorm Assistant's NIP-05 host comes from its server's `FRONTEND_URL`,
+ * so the Deployments verify on more than one: production's on brainstorm.world
+ * (a few older ones on brainstorm.nosfabrica.com), staging's on its own.
+ */
+describe("assistantSiteLink", () => {
+  it.each(["brainstorm.world", "brainstorm.nosfabrica.com", "brainstorm-staging.nosfabrica.com"])(
+    "sends %s to its Assistants page, since it serves this app",
+    (host) => {
+      const link = assistantSiteLink(host);
+      expect(link.href.endsWith("/settings?tab=assistants&view=yours")).toBe(true);
+      expect(link.href.startsWith(`https://${host}/`)).toBe(true);
+      expect(link.label).toBe(`Open on ${host}`);
+    },
+  );
+
+  it("reads the host whatever its case", () => {
+    expect(assistantSiteLink("Brainstorm.World").href).toBe(
+      "https://Brainstorm.World/settings?tab=assistants&view=yours",
+    );
+  });
+
+  it("sends another app's site to its front page", () => {
+    expect(assistantSiteLink("scores.example")).toEqual({
+      href: "https://scores.example/",
+      label: "Open scores.example",
+    });
   });
 });

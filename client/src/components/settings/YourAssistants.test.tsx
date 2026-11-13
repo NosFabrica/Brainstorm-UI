@@ -22,7 +22,7 @@ const NAMES: Record<string, string> = {
 const APP = "d".repeat(64);
 const SITES: Record<string, string> = {
   [HERE]: "brainstorm-staging.nosfabrica.com",
-  [PROD]: "brainstorm.nosfabrica.com",
+  [PROD]: "brainstorm.world",
   // Another app's Assistant, whose NIP-05 verifies on that app's site.
   [APP]: "scores.example",
 };
@@ -91,9 +91,7 @@ describe("YourAssistants", () => {
     const summary = screen.getByTestId("your-assistants-summary");
     const card = screen.getByTestId("this-site-card");
     const also = screen.getByTestId("also-working-for-you");
-    expect(summary).toHaveTextContent(
-      "Scores come from brainstorm.nosfabrica.com. Lists and Concepts come from this site.",
-    );
+    expect(summary).toHaveTextContent("Scores come from brainstorm.world. Lists and Concepts come from this site.");
     expect(summary.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(card.compareDocumentPosition(also) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
@@ -101,7 +99,7 @@ describe("YourAssistants", () => {
     const cards = within(also).getAllByTestId(/^assistant-card-/);
     expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([`assistant-card-${PROD.slice(0, 8)}`]);
     expect(cards[0]).toHaveTextContent("Pip's Brainstorm Assistant");
-    expect(cards[0]).toHaveTextContent("brainstorm.nosfabrica.com");
+    expect(cards[0]).toHaveTextContent("brainstorm.world");
     expect(within(cards[0]).getByText("Scores")).toBeInTheDocument();
   });
 
@@ -121,8 +119,8 @@ describe("YourAssistants", () => {
     show();
     const prod = screen.getByTestId(`assistant-card-${PROD.slice(0, 8)}`);
     const open = within(prod).getByTestId("assistant-open-site");
-    expect(open).toHaveTextContent("Open on brainstorm.nosfabrica.com");
-    expect(open).toHaveAttribute("href", "https://brainstorm.nosfabrica.com/settings?tab=assistants&view=yours");
+    expect(open).toHaveTextContent("Open on brainstorm.world");
+    expect(open).toHaveAttribute("href", "https://brainstorm.world/settings?tab=assistants&view=yours");
     expect(open).toHaveAttribute("target", "_blank");
 
     const ext = screen.getByTestId(`assistant-card-${EXT.slice(0, 8)}`);
@@ -152,7 +150,7 @@ describe("YourAssistants", () => {
     };
     show();
     expect(screen.getByTestId("your-assistants-summary")).toHaveTextContent(
-      "Scores come from this site and brainstorm.nosfabrica.com. Nobody has Lists and Concepts yet.",
+      "Scores come from this site and brainstorm.world. Nobody has Lists and Concepts yet.",
     );
   });
 
