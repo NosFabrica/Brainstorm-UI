@@ -502,6 +502,17 @@ describe("who prints: devices or the Brainstorm Assistant (NIP-FB runner)", () =
     expect(screen.getByTestId("front-page-schedule-missed")).toHaveTextContent("Not printed since");
   });
 
+  it("says so when the Assistant's site couldn't be read, instead of checking forever (audit, 2026-11-12)", () => {
+    render(
+      <MorningSchedule
+        schedule={withRunner([ASSISTANT])}
+        assistant={ASSISTANT}
+        sites={{ reader: [], runner: null, runnerFailed: true }}
+      />,
+    );
+    expect(screen.getByTestId("front-page-schedule-ran")).toHaveTextContent("Couldn't check its papers");
+  });
+
   it("names a conflict when two keys are named, and nobody prints", () => {
     render(
       <MorningSchedule schedule={withRunner([ASSISTANT, "c".repeat(64)])} assistant={ASSISTANT} sites={NO_SITES} />,

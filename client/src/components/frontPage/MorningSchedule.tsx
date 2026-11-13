@@ -72,6 +72,8 @@ const AI_SETTINGS = "/settings?tab=assistants&view=ai";
 export interface ScheduleSites {
   reader: readonly PrintedEdition[] | null;
   runner: readonly PrintedEdition[] | null;
+  /** The runner's site was asked for and none of its relays answered: said, not waited on. */
+  runnerFailed?: boolean;
 }
 
 const NO_SITES: ScheduleSites = { reader: null, runner: null };
@@ -597,7 +599,11 @@ function RunnerLine({
   }
   return (
     <p className="mt-0.5 text-xs text-muted-foreground" data-testid="front-page-schedule-ran">
-      {answered ? "Not printed yet." : "Checking its papers…"}
+      {answered
+        ? "Not printed yet."
+        : sites.runnerFailed
+          ? "Couldn't check its papers: its relays didn't answer."
+          : "Checking its papers…"}
     </p>
   );
 }

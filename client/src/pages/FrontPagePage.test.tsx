@@ -81,8 +81,20 @@ vi.mock("@/hooks/useObserverSite", async () => {
         let live = true;
         (state.siteLoad ? state.siteLoad() : Promise.resolve(state.site))
           .then((loaded) => {
-            const site = loaded as { event: unknown; index: { editions: unknown[] }; servers: string[] };
-            if (live) setView({ editions: site.index.editions, servers: site.servers, exists: !!site.event });
+            const site = loaded as {
+              event: unknown;
+              index: { editions: unknown[] };
+              servers: string[];
+              settled?: boolean;
+            };
+            if (live) {
+              setView({
+                editions: site.index.editions,
+                servers: site.servers,
+                exists: !!site.event,
+                settled: site.settled ?? true,
+              });
+            }
           })
           .catch(() => undefined);
         return () => {
@@ -94,20 +106,26 @@ vi.mock("@/hooks/useObserverSite", async () => {
   };
 });
 
+// The runner's site as `useRunnerSite` hands it over (its own tests: hooks/useRunnerSite).
+vi.mock("@/hooks/useRunnerSite", () => ({
+  useRunnerSite: (runner: string | null, reader: string | null) => {
+    if (!runner) return null;
+    state.runnerSiteFor(runner, reader);
+    const site = (state.runnerSite ?? { event: null, index: { editions: [] }, servers: [] }) as {
+      event: unknown;
+      index: { editions: unknown[] };
+      servers: string[];
+    };
+    // A new object on every render, as a store update makes one: same servers, new list.
+    return {
+      status: "ready",
+      view: { editions: site.index.editions, servers: [...site.servers], exists: !!site.event, settled: true },
+    };
+  },
+}));
+
 vi.mock("@/services/observerSite", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  loadRunnerSite: (...args: unknown[]) => {
-    state.runnerSiteFor(...args);
-    return Promise.resolve(
-      state.runnerSite ?? {
-        event: null,
-        index: { v: 1, title: "", editions: [] },
-        servers: [],
-        relays: [],
-        reached: true,
-      },
-    );
-  },
   publishToObserver: (...args: unknown[]) => state.publish(...args),
   fetchBlob: (...args: unknown[]) => state.fetchBlob(...args),
 }));
@@ -862,6 +880,14 @@ describe("FrontPagePage", () => {
     expect(state.fetchBlob).not.toHaveBeenCalled();
   });
 
+  it("with no servers known yet, the edition is loading, not missing (audit, 2026-11-12)", async () => {
+    state.site = { ...siteWith([todayEntry("2", { printedAt: undefined })], []), settled: false };
+    renderWithProviders(<FrontPagePage />);
+    expect(await screen.findByTestId("front-page-frame-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("front-page-frame-missing")).toBeNull();
+    expect(state.fetchBlob).not.toHaveBeenCalled();
+  });
+
   describe("a print that outlives the page", () => {
     /** The print, held open: the test reports its events and finishes it. */
     function heldPrint() {
@@ -1108,6 +1134,18 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     expect(frame.getAttribute("srcdoc")).toContain("The Nostr Observer");
     expect(state.runnerSiteFor).toHaveBeenCalledWith(ASSISTANT, "a".repeat(64));
     expect(state.fetchBlob.mock.calls[0][0]).toBe(hash("c"));
+  });
+
+  it("a new copy of the same servers doesn't restart an edition's download (audit, 2026-11-12)", async () => {
+    state.schedule = scheduleWith([["cron", "0 6 * * *", "UTC", "1"]], [["p", ASSISTANT]]);
+    state.runnerSite = { ...siteWith([todayEntry("c")]), reached: true };
+    state.fetchBlob.mockReturnValue(new Promise(() => {}));
+    const view = renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(state.fetchBlob).toHaveBeenCalledTimes(1));
+    view.rerender(<FrontPagePage />);
+    view.rerender(<FrontPagePage />);
+    expect(state.fetchBlob).toHaveBeenCalledTimes(1);
+    expect((state.fetchBlob.mock.calls[0][2] as { signal: AbortSignal }).signal.aborted).toBe(false);
   });
 
   it("never reads a runner's site with a conflict", async () => {

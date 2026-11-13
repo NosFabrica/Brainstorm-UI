@@ -58,8 +58,9 @@ import {
   fetchBlob,
   leadHeadline,
   loadObserverSite,
-  loadRunnerSite,
+  askRunnerSite,
   publishToObserver,
+  runnerSiteReached,
   PublishError,
 } from "./observerSite";
 
@@ -323,50 +324,46 @@ describe("loadObserverSite", () => {
   });
 });
 
-describe("loadRunnerSite", () => {
+describe("askRunnerSite", () => {
   const RUNNER = "b".repeat(64);
-  const runnerSite = async (over: Record<string, unknown> = {}) => {
-    const json = serializeEditions({
-      v: 1,
-      title: "Lira's Observer",
-      editions: [{ day: "2026-11-12", path: "/2026-11-12.html", sha256: "3".repeat(64), printedAt: 1794480000 }],
-    });
-    const hash = await sha256Text(json);
-    blobs.set(hash, json);
-    return {
-      kind: 35128,
-      pubkey: RUNNER,
-      created_at: 1,
-      tags: [
-        ["d", "observer"],
-        ["p", PK],
-        ["path", "/2026-11-12.html", "3".repeat(64)],
-        ["path", EDITIONS_PATH, hash],
-      ],
-      ...over,
-    };
-  };
+  const runnerSite = (over: Record<string, unknown> = {}) => ({
+    kind: 35128,
+    pubkey: RUNNER,
+    created_at: 1,
+    tags: [
+      ["d", "observer"],
+      ["p", PK],
+      ["path", "/2026-11-12.html", "3".repeat(64)],
+    ],
+    ...over,
+  });
 
-  it("reads the Assistant's site for this reader, its files on the reader's servers", async () => {
-    mocks.site = await runnerSite();
-    const site = await loadRunnerSite(RUNNER, PK);
-    expect(site.event).not.toBeNull();
-    expect(site.index.editions.map((e) => [e.day, e.printedAt])).toEqual([["2026-11-12", 1794480000]]);
-    expect(site.servers).toEqual(["https://files.example"]);
+  it("hands back the Assistant's site for this reader, and records that a relay answered", async () => {
+    mocks.site = runnerSite();
+    expect(runnerSiteReached(RUNNER, PK)).toBe(false);
+    expect(await askRunnerSite(RUNNER, PK)).toMatchObject({ pubkey: RUNNER });
+    expect(runnerSiteReached(RUNNER, PK)).toBe(true);
   });
 
   it("ignores a site by another key, or one that doesn't tag this reader", async () => {
-    mocks.site = await runnerSite({ pubkey: "c".repeat(64) });
-    expect((await loadRunnerSite(RUNNER, PK)).event).toBeNull();
-    mocks.site = await runnerSite({
+    mocks.site = runnerSite({ pubkey: "c".repeat(64) });
+    expect(await askRunnerSite(RUNNER, PK)).toBeUndefined();
+    mocks.site = runnerSite({
       tags: [
         ["d", "observer"],
         ["p", "d".repeat(64)],
       ],
     });
-    expect((await loadRunnerSite(RUNNER, PK)).index.editions).toEqual([]);
-    mocks.site = await runnerSite({ tags: [["d", "observer"]] });
-    expect((await loadRunnerSite(RUNNER, PK)).event).toBeNull();
+    expect(await askRunnerSite(RUNNER, PK)).toBeUndefined();
+    mocks.site = runnerSite({ tags: [["d", "observer"]] });
+    expect(await askRunnerSite(RUNNER, PK)).toBeUndefined();
+  });
+
+  it("a read no relay answered isn't an answer", async () => {
+    const OTHER_READER = "e".repeat(64);
+    mocks.answered = [];
+    expect(await askRunnerSite(RUNNER, OTHER_READER)).toBeUndefined();
+    expect(runnerSiteReached(RUNNER, OTHER_READER)).toBe(false);
   });
 });
 

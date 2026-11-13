@@ -37,8 +37,9 @@ import { Switch } from "@/components/ui/switch";
 import { copyToClipboard } from "@/lib/clipboard";
 import { observerNaddr, observerUrl, type EditionEntry } from "@/lib/frontPage/observerSite";
 import { observerToday, type Edition } from "@/lib/frontPage/today";
-import { fetchBlob, leadHeadline, loadRunnerSite } from "@/services/observerSite";
+import { fetchBlob, leadHeadline } from "@/services/observerSite";
 import { useObserverSite } from "@/hooks/useObserverSite";
+import { useRunnerSite } from "@/hooks/useRunnerSite";
 import {
   cancelPrint,
   confirmPublish,
@@ -96,7 +97,6 @@ import { updateObserverSchedule } from "@/services/observerSchedule";
 import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule, type ScheduleSites } from "@/components/frontPage/MorningSchedule";
 import { useNow } from "@/hooks/useNow";
-import { onAppResume } from "@/lib/appResume";
 import { fetchModels } from "@/services/frontPage";
 
 /**
@@ -129,16 +129,9 @@ interface SiteState {
   editions: EditionEntry[];
   servers: string[];
   exists: boolean;
+  /** `servers` is final; until then none is "not known yet" (`SiteView.settled`). */
+  settled?: boolean;
 }
-
-/**
- * The site of the runner the reader's schedule names: whose it is, what it holds, and
- * whether a relay answered (so "no editions" is an answer, not a silence).
- */
-type RunnerSiteState = SiteState & { runner: string; reached: boolean };
-
-/** Away this long, the runner's site is asked again on return: it may have printed meanwhile. */
-const RUNNER_REASK_AWAY_MS = 60_000;
 
 const HEX_KEY = /^[0-9a-f]{64}$/;
 
@@ -243,6 +236,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
             editions: published.editions,
             servers: [...new Set([...published.servers, ...(held?.servers ?? [])])],
             exists: true,
+            settled: true,
           }
         : held,
     [published, held],
@@ -269,52 +263,28 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     scheduleState.runners.length === 1 && HEX_KEY.test(scheduleState.runners[0]) && scheduleState.runners[0] !== pubkey
       ? scheduleState.runners[0]
       : null;
-  const [runnerSite, setRunnerSite] = useState<RunnerSiteState | null>(null);
-  const [runnerAsk, setRunnerAsk] = useState(0);
-  useEffect(
-    () =>
-      onAppResume((away) => {
-        if (away >= RUNNER_REASK_AWAY_MS) setRunnerAsk((n) => n + 1);
-      }),
-    [],
-  );
-  useEffect(() => {
-    if (!pubkey || !runner) return;
-    let live = true;
-    loadRunnerSite(runner, pubkey)
-      .then((loaded) => {
-        if (!live) return;
-        setRunnerSite({
-          runner,
-          editions: loaded.index.editions,
-          servers: loaded.servers,
-          exists: !!loaded.event,
-          reached: loaded.reached,
-        });
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [pubkey, runner, runnerAsk]);
-  const runnerShown = runner && runnerSite?.runner === runner ? runnerSite : null;
+  // From the store, so a late site shows when it lands, and a silence is said (`failed`).
+  const runnerSite = useRunnerSite(runner, pubkey);
+  const runnerShown = runnerSite?.status === "ready" ? runnerSite.view : null;
   // Either site's files are fetched by hash from wherever they are: the runner uploads to
   // the reader's own servers, and every download is checked against its hash.
   const sites: SiteState | null = useMemo(() => {
-    if (!runnerShown) return site;
+    if (!runner) return site;
     return {
       editions: site?.editions ?? [],
-      servers: [...new Set([...(site?.servers ?? []), ...runnerShown.servers])],
+      servers: [...new Set([...(site?.servers ?? []), ...(runnerShown?.servers ?? [])])],
       exists: !!site?.exists,
+      settled: !!site?.settled && !!runnerShown?.settled,
     };
-  }, [site, runnerShown]);
+  }, [site, runner, runnerShown]);
   const scheduleSites: ScheduleSites = useMemo(
     () => ({
       // Null while the reader's own site is unknown: no warning rests on a silence.
       reader: site ? site.editions : null,
-      runner: runner ? (runnerShown?.reached ? runnerShown.editions : null) : [],
+      runner: runner ? (runnerShown ? runnerShown.editions : null) : [],
+      runnerFailed: runnerSite?.status === "failed",
     }),
-    [site, runner, runnerShown],
+    [site, runner, runnerShown, runnerSite?.status],
   );
   const { today, past } = useMemo(
     () =>
@@ -372,8 +342,9 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const paperOf = (e: Edition<Printed>): Printed =>
     e.from === "session" ? e.paper : fromEntry(e.entry, fetched[e.entry.sha256] ?? "");
   // No servers to ask is not an answer: nothing is remembered, so a later load can try.
+  // Only once the servers are final is "none" a failure; until then it is loading.
   const failedOf = (e: Edition<Printed>) =>
-    e.from === "site" && (fetched[e.entry.sha256] === null || sites?.servers.length === 0);
+    e.from === "site" && (fetched[e.entry.sha256] === null || (!!sites?.settled && sites.servers.length === 0));
   const shown = today ? paperOf(today) : null;
   // The edition on the page: the asked past one, else today's.
   const viewing: Edition<Printed> | null = asked ? opened : today;
@@ -733,17 +704,19 @@ function useEditionHtml(
 ) {
   const sha = entry?.sha256;
   const known = sha !== undefined && fetched[sha] !== undefined;
-  const servers = site?.servers;
+  // Keyed on the servers' names, not the list's identity: every new site object (a store
+  // update, a publish) is a new list, and the download it restarted had to begin again.
+  const serversKey = site?.servers.join("\n") ?? "";
   useEffect(() => {
-    if (!sha || known || !servers || servers.length === 0) return;
+    if (!sha || known || !serversKey) return;
     const controller = new AbortController();
-    fetchBlob(sha, servers, { signal: controller.signal })
+    fetchBlob(sha, serversKey.split("\n"), { signal: controller.signal })
       .catch(() => null)
       .then((html) => {
         if (!controller.signal.aborted) setFetched((m) => ({ ...m, [sha]: html }));
       });
     return () => controller.abort();
-  }, [sha, known, servers, setFetched]);
+  }, [sha, known, serversKey, setFetched]);
 }
 
 function Fade({ children }: { children: React.ReactNode }) {
