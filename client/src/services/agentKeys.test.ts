@@ -238,3 +238,54 @@ describe("reading the keys tells a signer failure from keys this sign-in can't r
     expect(read).toEqual({ status: "unreadable" });
   });
 });
+
+describe("edits run one at a time, as the account that asked (audit, 2026-11-13)", () => {
+  const bought = { key: `sk-${"b".repeat(64)}`, url: "https://routstr.example.org/v1" };
+
+  it("a bought key's save and an edit made meanwhile both land: the second builds on the first", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
+    const [a, b] = await Promise.all([
+      service.updateAgentKeys((cur) => lib.addKey(cur, bought)),
+      service.updateAgentKeys((cur) => lib.addKey(cur, openRouter)),
+    ]);
+    expect(a.success && b.success).toBe(true);
+    const last = publish.mock.calls.at(-1)![1] as { content: string };
+    const keys = JSON.parse(nip44.decrypt(last.content, toSelf)) as string[][];
+    expect(keys.map((t) => t[1])).toEqual([bought.key, openRouter.key]);
+  });
+
+  it("refuses, writing nothing, when the active account isn't the one named", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
+    const out = await service.updateAgentKeys((cur) => lib.addKey(cur, bought), { pubkey: "f".repeat(64) });
+    expect(out).toMatchObject({ success: false, notActive: true });
+    expect(publish).not.toHaveBeenCalled();
+    expect(requestNewestWithReach).not.toHaveBeenCalled();
+  });
+
+  it("an edit queued behind another runs as the account that asked, or not at all", async () => {
+    let release!: () => void;
+    requestNewestWithReach.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r({ newest: undefined, reach: reachAll }))),
+    );
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
+    const first = service.updateAgentKeys((cur) => lib.addKey(cur, bought));
+    const second = service.updateAgentKeys((cur) => lib.addKey(cur, openRouter));
+    await vi.waitFor(() => expect(release).toBeDefined());
+    // Someone else signs in while the first is out.
+    activeAccount.mockReturnValue({ ...account, pubkey: "e".repeat(64) });
+    release();
+    expect((await first).success).toBe(true);
+    expect(await second).toMatchObject({ success: false, notActive: true });
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("its own write is read back without asking the signer again", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
+    await service.updateAgentKeys((cur) => lib.addKey(cur, bought));
+    const decrypt = vi.fn(account.nip44.decrypt);
+    const written = publish.mock.calls[0][1] as never;
+    const read = await service.readAgentKeyTags({ ...account, nip44: { ...account.nip44, decrypt } } as never, written);
+    expect(read).toEqual({ status: "ready", tags: [["key", bought.key, bought.url]] });
+    expect(decrypt).not.toHaveBeenCalled();
+  });
+});

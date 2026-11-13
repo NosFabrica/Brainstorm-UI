@@ -81,6 +81,11 @@ async function readOnce(account: BrainstormAccount, event: NostrEvent): Promise<
   return tags ? { status: "ready", tags } : { status: "unreadable" };
 }
 
+function rememberRead(eventId: string, tags: string[][]) {
+  readKeys.set(eventId, tags);
+  if (readKeys.size > MAX_READ) readKeys.delete(readKeys.keys().next().value!);
+}
+
 /** The event's private tags, read once per event (`AgentKeyRead`). Rethrows a declined unlock. */
 export function readAgentKeyTags(account: BrainstormAccount, event: NostrEvent): Promise<AgentKeyRead> {
   if (event.pubkey !== account.pubkey || !event.content) return Promise.resolve({ status: "unreadable" });
@@ -91,10 +96,7 @@ export function readAgentKeyTags(account: BrainstormAccount, event: NostrEvent):
   const read = readOnce(account, event).then(
     (result) => {
       readingKeys.delete(event.id);
-      if (result.status === "ready") {
-        readKeys.set(event.id, result.tags);
-        if (readKeys.size > MAX_READ) readKeys.delete(readKeys.keys().next().value!);
-      }
+      if (result.status === "ready") rememberRead(event.id, result.tags);
       return result;
     },
     (error) => {
@@ -111,14 +113,43 @@ export function decryptAgentKeyTags(account: BrainstormAccount, event: NostrEven
   return readAgentKeyTags(account, event).then((read) => (read.status === "ready" ? read.tags : null));
 }
 
+/** What an edit came to. `notActive`: it was asked for an account that isn't the one signed in now, so nothing was read or written. */
+export type AgentKeysSave = PublishOutcome & { notActive?: boolean };
+
 /**
  * Replaces the keys with `change(current)`, keeping every private tag that isn't a
  * key and the event's public tags. Fails, writing nothing, when too few relays
  * answered to be sure there is no event, or when the newest one can't be read.
+ *
+ * Edits run one after another, never two at once, whoever asks (the AI model page, a
+ * bought key's save, the Assistant's keys): two read at once would build on the same copy,
+ * and the relays would keep only one of them, losing the other's key. Each runs as the
+ * account that asked: `pubkey` when given (a purchase names whose it is), else the one
+ * active when it was asked. When another is active at its turn, it writes nothing
+ * (`notActive`).
  */
-export async function updateAgentKeys(change: (keys: AgentKey[]) => AgentKey[]): Promise<PublishOutcome> {
+export function updateAgentKeys(
+  change: (keys: AgentKey[]) => AgentKey[],
+  { pubkey }: { pubkey?: string } = {},
+): Promise<AgentKeysSave> {
+  const asker = pubkey ?? activeAccount()?.pubkey ?? null;
+  const run = editQueue.then(() => updateNow(change, asker));
+  editQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** The last edit asked for: the next one starts when it has settled. */
+let editQueue: Promise<void> = Promise.resolve();
+
+const NOT_ACTIVE = "You've switched accounts since, so nothing was changed.";
+
+async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string | null): Promise<AgentKeysSave> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return { success: false, error: "Not logged in", notActive: asker !== null };
+  if (asker !== null && account.pubkey !== asker) return { success: false, error: NOT_ACTIVE, notActive: true };
   try {
     const relays = await outboxRelays(account.pubkey, PROFILE_RELAYS);
     const { newest: fetched, reach } = await requestNewestWithReach(
@@ -156,6 +187,9 @@ export async function updateAgentKeys(change: (keys: AgentKey[]) => AgentKey[]):
       // Past the copy we read, so relays keep this one even when this clock lags.
       created_at: newest ? Math.max(now, newest.created_at + 1) : now,
     });
+    // What it says is known: the next read of it (the next edit, a purchase checking its
+    // key landed) asks the signer nothing.
+    rememberRead(signed.id, next);
     return await publishToRelays(signed);
   } catch (err) {
     return signingFailure(err, "Failed to sign");
