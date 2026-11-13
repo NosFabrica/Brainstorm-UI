@@ -82,6 +82,7 @@ import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
+import { accountKey } from "@/lib/accountStorage";
 import { withPaperCsp } from "@/lib/frontPage/validate";
 import {
   observerKeyChoice,
@@ -139,27 +140,47 @@ const HEX_KEY = /^[0-9a-f]{64}$/;
 const FILE_SERVERS_SETTINGS = "/settings?tab=messages&focus=file-servers";
 
 /**
- * The model this browser last used per endpoint: what a print fell back to before the
- * schedule carried the reader's choice (`param` `model`), and what the plan's migration
- * writes there on Brainstorm's first edit. A choice here still goes to the schedule.
+ * The model this account last used per endpoint on this browser: what a print fell back to
+ * before the schedule carried the reader's choice (`param` `model`), and what the plan's
+ * migration writes there on Brainstorm's first edit. A choice here still goes to the
+ * schedule. One account's only: the migration signs it into that account's schedule.
  */
-const modelKey = (url: string) => `frontPage:model:${url}`;
+const modelKey = (pubkey: string, url: string) => `${accountKey("frontPage:model", pubkey)}:${url}`;
 
-function readModel(url: string): string | null {
+function readModel(pubkey: string, url: string): string | null {
   try {
-    return localStorage.getItem(modelKey(url));
+    return localStorage.getItem(modelKey(pubkey, url));
   } catch {
     return null;
   }
 }
 
-function writeModel(url: string, model: string) {
+function writeModel(pubkey: string, url: string, model: string) {
   try {
-    localStorage.setItem(modelKey(url), model);
+    localStorage.setItem(modelKey(pubkey, url), model);
   } catch {
     // remembered for this visit only
   }
 }
+
+/**
+ * What older versions remembered, `frontPage:model:<url>` with no account: it can't be told
+ * whose it was, so no account's schedule migrates it. It is dropped.
+ */
+function dropUnownedModels() {
+  try {
+    const unowned: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(LEGACY_MODEL_PREFIX) && !OWNED_MODEL.test(key)) unowned.push(key);
+    }
+    for (const key of unowned) localStorage.removeItem(key);
+  } catch {
+    // storage unavailable: nothing to drop
+  }
+}
+const LEGACY_MODEL_PREFIX = "frontPage:model:";
+const OWNED_MODEL = /^frontPage:model:[0-9a-f]{64}:/;
 
 // --- the model list -------------------------------------------------------------
 
@@ -314,8 +335,13 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   // naming this key's endpoint. Another endpoint's model is not this one's.
   const keyChoice = observerKeyChoice(syncedSchedule);
   const keyFits = !!key && !picked && (!keyChoice || apiRoot(keyChoice.url) === apiRoot(key.url));
-  // The plan's migration: Brainstorm's first edit writes the model this browser remembered.
-  const migrate = useMemo(() => (doc: TaskTags) => withRememberedModel(doc, allKeys, readModel), [allKeys]);
+  // The plan's migration: Brainstorm's first edit writes the model this account remembered
+  // in this browser, and never one remembered before the key named its account.
+  useEffect(dropUnownedModels, []);
+  const migrate = useMemo(
+    () => (doc: TaskTags) => (pubkey ? withRememberedModel(doc, allKeys, (url) => readModel(pubkey, url)) : doc),
+    [allKeys, pubkey],
+  );
   // A past edition, read in the paper's place: its day is in the URL, so the browser's
   // Back returns to today and the link can be passed around the app.
   const [, navigate] = useLocation();
@@ -373,7 +399,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const model = key && chosen?.url === key.url ? chosen.id : "";
   useEffect(() => {
     if (!key) return;
-    const remembered = scheduledModel ?? readModel(key.url);
+    const remembered = scheduledModel ?? (pubkey ? readModel(pubkey, key.url) : null);
     if (models.status === "listed") {
       const usable = remembered && (remembered === scheduledModel || models.ids.includes(remembered));
       setChosen({ url: key.url, id: usable ? remembered : models.ids[0] });
@@ -406,7 +432,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const chooseModel = (id: string) => {
     if (!key) return;
     setChosen({ url: key.url, id });
-    writeModel(key.url, id);
+    if (pubkey) writeModel(pubkey, key.url, id);
   };
   /** The model as picked, written to the schedule (a typed id once the field is left). */
   const commitModel = (typed: string) => {

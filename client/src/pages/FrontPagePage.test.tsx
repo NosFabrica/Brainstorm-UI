@@ -1046,6 +1046,7 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     state.updateSchedule.mockReset().mockResolvedValue({ success: true });
     state.runnerSite = null;
     state.runnerSiteFor.mockReset();
+    state.user = { pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" };
   });
 
   it("prints with the key and model the schedule names", async () => {
@@ -1117,6 +1118,34 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     fireEvent.change(input, { target: { value: "llama3.3" } });
     await act(async () => fireEvent.blur(input));
     expect(await screen.findByTestId("front-page-setting-error")).toHaveTextContent("Used here only");
+  });
+
+  it("remembers a model per account, and drops one remembered before accounts (audit, 2026-11-12)", async () => {
+    state.models = [];
+    // From before the key named its account: nobody can tell whose it is.
+    localStorage.setItem(`frontPage:model:${OR}`, "legacy/model");
+    const view = renderWithProviders(<FrontPagePage />);
+    const input = (await screen.findByTestId("front-page-model-input")) as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(localStorage.getItem(`frontPage:model:${OR}`)).toBeNull();
+
+    fireEvent.change(input, { target: { value: "model-of-a" } });
+    expect(localStorage.getItem(`frontPage:model:${"a".repeat(64)}:${OR}`)).toBe("model-of-a");
+    await act(async () => fireEvent.blur(input));
+    // The migration writes only this account's own remembered model.
+    const change = state.updateSchedule.mock.calls[0][0] as (d: unknown) => { private: string[][] };
+    expect(change({ public: [], private: [["task", "observer"]] }).private).not.toContainEqual([
+      "param",
+      "model",
+      "legacy/model",
+    ]);
+
+    // Another account on this browser doesn't see it, nor sign it into its schedule.
+    state.updateSchedule.mockClear();
+    state.user = { pubkey: "b".repeat(64), npub: "npub1other", displayName: "Other" };
+    view.rerender(<FrontPagePage />);
+    const theirs = (await screen.findByTestId("front-page-model-input")) as HTMLInputElement;
+    expect(theirs.value).toBe("");
   });
 
   it("with no runner, reads only the reader's own site", async () => {
