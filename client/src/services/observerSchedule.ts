@@ -224,14 +224,17 @@ function publishTo(relays: string[], event: NostrEvent, need: number) {
  * took the write. Succeeds, signing nothing, when `change` hands back the tags it was
  * given, once the copy it read is on more than half of them (republished, as it is, to
  * those that lack it). `claim` and `ran` are only ever carried over; a public `client` tag is the one
- * tag dropped. Edits run one after another, never two at once.
+ * tag dropped. Edits run one after another, never two at once, each as the account active
+ * when it was asked: another one active at its turn writes nothing.
  */
 export function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
   // One edit at a time, whoever asks (the card, the pickers): two edits read at once would
   // build on the same copy and sign the same `created_at`, and the relays would keep one.
   // Each waits for the one before it, so it reads (from the store, at least) what that one
-  // wrote. A failed edit doesn't stop the next.
-  const run = editQueue.then(() => updateNow(change));
+  // wrote. A failed edit doesn't stop the next. Whose edit it is is fixed now: a switch while
+  // it waits must not write this account's change into another's schedule.
+  const asker = activeAccount()?.pubkey ?? null;
+  const run = editQueue.then(() => updateNow(change, asker));
   editQueue = run.then(
     () => undefined,
     () => undefined,
@@ -242,9 +245,12 @@ export function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Pro
 /** The last edit asked for: the next one starts when it has settled. */
 let editQueue: Promise<void> = Promise.resolve();
 
-async function updateNow(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
+async function updateNow(change: (doc: TaskTags) => TaskTags, asker: string | null): Promise<ScheduleSave> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
+  if (account.pubkey !== asker) {
+    return { success: false, error: "You've switched accounts since, so nothing was changed." };
+  }
   try {
     const found = await writeRelaysOf(account.pubkey);
     if (found.status === "unavailable") {

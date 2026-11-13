@@ -811,6 +811,32 @@ describe("edits one at a time (audit, 2026-11-12)", () => {
   });
 });
 
+describe("a queued edit runs as the account that asked (audit, 2026-11-13)", () => {
+  it("is refused, writing nothing, when another account is active at its turn", async () => {
+    let release!: () => void;
+    loadFreshRelayList.mockImplementationOnce(
+      () =>
+        new Promise(
+          (r) => (release = () => r({ status: "found", list: { write: ["wss://r0", "wss://r1"], read: [] } })),
+        ),
+    );
+    requestNewestWithReach.mockResolvedValue({ newest: scheduleEvent(amethystPrivate), reach: reachAll });
+    const first = service.updateObserverSchedule((d) => tasks.setEnabled(d, false, NOW));
+    const second = service.updateObserverSchedule((d) => lib.withObserverModel(d, "model-two"));
+    await vi.waitFor(() => expect(release).toBeDefined());
+    // Someone else signs in while the first is out.
+    activeAccount.mockReturnValue({ ...account, pubkey: "e".repeat(64) });
+    release();
+    expect((await first).success).toBe(true);
+    const out = await second;
+    expect(out.success).toBe(false);
+    expect(out.error).toMatch(/switched accounts/);
+    // Only the first was signed, and as the account that asked.
+    expect(signAs).toHaveBeenCalledTimes(1);
+    expect((signAs.mock.calls[0][0] as { pubkey: string }).pubkey).toBe(PUBKEY);
+  });
+});
+
 describe("ported: Quartz ScheduledTaskRunnerTest, fae3e873 (the decrypt asks once)", () => {
   const ASSISTANT = getPublicKey(new Uint8Array(32).fill(9));
   const STRANGER = getPublicKey(new Uint8Array(32).fill(11));
