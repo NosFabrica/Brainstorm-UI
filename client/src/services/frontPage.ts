@@ -16,6 +16,7 @@
 import type { NostrEvent } from "nostr-tools";
 import type { Relay } from "applesauce-relay";
 import { searchRelay } from "@/lib/searchRelay";
+import { isRoutstrModels, parseModels, readRoutstrError, routstrProblem, type RoutstrModel } from "@/lib/routstr";
 import { apiRoot, type AgentKey } from "@/lib/agentKeys";
 import {
   DEFAULT_TRUST_FLOOR,
@@ -296,7 +297,14 @@ export class RelayOutageError extends WriterError {
   }
 }
 
-function explain(status: number, body: string): string {
+/**
+ * A failed answer in words. A Routstr node's own errors come first (lib/routstr): its 402 is a
+ * balance to top up, not a dead key, and its 503 `payment_settlement_failed` charged without
+ * answering, which nothing here sends again.
+ */
+export function explain(status: number, body: string): string {
+  const routstr = routstrProblem(readRoutstrError(status, body));
+  if (routstr) return routstr.text;
   if (status === 401 || status === 403)
     return "Your AI key was rejected. Check it in Settings › Assistants › AI model.";
   if (status === 402) return "Your AI key is out of credit.";
@@ -306,11 +314,25 @@ function explain(status: number, body: string): string {
   return `Your AI provider answered with an error (${status})${said ? `: ${said}` : "."}`;
 }
 
+export interface ModelList {
+  ids: string[];
+  /** A Routstr node's list, with its prices in sats (`sats_pricing`); null for any other endpoint. */
+  routstr: RoutstrModel[] | null;
+}
+
+/** The models a key can use, with a Routstr node's prices; best guess first is the caller's job (`rankModels`). */
+export async function fetchModelList(key: AgentKey, signal?: AbortSignal): Promise<ModelList> {
+  const response = await fetch(`${apiRoot(key.url)}/models`, { headers: authHeaders(key), signal });
+  if (!response.ok) {
+    throw new WriterError(explain(response.status, await response.text().catch(() => "")), response.status);
+  }
+  const json = await response.json().catch(() => null);
+  return { ids: readModelIds(json), routstr: isRoutstrModels(json) ? parseModels(json) : null };
+}
+
 /** The models a key can use, best guess first is the caller's job (`rankModels`). */
 export async function fetchModels(key: AgentKey, signal?: AbortSignal): Promise<string[]> {
-  const response = await fetch(`${apiRoot(key.url)}/models`, { headers: authHeaders(key), signal });
-  if (!response.ok) throw new WriterError(explain(response.status, ""), response.status);
-  return readModelIds(await response.json().catch(() => null));
+  return (await fetchModelList(key, signal)).ids;
 }
 
 export interface Written {
