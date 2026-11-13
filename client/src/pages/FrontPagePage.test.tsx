@@ -67,6 +67,11 @@ vi.mock("@/hooks/useCanSearchMywot", () => ({
 vi.mock("@/services/frontPage", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   fetchModels: (key: { url: string }) => (state.modelsFor ? state.modelsFor(key.url) : Promise.resolve(state.models)),
+  // The page asks for the list with its prices; these endpoints aren't Routstr nodes.
+  fetchModelList: async (key: { url: string }) => ({
+    ids: await (state.modelsFor ? state.modelsFor(key.url) : Promise.resolve(state.models)),
+    routstr: null,
+  }),
   printFrontPage: (...args: unknown[]) => state.print(...args),
 }));
 

@@ -107,6 +107,7 @@ export const MorningSchedule = memo(function MorningSchedule({
   assistant = null,
   sites = NO_SITES,
   migrate = KEEP,
+  keyNote = null,
 }: {
   schedule: ObserverSchedule;
   /** Whose schedule it is: a `p` naming them is no runner. */
@@ -116,6 +117,8 @@ export const MorningSchedule = memo(function MorningSchedule({
   sites?: ScheduleSites;
   /** Added to every edit that changes something (the plan's migration of the remembered model). */
   migrate?: (doc: TaskTags) => TaskTags;
+  /** About the key the morning prints with (a Routstr balance that may not cover it); shown while it runs. */
+  keyNote?: React.ReactNode;
 }) {
   const now = useNow(60_000);
   const zone = browserTimeZone();
@@ -322,6 +325,7 @@ export const MorningSchedule = memo(function MorningSchedule({
             ) : (
               <RunLine schedule={schedule} missed={missed} now={now} />
             ))}
+          {schedule?.enabled && keyNote && <div className="mt-1 empty:hidden">{keyNote}</div>}
           {canChoose && (
             <WhoPrintsChoice
               who={who!}

@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 import { Link } from "wouter";
-import { AlertTriangle, ArrowLeftRight, Bot, KeyRound, Loader2, Lock, RotateCcw, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bot, KeyRound, Loader2, Lock, RotateCcw, Undo2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -47,6 +47,7 @@ import { editAssistantKeys, type AssistantKeysEdit, type KnownList } from "@/ser
 import { updateAgentKeys } from "@/services/agentKeys";
 import { activeAccount } from "@/accounts/signing";
 import { cn } from "@/lib/utils";
+import { useIsRoutstr } from "@/services/routstr";
 
 /** Where the app sets up the reader's web of trust, which mints their Assistant. */
 const SETUP = "/setup";
@@ -177,6 +178,11 @@ function Row({
         <Chip tone={HOLDER_TONES[holder]} size="sm" className="mt-1" data-testid="ai-model-assistant-holder">
           {HOLDER_LABELS[holder]}
         </Chip>
+        {holder === "both" && (
+          <div className="mt-1">
+            <SharedBalanceNote entry={key} />
+          </div>
+        )}
       </div>
       {holder === "mine" ? (
         <Button
@@ -304,6 +310,7 @@ export function AssistantKeys({ mine, assistant }: { mine: AgentKeysState; assis
               It prints your Observer with it, billed to this key. Use one with a spending limit.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {giving && <SharedBalanceNote entry={giving} />}
           <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox
               checked={removeFromMine}
@@ -433,6 +440,24 @@ function AssistantState({ state, mineReady }: { state: AssistantKeys; mineReady:
         </p>
       );
   }
+}
+
+/**
+ * A Routstr key is a balance, not an account: the Assistant spends the same sats the reader
+ * does, so giving it is sharing that balance. Said where the key is given, and on its row.
+ */
+function SharedBalanceNote({ entry }: { entry: AgentKey }) {
+  const isRoutstr = useIsRoutstr(entry.url);
+  if (!isRoutstr) return null;
+  return (
+    <p
+      className="flex items-start gap-1.5 text-xs text-muted-foreground"
+      data-testid="ai-model-assistant-shared-balance"
+    >
+      <Wallet className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+      You and your Assistant share this key&apos;s balance.
+    </p>
+  );
 }
 
 function RetryButton({ onClick }: { onClick: () => void }) {

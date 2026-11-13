@@ -49,6 +49,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useAgentKeys } from "@/hooks/useAgentKeys";
 import { useAssistantAgentKeys } from "@/hooks/useAssistantAgentKeys";
 import { AssistantKeys } from "@/components/settings/AssistantKeys";
+import {
+  PendingPurchases,
+  RoutstrKeyExtras,
+  RoutstrPanel,
+  useRoutstrNodeName,
+} from "@/components/settings/RoutstrPanel";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 import {
@@ -71,6 +77,7 @@ import { startOpenRouterConnect } from "@/services/openRouterOAuth";
 import { activeAccount } from "@/accounts/signing";
 
 const OPENROUTER_ID = "openrouter";
+const ROUTSTR_ID = "routstr";
 const TEST_DELAY_MS = 700;
 
 /** Slide-in for cards and tiles; nothing moves when the reader asked for less motion. */
@@ -650,60 +657,65 @@ function KeyCard({
   onRemove: () => void;
 }) {
   const enter = useEnter(delay);
-  const name = providerName(entry.url);
+  // A Routstr key is named by its node ("thefux"), not the host it is called at.
+  const nodeName = useRoutstrNodeName(entry.url);
+  const name = nodeName ?? providerName(entry.url);
   return (
     <motion.li {...enter} layout data-testid="ai-model-key-row">
-      <Card accent={preferred} className="flex items-center gap-3 p-3">
-        <Monogram preset={presetForUrl(entry.url)} name={name} lit={preferred} />
-        <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <span className="shrink-0 text-sm font-semibold text-foreground">{name}</span>
-          <span className={cn("truncate text-xs text-muted-foreground", entry.key && "font-mono")}>
-            {entry.key ? maskKey(entry.key) : keylessLabel(entry.url)}
-          </span>
+      <Card accent={preferred} className="flex flex-col gap-2 p-3">
+        <div className="flex items-center gap-3">
+          <Monogram preset={presetForUrl(entry.url)} name={name} lit={preferred} />
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <span className="shrink-0 text-sm font-semibold text-foreground">{name}</span>
+            <span className={cn("truncate text-xs text-muted-foreground", entry.key && "font-mono")}>
+              {entry.key ? maskKey(entry.key) : keylessLabel(entry.url)}
+            </span>
+          </div>
+          {preferred ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="grid h-9 w-9 place-items-center text-brand-primary dark:text-brand-accent"
+                  aria-label="Preferred"
+                  role="img"
+                  data-testid="ai-model-preferred"
+                >
+                  <Star className="h-5 w-5 fill-current" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Preferred</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-brand-primary"
+                  disabled={busy}
+                  onClick={onPrefer}
+                  aria-label="Make preferred"
+                  data-testid="ai-model-make-preferred"
+                >
+                  <Star className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Make preferred</TooltipContent>
+            </Tooltip>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-red-600"
+            disabled={busy}
+            onClick={onRemove}
+            aria-label={`Remove the ${name} key`}
+            data-testid="ai-model-remove"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
-        {preferred ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="grid h-9 w-9 place-items-center text-brand-primary dark:text-brand-accent"
-                aria-label="Preferred"
-                role="img"
-                data-testid="ai-model-preferred"
-              >
-                <Star className="h-5 w-5 fill-current" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Preferred</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-muted-foreground hover:text-brand-primary"
-                disabled={busy}
-                onClick={onPrefer}
-                aria-label="Make preferred"
-                data-testid="ai-model-make-preferred"
-              >
-                <Star className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Make preferred</TooltipContent>
-          </Tooltip>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-muted-foreground hover:text-red-600"
-          disabled={busy}
-          onClick={onRemove}
-          aria-label={`Remove the ${name} key`}
-          data-testid="ai-model-remove"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {entry.key && <RoutstrKeyExtras entry={entry} />}
       </Card>
     </motion.li>
   );
@@ -764,6 +776,8 @@ export function AiModelTab() {
             </div>
           )}
         </Hero>
+
+        <PendingPurchases />
 
         {keys.status === "loading" && (
           <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground" data-testid="ai-model-loading">
@@ -834,7 +848,18 @@ export function AiModelTab() {
           {canEdit && adding && (
             <motion.div {...addEnter} key="add">
               <Card className="flex flex-col gap-4 p-4 sm:p-5">
-                {preset ? (
+                {preset?.id === ROUTSTR_ID ? (
+                  <RoutstrPanel
+                    busy={busy}
+                    onChange={() => setPicked(null)}
+                    onSave={async (entry) => {
+                      const ok = await apply((cur) => addKey(cur, entry), "Key saved");
+                      if (ok) setAdding(false);
+                      return ok;
+                    }}
+                    onBought={() => setAdding(false)}
+                  />
+                ) : preset ? (
                   <KeyEntry
                     key={preset.id}
                     preset={preset}

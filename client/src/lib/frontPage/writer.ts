@@ -61,6 +61,24 @@ export function repairMessage(violations: Violation[]): string {
   ].join("\n");
 }
 
+// --- what a print costs -------------------------------------------------------
+
+/** What a page usually takes to write: a full HTML document with inline CSS. A repair round is not counted. */
+export const EXPECTED_OUTPUT_TOKENS = 14_000;
+
+/** A rough token count: about four characters a token, for English-heavy text. */
+export const approxTokens = (chars: number) => Math.ceil(chars / 4);
+
+/**
+ * The tokens one print sends and gets back, before it runs (Amethyst's `estimateCost`): the
+ * brief and a digest of `digestChars` in, a page out. Brainstorm keeps no last digest size,
+ * so the digest's budget stands in: the most a day sends, which is the right way to be off
+ * when the question is whether a balance covers it.
+ */
+export function editionTokens(digestChars: number, briefChars = systemPrompt().length) {
+  return { prompt: approxTokens(digestChars + briefChars), completion: EXPECTED_OUTPUT_TOKENS };
+}
+
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 function hostOf(url: string): string | null {

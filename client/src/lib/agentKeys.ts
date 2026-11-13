@@ -144,7 +144,14 @@ export const AGENT_PRESETS: AgentPreset[] = [
     url: "https://generativelanguage.googleapis.com/v1beta/openai",
     keyPage: "https://aistudio.google.com/apikey",
   },
-  { id: "routstr", name: "Routstr", url: "https://api.routstr.com/v1", hint: "Pays with Cashu" },
+  {
+    id: "routstr",
+    name: "Routstr",
+    url: "https://api.routstr.com/v1",
+    hint: "Pays in sats",
+    // Its model list is public; the balance answers 401 `key_not_found` for a key it didn't sell.
+    keyCheckPath: "/balance/info",
+  },
   {
     id: "ppq",
     name: "PPQ.ai",

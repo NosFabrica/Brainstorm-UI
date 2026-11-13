@@ -82,7 +82,7 @@ import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
-import { accountKey } from "@/lib/accountStorage";
+import { dropUnownedModels, readModel, writeModel } from "@/lib/frontPage/modelMemory";
 import { withPaperCsp } from "@/lib/frontPage/validate";
 import {
   observerKeyChoice,
@@ -98,7 +98,10 @@ import { updateObserverSchedule } from "@/services/observerSchedule";
 import { useObserverSchedule } from "@/hooks/useObserverSchedule";
 import { MorningSchedule, type ScheduleSites } from "@/components/frontPage/MorningSchedule";
 import { useNow } from "@/hooks/useNow";
-import { fetchModels } from "@/services/frontPage";
+import { fetchModelList } from "@/services/frontPage";
+import { markRoutstr } from "@/services/routstr";
+import { estimateSats, formatSats, textModels, type RoutstrModel } from "@/lib/routstr";
+import { RoutstrPrintNote, editionEstimate } from "@/components/settings/RoutstrPanel";
 
 /**
  * Today's front page: the Nostr Observer's daily paper, written from the reader's own
@@ -139,52 +142,13 @@ const HEX_KEY = /^[0-9a-f]{64}$/;
 /** Where Brainstorm keeps the reader's Blossom servers (Settings › Messages › File servers). */
 const FILE_SERVERS_SETTINGS = "/settings?tab=messages&focus=file-servers";
 
-/**
- * The model this account last used per endpoint on this browser: what a print fell back to
- * before the schedule carried the reader's choice (`param` `model`), and what the plan's
- * migration writes there on Brainstorm's first edit. A choice here still goes to the
- * schedule. One account's only: the migration signs it into that account's schedule.
- */
-const modelKey = (pubkey: string, url: string) => `${accountKey("frontPage:model", pubkey)}:${url}`;
-
-function readModel(pubkey: string, url: string): string | null {
-  try {
-    return localStorage.getItem(modelKey(pubkey, url));
-  } catch {
-    return null;
-  }
-}
-
-function writeModel(pubkey: string, url: string, model: string) {
-  try {
-    localStorage.setItem(modelKey(pubkey, url), model);
-  } catch {
-    // remembered for this visit only
-  }
-}
-
-/**
- * What older versions remembered, `frontPage:model:<url>` with no account: it can't be told
- * whose it was, so no account's schedule migrates it. It is dropped.
- */
-function dropUnownedModels() {
-  try {
-    const unowned: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(LEGACY_MODEL_PREFIX) && !OWNED_MODEL.test(key)) unowned.push(key);
-    }
-    for (const key of unowned) localStorage.removeItem(key);
-  } catch {
-    // storage unavailable: nothing to drop
-  }
-}
-const LEGACY_MODEL_PREFIX = "frontPage:model:";
-const OWNED_MODEL = /^frontPage:model:[0-9a-f]{64}:/;
-
 // --- the model list -------------------------------------------------------------
 
-type Models = { status: "loading" } | { status: "listed"; ids: string[] } | { status: "unlisted" };
+type Models =
+  | { status: "loading" }
+  /** `routstr`: a Routstr node's entries, with their prices in sats; null for any other endpoint. */
+  | { status: "listed"; ids: string[]; routstr: Map<string, RoutstrModel> | null }
+  | { status: "unlisted" };
 
 function useModels(key: AgentKey | null): Models {
   const [models, setModels] = useState<Models>({ status: "loading" });
@@ -192,12 +156,16 @@ function useModels(key: AgentKey | null): Models {
     if (!key) return;
     const controller = new AbortController();
     setModels({ status: "loading" });
-    fetchModels(key, controller.signal)
-      .then((ids) => {
+    fetchModelList(key, controller.signal)
+      .then(({ ids, routstr }) => {
         // A key changed mid-flight: this list is the old key's.
         if (controller.signal.aborted) return;
-        const ranked = rankModels(ids);
-        setModels(ranked.length ? { status: "listed", ids: ranked } : { status: "unlisted" });
+        if (routstr) markRoutstr(key.url);
+        // A Routstr node lists embeddings beside writers: only the ones that write text.
+        const writes = routstr ? new Set(textModels(routstr).map((m) => m.id)) : null;
+        const ranked = rankModels(writes ? ids.filter((id) => writes.has(id)) : ids);
+        const prices = routstr ? new Map(routstr.map((m) => [m.id, m])) : null;
+        setModels(ranked.length ? { status: "listed", ids: ranked, routstr: prices } : { status: "unlisted" });
       })
       .catch(() => {
         if (!controller.signal.aborted) setModels({ status: "unlisted" });
@@ -464,6 +432,14 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     });
   };
 
+  // The picked model's Routstr prices, for the estimate and the balance check.
+  const routstrModel = (models.status === "listed" && models.routstr?.get(model)) || null;
+  // Held still between renders: the schedule card is memoized against the streamed chunks.
+  const scheduleKeyNote = useMemo(
+    () => <RoutstrPrintNote entry={key} model={routstrModel} variant="schedule" />,
+    [key, routstrModel],
+  );
+
   const print = () => {
     if (!key || !pubkey || !model) return;
     setPrintOpen(false);
@@ -528,6 +504,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
         }}
         onCommit={commitModel}
       />
+      <RoutstrPrintNote entry={key} model={routstrModel} />
       <SettingNote saving={setting.saving} error={setting.error} />
     </div>
   );
@@ -595,6 +572,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
       assistant={mywot.taPubkey}
       sites={scheduleSites}
       migrate={migrate}
+      keyNote={scheduleKeyNote}
     />
   );
   const statusShown =
@@ -1434,11 +1412,19 @@ function ModelPicker({
       </SelectTrigger>
       <SelectContent className="max-h-72">
         {/* The schedule's model, when the endpoint's list doesn't name it: still the reader's choice. */}
-        {(model && !models.ids.includes(model) ? [model, ...models.ids] : models.ids).map((id) => (
-          <SelectItem key={id} value={id}>
-            {id}
-          </SelectItem>
-        ))}
+        {(model && !models.ids.includes(model) ? [model, ...models.ids] : models.ids).map((id) => {
+          const sats = models.routstr ? estimateSats(models.routstr.get(id), editionEstimate()) : null;
+          return (
+            <SelectItem key={id} value={id}>
+              {id}
+              {sats !== null && (
+                <span className="ml-2 text-xs text-muted-foreground" data-testid="front-page-model-sats">
+                  ≈ {formatSats(sats)}
+                </span>
+              )}
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );
