@@ -89,8 +89,8 @@ import {
   getNodeInfo,
   getNodeModels,
   loadRoutstrNodes,
-  markRoutstr,
   refreshBalance,
+  useConfirmedOwners,
   useIsRoutstr,
   useRoutstrBalance,
 } from "@/services/routstr";
@@ -216,7 +216,9 @@ export function RoutstrPanel({
 function NodeList({ onPick }: { onPick: (node: RoutstrNode) => void }) {
   const { events, loading } = useStoreEvents("routstr:nodes", NODE_FILTERS, () => loadRoutstrNodes(), NODES_WINDOW);
   const now = useNow();
-  const { fresh, stale } = useMemo(() => nodesFrom(events, Math.floor(now / 1000)), [events, now]);
+  // Nodes this session already asked say whose they are: only that announcer is listed.
+  const owners = useConfirmedOwners();
+  const { fresh, stale } = useMemo(() => nodesFrom(events, Math.floor(now / 1000), owners), [events, now, owners]);
   const [query, setQuery] = useState("");
   const [showStale, setShowStale] = useState(false);
   const shown = searchNodes(showStale ? [...fresh, ...stale] : fresh, query);
@@ -260,7 +262,7 @@ function NodeList({ onPick }: { onPick: (node: RoutstrNode) => void }) {
           onClick={() => setShowStale((v) => !v)}
           data-testid="routstr-show-stale"
         >
-          {showStale ? "Hide nodes not seen this week" : `Show ${stale.length} not seen this week`}
+          {showStale ? "Hide nodes not seen this week" : `Show ${stale.length} not seen this week (up to 30 days)`}
         </Button>
       )}
       <TypedNode onPick={onPick} />
@@ -304,6 +306,11 @@ function NodeRow({ node, now, onPick }: { node: RoutstrNode; now: number; onPick
         <Chip tone="slate" size="sm">
           {node.mints.length} {node.mints.length === 1 ? "mint" : "mints"}
         </Chip>
+        {node.contested && (
+          <Chip tone="warning" size="sm" data-testid="routstr-node-contested">
+            Also claimed by another key
+          </Chip>
+        )}
       </div>
       <span className="truncate text-xs text-muted-foreground" data-testid="routstr-node-models">
         {models ? models.slice(0, 4).join(", ") + (models.length > 4 ? ` +${models.length - 4}` : "") : "—"}
@@ -329,7 +336,6 @@ function TypedNode({ onPick }: { onPick: (node: RoutstrNode) => void }) {
       const info = await getNodeInfo(nodeApiUrl(base));
       if (!info) setError("That isn't a Routstr node");
       else {
-        markRoutstr(nodeApiUrl(base));
         onPick({
           pubkey: "",
           identifier: "",
@@ -439,7 +445,7 @@ function NodeDetail({ node, onBuy, onPaste }: { node: RoutstrNode; onBuy: () => 
         {node.about && <p className="text-sm text-muted-foreground">{node.about}</p>}
         {info.status === "ready" && info.value && !verified && !node.typed && (
           <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="routstr-unverified">
-            Its own key isn&apos;t the one that announced it.
+            Its own key isn&apos;t the one that announced it: the name and description above may not be the node&apos;s.
           </p>
         )}
         {notNode && (
@@ -970,10 +976,7 @@ function PasteKey({
       <Button
         className="w-full sm:w-auto sm:self-end"
         disabled={check.status !== "ok" || busy}
-        onClick={() => {
-          markRoutstr(apiUrl);
-          void onSave({ key: trimmed, url: apiUrl });
-        }}
+        onClick={() => void onSave({ key: trimmed, url: apiUrl })}
         data-testid="routstr-paste-save"
       >
         {busy ? <Loader2 className="animate-spin" /> : null} Save

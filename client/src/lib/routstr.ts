@@ -22,6 +22,12 @@ export const ROUTSTR_RELAYS = ["wss://relay.routstr.com", "wss://relay.damus.io"
 /** Nodes re-announce every 24 h: one not seen for a week is hidden unless asked for. */
 export const FRESH_SECONDS = 7 * 24 * 3600;
 
+/**
+ * Not listed at all once not seen for 30 days (live nodes, 2026-11-13; Quartz's
+ * `RoutstrNodeEvent.LISTED_MAX_AGE`): a node that stopped announcing a month ago is gone.
+ */
+export const LISTED_MAX_AGE = 30 * 24 * 3600;
+
 // --- announcements -------------------------------------------------------------
 
 export interface RoutstrNode {
@@ -45,9 +51,42 @@ export interface RoutstrNode {
   seenAt: number;
   /** Typed by the reader rather than announced: no announcer to verify against. */
   typed?: boolean;
+  /**
+   * Another key announces the same endpoint too, and the node's `/v1/info` hasn't said (yet)
+   * which one is its own: anyone can announce any URL, so the name may not be the node's.
+   */
+  contested?: boolean;
 }
 
 const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+/**
+ * Top-level names that never resolve publicly, or that name another network (FIPS): the set
+ * Quartz's `RoutstrEndpoint` refuses, so every client calls the same nodes.
+ */
+const NON_PUBLIC_TLDS = new Set([
+  "local",
+  "localhost",
+  "localdomain",
+  "internal",
+  "intranet",
+  "lan",
+  "home",
+  "corp",
+  "private",
+  "test",
+  "invalid",
+  "example",
+  "arpa",
+  "fips",
+]);
+
+/** `localhost`, `*.localhost`, `x.local`, `node.fips`…: a name no public DNS answers for. */
+export function isNonPublicHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  const tld = host.slice(host.lastIndexOf(".") + 1);
+  return NON_PUBLIC_TLDS.has(tld);
+}
 
 function parseUrl(raw: string): URL | null {
   try {
@@ -60,16 +99,17 @@ function parseUrl(raw: string): URL | null {
 /**
  * The endpoint as this browser may call it, `https://host[:port][/path]` with no trailing
  * slash, or null. Only `https`: never plain `http` (an `.onion` needs Tor, which a page
- * doesn't have, and anything else would send the key in the clear), never the `fips` style
- * hosts, never a host with no dot (`paygate`), never credentials in the URL, and an IP
- * literal only when the reader typed it.
+ * doesn't have, and anything else would send the key in the clear), never a reserved or
+ * private-use name (`*.localhost`, `.local`, `.internal`, the `fips` style hosts…:
+ * `isNonPublicHost`), never a host with no dot (`paygate`), never credentials in the URL,
+ * and an IP literal only when the reader typed it.
  */
 export function usableBase(raw: string, { typed = false }: { typed?: boolean } = {}): string | null {
   const u = parseUrl(raw);
   if (!u || u.protocol !== "https:") return null;
   if (u.username || u.password) return null;
   const host = u.hostname.toLowerCase();
-  if (host.endsWith(".onion") || host.endsWith(".fips") || host === "localhost") return null;
+  if (host.endsWith(".onion") || isNonPublicHost(host)) return null;
   const ip = IPV4.test(host) || host.startsWith("[");
   if (ip ? !typed : !host.includes(".")) return null;
   const path = u.pathname.replace(/\/+$/, "").replace(/\/v1$/, "");
@@ -132,11 +172,19 @@ export function parseAnnouncement(event: NostrEvent): RoutstrNode | null {
 }
 
 /**
- * The nodes a browser can use, newest announcement per address, one per endpoint (two
- * keys announcing the same URL are one node, the newest wins), fresh first. `stale` are
- * the ones not seen for `FRESH_SECONDS`, kept apart so the list can offer them on request.
+ * The nodes a browser can use, newest announcement per address, fresh first. A node is an
+ * announcer AND an endpoint: anyone can announce any URL, so two keys announcing the same
+ * one are two entries, never one whose name the newest wins. When the node's own `/v1/info`
+ * has said whose it is (`confirmed`, endpoint base to the announcing hex key, known only for
+ * nodes already asked), only that announcer is listed for it; until then each is marked
+ * `contested`. `stale` are the ones not seen for `FRESH_SECONDS`, kept apart so the list can
+ * offer them on request; nothing older than `LISTED_MAX_AGE` is listed.
  */
-export function nodesFrom(events: NostrEvent[], now: number): { fresh: RoutstrNode[]; stale: RoutstrNode[] } {
+export function nodesFrom(
+  events: NostrEvent[],
+  now: number,
+  confirmed: ReadonlyMap<string, string> = new Map(),
+): { fresh: RoutstrNode[]; stale: RoutstrNode[] } {
   const newest = new Map<string, NostrEvent>();
   for (const e of events) {
     if (e.kind !== ROUTSTR_KIND) continue;
@@ -146,18 +194,48 @@ export function nodesFrom(events: NostrEvent[], now: number): { fresh: RoutstrNo
       newest.set(address, e);
     }
   }
-  const byEndpoint = new Map<string, RoutstrNode>();
+  // One per announcer and endpoint (one key may announce one URL under two `d`s).
+  const byAnnouncer = new Map<string, RoutstrNode>();
   for (const e of newest.values()) {
+    if (now - e.created_at > LISTED_MAX_AGE) continue;
     const node = parseAnnouncement(e);
     if (!node || !node.https.length) continue;
-    const held = byEndpoint.get(node.https[0]);
-    if (!held || node.seenAt > held.seenAt) byEndpoint.set(node.https[0], node);
+    const id = `${node.pubkey}\n${node.https[0]}`;
+    const held = byAnnouncer.get(id);
+    if (!held || node.seenAt > held.seenAt) byAnnouncer.set(id, node);
   }
-  const all = [...byEndpoint.values()].sort((a, b) => b.seenAt - a.seenAt || a.name.localeCompare(b.name));
+  const announcers = new Map<string, Set<string>>();
+  for (const node of byAnnouncer.values()) {
+    const set = announcers.get(node.https[0]) ?? new Set<string>();
+    set.add(node.pubkey);
+    announcers.set(node.https[0], set);
+  }
+  const all: RoutstrNode[] = [];
+  for (const node of byAnnouncer.values()) {
+    const owner = confirmed.get(node.https[0]);
+    if (owner !== undefined) {
+      // The node said whose it is: the others' claims to it are dropped.
+      if (owner === node.pubkey) all.push(node);
+      continue;
+    }
+    all.push(announcers.get(node.https[0])!.size > 1 ? { ...node, contested: true } : node);
+  }
+  all.sort((a, b) => b.seenAt - a.seenAt || a.name.localeCompare(b.name));
   return {
     fresh: all.filter((n) => now - n.seenAt <= FRESH_SECONDS),
     stale: all.filter((n) => now - n.seenAt > FRESH_SECONDS),
   };
+}
+
+/** The hex key a node's `/v1/info` names as its own; null when it names none that decodes. */
+export function infoOwner(info: RoutstrInfo | null): string | null {
+  if (!info) return null;
+  try {
+    const decoded = nip19.decode(info.npub);
+    return decoded.type === "npub" ? decoded.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Search by name, about or host, case-insensitive. */
@@ -205,15 +283,12 @@ export function parseInfo(json: unknown): RoutstrInfo | null {
   };
 }
 
-/** Whether the node's own `npub` is the key that announced it: only then is it "Verified". */
+/**
+ * Whether the node's own `npub` is the key that announced it: only then is it "Verified".
+ * `info` must be the answer of the node's own https URL, never anything an announcement said.
+ */
 export function isVerified(info: RoutstrInfo | null, announcer: string | null | undefined): boolean {
-  if (!info || !announcer) return false;
-  try {
-    const decoded = nip19.decode(info.npub);
-    return decoded.type === "npub" && decoded.data === announcer;
-  } catch {
-    return false;
-  }
+  return !!announcer && infoOwner(info) === announcer;
 }
 
 // --- /v1/models ------------------------------------------------------------------

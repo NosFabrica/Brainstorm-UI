@@ -101,7 +101,7 @@ async function openNode(name = "thefux") {
 }
 
 describe("RoutstrPanel", () => {
-  it("lists only this week's nodes a browser can call, fresh first, and the rest behind a button", async () => {
+  it("lists only this week's nodes a browser can call, fresh first, and the rest (up to 30 days) behind a button", async () => {
     panel();
     const rows = await screen.findAllByTestId("routstr-node");
     expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("thefux")]);
@@ -110,7 +110,7 @@ describe("RoutstrPanel", () => {
     expect(rows[0].textContent).toContain("3 mints");
     fireEvent.click(screen.getByTestId("routstr-show-stale"));
     const all = screen.getAllByTestId("routstr-node");
-    expect(all.length).toBe(52);
+    expect(all.length).toBe(14);
     // Never an onion-only, fips or IP-literal node.
     expect(all.some((r) => /\.onion|\.fips|140\.245/.test(r.textContent ?? ""))).toBe(false);
     fireEvent.change(screen.getByTestId("routstr-search"), { target: { value: "brrr" } });

@@ -18,6 +18,8 @@ import { presetForUrl, type AgentKey } from "@/lib/agentKeys";
 import {
   ROUTSTR_KIND,
   ROUTSTR_RELAYS,
+  infoOwner,
+  isNonPublicHost,
   isRoutstrModels,
   nodeBase,
   parseBalance,
@@ -97,17 +99,29 @@ export function loadRoutstrNodes(timeoutMs = 8000): Promise<NostrEvent[]> {
 // --- what a node is ------------------------------------------------------------------
 
 const infos = new Map<string, Promise<RoutstrInfo | null>>();
+/** The hex key each asked node's `/v1/info` names as its own, by endpoint base. */
+const owners = new Map<string, string>();
 
 /**
- * `GET <node>/v1/info`, once per node per session: null when it answered and isn't a
- * Routstr node. A node that didn't answer is asked again next time.
+ * `GET <node>/v1/info`, once per node per session, from that URL and nowhere else: null
+ * when it answered and isn't a Routstr node. A node that didn't answer is asked again next
+ * time. Its answer is what says the URL is a Routstr node, and whose key it is.
  */
 export function getNodeInfo(apiUrl: string): Promise<RoutstrInfo | null> {
   const base = nodeBase(apiUrl);
   const held = infos.get(base);
   if (held) return held;
   const ask = call(`${base}/v1/info`).then(
-    ({ ok, body }) => (ok ? parseInfo(body) : null),
+    ({ ok, body }) => {
+      const info = ok ? parseInfo(body) : null;
+      const owner = infoOwner(info);
+      if (owner) owners.set(base, owner);
+      // Only an answer says what it is: a 404 or a 5xx is no proof it isn't a node.
+      if (info) setDetected(base, true);
+      else if (ok) setDetected(base, false);
+      else detectListeners.forEach((l) => l());
+      return info;
+    },
     (err) => {
       infos.delete(base);
       throw err;
@@ -115,6 +129,23 @@ export function getNodeInfo(apiUrl: string): Promise<RoutstrInfo | null> {
   );
   infos.set(base, ask);
   return ask;
+}
+
+let ownersSnapshot: ReadonlyMap<string, string> = new Map();
+/** Endpoint base to the key its own `/v1/info` named, for the nodes this session asked: what `nodesFrom` prefers. */
+export function useConfirmedOwners(): ReadonlyMap<string, string> {
+  return useSyncExternalStore(
+    (l) => {
+      detectListeners.add(l);
+      return () => detectListeners.delete(l);
+    },
+    () => {
+      if (ownersSnapshot.size !== owners.size || [...owners].some(([k, v]) => ownersSnapshot.get(k) !== v)) {
+        ownersSnapshot = new Map(owners);
+      }
+      return ownersSnapshot;
+    },
+  );
 }
 
 const modelLists = new Map<string, { at: number; ask: Promise<RoutstrModel[]> }>();
@@ -135,7 +166,12 @@ export function getNodeModels(apiUrl: string): Promise<RoutstrModel[]> {
   return ask;
 }
 
-/** What is known of each endpoint: `true` a Routstr node, `false` not one. */
+/**
+ * What is known of each endpoint: `true` a Routstr node, `false` not one. Set only from that
+ * URL's own answers: its `/v1/info` (an `npub` and `mints`) or its `/v1/models` (`sats_pricing`).
+ * An announcement naming a URL never makes it one, and a preset provider never is one
+ * (`knownRoutstr` reads the preset first).
+ */
 const detected = new Map<string, boolean>();
 const detectListeners = new Set<() => void>();
 function setDetected(base: string, yes: boolean) {
@@ -157,7 +193,7 @@ function worthAsking(apiUrl: string): boolean {
   if (preset) return preset.id === "routstr";
   try {
     const u = new URL(apiUrl);
-    return u.protocol === "https:" && u.hostname !== "localhost";
+    return u.protocol === "https:" && !isNonPublicHost(u.hostname);
   } catch {
     return false;
   }
@@ -171,17 +207,17 @@ export async function detectRoutstr(apiUrl: string): Promise<boolean> {
   const known = knownRoutstr(apiUrl);
   if (known !== undefined) return known;
   if (!worthAsking(apiUrl)) return false;
-  const base = nodeBase(apiUrl);
   try {
-    const info = await getNodeInfo(apiUrl);
-    setDetected(base, !!info);
-    return !!info;
+    return !!(await getNodeInfo(apiUrl));
   } catch {
     return false;
   }
 }
 
-/** Marks an endpoint a Routstr node: one the reader picked from the list, or verified by hand. */
+/**
+ * Marks an endpoint a Routstr node: only for a URL whose own `/v1/models` just answered with
+ * `sats_pricing` (the print card's model list asks it itself). Never on an announcement's word.
+ */
 export const markRoutstr = (apiUrl: string) => setDetected(nodeBase(apiUrl), true);
 
 /** Whether `apiUrl` is a Routstr node, live: undefined while it is being asked. */
@@ -210,7 +246,7 @@ export async function getBalance(entry: AgentKey, signal?: AbortSignal): Promise
   if (!ok) throw new RoutstrError(readRoutstrError(status, body), `The node answered ${status}.`);
   const balance = parseBalance(body);
   if (!balance) throw new RoutstrError(readRoutstrError(status, body), "The node's answer had no balance.");
-  setDetected(nodeBase(entry.url), true);
+  // A balance says nothing of what the URL is: only its `/v1/info` or `/v1/models` do.
   return balance;
 }
 
@@ -285,6 +321,7 @@ export function useRoutstrBalance(entry: AgentKey | null, enabled = true): Balan
 /** For tests: forget what this session learned. */
 export function resetRoutstrCaches() {
   infos.clear();
+  owners.clear();
   modelLists.clear();
   detected.clear();
   balances.clear();

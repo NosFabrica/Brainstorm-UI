@@ -5,12 +5,15 @@
  */
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "nostr-tools";
+import { nip19 } from "nostr-tools";
 import announcements from "@/lib/__fixtures__/routstr/announcements.json";
 import openapi from "@/lib/__fixtures__/routstr/openapi.json";
 import modelsJson from "@/lib/__fixtures__/routstr/models.json";
 import infoJson from "@/lib/__fixtures__/routstr/info.json";
 import {
   FRESH_SECONDS,
+  LISTED_MAX_AGE,
+  infoOwner,
   ROUTSTR_KIND,
   cashuToken,
   estimateSats,
@@ -73,12 +76,17 @@ describe("kind 38421 announcements (82 live ones)", () => {
     expect(withModels[0]!.models).toContain("claude-sonnet-5.5");
   });
 
-  it("keeps the newest per address, one node per endpoint, and only nodes a browser can call", () => {
+  it("keeps the newest per address, one node per announcer and endpoint, and only nodes a browser can call", () => {
+    // Against a clock before any of them, nothing is too old to list.
+    const every = nodesFrom(EVENTS, 0);
+    const listed = [...every.fresh, ...every.stale];
+    // 79 addresses; 24 announce no https endpoint (onion, fips, http, IP only); 52 distinct
+    // endpoints, two of them announced by two keys each: four entries, each marked contested.
+    expect(listed).toHaveLength(54);
+    expect(new Set(listed.map((n) => n.https[0])).size).toBe(52);
+    expect(listed.filter((n) => n.contested)).toHaveLength(4);
     const { fresh, stale } = nodesFrom(EVENTS, NOW);
     const all = [...fresh, ...stale];
-    // 79 addresses; 24 announce no https endpoint (onion, fips, http, IP only); 52 distinct endpoints.
-    expect(all).toHaveLength(52);
-    expect(new Set(all.map((n) => n.https[0])).size).toBe(52);
     // routstr.otrta.me is announced twice by one key: the newer copy is the one kept.
     const otrta = all.filter((n) => n.https[0] === "https://routstr.otrta.me");
     expect(otrta).toHaveLength(1);
@@ -89,6 +97,17 @@ describe("kind 38421 announcements (82 live ones)", () => {
     for (let i = 1; i < all.length; i++) {
       if (i !== fresh.length) expect(all[i - 1].seenAt).toBeGreaterThanOrEqual(all[i].seenAt);
     }
+  });
+
+  it("lists nothing not seen for 30 days (14 of the 52 endpoints on the day)", () => {
+    const { fresh, stale } = nodesFrom(EVENTS, NOW);
+    const all = [...fresh, ...stale];
+    expect(all).toHaveLength(14);
+    expect(all.every((n) => NOW - n.seenAt <= LISTED_MAX_AGE)).toBe(true);
+    expect(LISTED_MAX_AGE).toBe(30 * 86400);
+    const older = EVENTS.filter((e) => NOW - e.created_at > LISTED_MAX_AGE).map((e) => e.id);
+    expect(older.length).toBeGreaterThan(0);
+    expect(all.some((n) => older.includes(n.id))).toBe(false);
   });
 
   it("hides nodes not seen for a week (live, only one https node had announced this week)", () => {
@@ -116,6 +135,33 @@ describe("which endpoints a browser may call", () => {
     expect(usableBase(" https://Routstr.Example.org/v1/ ")).toBe("https://routstr.example.org");
     expect(usableBase("https://bartly.eth64.de:17881")).toBe("https://bartly.eth64.de:17881");
     expect(usableBase("https://node.example.com/routstr")).toBe("https://node.example.com/routstr");
+  });
+
+  it("never a reserved or private-use name, as Quartz's RoutstrEndpoint refuses them", () => {
+    for (const host of [
+      "node.localhost",
+      "a.b.localhost",
+      "routstr.local",
+      "node.internal",
+      "box.lan",
+      "nas.home",
+      "node.test",
+      "node.invalid",
+      "routstr.example",
+      "1.0.168.192.in-addr.arpa",
+      "npub1x.fips",
+      "node.localdomain",
+      "node.intranet",
+      "node.corp",
+      "node.private",
+      "routstr.local.",
+    ]) {
+      expect(usableBase(`https://${host}`), host).toBeNull();
+      expect(usableBase(`https://${host}`, { typed: true }), host).toBeNull();
+    }
+    // A public name that merely contains one of those words is fine.
+    expect(usableBase("https://localhost.example.org")).toBe("https://localhost.example.org");
+    expect(usableBase("https://test.routstr.com")).toBe("https://test.routstr.com");
   });
 
   it("never plain http, onion (no Tor in a page), fips hosts, a bare name, localhost or credentials", () => {
@@ -370,5 +416,46 @@ describe("error bodies", () => {
     expect(routstrProblem(readRoutstrError(429, { error: { code: "rate_limit_exceeded" } }))).toBeNull();
     expect(routstrProblem(readRoutstrError(503, "Service Unavailable"))).toBeNull();
     expect(routstrProblem(readRoutstrError(402, { error: { message: "Insufficient credits" } }))).toBeNull();
+  });
+});
+
+describe("an announcement claiming someone else's endpoint (round-2 audit)", () => {
+  const REAL = "1".repeat(64);
+  const ATTACKER = "2".repeat(64);
+  const announce = (pubkey: string, name: string, createdAt: number, u: string[]): NostrEvent => ({
+    id: `${pubkey.slice(0, 4)}${createdAt}`.padEnd(64, "0"),
+    pubkey,
+    created_at: createdAt,
+    kind: ROUTSTR_KIND,
+    tags: [["d", "node"], ...u.map((x) => ["u", x])],
+    content: JSON.stringify({ name, about: "" }),
+    sig: "",
+  });
+  const real = announce(REAL, "Routstr", NOW - 3600, ["https://api.routstr.com"]);
+  // Newer, and naming the real node's URL first.
+  const fake = announce(ATTACKER, "Routstr Official", NOW - 60, [
+    "https://api.routstr.com",
+    "https://evil.example.org",
+  ]);
+
+  it("doesn't take over the real node's entry: both are listed, marked contested", () => {
+    const { fresh } = nodesFrom([real, fake], NOW);
+    expect(fresh.map((n) => [n.pubkey, n.name, n.contested])).toEqual([
+      [ATTACKER, "Routstr Official", true],
+      [REAL, "Routstr", true],
+    ]);
+  });
+
+  it("once the node's own /v1/info named its key, only that announcer is listed for the URL", () => {
+    const { fresh } = nodesFrom([real, fake], NOW, new Map([["https://api.routstr.com", REAL]]));
+    expect(fresh.map((n) => [n.pubkey, n.name, !!n.contested])).toEqual([[REAL, "Routstr", false]]);
+  });
+
+  it("is never Verified: that comes only from the URL's own /v1/info naming the announcer", () => {
+    const info = parseInfo({ ...infoJson, npub: nip19.npubEncode(REAL) });
+    expect(isVerified(info, REAL)).toBe(true);
+    expect(isVerified(info, ATTACKER)).toBe(false);
+    expect(infoOwner(info)).toBe(REAL);
+    expect(infoOwner(parseInfo({ ...infoJson, npub: "npub1notreally" }))).toBeNull();
   });
 });
