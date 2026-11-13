@@ -15,40 +15,26 @@
  * visible edge of somebody trying to edit a newspaper they do not work for, and a
  * sanitizer that cleans up in silence would hide exactly the event worth seeing.
  */
-import type { NostrEvent } from "nostr-tools";
-import { DESK_LINKS, DESK_LINK_KEYS, fromNevent, toProfileLink, type DeskLink } from "./desks";
 import type { Corpus } from "./corpus";
+import { LEGACY_JUMBLE_LINKS, addressOf } from "./links";
 import {
+  anyCitedEvent,
   cleanUrl,
-  corpusIndex,
-  deskLinkTarget,
-  deskWriterTarget,
   httpsTarget,
   isFragment,
+  linksOf,
   parsePage,
-  permalinkTarget,
   profileTarget,
   serialize,
-  toPermalink,
 } from "./validate";
 
+/** `permalink` an nevent citation, `address` an naddr one (a stream, listing, calendar entry, long-form post or recipe). */
 export interface ResolveChange {
-  kind: "resolved" | "dropped" | "unwrapped" | "permalink" | "stream" | "listing" | "calendar" | "profile";
+  kind: "resolved" | "dropped" | "unwrapped" | "permalink" | "address" | "profile";
   detail: string;
 }
 
-function citedEventId(href: string): string | null {
-  const jumble = permalinkTarget(href);
-  if (jumble) return jumble;
-  const hex = /^https:\/\/jumble\.social\/notes\/([0-9a-f]{64})(?:[/?#].*)?$/i.exec(href);
-  if (hex) return hex[1].toLowerCase();
-  const njump = /^https:\/\/njump\.me\/([0-9a-f]{64})(?:[/?#].*)?$/i.exec(href);
-  if (njump) return njump[1].toLowerCase();
-  const nevent = /^https:\/\/(?:jumble\.social\/notes\/|njump\.me\/)(nevent1[0-9a-z]+)/i.exec(href);
-  return nevent ? fromNevent(nevent[1]) : null;
-}
-
-/** Jumble is a source citation, not a page the paper should be replaced by. */
+/** A citation or a byline is a source, not a page the paper should be replaced by. */
 function openInNewTab(anchor: Element): void {
   anchor.setAttribute("target", "_blank");
   const rel = new Set((anchor.getAttribute("rel") ?? "").split(/\s+/).filter(Boolean));
@@ -77,22 +63,12 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
   }
 
   // --- links to the open web ----------------------------------------------
-  // The paper prints addresses; it does not make them clickable — except source
-  // citations and the verified zap.stream / Shopstr / njump-calendar links. A calendar
-  // listing cited the ordinary way is re-encoded to njump rather than kept as a frozen
-  // nevent. Everything else is unwrapped to its own text.
+  // The paper prints addresses; it does not make them clickable, except citations of the
+  // events it read and bylines of their authors, in the app's own link set. The writer's
+  // jumble.social forms, which the brief named before it named the app's bases, are read too
+  // and rewritten into the app's. Everything else is unwrapped to its own text.
   // Nothing here may throw on corpus content: a link that can't be kept is unwrapped.
-  const index = corpusIndex(corpus);
-  const deskTarget = (url: string, id: string | null): { link: DeskLink; event: NostrEvent } | null => {
-    for (const key of DESK_LINK_KEYS) {
-      const eventId = deskWriterTarget(key, url, corpus) || deskLinkTarget(key, url, corpus);
-      const event = eventId ? index[key].byId.get(eventId.toLowerCase()) : undefined;
-      if (event) return { link: DESK_LINKS[key], event };
-    }
-    const listing = id ? index.calendar.byId.get(id) : undefined;
-    return listing ? { link: DESK_LINKS.calendar, event: listing } : null;
-  };
-
+  const links = linksOf(corpus);
   for (const anchor of Array.from(doc.querySelectorAll("a[href]"))) {
     const raw = anchor.getAttribute("href") ?? "";
     // A same-document anchor stays; everything else is judged by where a browser would
@@ -107,7 +83,6 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
       unwrap();
       continue;
     }
-    const id = citedEventId(url);
     // Kept links point at their canonical address and open in a new tab: the paper
     // stays put, and a writer who forgets target=_blank still gets it.
     const keep = (canonical: string, kind: ResolveChange["kind"]) => {
@@ -117,24 +92,19 @@ export function resolve(html: string, corpus: Corpus): { html: string; doc: Docu
       }
       openInNewTab(anchor);
     };
-    const desk = deskTarget(url, id);
-    if (desk) {
-      const canonical = desk.link.canonicalUrlOrNull(desk.event);
-      if (canonical) keep(canonical, desk.link.change as ResolveChange["kind"]);
-      else unwrap();
-      continue;
-    }
-    const author = profileTarget(url, corpus);
-    if (author) {
-      keep(toProfileLink(author), "profile");
-      continue;
-    }
-    const cited = id ? index.events.get(id) : undefined;
-    // A calendar listing with no address that encodes has no link at all: an nevent
-    // would freeze one revision of it.
-    if (cited && !DESK_LINKS.calendar.kinds.has(cited.kind)) {
-      keep(toPermalink(cited.id), "permalink");
-      continue;
+    try {
+      const author = profileTarget(url, corpus, links) ?? profileTarget(url, corpus, LEGACY_JUMBLE_LINKS);
+      if (author) {
+        keep(links.profile(author), "profile");
+        continue;
+      }
+      const event = anyCitedEvent(url, corpus, links) ?? anyCitedEvent(url, corpus, LEGACY_JUMBLE_LINKS);
+      if (event) {
+        keep(links.citation(event), addressOf(event) ? "address" : "permalink");
+        continue;
+      }
+    } catch {
+      // A pubkey or id that won't encode: nothing to point the link at.
     }
     unwrap();
   }

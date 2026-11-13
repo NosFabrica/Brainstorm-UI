@@ -32,9 +32,17 @@ export type WriteEvent =
 export type ServiceEvent =
   | { type: "probe" }
   | { type: "pull"; progress: DeskProgress }
-  | { type: "write"; round: 1 | 2; event: WriteEvent }
-  | { type: "check"; round: 1 | 2 }
-  | { type: "checked"; round: 1 | 2; quotes: number; violations: number; removed: number };
+  /** Pass 1: the model plans the paper (which story leads, which posts to read in full). */
+  | { type: "plan"; event: WriteEvent }
+  /** The plan came back: its lead's angle, and how many posts go to the writer in full. */
+  | { type: "planned"; lead: string | null; full: number }
+  /** No plan came back (not JSON, an error, too slow): the page is written from the digest alone. */
+  | { type: "plan-failed" }
+  /** Round 1 writes the page; each later round repairs it. */
+  | { type: "write"; round: number; event: WriteEvent }
+  | { type: "check"; round: number }
+  /** `last`: no repair round follows; problems now mean no paper. */
+  | { type: "checked"; round: number; last?: boolean; quotes: number; violations: number; removed: number };
 
 /** Everything the log hears: the service's events, and the job's own around them. */
 export type PrintEvent =
@@ -68,18 +76,22 @@ export interface PrintProgress {
   startedAt: number;
   provider: string;
   model: string;
-  step: "probe" | "pull" | "write" | "check";
-  round: 1 | 2;
+  step: "probe" | "pull" | "plan" | "write" | "check";
+  /** 1 writes the page; 2 and on repair it. */
+  round: number;
   pull: DeskProgress | null;
   write: WriteState | null;
   /** The last `THINKING_KEEP` characters of this round's thinking. */
   thinking: string;
-  /** Problems the check found in round 1: what the repair round fixes. */
+  /** Problems the check found in the last round: what the next repair round fixes. */
   problems: number;
   log: LogLine[];
 }
 
 export const THINKING_KEEP = 4_000;
+
+/** The plan pass, as the reader is told. */
+export const PLANNING = "Planning the paper";
 const HEADLINE_MAX = 60;
 
 export function startProgress(provider: string, model: string, at: number): PrintProgress {
@@ -139,36 +151,44 @@ function withLog(p: PrintProgress, at: number, text: string): PrintProgress {
   return { ...p, log: [...p.log, { at, text }] };
 }
 
-function reduceWrite(p: PrintProgress, round: 1 | 2, e: WriteEvent, at: number): PrintProgress {
+/** What the desks read, said once, when the model is first asked. */
+function withReadLine(p: PrintProgress, at: number): PrintProgress {
+  return p.pull
+    ? withLog(p, at, `Read ${p.pull.events.toLocaleString()} posts from ${p.pull.desksDone}/${p.pull.desksTotal} desks`)
+    : p;
+}
+
+const freshWrite = (at: number, streamed: boolean): WriteState => ({
+  phase: streamed ? "waiting" : "whole",
+  sentAt: at,
+  firstByteAt: null,
+  text: "",
+  reasoningChars: 0,
+  headline: null,
+  alive: false,
+});
+
+/** The plan call: its wait and its thinking show; its answer (JSON) doesn't. */
+function reducePlan(p: PrintProgress, e: WriteEvent, at: number): PrintProgress {
   if (e.type === "sent") {
-    const next: PrintProgress = {
-      ...p,
-      step: "write",
-      round,
-      thinking: "",
-      write: {
-        phase: e.streamed ? "waiting" : "whole",
-        sentAt: at,
-        firstByteAt: null,
-        text: "",
-        reasoningChars: 0,
-        headline: null,
-        alive: false,
-      },
-    };
-    const desks =
-      round === 1 && p.pull
-        ? withLog(
-            next,
-            at,
-            `Read ${p.pull.events.toLocaleString()} posts from ${p.pull.desksDone}/${p.pull.desksTotal} desks`,
-          )
-        : next;
+    const next: PrintProgress = { ...p, step: "plan", thinking: "", write: freshWrite(at, e.streamed) };
+    if (p.step !== "plan") return withLog(withReadLine(next, at), at, PLANNING);
+    return withLog(next, at, "Request sent again without streaming");
+  }
+  if (e.type === "content" || e.type === "whole" || e.type === "done") return p;
+  return reduceWrite(p, p.round, e, at);
+}
+
+function reduceWrite(p: PrintProgress, round: number, e: WriteEvent, at: number): PrintProgress {
+  if (e.type === "sent") {
+    const next: PrintProgress = { ...p, step: "write", round, thinking: "", write: freshWrite(at, e.streamed) };
+    // With no plan step before it (an older run), the desks are said here.
+    const desks = round === 1 && p.step === "pull" ? withReadLine(next, at) : next;
     if (!e.streamed) return withLog(desks, at, "Request sent again without streaming");
     return withLog(
       desks,
       at,
-      round === 2
+      round > 1
         ? `Repair request sent: ${p.problems} ${p.problems === 1 ? "problem" : "problems"} to fix`
         : "Request sent",
     );
@@ -227,6 +247,12 @@ export function reduceProgress(p: PrintProgress, e: PrintEvent, at: number): Pri
       return p.pull === null
         ? withLog({ ...p, step: "pull", pull: e.progress }, at, `Reading ${e.progress.desksTotal} desks`)
         : { ...p, step: "pull", pull: e.progress };
+    case "plan":
+      return reducePlan(p, e.event, at);
+    case "planned":
+      return withLog(p, at, `Planned · posts read in full: ${e.full}${e.lead ? ` · lead: ${e.lead}` : ""}`);
+    case "plan-failed":
+      return withLog(p, at, "No plan came back · writing from the digest alone");
     case "write":
       return reduceWrite(p, e.round, e.event, at);
     case "check":
@@ -239,7 +265,7 @@ export function reduceProgress(p: PrintProgress, e: PrintEvent, at: number): Pri
       return withLog(
         { ...p, problems: e.violations },
         at,
-        `Check found ${e.violations} ${e.violations === 1 ? "problem" : "problems"}${e.round === 2 ? ": not printed" : ""}`,
+        `Check found ${e.violations} ${e.violations === 1 ? "problem" : "problems"}${e.last ? ": not printed" : ""}`,
       );
     }
     case "publish": {
@@ -278,7 +304,7 @@ export function elapsed(ms: number): string {
 /** The writing row's words. `now` only adds the wait's clock (`withClock`); the live region leaves it out. */
 export function writeLine(p: PrintProgress, now: number, withClock = true): string {
   const w = p.write;
-  if (p.round === 2) return "Fixing the page";
+  if (p.round > 1) return "Fixing the page";
   if (!w) return "Writing";
   switch (w.phase) {
     case "waiting":
@@ -307,6 +333,8 @@ export function statusLine(p: PrintProgress, now: number, withClock = true): str
       return "Checking your ranking";
     case "pull":
       return p.pull ? `Reading the desks · ${p.pull.events.toLocaleString()} posts` : "Reading the desks";
+    case "plan":
+      return PLANNING;
     case "write":
       return writeLine(p, now, withClock);
     case "check":

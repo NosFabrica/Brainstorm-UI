@@ -74,6 +74,9 @@ const NAMESPACES = {
   // The model this account last printed with per endpoint (`frontPage:model:<pubkey>:<url>`):
   // what the schedule's first edit migrates as its `model`.
   "frontPage:model": "device",
+  // The papers this account printed in this browser (day, lead headline, the Kitchen's
+  // recipe): the next edition's number, recent headlines and recipes not to run again.
+  "frontPage:prints": "device",
   // A Routstr purchase in flight (lib/routstrPurchase): the bolt11 and invoice id, and a
   // bought key only until it is saved to kind 12000. The one payment record the app keeps
   // here; it outlives a sign-out, since money in flight must, and goes with the Account.

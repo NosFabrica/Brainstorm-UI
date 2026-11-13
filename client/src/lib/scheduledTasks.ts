@@ -420,7 +420,7 @@ function wallClock(instant: number, tz: string) {
 }
 
 /** How far `tz`'s wall clock is ahead of UTC at `instant`, in ms. */
-function zoneOffset(instant: number, tz: string): number {
+export function zoneOffset(instant: number, tz: string): number {
   const w = wallClock(instant, tz);
   return Date.UTC(w.y, w.m - 1, w.d, w.hh, w.mm, w.ss) - Math.floor(instant / 1000) * 1000;
 }

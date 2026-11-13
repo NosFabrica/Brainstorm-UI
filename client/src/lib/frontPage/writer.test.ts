@@ -61,6 +61,7 @@ describe("the request", () => {
       stream: true,
       stream_options: { include_usage: true },
     });
+    // No limit asked for: none is sent (the print always asks for one).
     expect(body.max_tokens).toBeUndefined();
   });
 

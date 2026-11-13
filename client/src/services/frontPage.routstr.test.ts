@@ -97,6 +97,7 @@ describe("fetchModelList", () => {
     expect(await fetchModelList({ key: "sk", url: "https://api.openai.com/v1" })).toEqual({
       ids: ["gpt-5"],
       routstr: null,
+      limits: new Map(),
     });
   });
 });

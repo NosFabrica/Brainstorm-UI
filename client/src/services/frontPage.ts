@@ -25,24 +25,56 @@ import {
   WINDOW_SECONDS,
   belongs,
   filterFor,
+  lookbackOf,
+  pickRecipe,
   rankedProbe,
+  recipeAddress,
 } from "@/lib/frontPage/desks";
-import { assemble, digest, profilesFrom, type Corpus } from "@/lib/frontPage/corpus";
+import {
+  assemble,
+  corpusEvents,
+  digest,
+  highlightAuthorKeys,
+  keptInDigest,
+  profilesFrom,
+  type Corpus,
+} from "@/lib/frontPage/corpus";
+import { EditionClock, emptyContext, type EditionContext } from "@/lib/frontPage/edition";
+import { BRAINSTORM_LINKS, type PaperLinkSet } from "@/lib/frontPage/links";
+import type { WritingEffort } from "@/lib/frontPage/observerSchedule";
+import {
+  PLAN_INSTRUCTION,
+  PLAN_TIMEOUT_MS,
+  fullBlock,
+  insertHouseCss,
+  parsePlan,
+  writeMessage,
+  type EditionPlan,
+} from "@/lib/frontPage/plan";
 import { noteworthy, resolve, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { ServiceEvent, WriteEvent } from "@/lib/frontPage/printProgress";
 import { check, serialize, withPaperCsp, type Violation } from "@/lib/frontPage/validate";
 import {
+  approxTokens,
   authHeaders,
+  carriesExtras,
   chatRequest,
+  corpusPrefix,
+  editionHeader,
   extractDocument,
+  messageText,
+  outputTokenLimit,
   parseStreamLine,
+  planTokenLimit,
   readCompletion,
+  readModelLimits,
   unfinished,
   readModelIds,
   repairMessage,
   systemPrompt,
-  userMessage,
+  type CallOptions,
   type ChatMessage,
+  type ModelLimits,
   type Usage,
 } from "@/lib/frontPage/writer";
 
@@ -182,6 +214,8 @@ export async function pullCorpus({
   observer,
   until = Math.floor(Date.now() / 1000),
   floor = DEFAULT_TRUST_FLOOR,
+  recentRecipes = new Set<string>(),
+  links = BRAINSTORM_LINKS,
   signal,
   onProgress,
 }: {
@@ -189,6 +223,10 @@ export async function pullCorpus({
   observer: string;
   until?: number;
   floor?: number;
+  /** The Kitchen's recipes recent editions ran: it keeps the best-ranked one not among them. */
+  recentRecipes?: ReadonlySet<string>;
+  /** Where this app's citations and bylines point. */
+  links?: PaperLinkSet;
   signal?: AbortSignal;
   onProgress?: (p: PullProgress) => void;
 }): Promise<Corpus> {
@@ -213,12 +251,16 @@ export async function pullCorpus({
       report(0);
       return { key: "__control__", events: control, note: null };
     }
+    // Every desk reads the fixed 24 hours but the Kitchen, which reads its own 30 days.
     const { events: found, note } = await askRelay(
       relay,
-      { ...filterFor(desk.kinds, since, until, desk.limit, observer, floor) },
+      { ...filterFor(desk.kinds, until - lookbackOf(desk), until, desk.limit, observer, floor, desk.tags) },
       { signal },
     );
-    const kept = belongs(desk, observer, found);
+    const read = belongs(desk, observer, found);
+    // The Kitchen keeps one recipe: the best-ranked the last editions didn't run.
+    const recipe = desk.key === "kitchen" ? pickRecipe(read, recentRecipes) : null;
+    const kept = desk.key === "kitchen" ? (recipe ? [recipe] : []) : read;
     report(kept.length);
     return { key: desk.key, events: kept, note };
   });
@@ -244,11 +286,12 @@ export async function pullCorpus({
   // Bylines. Chunked: one REQ carrying every author of a busy day is the largest frame
   // this builds, and going over the cap would drop it in silence. `include:spam`
   // because a profile read names no observer and the relay closes it without one.
+  // A highlight's names include who wrote what it marked.
   const authors = [
     ...new Set(
       Object.values(desks)
         .flat()
-        .map((e) => e.pubkey),
+        .flatMap((e) => [e.pubkey, ...highlightAuthorKeys(e)]),
     ),
   ];
   const perChunk = Math.max(1, Math.floor((MAX_REQ_BYTES * 0.8) / 70));
@@ -272,6 +315,7 @@ export async function pullCorpus({
     desks,
     control,
     profiles: profilesFrom(found),
+    links,
   });
   return unanswered.length ? { ...corpus, unanswered } : corpus;
 }
@@ -283,10 +327,32 @@ export class WriterError extends Error {
   constructor(
     message: string,
     readonly status: number | null = null,
+    /** A Routstr node's error code, when it gave one (`insufficient_balance`, `payment_settlement_failed`, …). */
+    readonly code: string | null = null,
   ) {
     super(message);
     this.name = "WriterError";
   }
+}
+
+/** A provider's failed answer, as a WriterError: the words for the reader, the status and the node's code. */
+function failure(status: number, body: string): WriterError {
+  return new WriterError(explain(status, body), status, readRoutstrError(status, body).code);
+}
+
+/**
+ * Whether a failed plan call leaves the page to be written from the digest alone: a provider
+ * error, a cut-off or empty answer, the network, a busy or down upstream. A refused or
+ * unfunded key, an unknown model or a charge withheld would fail the page call too (and a
+ * withheld charge must never be sent again on its own), so those end the print (Amethyst's
+ * `planFailureFallsBack`).
+ */
+export function planFailureFallsBack(err: WriterError): boolean {
+  const code = err.code;
+  if (code === "insufficient_balance" || code === "key_not_found" || code === "payment_settlement_failed") return false;
+  if (err.status === 503 && /settle/i.test(err.message)) return false;
+  if (code === "upstream_unavailable" || code === "upstream_rate_limit") return true;
+  return err.status === null || ![401, 402, 403, 404].includes(err.status);
 }
 
 /** The search relay didn't answer enough of the run to make a paper of it. */
@@ -318,16 +384,22 @@ export interface ModelList {
   ids: string[];
   /** A Routstr node's list, with its prices in sats (`sats_pricing`); null for any other endpoint. */
   routstr: RoutstrModel[] | null;
+  /** Each model's output limit and context window, where the endpoint says them. */
+  limits: Map<string, ModelLimits>;
 }
 
 /** The models a key can use, with a Routstr node's prices; best guess first is the caller's job (`rankModels`). */
 export async function fetchModelList(key: AgentKey, signal?: AbortSignal): Promise<ModelList> {
   const response = await fetch(`${apiRoot(key.url)}/models`, { headers: authHeaders(key), signal });
   if (!response.ok) {
-    throw new WriterError(explain(response.status, await response.text().catch(() => "")), response.status);
+    throw failure(response.status, await response.text().catch(() => ""));
   }
   const json = await response.json().catch(() => null);
-  return { ids: readModelIds(json), routstr: isRoutstrModels(json) ? parseModels(json) : null };
+  return {
+    ids: readModelIds(json),
+    routstr: isRoutstrModels(json) ? parseModels(json) : null,
+    limits: readModelLimits(json),
+  };
 }
 
 /** The models a key can use, best guess first is the caller's job (`rankModels`). */
@@ -343,12 +415,15 @@ export interface Written {
 /**
  * One completion, streamed so the reader sees the page arrive; non-streamed when the
  * provider refuses a stream (a 400/415/422 on the streaming request, or an answer that
- * is not an event stream).
+ * is not an event stream). `options` (the output limit, the writing effort) go out as
+ * `chatRequestBody` maps them; a provider that refuses the request outright (400 or 422)
+ * while it carries them is asked once more without them, as before they existed.
  */
 export async function writePage({
   key,
   model,
   messages,
+  options = {},
   signal,
   onText,
   onEvent,
@@ -356,6 +431,7 @@ export async function writePage({
   key: AgentKey;
   model: string;
   messages: ChatMessage[];
+  options?: CallOptions;
   signal?: AbortSignal;
   onText?: (chars: number) => void;
   /** What the request is doing, for the progress and its log. */
@@ -367,7 +443,7 @@ export async function writePage({
     onEvent?.({ type: "done", chars: written.text.length, usage: written.usage });
     return written;
   };
-  const streamed = chatRequest(key, model, messages, true);
+  const streamed = chatRequest(key, model, messages, true, options);
   let response: Response;
   onEvent?.({ type: "sent", streamed: true });
   try {
@@ -389,14 +465,27 @@ export async function writePage({
     return whole(completed(await response.json().catch(() => null)));
   }
   if (![400, 415, 422].includes(response.status)) {
-    throw new WriterError(explain(response.status, await response.text().catch(() => "")), response.status);
+    throw failure(response.status, await response.text().catch(() => ""));
   }
 
-  const plain = chatRequest(key, model, messages, false);
-  onEvent?.({ type: "sent", streamed: false });
-  const second = await fetch(plain.url, { ...plain.init, signal });
-  if (!second.ok) throw new WriterError(explain(second.status, await second.text().catch(() => "")), second.status);
-  return whole(completed(await second.json().catch(() => null)));
+  const send = async (request: ReturnType<typeof chatRequest>) => {
+    onEvent?.({ type: "sent", streamed: false });
+    try {
+      return await fetch(request.url, { ...request.init, signal });
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      throw new WriterError("Couldn't reach your AI provider from this page.");
+    }
+  };
+  const second = await send(chatRequest(key, model, messages, false, options));
+  if (second.ok) return whole(completed(await second.json().catch(() => null)));
+  if (!carriesExtras(key.url, options) || ![400, 422].includes(second.status)) {
+    throw failure(second.status, await second.text().catch(() => ""));
+  }
+  // Refused with the limit or Deep: once more as the plain request every provider took.
+  const third = await send(chatRequest(key, model, messages, false));
+  if (!third.ok) throw failure(third.status, await third.text().catch(() => ""));
+  return whole(completed(await third.json().catch(() => null)));
 }
 
 /**
@@ -468,11 +557,18 @@ function completed(json: unknown): Written {
 
 // --- the whole run ----------------------------------------------------------
 
+/** Repairs after the first page, each sending only what to fix: up to four page calls in all. */
+export const MAX_REPAIR_ROUNDS = 3;
+
+/** How much of the plan's lead angle the print's details show. */
+export const PLAN_ANGLE_SHOWN = 240;
+
 export type PrintStep =
   | { step: "probe" }
   | { step: "pull"; progress: PullProgress }
-  | { step: "write"; round: 1 | 2; chars: number }
-  | { step: "check"; round: 1 | 2 };
+  | { step: "plan" }
+  | { step: "write"; round: number; chars: number }
+  | { step: "check"; round: number };
 
 export type PrintResult =
   | { status: "not-ready"; reason: ProbeVerdict }
@@ -483,7 +579,11 @@ export type PrintResult =
       changes: ResolveChange[];
       quotes: number;
       usage: Usage | null;
-      rounds: 1 | 2;
+      rounds: number;
+      /** Written from a plan (two passes); false when the plan failed and the page came from the digest alone. */
+      planned: boolean;
+      /** The Kitchen's recipe the page cites (`recipeAddress`), so the next editions don't run it again. */
+      recipe: string | null;
     }
   | { status: "refused"; violations: Violation[]; changes: ResolveChange[]; corpus: Corpus; usage: Usage | null };
 
@@ -497,16 +597,86 @@ function addUsage(a: Usage | null, b: Usage | null): Usage | null {
   };
 }
 
+/** The Kitchen's recipe, when the page cites it (a Source link to it): what this edition ran. */
+export function citedRecipe(html: string, corpus: Corpus): string | null {
+  const links = corpus.links ?? BRAINSTORM_LINKS;
+  const dish = (corpus.desks.kitchen ?? []).find((e) => {
+    try {
+      return html.includes(links.citation(e));
+    } catch {
+      return false;
+    }
+  });
+  return dish ? recipeAddress(dish) : null;
+}
+
 /**
- * The run, start to finish. The validator is not negotiable: a page that is still
- * refused after one repair round is never returned as a page.
+ * Pass 1: the brief, the shared prefix and the planning instruction; the answer read as a
+ * plan. No plan when the answer isn't one, or the call fails in a way the page call may not
+ * (`planFailureFallsBack`), or takes longer than `timeoutMs`. A failure the page call would
+ * meet too (a refused key, no credit, a charge withheld) ends the print here.
+ */
+async function planEdition({
+  key,
+  model,
+  system,
+  prefix,
+  options,
+  timeoutMs,
+  signal,
+  onEvent,
+}: {
+  key: AgentKey;
+  model: string;
+  system: ChatMessage;
+  prefix: string;
+  options: CallOptions;
+  timeoutMs: number;
+  signal?: AbortSignal;
+  onEvent?: (event: ServiceEvent) => void;
+}): Promise<{ plan: EditionPlan | null; usage: Usage | null }> {
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  signal?.addEventListener("abort", stop, { once: true });
+  const timer = setTimeout(stop, timeoutMs);
+  try {
+    const written = await writePage({
+      key,
+      model,
+      messages: [system, { role: "user", content: `\n\n${PLAN_INSTRUCTION}`, prefix }],
+      options,
+      signal: controller.signal,
+      onEvent: (event) => onEvent?.({ type: "plan", event }),
+    });
+    return { plan: parsePlan(written.text), usage: written.usage };
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    // Given up on (too slow), or failed in a way the page call might not.
+    if (controller.signal.aborted) return { plan: null, usage: null };
+    if (err instanceof WriterError && planFailureFallsBack(err)) return { plan: null, usage: null };
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", stop);
+  }
+}
+
+/**
+ * The run, start to finish: a plan, then the page from the digest, the posts in full and the
+ * plan. The validator is not negotiable: a page still refused after `MAX_REPAIR_ROUNDS`
+ * repairs is never returned as a page.
  */
 export async function printFrontPage({
   key,
   model,
   observer,
   readerName,
+  effort = "standard",
+  limits = null,
+  context: contextIn = emptyContext(),
+  links = BRAINSTORM_LINKS,
   relay = searchRelay(),
+  planTimeoutMs = PLAN_TIMEOUT_MS,
   signal,
   onStep,
   onEvent,
@@ -515,7 +685,18 @@ export async function printFrontPage({
   model: string;
   observer: string;
   readerName: string;
+  /** The writing effort: the schedule's `effort` param, or the reader's pick. */
+  effort?: WritingEffort;
+  /** What the endpoint says of the model's limits, for each call's output limit. */
+  limits?: ModelLimits | null;
+  /**
+   * The edition beyond its posts: the reader's clock, its number, recent pages, the standing
+   * paper. A promise is waited for after the ranking check, so it is gathered meanwhile.
+   */
+  context?: EditionContext | Promise<EditionContext>;
+  links?: PaperLinkSet;
   relay?: ReqRelay | null;
+  planTimeoutMs?: number;
   signal?: AbortSignal;
   onStep?: (step: PrintStep) => void;
   /** The run in detail, for its progress and log (lib/frontPage/printProgress). */
@@ -529,11 +710,16 @@ export async function printFrontPage({
   const verdict = await probeRanking(relay, observer, until - WINDOW_SECONDS, signal);
   signal?.throwIfAborted();
   if (verdict !== "ready") return { status: "not-ready", reason: verdict };
+  // What can't be gathered is left out: continuity never fails a print.
+  const context = await Promise.resolve(contextIn).catch(() => emptyContext(EditionClock.forReader(null)));
+  signal?.throwIfAborted();
 
   const corpus = await pullCorpus({
     relay,
     observer,
     until,
+    recentRecipes: context.recentRecipes,
+    links,
     signal,
     onProgress: (progress) => {
       onStep?.({ step: "pull", progress });
@@ -541,18 +727,47 @@ export async function printFrontPage({
     },
   });
 
-  const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt() },
-    { role: "user", content: userMessage(digest(corpus), readerName, readerLanguage()) },
-  ];
+  const events = corpusEvents(corpus);
+  const text = digest(corpus, undefined, context.clock);
+  const size = { read: events.length, voices: new Set(events.map((e) => e.pubkey)).size, kept: keptInDigest(corpus) };
+  // The system brief and this prefix are first, and the same, in every call of the print.
+  const prefix = corpusPrefix(text, editionHeader(readerName, readerLanguage(), context, corpus, size));
+  const system: ChatMessage = { role: "system", content: systemPrompt() };
 
-  let usage: Usage | null = null;
-  for (const round of [1, 2] as const) {
+  // Pass 1: the plan. Anything short of a usable plan leaves today's single pass.
+  onStep?.({ step: "plan" });
+  const planned = await planEdition({
+    key,
+    model,
+    system,
+    prefix,
+    options: { maxTokens: planTokenLimit(limits), effort },
+    timeoutMs: planTimeoutMs,
+    signal,
+    onEvent,
+  });
+  signal?.throwIfAborted();
+  let usage: Usage | null = planned.usage;
+  const plan = planned.plan;
+  const full = plan ? fullBlock(corpus, plan.full, context.clock) : null;
+  onEvent?.(
+    plan
+      ? { type: "planned", lead: plan.lead?.angle.slice(0, PLAN_ANGLE_SHOWN) ?? null, full: full?.ids.length ?? 0 }
+      : { type: "plan-failed" },
+  );
+
+  // Pass 2: the page, then up to MAX_REPAIR_ROUNDS repairs, each sending only what to fix.
+  const first: ChatMessage[] = [system, { role: "user", content: `\n\n${writeMessage(plan, full)}`, prefix }];
+  let messages = first;
+  const last = 1 + MAX_REPAIR_ROUNDS;
+  for (let round = 1; round <= last; round++) {
     onStep?.({ step: "write", round, chars: 0 });
+    const promptTokens = approxTokens(messages.reduce((n, m) => n + messageText(m).length, 0));
     const written = await writePage({
       key,
       model,
       messages,
+      options: { maxTokens: outputTokenLimit(limits, promptTokens), effort },
       signal,
       onText: (chars) => onStep?.({ step: "write", round, chars }),
       onEvent: (event) => onEvent?.({ type: "write", round, event }),
@@ -563,33 +778,45 @@ export async function printFrontPage({
 
     onStep?.({ step: "check", round });
     onEvent?.({ type: "check", round });
-    const resolved = resolve(page, corpus);
+    // The house stylesheet goes in before the check: what is checked and kept is what renders.
+    const resolved = resolve(insertHouseCss(page), corpus);
     const verdict = check(resolved.doc, corpus);
     onEvent?.({
       type: "checked",
       round,
+      last: round === last,
       quotes: verdict.quotes.length,
       violations: verdict.violations.length,
       removed: noteworthy(resolved.changes).length,
     });
     if (verdict.violations.length === 0) {
+      // The page as checked (settled after a round trip), with the app's own CSP: it
+      // may leave the sandbox, as a Download or on the reader's Observer site.
+      const html = withPaperCsp(serialize(verdict.doc));
       return {
         status: "printed",
-        // The page as checked (settled after a round trip), with the app's own CSP: it
-        // may leave the sandbox, as a Download or on the reader's Observer site.
-        html: withPaperCsp(serialize(verdict.doc)),
+        html,
         corpus,
         changes: resolved.changes,
         quotes: verdict.quotes.length,
         usage,
         rounds: round,
+        planned: plan !== null,
+        recipe: citedRecipe(html, corpus),
       };
     }
-    if (round === 2)
+    if (round === last) {
       return { status: "refused", violations: verdict.violations, changes: resolved.changes, corpus, usage };
-    messages.push({ role: "assistant", content: page }, { role: "user", content: repairMessage(verdict.violations) });
+    }
+    // The writer's own page (without the inserted stylesheet) and what to fix in it; the
+    // pages of earlier rounds are not sent again.
+    messages = [
+      ...first,
+      { role: "assistant", content: page },
+      { role: "user", content: repairMessage(verdict.violations) },
+    ];
   }
-  // Unreachable: round 2 always returns.
+  // Unreachable: the last round always returns.
   throw new WriterError("The page could not be checked.");
 }
 

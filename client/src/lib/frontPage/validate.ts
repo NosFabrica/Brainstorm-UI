@@ -24,18 +24,8 @@
  * (`withPaperCsp`), since outside the app's sandbox the validator is the only barrier.
  */
 import type { NostrEvent } from "nostr-tools";
-import {
-  DESK_LINKS,
-  DESK_LINK_KEYS,
-  PROFILE_LINK,
-  PROFILE_WRITER,
-  fromNaddr,
-  fromNevent,
-  fromNpub,
-  tagValue,
-  toNevent,
-  type DeskLinkKey,
-} from "./desks";
+import { tagValue } from "./desks";
+import { BRAINSTORM_LINKS, addressOf, type PaperLinkSet } from "./links";
 import type { Corpus } from "./corpus";
 import houseCss from "./house.css?raw";
 
@@ -187,32 +177,16 @@ export function httpsTarget(raw: string): string | null {
 
 // --- links -----------------------------------------------------------------
 
-/**
- * The one external shape a citation may take after resolve: a jumble.social nevent
- * naming an event we read. This DECODES rather than capturing a regex group: the
- * Kotlin regex once allowed `nevent1…` in a branch that captured nothing, so every
- * such link compared against the empty string. Decode, or do not accept the link.
- */
-export const PERMALINK = /^https:\/\/jumble\.social\/notes\/(nevent1[0-9a-z]+)(?:[/?#].*)?$/i;
-
-export function toPermalink(eventId: string): string {
-  return `https://jumble.social/notes/${toNevent(eventId)}`;
+/** The app's link set a corpus was assembled with; Brainstorm's when it names none. */
+export function linksOf(corpus: Corpus): PaperLinkSet {
+  return corpus.links ?? BRAINSTORM_LINKS;
 }
 
-export function permalinkTarget(href: string): string | null {
-  const match = PERMALINK.exec(href);
-  return match ? fromNevent(match[1]) : null;
-}
-
-interface DeskIndex {
-  list: NostrEvent[];
-  byId: Map<string, NostrEvent>;
-  byAddress: Map<string, NostrEvent>;
-}
-
-interface CorpusIndex extends Record<DeskLinkKey, DeskIndex> {
+interface CorpusIndex {
   /** Every desk event by lower-case id. */
   events: Map<string, NostrEvent>;
+  /** Every addressable desk event whose address encodes, by `kind:pubkey:d`. */
+  byAddress: Map<string, NostrEvent>;
   /** Every author of a desk event, lower-case hex. */
   authors: Set<string>;
 }
@@ -223,47 +197,19 @@ const addressKey = (kind: number, pubkey: string, identifier: string | null) =>
   `${kind}:${lower(pubkey)}:${identifier}`;
 
 /**
- * The author a byline link names, if they wrote a post this edition read: the writer's
- * form names them by one of their event ids (or, leniently, by their pubkey hex), the
- * canonical form by npub. Anyone else is not the paper's to link, however they were named.
- */
-export function profileTarget(href: string, corpus: Corpus): string | null {
-  const { authors, events } = corpusIndex(corpus);
-  const canonical = PROFILE_LINK.exec(href);
-  if (canonical) {
-    const pubkey = fromNpub(canonical[1]);
-    return pubkey && authors.has(pubkey) ? pubkey : null;
-  }
-  const hex = PROFILE_WRITER.exec(href)?.[1]?.toLowerCase();
-  if (!hex) return null;
-  const byPost = events.get(hex);
-  if (byPost) return byPost.pubkey.toLowerCase();
-  return authors.has(hex) ? hex : null;
-}
-
-/**
  * The corpus, indexed once per run instead of once per link. The kind is part of the
  * address key, so 31922 and 31923 cannot answer for each other even when a pubkey
- * reuses a d-tag across both. Only events with an address that encodes are linkable.
+ * reuses a d-tag across both. Only events with an address that encodes are cited by it.
  */
 export function corpusIndex(corpus: Corpus): CorpusIndex {
   const found = INDEX.get(corpus);
   if (found) return found;
   const events = Object.values(corpus.desks).flat();
-  const of = (predicate: (e: NostrEvent) => boolean): DeskIndex => {
-    const list = events.filter(predicate);
-    return {
-      list,
-      byId: new Map(list.map((e) => [lower(e.id), e])),
-      byAddress: new Map(list.map((e) => [addressKey(e.kind, e.pubkey, tagValue(e, "d")), e])),
-    };
-  };
-  const desks = Object.fromEntries(
-    DESK_LINK_KEYS.map((key) => [key, of((e) => DESK_LINKS[key].canonicalUrlOrNull(e) !== null)]),
-  ) as Record<DeskLinkKey, DeskIndex>;
   const built: CorpusIndex = {
-    ...desks,
     events: new Map(events.map((e) => [lower(e.id), e])),
+    byAddress: new Map(
+      events.filter((e) => addressOf(e) !== null).map((e) => [addressKey(e.kind, e.pubkey, tagValue(e, "d")), e]),
+    ),
     authors: new Set(events.map((e) => lower(e.pubkey))),
   };
   INDEX.set(corpus, built);
@@ -271,27 +217,51 @@ export function corpusIndex(corpus: Corpus): CorpusIndex {
 }
 
 /**
- * Event id if `href` is a verified canonical link to an event we read on desk `key`.
- * The naddr must decode to the same kind + pubkey + d-tag as an event in the corpus —
- * not merely appear in somebody's post. The writer form is not accepted here: resolve
- * encodes it, and refusing it afterwards is what makes a regression there fail closed.
+ * The event an ENCODED citation in `links` names, if this edition read it: an nevent (or
+ * note) for an event that has no address, an naddr matching the kind, pubkey and `d` of one
+ * that has. DECODED, not captured: a regex once allowed `nevent1…` in a branch that captured
+ * nothing. An nevent for an addressable event would freeze one revision of it: not accepted.
+ * The writer's hex forms are not accepted here: resolve encodes them, and refusing them
+ * afterwards makes a regression there fail closed.
  */
-export function deskLinkTarget(key: DeskLinkKey, href: string, corpus: Corpus): string | null {
-  const link = DESK_LINKS[key];
-  const naddr = link.naddr.exec(href);
-  if (!naddr) return null;
-  const address = fromNaddr(naddr[1]);
-  if (!address || !link.kinds.has(address.kind)) return null;
-  const event = corpusIndex(corpus)[key].byAddress.get(addressKey(address.kind, address.pubkey, address.identifier));
-  return event?.id ?? null;
+export function citedTarget(href: string, corpus: Corpus, links: PaperLinkSet = linksOf(corpus)): NostrEvent | null {
+  const entity = links.cited(href);
+  if (!entity) return null;
+  const { events, byAddress } = corpusIndex(corpus);
+  if (entity.type === "naddr") {
+    return byAddress.get(addressKey(entity.kind, entity.pubkey, entity.identifier)) ?? null;
+  }
+  const event = events.get(entity.id);
+  return event && addressOf(event) === null ? event : null;
 }
 
-/** Writer form (`<host>/…/<64-hex>`), for resolve only. */
-export function deskWriterTarget(key: DeskLinkKey, href: string, corpus: Corpus): string | null {
-  const writer = DESK_LINKS[key].writer.exec(href);
-  if (!writer) return null;
-  const id = writer[1].toLowerCase();
-  return corpusIndex(corpus)[key].byId.has(id) ? id : null;
+/** The event a writer's or an encoded citation names, any revision form, for resolve to re-encode. */
+export function anyCitedEvent(href: string, corpus: Corpus, links: PaperLinkSet = linksOf(corpus)): NostrEvent | null {
+  const writer = links.writerCited(href);
+  const entity = writer ? null : links.cited(href);
+  if (!writer && !entity) return null;
+  const { events, byAddress } = corpusIndex(corpus);
+  if (writer) return events.get(writer) ?? null;
+  if (entity!.type === "naddr") {
+    return byAddress.get(addressKey(entity!.kind, entity!.pubkey, entity!.identifier)) ?? null;
+  }
+  return events.get(entity!.id) ?? null;
+}
+
+/**
+ * The author a byline link names, if they wrote a post this edition read: the writer's
+ * form names them by one of their event ids (or, leniently, by their pubkey hex), the
+ * encoded form by npub. Anyone else is not the paper's to link, however they were named.
+ */
+export function profileTarget(href: string, corpus: Corpus, links: PaperLinkSet = linksOf(corpus)): string | null {
+  const encoded = links.profiled(href);
+  const hex = encoded ? null : links.writerProfile(href);
+  if (!encoded && !hex) return null;
+  const { authors, events } = corpusIndex(corpus);
+  if (encoded) return authors.has(encoded) ? encoded : null;
+  const byPost = events.get(hex!);
+  if (byPost) return byPost.pubkey.toLowerCase();
+  return authors.has(hex!) ? hex : null;
 }
 
 // --- markup: the allowlist ---------------------------------------------------
@@ -302,7 +272,7 @@ const XHTML = "http://www.w3.org/1999/xhtml";
 export const ALLOWED_ELEMENTS = new Set(
   (
     "html head body title meta style header footer main section article aside nav div span " +
-    "h1 h2 h3 h4 h5 h6 p br hr a img figure figcaption blockquote q cite em strong b i u s " +
+    "h1 h2 h3 h4 h5 h6 p br hr pre a img figure figcaption blockquote q cite em strong b i u s " +
     "small sub sup mark time abbr ul ol li dl dt dd table thead tbody tfoot tr th td caption " +
     "colgroup col details summary"
   ).split(" "),
@@ -361,6 +331,11 @@ const REFUSED_ATTRS = /^(srcset|sizes|poster|background|xlink:.*|on.*|formaction
 
 const META_NAMES = new Set(["viewport", "description"]);
 
+/** A `data-*` attribute the page may carry for its own styling: lowercase letters, digits and dashes. */
+const DATA_ATTR = /^data-[a-z0-9-]+$/;
+// eslint-disable-next-line no-control-regex
+const NOT_TEXT = /[<>\u0000-\u001f\u007f-\u009f]/;
+
 /** Inside a quote: the only elements, and inside its attribution the only extra ones. */
 const QUOTE_INSIDE = new Set(["p", "br", "em", "strong", "b", "i", "cite", "footer"]);
 // Beyond the shared spec: a byline link (and its emphasis) inside the attribution. The
@@ -391,6 +366,14 @@ function attributeViolations(el: Element, inQuote: boolean, out: Violation[]): v
       continue;
     }
     if (GLOBAL_ATTRS.has(attrName) || attrName.startsWith("aria-")) continue;
+    // Text only, and never on quoted text (a stylesheet could print it inside the quote).
+    if (attrName.startsWith("data-")) {
+      if (inQuote) flag(`${attrName}= on quoted text, which could hide or change what it shows`);
+      else if (!DATA_ATTR.test(attr.name))
+        flag(`${attrName}= is not a data attribute a paper may use (letters, digits and dashes)`);
+      else if (NOT_TEXT.test(attr.value)) flag(`${attrName}= may hold text only`);
+      continue;
+    }
     if (!ELEMENT_ATTRS[name]?.has(attrName)) {
       flag(`${attrName}= is not allowed on <${name}>`);
       continue;
@@ -443,13 +426,7 @@ function elementViolations(doc: Document, out: Violation[]): void {
 
 // --- markup: urls --------------------------------------------------------------
 
-function urlViolations(
-  doc: Document,
-  corpus: Corpus,
-  allowedImages: Set<string>,
-  calendarIds: Set<string>,
-  out: Violation[],
-): void {
+function urlViolations(doc: Document, corpus: Corpus, allowedImages: Set<string>, out: Violation[]): void {
   for (const img of Array.from(doc.querySelectorAll("img"))) {
     const src = img.getAttribute("src");
     if (src === null) continue;
@@ -458,20 +435,19 @@ function urlViolations(
     }
   }
 
-  const { events } = corpusIndex(corpus);
+  const links = linksOf(corpus);
+  const { authors } = corpusIndex(corpus);
   for (const anchor of Array.from(doc.querySelectorAll("a[href]"))) {
     const raw = anchor.getAttribute("href") ?? "";
     if (isFragment(raw)) continue;
     const href = httpsTarget(raw);
     if (href) {
-      const id = permalinkTarget(href);
-      // A jumble nevent naming a CALENDAR listing is refused: an nevent freezes ONE
-      // revision of an event whose nature is to be replaced. Resolve rewrites these to
-      // njump naddrs; refusing them here makes a regression there fail closed.
-      if (id && events.has(id) && !calendarIds.has(id)) continue;
-      if (DESK_LINK_KEYS.some((key) => deskLinkTarget(key, href, corpus))) continue;
-      // Bylines: only the canonical npub form, only for someone this edition read.
-      if (PROFILE_LINK.test(href) && profileTarget(href, corpus)) continue;
+      // Exactly the app's encoded forms: a citation of an event this edition read, a byline
+      // of its author. The writer's hex forms are resolve's to encode; a regression there
+      // fails closed here.
+      if (citedTarget(href, corpus, links)) continue;
+      const author = links.profiled(href);
+      if (author && authors.has(author)) continue;
     }
     // Presence in the corpus is evidence of NOTHING. An earlier version allowlisted
     // every URL that appeared in the corpus; the corpus is written by the attacker too,
@@ -480,8 +456,7 @@ function urlViolations(
     // `java&#9;script:` are links too.
     out.push({
       kind: "LINK",
-      detail:
-        "only source citations, author bylines, verified zap.stream watch links, Shopstr listing links, and njump calendar links may be links",
+      detail: "only citations of the posts this edition read and bylines of their authors may be links",
       excerpt: raw.slice(0, 120),
     });
   }
@@ -789,10 +764,7 @@ export function markupViolations(doc: Document, corpus: Corpus): Violation[] {
   const out: Violation[] = [];
   elementViolations(doc, out);
   cssViolations(doc, out);
-  const { events } = corpusIndex(corpus);
-  const calendarKinds = DESK_LINKS.calendar.kinds;
-  const calendarIds = new Set([...events.values()].filter((e) => calendarKinds.has(e.kind)).map((e) => lower(e.id)));
-  urlViolations(doc, corpus, new Set(corpus.art.map((a) => a.url)), calendarIds, out);
+  urlViolations(doc, corpus, new Set(corpus.art.map((a) => a.url)), out);
   return out;
 }
 

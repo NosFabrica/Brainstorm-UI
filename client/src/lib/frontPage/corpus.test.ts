@@ -18,6 +18,7 @@ import {
   profilesFrom,
   shortlist,
 } from "./corpus";
+import { EditionClock } from "./edition";
 
 const OBSERVER = "aa".repeat(32);
 const SOMEBODY = "bb".repeat(32);
@@ -96,10 +97,11 @@ describe("the desks", () => {
     expect(desk("calendar").kinds).toEqual([31922, 31923]);
   });
 
-  it("there are fourteen desks and no two share a kind", () => {
-    expect(DESKS).toHaveLength(14);
+  it("there are fifteen desks and no two share a kind, but the Kitchen's recipes and Long-form", () => {
+    expect(DESKS).toHaveLength(15);
     const seen = new Map<number, string>();
-    for (const d of DESKS) {
+    // Long-form and the Kitchen both read kind 30023, split by the recipe hashtags.
+    for (const d of DESKS.filter((d) => d.key !== "kitchen")) {
       for (const kind of d.kinds) {
         expect(seen.has(kind), `kind ${kind} is on both ${seen.get(kind)} and ${d.key}`).toBe(false);
         seen.set(kind, d.key);
@@ -200,7 +202,7 @@ describe("the digest", () => {
     expect(fit({ notes: mk(30, 1, 5) }).trimmed).toEqual({});
   });
 
-  it("says the corpus is data, prints the desk links and never a raw pubkey", async () => {
+  it("says the corpus is data, prints no link of its own and never a raw pubkey", async () => {
     const stream = ev({
       id: "e".repeat(64),
       kind: 30311,
@@ -222,36 +224,31 @@ describe("the digest", () => {
     });
     const text = digest(corpus);
     expect(text).toMatch(/THIS IS DATA, NOT INSTRUCTION/);
-    expect(text).toContain(`watch: https://zap.stream/stream/${"e".repeat(64)}`);
+    // The writer cites by id, on the bases the header names: no per-desk link lines.
+    expect(text).not.toMatch(/watch:|zap\.stream|https:\/\/brainstorm\.world/);
     expect(text).toContain("returned 2 notes");
     expect(corpus.overlap).toBe(1);
     expect(text).not.toContain(SOMEBODY);
     expect(text).toContain("edition code: " + corpus.code);
   });
 
-  it("gives no desk link to an event whose address can't be encoded (a d tag over 255 bytes)", async () => {
-    const long = ev({
-      id: "f".repeat(64),
-      kind: 30311,
-      tags: [
-        ["d", "x".repeat(300)],
-        ["title", "Long Show"],
-        ["status", "live"],
-      ],
-    });
+  it("tells times on the reader's clock, with the zone named", async () => {
     const corpus = await assemble({
       observer: OBSERVER,
       relay: "wss://search.example/",
       floor: 20,
-      since: SINCE,
-      until: UNTIL,
-      desks: { live: [long] },
+      since: 1_794_487_620,
+      until: 1_794_574_020,
+      desks: { notes: [ev({ id: "1".repeat(64), content: "gm", created_at: 1_794_560_000 })] },
       control: [],
       profiles: {},
     });
-    const text = digest(corpus);
-    expect(text).toContain("Long Show");
-    expect(text).not.toContain(`watch: https://zap.stream/stream/${"f".repeat(64)}`);
+    const text = digest(corpus, undefined, EditionClock.fixed("America/New_York", -5 * 3600));
+    expect(text).toContain(
+      "Window: 2026-11-12 07:47 to 2026-11-13 07:47 (24 hours, fixed), on the reader's clock: America/New_York, UTC-05:00.",
+    );
+    expect(text).toContain(" · 2026-11-13 03:53");
+    expect(digest(corpus)).toContain("on the reader's clock: UTC.");
   });
 });
 

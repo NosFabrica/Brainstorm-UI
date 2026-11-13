@@ -37,7 +37,7 @@ function run(events: [number, PrintEvent][]): PrintProgress {
   for (const [at, e] of events) p = reduceProgress(p, e, T0 + at);
   return p;
 }
-const w = (event: Extract<PrintEvent, { type: "write" }>["event"], round: 1 | 2 = 1): PrintEvent => ({
+const w = (event: Extract<PrintEvent, { type: "write" }>["event"], round = 1): PrintEvent => ({
   type: "write",
   round,
   event,
@@ -182,5 +182,53 @@ describe("editionDayLabel", () => {
     const printed = Date.parse("2026-11-12T11:00:00Z");
     expect(editionDayLabel(printed, Date.parse("2026-11-13T04:59:00Z"), NY)).toBe("Today");
     expect(editionDayLabel(printed, Date.parse("2026-11-13T05:00:00Z"), NY)).toBe("Yesterday");
+  });
+});
+
+describe("the plan pass", () => {
+  const plan = (event: Extract<PrintEvent, { type: "plan" }>["event"]): PrintEvent => ({ type: "plan", event });
+
+  it("says Planning the paper, shows its thinking, and logs the lead's angle", () => {
+    const p = run([
+      [0, { type: "probe" }],
+      [100, { type: "pull", progress: { desksDone: 16, desksTotal: 16, events: 1200 } }],
+      [200, plan({ type: "sent", streamed: true })],
+      [300, plan({ type: "first-byte" })],
+      [400, plan({ type: "reasoning", text: "The relay story leads." })],
+      [500, plan({ type: "content", text: '{"lead":' })],
+    ]);
+    expect(p.step).toBe("plan");
+    expect(statusLine(p, T0 + 600)).toBe("Planning the paper");
+    expect(p.thinking).toBe("The relay story leads.");
+    // The plan's JSON is not the page.
+    expect(p.write?.text).toBe("");
+    const texts = p.log.map((l) => l.text);
+    expect(texts).toContain("Read 1,200 posts from 16/16 desks");
+    expect(texts).toContain("Planning the paper");
+
+    const planned = reduceProgress(p, { type: "planned", lead: "The relay held", full: 12 }, T0 + 700);
+    expect(planned.log.at(-1)?.text).toBe("Planned · posts read in full: 12 · lead: The relay held");
+    const failed = reduceProgress(p, { type: "plan-failed" }, T0 + 700);
+    expect(failed.log.at(-1)?.text).toBe("No plan came back · writing from the digest alone");
+
+    // The page call after it starts its own thinking, and says the desks only once.
+    const writing = reduceProgress(planned, w({ type: "sent", streamed: true }), T0 + 800);
+    expect(writing.step).toBe("write");
+    expect(writing.thinking).toBe("");
+    expect(writing.log.filter((l) => l.text.startsWith("Read ")).length).toBe(1);
+  });
+
+  it("each repair round is a fix, and only the last refusal means no paper", () => {
+    const p = run([
+      [0, w({ type: "sent", streamed: true })],
+      [100, { type: "checked", round: 1, quotes: 2, violations: 1, removed: 0 }],
+      [200, w({ type: "sent", streamed: true }, 3)],
+      [300, { type: "checked", round: 4, last: true, quotes: 2, violations: 1, removed: 0 }],
+    ]);
+    expect(statusLine(p, T0 + 400)).toBe("Fixing the page");
+    const texts = p.log.map((l) => l.text);
+    expect(texts).toContain("Check found 1 problem");
+    expect(texts).toContain("Repair request sent: 1 problem to fix");
+    expect(texts.at(-1)).toBe("Check found 1 problem: not printed");
   });
 });

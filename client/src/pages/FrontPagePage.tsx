@@ -57,6 +57,7 @@ import {
   type Run,
 } from "@/services/printJob";
 import {
+  PLANNING,
   editionDayLabel,
   editionFullDate,
   elapsed,
@@ -1658,7 +1659,7 @@ function ChangeLink({
   );
 }
 
-const STEPS = ["probe", "pull", "write", "check"] as const;
+const STEPS = ["probe", "pull", "plan", "write", "check"] as const;
 
 function Progress({ progress, onCancel }: { progress: PrintProgress; onCancel: () => void }) {
   // Each second while the model is quiet, so the wait's clock moves; each minute otherwise.
@@ -1671,7 +1672,8 @@ function Progress({ progress, onCancel }: { progress: PrintProgress; onCancel: (
   const label: Record<(typeof STEPS)[number], string> = {
     probe: "Checking your ranking",
     pull: pull ? `Reading the desks · ${pull.events.toLocaleString()} posts` : `Reading ${DESKS.length} desks`,
-    write: progress.step === "write" ? writeLine(progress, now) : progress.round === 2 ? "Fixing the page" : "Writing",
+    plan: PLANNING,
+    write: progress.step === "write" ? writeLine(progress, now) : progress.round > 1 ? "Fixing the page" : "Writing",
     check: "Checking quotes, pictures and links",
   };
   const secondary = progress.step === "write" ? writeDetail(progress) : null;

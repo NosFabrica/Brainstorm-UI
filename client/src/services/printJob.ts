@@ -1,12 +1,15 @@
 import { useSyncExternalStore } from "react";
 import { providerName, type AgentKey } from "@/lib/agentKeys";
 import { accountKey, tabKey } from "@/lib/accountStorage";
-import type { EditionEntry } from "@/lib/frontPage/observerSite";
+import { EditionClock, emptyContext } from "@/lib/frontPage/edition";
+import { utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
+import type { WritingEffort } from "@/lib/frontPage/observerSchedule";
 import { reduceProgress, startProgress, type PrintEvent, type PrintProgress } from "@/lib/frontPage/printProgress";
 import type { ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
-import type { Usage } from "@/lib/frontPage/writer";
+import type { ModelLimits, Usage } from "@/lib/frontPage/writer";
 import { WriterError, printFrontPage } from "@/services/frontPage";
+import { loadEditionContext, rememberLocalPrint, type EditionHistory } from "@/services/editionContext";
 import { PublishError, leadHeadline, publishToObserver, type PublishFailure } from "@/services/observerSite";
 
 /**
@@ -78,6 +81,14 @@ export interface StartPrint {
   readerName: string;
   /** The account's name, for its Observer site's title. */
   displayName: string;
+  /** The writing effort: the schedule's `effort` param, or the reader's pick. Standard when absent. */
+  effort?: WritingEffort;
+  /** What the endpoint says of the model's output limit and context window. */
+  limits?: ModelLimits | null;
+  /** The schedule's IANA zone, the reader's clock; this browser's when null. */
+  zone?: string | null;
+  /** The editions the reader has, for the edition's number, recent headlines and standing paper. */
+  history?: EditionHistory;
 }
 
 // --- the account's remembered choices ------------------------------------------------
@@ -210,7 +221,8 @@ export const holdsTab = (j: PrintJob | null) =>
   isRunning(j) || j?.publish.state === "confirm" || j?.publish.state === "publishing";
 
 /** Print, replacing any print before it. */
-export function startPrint({ pubkey, key, model, readerName, displayName }: StartPrint) {
+export function startPrint(start: StartPrint) {
+  const { pubkey, model } = start;
   abort?.abort();
   const controller = new AbortController();
   abort = controller;
@@ -222,7 +234,7 @@ export function startPrint({ pubkey, key, model, readerName, displayName }: Star
     id,
     pubkey,
     run: { state: "running" },
-    progress: startProgress(providerName(key.url), model, now),
+    progress: startProgress(providerName(start.key.url), model, now),
     paper,
     publish: { state: "idle" },
     published: null,
@@ -230,7 +242,7 @@ export function startPrint({ pubkey, key, model, readerName, displayName }: Star
     outcome: null,
   };
   notifyNow();
-  void runPrint(id, controller, { pubkey, key, model, readerName, displayName });
+  void runPrint(id, controller, start);
 }
 
 async function runPrint(id: number, controller: AbortController, opts: StartPrint) {
@@ -238,11 +250,21 @@ async function runPrint(id: number, controller: AbortController, opts: StartPrin
   const finish = (outcome: PrintOutcome, run: Run, change: Partial<PrintJob> = {}) =>
     update(id, (j) => ({ ...j, ...change, run, outcome, finishedAt: Date.now() }));
   try {
+    // Gathered while the ranking is checked: a site's page may be fetched for it.
+    const context = loadEditionContext({
+      pubkey,
+      history: { site: [], servers: [], ...opts.history, session: readLast(pubkey) ?? opts.history?.session ?? null },
+      zone: opts.zone ?? null,
+      signal: controller.signal,
+    }).catch(() => emptyContext(EditionClock.forReader(opts.zone ?? null)));
     const result = await printFrontPage({
       key,
       model,
       observer: pubkey,
       readerName,
+      effort: opts.effort ?? "standard",
+      limits: opts.limits ?? null,
+      context,
       signal: controller.signal,
       onEvent: (event) => log(id, event, event.type === "write" || event.type === "pull"),
     });
@@ -275,6 +297,11 @@ async function runPrint(id: number, controller: AbortController, opts: StartPrin
         unanswered: result.corpus.unanswered?.length ?? 0,
       };
       writeLast(pubkey, printed);
+      rememberLocalPrint(pubkey, {
+        day: utcDay(printed.printedAt),
+        headline: leadHeadline(printed.html),
+        recipe: result.recipe,
+      });
       log(id, { type: "end", outcome: "printed" });
       finish("printed", { state: "idle" }, { paper: printed });
       // Only a page the check passed gets here: that is the only one published. Whether to

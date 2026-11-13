@@ -372,15 +372,19 @@ export function isRoutstrModels(json: unknown): boolean {
 export interface TokenEstimate {
   prompt: number;
   completion: number;
+  /** How many requests the tokens are spread over, each paying the per-request fee; one when absent. */
+  requests?: number;
 }
 
 /**
- * One request's cost at [prices] for [tokens]:
- * `prompt * prompt_price + completion * completion_price + request`.
+ * The cost at [prices] for [tokens]: `prompt * prompt_price + completion * completion_price`,
+ * plus the per-request fee for each of its requests (an edition makes two: the plan and the page).
  */
 export function estimateCost(prices: PriceSet | null, tokens: TokenEstimate): number | null {
   if (!prices) return null;
-  return tokens.prompt * prices.prompt + tokens.completion * prices.completion + prices.request;
+  return (
+    tokens.prompt * prices.prompt + tokens.completion * prices.completion + (tokens.requests ?? 1) * prices.request
+  );
 }
 
 /** Sats for one edition, rounded up: a reader budgets in whole sats, and under is the wrong way to be off. */

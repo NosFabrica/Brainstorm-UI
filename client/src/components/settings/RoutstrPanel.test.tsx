@@ -125,11 +125,12 @@ describe("RoutstrPanel", () => {
     expect(await screen.findByTestId("routstr-verified")).toBeTruthy();
     const models = await screen.findAllByTestId("routstr-model");
     const ids = models.map((m) => m.textContent ?? "");
-    // The embeddings model isn't offered; the writers are, best first.
+    // The embeddings model isn't offered; the writers are, best first: Opus-class leads.
     expect(ids.some((t) => t.includes("bge-m3"))).toBe(false);
-    expect(ids[0]).toContain("claude-sonnet-5.5");
+    expect(ids[0]).toContain("claude-opus-5.5");
+    expect(ids[1]).toContain("claude-sonnet-5.5");
     expect(within(models[0]).getByTestId("routstr-model-sats").textContent).toMatch(/^≈ [\d,]+ sats$/);
-    expect(models[0].textContent).toMatch(/needs 4,307 sats/);
+    expect(models[1].textContent).toMatch(/needs 4,307 sats/);
   });
 
   it("refuses a pasted Cashu token as a key and offers to turn it into one", async () => {
@@ -220,7 +221,8 @@ describe("RoutstrKeyExtras", () => {
     balanceMsats = 1_000_000;
     render(<RoutstrKeyExtras entry={{ key: KEY, url: `${OTRTA}/v1` }} />);
     const warning = await screen.findByTestId("routstr-low-balance");
-    expect(warning.textContent).toMatch(/Too low for a paper with claude-sonnet-5\.5: top up 3,307 sats/);
+    // The node's best writer, Opus-class first.
+    expect(warning.textContent).toMatch(/Too low for a paper with claude-opus-5\.5: top up 7,614 sats/);
   });
 
   it("says nothing for a key that isn't a Routstr node's, and asks no one", async () => {

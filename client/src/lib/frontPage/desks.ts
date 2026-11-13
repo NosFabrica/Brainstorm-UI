@@ -1,11 +1,11 @@
 /**
- * What a front page is made of: the desks, the filters that read them, and the
- * three desks whose events get a real destination.
+ * What a front page is made of: the desks and the filters that read them. Where an
+ * event's link points is the app's (./links `PaperLinkSet`), the same for every desk.
  *
  * Ported from NosFabrica/the-nostr-observer @ 0901b92 (MIT, see ./LICENSE.observer):
- * `.claude/skills/nostr-observer/scripts/corpus.mjs` (DESKS, filterFor, belongs),
- * `chain.mjs` (rankedProbe) and `nostr.mjs` (DESK_LINKS). The NIP-19 encoding is
- * nostr-tools' instead of the hand-rolled bech32 there.
+ * `.claude/skills/nostr-observer/scripts/corpus.mjs` (DESKS, filterFor, belongs) and
+ * `chain.mjs` (rankedProbe), matched to Amethyst's `commons/.../frontpage/Desks.kt`. The
+ * NIP-19 encoding is nostr-tools' instead of the hand-rolled bech32 there.
  */
 import { nip19, type NostrEvent } from "nostr-tools";
 
@@ -39,6 +39,10 @@ export interface Desk {
   kinds: number[];
   label: string;
   limit: number;
+  /** Tag filters the desk's REQ adds (`t` for `#t`). */
+  tags?: Record<string, string[]>;
+  /** How far back the desk reads, in seconds. Every desk reads the fixed 24 hours but the Kitchen. */
+  lookbackSeconds?: number;
   keeps?: (event: NostrEvent) => boolean;
 }
 
@@ -48,6 +52,44 @@ export function tagValue(event: Pick<NostrEvent, "tags"> | null | undefined, nam
 
 export function tagsNamed(event: Pick<NostrEvent, "tags"> | null | undefined, name: string): string[][] {
   return (event?.tags ?? []).filter((t) => t[0] === name);
+}
+
+/** Whether `event` carries a `t` tag in `values`, ignoring case. */
+export function hasHashtag(event: Pick<NostrEvent, "tags">, values: ReadonlySet<string>): boolean {
+  return event.tags.some((t) => t.length > 1 && t[0] === "t" && values.has(String(t[1]).trim().toLowerCase()));
+}
+
+/** The hashtags zap.cooking files a recipe under: `zapcooking` now, `nostrcooking` on older ones. */
+export const RECIPE_TAGS: ReadonlySet<string> = new Set(["zapcooking", "nostrcooking"]);
+
+/** Republished copyrighted recipes (an NYT Cooking mirror): never in the Kitchen. */
+export const RECIPE_MIRROR_TAGS: ReadonlySet<string> = new Set(["newsarchive", "nytcooking"]);
+
+/**
+ * The Kitchen reads 30 days back, not 24 hours: the one desk that bends the fixed window.
+ * Community recipes are too sparse for a day (about two dozen a month, measured
+ * 2026-11-13), so the desk offers the best-ranked recipe of the month that hasn't run
+ * lately (`pickRecipe`).
+ */
+export const KITCHEN_LOOKBACK_SECONDS = 30 * 24 * 60 * 60;
+
+/** The window a desk reads back from the edition's close. */
+export const lookbackOf = (desk: Desk) => desk.lookbackSeconds ?? WINDOW_SECONDS;
+
+/** A recipe's address, `30023:<pubkey>:<d>`: what the paper remembers it ran, so an edit doesn't run again. */
+export function recipeAddress(event: Pick<NostrEvent, "kind" | "pubkey" | "tags">): string {
+  return `${event.kind}:${event.pubkey}:${tagValue(event, "d") ?? ""}`;
+}
+
+/**
+ * The Kitchen's one recipe: the best-ranked of `ranked` (in the relay's rank order) whose
+ * address isn't among `recent`, the recipes run in recent editions. Null when every one has run.
+ */
+export function pickRecipe<T extends Pick<NostrEvent, "kind" | "pubkey" | "tags">>(
+  ranked: readonly T[],
+  recent: ReadonlySet<string>,
+): T | null {
+  return ranked.find((e) => !recent.has(recipeAddress(e))) ?? null;
 }
 
 /**
@@ -82,7 +124,8 @@ export const DESKS: Desk[] = [
   { key: "shorts", kinds: [22, 34236], label: "Short videos", limit: 40 },
   { key: "files", kinds: [1063], label: "File metadata", limit: 50 },
   { key: "highlights", kinds: [9802], label: "Highlights", limit: 50 },
-  { key: "articles", kinds: [30023], label: "Long-form", limit: 100 },
+  // Recipes are long-form too: they run in the Kitchen, never in both.
+  { key: "articles", kinds: [30023], label: "Long-form", limit: 100, keeps: (e) => !hasHashtag(e, RECIPE_TAGS) },
   { key: "classifieds", kinds: [30402], label: "Classifieds", limit: 30 },
   { key: "wiki", kinds: [30818], label: "Wiki entries", limit: 30 },
   // 31922 is the all-day half of NIP-52 and 31923 the timed half. Reading only one
@@ -90,6 +133,17 @@ export const DESKS: Desk[] = [
   { key: "calendar", kinds: [31922, 31923], label: "Calendar events", limit: 100 },
   { key: "apps", kinds: [32267], label: "App releases", limit: 30 },
   { key: "git", kinds: [30617], label: "Code repositories", limit: 30 },
+  // zap.cooking's recipes, ranked like every desk, over 30 days (KITCHEN_LOOKBACK_SECONDS),
+  // without the NYT Cooking mirror. The print keeps one (`pickRecipe`).
+  {
+    key: "kitchen",
+    kinds: [30023],
+    label: "Kitchen",
+    limit: 30,
+    tags: { t: [...RECIPE_TAGS] },
+    lookbackSeconds: KITCHEN_LOOKBACK_SECONDS,
+    keeps: (e) => hasHashtag(e, RECIPE_TAGS) && !hasHashtag(e, RECIPE_MIRROR_TAGS),
+  },
 ];
 
 export interface DeskFilter {
@@ -98,6 +152,8 @@ export interface DeskFilter {
   until: number;
   limit: number;
   search: string;
+  /** A desk's tag filters, as `#t`. */
+  [tag: `#${string}`]: string[];
 }
 
 /**
@@ -122,8 +178,11 @@ export function filterFor(
   limit: number,
   observerHex: string | null,
   floor: number,
+  tags?: Record<string, string[]>,
 ): DeskFilter {
+  const tagFilters = Object.fromEntries(Object.entries(tags ?? {}).map(([name, values]) => [`#${name}`, values]));
   return {
+    ...tagFilters,
     kinds,
     since,
     // BOTH ends. `until` was once carried all the way through and never put into a
@@ -167,6 +226,9 @@ export function rankedProbe(observerHex: string | null, since: number) {
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
+/** A lowercase 64-hex id or key. */
+export const isEventIdHex = (value: string) => HEX64.test(value);
+
 /** Event id hex to `nevent1…`, id only: a permalink that names only the event cannot smuggle a relay. */
 export function toNevent(hex: string): string {
   const id = String(hex ?? "").toLowerCase();
@@ -207,19 +269,6 @@ export function fromNpub(value: string): string | null {
   }
 }
 
-/*
- * A byline's link to its author. Beyond the Observer, which links no one: the digest gives
- * the writer event ids and never pubkeys, so the writer names an author by one of their
- * posts (PROFILE_WRITER) and resolve turns it into the author's own npub page
- * (PROFILE_LINK). Only someone who wrote a post this edition read may be linked.
- */
-export const PROFILE_WRITER = /^https:\/\/jumble\.social\/users\/([0-9a-f]{64})(?:[/?#].*)?$/i;
-export const PROFILE_LINK = /^https:\/\/jumble\.social\/users\/(npub1[0-9a-z]+)(?:[/?#].*)?$/i;
-
-export function toProfileLink(pubkey: string): string {
-  return `https://jumble.social/users/${nip19.npubEncode(pubkey)}`;
-}
-
 export function toNpub(hex: string): string {
   return nip19.npubEncode(hex);
 }
@@ -230,22 +279,6 @@ export function shortNpub(hex: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
 }
 
-export interface DeskLink {
-  kinds: Set<number>;
-  /** The digest's line name (`watch:`), and resolve's name for an encoded link. */
-  line: string;
-  change: string;
-  what: string;
-  writer: RegExp;
-  naddr: RegExp;
-  /** Writer form: event id hex on the host. resolve encodes the naddr afterwards. */
-  writerUrl(eventId: string): string;
-  /** The host's canonical page for an event, addressed by naddr. Throws when there is none. */
-  canonicalUrl(event: NostrEvent): string;
-  /** The same, or null when the event has no address that encodes (no `d`, or one over 255 bytes). */
-  canonicalUrlOrNull(event: NostrEvent): string | null;
-}
-
 /**
  * An naddr for [event], or null. NIP-19 stores each TLV value's length in one byte, so a
  * `d` tag over 255 bytes cannot be encoded (nostr-tools would write a corrupt naddr below
@@ -253,90 +286,10 @@ export interface DeskLink {
  */
 export function naddrFor(event: NostrEvent): string | null {
   const d = tagValue(event, "d");
-  if (!d || new TextEncoder().encode(d).length > 255) return null;
+  if (d === null || new TextEncoder().encode(d).length > 255) return null;
   try {
     return nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier: d });
   } catch {
     return null;
   }
 }
-
-function deskLink(spec: {
-  kinds: number[];
-  host: string;
-  writerPath: string;
-  naddrPath: string;
-  line: string;
-  change: string;
-  what: string;
-}): DeskLink {
-  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-  const writerPrefix = `https://${spec.host}${spec.writerPath}`;
-  const naddrPrefix = `https://${spec.host}${spec.naddrPath}`;
-  const kinds = new Set(spec.kinds);
-  const canonicalUrlOrNull = (event: NostrEvent) => {
-    if (!kinds.has(event.kind)) return null;
-    const naddr = naddrFor(event);
-    return naddr ? naddrPrefix + naddr : null;
-  };
-  return {
-    kinds,
-    line: spec.line,
-    change: spec.change,
-    what: spec.what,
-    writer: new RegExp(`^${escape(writerPrefix)}([0-9a-f]{64})(?:[/?#].*)?$`, "i"),
-    naddr: new RegExp(`^${escape(naddrPrefix)}(naddr1[0-9a-z]+)(?:[/?#].*)?$`, "i"),
-    writerUrl(eventId: string) {
-      const id = String(eventId ?? "").toLowerCase();
-      if (!HEX64.test(id)) throw new Error("Not an event id");
-      return writerPrefix + id;
-    },
-    canonicalUrl(event: NostrEvent) {
-      const url = canonicalUrlOrNull(event);
-      if (!url) throw new Error(`Not an address on ${spec.host}`);
-      return url;
-    },
-    canonicalUrlOrNull,
-  };
-}
-
-/**
- * The three desks whose events get a real destination: Live now to zap.stream,
- * Classifieds to Shopstr, Calendar to njump. The digest hands the writer
- * `writerUrl(id)` — the event id in hex on the host — and resolve re-encodes it to
- * the host's naddr page. Only events carrying a `d` tag qualify. Calendar goes to
- * njump because jumble.social has no calendar view, and because an nevent would
- * freeze one revision of a replaceable event.
- */
-export const DESK_LINKS: Record<"live" | "classifieds" | "calendar", DeskLink> = {
-  live: deskLink({
-    kinds: [30311],
-    host: "zap.stream",
-    writerPath: "/stream/",
-    naddrPath: "/",
-    line: "watch",
-    change: "stream",
-    what: "stream watch links",
-  }),
-  classifieds: deskLink({
-    kinds: [30402],
-    host: "shopstr.store",
-    writerPath: "/listing/",
-    naddrPath: "/listing/",
-    line: "listing",
-    change: "listing",
-    what: "classified listing links",
-  }),
-  calendar: deskLink({
-    kinds: [31922, 31923],
-    host: "njump.me",
-    writerPath: "/",
-    naddrPath: "/",
-    line: "calendar",
-    change: "calendar",
-    what: "calendar links",
-  }),
-};
-
-export type DeskLinkKey = keyof typeof DESK_LINKS;
-export const DESK_LINK_KEYS = Object.keys(DESK_LINKS) as DeskLinkKey[];

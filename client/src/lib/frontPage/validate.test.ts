@@ -9,23 +9,13 @@
 // scanner (attribute quoting, `</a >`) are kept as the same cases against the parser.
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "nostr-tools";
-import { DESK_LINKS, naddrFor, toProfileLink } from "./desks";
+import { naddrFor, toNevent } from "./desks";
+import { BRAINSTORM_LINKS, LEGACY_JUMBLE_LINKS, addressOf, paperLinkSet } from "./links";
 import houseCss from "./house.css?raw";
 import type { Corpus } from "./corpus";
 import { resolve } from "./resolve";
-import {
-  PAPER_CSP,
-  PERMALINK,
-  check,
-  deskLinkTarget,
-  parsePage,
-  permalinkTarget,
-  quotedText,
-  serialize,
-  settle,
-  toPermalink,
-  withPaperCsp,
-} from "./validate";
+import { PAPER_CSP, check, citedTarget, parsePage, quotedText, serialize, settle, withPaperCsp } from "./validate";
+import { insertHouseCss } from "./plan";
 
 const EVENT_ID = "a".repeat(64);
 const OTHER_ID = "b".repeat(64);
@@ -37,6 +27,8 @@ const CALENDAR_ID = "22".repeat(32);
 const CALENDAR_PK = "bb22".repeat(16);
 
 const ev = (over: Partial<NostrEvent>) => ({ kind: 1, created_at: 0, tags: [], sig: "", ...over }) as NostrEvent;
+
+const QUOTE_TEXT = "The relay answered in three seconds flat";
 
 const corpus = {
   desks: {
@@ -88,6 +80,15 @@ const corpus = {
 } as unknown as Corpus;
 
 const kinds = (html: string) => check(html, corpus).violations.map((v) => v.kind);
+const CITE = BRAINSTORM_LINKS.citeBase;
+const PEOPLE = BRAINSTORM_LINKS.profileBase;
+/** The page's citation of an event with no address: its nevent on Brainstorm's event page. */
+const toPermalink = (id: string) => CITE + toNevent(id);
+const toProfileLink = (pubkey: string) => BRAINSTORM_LINKS.profile(pubkey);
+const eventOf = (id: string) =>
+  Object.values(corpus.desks)
+    .flat()
+    .find((e) => e.id === id)!;
 const body = (html: string) => parsePage(html).body.innerHTML;
 const hrefOf = (html: string) => parsePage(html).querySelector("a")?.getAttribute("href");
 
@@ -157,42 +158,45 @@ describe("links", () => {
     expect(kinds('<a href="https://evil.example.com/drain">free sats</a>')).toEqual(["LINK"]);
   });
 
-  it("a permalink to an event we actually read is the one allowed link", () => {
+  it("a citation of an event we actually read is a link; the writer's hex form is resolve's to encode", () => {
     expect(kinds(`<a href="${toPermalink(EVENT_ID)}">source</a>`)).toEqual([]);
     expect(kinds(`<a href="${toPermalink("f".repeat(64))}">source</a>`)).toEqual(["LINK"]);
+    expect(kinds(`<a href="${CITE}${EVENT_ID}">source</a>`)).toEqual(["LINK"]);
+    // Another app's host, and the hosts the brief once named, are the open web here.
     expect(kinds(`<a href="https://njump.me/${EVENT_ID}">source</a>`)).toEqual(["LINK"]);
-    expect(kinds(`<a href="https://jumble.social/notes/${EVENT_ID}">source</a>`)).toEqual(["LINK"]);
+    expect(kinds(`<a href="https://jumble.social/notes/${toNevent(EVENT_ID)}">source</a>`)).toEqual(["LINK"]);
   });
 
-  it("the permalink is a jumble.social nevent, decoded rather than captured", () => {
-    const href = toPermalink(EVENT_ID);
-    expect(permalinkTarget(href)).toBe(EVENT_ID);
-    expect(href).toMatch(/^https:\/\/jumble\.social\/notes\/nevent1/);
-    expect(permalinkTarget("https://jumble.social/notes/nevent1qqq")).toBeNull();
-    expect(PERMALINK.exec(`https://njump.me/${EVENT_ID}`)).toBeNull();
+  it("a citation is decoded rather than captured", () => {
+    expect(citedTarget(toPermalink(EVENT_ID), corpus)?.id).toBe(EVENT_ID);
+    expect(toPermalink(EVENT_ID)).toMatch(/^https:\/\/brainstorm\.world\/e\/nevent1/);
+    expect(citedTarget(`${CITE}nevent1qqq`, corpus)).toBeNull();
+    expect(kinds(`<a href="${CITE}nevent1qqq">x</a>`)).toEqual(["LINK"]);
   });
 
-  it("a jumble nevent naming a CALENDAR listing is refused, not cited", () => {
-    expect(kinds(`<a href="${toPermalink(CALENDAR_ID)}">the meetup</a>`)).toEqual(["LINK"]);
-    expect(kinds(`<a href="${toPermalink(EVENT_ID)}">source</a>`)).toEqual([]);
-  });
-
-  it("copied zap.stream, shopstr and njump URLs for events we did not read are refused", () => {
-    const fake = (key: keyof typeof DESK_LINKS, kind: number) =>
-      DESK_LINKS[key].canonicalUrl(ev({ kind, pubkey: "d".repeat(64), tags: [["d", "fake"]] }));
-    expect(kinds(`<a href="${fake("live", 30311)}">listen</a>`)).toEqual(["LINK"]);
-    expect(kinds(`<a href="${fake("classifieds", 30402)}">buy</a>`)).toEqual(["LINK"]);
-    expect(kinds(`<a href="${fake("calendar", 31923)}">meetup</a>`)).toEqual(["LINK"]);
-  });
-
-  it("no desk's link verifies another desk's event", () => {
-    for (const key of ["live", "classifieds", "calendar"] as const) {
-      const canonical = DESK_LINKS[key].canonicalUrl(corpus.desks[key][0]);
-      expect(deskLinkTarget(key, canonical, corpus)).toBe(corpus.desks[key][0].id);
-      for (const other of (["live", "classifieds", "calendar"] as const).filter((k) => k !== key)) {
-        expect(deskLinkTarget(other, canonical, corpus)).toBeNull();
-      }
+  it("an addressable event is cited by its naddr; an nevent would freeze one revision of it", () => {
+    for (const id of [STREAM_ID, LISTING_ID, CALENDAR_ID]) {
+      expect(kinds(`<a href="${BRAINSTORM_LINKS.citation(eventOf(id))}">x</a>`)).toEqual([]);
+      expect(BRAINSTORM_LINKS.citation(eventOf(id))).toMatch(/^https:\/\/brainstorm\.world\/e\/naddr1/);
+      expect(kinds(`<a href="${toPermalink(id)}">x</a>`)).toEqual(["LINK"]);
     }
+  });
+
+  it("copied addresses of events we did not read are refused, and a kind never answers for another", () => {
+    const fake = (kind: number) => CITE + naddrFor(ev({ kind, pubkey: "d".repeat(64), tags: [["d", "fake"]] }))!;
+    expect(kinds(`<a href="${fake(30311)}">listen</a>`)).toEqual(["LINK"]);
+    expect(kinds(`<a href="${fake(30402)}">buy</a>`)).toEqual(["LINK"]);
+    // The meetup's own address, but as the all-day kind.
+    const otherKind = CITE + naddrFor({ ...eventOf(CALENDAR_ID), kind: 31922 })!;
+    expect(kinds(`<a href="${otherKind}">meetup</a>`)).toEqual(["LINK"]);
+  });
+
+  it("another app's link set accepts its own forms and only those", () => {
+    const amethyst = paperLinkSet("https://jumble.social/notes/", "https://jumble.social/users/");
+    const theirs = { ...corpus, links: amethyst } as Corpus;
+    const href = amethyst.citation(eventOf(EVENT_ID));
+    expect(check(`<a href="${href}">x</a>`, theirs).violations).toEqual([]);
+    expect(check(`<a href="${toPermalink(EVENT_ID)}">x</a>`, theirs).violations.map((v) => v.kind)).toEqual(["LINK"]);
   });
 });
 
@@ -250,35 +254,46 @@ describe("resolve", () => {
     expect(changes).toEqual([{ kind: "unwrapped", detail: "https://evil.example.com/drain" }]);
   });
 
-  it("encodes a cited event id as a jumble.social nevent permalink in a new tab", () => {
-    const { html, changes } = resolve(`<a href="https://jumble.social/notes/${EVENT_ID}">source</a>`, corpus);
+  it("encodes a cited event id as Brainstorm's nevent citation, in a new tab", () => {
+    const { html, changes } = resolve(`<a href="${CITE}${EVENT_ID}">source</a>`, corpus);
     const a = parsePage(html).querySelector("a")!;
     expect(a.getAttribute("href")).toBe(toPermalink(EVENT_ID));
     expect(a.getAttribute("target")).toBe("_blank");
     expect(a.getAttribute("rel")).toMatch(/noopener/);
     expect(changes.map((c) => c.kind)).toEqual(["permalink"]);
-    // A leftover njump.me hex URL is upgraded the same way.
-    expect(hrefOf(resolve(`<a href="https://njump.me/${EVENT_ID}">source</a>`, corpus).html)).toBe(
-      toPermalink(EVENT_ID),
-    );
   });
 
-  it("a permalink already in canonical form still opens in a new tab, and is no change", () => {
+  it("rewrites the writer's old jumble.social forms into Brainstorm's own", () => {
+    for (const legacy of [
+      `https://jumble.social/notes/${EVENT_ID}`,
+      `https://jumble.social/notes/${toNevent(EVENT_ID)}`,
+      LEGACY_JUMBLE_LINKS.writerCitation(EVENT_ID),
+    ]) {
+      const { html, changes } = resolve(`<a href="${legacy}">source</a>`, corpus);
+      expect(hrefOf(html)).toBe(toPermalink(EVENT_ID));
+      expect(changes.map((c) => c.kind)).toEqual(["permalink"]);
+      expect(check(html, corpus).violations).toEqual([]);
+    }
+    const byline = resolve(`<a href="https://jumble.social/users/${STREAM_ID}">x</a>`, corpus);
+    expect(hrefOf(byline.html)).toBe(toProfileLink(STREAM_PK));
+    // The other hosts the brief once named are not read: unwrapped.
+    for (const old of [`https://njump.me/${EVENT_ID}`, `https://zap.stream/stream/${STREAM_ID}`]) {
+      expect(resolve(`<a href="${old}">x</a>`, corpus).changes.map((c) => c.kind)).toEqual(["unwrapped"]);
+    }
+  });
+
+  it("a citation already in its encoded form still opens in a new tab, and is no change", () => {
     const { html, changes } = resolve(`<a href="${toPermalink(EVENT_ID)}">source</a>`, corpus);
     expect(parsePage(html).querySelector("a")!.getAttribute("target")).toBe("_blank");
     expect(changes).toEqual([]);
   });
 
-  it("encodes the writer forms of the three desk links, and only then do they pass", () => {
-    const cases = [
-      ["live", `https://zap.stream/stream/${STREAM_ID}`, "stream"],
-      ["classifieds", `https://shopstr.store/listing/${LISTING_ID}`, "listing"],
-      ["calendar", `https://njump.me/${CALENDAR_ID}`, "calendar"],
-    ] as const;
-    for (const [key, writer, change] of cases) {
+  it("cites a stream, a listing and a calendar entry by its naddr, and only then do they pass", () => {
+    for (const id of [STREAM_ID, LISTING_ID, CALENDAR_ID]) {
+      const writer = `${CITE}${id}`;
       const { html, changes } = resolve(`<a href="${writer}">x</a>`, corpus);
-      expect(hrefOf(html)).toBe(DESK_LINKS[key].canonicalUrl(corpus.desks[key][0]));
-      expect(changes.map((c) => c.kind)).toEqual([change]);
+      expect(hrefOf(html)).toBe(CITE + addressOf(eventOf(id)));
+      expect(changes.map((c) => c.kind)).toEqual(["address"]);
       expect(check(html, corpus).violations).toEqual([]);
       // Writer form must be encoded before validate: refusing it is what makes a
       // regression in resolve fail closed.
@@ -286,10 +301,10 @@ describe("resolve", () => {
     }
   });
 
-  it("turns a frozen jumble citation of a calendar listing into the njump address", () => {
+  it("turns a frozen nevent citation of an addressable event into its address", () => {
     const { html, changes } = resolve(`<a href="${toPermalink(CALENDAR_ID)}">the meetup</a>`, corpus);
-    expect(changes.map((c) => c.kind)).toEqual(["calendar"]);
-    expect(hrefOf(html)).toMatch(/^https:\/\/njump\.me\/naddr1/);
+    expect(changes.map((c) => c.kind)).toEqual(["address"]);
+    expect(hrefOf(html)).toMatch(/^https:\/\/brainstorm\.world\/e\/naddr1/);
     expect(check(html, corpus).violations).toEqual([]);
   });
 
@@ -316,8 +331,8 @@ describe("resolve", () => {
       },
       art: corpus.art,
     } as unknown as Corpus;
-    const stream = DESK_LINKS.live.canonicalUrl(corpus.desks.live[0]);
-    for (let i = 0; i < 50; i++) expect(deskLinkTarget("live", stream, counted)).toBeTruthy();
+    const stream = BRAINSTORM_LINKS.citation(eventOf(STREAM_ID));
+    for (let i = 0; i < 50; i++) expect(citedTarget(stream, counted)).toBeTruthy();
     expect(reads).toBe(1);
   });
 
@@ -330,9 +345,7 @@ describe("resolve", () => {
       },
       art: corpus.art,
     } as unknown as Corpus;
-    for (const href of ["https://example.test/x", "mailto:a@b.c", "https://njump.me/not-an-naddr"]) {
-      for (const key of ["live", "classifieds", "calendar"] as const) deskLinkTarget(key, href, counted);
-    }
+    for (const href of ["https://example.test/x", "mailto:a@b.c", `${CITE}not-an-naddr`]) citedTarget(href, counted);
     expect(reads).toBe(0);
   });
 });
@@ -342,18 +355,16 @@ describe("bylines", () => {
 
   it("link their author by one of the author's posts, and come out as the author's npub", () => {
     // The digest gives event ids, never keys: the writer names the author by a post.
-    const { html, changes } = resolve(`<a href="https://jumble.social/users/${STREAM_ID}">NoGood Radio</a>`, corpus);
+    const { html, changes } = resolve(`<a href="${PEOPLE}${STREAM_ID}">NoGood Radio</a>`, corpus);
     expect(hrefOf(html)).toBe(toProfileLink(STREAM_PK));
+    expect(hrefOf(html)).toMatch(/^https:\/\/brainstorm\.world\/p\/npub1/);
     expect(changes.map((c) => c.kind)).toEqual(["profile"]);
     expect(kinds(html)).toEqual([]);
   });
 
   it("only for someone this edition read: a stranger is unwrapped, and the check refuses one", () => {
-    const named = resolve(
-      `<a href="https://jumble.social/users/${STRANGER}">x</a> <a href="${toProfileLink(STRANGER)}">y</a>`,
-      corpus,
-    );
-    expect(named.html).not.toMatch(/jumble\.social\/users/);
+    const named = resolve(`<a href="${PEOPLE}${STRANGER}">x</a> <a href="${toProfileLink(STRANGER)}">y</a>`, corpus);
+    expect(named.html).not.toMatch(/brainstorm\.world\/p/);
     expect(named.changes.map((c) => c.kind)).toEqual(["unwrapped", "unwrapped"]);
     expect(kinds(`<a href="${toProfileLink(STRANGER)}">x</a>`)).toEqual(["LINK"]);
   });
@@ -398,7 +409,7 @@ describe("paper boundary v2: the audit's bypasses", () => {
   });
 
   it("a cleaned URL still resolves to the citation it names", () => {
-    const out = resolve(`<a href="  https://jumble.social/notes/${EVENT_ID}\n">source</a>`, corpus);
+    const out = resolve(`<a href="  ${CITE}${EVENT_ID}\n">source</a>`, corpus);
     expect(hrefOf(out.html)).toBe(toPermalink(EVENT_ID));
     expect(kinds(out.html)).toEqual([]);
   });
@@ -496,7 +507,7 @@ describe("paper boundary v2: the audit's bypasses", () => {
   it("only the attributes a paper needs", () => {
     expect(kinds('<a href="#x" target="_top">x</a>')).toEqual(["MARKUP"]);
     expect(kinds('<a href="#x" target="_blank" rel="noopener">x</a>')).toEqual([]);
-    expect(kinds('<p data-x="1">x</p>')).toEqual(["MARKUP"]);
+    expect(kinds('<p datum="1">x</p>')).toEqual(["MARKUP"]);
     expect(kinds('<meta property="og:title" content="x">')).toContain("MARKUP");
     expect(kinds('<meta name="description" content="x">')).toEqual([]);
     expect(kinds("<details open><summary>more</summary><p>x</p></details>")).toEqual([]);
@@ -530,7 +541,7 @@ describe("paper boundary v2: the audit's bypasses", () => {
   });
 });
 
-describe("desk links whose address can't be encoded", () => {
+describe("addressable events whose address can't be encoded", () => {
   const LONG_ID = "44".repeat(32);
   const long = ev({
     id: LONG_ID,
@@ -545,13 +556,35 @@ describe("desk links whose address can't be encoded", () => {
 
   it("have no naddr", () => {
     expect(naddrFor(long)).toBeNull();
-    expect(DESK_LINKS.live.canonicalUrlOrNull(long)).toBeNull();
-    expect(() => DESK_LINKS.live.canonicalUrl(long)).toThrow();
+    expect(addressOf(long)).toBeNull();
   });
 
-  it("are unwrapped by resolve, which never throws on corpus content", () => {
-    const out = resolve(`<a href="https://zap.stream/stream/${LONG_ID}">x</a>`, withLong);
-    expect(out.changes.map((c) => c.kind)).toEqual(["unwrapped"]);
+  it("are cited by their nevent instead, and resolve never throws on corpus content", () => {
+    const out = resolve(`<a href="${CITE}${LONG_ID}">x</a>`, withLong);
+    expect(hrefOf(out.html)).toBe(toPermalink(LONG_ID));
+    expect(out.changes.map((c) => c.kind)).toEqual(["permalink"]);
     expect(check(out.html, withLong).violations).toEqual([]);
+  });
+});
+
+describe("pre and data attributes", () => {
+  it("a <pre> and data-* attributes are allowed", () => {
+    expect(kinds('<pre class="sudoku">5 3 . | . 7 .</pre>')).toEqual([]);
+    expect(kinds('<div data-credit="weather" data-row-2="x"><p>Sunny</p></div>')).toEqual([]);
+  });
+
+  it("data-* holds text only, with a plain name, and never sits on a quote", () => {
+    expect(kinds('<div data-credit_x="a">x</div>')).toEqual(["MARKUP"]);
+    expect(kinds('<div data-x="a&lt;b">x</div>')).toEqual(["MARKUP"]);
+    expect(kinds(`<q data-x="y">${QUOTE_TEXT}</q>`)).toEqual(["MARKUP"]);
+    expect(kinds('<div datax="1">x</div>')).toEqual(["MARKUP"]);
+  });
+
+  it("the inserted house stylesheet passes the check", () => {
+    const html = insertHouseCss(
+      '<!doctype html><html><head><title>t</title><style id="house"></style></head><body><p>x</p></body></html>',
+    );
+    expect(check(html, corpus).violations).toEqual([]);
+    expect(html).toContain(houseCss.slice(0, 200));
   });
 });

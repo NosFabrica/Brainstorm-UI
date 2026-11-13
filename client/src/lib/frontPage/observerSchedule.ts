@@ -153,8 +153,33 @@ export function keyParamValues(key: AgentKey): string[] {
   return key.key ? [key.url, key.key.slice(-KEY_SUFFIX_LENGTH)] : [key.url];
 }
 
+/**
+ * How hard the writer thinks: the reader's choice, kept in the schedule as the `effort` param
+ * so every app, the Assistant and the worker print with it. Standard sends nothing extra and
+ * is the param's absence; Deep (`deep`) asks each provider for its high reasoning effort.
+ * Amethyst's `FrontPageParams`; quartz 2.17.0 lists it among `ObserverParams.KNOWN`.
+ */
+export const EFFORT_PARAM = "effort";
+
+export type WritingEffort = "standard" | "deep";
+
+/** A param value as an effort: `deep` is Deep, anything else (or none) is Standard. */
+export function effortOf(value: string | null | undefined): WritingEffort {
+  return value?.trim().toLowerCase() === "deep" ? "deep" : "standard";
+}
+
+/** The schedule's writing effort; Standard when it names none. */
+export function observerEffort(task: ScheduledTask | null | undefined): WritingEffort {
+  return effortOf(task ? paramValues(task, EFFORT_PARAM)?.[0] : null);
+}
+
+/** Printing with `effort`: Standard removes the param, so apps that don't know it still run the schedule. */
+export function withObserverEffort(tags: TaskTags, effort: WritingEffort): TaskTags {
+  return effort === "deep" ? setParam(tags, EFFORT_PARAM, ["deep"]) : removeParam(tags, EFFORT_PARAM);
+}
+
 /** The params this code understands (quartz `ObserverParams.KNOWN`); `size` isn't defined yet. */
-export const KNOWN_PARAMS: readonly string[] = [MODEL_PARAM, KEY_PARAM];
+export const KNOWN_PARAMS: readonly string[] = [MODEL_PARAM, KEY_PARAM, EFFORT_PARAM];
 
 /** The names of the schedule's params this code doesn't understand, in order, each once. */
 export function unknownObserverParams(task: ScheduledTask): string[] {
