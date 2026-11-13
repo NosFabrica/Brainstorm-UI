@@ -7,7 +7,7 @@
  * Assistant's live kind 0, not from what was cached.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { nip19, type NostrEvent } from "nostr-tools";
 
@@ -33,9 +33,16 @@ const h = vi.hoisted(() => ({
   publishDefaultAssistantProfile: vi.fn(async () => ({})),
   followUser: vi.fn(async () => {}),
   refreshProfileEvent: vi.fn(async () => null),
+  /** The User's Treasure Map; unread unless a test says otherwise. */
+  map: { event: undefined as undefined | { tags: string[][] }, settled: false },
+  /** Brainstorm holds every Assistant's key, so customizing one is internal: admins only. */
+  admin: false,
 }));
+vi.mock("@/hooks/useTrustProviderStatus", () => ({ useTrustProviderList: () => h.map }));
 vi.mock("@/accounts/display", () => ({ activePubkey: () => ME }));
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => ({ pubkey: ME, isAdmin: h.admin }),
+}));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => h.mywot }));
 vi.mock("@/hooks/useLiveProfile", () => ({
   useLiveProfile: (pubkey?: string) =>
@@ -69,6 +76,8 @@ function show() {
 beforeEach(() => {
   localStorage.clear();
   h.live = {};
+  h.map = { event: undefined, settled: false };
+  h.admin = false;
   Object.assign(h.mywot, { taPubkey: OURS, hasMywot: true, known: true, isLoading: false });
   h.publishBrainstormAssistantProfile.mockClear();
   h.followUser.mockClear();
@@ -140,6 +149,74 @@ describe("BrainstormAssistantCard", () => {
 
     await waitFor(() => expect(h.publishBrainstormAssistantProfile).toHaveBeenCalledTimes(1));
     expect(h.followUser).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Its line says what the User's Treasure Map gives it — not "publishing your
+   * scores" whenever its profile is out: scores another deployment's Assistant
+   * holds are not this one's to claim.
+   */
+  it("says what this site's Assistant publishes, as the Treasure Map has it", async () => {
+    const live = kind0(OURS, "d".repeat(64), 3, { name: "puzzle_speed_05db" });
+    liveKind0(live);
+    h.map = {
+      settled: true,
+      event: {
+        tags: [
+          ["30382:rank", "f".repeat(64), "wss://scores.example"],
+          ["30392", OURS, "wss://nip85.example"],
+          ["39998", OURS, "wss://dcosl.example"],
+        ],
+      },
+    };
+
+    show();
+
+    expect(await screen.findByTestId("text-assistant-tagline-settings")).toHaveTextContent(
+      "Your sidekick is publishing your lists and concepts.",
+    );
+  });
+
+  /**
+   * Brainstorm holds every Assistant's key, so customizing one is internal for
+   * now: a regular user sees no Customize at all, not even a "soon".
+   */
+  it("a regular user has no Customize", async () => {
+    liveKind0(kind0(OURS, "d".repeat(64), 3, { name: "puzzle_speed_05db" }));
+    show();
+
+    await screen.findByTestId("text-assistant-tagline-settings");
+    expect(screen.queryByTestId("button-assistant-customize-settings")).toBeNull();
+    expect(screen.queryByText(/soon/i)).toBeNull();
+  });
+
+  /**
+   * Admins get Customize, marked internal. It offers only what's real: what
+   * the Assistant does (the Treasure Map editor) works today; its name,
+   * picture and bio wait for the server, which holds its key, to sign them.
+   */
+  it("an admin's Customize is internal: what it does is live, its name and picture are soon", async () => {
+    h.admin = true;
+    liveKind0(kind0(OURS, "d".repeat(64), 3, { name: "puzzle_speed_05db" }));
+    show();
+
+    const trigger = await screen.findByTestId("button-assistant-customize-settings");
+    expect(trigger).not.toHaveAttribute("aria-disabled", "true");
+    expect(trigger).toHaveTextContent(/internal/i);
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    const menu = await screen.findByRole("menu");
+
+    const profile = within(menu).getByTestId("menu-assistant-profile");
+    expect(profile).toHaveTextContent("Name, picture & bio");
+    expect(profile).toHaveTextContent("soon");
+    expect(profile).toHaveAttribute("aria-disabled", "true");
+
+    const duties = within(menu).getByTestId("menu-assistant-duties");
+    expect(duties).toHaveTextContent("Choose what it does");
+    fireEvent.click(duties);
+    await waitFor(() =>
+      expect(window.location.pathname + window.location.search).toBe("/settings?tab=assistants&view=map"),
+    );
   });
 
   it("can't publish before the server has said which Assistant is ours", () => {

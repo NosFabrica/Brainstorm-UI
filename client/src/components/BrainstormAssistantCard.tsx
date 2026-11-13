@@ -7,8 +7,27 @@ import { nip19 } from "nostr-tools";
 import { motion } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
+import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
+import { assistantsOf, sidekickLine } from "@/lib/assistantDuties";
 import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/profile";
-import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Wand2 } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Globe,
+  Info,
+  Loader2,
+  Quote,
+  RefreshCw,
+  Wand2,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
 import { refreshProfileEvent } from "@/services/nostr";
@@ -16,8 +35,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
+import { InternalChip } from "@/components/InternalChip";
 import { useToast } from "@/hooks/use-toast";
-import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ASSISTANT_UPDATED_EVENT,
@@ -102,7 +121,12 @@ export function BrainstormAssistantCard({
   // The cached kind 0 is only ever the confirmed Assistant's.
   const confirmed = !!published;
   const [profile, setProfile] = useState<AssistantProfile | null>(() => (confirmed ? readAssistantProfile() : null));
-  const userPubkey = useActiveAccountDisplay()?.pubkey ?? null;
+  const me = useActiveAccountDisplay();
+  const userPubkey = me?.pubkey ?? null;
+  // Customizing an Assistant is internal first: only admins see Customize, the
+  // way Settings keeps operator views. A rollout step — this is the switch to
+  // turn off once the flow has run internally (docs/assistant/PROFILE-EDIT-ASK.md).
+  const isAdmin = me?.isAdmin === true;
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -261,6 +285,11 @@ export function BrainstormAssistantCard({
   const isPending = publishMutation.isPending;
   const isActive = !!published;
   const isHighlighted = prominence === "highlighted" && !isActive;
+  // What the User's Treasure Map gives this Assistant — its line says that, not
+  // "publishing your scores" whenever its profile is out. Null until read.
+  const ownMap = useTrustProviderList(isActive ? userPubkey : null);
+  const ownDuties =
+    taPubkey && (ownMap.event || ownMap.settled) ? assistantsOf(ownMap.event, taPubkey)[0].categories : null;
 
   return (
     <div
@@ -437,7 +466,7 @@ export function BrainstormAssistantCard({
           }
           data-testid={`text-assistant-tagline-${variant}`}
         >
-          {isActive ? "Your sidekick is publishing your scores." : "Give your scores a voice — one click."}
+          {isActive ? sidekickLine(ownDuties) : "Give your scores a voice — one click."}
         </p>
 
         {isActive ? (
@@ -621,30 +650,47 @@ export function BrainstormAssistantCard({
                   <Wand2 className="h-3.5 w-3.5" />
                   Customize
                 </button>
-              ) : (
-                <TooltipProvider delayDuration={150}>
-                  <UITooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className="inline-flex min-h-[44px] cursor-not-allowed items-center gap-1.5 rounded-xl border border-brand-accent/20 bg-white px-3 py-2 text-xs font-semibold text-brand-deep/60 opacity-70 dark:bg-slate-900"
-                        aria-disabled="true"
-                        tabIndex={0}
-                        data-testid={`button-assistant-customize-${variant}`}
-                      >
-                        <Wand2 className="h-3.5 w-3.5" />
-                        Customize (soon)
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      className="text-xs"
-                      data-testid={`tooltip-assistant-customize-${variant}`}
+              ) : isAdmin ? (
+                // Internal, offering only what's real: what it does is the
+                // Treasure Map, editable today; its name, picture and bio wait
+                // for the server, which holds its key, to sign them
+                // (docs/assistant/PROFILE-EDIT-ASK.md).
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-brand-accent/30 bg-white px-3 py-2 text-xs font-semibold text-brand-deep transition-colors hover:bg-brand-accent/5 dark:bg-slate-900"
+                      data-testid={`button-assistant-customize-${variant}`}
                     >
-                      Coming soon in Agent Suite
-                    </TooltipContent>
-                  </UITooltip>
-                </TooltipProvider>
-              )}
+                      <Wand2 className="h-3.5 w-3.5" />
+                      Customize
+                      <InternalChip />
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64">
+                    <DropdownMenuItem
+                      onSelect={() => navigate("/settings?tab=assistants&view=map")}
+                      data-testid="menu-assistant-duties"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">Choose what it does</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Scores, lists and concepts</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled data-testid="menu-assistant-profile">
+                      <div>
+                        <p className="text-sm font-medium">
+                          Name, picture &amp; bio <span className="text-xs font-normal text-slate-400">soon</span>
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Brainstorm holds its key, so the server signs these
+                        </p>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
             </div>
           </div>
         ) : (
