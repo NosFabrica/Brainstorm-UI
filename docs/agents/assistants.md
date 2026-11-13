@@ -84,5 +84,8 @@ Assistant holds — every list kind, by any key — read as `elsewhere` in
   [duty-menus.md](https://github.com/nous-clawds4/tapestry/blob/main/protocols/drafts/duty-menus.md),
   [assistant-designation.md](https://github.com/nous-clawds4/tapestry/blob/main/protocols/drafts/assistant-designation.md).
   Read them on GitHub: a local Tapestry checkout can lag the drafts.
-- Agent keys for external agents: unbuilt; [AGENT-KEYS-ASK.md](../assistant/AGENT-KEYS-ASK.md)
-  is what the UI needs from the server.
+- Editing an Assistant's profile: unbuilt on the server;
+  [PROFILE-EDIT-ASK.md](../assistant/PROFILE-EDIT-ASK.md) is what the UI needs.
+- Agent keys for external agents: unbuilt, and undecided — the Brainstorm connector already lets
+  a signed-in person's agent search through their trust, so keys, the connector or both is a
+  roadmap question before it is a server ask.

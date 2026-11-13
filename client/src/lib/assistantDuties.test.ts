@@ -37,16 +37,78 @@ describe("assistantsOf", () => {
     expect(assistantsOf(null, HERE)).toEqual([{ pubkey: HERE, here: true, categories: [] }]);
   });
 
-  it("reads a category under the Assistant it names first, as the Treasure Map does", () => {
+  /**
+   * Read as the Duties view reads it (lib/treasureMap): each Duty goes to its
+   * Preferred Assistant, by its own key or the most specific one covering it.
+   * A group split between two Assistants is held by both — it read under
+   * whoever the group's first row named, so on a Map where production kept
+   * rank and followers and this site filled the rest, this site's Assistant
+   * showed as holding nothing.
+   */
+  it("gives a split group to every Assistant holding one of its Duties", () => {
     const got = assistantsOf(
       map([
         ["30382:rank", PROD, "wss://scores.example"],
-        ["30382:followers", EXT, "wss://x.example"],
+        ["30382:followers", PROD, "wss://scores.example"],
+        ["30382:hops", HERE, "wss://nip85.example"],
+        ["30382:muters", HERE, "wss://nip85.example"],
+        ["30382:reporters", HERE, "wss://nip85.example"],
       ]),
       HERE,
     );
-    expect(got.find((a) => a.pubkey === PROD)?.categories).toEqual(["scores"]);
-    expect(got.find((a) => a.pubkey === EXT)).toBeUndefined();
+    expect(got).toEqual([
+      { pubkey: HERE, here: true, categories: ["scores"] },
+      { pubkey: PROD, here: false, categories: ["scores"] },
+    ]);
+  });
+
+  it("reads a Duty given through a family key or `*`", () => {
+    expect(assistantsOf(map([["3039x", EXT, "wss://x.example"]]), HERE)).toEqual([
+      { pubkey: HERE, here: true, categories: [] },
+      { pubkey: EXT, here: false, categories: ["lists"] },
+    ]);
+    // Everything: every group, beside whoever holds a Duty of its own.
+    expect(
+      assistantsOf(
+        map([
+          ["*", EXT, ""],
+          ["30382:rank", HERE, "wss://nip85.example"],
+        ]),
+        HERE,
+      ),
+    ).toEqual([
+      { pubkey: HERE, here: true, categories: ["scores"] },
+      { pubkey: EXT, here: false, categories: ["scores", "lists", "concepts"] },
+    ]);
+  });
+
+  it("an Alternate holds nothing: the Duty is its Preferred's", () => {
+    const got = assistantsOf(
+      map([
+        ["30382:rank", PROD, "wss://scores.example"],
+        ["30382:rank", EXT, "wss://x.example"],
+      ]),
+      HERE,
+    );
+    expect(got).toEqual([
+      { pubkey: HERE, here: true, categories: [] },
+      { pubkey: PROD, here: false, categories: ["scores"] },
+    ]);
+  });
+
+  it("lists more Assistants than there are groups, in the Map's order", () => {
+    const D = "d".repeat(64);
+    const E = "e".repeat(64);
+    const got = assistantsOf(
+      map([
+        ["30382:rank", PROD, "wss://a.example"],
+        ["30382:followers", EXT, "wss://b.example"],
+        ["30392", D, "wss://c.example"],
+        ["30393", E, "wss://d.example"],
+      ]),
+      HERE,
+    );
+    expect(got.map((a) => a.pubkey)).toEqual([HERE, PROD, EXT, D, E]);
   });
 });
 
@@ -81,6 +143,21 @@ describe("dutiesSummary", () => {
         name,
       ),
     ).toBe("Scores and Lists come from Pip's Assistant. Nobody has Concepts yet.");
+  });
+
+  it("names every Assistant a split group comes from, this site first", () => {
+    expect(
+      dutiesSummary(
+        [
+          { pubkey: HERE, here: true, categories: ["scores", "lists"] },
+          { pubkey: PROD, here: false, categories: ["scores"] },
+        ],
+        site,
+        name,
+      ),
+    ).toBe(
+      "Scores come from this site and brainstorm.nosfabrica.com. Lists come from this site. Nobody has Concepts yet.",
+    );
   });
 });
 

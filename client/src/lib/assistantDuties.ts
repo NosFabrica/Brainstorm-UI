@@ -1,7 +1,8 @@
-import { CATEGORIES, categoryEntries, type MapCategory } from "@/lib/treasureMapCards";
+import { treasureMapDuties } from "@/lib/treasureMap";
+import { CATEGORIES, type MapCategory } from "@/lib/treasureMapCards";
 
-/** One Assistant the User's Treasure Map uses, and the Duty categories it holds. */
-export interface AssistantDuties {
+/** One Assistant the User's Treasure Map uses, and the Duty groups it holds a Duty in. */
+export interface AssistantHolding {
   pubkey: string;
   /** This deployment's own Assistant (`ta_pubkey`). */
   here: boolean;
@@ -11,23 +12,29 @@ export interface AssistantDuties {
 const LABEL: Record<MapCategory, string> = { scores: "Scores", lists: "Lists", concepts: "Concepts" };
 
 /**
- * The Assistants a Treasure Map gives Duty categories to, each with the
- * categories it holds — a category read under the Assistant it names first, as
- * the Treasure Map does. This deployment's Assistant (`self`) comes first, and
- * is always there, holding nothing if the Map gives it nothing.
+ * The Assistants a Treasure Map gives Duties to, each with the Duty groups it
+ * holds — read as the Duties view reads the Map (lib/treasureMap
+ * `treasureMapDuties`): a Duty is its Preferred Assistant's, by its own key or
+ * the most specific one covering it, so a group split between two Assistants
+ * is held by both, `*` holds every group, and an Alternate holds nothing. This
+ * deployment's Assistant (`self`) comes first, and is always there, holding
+ * nothing if the Map gives it nothing; the others follow in the Map's order.
  */
-export function assistantsOf(map: { tags?: unknown } | null | undefined, self: string): AssistantDuties[] {
+export function assistantsOf(map: { tags?: unknown } | null | undefined, self: string): AssistantHolding[] {
   const me = self.toLowerCase();
-  const byKey = new Map<string, AssistantDuties>([[me, { pubkey: self, here: true, categories: [] }]]);
-  const entries = categoryEntries(map);
-  for (const category of CATEGORIES) {
-    const holder = entries[category][0]?.tags[0]?.pubkey;
+  const groups = new Map<string, Set<MapCategory>>([[me, new Set()]]);
+  for (const duty of [...treasureMapDuties(map)].sort((a, b) => a.at - b.at)) {
+    const holder = duty.assistants[0];
     if (!holder) continue;
-    const key = holder.toLowerCase();
-    if (!byKey.has(key)) byKey.set(key, { pubkey: holder, here: false, categories: [] });
-    byKey.get(key)!.categories.push(category);
+    const held = groups.get(holder) ?? new Set<MapCategory>();
+    (duty.group === "everything" ? CATEGORIES : [duty.group]).forEach((group) => held.add(group));
+    groups.set(holder, held);
   }
-  return [...byKey.values()];
+  return [...groups].map(([pubkey, held]) => ({
+    pubkey: pubkey === me ? self : pubkey,
+    here: pubkey === me,
+    categories: CATEGORIES.filter((group) => held.has(group)),
+  }));
 }
 
 /**
@@ -35,7 +42,7 @@ export function assistantsOf(map: { tags?: unknown } | null | undefined, self: s
  * category — what "Also working for you" lists. Empty while everything happens
  * on this site, so the Yours view stays one card.
  */
-export function othersOf(assistants: AssistantDuties[]): AssistantDuties[] {
+export function othersOf(assistants: AssistantHolding[]): AssistantHolding[] {
   return assistants.filter((a) => !a.here && a.categories.length > 0);
 }
 
@@ -43,29 +50,52 @@ const and = (words: string[]) =>
   words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 
 /**
- * One sentence saying where the User's Duties live: each Assistant's
- * categories, named by the site its NIP-05 verifies on (`siteOf`) or, failing
- * that, by name — this deployment's as "this site". Categories nobody holds
+ * Where the User's Duties live, a sentence per set of Assistants: the groups
+ * that come from them, each Assistant named by the site its NIP-05 verifies on
+ * (`siteOf`) or, failing that, by name — this deployment's as "this site",
+ * first. A group split between Assistants names them all. Groups nobody holds
  * close it.
  */
 export function dutiesSummary(
-  assistants: AssistantDuties[],
+  assistants: AssistantHolding[],
   siteOf: (pubkey: string) => string | null,
   nameOf: (pubkey: string) => string,
 ): string {
-  const held = assistants.filter((a) => a.categories.length > 0);
-  const nobody = CATEGORIES.filter((c) => !held.some((a) => a.categories.includes(c)));
-  if (nobody.length === 0 && held.every((a) => a.here)) {
+  const holders = (group: MapCategory) =>
+    assistants.filter((a) => a.categories.includes(group)).sort((a, b) => Number(b.here) - Number(a.here));
+  const nobody = CATEGORIES.filter((group) => holders(group).length === 0);
+  if (nobody.length === 0 && CATEGORIES.every((group) => holders(group).every((a) => a.here))) {
     return "Everything your Assistant does for you happens on this site.";
   }
-  const sentences = [...held]
-    .sort((a, b) => Number(a.here) - Number(b.here))
-    .map((a) => {
-      const where = a.here ? "this site" : (siteOf(a.pubkey) ?? nameOf(a.pubkey));
-      return `${and(a.categories.map((c) => LABEL[c]))} come from ${where}.`;
-    });
-  if (nobody.length) sentences.push(`Nobody has ${and(nobody.map((c) => LABEL[c]))} yet.`);
+  // Groups with the same holders share a sentence, in the groups' own order.
+  const lines = new Map<string, { groups: MapCategory[]; from: AssistantHolding[] }>();
+  for (const group of CATEGORIES) {
+    const from = holders(group);
+    if (from.length === 0) continue;
+    const key = from.map((a) => a.pubkey).join(",");
+    lines.set(key, { groups: [...(lines.get(key)?.groups ?? []), group], from });
+  }
+  const where = (a: AssistantHolding) => (a.here ? "this site" : (siteOf(a.pubkey) ?? nameOf(a.pubkey)));
+  const sentences = [...lines.values()].map(
+    ({ groups, from }) => `${and(groups.map((group) => LABEL[group]))} come from ${and(from.map(where))}.`,
+  );
+  if (nobody.length) sentences.push(`Nobody has ${and(nobody.map((group) => LABEL[group]))} yet.`);
   return sentences.join(" ");
+}
+
+/** The hosts a Brainstorm Assistant's NIP-05 verifies on: the Deployments, which serve this app. */
+const BRAINSTORM_HOSTS = new Set(["brainstorm.nosfabrica.com", "brainstorm-staging.nosfabrica.com"]);
+
+/**
+ * Where an Assistant on another site is changed: only its own site holds its
+ * key. A Deployment serves this app, so the link goes to its Assistants page;
+ * another app's site has no such page, so it goes to the front page of the
+ * site its NIP-05 proves.
+ */
+export function assistantSiteLink(site: string): { href: string; label: string } {
+  return BRAINSTORM_HOSTS.has(site.toLowerCase())
+    ? { href: `https://${site}/settings?tab=assistants&view=yours`, label: `Open on ${site}` }
+    : { href: `https://${site}/`, label: `Open ${site}` };
 }
 
 /**

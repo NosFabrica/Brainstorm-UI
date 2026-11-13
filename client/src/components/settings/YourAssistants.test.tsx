@@ -19,9 +19,12 @@ const NAMES: Record<string, string> = {
   [HERE]: "This site's Brainstorm Assistant",
   [PROD]: "Pip's Brainstorm Assistant",
 };
+const APP = "d".repeat(64);
 const SITES: Record<string, string> = {
   [HERE]: "brainstorm-staging.nosfabrica.com",
   [PROD]: "brainstorm.nosfabrica.com",
+  // Another app's Assistant, whose NIP-05 verifies on that app's site.
+  [APP]: "scores.example",
 };
 
 vi.mock("wouter", () => ({
@@ -37,7 +40,7 @@ vi.mock("@/hooks/useLiveProfile", () => ({
   useLiveProfiles: (pks: string[]) => new Map(pks.map((pk) => [pk, { name: NAMES[pk] }])),
 }));
 vi.mock("@/hooks/useVerifiedHost", () => ({
-  useVerifiedHost: (pk: string | null | undefined) => (pk ? (SITES[pk] ?? null) : null),
+  useVerifiedHosts: () => (pk: string) => SITES[pk] ?? null,
 }));
 
 import { YourAssistants } from "./YourAssistants";
@@ -125,6 +128,45 @@ describe("YourAssistants", () => {
     const ext = screen.getByTestId(`assistant-card-${EXT.slice(0, 8)}`);
     expect(ext).toHaveTextContent("Unverified");
     expect(within(ext).queryByTestId("assistant-open-site")).toBeNull();
+  });
+
+  // The Assistants page is ours: another app's site has no such path, so its
+  // Assistant links to the front page of the site its NIP-05 proves.
+  it("links another app's Assistant to its site's front page, not to a Brainstorm page", () => {
+    h.map = { tags: [["30382:rank", APP, "wss://scores.example"]] };
+    show();
+    const open = within(screen.getByTestId(`assistant-card-${APP.slice(0, 8)}`)).getByTestId("assistant-open-site");
+    expect(open).toHaveTextContent("Open scores.example");
+    expect(open).toHaveAttribute("href", "https://scores.example/");
+  });
+
+  // Read as the Duties view reads the Map: a group split between this site
+  // and another names both, and this site's Assistant isn't left out of it.
+  it("names both Assistants of a split group", () => {
+    h.map = {
+      tags: [
+        ["30382:rank", PROD, "wss://scores.example"],
+        ["30382:followers", PROD, "wss://scores.example"],
+        ["30382:hops", HERE, "wss://nip85.example"],
+      ],
+    };
+    show();
+    expect(screen.getByTestId("your-assistants-summary")).toHaveTextContent(
+      "Scores come from this site and brainstorm.nosfabrica.com. Nobody has Lists and Concepts yet.",
+    );
+  });
+
+  // However many Assistants the Map names, each card shows its own site.
+  it("shows every Assistant the Map names, each with the site it verifies on", () => {
+    const keys = ["2", "3", "4", "5", "6"].map((c) => c.repeat(64));
+    keys.forEach((key, i) => (SITES[key] = `site${i + 1}.example`));
+    h.map = {
+      tags: keys.map((key, i) => [`30382:${["rank", "followers", "hops", "muters", "reporters"][i]}`, key, ""]),
+    };
+    show();
+    const cards = within(screen.getByTestId("also-working-for-you")).getAllByTestId(/^assistant-card-/);
+    expect(cards).toHaveLength(5);
+    cards.forEach((card, i) => expect(card).toHaveTextContent(`site${i + 1}.example`));
   });
 
   it("points to the Treasure Map editor for changing who does what", () => {

@@ -123,8 +123,9 @@ export function BrainstormAssistantCard({
   const [profile, setProfile] = useState<AssistantProfile | null>(() => (confirmed ? readAssistantProfile() : null));
   const me = useActiveAccountDisplay();
   const userPubkey = me?.pubkey ?? null;
-  // Brainstorm holds every Assistant's key, so customizing one is internal for
-  // now: only admins see Customize, the way Settings keeps operator views.
+  // Customizing an Assistant is internal first: only admins see Customize, the
+  // way Settings keeps operator views. A rollout step — this is the switch to
+  // turn off once the flow has run internally (docs/assistant/PROFILE-EDIT-ASK.md).
   const isAdmin = me?.isAdmin === true;
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);

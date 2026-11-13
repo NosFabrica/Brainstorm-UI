@@ -7,8 +7,8 @@ import { nameOf, type Profiles } from "@/components/messages/people";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
-import { useVerifiedHost } from "@/hooks/useVerifiedHost";
-import { assistantsOf, dutiesSummary, othersOf, type AssistantDuties } from "@/lib/assistantDuties";
+import { useVerifiedHosts } from "@/hooks/useVerifiedHost";
+import { assistantSiteLink, assistantsOf, dutiesSummary, othersOf, type AssistantHolding } from "@/lib/assistantDuties";
 import type { MapCategory } from "@/lib/treasureMapCards";
 
 const LABEL: Record<MapCategory, string> = { scores: "Scores", lists: "Lists", concepts: "Concepts" };
@@ -17,7 +17,8 @@ const LABEL: Record<MapCategory, string> = { scores: "Scores", lists: "Lists", c
  * Settings › Assistants › Yours, growing with the User. While everything
  * happens on this site it is one card: `children`, this site's Assistant (the
  * big card, whose onboarding also carries a User with no Assistant yet). Once
- * another Assistant holds a Duty: one sentence saying where the Duties live,
+ * another Assistant holds a Duty — read as the Duties view reads the Map
+ * (lib/assistantDuties `assistantsOf`): one sentence saying where the Duties live,
  * the card, then "Also working for you" with the others only — this site's is
  * never repeated — and a link to change who does what in the Treasure Map.
  */
@@ -25,19 +26,13 @@ export function YourAssistants({ viewer, children }: { viewer: string | undefine
   const { taPubkey } = useHasMywot();
   const map = useTrustProviderList(viewer ?? null).event;
   const assistants = taPubkey ? assistantsOf(map, taPubkey) : [];
-  const profiles = useLiveProfiles(assistants.map((a) => a.pubkey));
-  // At most four Assistants hold Duties — this deployment's, and one per
-  // category — so their verified sites are read in four fixed calls.
-  const sites = [
-    useVerifiedHost(assistants[0]?.pubkey),
-    useVerifiedHost(assistants[1]?.pubkey),
-    useVerifiedHost(assistants[2]?.pubkey),
-    useVerifiedHost(assistants[3]?.pubkey),
-  ];
+  const pubkeys = assistants.map((a) => a.pubkey);
+  const profiles = useLiveProfiles(pubkeys);
+  // A group can be split between Assistants, so the Map names as many as it likes.
+  const siteOf = useVerifiedHosts(pubkeys);
   const others = othersOf(assistants);
   if (!taPubkey || others.length === 0) return <>{children}</>;
 
-  const siteOf = (pubkey: string) => sites[assistants.findIndex((a) => a.pubkey === pubkey)] ?? null;
   const name = (pubkey: string) => nameOf(pubkey, profiles);
 
   return (
@@ -70,7 +65,7 @@ function AssistantCard({
   site,
   profiles,
 }: {
-  assistant: AssistantDuties;
+  assistant: AssistantHolding;
   site: string | null;
   profiles: Profiles;
 }) {
@@ -104,16 +99,16 @@ function AssistantCard({
           )}
         </div>
       </div>
-      {/* Only its own site holds its key: change it there — and only at a site its NIP-05 proves. */}
+      {/* Only its own site holds its key: change it there — and only at a site its NIP-05 proves (assistantSiteLink). */}
       {!assistant.here && site && (
         <a
-          href={`https://${site}/settings?tab=assistants&view=yours`}
+          href={assistantSiteLink(site).href}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs font-medium text-brand-link hover:underline"
           data-testid="assistant-open-site"
         >
-          Open on {site} <ExternalLink className="h-3 w-3" />
+          {assistantSiteLink(site).label} <ExternalLink className="h-3 w-3" />
         </a>
       )}
       {assistant.categories.length ? (
