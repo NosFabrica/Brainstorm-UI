@@ -8,7 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentKey } from "@/lib/agentKeys";
 
 const updateAgentKeys = vi.fn();
-vi.mock("@/services/agentKeys", () => ({ updateAgentKeys: (...a: unknown[]) => updateAgentKeys(...a) }));
+const agentKeysHold = vi.fn();
+vi.mock("@/services/agentKeys", () => ({
+  updateAgentKeys: (...a: unknown[]) => updateAgentKeys(...a),
+  agentKeysHold: (...a: unknown[]) => agentKeysHold(...a),
+}));
 // No relay is asked here.
 vi.mock("@/lib/relayRequest", () => ({ requestAll: vi.fn(async () => []) }));
 
@@ -34,6 +38,8 @@ beforeEach(() => {
   calls.length = 0;
   updateAgentKeys.mockReset();
   updateAgentKeys.mockResolvedValue({ success: true });
+  agentKeysHold.mockReset();
+  agentKeysHold.mockResolvedValue(true);
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -107,7 +113,10 @@ describe("a Lightning key purchase", () => {
     });
     expect(await pollPurchase(ME, record.id)).toBe("saved");
     expect(seen).toEqual([[KEY]]);
-    // Cleared right after the save: the key leaves this device's storage.
+    // Kept until a read of kind 12000 shows it, then cleared: the key leaves this device's storage.
+    expect(readPurchases(ME)[0]).toMatchObject({ key: KEY, savedAt: expect.any(Number) });
+    expect(await pollPurchase(ME, record.id)).toBe("confirmed");
+    expect(agentKeysHold).toHaveBeenCalledWith(ME, { key: KEY, url: NODE });
     expect(readPurchases(ME)).toEqual([]);
     expect(localStorage.getItem(`routstr:pending:${ME}`)).toBeNull();
   });
@@ -132,6 +141,7 @@ describe("a Lightning key purchase", () => {
     expect(second.readPurchases(ME).map((r) => r.id)).toEqual([record.id]);
     expect(await second.pollPurchase(ME, record.id)).toBe("saved");
     expect(updateAgentKeys).toHaveBeenCalledTimes(1);
+    expect(await second.pollPurchase(ME, record.id)).toBe("confirmed");
     expect(second.readPurchases(ME)).toEqual([]);
   });
 
@@ -164,6 +174,7 @@ describe("a Lightning key purchase", () => {
       "/v2/lightning/invoice/inv_lost/status",
       "/v2/lightning/recover",
     ]);
+    expect(await pollPurchase(ME, "inv_lost")).toBe("confirmed");
     expect(readPurchases(ME)).toEqual([]);
   });
 
@@ -214,6 +225,7 @@ describe("a Lightning key purchase", () => {
     // Retry: the key in hand is saved, the node isn't asked again.
     calls.length = 0;
     expect(await pollPurchase(ME, "inv_1")).toBe("saved");
+    expect(await pollPurchase(ME, "inv_1")).toBe("confirmed");
     expect(calls).toHaveLength(0);
     expect(readPurchases(ME)).toEqual([]);
   });
@@ -334,7 +346,7 @@ describe("Cashu", () => {
       expect(JSON.parse(init.body as string)).toEqual({ initial_balance_token: TOKEN });
       return respond(200, { api_key: KEY, balance: 21_000 });
     };
-    const { buyWithCashu, readPurchases } = await load();
+    const { buyWithCashu, pollPurchase, readPurchases } = await load();
     const writes: string[] = [];
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k: string, v: string) {
@@ -343,7 +355,8 @@ describe("Cashu", () => {
     };
     try {
       const result = await buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN });
-      expect(result).toEqual({ outcome: "saved", change: null, sats: 21 });
+      expect(result).toEqual({ outcome: "saved", change: null, sats: 21, id: expect.any(String) });
+      expect(await pollPurchase(ME, result.id)).toBe("confirmed");
     } finally {
       Storage.prototype.setItem = setItem;
     }
@@ -360,8 +373,9 @@ describe("Cashu", () => {
     };
     const { topUpWithCashu, readPurchases, changeTaken, purchaseState } = await load();
     const result = await topUpWithCashu({ pubkey: ME, entry: { key: KEY, url: NODE }, token: TOKEN, nodeName: null });
-    expect(result).toEqual({ sats: 19, change: { token: CHANGE, amount: 2, unit: "sat" } });
+    expect(result).toEqual({ sats: 19, change: { token: CHANGE, amount: 2, unit: "sat" }, id: expect.any(String) });
     const [held] = readPurchases(ME);
+    expect(held.id).toBe(result.id);
     expect(held.change).toEqual({ token: CHANGE, amount: 2, unit: "sat" });
     expect(held.key).toBeUndefined();
     expect(purchaseState(held, NOW)).toBe("change");
@@ -371,9 +385,10 @@ describe("Cashu", () => {
 
   it("a key bought with change keeps the change after the key is saved", async () => {
     handle = () => respond(200, { api_key: KEY, balance: 1_000, change_token: CHANGE, change_amount: 1 });
-    const { buyWithCashu, readPurchases } = await load();
+    const { buyWithCashu, pollPurchase, readPurchases } = await load();
     const result = await buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN });
     expect(result.outcome).toBe("saved");
+    expect(await pollPurchase(ME, result.id)).toBe("confirmed");
     const [held] = readPurchases(ME);
     expect(held.key).toBeUndefined();
     expect(held.change?.token).toBe(CHANGE);
@@ -415,5 +430,304 @@ describe("forgetting", () => {
     expect(forgetPurchase(ME, "here")).toBe(false);
     expect(forgetPurchase(ME, "unpaid")).toBe(true);
     expect(readPurchases(ME).map((r) => r.id)).toEqual(["paid", "key", "here"]);
+  });
+});
+
+describe("round-2 audit (2026-11-13)", () => {
+  const base = {
+    node: NODE,
+    nodeName: null,
+    purpose: "create" as const,
+    method: "lightning" as const,
+    bolt11: BOLT11,
+    amountSats: 5000,
+    createdAt: 0,
+  };
+  const deps = (over: Partial<import("./routstrPurchase").PurchaseDeps> = {}) => ({
+    status: async () => ({ type: "status", status: "pending", apiKey: null }) as const,
+    recover: async () => ({ type: "not-found" }) as const,
+    saveKey: async () => ({ ok: true }) as const,
+    keyHeld: async () => true,
+    keyLive: async () => "unknown" as const,
+    now: () => NOW,
+    ...over,
+  });
+
+  it("a saved key whose write another one undid is saved again; the record stays until a read shows it", async () => {
+    const { putPurchase, pollPurchase, readPurchases } = await load();
+    putPurchase(ME, { ...base, id: "k", invoiceId: "k", expiresAt: NOW + 600, paid: true, key: KEY });
+    const saveKey = vi.fn(async () => ({ ok: true }) as const);
+    const keyHeld = vi.fn<() => Promise<boolean | null>>();
+    const d = deps({ saveKey, keyHeld });
+    expect(await pollPurchase(ME, "k", d)).toBe("saved");
+    // An edit elsewhere replaced the event: the key isn't in it.
+    keyHeld.mockResolvedValueOnce(false);
+    expect(await pollPurchase(ME, "k", d)).toBe("waiting");
+    expect(readPurchases(ME)[0]).toMatchObject({ key: KEY });
+    expect(readPurchases(ME)[0].savedAt).toBeUndefined();
+    expect(await pollPurchase(ME, "k", d)).toBe("saved");
+    expect(saveKey).toHaveBeenCalledTimes(2);
+    // Relays didn't answer: nothing is let go.
+    keyHeld.mockResolvedValueOnce(null);
+    expect(await pollPurchase(ME, "k", d)).toBe("waiting");
+    expect(readPurchases(ME)).toHaveLength(1);
+    keyHeld.mockResolvedValueOnce(true);
+    expect(await pollPurchase(ME, "k", d)).toBe("confirmed");
+    expect(readPurchases(ME)).toEqual([]);
+  });
+
+  it("a bought key is saved as the account it was bought for, and waits untouched while another is active", async () => {
+    const { putPurchase, pollPurchase, readPurchases } = await load();
+    putPurchase(ME, { ...base, id: "k", invoiceId: "k", expiresAt: NOW + 600, paid: true, key: KEY });
+    updateAgentKeys.mockResolvedValueOnce({ success: false, error: "switched", notActive: true });
+    expect(await pollPurchase(ME, "k")).toBe("waiting");
+    expect(updateAgentKeys.mock.calls[0][1]).toEqual({ pubkey: ME });
+    const held = readPurchases(ME)[0];
+    expect(held.saveError).toBeUndefined();
+    expect(held.savedAt).toBeUndefined();
+    expect(held.key).toBe(KEY);
+  });
+
+  it("a poll out while the wallet pays doesn't erase paidHere, so a later `expired` can't drop the paid invoice", async () => {
+    const { putPurchase, pollPurchase, readPurchases, markPaidHere } = await load();
+    putPurchase(ME, { ...base, id: "inv", invoiceId: "inv", expiresAt: NOW + 10 });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const p = pollPurchase(
+      ME,
+      "inv",
+      deps({
+        status: async () => {
+          await gate;
+          return { type: "status", status: "pending", apiKey: null } as const;
+        },
+      }),
+    );
+    markPaidHere(ME, "inv");
+    release();
+    expect(await p).toBe("waiting");
+    expect(readPurchases(ME)[0].paidHere).toBe(true);
+    const expired = deps({
+      status: async () => ({ type: "status", status: "expired", apiKey: null }) as const,
+      now: () => NOW + 11,
+    });
+    expect(await pollPurchase(ME, "inv", expired)).toBe("waiting");
+    expect(readPurchases(ME)[0]).toMatchObject({ bolt11: BOLT11, paidHere: true });
+  });
+
+  it("a poll never brings back a record that went while it was out", async () => {
+    const { putPurchase, pollPurchase, readPurchases, removePurchase } = await load();
+    putPurchase(ME, { ...base, id: "inv", invoiceId: "inv", expiresAt: NOW + 600 });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const p = pollPurchase(
+      ME,
+      "inv",
+      deps({
+        status: async () => {
+          await gate;
+          return { type: "status", status: "pending", apiKey: null } as const;
+        },
+      }),
+    );
+    removePurchase(ME, "inv");
+    release();
+    expect(await p).toBe("gone");
+    expect(readPurchases(ME)).toEqual([]);
+  });
+
+  it("a paid-here invoice the node calls expired a day past expiry: recover once, then it has ended and may be forgotten", async () => {
+    const { putPurchase, pollPurchase, readPurchases, forgetPurchase, purchaseState } = await load();
+    putPurchase(ME, { ...base, id: "inv", invoiceId: "inv", expiresAt: NOW - 90_000, paidHere: true });
+    expect(forgetPurchase(ME, "inv")).toBe(false);
+    const recover = vi.fn(async () => ({ type: "not-found" }) as const);
+    const d = deps({ status: async () => ({ type: "status", status: "expired", apiKey: null }) as const, recover });
+    expect(await pollPurchase(ME, "inv", d)).toBe("waiting");
+    expect(recover).toHaveBeenCalledTimes(1);
+    const held = readPurchases(ME)[0];
+    expect(held).toMatchObject({ ended: true, recoverTried: true, paidHere: true });
+    expect(purchaseState(held, NOW)).toBe("ended");
+    // Ended: nothing more is asked.
+    expect(await pollPurchase(ME, "inv", d)).toBe("waiting");
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(forgetPurchase(ME, "inv")).toBe(true);
+  });
+
+  it("a paid-here invoice that recover finds past the grace still saves its key", async () => {
+    const { putPurchase, pollPurchase } = await load();
+    putPurchase(ME, { ...base, id: "inv", invoiceId: "inv", expiresAt: NOW - 90_000, paidHere: true });
+    const d = deps({
+      status: async () => ({ type: "status", status: "expired", apiKey: null }) as const,
+      recover: async () => ({ type: "status", status: "paid", apiKey: KEY }) as const,
+    });
+    expect(await pollPurchase(ME, "inv", d)).toBe("saved");
+  });
+
+  describe("a Cashu key", () => {
+    const TOKEN = "cashuBo2FteBpodHRwczovL21pbnQuZXhhbXBsZQ";
+
+    it("is kept, as sk- + sha256(token), before the token is sent", async () => {
+      const { buyWithCashu, cashuKey, readPurchases } = await load();
+      const expected = await cashuKey(TOKEN);
+      expect(expected).toMatch(/^sk-[0-9a-f]{64}$/);
+      handle = () => {
+        // On disk while the token is out.
+        expect(readPurchases(ME)).toEqual([expect.objectContaining({ key: expected, unconfirmed: true })]);
+        return respond(200, { api_key: expected, balance: 21_000 });
+      };
+      expect((await buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN })).outcome).toBe("saved");
+      expect(readPurchases(ME)[0]).toMatchObject({ key: expected, paid: true });
+      expect(readPurchases(ME)[0].unconfirmed).toBeUndefined();
+    });
+
+    it("isn't sent when this browser won't keep its key", async () => {
+      handle = () => respond(200, { api_key: KEY });
+      const { buyWithCashu } = await load();
+      const setItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = () => {
+        throw new Error("QuotaExceeded");
+      };
+      try {
+        await expect(buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN })).rejects.toThrow(
+          /won't keep the purchase/,
+        );
+      } finally {
+        Storage.prototype.setItem = setItem;
+      }
+      expect(calls).toHaveLength(0);
+    });
+
+    it("after silence, the poller asks whether the key exists: live is saved, missing (later) is let go", async () => {
+      handle = () => {
+        throw new TypeError("Failed to fetch");
+      };
+      const { buyWithCashu, pollPurchase, readPurchases, putPurchase } = await load();
+      await expect(buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN })).rejects.toThrow();
+      const [held] = readPurchases(ME);
+      expect(held).toMatchObject({ unconfirmed: true });
+      expect(updateAgentKeys).not.toHaveBeenCalled();
+      // Too soon to tell: "no such key" waits.
+      expect(await pollPurchase(ME, held.id, deps({ keyLive: async () => "missing" }))).toBe("waiting");
+      expect(readPurchases(ME)).toHaveLength(1);
+      // The node did take it.
+      expect(await pollPurchase(ME, held.id, deps({ keyLive: async () => "live" }))).toBe("waiting");
+      expect(readPurchases(ME)[0]).toMatchObject({ paid: true, key: held.key });
+      expect(await pollPurchase(ME, held.id, deps())).toBe("saved");
+      // One the node never took, long after: let go (the reader still holds the token).
+      putPurchase(ME, { ...held, id: "old", createdAt: Date.now() - 3_600_000 });
+      expect(await pollPurchase(ME, "old", deps({ keyLive: async () => "missing" }))).toBe("dropped");
+    });
+  });
+});
+
+describe("the poller (round-2 audit)", () => {
+  const rec = (id: string) => ({
+    id,
+    node: "https://n.example/v1",
+    nodeName: null,
+    purpose: "create" as const,
+    method: "lightning" as const,
+    invoiceId: id,
+    bolt11: "lnbc1" + id,
+    amountSats: 1000,
+    expiresAt: Math.floor(Date.now() / 1000) + 600,
+    createdAt: 0,
+  });
+
+  it("a record going while another's status call is out doesn't stop the other's polling", async () => {
+    vi.useFakeTimers();
+    try {
+      const { renderHook, act } = await import("@testing-library/react");
+      let gateA = false;
+      let release: (() => void) | null = null;
+      handle = async (url) => {
+        if (url.includes("/a/") && gateA && !release) await new Promise<void>((r) => (release = r));
+        return respond(200, statusBody("pending"));
+      };
+      const { usePurchasePoller, putPurchase, removePurchase } = await load();
+      putPurchase(ME, rec("a"));
+      putPurchase(ME, rec("b"));
+      renderHook(() => usePurchasePoller(ME));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      gateA = true;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(release).not.toBeNull();
+      await act(async () => {
+        removePurchase(ME, "b");
+      });
+      await act(async () => {
+        release!();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const asks = () => calls.filter((c) => c.url.includes("/a/")).length;
+      const before = asks();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(asks() - before).toBeGreaterThan(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a new record doesn't make every idle one ask again at once", async () => {
+    vi.useFakeTimers();
+    try {
+      const { renderHook, act } = await import("@testing-library/react");
+      handle = () => respond(200, statusBody("pending"));
+      const { usePurchasePoller, putPurchase } = await load();
+      putPurchase(ME, rec("a"));
+      renderHook(() => usePurchasePoller(ME));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      const asks = () => calls.filter((c) => c.url.includes("/a/")).length;
+      expect(asks()).toBe(1);
+      await act(async () => {
+        putPurchase(ME, rec("b"));
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      // b asked at once, a still on its own three seconds.
+      expect(calls.filter((c) => c.url.includes("/b/"))).toHaveLength(1);
+      expect(asks()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says nothing, and marks nothing, for an account signed out while its turn was out", async () => {
+    vi.useFakeTimers();
+    try {
+      const { renderHook, act } = await import("@testing-library/react");
+      let release!: () => void;
+      updateAgentKeys.mockImplementation(
+        () => new Promise((r) => (release = () => r({ success: false, error: "Not logged in", notActive: true }))),
+      );
+      const { usePurchasePoller, putPurchase, readPurchases } = await load();
+      putPurchase(ME, { ...rec("k"), paid: true, key: KEY });
+      const onOutcome = vi.fn();
+      const { rerender } = renderHook(({ pk }) => usePurchasePoller(pk, onOutcome), {
+        initialProps: { pk: ME as string | null },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      rerender({ pk: null });
+      await act(async () => {
+        release();
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(onOutcome).not.toHaveBeenCalled();
+      expect(readPurchases(ME)[0].saveError).toBeUndefined();
+      expect(updateAgentKeys).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

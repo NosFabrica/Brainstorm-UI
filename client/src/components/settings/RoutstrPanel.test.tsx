@@ -14,7 +14,10 @@ const ME = "ab".repeat(32);
 vi.mock("@/accounts/signing", () => ({ activeAccount: () => ({ pubkey: ME }) }));
 vi.mock("@/lib/relayRequest", () => ({ requestAll: vi.fn(async () => announcements as NostrEvent[]) }));
 const updateAgentKeys = vi.fn();
-vi.mock("@/services/agentKeys", () => ({ updateAgentKeys: (...a: unknown[]) => updateAgentKeys(...a) }));
+vi.mock("@/services/agentKeys", () => ({
+  updateAgentKeys: (...a: unknown[]) => updateAgentKeys(...a),
+  agentKeysHold: async () => true,
+}));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }));
 
 import { RoutstrKeyExtras, RoutstrPanel } from "./RoutstrPanel";
@@ -35,6 +38,7 @@ const OTRTA_INFO = {
 };
 const KEY = `sk-${"d".repeat(64)}`;
 const TOKEN = "cashuBo2FteBpodHRwczovL21pbnQuZXhhbXBsZQ";
+const CHANGE = "cashuBchangechangechangechange";
 
 let balanceMsats = 12_000_000;
 const fetchMock = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
@@ -59,6 +63,9 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {})
       expires_at: Math.floor(Date.now() / 1000) + 600,
       payment_hash: "ff",
     });
+  }
+  if (url === `${OTRTA}/v1/balance/create`) {
+    return ok({ api_key: KEY, balance: 1_000_000, change_token: CHANGE, change_amount: 2, change_unit: "sat" });
   }
   if (url.includes("/v2/lightning/invoice/inv_1/status")) {
     return ok({ status: "pending", amount_sats: 5000, created_at: 0, expires_at: 0 });
@@ -174,6 +181,30 @@ describe("RoutstrPanel", () => {
       fetchMock.mock.calls.find(([u]) => String(u).endsWith("/v2/lightning/invoice"))![1]!.body as string,
     );
     expect(body).toEqual({ amount_sats: 5000, purpose: "create" });
+  });
+});
+
+describe("Cashu change in the buy step (round-2 audit)", () => {
+  it('"I\'ve put it in my wallet" lets the change go from this device too', async () => {
+    updateAgentKeys.mockResolvedValue({ success: true });
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: vi.fn(async () => {}) } });
+    vi.stubGlobal("isSecureContext", true);
+    panel();
+    await openNode();
+    fireEvent.click(screen.getByTestId("routstr-get-key"));
+    fireEvent.click(screen.getByTestId("routstr-method-cashu"));
+    fireEvent.change(screen.getByTestId("routstr-cashu-token"), { target: { value: TOKEN } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("routstr-redeem"));
+    });
+    await screen.findByTestId("routstr-change");
+    expect(localStorage.getItem(`routstr:pending:${ME}`)).toContain(CHANGE);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("routstr-change-copy"));
+    });
+    await waitFor(() => expect(screen.getByTestId("routstr-change-taken")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("routstr-change-taken"));
+    expect(localStorage.getItem(`routstr:pending:${ME}`) ?? "").not.toContain(CHANGE);
   });
 });
 

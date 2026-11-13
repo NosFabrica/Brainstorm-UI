@@ -10,9 +10,11 @@
  * on this device only, never in an event:
  * - it holds the bolt11 and the invoice id, so a reload resumes the poll, and a lost id is
  *   recovered by the bolt11 (`/v2/lightning/recover`);
- * - it holds the bought key only from the moment the node hands it over until the key is
- *   saved to kind 12000 (a failed save keeps it, for Retry);
- * - it is cleared right after that save, or when the invoice expired unpaid.
+ * - it holds the bought key only from the moment the node hands it over (or, for a Cashu
+ *   token, from just before the token is sent: the key is `sk-` + sha256(token)) until a
+ *   read of kind 12000 after the save shows the key there (a failed save keeps it, for
+ *   Retry; a save another write undid is made again);
+ * - it is cleared then, or when the invoice expired unpaid.
  * A top-up names its key by the last four characters only: that key is already saved.
  * A Cashu change token the node handed back is kept the same way, until the reader has
  * taken it: it is their money too.
@@ -52,6 +54,23 @@ export interface PendingPurchase {
   change?: CashuChange;
   /** The node is reconciling a payment it didn't see settle (`reconciliation_required`). */
   reconciling?: boolean;
+  /**
+   * When the key was written to kind 12000 (ms). The record stays, key and all, until a later
+   * read of kind 12000 shows the key: a write from elsewhere at the same moment may undo it.
+   */
+  savedAt?: number;
+  /**
+   * A Cashu token was (or is being) sent for this key and the node hasn't said it took it:
+   * the key is `sk-` + sha256(token), so asking its balance tells whether it exists.
+   */
+  unconfirmed?: boolean;
+  /** Past the settlement grace, `/v2/lightning/recover` was asked once for a paid-here invoice. */
+  recoverTried?: boolean;
+  /**
+   * The node says it expired, a day past its expiry, and recover found nothing, though this
+   * wallet said it paid: nothing more will come of asking. Kept until the reader forgets it.
+   */
+  ended?: boolean;
 }
 
 /** How long a node keeps settling an expired invoice (`INVOICE_EXPIRY_GRACE_SECONDS`, routstr-core). */
@@ -100,6 +119,7 @@ export function advance(
     // The id is lost (or this node forgot it): the bolt11 still names the payment.
     if (from === "status" && record.bolt11) return { next: "recover", record };
     if (canDrop(record, now)) return { next: "drop", record };
+    if (pastGrace(record, now) && !record.paid) return { next: "wait", record: { ...record, ended: true } };
     return { next: "wait", record };
   }
   const status = answer.status.toLowerCase();
@@ -115,6 +135,14 @@ export function advance(
   if (status === "expired" || status === "cancelled" || status === "failed") {
     if (canDrop(record, now)) return { next: "drop", record };
     // The node settles a paid invoice for a day past its expiry: one this wallet paid waits.
+    // Past that day, the bolt11 is asked once more (`recover`); when that finds nothing too,
+    // it has ended: nothing more will come of asking, and the reader decides.
+    if (pastGrace(record, now) && !record.paid) {
+      if (from === "status" && record.bolt11 && !record.recoverTried) {
+        return { next: "recover", record: { ...record, recoverTried: true } };
+      }
+      return { next: "wait", record: { ...record, ended: true } };
+    }
     return { next: "wait", record };
   }
   if (WAITING.has(status)) {
@@ -128,18 +156,26 @@ export function advance(
   return { next: "wait", record };
 }
 
+const pastGrace = (record: PendingPurchase, now: number) =>
+  record.expiresAt !== null && now > record.expiresAt + SETTLEMENT_GRACE_SECONDS;
+
 /** Never drop money: only an unpaid, keyless record nothing here paid, past its expiry. */
-function canDrop(record: PendingPurchase, now: number): boolean {
+export function canDrop(record: PendingPurchase, now: number): boolean {
   if (record.paid || record.paidHere || record.key || record.change) return false;
   return record.expiresAt !== null && now > record.expiresAt;
 }
 
 /** What the reader is shown for a record. */
-export type PurchaseState = "awaiting-payment" | "confirming" | "reconciling" | "unsaved-key" | "change" | "expired";
+export type PurchaseState =
+  "awaiting-payment" | "confirming" | "reconciling" | "unsaved-key" | "saved" | "change" | "expired" | "ended";
 
 export function purchaseState(record: PendingPurchase, now: number): PurchaseState {
-  if (record.key) return "unsaved-key";
+  // A Cashu token sent, and the node hasn't said it took it.
+  if (record.key && record.unconfirmed) return "confirming";
+  if (record.key && !record.savedAt) return "unsaved-key";
   if (record.change && (record.paid || record.method === "cashu")) return "change";
+  if (record.key) return "saved";
+  if (record.ended) return "ended";
   if (record.reconciling) return "reconciling";
   if (record.paid || record.paidHere) return "confirming";
   if (record.expiresAt !== null && now > record.expiresAt) return "expired";
@@ -209,6 +245,36 @@ export function writePurchases(pubkey: string, list: PendingPurchase[]): boolean
 export function putPurchase(pubkey: string, record: PendingPurchase): boolean {
   const list = readPurchases(pubkey).filter((r) => r.id !== record.id);
   return writePurchases(pubkey, [...list, record]);
+}
+
+/**
+ * Writes what one turn made of a record over the record as it is NOW, not as that turn read
+ * it: meanwhile this device's wallet may have paid it (`markPaidHere`), another tab moved it
+ * on, or it went. What says money moved stays (`paid`, `paidHere`), so does a key or change
+ * either side holds; a record that went isn't brought back. False when it is gone, or when
+ * storage refused the write.
+ */
+export function updatePurchase(pubkey: string, next: PendingPurchase): boolean {
+  const list = readPurchases(pubkey);
+  const now = list.find((r) => r.id === next.id);
+  if (!now) return false;
+  const merged: PendingPurchase = { ...next };
+  if (now.paid || next.paid) merged.paid = true;
+  if (now.paidHere || next.paidHere) merged.paidHere = true;
+  const key = next.key ?? now.key;
+  if (key) merged.key = key;
+  const change = now.change ?? next.change;
+  if (change) merged.change = change;
+  return writePurchases(
+    pubkey,
+    list.map((r) => (r.id === next.id ? merged : r)),
+  );
+}
+
+/** Removes a record only if, as it is now, nothing says money moved (`canDrop`). */
+export function dropIfDroppable(pubkey: string, id: string, now: number): boolean {
+  const held = readPurchases(pubkey).find((r) => r.id === id);
+  return !!held && canDrop(held, now) && removePurchase(pubkey, id);
 }
 
 export function removePurchase(pubkey: string, id: string): boolean {

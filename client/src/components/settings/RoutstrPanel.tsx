@@ -545,7 +545,8 @@ export function BuyKey({
   const [token, setToken] = useState(initialToken ?? "");
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [change, setChange] = useState<CashuChange | null>(null);
+  /** Change the node handed back, and the record that keeps it until the reader took it. */
+  const [change, setChange] = useState<{ change: CashuChange; id: string | null } | null>(null);
   const apiUrl = nodeApiUrl(node.https[0]);
   const customSats = custom.trim() ? Number(custom.replace(/[,\s]/g, "")) : null;
   const sats = customSats ?? amount;
@@ -584,14 +585,14 @@ export function BuyKey({
         const result = await topUpWithCashu({ pubkey, entry, token: parsedToken, nodeName: node.name });
         setToken("");
         toast({ title: result.sats ? `Added ${formatSats(result.sats)}` : "Topped up" });
-        if (result.change) setChange(result.change);
+        if (result.change) setChange({ change: result.change, id: result.id });
         else onDone();
       } else {
         const result = await buyWithCashu({ pubkey, node: apiUrl, nodeName: node.name, token: parsedToken });
         setToken("");
         if (result.outcome === "saved") toast({ title: "Key saved" });
         else toast({ title: "Your key was bought but not saved yet", description: "Retry it above." });
-        if (result.change) setChange(result.change);
+        if (result.change) setChange({ change: result.change, id: result.id });
         else onDone();
       }
     } catch (err) {
@@ -609,8 +610,10 @@ export function BuyKey({
   if (change) {
     return (
       <ChangeCard
-        change={change}
+        change={change.change}
         onTaken={() => {
+          // The record keeping it on this device goes too.
+          if (pubkey && change.id) changeTaken(pubkey, change.id);
           setChange(null);
           onDone();
         }}
@@ -776,7 +779,8 @@ export function InvoiceStep({ id, onDone }: { id: string; onDone: () => void }) 
   const [payError, setPayError] = useState<string | null>(null);
   const seen = last.current;
 
-  if (!record) {
+  // A saved key is done for the reader; the record stays only until kind 12000 is read back.
+  if (!record || purchaseState(record, Math.floor(now / 1000)) === "saved") {
     const expired = !!seen && !seen.paid && !seen.paidHere && seen.expiresAt !== null && now / 1000 > seen.expiresAt;
     return (
       <div className="flex flex-col items-center gap-3 py-4 text-center" data-testid="routstr-invoice-done">
@@ -803,7 +807,7 @@ export function InvoiceStep({ id, onDone }: { id: string; onDone: () => void }) 
   }
 
   const state = purchaseState(record, Math.floor(now / 1000));
-  if (state === "unsaved-key" || state === "change") return <PendingRow record={record} />;
+  if (state === "unsaved-key" || state === "change" || state === "ended") return <PendingRow record={record} />;
   const bolt11 = record.bolt11 ?? "";
   const left = record.expiresAt !== null ? Math.max(0, record.expiresAt - Math.floor(now / 1000)) : null;
   const pay = async () => {
@@ -1038,10 +1042,16 @@ function PendingRow({ record }: { record: PendingPurchase }) {
               : state === "awaiting-payment"
                 ? `Waiting for payment · ${formatSats(record.amountSats)}`
                 : state === "confirming"
-                  ? `Paid · waiting for ${where}`
+                  ? record.method === "cashu"
+                    ? `Token sent · checking ${where} took it`
+                    : `Paid · waiting for ${where}`
                   : state === "reconciling"
                     ? `${where} is checking your payment`
-                    : "Invoice expired"}
+                    : state === "saved"
+                      ? "Key saved · checking your relays have it"
+                      : state === "ended"
+                        ? `${where} has nothing for this invoice`
+                        : "Invoice expired"}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {record.purpose === "topup" ? `Top-up of ····${record.topsUp ?? ""}` : "New key"} at {where}
@@ -1070,7 +1080,17 @@ function PendingRow({ record }: { record: PendingPurchase }) {
             Show invoice
           </Button>
         )}
-        {state === "expired" && (
+        {state === "ended" && record.bolt11 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void copyToClipboard(record.bolt11!)}
+            data-testid="routstr-pending-copy-invoice"
+          >
+            <Copy /> Copy invoice
+          </Button>
+        )}
+        {(state === "expired" || state === "ended") && (
           <Button size="sm" variant="ghost" onClick={() => setForgetting(true)} data-testid="routstr-pending-forget">
             Forget
           </Button>
@@ -1109,7 +1129,9 @@ function PendingRow({ record }: { record: PendingPurchase }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Forget this invoice?</AlertDialogTitle>
             <AlertDialogDescription>
-              Only if you didn&apos;t pay it. Paid, the key would be lost with it.
+              {state === "ended"
+                ? `Your wallet said it paid this invoice, but ${where} says it expired and has no key for it. Forgotten, this device keeps nothing of it: copy the invoice first if you want to ask ${where}'s operator, as proof of payment.`
+                : "Only if you didn't pay it. Paid, the key would be lost with it."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

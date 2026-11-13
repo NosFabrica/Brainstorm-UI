@@ -197,6 +197,35 @@ async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string
 }
 
 /**
+ * Whether `pubkey`'s kind 12000, read again from their relays (the store's copy where it is
+ * newer), holds `entry`: what a bought key waits for before this device lets it go. Null
+ * when it can't tell: another account is active, too few relays answered, the copy can't be
+ * read.
+ */
+export async function agentKeysHold(pubkey: string, entry: AgentKey): Promise<boolean | null> {
+  const account = activeAccount();
+  if (!account || account.pubkey !== pubkey) return null;
+  try {
+    const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
+    const { newest: fetched, reach } = await requestNewestWithReach(
+      relays,
+      { kinds: [AGENT_KEYS_KIND], authors: [pubkey], limit: 1 },
+      6000,
+    );
+    if (reach.answered.length * 2 <= reach.asked.length) return null;
+    const held = eventStore.getReplaceable(AGENT_KEYS_KIND, pubkey) as NostrEvent | undefined;
+    const newest = held && beats(held, fetched) ? held : fetched;
+    if (!newest) return false;
+    const tags = await decryptAgentKeyTags(account, newest);
+    if (!tags) return null;
+    // As `addKey` tells a duplicate: the same key at the same URL.
+    return parseAgentKeys(tags).some((k) => k.key === entry.key && k.url === entry.url);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Asks the provider for its model list with this key, from this page. A thrown
  * fetch is a host that is down, wrong, or that doesn't let web pages call it.
  */
