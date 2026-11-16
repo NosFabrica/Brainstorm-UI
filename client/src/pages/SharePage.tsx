@@ -68,6 +68,7 @@ import { parseCalendarEvent } from "@/lib/calendarEvent";
 import { videoItemOf, type VideoItem } from "@/components/share/VideoGrid";
 import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
+import { CompromisedBanner } from "@/components/CompromisedBanner";
 import { apiClient } from "@/services/api";
 import {
   parseProfilePrefs,
@@ -1115,6 +1116,10 @@ export default function SharePage() {
                     ) : undefined
                   }
                 />
+
+                {/* A compromised key leads: whoever holds it now isn't its owner,
+              which outranks any trust signal below. */}
+                <CompromisedBanner pubkey={pubkey} className="mt-3" />
 
                 {/* Prominent, factual flag — when reported beyond the follower-scaled
               threshold (house POV → same verdict for every viewer). */}
