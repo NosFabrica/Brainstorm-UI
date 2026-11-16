@@ -37,6 +37,10 @@ export interface CompromisedPubkey {
   proof_event_id: string;
   proof_event: NostrEventJson;
   successor_pubkey: string | null;
+  /** The new account's post about the move (hex id). */
+  successor_event_id?: string | null;
+  /** From when the key may have been in someone else's hands (naive UTC); unset, the marking time stands in. */
+  compromised_since?: string | null;
   reason: string | null;
   added_by: string | null;
   created_at: string;
@@ -59,8 +63,18 @@ export interface MarkCompromisedBody {
   proof_event?: NostrEventJson;
   /** npub or hex. */
   successor_pubkey?: string | null;
+  /** The new account's post about the move: hex, note1… or nevent1…. */
+  successor_event_id?: string | null;
+  /** ISO time; one with an offset is stored as UTC. */
+  compromised_since?: string | null;
   reason?: string | null;
 }
+
+/** `PATCH /admin/compromised/{pubkey}`: these fields only; one left out stays, `null` clears it. */
+export type CompromisedMetadataBody = Pick<
+  MarkCompromisedBody,
+  "successor_pubkey" | "successor_event_id" | "compromised_since" | "reason"
+>;
 
 /**
  * FastAPI answers a validation 422 with `detail` as a list of `{loc, msg}`;
@@ -113,11 +127,8 @@ export const compromisedApi = {
     );
   },
 
-  /** Change only the successor and/or note: the proof stays and nothing is zeroed. */
-  async updateCompromisedMetadata(
-    pubkey: string,
-    body: { successor_pubkey?: string | null; reason?: string | null },
-  ): Promise<CompromisedPubkey> {
+  /** Change only the successor, its post, the time it was taken and/or the note: the proof stays and nothing is zeroed. */
+  async updateCompromisedMetadata(pubkey: string, body: CompromisedMetadataBody): Promise<CompromisedPubkey> {
     return adminRequest(
       `/admin/compromised/${encodeURIComponent(pubkey)}`,
       "Failed to save the account",

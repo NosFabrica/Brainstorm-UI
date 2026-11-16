@@ -16,8 +16,8 @@ function useRecords(): number {
 
 /**
  * Whether this account is Compromised: its status, or null while unanswered
- * and when it isn't marked. Accounts we already know answer on first render;
- * the rest go out in the shared batch (services/compromised).
+ * and when it isn't marked. Lookups go out in the shared batch
+ * (services/compromised).
  */
 export function useCompromised(pubkey: string | null | undefined): CompromisedStatus | null {
   useRecords();
@@ -27,9 +27,15 @@ export function useCompromised(pubkey: string | null | undefined): CompromisedSt
   return pubkey ? (settledCompromised(pubkey) ?? null) : null;
 }
 
-/** The Compromised account this one replaces, when it is an owner's new account. */
+/**
+ * The Compromised account this one replaces, when it is an owner's new account.
+ * Asks the server about this key, whose answer names the account it replaces.
+ */
 export function useReplaces(pubkey: string | null | undefined): CompromisedStatus | null {
   useRecords();
+  useEffect(() => {
+    if (pubkey && !hasSettledCompromised(pubkey)) void lookupCompromised(pubkey);
+  }, [pubkey]);
   return pubkey ? replacedCompromised(pubkey) : null;
 }
 

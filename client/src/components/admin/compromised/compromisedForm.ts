@@ -29,6 +29,39 @@ export function isEventPointer(input: string): boolean {
   }
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * A `datetime-local` value (the admin's own time zone) → ISO UTC for the
+ * server; null when empty; an error for a time it can't read or one ahead of now.
+ */
+export function sinceFromInput(local: string): { iso: string | null; error?: undefined } | { error: string } {
+  const v = local.trim();
+  if (!v) return { iso: null };
+  const t = Date.parse(v); // no offset: read as local time
+  if (!Number.isFinite(t)) return { error: "The time it was taken isn't a date and time." };
+  if (t > Date.now()) return { error: "The time it was taken can't be in the future." };
+  return { iso: new Date(t).toISOString() };
+}
+
+/** The server's naive-UTC time → a `datetime-local` value in the admin's time zone; "" when unset. */
+export function inputFromSince(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`);
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A hex event id → note1… for showing; anything else as it is. */
+export function noteOf(id: string): string {
+  try {
+    return nip19.noteEncode(id);
+  } catch {
+    return id;
+  }
+}
+
 export interface MarkForm {
   account: string;
   /** "id": a pointer the server fetches; "json": the whole signed event pasted. */
@@ -36,6 +69,10 @@ export interface MarkForm {
   proofId: string;
   proofJson: string;
   successor: string;
+  /** The new account's post about the move: an event pointer. */
+  successorPost: string;
+  /** `datetime-local`: when the key was taken, in the admin's time zone. */
+  since: string;
   reason: string;
 }
 
@@ -45,6 +82,8 @@ export const EMPTY_FORM: MarkForm = {
   proofId: "",
   proofJson: "",
   successor: "",
+  successorPost: "",
+  since: "",
   reason: "",
 };
 
@@ -83,6 +122,15 @@ export function buildMarkRequest(
     if (successor === pubkey) return { error: "The new account can't be the compromised one." };
     body.successor_pubkey = successor;
   }
+  if (form.successorPost.trim()) {
+    if (!isEventPointer(form.successorPost)) {
+      return { error: "Their post about the move must be an nevent, a note, or a hex event id." };
+    }
+    body.successor_event_id = form.successorPost.trim();
+  }
+  const since = sinceFromInput(form.since);
+  if (since.error !== undefined) return { error: since.error };
+  if (since.iso) body.compromised_since = since.iso;
   if (form.reason.trim()) body.reason = form.reason.trim();
   return { pubkey, body };
 }

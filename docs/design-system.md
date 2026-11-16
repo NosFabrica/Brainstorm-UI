@@ -301,5 +301,5 @@ all of it draws nothing for anyone else, so it can sit on every surface that sho
 | `CompromisedFollowsAlert observer`                | dashboard and /alerts, above the flagged-follows count                                       | which accounts you follow are compromised, with Unfollow and the new account to follow                                                                       |
 
 All of it reads `hooks/useCompromised`, which batches lookups against the server's public
-`/compromised` check (`services/compromised.ts`). `config/compromised.ts` holds the accounts
-the UI knows before the server does.
+`/compromised` check (`services/compromised.ts`), the only record: admins mark accounts in
+the Admin page's Compromised tab.

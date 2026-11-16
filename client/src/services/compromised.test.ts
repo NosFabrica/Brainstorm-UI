@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { KNOWN_COMPROMISED } from "@/config/compromised";
 import { __resetCompromised, lookupCompromised, replacedCompromised, settledCompromised } from "./compromised";
 
 // The real lookup: test/setup.ts answers "nobody" for every other suite.
@@ -9,6 +8,7 @@ const A = "a".repeat(64);
 const B = "b".repeat(64);
 const PROOF = "c".repeat(64);
 const NEW_KEY = "d".repeat(64);
+const POST = "e".repeat(64);
 
 const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
 
@@ -39,6 +39,7 @@ describe("compromised accounts", () => {
           proof_event_id: PROOF,
           proof_event: { id: PROOF, pubkey: A, kind: 1, created_at: 1794847395, content: "my key leaked", tags: [] },
           successor_pubkey: NEW_KEY,
+          successor_event_id: POST,
         },
         { pubkey: B, compromised: false },
       ]),
@@ -60,7 +61,7 @@ describe("compromised accounts", () => {
       proofEventId: PROOF,
       proofEvent: { id: PROOF, pubkey: A, kind: 1, created_at: 1794847395, content: "my key leaked", tags: [] },
       successorPubkey: NEW_KEY,
-      successorEventId: null,
+      successorEventId: POST,
     });
     expect(await b).toBeNull();
     expect(settledCompromised(A)?.pubkey).toBe(A);
@@ -84,27 +85,6 @@ describe("compromised accounts", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("an account we already know is compromised answers at once, and the server cannot clear it", async () => {
-    const known = KNOWN_COMPROMISED[0];
-    expect(settledCompromised(known.pubkey)).toEqual(known);
-
-    fetchMock.mockResolvedValue(answer([{ pubkey: known.pubkey, compromised: false }]));
-    const found = lookupCompromised(known.pubkey);
-    await vi.runAllTimersAsync();
-    expect(await found).toEqual(known);
-  });
-
-  it("the server's record of a known account replaces ours", async () => {
-    const known = KNOWN_COMPROMISED[0];
-    fetchMock.mockResolvedValue(
-      answer([{ pubkey: known.pubkey, compromised: true, since: "2026-11-16T19:00:00Z", successor_pubkey: NEW_KEY }]),
-    );
-    const found = lookupCompromised(known.pubkey);
-    await vi.runAllTimersAsync();
-    expect((await found)?.successorPubkey).toBe(NEW_KEY);
-    // The proof we hold survives a record that has lost its own.
-    expect((await found)?.proofEventId).toBe(known.proofEventId);
-  });
   it("reads the server's offset-less timestamps as UTC", async () => {
     fetchMock.mockResolvedValue(answer([{ pubkey: A, compromised: true, since: "2026-11-16T19:00:00.123456" }]));
     const found = lookupCompromised(A);
@@ -112,24 +92,36 @@ describe("compromised accounts", () => {
     expect((await found)?.since).toBe(1794855600);
   });
 
-  it("never lets the server's marking time start a known account's window later", async () => {
-    // The server says when it was marked (evening); our estimate of when the key
-    // changed hands is earlier, and posts in between are not the owner's.
-    const known = KNOWN_COMPROMISED[0];
-    fetchMock.mockResolvedValue(answer([{ pubkey: known.pubkey, compromised: true, since: "2026-11-16T20:30:00" }]));
-    const found = lookupCompromised(known.pubkey);
+  it("an account the server hasn't marked reads as not compromised, whoever it is", async () => {
+    // Once known to the UI from a hard-coded list; the server is the only record now.
+    const derek = "3f770d65d3a764a9c5cb503ae123e62ec7598ad035d836e2a810f3877a745b24";
+    expect(settledCompromised(derek)).toBeUndefined();
+    fetchMock.mockResolvedValue(answer([{ pubkey: derek, compromised: false }]));
+    const found = lookupCompromised(derek);
     await vi.runAllTimersAsync();
-    expect((await found)?.since).toBe(known.since);
+    expect(await found).toBeNull();
   });
 
-  it("knows which compromised account an owner's new account replaces", async () => {
-    // Ours: the known account names its successor.
-    const known = KNOWN_COMPROMISED[0];
-    expect(known.successorPubkey).toMatch(/^[0-9a-f]{64}$/);
-    expect(replacedCompromised(known.successorPubkey!)?.pubkey).toBe(known.pubkey);
-    expect(replacedCompromised(B)).toBeNull();
+  it("an owner's new account learns from its own answer which account it replaces", async () => {
+    expect(replacedCompromised(NEW_KEY)).toBeNull();
+    fetchMock.mockResolvedValue(
+      answer([
+        {
+          pubkey: NEW_KEY,
+          compromised: false,
+          replaces: { pubkey: A, compromised: true, since: "2026-11-16T00:00:00", successor_pubkey: NEW_KEY },
+        },
+      ]),
+    );
+    const found = lookupCompromised(NEW_KEY);
+    await vi.runAllTimersAsync();
 
-    // The server's: once an account's record has landed, so has its successor's.
+    expect(await found).toBeNull();
+    expect(replacedCompromised(NEW_KEY)).toMatchObject({ pubkey: A, since: 1794787200, successorPubkey: NEW_KEY });
+    expect(replacedCompromised(B)).toBeNull();
+  });
+
+  it("knows the new account from the old account's record, too", async () => {
     fetchMock.mockResolvedValue(answer([{ pubkey: A, compromised: true, successor_pubkey: NEW_KEY }]));
     void lookupCompromised(A);
     await vi.runAllTimersAsync();

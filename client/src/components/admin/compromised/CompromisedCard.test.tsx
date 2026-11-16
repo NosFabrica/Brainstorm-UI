@@ -151,8 +151,42 @@ describe("CompromisedCard", () => {
     fireEvent.click(screen.getByTestId("button-save-compromised"));
 
     await waitFor(() =>
-      expect(updateCompromisedMetadata).toHaveBeenCalledWith(PK, { successor_pubkey: next, reason: "leak" }),
+      expect(updateCompromisedMetadata).toHaveBeenCalledWith(PK, {
+        successor_pubkey: next,
+        successor_event_id: null,
+        reason: "leak",
+      }),
     );
     expect(markCompromised).not.toHaveBeenCalled();
+  });
+
+  it("shows and edits their post and the time it was taken, sending the time only when it changes", async () => {
+    const post = "e".repeat(64);
+    const row = {
+      ...ROW,
+      successor_pubkey: "b".repeat(64),
+      successor_event_id: post,
+      compromised_since: "2026-11-16T00:00:00",
+    };
+    listCompromised.mockResolvedValue([row]);
+    updateCompromisedMetadata.mockResolvedValue(row);
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId(`compromised-row-${PK}`);
+    expect(screen.getByTestId("link-successor-post").getAttribute("href")).toBe(`/e/${nip19.noteEncode(post)}`);
+    expect(screen.getByTestId("compromised-since").textContent).not.toMatch(/not set/);
+
+    fireEvent.click(screen.getByTestId("button-edit-compromised"));
+    expect(((await screen.findByTestId("input-edit-successor-post")) as HTMLInputElement).value).toBe(
+      nip19.noteEncode(post),
+    );
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+    await waitFor(() => expect(updateCompromisedMetadata).toHaveBeenCalledTimes(1));
+    expect(updateCompromisedMetadata.mock.calls[0][1]).not.toHaveProperty("compromised_since");
+
+    fireEvent.click(screen.getByTestId("button-edit-compromised"));
+    fireEvent.change(await screen.findByTestId("input-edit-since"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+    await waitFor(() => expect(updateCompromisedMetadata).toHaveBeenCalledTimes(2));
+    expect(updateCompromisedMetadata.mock.calls[1][1]).toMatchObject({ compromised_since: null });
   });
 });

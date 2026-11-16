@@ -23,7 +23,11 @@ import { useProfileBits } from "../useProfileBits";
 import {
   EMPTY_FORM,
   buildMarkRequest,
+  inputFromSince,
+  isEventPointer,
+  noteOf,
   parseAccount,
+  sinceFromInput,
   zeroState,
   zeroSummary,
   type MarkForm,
@@ -131,6 +135,29 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
             data-testid="input-compromised-successor"
           />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="compromised-successor-post">Their post about the move (optional)</Label>
+          <Input
+            id="compromised-successor-post"
+            placeholder="nevent1…, note1… or hex, from the new account"
+            value={form.successorPost}
+            onChange={(e) => set({ successorPost: e.target.value })}
+            data-testid="input-compromised-successor-post"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="compromised-since">Taken since (optional, your time)</Label>
+          <Input
+            id="compromised-since"
+            type="datetime-local"
+            value={form.since}
+            onChange={(e) => set({ since: e.target.value })}
+            data-testid="input-compromised-since"
+          />
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            When the owner says it began. Left empty, the marking time stands in, and posts before it read as theirs.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -201,10 +228,13 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
   );
 }
 
-/** Edit the successor and note of a marked account; the proof stays. */
+/** Edit the successor, its post, the time it was taken and the note of a marked account; the proof stays. */
 function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast();
   const [successor, setSuccessor] = useState(row.successor_pubkey ? npub(row.successor_pubkey) : "");
+  const [successorPost, setSuccessorPost] = useState(row.successor_event_id ? noteOf(row.successor_event_id) : "");
+  const initialSince = inputFromSince(row.compromised_since);
+  const [since, setSince] = useState(initialSince);
   const [reason, setReason] = useState(row.reason ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,11 +249,23 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
       setError("The new account can't be the compromised one.");
       return;
     }
+    if (successorPost.trim() && !isEventPointer(successorPost)) {
+      setError("Their post about the move must be an nevent, a note, or a hex event id.");
+      return;
+    }
+    const sinceIso = sinceFromInput(since);
+    if (sinceIso.error !== undefined) {
+      setError(sinceIso.error);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await apiClient.updateCompromisedMetadata(row.pubkey, {
         successor_pubkey: successorHex,
+        successor_event_id: successorPost.trim() || null,
+        // Only when changed: the input holds minutes, the stored time may hold seconds.
+        ...(since !== initialSince ? { compromised_since: sinceIso.iso } : {}),
         reason: reason.trim() || null,
       });
       toast({ title: "Saved" });
@@ -253,6 +295,29 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
               onChange={(e) => setSuccessor(e.target.value)}
               data-testid="input-edit-successor"
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-successor-post">Their post about the move</Label>
+            <Input
+              id="edit-successor-post"
+              placeholder="nevent1…, note1… or hex — empty clears it"
+              value={successorPost}
+              onChange={(e) => setSuccessorPost(e.target.value)}
+              data-testid="input-edit-successor-post"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-since">Taken since (your time)</Label>
+            <Input
+              id="edit-since"
+              type="datetime-local"
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              data-testid="input-edit-since"
+            />
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Empty: the marking time stands in, and posts before it read as the owner's.
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="edit-reason">Note</Label>
@@ -363,6 +428,14 @@ function CompromisedRow({
             {row.added_by ? ` by ${short(npub(row.added_by))}` : ""}
             {row.reason ? ` — ${row.reason}` : ""}
           </p>
+          <p className="text-xs text-slate-600 dark:text-slate-300" data-testid="compromised-since">
+            Taken since:{" "}
+            {row.compromised_since ? (
+              day(row.compromised_since)
+            ) : (
+              <span className="text-slate-400">not set, so the marking time</span>
+            )}
+          </p>
           <p className="text-xs text-slate-600 dark:text-slate-300">
             New account:{" "}
             {row.successor_pubkey ? (
@@ -371,6 +444,18 @@ function CompromisedRow({
               </Link>
             ) : (
               <span className="text-slate-400">not known yet</span>
+            )}
+            {row.successor_event_id && (
+              <>
+                {" · their post "}
+                <Link
+                  href={`/e/${noteOf(row.successor_event_id)}`}
+                  className="font-mono text-[11px] text-brand-link underline underline-offset-2"
+                  data-testid="link-successor-post"
+                >
+                  {short(noteOf(row.successor_event_id))}
+                </Link>
+              </>
             )}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="compromised-zero-summary">
