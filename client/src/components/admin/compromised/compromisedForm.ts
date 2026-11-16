@@ -104,7 +104,7 @@ export function zeroState(row: CompromisedPubkey): ZeroState {
 /** One line on what the last zeroing did, or why it didn't. */
 export function zeroSummary(row: CompromisedPubkey): string {
   const report = row.last_zero_report;
-  if (!report || zeroState(row) === "pending") return "Zeroing runs in the background; this refreshes until it lands.";
+  if (!report || zeroState(row) === "pending") return "Still zeroing; this refreshes until it lands.";
   if ("error" in report) return `Failed: ${report.error}`;
   const parts = [
     `${report.acked}/${report.observers} Observers' assertions re-signed at rank 0`,

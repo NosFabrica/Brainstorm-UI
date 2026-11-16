@@ -84,7 +84,24 @@ describe("CompromisedCard", () => {
     fireEvent.click(screen.getByTestId("button-mark-compromised"));
 
     await waitFor(() => expect(markCompromised).toHaveBeenCalledWith(PK, { proof_event_id: NEVENT }));
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Marked compromised" }));
+    // The PUT answers once the zeroing is done; the toast says what it did.
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Marked compromised", description: expect.stringContaining("2/2 Observers") }),
+    );
+  });
+
+  it("forgets a profile's cached answer after marking, so the warning shows next visit", async () => {
+    listCompromised.mockResolvedValue([]);
+    markCompromised.mockResolvedValue(ROW);
+    const { queryClient } = renderWithProviders(<CompromisedCard active />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await screen.findByTestId("compromised-empty");
+
+    fireEvent.change(screen.getByTestId("input-compromised-account"), { target: { value: PK } });
+    fireEvent.change(screen.getByTestId("input-compromised-proof-id"), { target: { value: NEVENT } });
+    fireEvent.click(screen.getByTestId("button-mark-compromised"));
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["compromised"] }));
   });
 
   it("says what's wrong before sending anything", async () => {

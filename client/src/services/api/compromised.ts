@@ -144,15 +144,17 @@ export const compromisedApi = {
   },
 
   /**
-   * Mark (or update) an account. The server fetches a proof given by id, so this
-   * can take a few relay round-trips; the zeroing itself runs after it answers.
+   * Mark (or update) an account. The server fetches a proof given by id, then
+   * zeroes the account's scores and answers with the outcome in
+   * `last_zero_report` (it waits up to 20 s; a longer zeroing lands after the
+   * answer, which a later list shows), so this can take a while.
    */
   async markCompromised(pubkey: string, body: MarkCompromisedBody): Promise<CompromisedPubkey> {
     return adminRequest(
       `/admin/compromised/${encodeURIComponent(pubkey)}`,
       "Failed to mark the account compromised",
       jsonBody("PUT", body),
-      45000,
+      60000,
     );
   },
 

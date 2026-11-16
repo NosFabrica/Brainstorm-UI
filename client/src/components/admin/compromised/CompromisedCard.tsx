@@ -57,6 +57,14 @@ function day(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** What the PUT's answer says the zeroing did, for a toast. */
+function zeroToast(row: CompromisedPubkey | undefined): string {
+  if (!row) return "Its scores are being zeroed.";
+  return zeroState(row) === "pending"
+    ? "Its scores are still being zeroed; this list shows when it lands."
+    : zeroSummary(row);
+}
+
 /** The form that marks a new account. */
 function MarkAccountForm({ onMarked }: { onMarked: () => void }) {
   const { toast } = useToast();
@@ -75,8 +83,8 @@ function MarkAccountForm({ onMarked }: { onMarked: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await apiClient.markCompromised(req.pubkey, req.body);
-      toast({ title: "Marked compromised", description: "Its scores are being zeroed in the background." });
+      const row = await apiClient.markCompromised(req.pubkey, req.body);
+      toast({ title: "Marked compromised", description: zeroToast(row) });
       setForm(EMPTY_FORM);
       onMarked();
     } catch (err) {
@@ -209,7 +217,7 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
         <DialogHeader>
           <DialogTitle>Edit {short(npub(row.pubkey))}</DialogTitle>
           <DialogDescription>
-            The proof stays as stored. Saving zeroes its scores again, which is harmless.
+            The proof stays as stored. Saving zeroes its scores again, which takes a few seconds and is harmless.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -418,13 +426,20 @@ export function CompromisedCard({ active }: { active: boolean }) {
   });
   const rows = query.data ?? [];
   const profiles = useProfileBits(rows.flatMap((r) => [r.pubkey, r.successor_pubkey]));
-  const refresh = () => queryClient.invalidateQueries({ queryKey: COMPROMISED_KEY });
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: COMPROMISED_KEY }),
+      // The profile warning's cached answer (CompromisedBanner), so a profile
+      // opened next shows the change rather than what it read before.
+      queryClient.invalidateQueries({ queryKey: ["compromised"] }),
+    ]);
 
   async function rezero(row: CompromisedPubkey) {
     setRezeroing(row.pubkey);
     try {
-      await apiClient.markCompromised(row.pubkey, {});
+      const updated = await apiClient.markCompromised(row.pubkey, {});
       await refresh();
+      toast({ title: "Zeroed again", description: zeroToast(updated) });
     } catch (err) {
       toast({
         title: "Couldn't zero again",
@@ -446,8 +461,9 @@ export function CompromisedCard({ active }: { active: boolean }) {
           Compromised Keys
         </h3>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          Accounts whose private key leaked. Every Observer asserts them at rank 0, nothing they follow, mute, report or
-          designate counts, and their own GrapeRank runs stop. Profiles show a warning.
+          Accounts whose private key leaked. Marking one re-signs every Observer's Trusted Assertion about it at rank 0
+          before answering; from then on nothing it follows, mutes, reports or designates counts, its own GrapeRank runs
+          stop, and profiles show a warning.
         </p>
       </div>
 
