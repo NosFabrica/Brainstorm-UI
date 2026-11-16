@@ -122,4 +122,35 @@ describe("useAssistantDutyMenu", () => {
     });
     expect(h.added).toHaveLength(1);
   });
+
+  it("a publish started anywhere shows in every reader: in flight, then how it ended", async () => {
+    let finish!: (v: unknown) => void;
+    h.publishAssistantDutyMenu.mockImplementationOnce(() => new Promise((res) => (finish = res)));
+    const { result } = renderHook(
+      () => ({ runner: useAssistantDutyMenu("a".repeat(64)), page: useAssistantDutyMenu("a".repeat(64)) }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.page.supported).toBe(true));
+    expect(result.current.page.lastPublish).toBeNull();
+
+    let run!: Promise<unknown>;
+    act(() => {
+      run = result.current.runner.publish();
+    });
+    await waitFor(() => expect(result.current.page.publishing).toBe(true));
+    expect(result.current.page.lastPublish).toBe("pending");
+
+    await act(async () => {
+      finish({ event: null, relays: [] });
+      await run;
+    });
+    await waitFor(() => expect(result.current.page.publishing).toBe(false));
+    expect(result.current.page.lastPublish).toBe("success");
+
+    h.publishAssistantDutyMenu.mockRejectedValueOnce(new Error("relay down"));
+    await act(async () => {
+      await result.current.runner.publish().catch(() => undefined);
+    });
+    await waitFor(() => expect(result.current.page.lastPublish).toBe("error"));
+  });
 });

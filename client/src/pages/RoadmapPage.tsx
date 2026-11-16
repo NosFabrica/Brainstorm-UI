@@ -19,6 +19,8 @@ import {
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { plannedByTheme, type RoadmapTheme } from "@/lib/plans";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * The roadmap as a road: one vertical journey with three numbered stops on a
@@ -90,7 +92,7 @@ const ITEM_ICONS: Record<string, ComponentType<{ className?: string }>> = {
 export default function RoadmapPage() {
   return (
     <InfoPageLayout testId="page-roadmap">
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+      <div className={cn(pageWidth("standard"), "py-6 sm:py-10")}>
         <PageHeader
           kicker="Roadmap"
           title={

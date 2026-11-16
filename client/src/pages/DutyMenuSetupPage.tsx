@@ -12,6 +12,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useAssistantDutyMenu } from "@/hooks/useAssistantDutyMenu";
 import { categoryOf, offerSummary, type MenuRow, type MenuStatus } from "@/lib/dutyMenu";
 import type { DutyMenuPublishResult } from "@/services/api";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * /setup/duty-menu — the checklist's "Publish your Assistant's Duty Menu" step
@@ -94,7 +96,7 @@ export default function DutyMenuSetupPage() {
         search={false}
       />
 
-      <main className="mx-auto max-w-2xl space-y-5 px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
+      <main className={cn(pageWidth("reading"), "space-y-5 pb-28 pt-8 sm:pt-10")}>
         <button
           type="button"
           onClick={() => navigate("/setup")}

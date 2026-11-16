@@ -111,6 +111,9 @@ import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
+import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -1352,11 +1355,8 @@ export default function ProfilePage() {
   });
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   useEffect(() => {
-    if (calcDoneNow)
-      try {
-        localStorage.setItem("brainstorm_calc_completed", "true");
-      } catch {}
-  }, [calcDoneNow]);
+    if (calcDoneNow) markOwnScores(user?.pubkey);
+  }, [calcDoneNow, user?.pubkey]);
 
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
   // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
@@ -2517,7 +2517,7 @@ export default function ProfilePage() {
         />
       )}
 
-      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-12 sm:px-6">
+      <main className={cn(pageWidth("standard"), "relative z-10 py-12")}>
         <div className="mb-6 flex items-center gap-2">
           {(() => {
             if (fromAdmin) {
@@ -2883,19 +2883,15 @@ export default function ProfilePage() {
                           <span className="ml-1 text-slate-500 dark:text-slate-400">Mutual</span>
                         </span>
                         {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                        {hasSession &&
-                          !isOwnProfile &&
-                          user?.pubkey &&
-                          hexPubkey &&
-                          localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                            <DegreeChip
-                              fromPubkey={user.pubkey}
-                              toPubkey={hexPubkey}
-                              rawId={npubParam}
-                              pov="personalized"
-                              variant="bold"
-                            />
-                          )}
+                        {hasSession && !isOwnProfile && user?.pubkey && hexPubkey && hasOwnScores(user.pubkey) && (
+                          <DegreeChip
+                            fromPubkey={user.pubkey}
+                            toPubkey={hexPubkey}
+                            rawId={npubParam}
+                            pov="personalized"
+                            variant="bold"
+                          />
+                        )}
                         {theyFollowMe && (
                           <span
                             className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link dark:bg-brand-primary/10"

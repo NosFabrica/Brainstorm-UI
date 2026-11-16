@@ -9,6 +9,29 @@ These primitives exist so theming/radius/shadow/spacing are defined **once**. Ne
 UI must use them instead of hand-rolling `bg-<color>-50 …` chips or `rounded-2xl
 border bg-white dark:bg-slate-900` cards.
 
+## Page widths — `client/src/lib/pageWidth.ts`
+
+Every page's content sits in one of three widths, centered, with one gutter
+(16px, 24px from `sm`). A page never writes its own
+`mx-auto max-w-… px-4 sm:px-6`; `pageWidth.guard.test.ts` fails when one does.
+
+| Width      | Size   | For                                                         |
+| ---------- | ------ | ----------------------------------------------------------- |
+| `wide`     | 1280px | multi-column app pages (dashboard, settings, admin), footer |
+| `standard` | 1024px | info pages, profiles, the network                           |
+| `reading`  | 672px  | feeds, a single post, a focused task (setup, the first run) |
+
+```tsx
+<main className={cn(pageWidth("reading"), "flex-1 py-8")}>
+```
+
+- The top bar takes the same name: `<PublicPageHeader width="reading" />`, so
+  its edges are the content's. The signed-in bar and the info pages' bar are `wide`.
+- Long text in a `standard` page caps its own measure (`max-w-3xl`, left-aligned),
+  so lines stay readable while the page's edges match its neighbours'.
+- A capped block inside a page (a centered paragraph, a card) is not a page
+  width and stays as it is.
+
 ## Colour system — `client/src/index.css` tokens
 
 Canonical palette (brand guidelines v1, **p5 — Colour System**). _"Neutral tones
@@ -194,6 +217,18 @@ backup nag, the plan you are on). Reach for `accent` rather than spelling out a
 <Card accent={isMine}>…</Card>
 ```
 
+## Explainer videos — `components/ExplainerVideo.tsx`, `config/explainers.ts`
+
+A walkthrough video we made has one home and any number of pointers to it.
+
+- **`ExplainerVideo`** plays it, on the page that explains the feature
+  (`/how-tags-work`). It has sound, so it shows the still and a play button and
+  loads nothing until pressed; give it an `id` so links can land on it.
+- **`ExplainerVideoLink`** is the pointer from the feature's own pages: a row
+  with the still, the title and the length.
+- The file ships with the app and is named once, in `config/explainers.ts`,
+  which also says how to size it. With `src` null, neither renders.
+
 ## ReadingText — `components/share/ReadingText.tsx`
 
 Any body of network prose shown in full on an event page — a note, a listing's
@@ -246,3 +281,25 @@ tier rings, network donut, sparklines) · the AccountMenu panel + AppsLauncher t
 
 Interface icons should be Phosphor per guidelines p16; the app uses `lucide-react`.
 Migration deferred — do not treat lucide as a bug. Primitives are icon-agnostic.
+
+## Compromised accounts
+
+An account whose key is in someone else's hands (CONTEXT.md **Compromised**), and the
+owner's **New account** when there is one. Everything is in `components/compromised/`, and
+all of it draws nothing for anyone else, so it can sit on every surface that shows a person.
+
+| Piece                                             | Where it goes                                                                                | What it says                                                                                                                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompromisedMark pubkey`                          | beside a name, in every row that names a person                                              | red "Compromised" chip; green "New account" chip on the owner's new account                                                                                  |
+| `useCompromisedRing(pubkey)`                      | an avatar's class, ahead of the tier ring: `useCompromisedRing(pk) ?? tierRing(score) ?? ""` | a red ring. Not trust chrome: it ignores the score display setting and search's quiet chrome                                                                 |
+| `CompromisedBanner status`                        | top of the compromised account's page                                                        | the fact, what not to do, the new account (`SuccessorCard`: Follow + latest post), Unfollow / Report (`CompromisedActions`), the owner's post that proves it |
+| `ReplacesBanner replaces`                         | top of the new account's page                                                                | this account replaces a compromised one; link back                                                                                                           |
+| `CompromisedAuthorNotice pubkey postedAt eventId` | under the byline of a post or article page                                                   | calm for content from before the compromise, a warning for content after it, the proof post named as where the owner said so                                 |
+| `CompromisedWatermark pubkey postedAt eventId`    | first child of a content container that carries `WATERMARK_HOST`                             | a shield-and-word stamp across content posted after the compromise only, on hover: it shows, then settles to a trace. Never the message on its own           |
+| `NewAccountResult compromisedPubkey`              | above a compromised account's card in a list of people                                       | the owner's new account as a highlighted person card, put first whatever the ranking says                                                                    |
+| `CompromisedChatWarning pubkeys`                  | under a chat's header, and with `placement="composer"` above its composer                    | you're messaging a compromised account; message the new one instead                                                                                          |
+| `CompromisedFollowsAlert observer`                | dashboard and /alerts, above the flagged-follows count                                       | which accounts you follow are compromised, with Unfollow and the new account to follow                                                                       |
+
+All of it reads `hooks/useCompromised`, which batches lookups against the server's public
+`/compromised` check (`services/compromised.ts`). `config/compromised.ts` holds the accounts
+the UI knows before the server does.

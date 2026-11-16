@@ -5,6 +5,8 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { NewAccountResult } from "@/components/compromised/NewAccountResult";
+import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
 import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
@@ -12,6 +14,7 @@ import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import {
@@ -58,14 +61,8 @@ import { MoreResults } from "./MoreResults";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import {
-  fetchEventRsvps,
-  fetchGitCommentCounts,
-  fetchGitStatuses,
-  fetchGoalProgress,
-  type EventRsvps,
-  type GoalProgress,
-} from "@/services/search";
+import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
+import { useEventRsvps } from "@/hooks/useEventRsvps";
 import {
   GIT_STATE_LABEL,
   foldForks,
@@ -808,6 +805,7 @@ function FiltersPanel({
   tab: SearchTab;
   onQueryRewrite: (next: string) => void;
 }) {
+  const loginHref = useLoginHref();
   const sortOptions = tab === "shop" ? [...SORT_OPTIONS, ...PRICE_SORTS] : SORT_OPTIONS;
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
@@ -861,7 +859,7 @@ function FiltersPanel({
       {!userPubkey && (
         <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
           Sign in to rank through your own network.{" "}
-          <Link href="/login" className="font-medium text-brand-link hover:underline">
+          <Link href={loginHref} className="font-medium text-brand-link hover:underline">
             Sign in →
           </Link>
         </p>
@@ -1827,7 +1825,6 @@ export function SearchResults({
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   // Events tab: who is going — one request per page, keyed by event coordinate.
-  const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
   // Fundraisers tab: what each zap goal has raised. Like the git counts
   // below, each streamed snapshot or "more" page asks only after the goals
   // it adds, and a generation drops answers that land after the page emptied.
@@ -1888,20 +1885,7 @@ export function SearchResults({
         : [],
     [hits, tab],
   );
-  const eventAddrKey = eventAddresses.join(",");
-  useEffect(() => {
-    if (!eventAddrKey) {
-      setEventRsvps(new Map());
-      return;
-    }
-    let alive = true;
-    void fetchEventRsvps(eventAddrKey.split(",")).then((m) => {
-      if (alive) setEventRsvps(m);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [eventAddrKey]);
+  const eventRsvps = useEventRsvps(eventAddresses);
   const rsvpsOf = (e: NostrEvent) =>
     eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(
@@ -2294,6 +2278,19 @@ export function SearchResults({
     proven,
     category,
   ]);
+
+  // Compromised people on the page, and whose new account each one's is: the new account is
+  // shown above its compromised one (NewAccountResult), so its own row further down steps aside.
+  const peopleOnPage = useMemo(
+    () => displayHits.filter((d) => d.hit.event.kind === 0).map((d) => d.hit.event.pubkey),
+    [displayHits],
+  );
+  const compromisedOnPage = useCompromisedAmong(peopleOnPage);
+  const newAccountOf = useMemo(
+    () =>
+      new Map(compromisedOnPage.flatMap((s) => (s.successorPubkey ? [[s.successorPubkey, s.pubkey] as const] : []))),
+    [compromisedOnPage],
+  );
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -3136,6 +3133,9 @@ export function SearchResults({
                             </div>
                           );
                           if (event.kind === 0 && hit.author) {
+                            // A new account whose compromised one is on this page is already shown, above that one.
+                            const replaced = newAccountOf.get(event.pubkey);
+                            if (replaced && peopleOnPage.includes(replaced)) return null;
                             const idx = peopleIdx.current++;
                             // The one tag the words matched, if this person carries it.
                             const cardTag =
@@ -3147,17 +3147,21 @@ export function SearchResults({
                                 ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
                                 : hit.author;
                             return wrap(
-                              <PersonCard
-                                result={scored}
-                                idx={idx}
-                                pov={pov}
-                                onOpen={openProfile}
-                                onPrefetchEnter={onPrefetchEnter}
-                                onPrefetchLeave={onPrefetchLeave}
-                                showFollowedBy={idx < 3}
-                                tag={cardTag}
-                                pointedBy={pointers.namesOf.get(event.pubkey)}
-                              />,
+                              <>
+                                {/* A compromised account: the owner's new one goes first, highlighted. */}
+                                <NewAccountResult compromisedPubkey={event.pubkey} pov={pov} onOpen={openProfile} />
+                                <PersonCard
+                                  result={scored}
+                                  idx={idx}
+                                  pov={pov}
+                                  onOpen={openProfile}
+                                  onPrefetchEnter={onPrefetchEnter}
+                                  onPrefetchLeave={onPrefetchLeave}
+                                  showFollowedBy={idx < 3}
+                                  tag={cardTag}
+                                  pointedBy={pointers.namesOf.get(event.pubkey)}
+                                />
+                              </>,
                             );
                           }
                           // The kinds with no card of their own, whichever tab they are on.

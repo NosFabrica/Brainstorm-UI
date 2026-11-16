@@ -49,6 +49,8 @@ const NAMESPACES = {
   brainstorm_recent_searches: "device",
   brainstorm_trust_preset: "device",
   brainstorm_postsignup_dismissed: "device",
+  // The first run (/start) was finished or skipped: never sent there again.
+  brainstorm_first_run: "device",
   brainstorm_activate_nudge_dismissed: "device",
   brainstorm_invite_cta_dismissed: "device",
   brainstorm_activate_seen: "device",

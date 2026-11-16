@@ -24,6 +24,8 @@ import { tone as getTone } from "@/lib/tones";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import heroPhoto from "@assets/generated_images/wot_hero_cafe.jpg";
 import ctaPhoto from "@assets/generated_images/login_human_backdrop.webp";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * "What is a web of trust" — rebuilt in the light, benefits-first design system
@@ -227,7 +229,7 @@ export default function WhatIsWotPage() {
   // Hand off to the real search on the home page (it reads ?q= from the URL).
   return (
     <InfoPageLayout testId="page-what-is-wot" headerSearch={false}>
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-12 sm:space-y-16">
           {/* Hero */}
           <header className="mx-auto max-w-3xl text-center" data-testid="section-wot-header">

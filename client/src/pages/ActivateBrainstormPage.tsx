@@ -12,6 +12,7 @@ import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useRankProvider } from "@/hooks/useRankProvider";
+import { useVerifiedHost } from "@/hooks/useVerifiedHost";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
 
@@ -47,7 +48,8 @@ export default function ActivateBrainstormPage() {
   // nameless — often it is Brainstorm's own Assistant on another deployment.
   const provider = useRankProvider(hasOtherProvider ? user?.pubkey : null);
   const providerName = provider?.name ?? "your current Assistant";
-  const providerHost = provider?.host ?? "";
+  // Which site it belongs to, proven by NIP-05 — never the relay, which is plumbing.
+  const providerHost = useVerifiedHost(provider?.pubkey) ?? "";
   // A first activation names their Trusted Lists too, when they have some —
   // one signature rather than an update later.
   const lists = useTrustListsStatus(user?.pubkey, taPubkey).data;
@@ -64,7 +66,11 @@ export default function ActivateBrainstormPage() {
   const handleActivate = async () => {
     if (phase !== "idle" || !user.pubkey || !taPubkey) return;
     setError("");
-    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, { lists: listsToName });
+    // "Switch" moves Scores and only Scores; lists another Assistant holds stay theirs.
+    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, {
+      lists: listsToName,
+      take: ["scores"],
+    });
     setPhase("idle");
     if (result.status === "success") {
       setJustActivated(true);
@@ -210,8 +216,8 @@ export default function ActivateBrainstormPage() {
                 >
                   <AlertCircle className="mt-px h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-                    This <strong className="font-bold">replaces {providerName}</strong> for your scores. Everything else
-                    in your Treasure Map stays as it is.
+                    This <strong className="font-bold">replaces {providerName}</strong> for your scores. Only your
+                    scores move: lists and concepts another Assistant keeps stay with it.
                   </p>
                 </div>
               )}

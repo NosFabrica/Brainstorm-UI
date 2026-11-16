@@ -13,6 +13,8 @@ import {
   OpenSourceSection,
   DevBackLink,
 } from "@/components/developers/DevShared";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 // Per-env public search relay; no in-source fallback (see runtimeEnv).
 const RELAY_URL = env.VITE_SEARCH_RELAY_URL;
@@ -77,7 +79,7 @@ export default function DeveloperNip50Page() {
 
   return (
     <InfoPageLayout testId="page-developers-nip50">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-10">
           {/* Editorial hero */}
           <header className="max-w-3xl" data-testid="section-dev-header">

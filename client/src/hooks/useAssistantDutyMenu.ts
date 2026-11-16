@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { verifyEvent, type NostrEvent } from "nostr-tools";
 import { tagRelays } from "@/config/tagging";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
@@ -17,6 +17,7 @@ import { eventStore } from "@/lib/eventStore";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { apiClient, DutyMenuUnavailableError, type DutyMenuPublishResult } from "@/services/api";
 import { fetchEventsByFilter } from "@/services/nostr";
+import { useLastOutcome, type PublishOutcome } from "@/hooks/useLastOutcome";
 
 const READ_MS = 8000;
 
@@ -37,7 +38,10 @@ export interface AssistantDutyMenu {
   /** The server couldn't say what it offers, for a reason other than having no route. */
   error: Error | null;
   publish: () => Promise<DutyMenuPublishResult>;
+  /** A publish of this menu is under way, started from anywhere in the app. */
   publishing: boolean;
+  /** How the newest publish from anywhere in the app stands; null before any. */
+  lastPublish: PublishOutcome | null;
 }
 
 /**
@@ -86,7 +90,10 @@ export function useAssistantDutyMenu(pubkey: string | null | undefined): Assista
   const publishedRows = useMemo(() => menuRows(published), [published]);
   const status = assistant && (read.event || read.settled) ? menuStatus(offer, read.event, assistant) : null;
 
+  // Keyed, so every reader sees a publish another one started (components/AutoAssistantSetup).
+  const mutationKey = ["assistant-duty-menu-publish", pubkey];
   const mutation = useMutation({
+    mutationKey,
     mutationFn: async () => {
       const result = await apiClient.publishAssistantDutyMenu();
       if (result?.event && verifyEvent(result.event) && isDutyMenu(result.event, assistant)) {
@@ -95,6 +102,9 @@ export function useAssistantDutyMenu(pubkey: string | null | undefined): Assista
       return result;
     },
   });
+
+  const publishing = useIsMutating({ mutationKey }) > 0;
+  const lastPublish = useLastOutcome(mutationKey);
 
   return {
     supported: offerQuery.isSuccess ? true : unsupported ? false : undefined,
@@ -106,6 +116,7 @@ export function useAssistantDutyMenu(pubkey: string | null | undefined): Assista
     settled: read.settled,
     error: offerQuery.error && !unsupported ? offerQuery.error : null,
     publish: mutation.mutateAsync,
-    publishing: mutation.isPending,
+    publishing,
+    lastPublish,
   };
 }

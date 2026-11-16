@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useScorePov, type ScorePov } from "@/components/score/TrustScorePov";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { resolveHouseObserver } from "@/services/trustSource";
+import { hasOwnScores } from "@/lib/ownScores";
 
 /**
  * Whose distance are we showing, and is that the perspective the user picked?
@@ -12,7 +13,7 @@ import { resolveHouseObserver } from "@/services/trustSource";
  *  - anything else → the House observer, `originPov: "global"` — and
  *    `isFallback: true` when the toggle SAID personalized but no usable
  *    personal origin exists (the chrome tells the truth even when it
- *    disagrees with the toggle). `brainstorm_calc_completed` is a localStorage
+ *    disagrees with the toggle). `hasOwnScores` is a per-Account localStorage
  *    breadcrumb, not server truth — a second browser has it false.
  */
 export interface HopsOrigin {
@@ -47,10 +48,7 @@ export function useHopsOrigin(): HopsOrigin {
     staleTime: Infinity,
     retry: 1,
   });
-  let calcDone = false;
-  try {
-    calcDone = localStorage.getItem("brainstorm_calc_completed") === "true";
-  } catch {}
+  const calcDone = hasOwnScores(me?.pubkey);
   const resolved = resolveHopsOrigin({
     pov,
     viewerPubkey: me?.pubkey ?? null,

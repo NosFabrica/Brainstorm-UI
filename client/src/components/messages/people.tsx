@@ -1,9 +1,11 @@
 import type { ProfileContent } from "applesauce-core/helpers/profile";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import type { DmRoom } from "@/lib/dm/store";
 
@@ -63,7 +65,14 @@ export function RoomTitle({
   profiles: Profiles;
 }) {
   const others = room.participants.filter((pk) => pk !== me);
-  if (!room.subject && others.length === 1) return <PersonName pubkey={others[0]} profiles={profiles} />;
+  if (!room.subject && others.length === 1)
+    return (
+      <>
+        <PersonName pubkey={others[0]} profiles={profiles} />
+        {/* Where a compromised account does its damage: asking people who trust it for money. */}
+        <CompromisedMark pubkey={others[0]} className="ml-1.5 align-middle" />
+      </>
+    );
   return <>{roomTitle(room, me, profiles)}</>;
 }
 
@@ -82,9 +91,16 @@ export function PersonAvatar({
   className?: string;
 }) {
   const picture = profiles.get(pubkey)?.picture;
+  // A compromised account's face is ringed red in every list, header and bubble.
+  const compromisedRing = useCompromisedRing(pubkey, size < 36 ? "sm" : "md");
   return (
     <span className={cn("relative inline-flex shrink-0", className)} style={{ width: size, height: size }}>
-      <Avatar className="h-full w-full rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <Avatar
+        className={cn(
+          "h-full w-full rounded-full bg-white dark:bg-slate-900",
+          compromisedRing ?? "ring-1 ring-slate-200 dark:ring-slate-800",
+        )}
+      >
         {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full">
           <DefaultAvatarImg />

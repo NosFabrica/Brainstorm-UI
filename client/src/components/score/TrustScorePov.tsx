@@ -1,5 +1,6 @@
 import { UserRound, Globe, Lock, AlertCircle, ArrowRight } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
@@ -87,7 +88,7 @@ export function PovToggle({
   className?: string;
 }) {
   const { pov, loggedIn, setPersonalized } = useScorePov();
-  const [location] = useLocation();
+  const loginHref = useLoginHref();
 
   // Mirror the homepage POV pill (landing.tsx): a quiet NEUTRAL segmented control
   // — the active segment is a plain white chip, no gradient / no wordmark image
@@ -105,7 +106,6 @@ export function PovToggle({
   // after), so a list becomes a contextual "see this through your own Web of Trust"
   // conversion moment. Matches the locked-Personalized option in the score modal.
   if (!canPersonalize && !loggedIn) {
-    const loginHref = `/login?next=${encodeURIComponent(location)}`;
     return (
       <span role="group" aria-label="Trust perspective" className={cn(wrap, className)} data-testid="pov-toggle-signin">
         <span className={cn(seg, activeSeg)} data-testid="pov-toggle-global">

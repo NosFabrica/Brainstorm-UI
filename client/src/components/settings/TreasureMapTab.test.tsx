@@ -39,6 +39,9 @@ vi.mock("@/hooks/useMyAssistants", () => ({
 vi.mock("@/hooks/useLiveProfile", () => ({
   useLiveProfiles: (pubkeys: string[]) => new Map(pubkeys.map((pk) => [pk, { name: NAMES[pk] }])),
 }));
+// The site each Assistant's NIP-05 verifies on; Ava's doesn't verify.
+const SITES: Record<string, string> = { [BEA]: "tapestry.example" };
+vi.mock("@/hooks/useVerifiedHost", () => ({ useVerifiedHost: (pk: string) => SITES[pk] ?? null }));
 vi.mock("@/services/treasureMap", () => ({ saveTreasureMap: h.save }));
 vi.mock("@/services/nostr", () => ({ getNip85RelayUrl: () => NIP85 }));
 
@@ -130,7 +133,32 @@ describe("Edit mode", () => {
     fireEvent.click(screen.getByTestId("button-treasure-map-save"));
     expect(await screen.findByText(/Your Treasure Map changed since this page read it/)).toBeInTheDocument();
     expect(screen.getByTestId("button-treasure-map-edit")).toHaveTextContent("Editing");
-    expect(within(card("lists")).getByText("Will be assigned to Ava")).toBeInTheDocument();
+    expect(within(card("lists")).getByText("Moves from Bea (tapestry.example) to Ava")).toBeInTheDocument();
+  });
+
+  /**
+   * Taking a category from another Assistant is a choice made here, so the
+   * line says it: who it moves from, the site that Assistant is verified on,
+   * and who it goes to. An empty category is simply assigned.
+   */
+  it("says which Assistant a category moves from, and where it's verified, before Save", async () => {
+    show(mapOf([["30392", BEA, ""]]));
+    fireEvent.click(screen.getByTestId("button-treasure-map-edit"));
+
+    fireEvent.click(screen.getByTestId("picker-lists"));
+    fireEvent.click(within(await screen.findByRole("list", { name: "Your Assistants" })).getByText("Ava"));
+    expect(within(card("lists")).getByTestId("move-line-lists")).toHaveTextContent(
+      "Moves from Bea (tapestry.example) to Ava",
+    );
+  });
+
+  it("simply assigns a category nobody holds", async () => {
+    show(mapOf([["30392", BEA, ""]]));
+    fireEvent.click(screen.getByTestId("button-treasure-map-edit"));
+
+    fireEvent.click(screen.getByTestId("picker-scores"));
+    fireEvent.click(within(await screen.findByRole("list", { name: "Your Assistants" })).getByText("Ava"));
+    expect(within(card("scores")).getByTestId("move-line-scores")).toHaveTextContent("Will be assigned to Ava");
   });
 
   it("warns that saving with no Map found publishes a new one", () => {

@@ -33,10 +33,13 @@ export function FollowButton({
   targetPubkey,
   initialFollowing,
   displayName,
+  testId = "share-follow",
 }: {
   targetPubkey: string;
   initialFollowing: boolean;
   /** For "Unfollow {name}?" */ displayName: string;
+  /** A second Follow on the same page (a compromised account's successor) names itself. */
+  testId?: string;
 }) {
   const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
@@ -74,7 +77,7 @@ export function FollowButton({
         onMouseLeave={() => setHover(false)}
         disabled={busy}
         className={following ? (unfollowLook ? UNFOLLOW : FOLLOWING) : FOLLOW}
-        data-testid="share-follow"
+        data-testid={testId}
       >
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" />

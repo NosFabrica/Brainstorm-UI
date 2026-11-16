@@ -1,4 +1,5 @@
 import { dashboardShortcutFor } from "@/lib/dashboardShortcuts";
+import { CompromisedFollowsAlert } from "@/components/compromised/CompromisedFollowsAlert";
 import { scoreAge } from "@/lib/scoreAge";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
@@ -60,6 +61,9 @@ import { dashboardPrompt } from "@/lib/dashboardPrompt";
 
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
+import { hasOwnScores, markOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 interface GrapeRankResult {
   status?: unknown;
@@ -284,10 +288,7 @@ export default function DashboardPage() {
       wasAutoTriggeredRef.current = false;
       // First-time calc vs a true recalculation reads very differently — don't
       // tell a never-scored user we're "refreshing" / "recalculating".
-      let hadPrev = false;
-      try {
-        hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true";
-      } catch {}
+      const hadPrev = hasOwnScores(user?.pubkey);
       toast({
         title: hadPrev ? "Refreshing your scores" : "Calculating your network",
         description: hadPrev
@@ -516,23 +517,12 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handleExport is per-render; user dep re-binds it
   }, [navigate, user]);
 
-  // Per-pubkey — a global flag would leak one account's "has scores" state onto
-  // the next account on the same browser (making a brand-new user look like a
-  // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
-    const k = user?.pubkey ? accountKey("brainstorm_calc_completed", user.pubkey) : "";
     if (calcDone) {
-      try {
-        if (k) localStorage.setItem(k, "true");
-        localStorage.setItem("brainstorm_calc_completed", "true");
-      } catch {}
+      markOwnScores(user?.pubkey);
       return true;
     }
-    try {
-      return !!k && localStorage.getItem(k) === "true";
-    } catch {
-      return false;
-    }
+    return hasOwnScores(user?.pubkey);
   }, [calcDone, user?.pubkey]);
 
   // Also above the early return, for the same reason. Holds whether this is the
@@ -654,7 +644,7 @@ export default function DashboardPage() {
         {/* One column, one rhythm: every block is a direct child and the column's gap
             is the only spacing between them — a block that renders nothing leaves no
             hole, and nothing carries a margin of its own. */}
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+        <div className={cn(pageWidth("wide"), "relative z-10 flex flex-1 flex-col gap-4 py-6 sm:gap-6 sm:py-8")}>
           <DeferredSessionNotice />
 
           <div className="flex flex-col gap-4 sm:gap-6">
@@ -1042,6 +1032,8 @@ export default function DashboardPage() {
               page said "wait" four or five times over and looked broken. The single
               CalculatingNotice above is the one statement; these appear when they
               have something to show. */}
+          {/* A compromised follow doesn't wait on a calculation: it is a fact about the key, not a score. */}
+          <CompromisedFollowsAlert observer={user?.pubkey ?? ""} />
           {isCalculationComplete && <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />}
 
           {/* Someone put a public label on you. Nothing else in the app would
