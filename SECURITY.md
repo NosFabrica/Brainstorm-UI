@@ -54,6 +54,7 @@ Reports or questions are welcome through the contact above.
 | `brainstorm.world`                  | Production       |
 | `brainstorm.nosfabrica.com`         | Production alias |
 | `brainstorm-staging.nosfabrica.com` | Staging          |
+| `brainstorm-staging.relay.tools`    | Staging          |
 
 ### R&D UI — [`nous-clawds4/tapestry`](https://github.com/nous-clawds4/tapestry)
 
@@ -92,8 +93,8 @@ Reports or questions are welcome through the contact above.
 
 **The `brainstorm.world` and `nosfabrica.com` domains are both ours**, so any host under either of
 them is operated by us — the tables above are a current inventory, not an exhaustive claim. A site
-that resembles Brainstorm on any _other_ domain is not affiliated with us; if you find one, that
-itself is worth reporting through the link above.
+that resembles Brainstorm on any _other_ domain is not affiliated with us unless a table above names
+it; if you find one, that itself is worth reporting through the link above.
 
 ## Scope
 
