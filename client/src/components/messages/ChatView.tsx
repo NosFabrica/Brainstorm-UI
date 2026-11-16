@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CompromisedChatWarning } from "@/components/compromised/CompromisedChatWarning";
 import { flushSync } from "react-dom";
 import {
   Archive,
@@ -541,6 +542,8 @@ export function ChatView({
           )}
         </span>
       </header>
+      {/* A compromised account in the chat: said under the header, where it can't scroll away. */}
+      <CompromisedChatWarning pubkeys={others} />
 
       <div
         ref={scroller}
@@ -665,24 +668,27 @@ export function ChatView({
           </div>
         </div>
       ) : (
-        <Composer
-          placeholder={`Message ${first}`}
-          me={me}
-          profiles={profiles}
-          replyTo={replyTo}
-          onCancelReply={() => setReplyTo(null)}
-          timer={timer}
-          disabled={
-            inboxMissing
-              ? "Set up your inbox relays to send messages"
-              : state.paused === "no-nip44"
-                ? "Your signer can't encrypt private messages"
-                : undefined
-          }
-          onSend={send}
-          onSendFile={attach}
-          autoFocus={focusComposer}
-        />
+        <>
+          <CompromisedChatWarning pubkeys={others} placement="composer" />
+          <Composer
+            placeholder={`Message ${first}`}
+            me={me}
+            profiles={profiles}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
+            timer={timer}
+            disabled={
+              inboxMissing
+                ? "Set up your inbox relays to send messages"
+                : state.paused === "no-nip44"
+                  ? "Your signer can't encrypt private messages"
+                  : undefined
+            }
+            onSend={send}
+            onSendFile={attach}
+            autoFocus={focusComposer}
+          />
+        </>
       )}
       <RenameChatDialog
         open={renaming}

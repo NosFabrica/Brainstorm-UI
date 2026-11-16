@@ -1,6 +1,8 @@
 import { Link } from "wouter";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
+import { ExplainerVideoLink } from "@/components/ExplainerVideo";
+import { TAGS_EXPLAINER } from "@/config/explainers";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 
@@ -44,15 +46,22 @@ export function TagsPageShell({
       <main className={cn(pageWidth("reading"), "flex-1 py-6 sm:py-8")} data-testid={`tags-view-${view}`}>
         <PageHeader kicker="Tags" title={title} subtitle={subtitle} testId="tags-page-header" />
 
-        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-          <Link
-            href="/how-tags-work"
-            className="font-semibold text-brand-link hover:underline"
-            data-testid="tags-guide-link"
-          >
-            How tags work →
-          </Link>
-        </p>
+        {/* With a video to watch, the pointer is a row with its still; grey small print was easy to miss. */}
+        {TAGS_EXPLAINER.src ? (
+          <div className="mt-5">
+            <ExplainerVideoLink video={TAGS_EXPLAINER} href="/how-tags-work#watch" testId="tags-explainer-video" />
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+            <Link
+              href="/how-tags-work"
+              className="font-semibold text-brand-link hover:underline"
+              data-testid="tags-guide-link"
+            >
+              How tags work →
+            </Link>
+          </p>
+        )}
 
         {children}
       </main>

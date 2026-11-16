@@ -1,3 +1,4 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { BadgeCheck, ChevronRight } from "lucide-react";
@@ -119,8 +120,11 @@ export function PersonListRow({
         <Link href={npub ? `/p/${npub}` : "#"} className="flex min-w-0 flex-1 items-center gap-3.5">
           <TrustAvatar picture={picture} name={name} score={score} pov={pov} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-              <ProfileEmojiText pubkey={pubkey} text={name} />
+            <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <span className="truncate">
+                <ProfileEmojiText pubkey={pubkey} text={name} />
+              </span>
+              <CompromisedMark pubkey={pubkey} />
             </p>
             {handle ? (
               <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
