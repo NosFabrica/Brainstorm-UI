@@ -1,9 +1,11 @@
 import { Link } from "wouter";
-import { Eye, Globe, MessageSquareOff, Search, ThumbsDown, Users, type LucideIcon } from "lucide-react";
+import { Globe, MessageSquareOff, Search, Tag, Users, type LucideIcon } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
+import { ExplainerVideo } from "@/components/ExplainerVideo";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { TAGS_EXPLAINER } from "@/config/explainers";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +34,12 @@ import { cn } from "@/lib/utils";
  *
  * If any of those stop being true, this page must change the same day.
  *
+ * The page follows the explainer video (config/explainers) chapter by chapter,
+ * under the video's own headlines, so the two tell one story. The video's
+ * "Bots don't [count]" is a stronger claim than point 2 allows on its own; it
+ * is only here because "a rough guide, not the last word" sits in the same
+ * section. HowTagsWorkPage.test pins the order and the three admissions.
+ *
  * House style, learned the hard way: no em-dash-per-sentence cadence, no
  * "it's not X, it's Y", and no explaining Nostr. A reader here wants to know
  * what happens when someone labels them, not what protocol it rides on.
@@ -46,131 +54,82 @@ export default function HowTagsWorkPage() {
             kicker="Tags"
             title={
               <>
-                What people say <span className="text-brand-link">about each other</span>.
+                Word of mouth, <span className="text-brand-link">for the whole internet</span>.
               </>
             }
-            subtitle="A tag is a short label like Musician, Photographer or Vendor that someone puts on a person or a post. Anyone can add one, and nobody is in charge of the list."
+            subtitle="How did you find your favourite coffee place? Someone you know told you. Tags bring that to the internet: short labels like Coffee, Musician or Photographer that people put on each other."
             testId="section-htw-header"
           />
 
-          {/* ── The one-paragraph version ─────────────────────────────── */}
+          {/* ── The video, for anyone who'd rather watch than read ────── */}
+          <ExplainerVideo video={TAGS_EXPLAINER} id="watch" />
+
+          {/* ── What a tag is (video: 02) ─────────────────────────────── */}
           <Card className="p-6 sm:p-8" data-testid="section-htw-simple">
             <p className="max-w-3xl text-lg leading-relaxed text-slate-700 dark:text-slate-200">
-              Think of a tag like a friend saying{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">"oh, she's a great photographer"</span>
-              . It's their opinion, said out loud, with their name on it. Other people can agree, disagree, or say
-              nothing. What you see is everyone's opinions added up.
+              A tag is a friend saying{" "}
+              <span className="font-semibold text-slate-900 dark:text-slate-100">“he makes the best coffee”</span>,
+              written down.
             </p>
             <p className="mt-4 text-lg leading-relaxed text-slate-700 dark:text-slate-200">
-              The difference is that here it's written down in public, and it stays there.
+              Anyone can add one, to a person or a post. Everyone can see it, and see who said it.
             </p>
           </Card>
 
-          {/* ── The number on a tag ───────────────────────────────────── */}
-          <Section icon={Users} title="The number is how many people said it" testId="section-htw-counts">
+          {/* ── Who counts (video: 03), and what the number means ─────── */}
+          <Section icon={Users} title="People you know count. Bots don't." testId="section-htw-counts">
             <p>
               A tag showing{" "}
               <Chip tone="brand" size="sm">
-                Musician 3
+                Coffee 3
               </Chip>{" "}
-              means three <em>other</em> people said it. If there's no number, one person did.
+              means three <em>other</em> people said it. With no number, one person did.
             </p>
             <p>
-              People can also tag themselves. When someone has only said it about their own profile we show it in grey
-              and label it, because "I'm a musician" and "three other people say she's a musician" are different claims
-              and it wouldn't be fair to show them the same way.
+              A thousand fake accounts can say anything, so not every voice counts the same. Brainstorm adds tags up
+              from where you stand, and people with a track record count for more. Two people can see slightly different
+              numbers on the same tag, and that's normal.
+            </p>
+            <p>
+              Read the number as a rough guide, not the last word. If we can't work it out, the page says so instead of
+              guessing.
+            </p>
+            <p>
+              People can tag themselves too. We show that in grey and label it, because "I'm a musician" is a different
+              claim from three other people saying it.
             </p>
           </Section>
 
-          {/* ── The hard one ──────────────────────────────────────────── */}
+          {/* ── Disagree, don't delete (video: 04) ────────────────────── */}
           <Section
             icon={MessageSquareOff}
-            title="You can disagree. You can't delete."
+            title="Nobody can erase a tag. Anyone can disagree."
             tone="warn"
             testId="section-htw-no-delete"
           >
             <p>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                This is the part worth understanding before you tag anyone.
-              </span>{" "}
-              When someone puts a tag on you, there is no button that takes it away. Not for you, not for us, not for
-              anyone. Once something is published it stays published.
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Know this before you tag anyone.</span>{" "}
+              There is no delete button. Not for you, not for the person you tagged, not for us. Once a tag is out
+              there, it stays.
             </p>
             <p>
-              What you <em>can</em> do is disagree. Your disagreement is public and has your name on it too, and it
-              counts against the tag. Once more people disagree than agree, the tag stops counting. The original is
-              still out there either way; it just stops adding up to anything.
+              What anyone can do is <span className="font-semibold text-slate-900 dark:text-slate-100">disagree</span>,
+              in public, with their name on it. Once more people disagree than agree, the tag stops counting.
             </p>
             <p>
-              So we never say "remove". We say{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">disagree</span>. Promising to delete
-              something would be a lie.
+              A tag that has stopped counting drops off the main list, but it isn't hidden: a link on the tag's page
+              brings it back into view. You can't judge a disagreement you aren't allowed to see.
             </p>
           </Section>
 
-          {/* ── POV, honestly ─────────────────────────────────────────── */}
-          <Section icon={Eye} title="Numbers are a guide, not a verdict" testId="section-htw-pov">
+          {/* ── Take it anywhere (video: 05) ──────────────────────────── */}
+          <Section icon={Globe} title="Your reputation goes where you go." testId="section-htw-where">
             <p>
-              Anyone can tag anyone, so if every opinion counted equally tags would be easy to fake. We lean on how much
-              standing someone has built up in the network, worked out from your point of view. Two people can see
-              slightly different numbers on the same tag, and that's normal. There's no single official answer.
+              Tags aren't kept in a Brainstorm database. They sit on open servers that any app can read, so what people
+              say about you isn't locked inside one company. Another app may add the same tags up a little differently.
             </p>
             <p>
-              All of that standing is still being built up, so read the numbers as a rough guide rather than the last
-              word. If we can't work it out at all, we say so on the page instead of guessing.
-            </p>
-          </Section>
-
-          {/* ── Discovery gate ────────────────────────────────────────── */}
-          <Section icon={Search} title="The browse list is shorter than the real list" testId="section-htw-discovery">
-            <p>
-              Making a tag is free, so anyone can make thousands, and plenty have. The list only shows tags whose
-              creator has built up some standing. Without that rule it would be mostly junk.
-            </p>
-            <p>
-              It's a blunt rule and it catches real people too. Someone new looks the same as someone throwaway. So it
-              applies to the <em>list</em> and nothing else.{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                Search finds every tag, including those.
-              </span>{" "}
-              If you know the name, type it anywhere you can search and you'll get it.
-            </p>
-            <p>Tags left off the list still work in every other way:</p>
-            <ul className="ml-1 space-y-1.5">
-              <Bullet>a direct link to one still opens</Bullet>
-              <Bullet>it still shows on the profiles and posts it's been put on</Bullet>
-              <Bullet>you can still put it on someone</Bullet>
-              <Bullet>your own tags are always visible to you</Bullet>
-            </ul>
-            <p>
-              Nothing needs redoing either. Once the creator earns some standing, their tags start showing in the list
-              again.
-            </p>
-          </Section>
-
-          {/* ── Disputed ──────────────────────────────────────────────── */}
-          <Section icon={ThumbsDown} title="Disagreed-with doesn't mean disappeared" testId="section-htw-disputed">
-            <p>
-              When more people disagree than agree, that person drops off the tag's main list. You'll still see a{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">"Show disputed"</span> link that brings
-              them back into view.
-            </p>
-            <p>
-              Hiding it altogether would make the page look tidier than things really are, and you can't judge a
-              disagreement you aren't allowed to see.
-            </p>
-          </Section>
-
-          {/* ── Where it lives ────────────────────────────────────────── */}
-          <Section icon={Globe} title="You choose where tags come from" testId="section-htw-where">
-            <p>
-              Tags aren't kept in a Brainstorm database. They sit on open servers that anyone can read, and we add up
-              what's there. Other apps read the same tags and may add them up a little differently. That's normal, and
-              it's the point.
-            </p>
-            <p>
-              It also means you aren't locked in. You can pick which servers we read your tags from, and send yours to,
-              in{" "}
+              You can choose which servers we read tags from, and send yours to, in{" "}
               <Link
                 href="/settings?tab=trust&focus=tag-relays"
                 className="font-semibold text-brand-link hover:underline"
@@ -180,6 +139,31 @@ export default function HowTagsWorkPage() {
               </Link>
               .
             </p>
+          </Section>
+
+          {/* ── The browse list is shorter than the real one ──────────── */}
+          <Section icon={Search} title="Not in the list? Search for it." testId="section-htw-discovery">
+            <p>
+              Making a tag is free, so anyone can make thousands, and plenty have. To keep the junk out, the browse list
+              only shows tags made by people with a track record.
+            </p>
+            <p>
+              That rule catches some real newcomers too, so it applies to the list and nothing else.{" "}
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Search finds every tag.</span> A tag
+              left off the list still opens from a link, still shows on the profiles and posts it's on, and can still be
+              put on someone. It joins the list once the person who made it has a track record.
+            </p>
+          </Section>
+
+          {/* ── Try it (video: 06 and 08) ─────────────────────────────── */}
+          <Section icon={Tag} title="Your turn." testId="section-htw-try">
+            <p>
+              Open someone's profile, choose{" "}
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Add a tag</span>, and say what they're
+              known for. If the tag is already there, add your name to it.
+            </p>
+            <p>To find people, search a word like "musician" or "podcast" and see who is known for it.</p>
+            <p>One rule. There are no take-backs, so say it the way you'd say it in person.</p>
           </Section>
 
           {/* ── Footer nav ────────────────────────────────────────────── */}
@@ -239,14 +223,5 @@ function Section({
         {children}
       </div>
     </section>
-  );
-}
-
-function Bullet({ children }: { children: React.ReactNode }) {
-  return (
-    <li className="flex gap-2.5">
-      <span className="mt-[0.55rem] h-1 w-1 shrink-0 rounded-full bg-brand-accent" />
-      <span>{children}</span>
-    </li>
   );
 }
