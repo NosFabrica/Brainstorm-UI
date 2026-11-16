@@ -16,7 +16,12 @@ export interface ProofEvent {
 
 export interface CompromisedStatus {
   pubkey: string;
-  /** When it was marked, epoch seconds. */
+  /**
+   * From when its content may be anyone's, epoch seconds: the earliest we know
+   * of. The server's record says when it was marked, which is after the key
+   * changed hands, so the owner's proof post (and our own estimate, for an
+   * account in config/compromised) can only move it earlier.
+   */
   since: number | null;
   proofEventId: string | null;
   /** The proof, held whole: whoever has the key can delete it from the relays. */
@@ -47,17 +52,27 @@ function proofEventOf(v: unknown): ProofEvent | null {
   };
 }
 
+/** The earlier of two moments, either of which may be unknown. */
+export function earliest(a: number | null, b: number | null): number | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Math.min(a, b);
+}
+
 /** One `/compromised` result → a status, or null for an account that isn't marked. */
 export function statusFromServer(row: unknown): CompromisedStatus | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
   const pubkey = hexOrNull(r.pubkey);
   if (!pubkey || r.compromised !== true) return null;
-  const at = typeof r.since === "string" ? Date.parse(r.since) : NaN;
+  // The server's timestamps are naive UTC (no offset), which Date.parse would read as local time.
+  const at =
+    typeof r.since === "string" ? Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(r.since) ? r.since : `${r.since}Z`) : NaN;
   const proofEvent = proofEventOf(r.proof_event);
+  const markedAt = Number.isFinite(at) ? Math.floor(at / 1000) : null;
   return {
     pubkey,
-    since: Number.isFinite(at) ? Math.floor(at / 1000) : null,
+    since: earliest(markedAt, proofEvent?.created_at ?? null),
     proofEventId: hexOrNull(r.proof_event_id) ?? proofEvent?.id ?? null,
     proofEvent,
     successorPubkey: hexOrNull(r.successor_pubkey),

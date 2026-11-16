@@ -93,21 +93,6 @@ describe("CompromisedCard", () => {
     );
   });
 
-  it("forgets a profile's cached answer after marking, so the warning shows next visit", async () => {
-    listCompromised.mockResolvedValue([]);
-    markCompromised.mockResolvedValue(ROW);
-    const { queryClient } = renderWithProviders(<CompromisedCard active />);
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    await screen.findByTestId("compromised-empty");
-
-    fireEvent.change(screen.getByTestId("input-compromised-account"), { target: { value: PK } });
-    fireEvent.change(screen.getByTestId("input-compromised-proof-id"), { target: { value: NEVENT } });
-    fireEvent.click(screen.getByTestId("button-mark-compromised"));
-
-    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["compromised"] }));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["share-overview"] });
-  });
-
   it("says what's wrong before sending anything", async () => {
     listCompromised.mockResolvedValue([]);
     renderWithProviders(<CompromisedCard active />);

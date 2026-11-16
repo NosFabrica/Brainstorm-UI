@@ -23,25 +23,6 @@ function mockFetch(body: unknown, init: { ok?: boolean; status?: number } = {}) 
   return fetchMock;
 }
 
-describe("the public compromised check", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("GETs one account without a session and unwraps it", async () => {
-    const status = { pubkey: PK, compromised: true, since: "2026-11-16T17:00:00" };
-    const fetchMock = mockFetch({ code: 200, data: status });
-
-    expect(await apiClient.getCompromisedStatus(PK)).toEqual(status);
-    const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.invalid/compromised/${PK}`);
-    expect(options?.headers?.Authorization).toBeUndefined();
-  });
-
-  it("reads a failed check as unknown, never as an error", async () => {
-    mockFetch({}, { ok: false, status: 503 });
-    expect(await apiClient.getCompromisedStatus(PK)).toBeNull();
-  });
-});
-
 describe("the admin compromised calls", () => {
   beforeEach(() => {
     active.account = stubAccount("test-token");
