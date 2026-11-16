@@ -1119,7 +1119,15 @@ export default function SharePage() {
 
                 {/* A compromised key leads: whoever holds it now isn't its owner,
               which outranks any trust signal below. */}
-                <CompromisedBanner pubkey={pubkey} className="mt-3" />
+                <CompromisedBanner
+                  pubkey={pubkey}
+                  overviewSays={
+                    overviewQuery.isPending
+                      ? null
+                      : (overviewQuery.data as { compromised?: boolean } | null | undefined)?.compromised
+                  }
+                  className="mt-3"
+                />
 
                 {/* Prominent, factual flag — when reported beyond the follower-scaled
               threshold (house POV → same verdict for every viewer). */}

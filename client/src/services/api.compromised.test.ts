@@ -40,24 +40,6 @@ describe("the public compromised check", () => {
     mockFetch({}, { ok: false, status: 503 });
     expect(await apiClient.getCompromisedStatus(PK)).toBeNull();
   });
-
-  it("POSTs a batch and keeps only the marked accounts", async () => {
-    const fetchMock = mockFetch({
-      data: {
-        results: [
-          { pubkey: PK, compromised: true },
-          { pubkey: "a".repeat(64), compromised: false },
-        ],
-      },
-    });
-
-    const marked = await apiClient.checkCompromised([PK, "a".repeat(64)]);
-
-    expect([...marked.keys()]).toEqual([PK]);
-    const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.invalid/compromised");
-    expect(JSON.parse(options.body)).toEqual({ pubkeys: [PK, "a".repeat(64)] });
-  });
 });
 
 describe("the admin compromised calls", () => {
@@ -90,6 +72,15 @@ describe("the admin compromised calls", () => {
   it("surfaces the server's sentence", async () => {
     mockFetch({ detail: "A new account needs proof_event or proof_event_id." }, { ok: false, status: 422 });
     await expect(apiClient.markCompromised(PK, {})).rejects.toThrow(/needs proof_event/);
+  });
+
+  it("PATCHes only the successor and note", async () => {
+    const fetchMock = mockFetch({ pubkey: PK });
+    await apiClient.updateCompromisedMetadata(PK, { successor_pubkey: null });
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`http://test.invalid/admin/compromised/${PK}`);
+    expect(options.method).toBe("PATCH");
+    expect(JSON.parse(options.body)).toEqual({ successor_pubkey: null });
   });
 
   it("DELETEs to unmark, answering nothing on a 204", async () => {

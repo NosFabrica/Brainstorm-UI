@@ -47,7 +47,10 @@ describe("CompromisedBanner", () => {
     getCompromisedStatus.mockResolvedValue(marked());
     renderWithProviders(<CompromisedBanner pubkey={PK} />);
 
-    expect(await screen.findByTestId("banner-compromised")).toHaveTextContent("This account's key is compromised");
+    const banner = await screen.findByTestId("banner-compromised");
+    expect(banner).toHaveTextContent("This account's key is compromised");
+    // Polite: it appears after the page has loaded, and mustn't cut off a screen reader.
+    expect(banner.getAttribute("role")).toBe("status");
     expect(screen.getByTestId("banner-compromised-proof-link").getAttribute("href")).toBe(
       `/e/${nip19.neventEncode({ id: PROOF_ID, author: PK })}`,
     );
@@ -77,5 +80,21 @@ describe("CompromisedBanner", () => {
     renderWithProviders(<CompromisedBanner pubkey={PK} />);
     await vi.waitFor(() => expect(getCompromisedStatus).toHaveBeenCalledTimes(2));
     expect(screen.queryByTestId("banner-compromised")).toBeNull();
+  });
+
+  it("asks for details only when the overview says the key is marked", async () => {
+    getCompromisedStatus.mockResolvedValue(marked());
+
+    const { unmount } = renderWithProviders(<CompromisedBanner pubkey={PK} overviewSays={false} />);
+    const pending = renderWithProviders(<CompromisedBanner pubkey={PK} overviewSays={null} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(getCompromisedStatus).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("banner-compromised")).toBeNull();
+    unmount();
+    pending.unmount();
+
+    renderWithProviders(<CompromisedBanner pubkey={PK} overviewSays />);
+    expect(await screen.findByTestId("banner-compromised")).toBeInTheDocument();
+    expect(getCompromisedStatus).toHaveBeenCalledTimes(1);
   });
 });

@@ -54,6 +54,8 @@ export interface CompromisedPubkey {
   added_by: string | null;
   created_at: string;
   updated_at: string;
+  /** When a zeroing was last asked for (every PUT); older servers don't send it. */
+  zero_requested_at?: string | null;
   last_zeroed_at: string | null;
   last_zero_report: ZeroReport | null;
 }
@@ -119,26 +121,6 @@ export const compromisedApi = {
     }
   },
 
-  /** The marked accounts among up to 500 pubkeys (hex). Empty when the server can't say. */
-  async checkCompromised(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, CompromisedStatus>> {
-    const out = new Map<string, CompromisedStatus>();
-    if (!pubkeys.length) return out;
-    try {
-      const response = await fetch(`${getBrainstormApi()}/compromised`, {
-        ...jsonBody("POST", { pubkeys: pubkeys.slice(0, 500) }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok) return out;
-      const json = (await response.json()) as { data?: { results?: CompromisedStatus[] } };
-      for (const r of json.data?.results ?? []) {
-        if (r?.compromised && typeof r.pubkey === "string") out.set(r.pubkey, r);
-      }
-    } catch {
-      // unknown reads as unmarked, like a failed trust-signals batch
-    }
-    return out;
-  },
-
   async listCompromised(): Promise<CompromisedPubkey[]> {
     return adminRequest("/admin/compromised", "Failed to load compromised accounts");
   },
@@ -155,6 +137,18 @@ export const compromisedApi = {
       "Failed to mark the account compromised",
       jsonBody("PUT", body),
       60000,
+    );
+  },
+
+  /** Change only the successor and/or note: the proof stays and nothing is zeroed. */
+  async updateCompromisedMetadata(
+    pubkey: string,
+    body: { successor_pubkey?: string | null; reason?: string | null },
+  ): Promise<CompromisedPubkey> {
+    return adminRequest(
+      `/admin/compromised/${encodeURIComponent(pubkey)}`,
+      "Failed to save the account",
+      jsonBody("PATCH", body),
     );
   },
 

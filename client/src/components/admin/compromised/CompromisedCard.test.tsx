@@ -8,6 +8,7 @@ import type { CompromisedPubkey, MarkCompromisedBody } from "@/services/api";
 const listCompromised = vi.fn<() => Promise<CompromisedPubkey[]>>();
 const markCompromised = vi.fn<(pk: string, body: MarkCompromisedBody) => Promise<unknown>>();
 const unmarkCompromised = vi.fn<(pk: string) => Promise<void>>();
+const updateCompromisedMetadata = vi.fn<(pk: string, body: unknown) => Promise<unknown>>();
 vi.mock("@/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/api")>();
   return {
@@ -17,6 +18,7 @@ vi.mock("@/services/api", async (importOriginal) => {
       listCompromised: () => listCompromised(),
       markCompromised: (pk: string, body: MarkCompromisedBody) => markCompromised(pk, body),
       unmarkCompromised: (pk: string) => unmarkCompromised(pk),
+      updateCompromisedMetadata: (pk: string, body: unknown) => updateCompromisedMetadata(pk, body),
     },
   };
 });
@@ -59,6 +61,7 @@ describe("CompromisedCard", () => {
     listCompromised.mockReset();
     markCompromised.mockReset();
     unmarkCompromised.mockReset();
+    updateCompromisedMetadata.mockReset();
     toast.mockReset();
   });
 
@@ -102,6 +105,7 @@ describe("CompromisedCard", () => {
     fireEvent.click(screen.getByTestId("button-mark-compromised"));
 
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["compromised"] }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["share-overview"] });
   });
 
   it("says what's wrong before sending anything", async () => {
@@ -128,5 +132,42 @@ describe("CompromisedCard", () => {
     fireEvent.click(screen.getByTestId("button-unmark"));
     fireEvent.click(await screen.findByTestId("button-confirm-unmark"));
     await waitFor(() => expect(unmarkCompromised).toHaveBeenCalledWith(PK));
+  });
+
+  it("refuses to re-mark a listed account unless told to replace its proof", async () => {
+    listCompromised.mockResolvedValue([ROW]);
+    markCompromised.mockResolvedValue(ROW);
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId(`compromised-row-${PK}`);
+
+    fireEvent.change(screen.getByTestId("input-compromised-account"), { target: { value: nip19.npubEncode(PK) } });
+    fireEvent.change(screen.getByTestId("input-compromised-proof-id"), { target: { value: NEVENT } });
+    fireEvent.click(screen.getByTestId("button-mark-compromised"));
+
+    expect(await screen.findByTestId("error-mark-compromised")).toHaveTextContent(/already marked/);
+    expect(markCompromised).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("checkbox-replace-proof"));
+    fireEvent.click(screen.getByTestId("button-mark-compromised"));
+    await waitFor(() => expect(markCompromised).toHaveBeenCalledWith(PK, { proof_event_id: NEVENT }));
+  });
+
+  it("edits the successor through PATCH, zeroing nothing", async () => {
+    listCompromised.mockResolvedValue([ROW]);
+    updateCompromisedMetadata.mockResolvedValue(ROW);
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId(`compromised-row-${PK}`);
+
+    fireEvent.click(screen.getByTestId("button-edit-compromised"));
+    const next = "b".repeat(64);
+    fireEvent.change(await screen.findByTestId("input-edit-successor"), {
+      target: { value: nip19.npubEncode(next) },
+    });
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+
+    await waitFor(() =>
+      expect(updateCompromisedMetadata).toHaveBeenCalledWith(PK, { successor_pubkey: next, reason: "leak" }),
+    );
+    expect(markCompromised).not.toHaveBeenCalled();
   });
 });

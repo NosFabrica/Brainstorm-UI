@@ -86,6 +86,16 @@ describe("zeroState", () => {
     ).toBe("pending");
   });
 
+  it("keys on when a zeroing was asked for, so a metadata edit isn't pending", () => {
+    const zeroed = { last_zeroed_at: "2026-11-16T17:01:00", last_zero_report: DONE };
+    // Edited (updated_at later) but no zeroing asked for since: settled.
+    expect(
+      zeroState(row({ ...zeroed, updated_at: "2026-11-16T18:00:00", zero_requested_at: "2026-11-16T17:00:00" })),
+    ).toBe("complete");
+    // Asked again after the last report: pending.
+    expect(zeroState(row({ ...zeroed, zero_requested_at: "2026-11-16T17:30:00" }))).toBe("pending");
+  });
+
   it("reads the report once it has", () => {
     const at = { last_zeroed_at: "2026-11-16T17:01:00" };
     expect(zeroState(row({ ...at, last_zero_report: DONE }))).toBe("complete");

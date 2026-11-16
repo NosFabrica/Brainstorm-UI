@@ -90,13 +90,14 @@ export function buildMarkRequest(
 export type ZeroState = "pending" | "complete" | "incomplete" | "failed";
 
 /**
- * Where the background zeroing stands for a row. It runs after each `PUT`
- * answers, so a row updated after its last zeroing is still pending.
+ * Where the zeroing stands for a row: pending while it hasn't reported since it
+ * was last asked for (every PUT; a metadata PATCH asks for none).
  */
 export function zeroState(row: CompromisedPubkey): ZeroState {
   const report = row.last_zero_report;
   if (!report || !row.last_zeroed_at) return "pending";
-  if (Date.parse(row.last_zeroed_at) < Date.parse(row.updated_at)) return "pending";
+  const requested = row.zero_requested_at ?? row.updated_at;
+  if (Date.parse(row.last_zeroed_at) < Date.parse(requested)) return "pending";
   if ("error" in report) return "failed";
   return report.complete && report.relay_read ? "complete" : "incomplete";
 }

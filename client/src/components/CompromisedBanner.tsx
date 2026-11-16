@@ -3,6 +3,8 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { KeyRound } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 import { apiClient, type CompromisedStatus } from "@/services/api";
 
 /** How long a profile trusts its answer: marking a key is rare, and the banner is a warning, not a gate. */
@@ -15,11 +17,11 @@ const PROOF_PREVIEW_CHARS = 600;
  * answers the same for every viewer; `null` while loading or when the server
  * can't say, which reads as "not marked".
  */
-export function useCompromisedStatus(pubkey: string | null | undefined) {
+export function useCompromisedStatus(pubkey: string | null | undefined, enabled = true) {
   return useQuery<CompromisedStatus | null>({
     queryKey: ["compromised", pubkey],
     queryFn: () => apiClient.getCompromisedStatus(pubkey as string),
-    enabled: !!pubkey,
+    enabled: !!pubkey && enabled,
     staleTime: STALE_MS,
     retry: false,
   });
@@ -56,11 +58,24 @@ function npubOf(hex: string): string | null {
  * scores are set to 0. Quotes the proof the server kept (the post may be gone
  * from relays) and links the owner's new account once it's known. Renders
  * nothing for an unmarked key.
+ *
+ * `overviewSays` is the profile overview's `compromised` flag, so the details
+ * are fetched only for a marked key: `false` shows nothing with no request,
+ * `null` waits for the overview, and `undefined` (no overview, or a server too
+ * old to send the flag) asks `/compromised` directly.
  */
-export function CompromisedBanner({ pubkey, className }: { pubkey: string | null | undefined; className?: string }) {
-  const { data: status } = useCompromisedStatus(pubkey);
+export function CompromisedBanner({
+  pubkey,
+  overviewSays,
+  className,
+}: {
+  pubkey: string | null | undefined;
+  overviewSays?: boolean | null;
+  className?: string;
+}) {
+  const { data: status } = useCompromisedStatus(pubkey, overviewSays !== false && overviewSays !== null);
   const [showProof, setShowProof] = useState(false);
-  if (!status?.compromised) return null;
+  if (overviewSays === false || !status?.compromised) return null;
 
   const since = formatDay(status.since);
   const proofHref = proofLink(status);
@@ -72,13 +87,16 @@ export function CompromisedBanner({ pubkey, className }: { pubkey: string | null
     : null;
 
   return (
-    <div
-      className={`flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 dark:border-red-500/30 dark:bg-red-500/10 ${className ?? ""}`}
-      role="alert"
+    // `status`, not the Alert's `alert`: it appears once the check resolves, and an
+    // assertive region would cut off whatever a screen reader is reading.
+    <Alert
+      variant="destructive"
+      role="status"
+      className={cn("px-3 py-2.5 [&>svg]:left-3 [&>svg]:top-3 [&>svg~*]:pl-6", className)}
       data-testid="banner-compromised"
     >
-      <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-      <div className="min-w-0 flex-1 text-xs leading-relaxed">
+      <KeyRound className="h-4 w-4" />
+      <AlertDescription className="text-xs leading-relaxed">
         <span className="font-bold text-red-700 dark:text-red-300">This account's key is compromised</span>
         <span className="text-red-700/90 dark:text-red-300/90">
           {" "}
@@ -125,7 +143,7 @@ export function CompromisedBanner({ pubkey, className }: { pubkey: string | null
             {proofDay && <span className="mt-1 block text-red-700/60 dark:text-red-300/60">Posted {proofDay}</span>}
           </blockquote>
         )}
-      </div>
-    </div>
+      </AlertDescription>
+    </Alert>
   );
 }

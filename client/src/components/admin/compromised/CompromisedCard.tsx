@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -65,13 +65,20 @@ function zeroToast(row: CompromisedPubkey | undefined): string {
     : zeroSummary(row);
 }
 
-/** The form that marks a new account. */
-function MarkAccountForm({ onMarked }: { onMarked: () => void }) {
+/**
+ * The form that marks a new account. An account already listed is refused
+ * unless the admin ticks "Replace its stored proof": a second marking would
+ * overwrite the proof, which may be gone from relays by now.
+ */
+function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; onMarked: () => void }) {
   const { toast } = useToast();
   const [form, setForm] = useState<MarkForm>(EMPTY_FORM);
+  const [replace, setReplace] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<MarkForm>) => setForm((f) => ({ ...f, ...patch }));
+  const listedPubkey = parseAccount(form.account);
+  const alreadyMarked = !!listedPubkey && marked.has(listedPubkey);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,12 +87,19 @@ function MarkAccountForm({ onMarked }: { onMarked: () => void }) {
       setError(req.error);
       return;
     }
+    if (marked.has(req.pubkey) && !replace) {
+      setError(
+        "This account is already marked (below). Use Edit for its new account or note, or tick “Replace its stored proof”.",
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const row = await apiClient.markCompromised(req.pubkey, req.body);
       toast({ title: "Marked compromised", description: zeroToast(row) });
       setForm(EMPTY_FORM);
+      setReplace(false);
       onMarked();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -163,6 +177,17 @@ function MarkAccountForm({ onMarked }: { onMarked: () => void }) {
         />
       </div>
 
+      {alreadyMarked && (
+        <label className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+          <input
+            type="checkbox"
+            checked={replace}
+            onChange={(e) => setReplace(e.target.checked)}
+            data-testid="checkbox-replace-proof"
+          />
+          Already marked — replace its stored proof
+        </label>
+      )}
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400" data-testid="error-mark-compromised">
           {error}
@@ -197,7 +222,7 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
     setBusy(true);
     setError(null);
     try {
-      await apiClient.markCompromised(row.pubkey, {
+      await apiClient.updateCompromisedMetadata(row.pubkey, {
         successor_pubkey: successorHex,
         reason: reason.trim() || null,
       });
@@ -216,9 +241,7 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit {short(npub(row.pubkey))}</DialogTitle>
-          <DialogDescription>
-            The proof stays as stored. Saving zeroes its scores again, which takes a few seconds and is harmless.
-          </DialogDescription>
+          <DialogDescription>The proof stays as stored, and nothing is zeroed again.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
@@ -424,14 +447,17 @@ export function CompromisedCard({ active }: { active: boolean }) {
     // Poll only while a zeroing is still landing.
     refetchInterval: (q) => (q.state.data?.some((r) => zeroState(r) === "pending") ? 4000 : false),
   });
-  const rows = query.data ?? [];
+  const rows = useMemo(() => query.data ?? [], [query.data]);
+  const markedSet = useMemo(() => new Set(rows.map((r) => r.pubkey)), [rows]);
   const profiles = useProfileBits(rows.flatMap((r) => [r.pubkey, r.successor_pubkey]));
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: COMPROMISED_KEY }),
-      // The profile warning's cached answer (CompromisedBanner), so a profile
-      // opened next shows the change rather than what it read before.
+      // The profile warning's cached answers (CompromisedBanner, and the profile
+      // overview whose `compromised` gates it), so a profile opened next shows
+      // the change rather than what it read before.
       queryClient.invalidateQueries({ queryKey: ["compromised"] }),
+      queryClient.invalidateQueries({ queryKey: ["share-overview"] }),
     ]);
 
   async function rezero(row: CompromisedPubkey) {
@@ -468,7 +494,7 @@ export function CompromisedCard({ active }: { active: boolean }) {
       </div>
 
       <div className="space-y-6 px-5 py-4">
-        <MarkAccountForm onMarked={refresh} />
+        <MarkAccountForm marked={markedSet} onMarked={refresh} />
 
         <div className="space-y-2">
           {query.isLoading && (
