@@ -55,7 +55,7 @@ Reports or questions are welcome through the contact above.
 | `brainstorm.nosfabrica.com`         | Production alias |
 | `brainstorm-staging.nosfabrica.com` | Staging          |
 
-### R&D UI — [`nousclawds4/tapestry`](https://github.com/nousclawds4/tapestry)
+### R&D UI — [`TapestryProtocol/tapestry`](https://github.com/TapestryProtocol/tapestry)
 
 | Host                            | Role                 |
 | ------------------------------- | -------------------- |
@@ -63,6 +63,12 @@ Reports or questions are welcome through the contact above.
 | `staging.brainstorm.world`      | Pre-production       |
 | `tags.brainstorm.world`         | Feature sandbox      |
 | `magic-carpet.brainstorm.world` | Feature sandbox      |
+
+### List explorer — [`aburra16/curate`](https://github.com/aburra16/curate)
+
+| Host                      | Role       |
+| ------------------------- | ---------- |
+| `curate.brainstorm.world` | Production |
 
 ### Backend APIs — [`NosFabrica/brainstorm_server`](https://github.com/NosFabrica/brainstorm_server)
 
