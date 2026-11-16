@@ -1,3 +1,6 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
@@ -171,7 +174,8 @@ function NoteCardBody({
   // so no embedded note's author sits bare while its neighbours wear rings.
   const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
-  const ring = tierRing(effectiveScore01);
+  const compromisedRing = useCompromisedRing(event.pubkey, "sm");
+  const ring = compromisedRing ?? tierRing(effectiveScore01);
   const [, navigate] = useLocation();
   const name = author?.display_name || author?.name || "Unknown";
   const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
@@ -248,10 +252,11 @@ function NoteCardBody({
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   return (
     <div
-      className={`not-prose mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
+      className={`${WATERMARK_HOST} not-prose mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
       data-testid="embedded-note"
       onClick={onClick}
     >
+      <CompromisedWatermark pubkey={event.pubkey} postedAt={event.created_at} eventId={event.id} />
       <div className="mb-1.5 flex items-center gap-2">
         <a href={npub ? `/p/${npub}` : undefined} className="flex min-w-0 items-center gap-2 hover:opacity-80">
           <Avatar
@@ -266,6 +271,7 @@ function NoteCardBody({
             <ProfileEmojiText pubkey={event.pubkey} text={name} />
           </span>
           {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
+          <CompromisedMark pubkey={event.pubkey} />
         </a>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {namesItsKind(event.kind) && (

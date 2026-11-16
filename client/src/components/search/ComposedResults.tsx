@@ -6,6 +6,8 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { useCompromisedRing } from "@/hooks/useCompromised";
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
@@ -105,6 +107,7 @@ function PersonChip({
   onOpen: (p: SearchResult) => void;
 }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(person.pubkey);
   const pk8 = person.pubkey.slice(0, 8);
   // Nearly everyone here is verified by construction — the relay ranks
   // through the web of trust — so the strip says nothing about it. Only the
@@ -119,7 +122,9 @@ function PersonChip({
       data-testid={`serp-person-${pk8}`}
     >
       <span className="relative">
-        <Avatar className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(score) ?? ""}`}>
+        <Avatar
+          className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(score) ?? ""}`}
+        >
           {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
             <DefaultAvatarImg />
@@ -138,6 +143,7 @@ function PersonChip({
       <span className="w-full truncate text-center text-xs font-semibold text-slate-800 dark:text-slate-100">
         {getDisplayLabel(person)}
       </span>
+      <CompromisedMark pubkey={person.pubkey} />
       {/* The strip has no right edge, so the tag sits under the name; the
           card is a button, so the tag is a label here — the People tab and
           the tag row above are the way in. */}

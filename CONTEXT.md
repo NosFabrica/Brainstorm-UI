@@ -108,6 +108,23 @@ The UI says who reported it — people the User follows, verified accounts,
 unverified ones — never what the account is.
 _Avoid_: scammer, bad actor, dangerous
 
+**Compromised**:
+An account whose key is in someone else's hands. A fact about the key, recorded
+by the server with the event that proves it (the owner saying so) and, once
+known, the owner's new account — not a verdict the network reached, which is
+**Flagged**. The UI says so wherever the account is shown and tells the reader
+what not to do; it describes the key, never the person. What the owner posted
+before the key changed hands is still theirs: the UI tells that apart from what
+came after, and never hides either.
+_Avoid_: hacked user, lost key, scammer, bad actor
+
+**New account** (of a Compromised account):
+The account the owner of a Compromised account moved to, recorded beside it.
+Shown wherever the old one is, with a Follow, and marked "New account" where it
+appears itself — it has few followers and no score yet, so without the mark the
+real account reads as the copy.
+_Avoid_: successor (code only), replacement, backup account
+
 ### Concepts and the Dictionary
 
 **Concept**:

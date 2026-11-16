@@ -5,6 +5,8 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { NewAccountResult } from "@/components/compromised/NewAccountResult";
+import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
 import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
@@ -2277,6 +2279,19 @@ export function SearchResults({
     category,
   ]);
 
+  // Compromised people on the page, and whose new account each one's is: the new account is
+  // shown above its compromised one (NewAccountResult), so its own row further down steps aside.
+  const peopleOnPage = useMemo(
+    () => displayHits.filter((d) => d.hit.event.kind === 0).map((d) => d.hit.event.pubkey),
+    [displayHits],
+  );
+  const compromisedOnPage = useCompromisedAmong(peopleOnPage);
+  const newAccountOf = useMemo(
+    () =>
+      new Map(compromisedOnPage.flatMap((s) => (s.successorPubkey ? [[s.successorPubkey, s.pubkey] as const] : []))),
+    [compromisedOnPage],
+  );
+
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
   // their time. Undated events gather at the end.
@@ -3118,6 +3133,9 @@ export function SearchResults({
                             </div>
                           );
                           if (event.kind === 0 && hit.author) {
+                            // A new account whose compromised one is on this page is already shown, above that one.
+                            const replaced = newAccountOf.get(event.pubkey);
+                            if (replaced && peopleOnPage.includes(replaced)) return null;
                             const idx = peopleIdx.current++;
                             // The one tag the words matched, if this person carries it.
                             const cardTag =
@@ -3129,17 +3147,21 @@ export function SearchResults({
                                 ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
                                 : hit.author;
                             return wrap(
-                              <PersonCard
-                                result={scored}
-                                idx={idx}
-                                pov={pov}
-                                onOpen={openProfile}
-                                onPrefetchEnter={onPrefetchEnter}
-                                onPrefetchLeave={onPrefetchLeave}
-                                showFollowedBy={idx < 3}
-                                tag={cardTag}
-                                pointedBy={pointers.namesOf.get(event.pubkey)}
-                              />,
+                              <>
+                                {/* A compromised account: the owner's new one goes first, highlighted. */}
+                                <NewAccountResult compromisedPubkey={event.pubkey} pov={pov} onOpen={openProfile} />
+                                <PersonCard
+                                  result={scored}
+                                  idx={idx}
+                                  pov={pov}
+                                  onOpen={openProfile}
+                                  onPrefetchEnter={onPrefetchEnter}
+                                  onPrefetchLeave={onPrefetchLeave}
+                                  showFollowedBy={idx < 3}
+                                  tag={cardTag}
+                                  pointedBy={pointers.namesOf.get(event.pubkey)}
+                                />
+                              </>,
                             );
                           }
                           // The kinds with no card of their own, whichever tab they are on.

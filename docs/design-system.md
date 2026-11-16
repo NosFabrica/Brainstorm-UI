@@ -281,3 +281,25 @@ tier rings, network donut, sparklines) · the AccountMenu panel + AppsLauncher t
 
 Interface icons should be Phosphor per guidelines p16; the app uses `lucide-react`.
 Migration deferred — do not treat lucide as a bug. Primitives are icon-agnostic.
+
+## Compromised accounts
+
+An account whose key is in someone else's hands (CONTEXT.md **Compromised**), and the
+owner's **New account** when there is one. Everything is in `components/compromised/`, and
+all of it draws nothing for anyone else, so it can sit on every surface that shows a person.
+
+| Piece                                             | Where it goes                                                                                | What it says                                                                                                                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompromisedMark pubkey`                          | beside a name, in every row that names a person                                              | red "Compromised" chip; green "New account" chip on the owner's new account                                                                                  |
+| `useCompromisedRing(pubkey)`                      | an avatar's class, ahead of the tier ring: `useCompromisedRing(pk) ?? tierRing(score) ?? ""` | a red ring. Not trust chrome: it ignores the score display setting and search's quiet chrome                                                                 |
+| `CompromisedBanner status`                        | top of the compromised account's page                                                        | the fact, what not to do, the new account (`SuccessorCard`: Follow + latest post), Unfollow / Report (`CompromisedActions`), the owner's post that proves it |
+| `ReplacesBanner replaces`                         | top of the new account's page                                                                | this account replaces a compromised one; link back                                                                                                           |
+| `CompromisedAuthorNotice pubkey postedAt eventId` | under the byline of a post or article page                                                   | calm for content from before the compromise, a warning for content after it, the proof post named as where the owner said so                                 |
+| `CompromisedWatermark pubkey postedAt eventId`    | first child of a content container that carries `WATERMARK_HOST`                             | a shield-and-word stamp across content posted after the compromise only, on hover: it shows, then settles to a trace. Never the message on its own           |
+| `NewAccountResult compromisedPubkey`              | above a compromised account's card in a list of people                                       | the owner's new account as a highlighted person card, put first whatever the ranking says                                                                    |
+| `CompromisedChatWarning pubkeys`                  | under a chat's header, and with `placement="composer"` above its composer                    | you're messaging a compromised account; message the new one instead                                                                                          |
+| `CompromisedFollowsAlert observer`                | dashboard and /alerts, above the flagged-follows count                                       | which accounts you follow are compromised, with Unfollow and the new account to follow                                                                       |
+
+All of it reads `hooks/useCompromised`, which batches lookups against the server's public
+`/compromised` check (`services/compromised.ts`). `config/compromised.ts` holds the accounts
+the UI knows before the server does.
