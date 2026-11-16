@@ -217,6 +217,18 @@ backup nag, the plan you are on). Reach for `accent` rather than spelling out a
 <Card accent={isMine}>…</Card>
 ```
 
+## Explainer videos — `components/ExplainerVideo.tsx`, `config/explainers.ts`
+
+A walkthrough video we made has one home and any number of pointers to it.
+
+- **`ExplainerVideo`** plays it, on the page that explains the feature
+  (`/how-tags-work`). It has sound, so it shows the still and a play button and
+  loads nothing until pressed; give it an `id` so links can land on it.
+- **`ExplainerVideoLink`** is the pointer from the feature's own pages: a row
+  with the still, the title and the length.
+- The file ships with the app and is named once, in `config/explainers.ts`,
+  which also says how to size it. With `src` null, neither renders.
+
 ## ReadingText — `components/share/ReadingText.tsx`
 
 Any body of network prose shown in full on an event page — a note, a listing's
