@@ -7,6 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { ListCard } from "@/components/search/cards";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
@@ -423,6 +424,7 @@ function AuthorLine({
         >
           {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
         </span>
+        {author && <CompromisedMark pubkey={author.pubkey} />}
         <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && TypeIcon ? (
           <span

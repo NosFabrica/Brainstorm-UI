@@ -1,3 +1,4 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { memo, useMemo, useState, type ReactNode } from "react";
 import type { NoteToken } from "@/lib/noteContent";
 import { Link, useLocation } from "wouter";
@@ -653,6 +654,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
                     <ProfileEmojiText pubkey={ev.pubkey} text={authorName} />
                   </span>
                   <TierWordChip score01={score01} />
+                  <CompromisedMark pubkey={ev.pubkey} />
                   <Nip05Check nip05={profile.nip05} pubkey={ev.pubkey} className="h-4 w-4 shrink-0 text-sky-500" />
                 </div>
                 <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>

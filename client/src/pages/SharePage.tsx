@@ -105,6 +105,8 @@ import {
 } from "@/components/score/VerificationCoin";
 import { extractImageUrls } from "@/lib/noteContent";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
+import { CompromisedBanner } from "@/components/compromised/CompromisedBanner";
+import { useCompromised } from "@/hooks/useCompromised";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
@@ -526,6 +528,7 @@ export default function SharePage() {
   // toggle — same verdict for every viewer — and so does the banner's evidence
   // count below, because a verdict and its evidence must come from one ledger.
   const houseVerifiedReporters = num(houseStats?.reported_by?.verified);
+  const compromised = useCompromised(pubkey);
   const isFlagged = isFlaggedByReporters(houseVerifiedReporters ?? 0, num(houseStats?.followed_by?.verified) ?? 0);
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
@@ -920,6 +923,8 @@ export default function SharePage() {
       }
     >
       <ShareNavProvider>
+        {/* Compromised: the page leads with it, above the identity it is about. */}
+        {compromised && <CompromisedBanner status={compromised} className="mb-4" />}
         {/* Identity hero */}
         <div
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"

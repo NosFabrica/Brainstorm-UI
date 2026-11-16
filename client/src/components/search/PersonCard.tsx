@@ -4,6 +4,7 @@
  * follower pill, npub copy), extracted from landing.tsx so every vertical
  * shares it.
  */
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { HandleOwnerWarning } from "@/components/Nip05Check";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { PersonTagChips } from "@/components/search/PersonTagChips";
@@ -122,6 +123,7 @@ export function PersonCard({
             </span>
             <TierWordChip score01={result.wotRank} />
             <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
+            <CompromisedMark pubkey={result.pubkey} />
           </div>
           {result.nip05 && nip05Status === "verified" && (
             <p

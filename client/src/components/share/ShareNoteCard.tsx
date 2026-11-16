@@ -1,3 +1,4 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { useState, useMemo, type MouseEvent } from "react";
 import { EMBEDDED_THING_KINDS } from "@/components/share/ThingAddressRef";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -279,11 +280,11 @@ export function ShareNoteCard({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p
-                    className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline dark:text-slate-100"
-                    data-testid="note-author-name"
-                  >
-                    <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                  <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <span className="truncate group-hover/author:underline" data-testid="note-author-name">
+                      <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                    </span>
+                    <CompromisedMark pubkey={event.pubkey} />
                   </p>
                   {authorHandle && (
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
@@ -307,8 +308,11 @@ export function ShareNoteCard({
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
-                      <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
+                      <span className="truncate">
+                        <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                      </span>
+                      <CompromisedMark pubkey={event.pubkey} />
                     </p>
                     {authorHandle && (
                       <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>

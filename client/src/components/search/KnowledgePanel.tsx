@@ -4,6 +4,7 @@
  * (mobile) — avatar with tier ring, identity rows, and the deep-dive CTA.
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { useListKinds } from "@/hooks/useListKinds";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchLiveStreams } from "@/services/nostr";
@@ -950,6 +951,7 @@ function KnowledgePanelBody({
               <ProfileEmojiText pubkey={person.pubkey} text={getDisplayLabel(person)} />
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              <CompromisedMark pubkey={person.pubkey} />
               <TierWordChip score01={effectiveRank} />
               {followers != null && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">

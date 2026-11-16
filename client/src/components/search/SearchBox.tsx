@@ -1,3 +1,4 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { PersonMarks } from "@/components/PersonMarks";
 import { useListKinds } from "@/hooks/useListKinds";
 import { useHandlePointers } from "@/hooks/useHandlePointers";
@@ -959,6 +960,7 @@ export function SearchBox({
                           {/* Their own things the kinds list (a GitHub account), beside the name:
                               one person, one row (hooks/useListKinds PersonMark). */}
                           <PersonMarks pubkey={s.pubkey} nip05={s.nip05} website={s.website} inRow />
+                          <CompromisedMark pubkey={s.pubkey} />
                         </p>
                         {/* A handle is only a claim: the check waits on its domain. */}
                         <Nip05Handle

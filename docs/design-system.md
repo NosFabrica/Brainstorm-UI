@@ -281,3 +281,19 @@ tier rings, network donut, sparklines) · the AccountMenu panel + AppsLauncher t
 
 Interface icons should be Phosphor per guidelines p16; the app uses `lucide-react`.
 Migration deferred — do not treat lucide as a bug. Primitives are icon-agnostic.
+
+## Compromised accounts
+
+An account whose key is in someone else's hands (CONTEXT.md **Compromised**) is said in two
+places, both in `components/compromised/`:
+
+- `CompromisedMark pubkey` — the red chip beside a person's name. It draws nothing for
+  anyone else, so it goes in every row that names a person: search rows, cards and people
+  tiles, the knowledge panel, note, article and event bylines, people lists, a one-to-one
+  chat's title. A new surface that names a person gets one.
+- `CompromisedBanner status` — the alert a compromised account's own page leads with: the
+  fact, what not to do, the owner's post that proves it, and their new account once known.
+
+Both read `useCompromised(pubkey)`, which batches lookups against the server's public
+`/compromised` check (`services/compromised.ts`). `config/compromised.ts` holds the accounts
+the UI knows before the server does.

@@ -6,6 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
 import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
@@ -138,6 +139,7 @@ function PersonChip({
       <span className="w-full truncate text-center text-xs font-semibold text-slate-800 dark:text-slate-100">
         {getDisplayLabel(person)}
       </span>
+      <CompromisedMark pubkey={person.pubkey} />
       {/* The strip has no right edge, so the tag sits under the name; the
           card is a button, so the tag is a label here — the People tab and
           the tag row above are the way in. */}

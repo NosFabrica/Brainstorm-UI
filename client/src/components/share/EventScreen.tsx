@@ -1,3 +1,4 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -582,6 +583,7 @@ function EventView({
                       </span>
                       <Nip05Check nip05={profile.nip05} pubkey={authorPk} className="h-4 w-4 shrink-0 text-sky-500" />
                       <TierWordChip score01={score01} />
+                      <CompromisedMark pubkey={authorPk} />
                     </div>
                     {/* A video says when it was published: a restored Vine's created_at is its import day. */}
                     <span className="block text-[13px] text-slate-500 dark:text-slate-400" data-testid="event-date">

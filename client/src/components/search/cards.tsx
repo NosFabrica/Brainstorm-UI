@@ -1,4 +1,5 @@
 import { parseTrack } from "@/lib/trackEvent";
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { formatListingPrice, listingCardLine, listingStatus, parseListing } from "@/lib/listing";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { ProductCardGroup } from "@/lib/listingVariants";
@@ -121,6 +122,7 @@ export function AuthorRow({
       <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
         {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
       </span>
+      {author && <CompromisedMark pubkey={author.pubkey} />}
       <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
       {trailing}
     </div>

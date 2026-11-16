@@ -1,3 +1,4 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { useMemo, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
@@ -266,6 +267,7 @@ function NoteCardBody({
             <ProfileEmojiText pubkey={event.pubkey} text={name} />
           </span>
           {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
+          <CompromisedMark pubkey={event.pubkey} />
         </a>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {namesItsKind(event.kind) && (
