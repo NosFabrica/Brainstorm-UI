@@ -6,6 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
@@ -106,6 +107,7 @@ function PersonChip({
   onOpen: (p: SearchResult) => void;
 }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(person.pubkey);
   const pk8 = person.pubkey.slice(0, 8);
   // Nearly everyone here is verified by construction — the relay ranks
   // through the web of trust — so the strip says nothing about it. Only the
@@ -120,7 +122,9 @@ function PersonChip({
       data-testid={`serp-person-${pk8}`}
     >
       <span className="relative">
-        <Avatar className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(score) ?? ""}`}>
+        <Avatar
+          className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(score) ?? ""}`}
+        >
           {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
             <DefaultAvatarImg />

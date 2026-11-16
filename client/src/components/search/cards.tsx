@@ -1,4 +1,5 @@
 import { parseTrack } from "@/lib/trackEvent";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { formatListingPrice, listingCardLine, listingStatus, parseListing } from "@/lib/listing";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
@@ -107,12 +108,13 @@ export function AuthorRow({
   trailing?: React.ReactNode;
 }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(author?.pubkey, "sm");
   // Wraps: on a narrow card (four across on the Shop tab) a pill that does not
   // fit beside the date drops to its own line instead of crossing the border.
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
       <Avatar
-        className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+        className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(score ?? null) ?? ""}`}
       >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">

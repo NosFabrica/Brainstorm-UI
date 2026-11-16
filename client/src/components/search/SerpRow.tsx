@@ -7,6 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { ListCard } from "@/components/search/cards";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
@@ -397,6 +398,7 @@ function AuthorLine({
   children?: ReactNode;
 }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(author?.pubkey, "sm");
   const compact = useContext(ContentFirstContext);
   return (
     <div
@@ -405,7 +407,7 @@ function AuthorLine({
       data-compact={compact ? "true" : undefined}
     >
       <Avatar
-        className={`${compact ? "h-4 w-4" : "h-6 w-6"} border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+        className={`${compact ? "h-4 w-4" : "h-6 w-6"} border border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(score ?? null) ?? ""}`}
       >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">

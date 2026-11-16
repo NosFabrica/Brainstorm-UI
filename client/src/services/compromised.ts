@@ -29,6 +29,24 @@ let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let serverLacksCheck = false;
 let generation = 0;
 
+const listeners = new Set<() => void>();
+let version = 0;
+
+/** For useSyncExternalStore: a landed record can change another account's reading (its successor's). */
+export function subscribeCompromised(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function compromisedVersion(): number {
+  return version;
+}
+
+function announce(): void {
+  version++;
+  for (const listener of [...listeners]) listener();
+}
+
 /** The server's record wins, but it can neither clear an account we know nor lose its proof. */
 function merge(pubkey: string, found: CompromisedStatus | null): CompromisedStatus | null {
   const ours = known.get(pubkey) ?? null;
@@ -39,6 +57,7 @@ function merge(pubkey: string, found: CompromisedStatus | null): CompromisedStat
     proofEventId: found.proofEventId ?? ours.proofEventId,
     proofEvent: found.proofEvent ?? ours.proofEvent,
     successorPubkey: found.successorPubkey ?? ours.successorPubkey,
+    successorEventId: found.successorEventId ?? ours.successorEventId,
   };
 }
 
@@ -79,6 +98,7 @@ function flush(): void {
         settled.set(pubkey, status);
         resolve(status);
       }
+      announce();
     });
   }
 }
@@ -99,6 +119,18 @@ export function lookupCompromised(rawPubkey: string): Promise<CompromisedStatus 
 export function settledCompromised(rawPubkey: string): CompromisedStatus | null | undefined {
   const pubkey = rawPubkey.toLowerCase();
   return settled.has(pubkey) ? settled.get(pubkey) : known.get(pubkey);
+}
+
+/**
+ * The Compromised account this one replaces, when `pubkey` is an owner's new
+ * account. Read from what we hold — the known list and every record that has
+ * landed this session — because the server answers by the old key only.
+ */
+export function replacedCompromised(rawPubkey: string): CompromisedStatus | null {
+  const pubkey = rawPubkey.toLowerCase();
+  for (const status of settled.values()) if (status?.successorPubkey === pubkey) return status;
+  for (const status of known.values()) if (status.successorPubkey === pubkey) return status;
+  return null;
 }
 
 export function hasSettledCompromised(pubkey: string): boolean {

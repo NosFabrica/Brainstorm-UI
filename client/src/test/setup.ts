@@ -59,6 +59,9 @@ afterEach(() => {
 vi.mock("@/services/compromised", () => ({
   lookupCompromised: () => Promise.resolve(null),
   settledCompromised: () => null,
+  replacedCompromised: () => null,
+  subscribeCompromised: () => () => {},
+  compromisedVersion: () => 0,
   hasSettledCompromised: () => true,
   __resetCompromised: () => {},
 }));

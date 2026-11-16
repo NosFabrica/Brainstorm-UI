@@ -135,6 +135,8 @@ export function useSocialActions(myPubkey: string | undefined) {
 
   return {
     isFollowing,
+    /** Everyone the account follows, pending edits applied. */
+    followed: followedSet,
     isMuted,
     isSelf,
     follow: doFollow,

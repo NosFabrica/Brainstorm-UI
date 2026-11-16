@@ -13,13 +13,37 @@ import { HandleOwnerWarning, Nip05Handle } from "./Nip05Check";
 const OWNER = "1".repeat(64);
 const COPY = "2".repeat(64);
 
+// Which compromised account an account replaces (services/compromised): nobody's, unless a test says so.
+const compromised = vi.hoisted(() => ({ replaces: new Map<string, string>() }));
+vi.mock("@/services/compromised", () => ({
+  lookupCompromised: () => Promise.resolve(null),
+  settledCompromised: () => null,
+  hasSettledCompromised: () => true,
+  subscribeCompromised: () => () => {},
+  compromisedVersion: () => 0,
+  replacedCompromised: (pk: string) =>
+    compromised.replaces.has(pk)
+      ? {
+          pubkey: compromised.replaces.get(pk),
+          since: null,
+          proofEventId: null,
+          proofEvent: null,
+          successorPubkey: pk,
+          successorEventId: null,
+        }
+      : null,
+}));
+
 const serverNames = (names: Record<string, string>) =>
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response(JSON.stringify({ names }), { status: 200 })),
   );
 
-beforeEach(() => __resetNip05Cache());
+beforeEach(() => {
+  __resetNip05Cache();
+  compromised.replaces.clear();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe("HandleOwnerWarning", () => {
@@ -33,6 +57,21 @@ describe("HandleOwnerWarning", () => {
       "href",
       `/p/${nip19.npubEncode(OWNER)}`,
     );
+  });
+
+  it("on an owner's new account, says the handle still points to their old, compromised one — not that it is someone else's", async () => {
+    // The handle's server hasn't been moved to the new key yet: the same person, two keys.
+    serverNames({ artist: OWNER });
+    compromised.replaces.set(COPY, OWNER);
+    render(<HandleOwnerWarning nip05="artist@music.example" pubkey={COPY} />);
+    const note = await screen.findByTestId("handle-owner-moved");
+    expect(note).toHaveTextContent("artist@music.example still points to their old, compromised account");
+    expect(note.querySelector("s")).toBeNull();
+    expect(screen.getByRole("link", { name: "See the old account" })).toHaveAttribute(
+      "href",
+      `/p/${nip19.npubEncode(OWNER)}`,
+    );
+    expect(screen.queryByTestId("handle-owner-warning")).toBeNull();
   });
 
   it("says nothing on the owner's own profile", async () => {

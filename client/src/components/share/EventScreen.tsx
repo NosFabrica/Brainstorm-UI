@@ -1,4 +1,7 @@
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
+import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -263,6 +266,7 @@ function EventView({
   // The author's held profile at once; the event's own relay hints are asked
   // beside their outbox, and a newer profile replaces it as it lands.
   const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
+  const compromisedRing = useCompromisedRing(authorPk || undefined);
   const trustQuery = useQuery({
     queryKey: ["event-author-trust", authorPk],
     queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
@@ -554,7 +558,7 @@ function EventView({
                 >
                   <span className="relative shrink-0">
                     <Avatar
-                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(score01) ?? ""}`}
+                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${compromisedRing ?? tierRing(score01) ?? ""}`}
                     >
                       {profile.picture ? (
                         <AvatarImage src={profile.picture} alt={authorName} className="object-cover" />
@@ -595,6 +599,9 @@ function EventView({
               </div>
             )}
 
+            {/* A compromised author: said under the byline, before the reader reads on. */}
+            <CompromisedAuthorNotice pubkey={authorPk} postedAt={note.created_at} eventId={note.id} className="mb-4" />
+
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (
               <TechnicalStrip event={note} ids={nevent ? [{ label: "nevent", value: nevent }] : []} className="mb-3" />
@@ -602,9 +609,10 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
+              <CompromisedWatermark pubkey={authorPk} postedAt={note.created_at} eventId={note.id} />
               {dlistOfEvent(note) ? (
                 <DListHero event={note} />
               ) : note.kind === 39998 || note.kind === 9998 ? (

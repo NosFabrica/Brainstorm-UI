@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -13,6 +14,7 @@ import {
   Headphones,
   Radio,
   AlertTriangle,
+  ShieldAlert,
   CalendarDays,
   Copy,
   Check,
@@ -106,7 +108,8 @@ import {
 import { extractImageUrls } from "@/lib/noteContent";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { CompromisedBanner } from "@/components/compromised/CompromisedBanner";
-import { useCompromised } from "@/hooks/useCompromised";
+import { useCompromised, useCompromisedRing, useReplaces } from "@/hooks/useCompromised";
+import { ReplacesBanner } from "@/components/compromised/ReplacesBanner";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
@@ -529,6 +532,8 @@ export default function SharePage() {
   // count below, because a verdict and its evidence must come from one ledger.
   const houseVerifiedReporters = num(houseStats?.reported_by?.verified);
   const compromised = useCompromised(pubkey);
+  const compromisedRing = useCompromisedRing(pubkey);
+  const replaces = useReplaces(pubkey);
   const isFlagged = isFlaggedByReporters(houseVerifiedReporters ?? 0, num(houseStats?.followed_by?.verified) ?? 0);
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
@@ -925,11 +930,15 @@ export default function SharePage() {
       <ShareNavProvider>
         {/* Compromised: the page leads with it, above the identity it is about. */}
         {compromised && <CompromisedBanner status={compromised} className="mb-4" />}
+        {/* …or the other end of the same story: the owner's new account. */}
+        {!compromised && replaces && <ReplacesBanner replaces={replaces} className="mb-4" />}
         {/* Identity hero */}
         <div
-          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className={`${WATERMARK_HOST} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`}
           data-testid="share-hero"
         >
+          {/* Compromised: the stamp plays across the identity card as the page opens, then rests as a trace. */}
+          <CompromisedWatermark pubkey={pubkey} when="view" />
           <div className="relative h-24 w-full sm:h-28">
             {profile.banner ? (
               <img src={profile.banner} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -964,7 +973,7 @@ export default function SharePage() {
                 )}
                 <Avatar
                   key={pubkey}
-                  className={`h-20 w-20 rounded-full border-4 border-white bg-white dark:bg-slate-900 sm:h-24 sm:w-24 ${tierRing(coinScore01) ?? "shadow-lg"}`}
+                  className={`h-20 w-20 rounded-full border-4 border-white bg-white dark:bg-slate-900 sm:h-24 sm:w-24 ${compromisedRing ?? tierRing(coinScore01) ?? "shadow-lg"}`}
                 >
                   {profile.picture ? (
                     <AvatarImage size="lg" src={profile.picture} alt={displayName} className="object-cover" />
@@ -995,8 +1004,22 @@ export default function SharePage() {
                   pov={scorePov}
                   size={32}
                   onClick={() => setScoreModalOpen(true)}
-                  className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+                  className={
+                    compromised || (tierRing(coinScore01) && coinReplaced) ? "sr-only" : "absolute -bottom-1 -right-1"
+                  }
                 />
+                {/* Compromised: the badge takes the score's corner. A score says how far to
+                  trust the person; this says the person isn't the one posting. */}
+                {compromised && (
+                  <span
+                    className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white shadow-md ring-2 ring-white dark:bg-red-500 dark:ring-slate-900"
+                    title="Compromised: someone other than the owner controls this account"
+                    data-testid="share-compromised-badge"
+                  >
+                    <ShieldAlert className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                    <span className="sr-only">Compromised account</span>
+                  </span>
+                )}
               </div>
               {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
                 the icons here, Follow/⋯ in a row below the identity. */}

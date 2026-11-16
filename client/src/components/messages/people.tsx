@@ -1,4 +1,5 @@
 import type { ProfileContent } from "applesauce-core/helpers/profile";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
@@ -90,9 +91,16 @@ export function PersonAvatar({
   className?: string;
 }) {
   const picture = profiles.get(pubkey)?.picture;
+  // A compromised account's face is ringed red in every list, header and bubble.
+  const compromisedRing = useCompromisedRing(pubkey, size < 36 ? "sm" : "md");
   return (
     <span className={cn("relative inline-flex shrink-0", className)} style={{ width: size, height: size }}>
-      <Avatar className="h-full w-full rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <Avatar
+        className={cn(
+          "h-full w-full rounded-full bg-white dark:bg-slate-900",
+          compromisedRing ?? "ring-1 ring-slate-200 dark:ring-slate-800",
+        )}
+      >
         {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full">
           <DefaultAvatarImg />

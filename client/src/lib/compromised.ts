@@ -23,6 +23,8 @@ export interface CompromisedStatus {
   proofEvent: ProofEvent | null;
   /** The owner's new account, once known. */
   successorPubkey: string | null;
+  /** The new account's own post about the move: shown with it, so the reader hears it from the owner. */
+  successorEventId: string | null;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -59,5 +61,24 @@ export function statusFromServer(row: unknown): CompromisedStatus | null {
     proofEventId: hexOrNull(r.proof_event_id) ?? proofEvent?.id ?? null,
     proofEvent,
     successorPubkey: hexOrNull(r.successor_pubkey),
+    // Not in the server's record today; ours carries it (config/compromised).
+    successorEventId: null,
   };
+}
+
+/**
+ * Where a piece of content stands against its author's compromise:
+ * - `proof`: the owner's own post saying it happened — posted with the key already taken;
+ * - `before`: posted before the key changed hands, so still the owner's;
+ * - `after`: posted since, or at a time we can't place — it may be anyone's.
+ */
+export type ContentStanding = "proof" | "before" | "after";
+
+export function contentStanding(
+  status: CompromisedStatus,
+  content: { postedAt?: number; eventId?: string },
+): ContentStanding {
+  if (content.eventId && content.eventId === status.proofEventId) return "proof";
+  if (status.since !== null && content.postedAt !== undefined && content.postedAt < status.since) return "before";
+  return "after";
 }

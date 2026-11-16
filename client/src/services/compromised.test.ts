@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KNOWN_COMPROMISED } from "@/config/compromised";
-import { __resetCompromised, lookupCompromised, settledCompromised } from "./compromised";
+import { __resetCompromised, lookupCompromised, replacedCompromised, settledCompromised } from "./compromised";
 
 // The real lookup: test/setup.ts answers "nobody" for every other suite.
 vi.unmock("@/services/compromised");
@@ -58,6 +58,7 @@ describe("compromised accounts", () => {
       proofEventId: PROOF,
       proofEvent: { id: PROOF, pubkey: A, kind: 1, created_at: 1794847395, content: "my key leaked", tags: [] },
       successorPubkey: NEW_KEY,
+      successorEventId: null,
     });
     expect(await b).toBeNull();
     expect(settledCompromised(A)?.pubkey).toBe(A);
@@ -101,5 +102,18 @@ describe("compromised accounts", () => {
     expect((await found)?.successorPubkey).toBe(NEW_KEY);
     // The proof we hold survives a record that has lost its own.
     expect((await found)?.proofEventId).toBe(known.proofEventId);
+  });
+  it("knows which compromised account an owner's new account replaces", async () => {
+    // Ours: the known account names its successor.
+    const known = KNOWN_COMPROMISED[0];
+    expect(known.successorPubkey).toMatch(/^[0-9a-f]{64}$/);
+    expect(replacedCompromised(known.successorPubkey!)?.pubkey).toBe(known.pubkey);
+    expect(replacedCompromised(B)).toBeNull();
+
+    // The server's: once an account's record has landed, so has its successor's.
+    fetchMock.mockResolvedValue(answer([{ pubkey: A, compromised: true, successor_pubkey: NEW_KEY }]));
+    void lookupCompromised(A);
+    await vi.runAllTimersAsync();
+    expect(replacedCompromised(NEW_KEY)?.pubkey).toBe(A);
   });
 });
