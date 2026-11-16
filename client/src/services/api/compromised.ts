@@ -1,24 +1,11 @@
 /**
- * Compromised keys (brainstorm_server `compromised_pubkey`): an account whose
- * nsec leaked. Every Observer asserts it at rank 0, and nothing it follows,
- * mutes, reports or designates counts. Anyone may ask whether a key is marked
- * (`/compromised`); admins mark and unmark them (`/admin/compromised`).
+ * Admin calls for compromised keys (brainstorm_server `/admin/compromised`):
+ * an account whose nsec leaked. Every Observer asserts it at rank 0, and
+ * nothing it follows, mutes, reports or designates counts. The public check
+ * every surface reads is services/compromised.
  */
 
-import { authenticatedFetch, extractApiError, fetch, getBrainstormApi, jsonBody } from "./core";
-
-/** The public answer for one account. */
-export interface CompromisedStatus {
-  pubkey: string;
-  compromised: boolean;
-  /** When it was marked (ISO, server time); null when it isn't. */
-  since: string | null;
-  proof_event_id: string | null;
-  /** The event proving the compromise, kept whole: the key's new holder can delete it from relays. */
-  proof_event: NostrEventJson | null;
-  /** The owner's new key, once known (hex). */
-  successor_pubkey: string | null;
-}
+import { authenticatedFetch, extractApiError, getBrainstormApi, jsonBody } from "./core";
 
 export interface NostrEventJson {
   id: string;
@@ -107,20 +94,6 @@ async function adminRequest<T>(path: string, fallback: string, init: RequestInit
 }
 
 export const compromisedApi = {
-  /** Whether one account is marked. Public: no session needed. Null when the server can't say. */
-  async getCompromisedStatus(pubkey: string, timeoutMs: number = 8000): Promise<CompromisedStatus | null> {
-    try {
-      const response = await fetch(`${getBrainstormApi()}/compromised/${pubkey}`, {
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok) return null;
-      const json = await response.json();
-      return (json?.data ?? null) as CompromisedStatus | null;
-    } catch {
-      return null;
-    }
-  },
-
   async listCompromised(): Promise<CompromisedPubkey[]> {
     return adminRequest("/admin/compromised", "Failed to load compromised accounts");
   },

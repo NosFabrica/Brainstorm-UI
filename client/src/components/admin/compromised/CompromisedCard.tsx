@@ -450,15 +450,9 @@ export function CompromisedCard({ active }: { active: boolean }) {
   const rows = useMemo(() => query.data ?? [], [query.data]);
   const markedSet = useMemo(() => new Set(rows.map((r) => r.pubkey)), [rows]);
   const profiles = useProfileBits(rows.flatMap((r) => [r.pubkey, r.successor_pubkey]));
-  const refresh = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: COMPROMISED_KEY }),
-      // The profile warning's cached answers (CompromisedBanner, and the profile
-      // overview whose `compromised` gates it), so a profile opened next shows
-      // the change rather than what it read before.
-      queryClient.invalidateQueries({ queryKey: ["compromised"] }),
-      queryClient.invalidateQueries({ queryKey: ["share-overview"] }),
-    ]);
+  // Profiles read services/compromised, which asks each key once a session: a
+  // change made here shows there after a reload.
+  const refresh = () => queryClient.invalidateQueries({ queryKey: COMPROMISED_KEY });
 
   async function rezero(row: CompromisedPubkey) {
     setRezeroing(row.pubkey);

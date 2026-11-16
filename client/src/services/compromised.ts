@@ -1,5 +1,5 @@
 import { KNOWN_COMPROMISED } from "@/config/compromised";
-import { statusFromServer, type CompromisedStatus } from "@/lib/compromised";
+import { earliest, statusFromServer, type CompromisedStatus } from "@/lib/compromised";
 import { getBrainstormApi } from "@/services/api/core";
 
 /**
@@ -53,7 +53,9 @@ function merge(pubkey: string, found: CompromisedStatus | null): CompromisedStat
   if (!found || !ours) return found ?? ours;
   return {
     ...found,
-    since: found.since ?? ours.since,
+    // The earlier start: ours is an estimate of when the key changed hands, the
+    // server's is when it was marked (later), and content in between is not the owner's.
+    since: earliest(found.since, ours.since),
     proofEventId: found.proofEventId ?? ours.proofEventId,
     proofEvent: found.proofEvent ?? ours.proofEvent,
     successorPubkey: found.successorPubkey ?? ours.successorPubkey,

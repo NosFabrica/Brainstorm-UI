@@ -54,7 +54,9 @@ describe("compromised accounts", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ pubkeys: [A, B] });
     expect(await a).toEqual({
       pubkey: A,
-      since: 1794855600,
+      // Marked at 19:00, but the owner's proof was posted at 16:43 with the key already
+      // taken: content from then on may be anyone's, so the earlier moment starts it.
+      since: 1794847395,
       proofEventId: PROOF,
       proofEvent: { id: PROOF, pubkey: A, kind: 1, created_at: 1794847395, content: "my key leaked", tags: [] },
       successorPubkey: NEW_KEY,
@@ -103,6 +105,23 @@ describe("compromised accounts", () => {
     // The proof we hold survives a record that has lost its own.
     expect((await found)?.proofEventId).toBe(known.proofEventId);
   });
+  it("reads the server's offset-less timestamps as UTC", async () => {
+    fetchMock.mockResolvedValue(answer([{ pubkey: A, compromised: true, since: "2026-11-16T19:00:00.123456" }]));
+    const found = lookupCompromised(A);
+    await vi.runAllTimersAsync();
+    expect((await found)?.since).toBe(1794855600);
+  });
+
+  it("never lets the server's marking time start a known account's window later", async () => {
+    // The server says when it was marked (evening); our estimate of when the key
+    // changed hands is earlier, and posts in between are not the owner's.
+    const known = KNOWN_COMPROMISED[0];
+    fetchMock.mockResolvedValue(answer([{ pubkey: known.pubkey, compromised: true, since: "2026-11-16T20:30:00" }]));
+    const found = lookupCompromised(known.pubkey);
+    await vi.runAllTimersAsync();
+    expect((await found)?.since).toBe(known.since);
+  });
+
   it("knows which compromised account an owner's new account replaces", async () => {
     // Ours: the known account names its successor.
     const known = KNOWN_COMPROMISED[0];
