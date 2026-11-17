@@ -64,6 +64,7 @@ import {
   Receipt,
   ListChecks,
   TrendingUp,
+  KeyRound,
 } from "lucide-react";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
 import {
@@ -76,6 +77,7 @@ import {
   type AdminRange,
 } from "./adminRange";
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
+import { CompromisedCard } from "@/components/admin/compromised/CompromisedCard";
 import { GrowthCard } from "@/components/admin/growth/GrowthCard";
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
@@ -3481,6 +3483,7 @@ export default function AdminPage() {
     { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
     { key: "users", label: "Users", icon: Users },
     { key: "trusted-lists", label: "Trusted Lists", icon: ListChecks },
+    { key: "compromised", label: "Compromised", icon: KeyRound },
     { key: "growth", label: "Growth", icon: TrendingUp },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
@@ -5887,6 +5890,14 @@ export default function AdminPage() {
                 key={trustedListsObserver ?? "picker"}
                 initialObserver={trustedListsObserver ?? undefined}
               />
+            </div>
+          )}
+
+          {activeTab === "compromised" && (
+            <div className="grid grid-cols-1 gap-6" data-testid="panel-compromised">
+              <div className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none">
+                <CompromisedCard active={activeTab === "compromised"} />
+              </div>
             </div>
           )}
 

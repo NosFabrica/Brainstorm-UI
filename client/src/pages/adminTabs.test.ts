@@ -8,6 +8,10 @@ describe("parseAdminTab", () => {
     expect(parseAdminTab("trusted-lists", { assistants: false })).toBe("trusted-lists");
   });
 
+  it("opens the Compromised tab", () => {
+    expect(parseAdminTab("compromised", { assistants: false })).toBe("compromised");
+  });
+
   it("keeps the tabs it always opened", () => {
     for (const t of ["users", "activity", "health", "scheduling", "billing", "support", "growth"] as const) {
       expect(parseAdminTab(t, { assistants: false })).toBe(t);

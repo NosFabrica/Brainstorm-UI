@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import { __resetAsks } from "@/lib/askOnce";
 import { __resetListEdits } from "@/lib/listEdits";
 import { cleanup } from "@testing-library/react";
@@ -52,6 +52,19 @@ afterEach(() => {
   if (process.env.TEST_FETCH_GUARD === "warn") console.warn(`[fetch-guard] ${message}`);
   else throw new Error(message);
 });
+
+// Nobody is Compromised unless a test says so. Every row that names a person asks
+// (services/compromised), which would send each of those suites to the network; the
+// suites that are about it `vi.unmock("@/services/compromised")` and mock fetch.
+vi.mock("@/services/compromised", () => ({
+  lookupCompromised: () => Promise.resolve(null),
+  settledCompromised: () => null,
+  replacedCompromised: () => null,
+  subscribeCompromised: () => () => {},
+  compromisedVersion: () => 0,
+  hasSettledCompromised: () => true,
+  __resetCompromised: () => {},
+}));
 
 // No Web Locks unless a test brings its own. Node has them, and they are process-wide:
 // a signer request a test leaves hanging under fake timers (never reaching its

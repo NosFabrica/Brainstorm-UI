@@ -1,4 +1,5 @@
 import { dashboardShortcutFor } from "@/lib/dashboardShortcuts";
+import { CompromisedFollowsAlert } from "@/components/compromised/CompromisedFollowsAlert";
 import { scoreAge } from "@/lib/scoreAge";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
@@ -1031,6 +1032,8 @@ export default function DashboardPage() {
               page said "wait" four or five times over and looked broken. The single
               CalculatingNotice above is the one statement; these appear when they
               have something to show. */}
+          {/* A compromised follow doesn't wait on a calculation: it is a fact about the key, not a score. */}
+          <CompromisedFollowsAlert observer={user?.pubkey ?? ""} />
           {isCalculationComplete && <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />}
 
           {/* Someone put a public label on you. Nothing else in the app would
