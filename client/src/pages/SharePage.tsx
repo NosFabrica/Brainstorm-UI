@@ -357,20 +357,23 @@ export default function SharePage() {
   //
   // House (network) score: the shared, batched memo the rings on every other
   // surface read — so a person reached from a feed or search already has it.
-  // undefined = still asking, null = unrated.
-  const houseScoreOf = useAuthorScores(pubkey ? [pubkey] : []);
-  // The viewer's own score, only when signed in (signed out, it would be the
-  // house score again).
+  // undefined = still asking, null = unrated. `now`: this ring is the page's
+  // subject, so it doesn't wait in the batch window behind the rows below.
+  const houseScoreOf = useAuthorScores(pubkey ? [pubkey] : [], { now: true });
+  // The viewer's own score — only from a usable personal POV (the `myPov`
+  // rule: without own scores it would be an empty perspective), and only once
+  // something shows it: the personalized coin or the score modal.
+  const hasPersonalPov = loggedIn && calcDone;
   const myTrustQuery = useQuery({
     queryKey: ["share-my-trust-signals", pubkey, currentUser?.pubkey],
     queryFn: async () => (await apiClient.getMyTrustSignals([pubkey])).get(pubkey.toLowerCase()) ?? null,
-    enabled: !!pubkey && loggedIn,
+    enabled: !!pubkey && hasPersonalPov && (scorePov === "personalized" || scoreModalOpen),
     staleTime: 5 * 60_000,
     retry: false,
   });
 
   // Per-section stats: total/verified counts per relationship — one query per
-  // point of view, the same shape the coin uses (overviewQuery/houseRankQuery).
+  // point of view, the same split the coin uses (myTrustQuery / house Trust signals).
   //
   // House is fetched ALWAYS: it serves logged-out viewers and it is the ledger
   // the flag verdict reads (a verdict must be the same for every viewer). The
@@ -511,14 +514,12 @@ export default function SharePage() {
   // House influence (0–1), house POV; undefined while the lookup is out.
   const houseScoreRaw = pubkey ? houseScoreOf(pubkey) : null;
   const houseScoreLoading = houseScoreRaw === undefined;
-  const houseScore01 =
-    typeof houseScoreRaw === "number" && Number.isFinite(houseScoreRaw)
-      ? Math.min(1, Math.max(0, houseScoreRaw))
-      : null;
+  const clamp01 = (v: number | null | undefined) => (v == null ? null : Math.min(1, Math.max(0, v)));
+  const houseScore01 = clamp01(houseScoreRaw);
   // The primary ring's score is viewer-relative: the viewer's own web-of-trust
-  // POV when signed in, the house's when signed out.
-  const myInfluence = myTrustQuery.data?.influence;
-  const score01 = loggedIn ? (typeof myInfluence === "number" ? myInfluence : null) : houseScore01;
+  // POV when they have one, the house's otherwise (signed out, or no own scores
+  // yet — the same fallback the counts take).
+  const score01 = hasPersonalPov ? clamp01(myTrustQuery.data?.influence) : houseScore01;
   // Counts from the per-section stats endpoint. Followers/muters/reporters use
   // the VERIFIED (web-of-trust) count; "following" uses the raw total (per CEO:
   // total following is more meaningful than verified following).
@@ -850,7 +851,7 @@ export default function SharePage() {
   // Loading ≠ unrated. Until the score that feeds the coin has settled, the coin
   // shows its mode-aware placeholder (or nothing, in modes that never draw a
   // coin) instead of the dashed "—", which is a verdict.
-  const coinLoading = scorePov === "personalized" && loggedIn ? myTrustQuery.isLoading : houseScoreLoading;
+  const coinLoading = scorePov === "personalized" && hasPersonalPov ? myTrustQuery.isLoading : houseScoreLoading;
   // The facts a profile states — website, lightning address, linked accounts —
   // read as text rows under the bio (ProfileDetails). They used to be icon-only
   // glyphs up here; a power user could not find the bolt, and tapping it

@@ -55,11 +55,35 @@ describe("apiClient.getTrustSignals", () => {
     expect(signals.get(B)).toEqual({ influence: null, flagged: true });
   });
 
-  it("answers an empty map when the server errors or the network fails", async () => {
+  it("answers null when the server errors or the network fails — not an empty map, which means unrated", async () => {
     mockFetch({ ok: false, status: 503, json: async () => ({}) });
-    expect((await apiClient.getTrustSignals([A])).size).toBe(0);
+    expect(await apiClient.getTrustSignals([A])).toBeNull();
 
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
-    expect((await apiClient.getTrustSignals([A])).size).toBe(0);
+    expect(await apiClient.getTrustSignals([A])).toBeNull();
+  });
+});
+
+describe("apiClient.getHouseInfluence", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reads the influence from Trust signals, not the slow overview", async () => {
+    const fetchMock = mockFetch({
+      json: async () => ({ code: 200, data: { results: [{ pubkey: A, influence: 0.7, flagged: false }] } }),
+    });
+
+    expect(await apiClient.getHouseInfluence(A)).toBe(0.7);
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new URL(url).pathname).toBe("/user/trustSignals");
+  });
+
+  it("answers null for an unrated author and for a failed request", async () => {
+    mockFetch({ json: async () => ({ code: 200, data: { results: [] } }) });
+    expect(await apiClient.getHouseInfluence(A)).toBeNull();
+
+    mockFetch({ ok: false, status: 503, json: async () => ({}) });
+    expect(await apiClient.getHouseInfluence(A)).toBeNull();
   });
 });

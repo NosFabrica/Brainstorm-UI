@@ -7,12 +7,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrustSignals } from "@/services/api";
 
-const getTrustSignals = vi.fn<(pubkeys: string[]) => Promise<Map<string, TrustSignals>>>(() =>
+const getTrustSignals = vi.fn<(pubkeys: string[]) => Promise<Map<string, TrustSignals> | null>>(() =>
   Promise.resolve(new Map()),
 );
 vi.mock("@/services/api", () => ({ apiClient: { getTrustSignals: (pks: string[]) => getTrustSignals(pks) } }));
 
-import { lookupTrustSignals, __resetTrustSignals } from "./trustSignals";
+import { hasSettledTrustSignals, lookupTrustSignals, settledTrustSignals, __resetTrustSignals } from "./trustSignals";
 import { __resetConnectionSpeed } from "@/lib/connection";
 
 const pk = (n: number) => String(n).padStart(64, "0");
@@ -62,5 +62,37 @@ describe("gathering lookups", () => {
     // Without a ceiling the window would keep being pushed back.
     expect(getTrustSignals).toHaveBeenCalled();
     expect(getTrustSignals.mock.calls[0][0].length).toBeGreaterThan(2);
+  });
+});
+
+describe("the page's own subject", () => {
+  it("goes at once with `now`, taking whatever had gathered along", async () => {
+    setConnection({ effectiveType: "3g" });
+    void lookupTrustSignals(pk(1));
+    void lookupTrustSignals(pk(2), { now: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getTrustSignals).toHaveBeenCalledTimes(1);
+    expect(getTrustSignals.mock.calls[0][0]).toHaveLength(2);
+  });
+});
+
+describe("a failed request", () => {
+  it("answers unrated but remembers nothing, so the next lookup asks again", async () => {
+    getTrustSignals.mockResolvedValueOnce(null);
+    expect(await lookupTrustSignals(pk(1), { now: true })).toEqual({ influence: null, flagged: false });
+    expect(hasSettledTrustSignals(pk(1))).toBe(false);
+
+    getTrustSignals.mockResolvedValueOnce(new Map([[pk(1), { influence: 0.5, flagged: false }]]));
+    expect((await lookupTrustSignals(pk(1), { now: true })).influence).toBe(0.5);
+    expect(getTrustSignals).toHaveBeenCalledTimes(2);
+    expect(settledTrustSignals(pk(1))?.influence).toBe(0.5);
+  });
+
+  it("is not the same as an answer without them, which is remembered as unrated", async () => {
+    getTrustSignals.mockResolvedValueOnce(new Map());
+    await lookupTrustSignals(pk(1), { now: true });
+    expect(settledTrustSignals(pk(1))).toEqual({ influence: null, flagged: false });
+    await lookupTrustSignals(pk(1), { now: true });
+    expect(getTrustSignals).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,11 +11,14 @@ export interface TrustSignals {
   flagged: boolean;
 }
 
+const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
+
+/** null when the request failed — not the same answer as "nobody here is rated". */
 async function postTrustSignals(
   send: (url: string, options: RequestInit) => Promise<Response>,
   pubkeys: string[],
   timeoutMs: number,
-): Promise<Map<string, TrustSignals>> {
+): Promise<Map<string, TrustSignals> | null> {
   const out = new Map<string, TrustSignals>();
   try {
     const response = await send(`${getBrainstormApi()}/user/trustSignals`, {
@@ -24,7 +27,7 @@ async function postTrustSignals(
       body: JSON.stringify({ pubkeys }),
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!response.ok) return out;
+    if (!response.ok) return null;
     const json = (await response.json()) as {
       data?: { results?: { pubkey?: unknown; influence?: unknown; flagged?: unknown }[] };
     };
@@ -36,7 +39,7 @@ async function postTrustSignals(
       });
     }
   } catch {
-    // unrated, like a failed overview
+    return null;
   }
   return out;
 }
@@ -80,15 +83,20 @@ export const grapeRankApi = {
   },
 
   /**
-   * `influence` (0..1) — from our own backend. Issues an *unauthenticated*
-   * `/user/{pubkey}/overview` request so the result is always the house POV
-   * (the default observer), regardless of whether a viewer is logged in. Used
-   * by the Profile page's dual meter and the share page's network-trust score.
-   * Returns null if the backend has no overview for the pubkey (not yet indexed
-   * by Brainstorm) or the request fails.
+   * `influence` (0..1) — from our own backend, always the house POV (an
+   * *unauthenticated* request), regardless of whether a viewer is logged in.
+   * Asks Trust signals, not `/overview`: on production `/overview` also counts
+   * followers and took 22–37s for large accounts (2026-11-17), where Trust
+   * signals answers in ~0.2s. A non-hex key (Trust signals rejects it) still
+   * goes through `/overview`. Returns null if the backend has no score for the
+   * pubkey (not yet indexed by Brainstorm) or the request fails.
    */
   async getHouseInfluence(pubkey: string, timeoutMs: number = 8000): Promise<number | null> {
     if (!pubkey) return null;
+    if (HEX_PUBKEY.test(pubkey)) {
+      const found = await postTrustSignals(fetch, [pubkey.toLowerCase()], timeoutMs);
+      return found?.get(pubkey.toLowerCase())?.influence ?? null;
+    }
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
       const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
@@ -105,15 +113,16 @@ export const grapeRankApi = {
 
   /**
    * Trust signals for many authors in one unauthenticated call (house
-   * Perspective). Never throws: a failed batch answers an empty map.
+   * Perspective). Never throws: a failed batch answers null, so a caller that
+   * remembers answers can tell "unrated" from "couldn't ask".
    */
-  async getTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals>> {
+  async getTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals> | null> {
     return postTrustSignals(fetch, pubkeys, timeoutMs);
   },
 
   /** The same batch from the signed-in viewer's Perspective (house when signed out). */
   async getMyTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals>> {
-    return postTrustSignals(optionalAuthFetch, pubkeys, timeoutMs);
+    return (await postTrustSignals(optionalAuthFetch, pubkeys, timeoutMs)) ?? new Map();
   },
 
   async getGrapeRankPreset(): Promise<{
