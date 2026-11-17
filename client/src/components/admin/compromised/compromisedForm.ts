@@ -87,6 +87,29 @@ export const EMPTY_FORM: MarkForm = {
   reason: "",
 };
 
+export type ProofForm = Pick<MarkForm, "proofMode" | "proofId" | "proofJson">;
+
+/** The proof half of a `PUT`: a pointer kept as typed, or the pasted event whole; or what's wrong with it. */
+export function buildProof(
+  form: ProofForm,
+): { body: Pick<MarkCompromisedBody, "proof_event_id" | "proof_event">; error?: undefined } | { error: string } {
+  if (form.proofMode === "id") {
+    if (!isEventPointer(form.proofId)) return { error: "The proof must be an nevent, a note, or a hex event id." };
+    return { body: { proof_event_id: form.proofId.trim() } };
+  }
+  let event: unknown;
+  try {
+    event = JSON.parse(form.proofJson);
+  } catch {
+    return { error: "The proof event isn't valid JSON." };
+  }
+  const e = event as Partial<NostrEventJson>;
+  if (!e || typeof e.id !== "string" || typeof e.sig !== "string" || typeof e.pubkey !== "string") {
+    return { error: "The proof event needs its id, pubkey and sig: paste the whole signed event." };
+  }
+  return { body: { proof_event: e as NostrEventJson } };
+}
+
 /**
  * The `PUT` for a new account, or the first thing wrong with the form. The
  * server checks the proof's id and signature; this only catches what can be
@@ -98,23 +121,9 @@ export function buildMarkRequest(
   const pubkey = parseAccount(form.account);
   if (!pubkey) return { error: "The account must be an npub or a 64-character hex pubkey." };
 
-  const body: MarkCompromisedBody = {};
-  if (form.proofMode === "id") {
-    if (!isEventPointer(form.proofId)) return { error: "The proof must be an nevent, a note, or a hex event id." };
-    body.proof_event_id = form.proofId.trim();
-  } else {
-    let event: unknown;
-    try {
-      event = JSON.parse(form.proofJson);
-    } catch {
-      return { error: "The proof event isn't valid JSON." };
-    }
-    const e = event as Partial<NostrEventJson>;
-    if (!e || typeof e.id !== "string" || typeof e.sig !== "string" || typeof e.pubkey !== "string") {
-      return { error: "The proof event needs its id, pubkey and sig: paste the whole signed event." };
-    }
-    body.proof_event = e as NostrEventJson;
-  }
+  const proof = buildProof(form);
+  if (proof.error !== undefined) return { error: proof.error };
+  const body: MarkCompromisedBody = { ...proof.body };
 
   if (form.successor.trim()) {
     const successor = parseAccount(form.successor);
@@ -150,10 +159,20 @@ export function zeroState(row: CompromisedPubkey): ZeroState {
   return report.complete && report.relay_read ? "complete" : "incomplete";
 }
 
+/** The server's timestamps are naive UTC: read them as such, not as local time. */
+function utcMs(iso: string): number {
+  return Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`);
+}
+
 /** One line on what the last zeroing did, or why it didn't. */
-export function zeroSummary(row: CompromisedPubkey): string {
+export function zeroSummary(row: CompromisedPubkey, now: number = Date.now()): string {
   const report = row.last_zero_report;
-  if (!report || zeroState(row) === "pending") return "Still zeroing; this refreshes until it lands.";
+  if (!report || zeroState(row) === "pending") {
+    const started = utcMs(row.zero_requested_at ?? row.updated_at);
+    const secs = Number.isFinite(started) ? Math.max(0, Math.round((now - started) / 1000)) : null;
+    const running = secs === null ? "" : secs < 90 ? ` for ${secs} s` : ` for ${Math.round(secs / 60)} min`;
+    return `Still zeroing${running}; this refreshes until it lands.`;
+  }
   if ("error" in report) return `Failed: ${report.error}`;
   const parts = [
     `${report.acked}/${report.observers} Observers' assertions re-signed at rank 0`,

@@ -133,6 +133,14 @@ describe("zeroState", () => {
     expect(zeroState(row({ ...at, last_zero_report: { error: "RuntimeError('x')" } }))).toBe("failed");
   });
 
+  it("says how long a pending zeroing has been running", () => {
+    const pending = row({ zero_requested_at: "2026-11-16T23:21:53" });
+    expect(zeroSummary(pending, Date.parse("2026-11-16T23:22:23Z"))).toBe(
+      "Still zeroing for 30 s; this refreshes until it lands.",
+    );
+    expect(zeroSummary(pending, Date.parse("2026-11-16T23:26:53Z"))).toMatch(/for 5 min/);
+  });
+
   it("summarises what the zeroing did", () => {
     const summary = zeroSummary(row({ last_zeroed_at: "2026-11-16T17:01:00", last_zero_report: DONE }));
     expect(summary).toContain("3/3 Observers");
