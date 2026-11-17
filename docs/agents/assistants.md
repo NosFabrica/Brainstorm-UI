@@ -72,7 +72,9 @@ Assistant holds — every list kind, by any key — read as `elsewhere` in
 - **"Ours" is a key comparison.** An Assistant verifies on the host its
   server's `FRONTEND_URL` names, and a Deployment can answer on more than one:
   most of production's verify on `brainstorm.world`, a few on
-  `brainstorm.nosfabrica.com`. Comparing a host to the app's origin misreads it.
+  `brainstorm.nosfabrica.com`; staging's on `brainstorm-staging.nosfabrica.com`
+  or `brainstorm-staging.relay.tools`. Comparing a host to the app's origin
+  misreads it.
 - Name the holder — "This replaces Pip's Brainstorm Assistant
   (brainstorm.world)" — wherever a write moves a Duty.
 

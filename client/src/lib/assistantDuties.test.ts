@@ -208,18 +208,21 @@ describe("othersOf", () => {
 /**
  * A Brainstorm Assistant's NIP-05 host comes from its server's `FRONTEND_URL`,
  * so the Deployments verify on more than one: production's on brainstorm.world
- * (a few older ones on brainstorm.nosfabrica.com), staging's on its own.
+ * (a few older ones on brainstorm.nosfabrica.com), staging's on
+ * brainstorm-staging.nosfabrica.com or brainstorm-staging.relay.tools.
  */
 describe("assistantSiteLink", () => {
-  it.each(["brainstorm.world", "brainstorm.nosfabrica.com", "brainstorm-staging.nosfabrica.com"])(
-    "sends %s to its Assistants page, since it serves this app",
-    (host) => {
-      const link = assistantSiteLink(host);
-      expect(link.href.endsWith("/settings?tab=assistants&view=yours")).toBe(true);
-      expect(link.href.startsWith(`https://${host}/`)).toBe(true);
-      expect(link.label).toBe(`Open on ${host}`);
-    },
-  );
+  it.each([
+    "brainstorm.world",
+    "brainstorm.nosfabrica.com",
+    "brainstorm-staging.nosfabrica.com",
+    "brainstorm-staging.relay.tools",
+  ])("sends %s to its Assistants page, since it serves this app", (host) => {
+    const link = assistantSiteLink(host);
+    expect(link.href.endsWith("/settings?tab=assistants&view=yours")).toBe(true);
+    expect(link.href.startsWith(`https://${host}/`)).toBe(true);
+    expect(link.label).toBe(`Open on ${host}`);
+  });
 
   it("reads the host whatever its case", () => {
     expect(assistantSiteLink("Brainstorm.World").href).toBe(

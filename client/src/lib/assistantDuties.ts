@@ -87,12 +87,14 @@ export function dutiesSummary(
  * The hosts a Brainstorm Assistant's NIP-05 verifies on: the Deployments, which
  * serve this app. The server takes the host from its `FRONTEND_URL`, so
  * production's verify on brainstorm.world, and a few older ones on
- * brainstorm.nosfabrica.com.
+ * brainstorm.nosfabrica.com. Staging answers on two hosts, and its Assistants
+ * verify on either. The same hosts SECURITY.md lists for this app.
  */
 const BRAINSTORM_HOSTS = new Set([
   "brainstorm.world",
   "brainstorm.nosfabrica.com",
   "brainstorm-staging.nosfabrica.com",
+  "brainstorm-staging.relay.tools",
 ]);
 
 /**
