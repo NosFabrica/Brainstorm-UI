@@ -4,6 +4,7 @@ import {
   EMPTY_FORM,
   buildMarkRequest,
   inputFromSince,
+  isEventPointer,
   parseAccount,
   sinceFromInput,
   zeroState,
@@ -23,6 +24,15 @@ describe("parseAccount", () => {
     expect(parseAccount(nip19.nprofileEncode({ pubkey: PK }))).toBe(PK);
     expect(parseAccount("npub1nope")).toBeNull();
     expect(parseAccount(NEVENT)).toBeNull();
+  });
+});
+
+describe("nostr: links", () => {
+  it("takes accounts and event pointers as clients copy them", () => {
+    expect(parseAccount(`nostr:${NPUB}`)).toBe(PK);
+    expect(isEventPointer(`nostr:${NEVENT}`)).toBe(true);
+    expect(isEventPointer(`NOSTR:${nip19.noteEncode("0".repeat(64))}`)).toBe(true);
+    expect(isEventPointer(`nostr:${NPUB}`)).toBe(false);
   });
 });
 

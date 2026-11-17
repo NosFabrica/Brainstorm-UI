@@ -3,9 +3,15 @@ import type { CompromisedPubkey, MarkCompromisedBody, NostrEventJson } from "@/s
 
 const HEX64 = /^[0-9a-f]{64}$/i;
 
-/** npub or 64-hex → hex; null for anything else. */
-export function parseAccount(input: string): string | null {
+/** `nostr:npub1…` (NIP-21, as clients copy a link) → `npub1…`. */
+function withoutUriScheme(input: string): string {
   const v = input.trim();
+  return /^nostr:/i.test(v) ? v.slice("nostr:".length) : v;
+}
+
+/** npub, nprofile or 64-hex, bare or as a `nostr:` URI → hex; null for anything else. */
+export function parseAccount(input: string): string | null {
+  const v = withoutUriScheme(input);
   if (HEX64.test(v)) return v.toLowerCase();
   try {
     const d = nip19.decode(v);
@@ -17,9 +23,12 @@ export function parseAccount(input: string): string | null {
   return null;
 }
 
-/** hex, note1… or nevent1… — kept as typed: an nevent's relay hints are read by the server. */
+/**
+ * hex, note1… or nevent1…, bare or as a `nostr:` URI. Sent as typed: the
+ * server reads an nevent's relay hints and drops the scheme itself.
+ */
 export function isEventPointer(input: string): boolean {
-  const v = input.trim();
+  const v = withoutUriScheme(input);
   if (HEX64.test(v)) return true;
   try {
     const t = nip19.decode(v).type;
