@@ -19,7 +19,7 @@ vi.mock("@/hooks/useTags", () => ({
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-import { NoteTagChips } from "./NoteTagChips";
+import { inSentence, NoteTagChips } from "./NoteTagChips";
 
 const ID = "7".repeat(64);
 const LISTING = `30402:${"5".repeat(64)}:circular-hoodie`;
@@ -64,5 +64,27 @@ describe("NoteTagChips", () => {
     expect(screen.getAllByTestId("note-tag-for-people").map((e) => e.textContent)).toEqual(["developer"]);
     fireEvent.change(screen.getByTestId("note-tag-search"), { target: { value: "qa" } });
     expect(screen.getAllByTestId("note-tag-existing").map((e) => e.textContent)).toEqual(["qa-note-1784"]);
+  });
+
+  it("names what it tags: a Dictionary item as its list calls it, anything else a post", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    const { unmount } = render(<NoteTagChips eventId={ID} address={LISTING} canTag noun="GitHub Account" />);
+    expect(screen.getByTestId("note-add-tag")).toHaveTextContent("Tag this GitHub account");
+    fireEvent.click(screen.getByTestId("note-add-tag"));
+    expect(await screen.findByTestId("note-tag-search")).toHaveAttribute(
+      "placeholder",
+      "What is this GitHub account about?",
+    );
+    unmount();
+    render(<NoteTagChips eventId={ID} canTag />);
+    expect(screen.getByTestId("note-add-tag")).toHaveTextContent("Tag this post");
+  });
+});
+
+describe("inSentence", () => {
+  it("lowers a word that is only capitalised, and keeps one cased on purpose", () => {
+    expect(inSentence("GitHub Account")).toBe("GitHub account");
+    expect(inSentence("Food and Drink Place")).toBe("food and drink place");
+    expect(inSentence("NIP")).toBe("NIP");
   });
 });

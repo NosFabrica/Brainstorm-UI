@@ -35,6 +35,7 @@ export function NoteTagChips({
   address,
   relayHint,
   canTag = false,
+  noun,
 }: {
   eventId: string;
   /**
@@ -46,6 +47,8 @@ export function NoteTagChips({
   relayHint?: string;
   /** The viewer is signed in AND holds a signer. A session token can't sign. */
   canTag?: boolean;
+  /** What the event is, by its own name ("GitHub Account", a Dictionary item's): a post when not given. */
+  noun?: string;
 }) {
   const { data } = useEventTags(eventId, address);
   const tags = data?.tags ?? [];
@@ -55,7 +58,15 @@ export function NoteTagChips({
 
   return (
     <NoteTagRow tags={tags}>
-      {canTag && <TagNoteButton eventId={eventId} address={address} relayHint={relayHint} onNote={tags} />}
+      {canTag && (
+        <TagNoteButton
+          eventId={eventId}
+          address={address}
+          relayHint={relayHint}
+          onNote={tags}
+          noun={noun ? inSentence(noun) : "post"}
+        />
+      )}
     </NoteTagRow>
   );
 }
@@ -130,17 +141,28 @@ export function NoteTagRow({
   );
 }
 
+/**
+ * A name as it reads mid-sentence: a word that is only capitalised goes lower
+ * case, one cased on purpose stays ("GitHub Account" → "GitHub account").
+ */
+export function inSentence(name: string): string {
+  return name.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase());
+}
+
 /** The picker. Same vocabulary and ordering as the profile one. */
 function TagNoteButton({
   eventId,
   address,
   relayHint,
   onNote,
+  noun,
 }: {
   eventId: string;
   address?: string;
   relayHint?: string;
   onNote: NoteTag[];
+  /** What the event is called mid-sentence: "post", "GitHub account". */
+  noun: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -188,11 +210,11 @@ function TagNoteButton({
       }
       toast({
         title: polarity === 1 ? `Tagged as "${label}"` : `Disagreed with "${label}"`,
-        description: polarity === 1 ? "Anyone can see this on the post." : "Your agreement has been taken back.",
+        description: polarity === 1 ? `Anyone can see this on the ${noun}.` : "Your agreement has been taken back.",
       });
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
-      if (description) toast({ title: "Couldn't tag this post", description, variant: "destructive" });
+      if (description) toast({ title: `Couldn't tag this ${noun}`, description, variant: "destructive" });
     }
   }
 
@@ -206,13 +228,13 @@ function TagNoteButton({
           disabled={applyTag.isPending}
         >
           {applyTag.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          {applyTag.isPending ? "Saving" : "Tag this post"}
+          {applyTag.isPending ? "Saving" : `Tag this ${noun}`}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <Command shouldFilter>
           <CommandInput
-            placeholder="What is this post about?"
+            placeholder={`What is this ${noun} about?`}
             value={search}
             onValueChange={setSearch}
             data-testid="note-tag-search"
@@ -233,11 +255,11 @@ function TagNoteButton({
               </CommandGroup>
             )}
 
-            {/* Already on this post — where you say whether it fits. One row
+            {/* Already on it — where you say whether it fits. One row
                 per tag with Agree and Disagree side by side (StanceRow), for
                 the reasons in StanceControl. */}
             {onNote.length > 0 && (
-              <CommandGroup heading="Already on this post">
+              <CommandGroup heading={`Already on this ${noun}`}>
                 {onNote.map((tag) => (
                   <StanceRow
                     key={tag.key}
@@ -275,7 +297,7 @@ function TagNoteButton({
             )}
 
             {/* Tags mostly put on people. Still offered — the hint is never a
-                gate — just not what someone tagging a post usually wants. */}
+                gate — just not what someone tagging a post or an item usually wants. */}
             {forPeople.length > 0 && (
               <CommandGroup heading="Usually used on people">
                 {forPeople.map((t) => (
