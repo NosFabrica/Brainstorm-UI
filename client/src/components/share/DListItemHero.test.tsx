@@ -71,8 +71,7 @@ vi.mock("@/components/share/FeedVideo", () => ({
 }));
 
 import { DListItemHero } from "./DListItemHero";
-import { dictionaryRelays } from "@/config/dictionary";
-import { listPath } from "@/lib/shareId";
+import { listSearchHref } from "@/lib/searchSyntax";
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   id: pubkey.slice(0, 8).padEnd(64, "0"),
@@ -156,13 +155,13 @@ describe("DListItemHero", () => {
     expect(screen.getByText("GitHub Account")).toBeInTheDocument();
   });
 
-  it("anyone can follow the list's name to the list's own page", () => {
+  it("anyone can follow the list's name to the rest of the list: search, on its own tab", () => {
     viewer.isAdmin = false;
     renderWithProviders(<DListItemHero event={item} />);
     expect(screen.getByTestId("dlist-item-hero")).toHaveTextContent("Shown as the community concept GitHub Accounts.");
     const links = screen.getAllByRole("link", { name: "GitHub Accounts" });
     expect(links.length).toBeGreaterThan(0);
-    for (const a of links) expect(a).toHaveAttribute("href", listPath(COMMUNITY, dictionaryRelays())!);
+    for (const a of links) expect(a).toHaveAttribute("href", listSearchHref(COMMUNITY, "GitHub Accounts"));
   });
 
   it("folds tags outside the definition into More fields", async () => {

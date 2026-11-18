@@ -128,7 +128,9 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
           a long name never meets a button. From sm up the buttons sit beside the name. */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 [grid-template-areas:'kicker_buttons''title_title'] sm:[grid-template-areas:'kicker_kicker''title_buttons']">
         <p className="min-w-0 self-center truncate text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary [grid-area:kicker]">
-          <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
+          <ConceptLink event={event} list={r.governing.plural}>
+            {r.governing.singular}
+          </ConceptLink>
         </p>
         <div className="flex min-w-0 items-center gap-4 [grid-area:title]">
           <AccountPicture handle={account.handle} listImage={shown.listImage} />

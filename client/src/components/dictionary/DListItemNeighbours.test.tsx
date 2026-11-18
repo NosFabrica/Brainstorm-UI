@@ -98,11 +98,12 @@ describe("DListItemNeighbours", () => {
     ).toEqual(["vcavallo", "aburra16"]);
   });
 
-  it("anyone gets the way in to the whole list: its own page, not the admins' Dictionary", () => {
+  it("anyone gets the way in to the whole list: search, on the list's own tab — not the admins' Dictionary", () => {
     render(<DListItemNeighbours event={mine} resolved={resolved} />);
     const seeAll = screen.getByTestId("dlist-item-see-all");
     expect(seeAll).toHaveTextContent("See all 3");
-    expect(seeAll.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+    expect(new URL(seeAll.getAttribute("href")!, "http://x").searchParams.get("t")).toBe("all");
+    expect(new URL(seeAll.getAttribute("href")!, "http://x").searchParams.get("list")).toMatch(/^39998:/);
   });
 
   it("is nothing at all for an item alone in its list", () => {

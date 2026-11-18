@@ -21,7 +21,8 @@ import { useResolvedItemView, isReady } from "@/hooks/useItemView";
 import { useWotItems } from "@/hooks/useWotItems";
 import { neighboursOf } from "@/lib/itemNeighbours";
 import { getDisplayLabel } from "@/lib/profileSearch";
-import { eventPath, listPath } from "@/lib/shareId";
+import { eventPath } from "@/lib/shareId";
+import { listSearchHref } from "@/lib/searchSyntax";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf, type DictionaryItem } from "@/services/dictionary";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
@@ -83,8 +84,8 @@ export function DListItemNeighbours({
   const alsoListedBy = alsoListed ? listers : [];
   const more = showMore ? others : [];
   const authors = useAuthors(alsoListedBy.slice(0, MAX_FACES));
-  // The list's own page, which anyone can open: every item filed under it.
-  const seeAll = coordinate ? listPath(coordinate, dictionaryRelays()) : null;
+  // The rest of the list, for anyone: the search page on its own tab, tag filters and all.
+  const seeAll = coordinate ? listSearchHref(coordinate, resolved.governing.plural) : null;
 
   if (alsoListedBy.length === 0 && more.length === 0) return null;
   const faces = alsoListedBy.slice(0, MAX_FACES).map((pk) => authors.get(pk)!);
