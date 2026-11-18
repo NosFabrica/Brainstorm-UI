@@ -716,13 +716,15 @@ export interface CategoryAsk {
  * Unlike a tab's, in the page's own order: best match matches fewer than newest-first, and asked
  * so it is the number the page holds (Food and Drink Places for "burger": 701 counted, 701 sent;
  * newest-first counts 704 — probed 2026-10-28). A count that fails or doesn't arrive in time is null.
+ * `lanes` spreads them over that many sockets, since the relay answers one socket's counts one at
+ * a time (vespa-relay's per-connection search gate).
  */
 export function countCategories(
   query: string,
   categories: readonly CategoryAsk[],
   lens: Pick<SearchParams, "pov" | "userPubkey">,
   onCounts: (counts: Map<string, number | null>) => void,
-  timeoutMs = TAB_COUNT_TIMEOUT_MS,
+  { lanes = 1, timeoutMs = TAB_COUNT_TIMEOUT_MS }: { lanes?: number; timeoutMs?: number } = {},
 ): () => void {
   return countQuestions(
     query,
@@ -738,19 +740,24 @@ export function countCategories(
       })),
     (answers) => onCounts(new Map(categories.map((c) => [c.key, answers.get(c.key) ?? null]))),
     timeoutMs,
+    lanes,
   );
 }
 
-/** A COUNT per question on a side socket of its own, reported once every answer is in or timed out. */
+/**
+ * A COUNT per question on side sockets of their own — `lanes` of them at most, the questions dealt
+ * among them in turn — reported once every answer is in or timed out.
+ */
 function countQuestions(
   query: string,
   lens: Pick<SearchParams, "pov" | "userPubkey">,
   build: (words: string, observer: string | null) => { key: string; filters: ReturnType<typeof searchFilters> }[],
   onAnswers: (answers: Map<string, number | null>, asked: Set<string>) => void,
   timeoutMs: number,
+  lanes = 1,
 ): () => void {
   let cancelled = false;
-  let relay: Relay | null = null;
+  let relays: Relay[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   const subs: { unsubscribe: () => void }[] = [];
   const answers = new Map<string, number | null>();
@@ -758,8 +765,8 @@ function countQuestions(
   const close = () => {
     clearTimeout(timer);
     subs.forEach((s) => s.unsubscribe());
-    relay?.close();
-    relay = null;
+    relays.forEach((r) => r.close());
+    relays = [];
   };
   const report = () => {
     if (!cancelled) onAnswers(answers, asked);
@@ -784,19 +791,23 @@ function countQuestions(
       else asked.add(key);
     }
     if (asked.size === 0) return report();
-    const socket = openSideSearchRelay();
-    if (!socket) {
+    for (let i = 0; i < Math.min(lanes, asked.size); i++) {
+      const socket = openSideSearchRelay();
+      if (socket) relays.push(socket);
+    }
+    if (!relays.length) {
       asked.forEach((key) => answers.set(key, null));
       return report();
     }
-    relay = socket;
+    const lanesOpen = relays;
     // Set the timer BEFORE subscribing: a synchronous answer (the fake transport in tests) can
     // settle every count during subscribe, and close() clears this timer.
     timer = setTimeout(() => [...asked].forEach((key) => settle(key, null)), timeoutMs);
+    let dealt = 0;
     for (const { key, filters } of questions) {
       if (!asked.has(key)) continue;
       subs.push(
-        socket.count(bounded(filters)).subscribe({
+        lanesOpen[dealt++ % lanesOpen.length].count(bounded(filters)).subscribe({
           next: (r: { count?: number }) => settle(key, typeof r?.count === "number" ? r.count : null),
           error: () => settle(key, null),
           complete: () => settle(key, null),
