@@ -3363,4 +3363,44 @@ describe("countCategories", () => {
       ]),
     );
   });
+
+  it("deals its counts among the lanes asked, never more sockets than counts, and closes them all", async () => {
+    const lane = () => {
+      const kinds: string[] = [];
+      const close = vi.fn();
+      return {
+        kinds,
+        close,
+        relay: {
+          count: (filters: { kinds?: number[] }[]) => (kinds.push(String(filters[0].kinds)), of({ count: 1 })),
+          close,
+        },
+      };
+    };
+    const lanes = [lane(), lane(), lane()];
+    lanes.forEach((l) => sideOpenMock.mockImplementationOnce(() => l.relay as never));
+    let got: Map<string, number | null> | null = null;
+    countCategories(
+      "burger",
+      [
+        { key: "kind:Note", kinds: [1] },
+        { key: "kind:Video", kinds: [21, 22] },
+        { key: "kind:Repo", kinds: [30617] },
+      ],
+      { pov: "nosfabrica" },
+      (counts) => (got = counts),
+      { lanes: 2 },
+    );
+    await settle();
+    expect(sideOpenMock).toHaveBeenCalledTimes(2);
+    expect(lanes.map((l) => l.kinds)).toEqual([["1", "30617"], ["21,22"], []]);
+    expect(lanes.map((l) => l.close.mock.calls.length)).toEqual([1, 1, 0]);
+    expect(got).toEqual(
+      new Map([
+        ["kind:Note", 1],
+        ["kind:Video", 1],
+        ["kind:Repo", 1],
+      ]),
+    );
+  });
 });

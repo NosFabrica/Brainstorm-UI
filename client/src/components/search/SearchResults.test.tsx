@@ -5521,14 +5521,16 @@ describe("All's categories", () => {
     await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
   });
 
-  it("Events stands by its results, and pressed is asked as the Events tab asks it — Event Index's items with it — and stays on All", async () => {
+  it("Events, which All's rows don't show, follows what they do, and pressed is asked as the Events tab asks it — Event Index's items with it — and stays on All", async () => {
     setUrlTab("all");
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
     emit({ hits: page, eose: true });
     await waitFor(() => expect(categoryCountAsks.length).toBeGreaterThan(0));
     act(() => categoryCountAsks.forEach((a) => a.onCounts(new Map([...COUNTS, ["kind:Event", 1000]]))));
-    expect(rowTabs().slice(2, 5)).toEqual(["Notes", "Food and Drink Places", "Events"]);
-    fireEvent.click(screen.getByTestId("search-category-event"));
+    expect(rowTabs().slice(2, 5)).toEqual(["Notes", "Food and Drink Places", "Videos"]);
+    expect(rowTabs()).not.toContain("Events");
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(await screen.findByTestId("search-category-event"));
     await waitFor(() => expect(lastMain()).toMatchObject({ tab: "events" }));
     expect(lastMain().kinds).toBeUndefined();
     expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
