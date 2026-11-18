@@ -96,3 +96,11 @@ describe("sharing a tag page", () => {
     expect(screen.queryByTestId("share-open-modal")).toBeNull();
   });
 });
+
+describe("a tag nobody carries", () => {
+  it("shows no people section: no empty card, no '0 people'", () => {
+    renderWithProviders(<TagPage />);
+    expect(screen.queryByText("Nobody has this tag yet")).toBeNull();
+    expect(screen.queryByText(/^0 people$/i)).toBeNull();
+  });
+});
