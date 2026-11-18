@@ -191,19 +191,17 @@ describe("the built search grammar", () => {
     expect(filters).toHaveLength(1);
     expect(filters[0].authors).toEqual([AUTHOR]);
     expect(filters[0].since).toBe(source.parseQuery("since:2026-01-01").since);
-    expect(filters[0].search).toBe(`lora observer:${READER} filter:rank:gte:10`);
+    expect(filters[0].search).toBe(`lora observer:${READER}`);
   });
 
   it("hands the relay an observer typed as an npub as the hex it reads", () => {
     const [filter] = built.buildFilters(`lora observer:${reader}`, opts(built));
-    expect(filter.search).toBe(`lora observer:${READER} filter:rank:gte:10`);
+    expect(filter.search).toBe(`lora observer:${READER}`);
   });
 
   it("waives the lens when there is no one to read through, rather than be refused", () => {
     expect(built.withObserver("lora", null)).toBe("lora include:spam");
     expect(built.withObserver("lora include:spam", READER)).toBe("lora include:spam");
-    expect(built.withObserver(`lora observer:${AUTHOR} filter:rank:gte:10`, READER)).toBe(
-      `lora observer:${AUTHOR} filter:rank:gte:10`,
-    );
+    expect(built.withObserver(`lora observer:${AUTHOR}`, READER)).toBe(`lora observer:${AUTHOR}`);
   });
 });

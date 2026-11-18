@@ -283,6 +283,9 @@
           // (accounts/persist.ts clears this key on sign-out).
           if (localStorage.getItem("brainstorm_active_account")) return;
           var fresh = q + " sort:recent";
+          // Latest alone reads above a trust floor, as the app asks it (lib/searchSyntax latestFloor).
+          // Plain words only reach here, so q never carries a floor or a waiver of its own.
+          var latest = fresh + " filter:rank:gte:10";
           // `complete` means the relay said EOSE: one REQ, one EOSE, so every
           // filter finished. A CLOSED is an ending, not a completion.
           // `failed`: it ended without an answer — the app asks for itself.
@@ -392,7 +395,7 @@
                   "REQ",
                   "head",
                   { kinds: [0], search: q + perspective, limit: 8 },
-                  { kinds: [1, 11, 1111, 9802, 1068, 6969], search: fresh + perspective, limit: 10 },
+                  { kinds: [1, 11, 1111, 9802, 1068, 6969], search: latest + perspective, limit: 10 },
                   {
                     kinds: [30023, 30024, 30818, 30040, 30041, 30045, 30817, 30142],
                     search: q + perspective,

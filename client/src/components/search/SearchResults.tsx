@@ -26,7 +26,6 @@ import {
   liftQuery,
   queryWords,
   readFilters,
-  SEARCH_RANK_FLOOR,
   sinceForPreset,
   splitFilters,
   type DatePreset,
@@ -776,13 +775,10 @@ const priceSortOf = (query: string): "asc" | "desc" | null => {
  * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
  * rather than sinking them (vespa-relay store e1ecd7f23e), which is why it is a coarse menu
  * and not a slider: the difference between 50 and 52 is not a decision anybody makes, and
- * each step is a page of results gone. With no token a search reads at the default
- * (lib/searchSyntax `SEARCH_RANK_FLOOR`), so the empty value is that, and "No floor" is a
- * floor of 0 written out.
+ * each step is a page of results gone.
  */
 const RANK_FLOORS: { value: number | null; label: string }[] = [
-  { value: 0, label: "No floor" },
-  { value: null, label: `Rank ${SEARCH_RANK_FLOOR}+ (default)` },
+  { value: null, label: "No floor" },
   { value: 25, label: "Rank 25+" },
   { value: 50, label: "Rank 50+" },
   { value: 75, label: "Rank 75+" },
@@ -829,15 +825,13 @@ function FiltersPanel({
   // The menu is coarse, but the grammar takes any 0..100 — a hand-typed `filter:rank:gte:33`
   // would otherwise read as "No floor" while the Filters badge counted it, which is the panel
   // disagreeing with the search it is describing. The typed value joins the menu, in order.
-  // A typed floor at the default is the default: one "Rank 10+", not two.
-  const rankFloor = state.rankFloor === SEARCH_RANK_FLOOR ? null : state.rankFloor;
   const floors = useMemo(() => {
-    const typed = rankFloor;
+    const typed = state.rankFloor;
     if (typed == null || RANK_FLOORS.some((o) => o.value === typed)) return RANK_FLOORS;
     return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }].sort(
-      (a, b) => (a.value ?? SEARCH_RANK_FLOOR) - (b.value ?? SEARCH_RANK_FLOOR),
+      (a, b) => (a.value ?? -1) - (b.value ?? -1),
     );
-  }, [rankFloor]);
+  }, [state.rankFloor]);
   const segment = (on: boolean) =>
     `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
       on
@@ -991,7 +985,7 @@ function FiltersPanel({
             Trust floor
             <select
               className={control}
-              value={rankFloor ?? ""}
+              value={state.rankFloor ?? ""}
               onChange={(e) => {
                 const next = e.target.value === "" ? null : Number(e.target.value);
                 write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });

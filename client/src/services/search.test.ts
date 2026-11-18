@@ -183,9 +183,7 @@ describe("searchStream", () => {
    * returns the newest recipes; tag plus words returns "chili, but only recipes").
    */
   // Public events from Luma, Meetup and other feeds reach Brainstorm only as Event Index's list
-  // items (config/events), so the Events tab asks them beside NIP-52, by the same words. The
-  // list vouches for its items, and their importer has no rank, so they take no trust floor:
-  // under one, every item went (probed 2026-11-18).
+  // items (config/events), so the Events tab asks them beside NIP-52, by the same words.
   it("the Events tab asks Event Index's list items beside NIP-52 events, words and all", async () => {
     controllable();
     searchStream("pubkey", { tab: "events", pov: "nosfabrica" }, () => {});
@@ -194,8 +192,7 @@ describe("searchStream", () => {
     expect(nip52.kinds).toEqual([31922, 31923, 31924]);
     expect(items.kinds).toEqual([39999]);
     expect(items["#z"]).toEqual(["39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:events"]);
-    expect(nip52.search).toBe(`pubkey observer:${HOUSE} filter:rank:gte:10`);
-    expect(items.search).toBe(`pubkey observer:${HOUSE}`);
+    expect(items.search).toBe(nip52.search);
     expect(items.limit).toBe(nip52.limit);
   });
 
@@ -303,7 +300,7 @@ describe("searchStream", () => {
     expect(reqMock).toHaveBeenCalledTimes(1);
     const filter = asked() as { kinds?: number[]; search: string; limit: number };
     expect(filter.kinds).toEqual([0]);
-    expect(filter.search).toBe(`jack observer:${HOUSE} filter:rank:gte:10`);
+    expect(filter.search).toBe(`jack observer:${HOUSE}`);
     expect(filter.limit).toBeGreaterThan(0);
 
     subject.next(frame(ev("e1", 0, "b".repeat(64), JSON.stringify({ name: "jack" }))));
@@ -396,10 +393,10 @@ describe("searchStream — grouped", () => {
     const filters = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string; limit: number }[];
     expect(filters).toHaveLength(2);
     expect(filters[0].kinds).toEqual(TAB_KINDS.notes);
-    expect(filters[0].search).toBe(`bitcoin sort:recent observer:${HOUSE} filter:rank:gte:10`);
+    expect(filters[0].search).toBe(`bitcoin sort:recent observer:${HOUSE}`);
     expect(filters[0].limit).toBe(10);
     expect(filters[1].kinds).toEqual([0]);
-    expect(filters[1].search).toBe(`bitcoin observer:${HOUSE} filter:rank:gte:10`);
+    expect(filters[1].search).toBe(`bitcoin observer:${HOUSE}`);
     expect(filters[1].limit).toBe(8);
   });
 
@@ -849,7 +846,7 @@ describe("browse mode — no keyword at all", () => {
     await tick();
     const filter = asked() as { kinds?: number[]; search: string };
     expect(filter.kinds).toEqual(TAB_KINDS.live);
-    expect(filter.search).toBe(`observer:${HOUSE} filter:rank:gte:10`);
+    expect(filter.search).toBe(`observer:${HOUSE}`);
   });
 });
 
@@ -866,7 +863,7 @@ describe("token lifting", () => {
     await tick();
     const filter = asked();
     expect(filter.authors).toEqual([alice]);
-    expect(filter.search).toBe(`gm observer:${HOUSE} filter:rank:gte:10`);
+    expect(filter.search).toBe(`gm observer:${HOUSE}`);
   });
 
   it("a #tag asks #t, #l and the NIP-22 comments written on it, every casing", async () => {
@@ -878,7 +875,7 @@ describe("token lifting", () => {
     // Normalised to lowercase first, then asked in every casing the store may hold.
     expect(union[0]["#t"]).toEqual(["nostr", "Nostr", "NOSTR"]);
     // The words, the lens and the tab ride every filter of the union.
-    for (const f of union) expect(f.search).toBe(`gm observer:${HOUSE} filter:rank:gte:10`);
+    for (const f of union) expect(f.search).toBe(`gm observer:${HOUSE}`);
   });
 
   it("a group: asks #h, and does not drag the group's metadata into the results", async () => {
@@ -920,7 +917,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
     await tick();
     expect(askedFilters()).toHaveLength(1);
     expect(asked().kinds).toEqual([21, 22, 34235, 34236]);
-    expect(asked().search).toBe(`observer:${HOUSE} filter:rank:gte:10`);
+    expect(asked().search).toBe(`observer:${HOUSE}`);
     expect(asked().limit).toBe(100);
   });
 
@@ -931,7 +928,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
     expect(asked()).toMatchObject({
       kinds: [21, 22, 34235, 34236],
       authors: [alice],
-      search: `skate observer:${HOUSE} filter:rank:gte:10`,
+      search: `skate observer:${HOUSE}`,
     });
   });
 
@@ -959,9 +956,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
       await tick();
       askedOnAll.push(askedFilters());
     }
-    expect(askedOnAll[0]).toEqual([
-      { kinds: [21, 22, 34235, 34236], search: `dog observer:${HOUSE} filter:rank:gte:10`, limit: 100 },
-    ]);
+    expect(askedOnAll[0]).toEqual([{ kinds: [21, 22, 34235, 34236], search: `dog observer:${HOUSE}`, limit: 100 }]);
     expect(askedOnAll[1]).toEqual(askedOnAll[0]);
   });
 
@@ -970,7 +965,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
     searchStream("Video: Bitcoin explained", { tab: "notes", pov: "nosfabrica" }, () => {});
     await tick();
     expect(asked().kinds).toEqual(TAB_KINDS.notes);
-    expect(asked().search).toBe(`Video: Bitcoin explained observer:${HOUSE} filter:rank:gte:10`);
+    expect(asked().search).toBe(`Video: Bitcoin explained observer:${HOUSE}`);
   });
 
   // Probed on the search relay (2026-10-12): a restored Vine carries `["l","vine-archive",…]`
@@ -984,7 +979,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
     expect(asked()).toEqual({
       kinds: [34236],
       "#l": ["vine-archive"],
-      search: `observer:${HOUSE} filter:rank:gte:10`,
+      search: `observer:${HOUSE}`,
       limit: 100,
     });
   });
@@ -998,7 +993,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
       kinds: [34236],
       "#l": ["vine-archive"],
       authors: [alice],
-      search: `cats observer:${HOUSE} filter:rank:gte:10`,
+      search: `cats observer:${HOUSE}`,
       limit: 100,
     });
   });
@@ -1088,7 +1083,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
         kinds: [34236],
         "#l": ["vine-archive"],
         authors: [alice],
-        search: `cats sort:recent observer:${HOUSE} filter:rank:gte:10`,
+        search: `cats sort:recent observer:${HOUSE}`,
         until: 1000,
         limit: 3,
       },
@@ -1270,7 +1265,7 @@ describe("the observer lens", () => {
     const me = "1".repeat(64);
     searchStream("jack", { tab: "people", pov: "mywot", userPubkey: me }, () => {});
     await tick();
-    expect((asked() as { search: string }).search).toBe(`jack observer:${me} filter:rank:gte:10`);
+    expect((asked() as { search: string }).search).toBe(`jack observer:${me}`);
   });
 
   it("never double-tags a query that already names a lens", async () => {
@@ -1279,7 +1274,7 @@ describe("the observer lens", () => {
     await tick();
     searchStream("jack include:spam", { tab: "people", pov: "nosfabrica" }, () => {});
     await tick();
-    expect((asked() as { search: string }).search).toBe("jack observer:" + "2".repeat(64) + " filter:rank:gte:10");
+    expect((asked() as { search: string }).search).toBe("jack observer:" + "2".repeat(64));
     expect((asked(1) as { search: string }).search).toBe("jack include:spam");
   });
 
@@ -2429,7 +2424,7 @@ describe("searchStream since", () => {
     await vi.waitFor(() => expect(reqMock).toHaveBeenCalledTimes(1));
     const filter = asked() as { since?: number; search: string };
     expect(filter.since).toBe(1_760_000_000);
-    expect(filter.search).toBe("observer:" + "f".repeat(64) + " filter:rank:gte:10");
+    expect(filter.search).toBe("observer:" + "f".repeat(64));
   });
 });
 
@@ -3170,9 +3165,7 @@ describe("countTabs", () => {
     expect(sideOpenMock).toHaveBeenCalledTimes(1);
     expect(sideCountMock).toHaveBeenCalledTimes(3);
     // Newest first, and a single filter's count drops its page size.
-    expect(tabAsks()[0]).toEqual([
-      { kinds: [0], search: `bars in funchal sort:recent observer:${HOUSE} filter:rank:gte:10` },
-    ]);
+    expect(tabAsks()[0]).toEqual([{ kinds: [0], search: `bars in funchal sort:recent observer:${HOUSE}` }]);
     expect(reqMock).not.toHaveBeenCalled();
     expect(countMock).not.toHaveBeenCalled();
     people.next({ count: 0 });
@@ -3231,15 +3224,15 @@ describe("countTabs", () => {
     countTabs("jack sort:zaps", ["people"], { pov: "nosfabrica" }, () => {});
     await settle();
     const [notes, people] = tabAsks();
-    expect(notes[0].search).toBe(`jack sort:text observer:${HOUSE} filter:rank:gte:10`);
-    expect(people[0].search).toBe(`jack sort:recent observer:${HOUSE} filter:rank:gte:10`);
+    expect(notes[0].search).toBe(`jack sort:text observer:${HOUSE}`);
+    expect(people[0].search).toBe(`jack sort:recent observer:${HOUSE}`);
   });
 
   it("reads through the viewer's own lens when they asked for it", async () => {
     answerBy({}, of({ count: 0 }));
     countTabs("jack", ["notes"], { pov: "mywot", userPubkey: "a".repeat(64) }, () => {});
     await settle();
-    expect(tabAsks()[0][0].search).toBe(`jack sort:recent observer:${"a".repeat(64)} filter:rank:gte:10`);
+    expect(tabAsks()[0][0].search).toBe(`jack sort:recent observer:${"a".repeat(64)}`);
   });
 
   it("cancelled while the lens is still being looked up, it opens no socket and asks nothing", async () => {
@@ -3344,10 +3337,9 @@ describe("countCategories", () => {
       (counts) => (got = counts),
     );
     await settle();
-    // Best match, as All asks with words: no newest-first rewrite. A list's items take no
-    // trust floor: the list vouches for them.
+    // Best match, as All asks with words: no newest-first rewrite.
     expect(sideCountMock.mock.calls.map(([f]) => f)).toEqual([
-      [{ kinds: [21, 22], search: `burger observer:${HOUSE} filter:rank:gte:10` }],
+      [{ kinds: [21, 22], search: `burger observer:${HOUSE}` }],
       [{ kinds: [39999, 9999], "#z": [PLACES], search: `burger observer:${HOUSE}` }],
     ]);
     expect(got).toEqual(

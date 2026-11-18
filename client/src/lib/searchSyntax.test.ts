@@ -21,8 +21,8 @@ import {
   seeAllLabel,
   sinceForPreset,
   splitFilters,
+  latestFloor,
   typeaheadWords,
-  withObserver,
 } from "./searchSyntax";
 
 // The relay knows no hops and has no verification of its own, so those two
@@ -279,35 +279,23 @@ describe("typeaheadWords — what the people typeahead may look up", () => {
 });
 
 /**
- * Every search the app sends goes through `withObserver`. The relay refuses a read with no lens,
- * and through a ranked lens the team wants a floor: rank 10 of 100 by default, which keeps out
- * the impersonators and bot accounts the ranking already places at the bottom.
+ * The Top tab's Latest is the raw newest posts from anyone the lens reaches, so low-ranked
+ * accounts and bots fill it; every other search is sorted by score and sinks them already.
+ * Latest alone reads above a trust floor, rank 10 of 100, unless the query chose one.
  */
-describe("withObserver — the lens, and the default trust floor", () => {
-  const ME = "8".repeat(64);
-  const TYPED = "7".repeat(64);
-
-  it("reads through the observer, at rank 10 or better", () => {
-    expect(withObserver("bitcoin", ME)).toBe(`bitcoin observer:${ME} filter:rank:gte:10`);
-    expect(withObserver("", ME)).toBe(`observer:${ME} filter:rank:gte:10`);
+describe("latestFloor — the Latest section's trust floor", () => {
+  it("adds rank 10 to a newest-first query", () => {
+    expect(latestFloor("bitcoin sort:recent")).toBe("bitcoin sort:recent filter:rank:gte:10");
+    expect(latestFloor("sort:recent")).toBe("sort:recent filter:rank:gte:10");
   });
 
   it("keeps a floor the person chose, No floor included", () => {
-    expect(withObserver("bitcoin filter:rank:gte:50", ME)).toBe(`bitcoin filter:rank:gte:50 observer:${ME}`);
-    expect(withObserver("bitcoin filter:rank:gte:0", ME)).toBe(`bitcoin filter:rank:gte:0 observer:${ME}`);
+    expect(latestFloor("bitcoin sort:recent filter:rank:gte:50")).toBe("bitcoin sort:recent filter:rank:gte:50");
+    expect(latestFloor("bitcoin sort:recent filter:rank:gte:0")).toBe("bitcoin sort:recent filter:rank:gte:0");
   });
 
-  it("puts the floor under a hand-typed observer too", () => {
-    expect(withObserver(`bitcoin observer:${TYPED}`, ME)).toBe(`bitcoin observer:${TYPED} filter:rank:gte:10`);
-  });
-
-  it("adds no floor to a list's items, which the list vouches for", () => {
-    expect(withObserver("concert", ME, { floor: false })).toBe(`concert observer:${ME}`);
-  });
-
-  it("adds no floor to the spam waiver, which reads everyone", () => {
-    expect(withObserver("bitcoin", null)).toBe("bitcoin include:spam");
-    expect(withObserver("bitcoin include:spam", ME)).toBe("bitcoin include:spam");
+  it("adds none to the spam waiver, which asks for everyone", () => {
+    expect(latestFloor("bitcoin include:spam sort:recent")).toBe("bitcoin include:spam sort:recent");
   });
 });
 

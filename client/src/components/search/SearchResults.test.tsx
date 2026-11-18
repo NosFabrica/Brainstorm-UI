@@ -4148,31 +4148,9 @@ describe("SearchResults", () => {
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
       // Advanced opens itself when a shared link set one of its controls.
       const floor = screen.getByTestId("filter-rank-floor") as HTMLSelectElement;
-      expect([...floor.options].map((o) => o.value)).toEqual(["0", "", "25", "50", "75", "90"]);
+      expect([...floor.options].map((o) => o.value)).toEqual(["", "25", "50", "75", "90"]);
       fireEvent.change(floor, { target: { value: "50" } });
       expect(rewrite).toHaveBeenLastCalledWith("bitcoin filter:rank:gte:50");
-    });
-
-    // Every ranked search reads at rank 10 or better unless somebody chose otherwise
-    // (lib/searchSyntax withObserver). The menu says so, and "No floor" is a choice it writes.
-    it("shows the default floor, and No floor writes filter:rank:gte:0", () => {
-      const rewrite = vi.fn();
-      render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
-      fireEvent.click(screen.getByTestId("search-filters-toggle"));
-      fireEvent.click(screen.getByTestId("filters-advanced-toggle"));
-      const floor = screen.getByTestId("filter-rank-floor") as HTMLSelectElement;
-      expect(floor.value).toBe("");
-      expect(floor.selectedOptions[0]).toHaveTextContent("Rank 10+ (default)");
-      fireEvent.change(floor, { target: { value: "0" } });
-      expect(rewrite).toHaveBeenLastCalledWith("bitcoin filter:rank:gte:0");
-    });
-
-    it("a hand-typed floor of 10 reads as the default, not a second Rank 10+", () => {
-      render(<SearchResults query="bitcoin filter:rank:gte:10" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
-      fireEvent.click(screen.getByTestId("search-filters-toggle"));
-      const floor = screen.getByTestId("filter-rank-floor") as HTMLSelectElement;
-      expect(floor.value).toBe("");
-      expect([...floor.options].map((o) => o.value)).toEqual(["0", "", "25", "50", "75", "90"]);
     });
 
     it("the floor reads back out of a hand-typed query, and clears", () => {
@@ -4192,7 +4170,7 @@ describe("SearchResults", () => {
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
       const floor = screen.getByTestId("filter-rank-floor") as HTMLSelectElement;
       expect(floor.value).toBe("33");
-      expect([...floor.options].map((o) => o.value)).toEqual(["0", "", "25", "33", "50", "75", "90"]);
+      expect([...floor.options].map((o) => o.value)).toEqual(["", "25", "33", "50", "75", "90"]);
       expect(screen.getByTestId("filters-active-count")).toHaveTextContent("1");
     });
 

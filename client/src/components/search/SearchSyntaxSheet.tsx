@@ -238,7 +238,7 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
               {
                 token: "filter:rank:gte:",
                 em: "50",
-                what: "Set the floor: drop authors ranking below that, 0 to 100. Every search reads at 10 unless you set one; 0 is no floor.",
+                what: "Raise it instead — drop authors ranking below that, 0 to 100.",
               },
             ]}
           />
