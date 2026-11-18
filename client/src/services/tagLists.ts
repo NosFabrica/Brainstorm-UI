@@ -275,3 +275,41 @@ export function membersOf(lists: readonly TagList[], tagKey: string): Members | 
 export async function fetchTagMembers(tag: { key: string; name: string }, lens: Lens): Promise<Members | null> {
   return membersOf(await fetchTagLists(tag.name, lens), tag.key);
 }
+
+/**
+ * The tags the house (or the reader) keeps a list of on one Dictionary list's items, most items
+ * first: each such list names the Dictionary list it covers (`tagging-target`), so the tags are
+ * known whatever page of the items is loaded — "bot GitHub Accounts" holds every GitHub account
+ * tagged bot, the 200th as well as the first.
+ */
+export function listTagsFrom(
+  lists: readonly TagList[],
+  listCoordinate: string,
+): Array<{ key: string; authorPubkey: string; slug: string; name: string; description?: string; items: number }> {
+  const byTag = new Map<string, TagList[]>();
+  for (const l of lists)
+    if (l.kind === ADDRESS_LIST_KIND && l.target === listCoordinate && l.members.length)
+      byTag.set(l.tagKey, [...(byTag.get(l.tagKey) ?? []), l]);
+  return [...byTag.entries()]
+    .map(([key, own]) => ({
+      key,
+      authorPubkey: own[0].authorPubkey,
+      slug: own[0].slug,
+      name: tagNameOf(own),
+      description: own[0].description,
+      items: new Set(own.flatMap((l) => l.members.map((m) => m.target))).size,
+    }))
+    .sort((a, b) => b.items - a.items || a.name.localeCompare(b.name));
+}
+
+/**
+ * The tags kept on a Dictionary list's items (`listTagsFrom`), through the reader's perspective:
+ * the tag lists asked by the Dictionary list's name, which every one of their titles holds
+ * ("bot GitHub Accounts"). Never rejects.
+ */
+export async function fetchListTags(
+  list: { coordinate: string; name: string },
+  lens: Lens,
+): Promise<ReturnType<typeof listTagsFrom>> {
+  return listTagsFrom(await fetchTagLists(list.name, lens), list.coordinate);
+}

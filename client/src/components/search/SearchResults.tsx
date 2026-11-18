@@ -101,6 +101,7 @@ import {
   belongsTo,
   categoryTestId,
   groupCategories,
+  isKindKey,
   NOTES_KEY,
   pagedWords,
   PEOPLE_KEY,
@@ -111,6 +112,7 @@ import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
 import { useNamedTags } from "@/hooks/useNamedTags";
 import { useTagMembers } from "@/hooks/useTagMembers";
+import { useListTags } from "@/hooks/useListTags";
 import { carriersOf } from "@/lib/resultTags";
 import { TagTabResults } from "@/components/search/TagTabResults";
 import type { NamedTag } from "@/services/namedTags";
@@ -1702,6 +1704,23 @@ export function SearchResults({
   });
   const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
   const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
+  // The tags kept on the Dictionary lists in view — the one a page is open on, or those the words
+  // name on All — offered whatever page of their items is loaded (hooks/useListTags): a list of
+  // hundreds has its tagged items past the first page.
+  const listsInView = useMemo(
+    () =>
+      pressedCategory
+        ? isKindKey(pressedCategory.key)
+          ? []
+          : [{ coordinate: pressedCategory.key, name: pressedCategory.name }]
+        : ribbon.lists.filter((l) => l.whole).map((l) => ({ coordinate: l.coordinate, name: l.name })),
+    [pressedCategory, ribbon.lists],
+  );
+  const listTags = useListTags(listsInView, { pov, userPubkey, enabled: onAll && FEATURES.searchTagFilters });
+  const facetTags = useMemo(() => {
+    const kept = new Set(listTags.tags.map((t) => t.key));
+    return [...listTags.tags, ...resultTags.tags.filter((t) => !kept.has(t.key))];
+  }, [listTags.tags, resultTags.tags]);
   useEffect(() => {
     setOpenCategory((open) =>
       !pressedCategory
@@ -2727,9 +2746,9 @@ export function SearchResults({
               {FEATURES.searchTagFilters && onAll && !tagTabKey && serverStatus.search !== "down" && (
                 <TagFacets
                   key={effectiveQuery}
-                  tags={resultTags.tags}
+                  tags={facetTags}
                   pressed={tagFilter}
-                  settled={resultTags.settled}
+                  settled={resultTags.settled && listTags.settled}
                   onPress={(t) =>
                     pressTag(
                       t ? { key: t.key, name: t.name, carriers: carriersOf(hits, resultTags.byHit, t.key) } : null,
