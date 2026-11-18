@@ -21,6 +21,7 @@ import {
   seeAllLabel,
   sinceForPreset,
   splitFilters,
+  latestFloor,
   typeaheadWords,
 } from "./searchSyntax";
 
@@ -274,6 +275,27 @@ describe("typeaheadWords — what the people typeahead may look up", () => {
     "#nostr jack",
   ])("is null for %s — no name there", (q) => {
     expect(typeaheadWords(q)).toBeNull();
+  });
+});
+
+/**
+ * The Top tab's Latest is the raw newest posts from anyone the lens reaches, so low-ranked
+ * accounts and bots fill it; every other search is sorted by score and sinks them already.
+ * Latest alone reads above a trust floor, rank 10 of 100, unless the query chose one.
+ */
+describe("latestFloor — the Latest section's trust floor", () => {
+  it("adds rank 10 to a newest-first query", () => {
+    expect(latestFloor("bitcoin sort:recent")).toBe("bitcoin sort:recent filter:rank:gte:10");
+    expect(latestFloor("sort:recent")).toBe("sort:recent filter:rank:gte:10");
+  });
+
+  it("keeps a floor the person chose, No floor included", () => {
+    expect(latestFloor("bitcoin sort:recent filter:rank:gte:50")).toBe("bitcoin sort:recent filter:rank:gte:50");
+    expect(latestFloor("bitcoin sort:recent filter:rank:gte:0")).toBe("bitcoin sort:recent filter:rank:gte:0");
+  });
+
+  it("adds none to the spam waiver, which asks for everyone", () => {
+    expect(latestFloor("bitcoin include:spam sort:recent")).toBe("bitcoin include:spam sort:recent");
   });
 });
 

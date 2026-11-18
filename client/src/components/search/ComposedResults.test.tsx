@@ -928,9 +928,11 @@ describe("ComposedResults", () => {
     // Benjamin's call: the CONTENT sections lead with what's fresh —
     // scattered timestamps read as random. People stays trust-ranked (no
     // timestamps there to scatter); Articles are evergreen and go by match.
-    for (const tab of ["notes", "events", "live", "media"]) {
+    for (const tab of ["events", "live", "media"]) {
       expect(sectionCall(tab).query).toBe("liverpool sort:recent");
     }
+    // Latest is the raw newest posts, so it alone reads above a trust floor (lib/searchSyntax latestFloor).
+    expect(sectionCall("notes").query).toBe("liverpool sort:recent filter:rank:gte:10");
     expect(sectionCall("articles").query).toBe("liverpool");
     expect(sectionCall("people").query).toBe("liverpool");
     expect(sectionCall("people").params.limit).toBeLessThanOrEqual(10);
@@ -1074,7 +1076,7 @@ describe("ComposedResults", () => {
   it("streams the whole network when the query is empty (the home feed)", async () => {
     window.history.replaceState({}, "", "/");
     render(<ComposedResults query="" pov="nosfabrica" onTabChange={vi.fn()} />);
-    expect(sectionCall("notes").query).toBe("sort:recent");
+    expect(sectionCall("notes").query).toBe("sort:recent filter:rank:gte:10");
     expect(sectionCall("people").query).toBe("");
 
     sectionCall("notes").emit({
@@ -1657,7 +1659,7 @@ describe("ComposedResults", () => {
   it("the Articles section asks for the best match while the other content sections ask for the newest", async () => {
     render(<ComposedResults query="list of comedians" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(sectionCall("articles").query).toBe("list of comedians");
-    expect(sectionCall("notes").query).toBe("list of comedians sort:recent");
+    expect(sectionCall("notes").query).toBe("list of comedians sort:recent filter:rank:gte:10");
   });
 });
 
