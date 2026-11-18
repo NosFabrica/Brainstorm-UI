@@ -5,6 +5,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { ROLES } from "@/config/personalization";
+import { pickerTagScore } from "@/lib/tagMatch";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
 import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
 import { SOFT_SELECTED_ROW, StanceRow } from "@/components/share/StanceControl";
@@ -326,7 +327,7 @@ export function TagPersonButton({
             </div>
           </div>
         ) : (
-          <Command shouldFilter>
+          <Command shouldFilter filter={pickerTagScore}>
             <CommandInput
               placeholder={isOwner ? "What are you known for?" : "What are they known for?"}
               value={search}

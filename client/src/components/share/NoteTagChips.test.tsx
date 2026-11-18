@@ -11,11 +11,12 @@ const h = vi.hoisted(() => ({
   read: vi.fn((..._a: unknown[]) => ({ data: { tags: [], mine: [], unverifiable: 0, trustUnverified: false } })),
   apply: vi.fn((..._a: unknown[]) => ({ mutate: vi.fn(), isPending: false })),
   options: [] as unknown[],
+  loading: false,
 }));
 vi.mock("@/hooks/useTags", () => ({
   useEventTags: (...a: unknown[]) => h.read(...a),
   useApplyEventTag: (...a: unknown[]) => h.apply(...a),
-  usePickerTags: () => ({ data: h.options }),
+  usePickerTags: () => ({ data: h.loading ? undefined : h.options, isPending: h.loading }),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
@@ -29,6 +30,7 @@ describe("NoteTagChips", () => {
     h.read.mockClear();
     h.apply.mockClear();
     h.options = [];
+    h.loading = false;
   });
 
   it("reads and tags an addressable event by its coordinate", () => {
@@ -78,6 +80,37 @@ describe("NoteTagChips", () => {
     unmount();
     render(<NoteTagChips eventId={ID} canTag />);
     expect(screen.getByTestId("note-add-tag")).toHaveTextContent("Tag this post");
+  });
+
+  it("chooses the tag named over a loose match in the group above it", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    const tag = (slug: string, band: "content" | "profile") => ({
+      key: `${"a".repeat(64)}|${slug}`,
+      authorPubkey: "a".repeat(64),
+      slug,
+      name: slug,
+      people: 1,
+      vouches: 1,
+      sharesName: 1,
+      unverified: false,
+      band,
+    });
+    h.options = [tag("Cool Web of Trust", "content"), tag("bot", "profile")];
+    render(<NoteTagChips eventId={ID} canTag />);
+    fireEvent.click(screen.getByTestId("note-add-tag"));
+    fireEvent.change(await screen.findByTestId("note-tag-search"), { target: { value: "bot" } });
+    expect(screen.queryAllByTestId("note-tag-existing")).toHaveLength(0);
+    expect(screen.getByTestId("note-tag-for-people")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("offers no tag of your own until the tags people use are in", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    h.loading = true;
+    render(<NoteTagChips eventId={ID} canTag />);
+    fireEvent.click(screen.getByTestId("note-add-tag"));
+    fireEvent.change(await screen.findByTestId("note-tag-search"), { target: { value: "bot" } });
+    expect(screen.getByTestId("note-tag-loading")).toHaveTextContent("Loading tags");
+    expect(screen.queryByTestId("note-tag-create")).toBeNull();
   });
 });
 

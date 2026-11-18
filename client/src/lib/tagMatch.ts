@@ -49,3 +49,18 @@ export function tagMatchStrength(query: string, name: string): TagMatchStrength 
 export function leadingTags(tags: readonly TagSummary[], query: string): TagSummary[] {
   return tags.filter((t) => t.people >= LEAD_MIN_PEOPLE && tagMatchStrength(query, t.name) === "strong");
 }
+
+/**
+ * A tag picker's match (cmdk's `filter`): the typed letters in a row, the
+ * name itself first, then a name that starts with them, then one holding
+ * them. cmdk's own match takes the letters in order anywhere, so "bot"
+ * found "Cool Web of Trust" — and in a picker of two groups that loose
+ * match, being in the first, was chosen over the tag "bot" in the second.
+ */
+export function pickerTagScore(value: string, search: string): number {
+  const name = value.trim().toLowerCase();
+  const typed = search.trim().toLowerCase();
+  if (!typed || name === typed) return 1;
+  if (name.startsWith(typed)) return 0.9;
+  return name.includes(typed) ? 0.5 : 0;
+}

@@ -8,6 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
+import { pickerTagScore } from "@/lib/tagMatch";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
 import { StanceRow } from "@/components/share/StanceControl";
 import type { NoteTag } from "@/services/tags";
@@ -170,7 +171,7 @@ function TagNoteButton({
   const applyTag = useApplyEventTag(eventId, relayHint, address ? { address } : undefined);
   // Only fetched once the picker is opened — no relay traffic for a button
   // nobody clicked.
-  const { data: options } = usePickerTags(open);
+  const { data: options, isPending: loadingTags } = usePickerTags(open);
 
   const taken = new Set(onNote.map((t) => t.name.toLowerCase()));
 
@@ -191,7 +192,9 @@ function TagNoteButton({
 
   const typed = search.trim();
   const known = new Set([...taken, ...offered.map((t) => t.name.toLowerCase())]);
-  const isNew = typed.length > 0 && !known.has(typed.toLowerCase());
+  // Not before the tags people use are in: "Add your own" over a name that
+  // exists would make a second tag of it (the list takes ~5 s to come).
+  const isNew = !loadingTags && typed.length > 0 && !known.has(typed.toLowerCase());
 
   async function run(tag: { authorPubkey: string; slug: string } | { name: string }, label: string, polarity: 1 | -1) {
     setOpen(false);
@@ -232,7 +235,7 @@ function TagNoteButton({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
-        <Command shouldFilter>
+        <Command shouldFilter filter={pickerTagScore}>
           <CommandInput
             placeholder={`What is this ${noun} about?`}
             value={search}
@@ -240,7 +243,13 @@ function TagNoteButton({
             data-testid="note-tag-search"
           />
           <CommandList>
-            {!isNew && <CommandEmpty>Type to add your own.</CommandEmpty>}
+            {loadingTags ? (
+              <div className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-loading">
+                Loading tags…
+              </div>
+            ) : (
+              !isNew && <CommandEmpty>Type to add your own.</CommandEmpty>
+            )}
 
             {isNew && (
               <CommandGroup heading="Add your own">

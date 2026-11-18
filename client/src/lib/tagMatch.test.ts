@@ -4,7 +4,7 @@
  * and the list keeps the relay's order.
  */
 import { describe, expect, it } from "vitest";
-import { leadingTags, tagMatchStrength, withinOneEdit } from "./tagMatch";
+import { leadingTags, tagMatchStrength, withinOneEdit, pickerTagScore } from "./tagMatch";
 
 describe("tagMatchStrength", () => {
   it("is strong when the words are the tag's name, typo or not, in any case", () => {
@@ -47,5 +47,15 @@ describe("leadingTags", () => {
     expect(leadingTags(tags, "aos")).toEqual([]);
     expect(leadingTags(tags, "human verifier")).toEqual([]);
     expect(leadingTags([tag("Verified Human", 3)], "verified human")).toHaveLength(1);
+  });
+});
+
+describe("pickerTagScore", () => {
+  it("ranks the name itself, then a name starting with the letters, then one holding them, and nothing loose", () => {
+    expect(pickerTagScore("bot", "Bot")).toBe(1);
+    expect(pickerTagScore("Bitcoin Vendor", "bit")).toBe(0.9);
+    expect(pickerTagScore("Reply Bot", "bot")).toBe(0.5);
+    expect(pickerTagScore("Cool Web of Trust", "bot")).toBe(0);
+    expect(pickerTagScore("anything", "  ")).toBe(1);
   });
 });
