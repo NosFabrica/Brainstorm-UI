@@ -312,9 +312,17 @@ const tagMembersMock = vi.hoisted(() =>
       null as null | { pubkeys: string[]; ids: string[]; addresses: string[] },
   ),
 );
+// The tags kept on a Dictionary list's items (services/tagLists): none, unless a test says.
+const listTagsMock = vi.hoisted(() =>
+  vi.fn(
+    async (_list: { coordinate: string; name: string }) =>
+      [] as { key: string; authorPubkey: string; slug: string; name: string; items: number }[],
+  ),
+);
 vi.mock("@/services/tagLists", async (orig) => ({
   ...(await orig<typeof import("@/services/tagLists")>()),
   fetchTagMembers: (tag: { key: string; name: string }) => tagMembersMock(tag),
+  fetchListTags: (list: { coordinate: string; name: string }) => listTagsMock(list),
 }));
 // The tags the words name, each a tab in All's row (services/namedTags): none, unless a test says.
 const namedTagsMock = vi.hoisted(() => ({
@@ -5590,6 +5598,23 @@ describe("All's categories", () => {
     fireEvent.click(screen.getByTestId("search-category-food-and-drink-places"));
     expect(listInUrl()).toBe(PLACES);
     await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
+  });
+
+  it("a list's page offers the tags kept on its items, though no row loaded carries them", async () => {
+    listTagsMock.mockImplementation(async (list) =>
+      list.coordinate === PLACES
+        ? [{ key: `${"a".repeat(64)}|vegan`, authorPubkey: "a".repeat(64), slug: "vegan", name: "Vegan", items: 40 }]
+        : [],
+    );
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({ hits: page, eose: true });
+    await answerCounts();
+    fireEvent.click(screen.getByTestId("search-category-food-and-drink-places"));
+    expect(await screen.findByTestId("tag-facet-vegan")).toHaveTextContent("Vegan");
+    expect(listTagsMock).toHaveBeenCalledWith({ coordinate: PLACES, name: "Food and Drink Places" });
+    listTagsMock.mockReset();
+    listTagsMock.mockImplementation(async () => []);
   });
 
   it("coming back to a link with a kind opens on it at once: the kinds Top's tabs ask are known before any page", async () => {

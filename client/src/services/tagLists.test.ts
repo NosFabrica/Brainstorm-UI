@@ -36,7 +36,16 @@ vi.mock("@/lib/searchRelay", () => ({
   }),
 }));
 
-import { fetchTagLists, forgetTagLists, membersOf, mergePerspectives, tagListsFromHits, tagNameOf } from "./tagLists";
+import {
+  fetchTagLists,
+  forgetTagLists,
+  listTagsFrom,
+  membersOf,
+  mergePerspectives,
+  tagListsFromHits,
+  tagNameOf,
+  type TagList,
+} from "./tagLists";
 
 const TAG_AUTHOR = "2efaa715".padEnd(64, "0");
 const READER = "dabe380b".padEnd(64, "0");
@@ -216,5 +225,36 @@ describe("membersOf", () => {
 
   it("is nothing for a tag with no list", () => {
     expect(membersOf(tagListsFromHits([people()], HOUSE), `${TAG_AUTHOR}|artist`)).toBeNull();
+  });
+});
+
+describe("listTagsFrom", () => {
+  const GH = `39998:${"b".repeat(64)}:github-accounts`;
+  const list = (slug: string, title: string, target: string, members: string[], kind = 30394): TagList => ({
+    kind,
+    tagKey: `${"a".repeat(64)}|${slug}`,
+    authorPubkey: "a".repeat(64),
+    slug,
+    title,
+    target,
+    observer: "f".repeat(64),
+    members: members.map((m) => ({ target: m, endorsements: 1, disputes: 0, score: 50 })),
+  });
+
+  it("is the tags kept on that Dictionary list's items, by name, most items first", () => {
+    const tags = listTagsFrom(
+      [
+        list("bot", "bot GitHub Accounts", GH, ["39999:x:a"]),
+        list("verified-human", "Verified Human GitHub Accounts", GH, ["39999:x:b", "39999:x:c", "39999:x:d"]),
+        list("bot", "bot Books", `39998:${"b".repeat(64)}:books`, ["39999:x:e"]),
+        list("bot", "bot Notes", "1", ["e".repeat(64)], 30393),
+        list("scam", "scam GitHub Accounts", GH, []),
+      ],
+      GH,
+    );
+    expect(tags.map((t) => [t.name, t.items])).toEqual([
+      ["Verified Human", 3],
+      ["bot", 1],
+    ]);
   });
 });
