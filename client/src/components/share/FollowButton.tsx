@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 const BASE =
   "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg text-sm md:text-[13px] font-semibold disabled:opacity-50 transition-colors";
 const FOLLOW = `${BASE} bg-brand-primary hover:bg-brand-primary-hover text-white shadow-sm`;
+// A Follow that isn't the page's main action: a Retired profile's own, under its Current account's.
+const FOLLOW_QUIET = `${BASE} border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800`;
 const FOLLOWING = `${BASE} border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200`;
 const UNFOLLOW = `${BASE} border border-red-200 dark:border-red-500/25 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400`;
 
@@ -34,12 +36,15 @@ export function FollowButton({
   initialFollowing,
   displayName,
   testId = "share-follow",
+  quiet = false,
 }: {
   targetPubkey: string;
   initialFollowing: boolean;
   /** For "Unfollow {name}?" */ displayName: string;
   /** A second Follow on the same page (a compromised account's successor) names itself. */
   testId?: string;
+  /** Draw Follow as an outline: it still works, it just isn't what the page leads with. */
+  quiet?: boolean;
 }) {
   const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
@@ -76,7 +81,7 @@ export function FollowButton({
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         disabled={busy}
-        className={following ? (unfollowLook ? UNFOLLOW : FOLLOWING) : FOLLOW}
+        className={following ? (unfollowLook ? UNFOLLOW : FOLLOWING) : quiet ? FOLLOW_QUIET : FOLLOW}
         data-testid={testId}
       >
         {busy ? (
