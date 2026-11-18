@@ -765,6 +765,8 @@ function EventView({
                 address={tagAddressOf(note)}
                 relayHint={relayHints[0]}
                 canTag={canTagNote}
+                // A Dictionary item is tagged as what its list calls it: "Tag this GitHub account".
+                noun={asDictionaryItem && isReady(itemView) ? itemView.resolved.governing.singular : undefined}
               />
             )}
 
