@@ -36,6 +36,8 @@ export const FEATURES = {
    * All's tag filters and the tabs of the tags the words name. Staging only: the
    * filters are found among the results loaded so far, not every result, and
    * that can't ship to production (2026-11-18). Delete the host check to ship.
+   * A Dictionary list's tab offers its tags everywhere: those come from the
+   * house's lists of its items, every one of them (components/search/SearchResults).
    */
   searchTagFilters: onStagingHost(),
 } as const;

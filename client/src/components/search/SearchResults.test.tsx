@@ -275,6 +275,7 @@ vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null
 
 import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
+import { FEATURES } from "@/config/featureFlags";
 import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { __forgetAllCategories } from "@/hooks/useAllCategories";
 import { __forgetResultTags } from "@/hooks/useResultTags";
@@ -5615,6 +5616,29 @@ describe("All's categories", () => {
     expect(listTagsMock).toHaveBeenCalledWith({ coordinate: PLACES, name: "Food and Drink Places" });
     listTagsMock.mockReset();
     listTagsMock.mockImplementation(async () => []);
+  });
+
+  it("where All's own tag filters are off (production), a list's tab still offers its lists' tags, and All none", async () => {
+    const flags = FEATURES as { searchTagFilters: boolean };
+    flags.searchTagFilters = false;
+    try {
+      listTagsMock.mockImplementation(async (list) =>
+        list.coordinate === PLACES
+          ? [{ key: `${"a".repeat(64)}|vegan`, authorPubkey: "a".repeat(64), slug: "vegan", name: "Vegan", items: 40 }]
+          : [],
+      );
+      setUrlTab("all");
+      render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+      emit({ hits: page, eose: true });
+      await answerCounts();
+      expect(screen.queryByTestId("tag-facets")).toBeNull();
+      fireEvent.click(screen.getByTestId("search-category-food-and-drink-places"));
+      expect(await screen.findByTestId("tag-facet-vegan")).toHaveTextContent("Vegan");
+    } finally {
+      flags.searchTagFilters = true;
+      listTagsMock.mockReset();
+      listTagsMock.mockImplementation(async () => []);
+    }
   });
 
   it("coming back to a link with a kind opens on it at once: the kinds Top's tabs ask are known before any page", async () => {

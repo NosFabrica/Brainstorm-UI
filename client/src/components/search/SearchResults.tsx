@@ -1345,7 +1345,16 @@ export function SearchResults({
     },
     [effectiveQuery],
   );
-  const tagFilter = FEATURES.searchTagFilters && onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
+  // A Dictionary list's tab, open. Its tag filters come from the house's lists of its items — every
+  // item, whichever are loaded — so they show in production too; All's own filters, found among the
+  // rows loaded so far, and tags' tabs are staging's alone (FEATURES.searchTagFilters).
+  const onListTab =
+    onAll &&
+    categoryPressed?.query === effectiveQuery &&
+    !isKindKey(categoryPressed.key) &&
+    !categoryPressed.key.startsWith(TAG_TAB);
+  const tagFilter =
+    (FEATURES.searchTagFilters || onListTab) && onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
   // A tag the link names comes without its name: its slug's words find its lists as well.
   const tagMembers = useTagMembers(
     tagFilter
@@ -1713,11 +1722,16 @@ export function SearchResults({
         ? isKindKey(pressedCategory.key)
           ? []
           : [{ coordinate: pressedCategory.key, name: pressedCategory.name }]
-        : ribbon.lists.filter((l) => l.whole).map((l) => ({ coordinate: l.coordinate, name: l.name })),
+        : FEATURES.searchTagFilters
+          ? ribbon.lists.filter((l) => l.whole).map((l) => ({ coordinate: l.coordinate, name: l.name }))
+          : [],
     [pressedCategory, ribbon.lists],
   );
-  const listTags = useListTags(listsInView, { pov, userPubkey, enabled: onAll && FEATURES.searchTagFilters });
+  const listTags = useListTags(listsInView, { pov, userPubkey, enabled: onAll });
+  // Where All's own filters are off, a list's tab offers its lists' tags alone: complete, never a
+  // filter over what happens to be loaded.
   const facetTags = useMemo(() => {
+    if (!FEATURES.searchTagFilters) return listTags.tags;
     const kept = new Set(listTags.tags.map((t) => t.key));
     return [...listTags.tags, ...resultTags.tags.filter((t) => !kept.has(t.key))];
   }, [listTags.tags, resultTags.tags]);
@@ -2743,12 +2757,12 @@ export function SearchResults({
                 </FacetRow>
               )}
               {/* The tags the results carry, most carried first: each a filter over them. */}
-              {FEATURES.searchTagFilters && onAll && !tagTabKey && serverStatus.search !== "down" && (
+              {(FEATURES.searchTagFilters || onListTab) && onAll && !tagTabKey && serverStatus.search !== "down" && (
                 <TagFacets
                   key={effectiveQuery}
                   tags={facetTags}
                   pressed={tagFilter}
-                  settled={resultTags.settled && listTags.settled}
+                  settled={(!FEATURES.searchTagFilters || resultTags.settled) && listTags.settled}
                   onPress={(t) =>
                     pressTag(
                       t ? { key: t.key, name: t.name, carriers: carriersOf(hits, resultTags.byHit, t.key) } : null,
