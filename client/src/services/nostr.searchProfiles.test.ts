@@ -45,7 +45,7 @@ describe("searchNostrProfiles", () => {
     requestAllMock.mockResolvedValue([profile("a".repeat(64))]);
     const results = await searchNostrProfiles("jack");
     expect(requestAllMock.mock.calls[0][0]).toEqual(["wss://search.example/"]);
-    expect(sentSearch()).toBe(`jack observer:${HOUSE}`);
+    expect(sentSearch()).toBe(`jack observer:${HOUSE} filter:rank:gte:10`);
     expect(results).toMatchObject([{ pubkey: "a".repeat(64), name: "jack" }]);
   });
 
@@ -61,7 +61,7 @@ describe("searchNostrProfiles", () => {
   it("keeps an observer the query already names", async () => {
     houseMock.mockResolvedValue(HOUSE);
     await searchNostrProfiles(`jack observer:${"c".repeat(64)}`);
-    expect(sentSearch()).toBe(`jack observer:${"c".repeat(64)}`);
+    expect(sentSearch()).toBe(`jack observer:${"c".repeat(64)} filter:rank:gte:10`);
   });
 
   it("keeps only kind-0 events, one per pubkey", async () => {
@@ -79,7 +79,7 @@ describe("searchNostrProfiles", () => {
     requestAllMock.mockResolvedValueOnce([]).mockResolvedValueOnce([profile("a".repeat(64))]);
     const results = await searchNostrProfiles("newcomer");
     expect(requestAllMock.mock.calls.map((c) => c[1].search)).toEqual([
-      `newcomer observer:${HOUSE}`,
+      `newcomer observer:${HOUSE} filter:rank:gte:10`,
       "newcomer include:spam",
     ]);
     expect(results.map((r) => r.pubkey)).toEqual(["a".repeat(64)]);

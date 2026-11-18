@@ -263,14 +263,33 @@ export function typeaheadWords(query: string): string | null {
   return words.split(/\s+/).some((w) => OPERATOR_WORD.test(w)) ? null : words;
 }
 
+/**
+ * The trust floor every ranked search reads at unless the query names its own: rank 10 of 100.
+ * The relay deletes the rows below it and fills the page from those above, so a search loses
+ * the impersonators and bot accounts the ranking already puts at the bottom (probed 2026-11-18:
+ * 98 "gm" profiles become 36, and a look-alike of a known account goes), and keeps its length.
+ * "No floor" in the Filters panel is `filter:rank:gte:0`.
+ */
+export const SEARCH_RANK_FLOOR = 10;
+
+const join = (...parts: string[]) => parts.filter(Boolean).join(" ");
+
 /** Append our lens unless the query already names one. The SearchOverTrust relay refuses a
  *  read with neither `observer:` nor `include:spam` (`auth-required:`), so every search the UI
- *  sends carries one; with no observer to name, the waiver is the only way to be answered. */
-export function withObserver(query: string, observer: string | null): string {
+ *  sends carries one; with no observer to name, the waiver is the only way to be answered.
+ *  A ranked lens reads at [SEARCH_RANK_FLOOR] unless the query chose a floor; the waiver
+ *  reads everyone, so it takes none. Neither does a read of a list's items (`floor: false`):
+ *  the list vouches for them, and an importer publishing them often has no rank at all. */
+export function withObserver(
+  query: string,
+  observer: string | null,
+  { floor = true }: { floor?: boolean } = {},
+): string {
   const q = query.trim();
-  if (/(^|\s)(observer:|include:spam)/.test(q)) return q;
-  if (!observer) return q ? `${q} include:spam` : "include:spam";
-  return q ? `${q} observer:${observer}` : `observer:${observer}`;
+  if (/(^|\s)include:spam/.test(q)) return q;
+  const lensed = /(^|\s)observer:/.test(q) ? q : observer ? join(q, `observer:${observer}`) : null;
+  if (lensed === null) return join(q, "include:spam");
+  return !floor || /(^|\s)filter:rank:/i.test(lensed) ? lensed : join(lensed, `filter:rank:gte:${SEARCH_RANK_FLOOR}`);
 }
 
 /** The panel's state, read back out of the query. */

@@ -527,10 +527,13 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
   // The Classic Vines hashtag leaves the grammar's hands too: it is the label on the base.
   const asVines = vines ? withoutVineArchiveTag(query) : query;
   const askedBy = byHost ? asVines.replace(/(^|\s)from:\S+/gi, " ") : asVines;
+  // A list's items (asked by its `#z` headers) are vouched for by the list, and an importer
+  // publishing them often has no rank, so they take no trust floor (withObserver).
+  const listItems = !!params.tags?.["#z"];
   const built = searchFilters(askedBy, {
     kinds,
     limit,
-    searchString: (terms) => withObserver(terms, observer),
+    searchString: (terms) => withObserver(terms, observer, { floor: !listItems }),
     base: {
       // What a spec COVERS rather than what it is, on the NIPs tab.
       ...(coveredKinds ? { "#k": coveredKinds.map(String) } : {}),
@@ -551,7 +554,8 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
       ? searchFilters(askedBy, {
           kinds: [EVENT_ITEM_KIND],
           limit,
-          searchString: (terms) => withObserver(terms, observer),
+          // The list vouches for its items; their importer has no rank, so a floor would empty it.
+          searchString: (terms) => withObserver(terms, observer, { floor: false }),
           base: { "#z": [...EVENT_LISTS] },
           since: params.since,
         })
@@ -2349,7 +2353,8 @@ export async function searchListItems(
   const observer = await resolveObserver({ tab: "all", pov, userPubkey }).catch(() => null);
   const base = {
     kinds,
-    search: withObserver(lifted.search, observer),
+    // A list's items are vouched for by the list, so they take no trust floor (withObserver).
+    search: withObserver(lifted.search, observer, { floor: false }),
     ...(lifted.authors ? { authors: lifted.authors } : {}),
     ...(lifted.since != null ? { since: lifted.since } : {}),
     ...(lifted.until != null ? { until: lifted.until } : {}),
@@ -2358,6 +2363,7 @@ export async function searchListItems(
   const lens = withObserver(
     parsed.includeSpam ? "include:spam" : parsed.observer ? `observer:${parsed.observer}` : "",
     observer,
+    { floor: false },
   );
   const listsOf = new Map<string, string[]>();
   for (const l of lists) for (const h of l.headers) listsOf.set(h, [...(listsOf.get(h) ?? []), l.key]);

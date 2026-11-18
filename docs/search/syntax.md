@@ -74,15 +74,15 @@ They narrow whatever tab you are on rather than replacing it.
 
 ### Ranking and order
 
-| Type                 | What it does                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| `sort:recent`        | Newest first, ignoring how well anything matched.                                          |
-| `sort:rank`          | Most trusted authors first; `sort:rank:asc` turns it upside down.                          |
-| `sort:followers`     | Most followed authors first.                                                               |
-| `sort:text`          | Text match alone, trust not consulted. With none of these you get the default, best match. |
-| `observer:npub1…`    | Rank through that pubkey's web of trust instead of your own. Signing in does this for you. |
-| `include:spam`       | Lift the trust floor: also show what your web of trust does not rank.                      |
-| `filter:rank:gte:50` | Raise the floor instead: drop authors ranking below that, 0 to 100.                        |
+| Type                 | What it does                                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sort:recent`        | Newest first, ignoring how well anything matched.                                                                                                     |
+| `sort:rank`          | Most trusted authors first; `sort:rank:asc` turns it upside down.                                                                                     |
+| `sort:followers`     | Most followed authors first.                                                                                                                          |
+| `sort:text`          | Text match alone, trust not consulted. With none of these you get the default, best match.                                                            |
+| `observer:npub1…`    | Rank through that pubkey's web of trust instead of your own. Signing in does this for you.                                                            |
+| `include:spam`       | Lift the trust floor: also show what your web of trust does not rank.                                                                                 |
+| `filter:rank:gte:50` | Set the floor: drop authors ranking below that, 0 to 100. Every search reads at 10 unless you set one; `0` is no floor. A list's own items take none. |
 
 ### Only on this page
 
