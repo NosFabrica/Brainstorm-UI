@@ -6,6 +6,8 @@
  * back, so stale results structurally cannot flash).
  */
 import { NewAccountResult } from "@/components/compromised/NewAccountResult";
+import { CurrentAccountResult } from "@/components/retired/CurrentAccountResult";
+import { retiredBy, retiredStatus } from "@/services/retired";
 import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
@@ -3291,6 +3293,22 @@ export function SearchResults({
                             // A new account whose compromised one is on this page is already shown, above that one.
                             const replaced = newAccountOf.get(event.pubkey);
                             if (replaced && peopleOnPage.includes(replaced)) return null;
+                            // The same for a Current account whose Retired one is on this page.
+                            const retiredOne = retiredBy(event.pubkey)?.pubkey;
+                            if (retiredOne && peopleOnPage.includes(retiredOne)) return null;
+                            // …and a Retired account leads with its owner's Current one: that account's
+                            // own row from this page when it has one, so its score comes along.
+                            const currentOne = retiredStatus(event.pubkey)?.currentPubkey;
+                            const currentRow = currentOne
+                              ? displayHits.find((d) => d.hit.event.kind === 0 && d.hit.event.pubkey === currentOne)
+                                  ?.hit
+                              : undefined;
+                            const currentAuthor = currentRow?.author
+                              ? {
+                                  ...currentRow.author,
+                                  wotRank: currentRow.author.wotRank ?? scoreOf(currentRow.event.pubkey) ?? null,
+                                }
+                              : undefined;
                             const idx = peopleIdx.current++;
                             // The one tag the words matched, if this person carries it.
                             const cardTag =
@@ -3305,6 +3323,13 @@ export function SearchResults({
                               <>
                                 {/* A compromised account: the owner's new one goes first, highlighted. */}
                                 <NewAccountResult compromisedPubkey={event.pubkey} pov={pov} onOpen={openProfile} />
+                                {/* A retired account: the owner's current one goes first, lightly set apart. */}
+                                <CurrentAccountResult
+                                  retiredPubkey={event.pubkey}
+                                  known={currentAuthor}
+                                  pov={pov}
+                                  onOpen={openProfile}
+                                />
                                 <PersonCard
                                   result={scored}
                                   idx={idx}

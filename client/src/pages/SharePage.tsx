@@ -110,6 +110,11 @@ import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { CompromisedBanner } from "@/components/compromised/CompromisedBanner";
 import { useCompromised, useCompromisedRing, useReplaces } from "@/hooks/useCompromised";
 import { ReplacesBanner } from "@/components/compromised/ReplacesBanner";
+import { RetiredBanner } from "@/components/retired/RetiredBanner";
+import { RetiredMark } from "@/components/retired/RetiredMark";
+import { useRetired } from "@/hooks/useRetired";
+import { inviteThrough } from "@/services/retired";
+import { CurrentAccountNote } from "@/components/retired/CurrentAccountNote";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
@@ -160,6 +165,9 @@ export default function SharePage() {
   // The held copy at once, however old; the relays (the nprofile's hints
   // among them) are asked all the same, and a newer one replaces it.
   const liveProfile = useLiveProfile(pubkey, relayHints);
+  // A Retired profile's "Join free" invites through its owner's Current account (services/retired).
+  const invitePk = pubkey ? inviteThrough(pubkey) : "";
+  const inviteLive = useLiveProfile(invitePk && invitePk !== pubkey ? invitePk : undefined);
 
   // NIP-39 external identity claims (GitHub, X, Telegram, …) from the kind-0 `i`
   // tags — shown as clickable links in the hero (not as "verified").
@@ -534,6 +542,7 @@ export default function SharePage() {
   const compromised = useCompromised(pubkey);
   const compromisedRing = useCompromisedRing(pubkey);
   const replaces = useReplaces(pubkey);
+  const retired = useRetired(pubkey);
   const isFlagged = isFlaggedByReporters(houseVerifiedReporters ?? 0, num(houseStats?.followed_by?.verified) ?? 0);
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
@@ -863,7 +872,8 @@ export default function SharePage() {
         <UserPlus className="h-3 w-3" /> Follows you
       </span>
     ) : null;
-  // Keyed so a late-arriving relationship resyncs the optimistic state.
+  // Keyed so a late-arriving relationship resyncs the optimistic state. On a Retired profile it
+  // steps back to an outline: the Follow the page leads with is the Current account's, in the notice.
   const followButton =
     loggedIn && !isOwner ? (
       <FollowButton
@@ -871,8 +881,17 @@ export default function SharePage() {
         targetPubkey={pubkey}
         initialFollowing={rel.isFollowing}
         displayName={displayName}
+        quiet={!!retired}
       />
     ) : null;
+  // Who "Join free" connects a newcomer to: this profile, or its owner's Current account.
+  const invitesOther = invitePk !== pubkey;
+  const inviteNpub = invitesOther ? safeNpub(invitePk) : npub;
+  const inviteName = invitesOther
+    ? inviteLive.profile?.display_name || inviteLive.profile?.name || displayName
+    : displayName;
+  const invitePicture = invitesOther ? inviteLive.profile?.picture : profile.picture;
+  const inviteEvent = invitesOther ? inviteLive.event : liveProfile.event;
   const profileMenu = (
     <ProfileMenu
       key={`${rel.isMuted}-${!!rel.report}`}
@@ -932,6 +951,10 @@ export default function SharePage() {
         {compromised && <CompromisedBanner status={compromised} className="mb-4" />}
         {/* …or the other end of the same story: the owner's new account. */}
         {!compromised && replaces && <ReplacesBanner replaces={replaces} className="mb-4" />}
+        {/* Retired: a calm note where the Compromised banner would be, with the owner's current account. */}
+        {!compromised && <RetiredBanner pubkey={pubkey} className="mb-4" />}
+        {/* …and on that current account, a line saying the older one is retired. */}
+        <CurrentAccountNote pubkey={pubkey} className="mb-3" />
         {/* Identity hero */}
         <div
           className={`${WATERMARK_HOST} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`}
@@ -1037,6 +1060,8 @@ export default function SharePage() {
                     <EmojiText text={displayName} tags={liveProfile.event} />
                   </h1>
                   <TierWordChip score01={coinScore01} flagged={isFlagged} />
+                  {/* Retired: said beside the name too, where the page's identity is read. */}
+                  <RetiredMark pubkey={pubkey} size="md" />
                   {/* "Identity confirmed" — trusted reviewers said this is really them.
                 Google's verified-badge spot: beside the name, not in a section. */}
                   {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
@@ -1268,11 +1293,11 @@ export default function SharePage() {
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                       {/* Personal connection + value */}
                       <div className="flex min-w-0 flex-1 items-start gap-3">
-                        {profile.picture && (
+                        {invitePicture && (
                           <img
-                            src={profile.picture}
+                            src={invitePicture}
                             alt=""
-                            className={`hidden h-12 w-12 shrink-0 rounded-full object-cover sm:block ${tierRing(houseScore01) ?? "shadow ring-2 ring-white"}`}
+                            className={`hidden h-12 w-12 shrink-0 rounded-full object-cover sm:block ${(invitesOther ? null : tierRing(houseScore01)) ?? "shadow ring-2 ring-white"}`}
                           />
                         )}
                         <div className="min-w-0">
@@ -1283,11 +1308,11 @@ export default function SharePage() {
                             className="mt-0.5 text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
                             style={{ fontFamily: "var(--font-display)" }}
                           >
-                            Connect with <EmojiText text={displayName} tags={liveProfile.event} />
+                            Connect with <EmojiText text={inviteName} tags={inviteEvent} />
                           </h3>
                           <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                             Real humans, not bots — join a network you own and you're instantly connected to{" "}
-                            <EmojiText text={displayName} tags={liveProfile.event} />.
+                            <EmojiText text={inviteName} tags={inviteEvent} />.
                           </p>
                         </div>
                       </div>
@@ -1295,7 +1320,7 @@ export default function SharePage() {
                       <div className="shrink-0 sm:text-right">
                         <Link
                           ref={inlineJoinRef}
-                          href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
+                          href={`/login?invite=${inviteNpub}&next=${encodeURIComponent(`/p/${inviteNpub}`)}`}
                           className="inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover sm:w-auto"
                           data-testid="share-wot-cta"
                         >
@@ -1611,13 +1636,12 @@ export default function SharePage() {
               data-testid="share-invite-sticky"
             >
               <Link
-                href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
+                href={`/login?invite=${inviteNpub}&next=${encodeURIComponent(`/p/${inviteNpub}`)}`}
                 tabIndex={stickyJoinShown ? undefined : -1}
                 className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
                 data-testid="share-wot-cta-sticky"
               >
-                Join free — connect with{" "}
-                <EmojiText text={displayName.split(" ")[0] || displayName} tags={liveProfile.event} />{" "}
+                Join free — connect with <EmojiText text={inviteName.split(" ")[0] || inviteName} tags={inviteEvent} />{" "}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
