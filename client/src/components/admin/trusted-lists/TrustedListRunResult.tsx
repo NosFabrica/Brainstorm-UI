@@ -51,6 +51,34 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
           <AlertDescription>{EMPTY[run.empty_reason].body}</AlertDescription>
         </Alert>
       )}
+      {/* Lists of tagged notes and list items need taggings of notes and items, which reach the
+          server separately from taggings of people; a run holding none builds people lists only and
+          says nothing — the reason a list's search tab offers no tag filters. */}
+      {run.event_taggings_in_store === 0 && run.taggings_in_store > 0 && (
+        <Alert data-testid="trusted-lists-no-content">
+          <AlertTitle>No lists of tagged notes or items</AlertTitle>
+          <AlertDescription>
+            The server holds {plural(run.taggings_in_store, "tagging", "taggings")} of people but none of notes or list
+            items, so it built people lists only. Taggings of notes and items reach it through its relay&apos;s tag
+            stream; a server admin can backfill them (brainstorm_server <code>scripts/backfill_event_taggings.py</code>
+            ).
+          </AlertDescription>
+        </Alert>
+      )}
+      {run.content_skipped_reason && (
+        <Alert data-testid="trusted-lists-content-skipped">
+          <AlertTitle>Lists of tagged notes and items were skipped</AlertTitle>
+          <AlertDescription>{run.content_skipped_reason}</AlertDescription>
+        </Alert>
+      )}
+      {run.event_taggings_in_store !== undefined && (
+        <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="trusted-lists-taggings-held">
+          Taggings held: {run.taggings_in_store.toLocaleString()} of people ·{" "}
+          {run.event_taggings_in_store.toLocaleString()} of notes and items
+          {!!run.unresolved_targets &&
+            ` · ${plural(run.unresolved_targets, "tagged thing", "tagged things")} not found`}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <StatTile compact label="Qualifying asserters" value={run.qualifying_asserters} />
         <StatTile compact label="Lists" value={run.dictionary_size} />
