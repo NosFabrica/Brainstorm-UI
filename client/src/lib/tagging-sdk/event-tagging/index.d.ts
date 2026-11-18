@@ -171,6 +171,8 @@ export function applyEventTagging(args: {
     sign: (unsigned: Record<string, unknown>) => Promise<Record<string, unknown>>;
     publish: (signed: Record<string, unknown>) => Promise<unknown>;
     now: () => number;
+    /** First 8 lowercase hex of SHA-256 over a string's UTF-8 bytes: an `a` target's tagging `d` carries it. */
+    hash8: (s: string) => string | Promise<string>;
   };
 }): Promise<{
   sequence: "a" | "b" | "c";

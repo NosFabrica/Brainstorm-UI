@@ -2646,6 +2646,17 @@ export async function applyTagToEvent({
       sign: (template: unknown) => signAs(requireActiveAccount(), template as never),
       publish: publishTagEvent,
       now: () => Math.floor(Date.now() / 1000),
+      hash8,
     },
   });
+}
+
+/**
+ * The first 8 lowercase hex of the SHA-256 of `s`'s UTF-8 bytes. An addressable target's tagging
+ * `d` carries it of the full coordinate, so one asserter's taggings of two items by the same author
+ * land at two addresses instead of one replacing the other (lib/tagging-sdk, Tapestry 2417b807).
+ */
+export async function hash8(s: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(digest).slice(0, 4), (b) => b.toString(16).padStart(2, "0")).join("");
 }
