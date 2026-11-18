@@ -141,6 +141,22 @@ export function addressOf(event: {
   return identifier === undefined ? null : { kind: event.kind, pubkey: event.pubkey, identifier };
 }
 
+/**
+ * On-site path for a Dictionary list by its header's coordinate (`<kind>:<pubkey>:<d>`): the list's
+ * own page — its name, what it holds, every item filed under it — by address, so it stays the
+ * list's latest version. Null for a coordinate that isn't one.
+ */
+export function listPath(coordinate: string, relays: string[] = []): string | null {
+  const [kindText, pubkey = "", ...d] = coordinate.split(":");
+  const kind = Number(kindText);
+  if (!Number.isInteger(kind) || !/^[0-9a-f]{64}$/.test(pubkey) || !d.length) return null;
+  try {
+    return `/e/${nip19.naddrEncode({ kind, pubkey, identifier: d.join(":"), relays: relays.slice(0, 4) })}`;
+  } catch {
+    return null;
+  }
+}
+
 /** On-site path for an event: `/e/<naddr>` (its latest version) for a kind
  *  in READER_KINDS or ADDRESS_LINK_KINDS that we know by kind and name, else
  *  `/e/<nevent>` (falls back to the bare id). */

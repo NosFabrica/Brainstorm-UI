@@ -16,13 +16,12 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useAuthors } from "@/components/share/things/shared";
 import { dictionaryRelays } from "@/config/dictionary";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useResolvedItemView, isReady } from "@/hooks/useItemView";
 import { useWotItems } from "@/hooks/useWotItems";
 import { neighboursOf } from "@/lib/itemNeighbours";
 import { getDisplayLabel } from "@/lib/profileSearch";
-import { eventPath } from "@/lib/shareId";
+import { eventPath, listPath } from "@/lib/shareId";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf, type DictionaryItem } from "@/services/dictionary";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
@@ -80,11 +79,12 @@ export function DListItemNeighbours({
   /** False when the page picks the list's other things its own way (a place's nearest places). */
   more?: boolean;
 }) {
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const { alsoListedBy: listers, more: others, total, coordinate } = useItemNeighbours(event, resolved);
   const alsoListedBy = alsoListed ? listers : [];
   const more = showMore ? others : [];
   const authors = useAuthors(alsoListedBy.slice(0, MAX_FACES));
+  // The list's own page, which anyone can open: every item filed under it.
+  const seeAll = coordinate ? listPath(coordinate, dictionaryRelays()) : null;
 
   if (alsoListedBy.length === 0 && more.length === 0) return null;
   const faces = alsoListedBy.slice(0, MAX_FACES).map((pk) => authors.get(pk)!);
@@ -127,9 +127,9 @@ export function DListItemNeighbours({
         <section data-testid="dlist-item-more-from-list">
           <div className="mb-2 flex items-baseline gap-2">
             <SectionHeader kicker={`More ${resolved.governing.plural}`} className="flex-1" />
-            {isAdmin && coordinate && (
+            {seeAll && (
               <Link
-                href={`/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`}
+                href={seeAll}
                 className="shrink-0 text-xs font-medium text-slate-500 hover:text-brand-link hover:underline dark:text-slate-400"
                 data-testid="dlist-item-see-all"
               >

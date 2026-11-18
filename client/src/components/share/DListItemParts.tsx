@@ -13,6 +13,8 @@ import { FieldValue } from "@/components/dictionary/FieldValue";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf } from "@/services/dictionary";
+import { dictionaryRelays } from "@/config/dictionary";
+import { listPath } from "@/lib/shareId";
 import { fieldCell, type FieldDecl } from "@/lib/dlistFields";
 import type { DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
 
@@ -50,21 +52,18 @@ export function DefinitionLine({ event, resolved: r }: { event: ItemEvent; resol
 }
 
 /**
- * The concept's Dictionary entry for an admin; plain words for anyone else —
- * the Dictionary is admins-only while it's an internal demo (SettingsPage
- * `ADMIN_ONLY_TABS`), and the admin claim rides on a Session.
+ * The list's own page (`listPath`), for anyone: its name, what it holds and every
+ * item filed under it. Not Settings › Dictionary, which is admins-only
+ * (SettingsPage `ADMIN_ONLY_TABS`) and a reader's own Dictionary, not the list.
  */
 export function ConceptLink({ event, children }: { event: ItemEvent; children: ReactNode }) {
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
-  // Infrastructure (URL Templates) renders, but has no Dictionary entry to link to.
+  // Infrastructure (URL Templates) renders, but has no list of its own to link to.
   const { shown } = useDictionaryConcepts();
   const coordinate = dictionaryConceptOf(event, shown);
-  if (!isAdmin || !coordinate) return <>{children}</>;
+  const href = coordinate ? listPath(coordinate, dictionaryRelays()) : null;
+  if (!href) return <>{children}</>;
   return (
-    <Link
-      href={`/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`}
-      className="text-brand-link hover:underline"
-    >
+    <Link href={href} className="text-brand-link hover:underline">
       {children}
     </Link>
   );

@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { ADDRESS_LINK_KINDS, READER_KINDS, eventPath, nprofileFor, shareUrlFor } from "./shareId";
+import { ADDRESS_LINK_KINDS, READER_KINDS, eventPath, listPath, nprofileFor, shareUrlFor } from "./shareId";
 
 const PK = "a".repeat(64);
 const ID = "e".repeat(64);
@@ -173,5 +173,16 @@ describe("nprofileFor", () => {
   });
   it("a bad pubkey encodes to nothing", () => {
     expect(nprofileFor("not-a-key")).toBe("");
+  });
+});
+
+describe("listPath", () => {
+  it("is a list's own page by its address, and nothing for what isn't one", () => {
+    const pk = "b".repeat(64);
+    const path = listPath(`39998:${pk}:github-accounts`)!;
+    expect(path).toMatch(/^\/e\/naddr1/);
+    expect(nip19.decode(path.slice(3)).data).toMatchObject({ kind: 39998, pubkey: pk, identifier: "github-accounts" });
+    expect(listPath("not a coordinate")).toBeNull();
+    expect(listPath(`39998:${pk}`)).toBeNull();
   });
 });
