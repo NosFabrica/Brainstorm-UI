@@ -54,17 +54,22 @@ Reports or questions are welcome through the contact above.
 | `brainstorm.world`                  | Production       |
 | `brainstorm.nosfabrica.com`         | Production alias |
 | `brainstorm-staging.nosfabrica.com` | Staging          |
+| `brainstorm-staging.relay.tools`    | Staging          |
 
-### R&D UI — [`nous-clawds4/tapestry`](https://github.com/nous-clawds4/tapestry)
+### R&D UI — [`TapestryProtocol/tapestry`](https://github.com/TapestryProtocol/tapestry)
 
 | Host                            | Role                 |
 | ------------------------------- | -------------------- |
 | `tapestry.brainstorm.world`     | Reference deployment |
 | `staging.brainstorm.world`      | Pre-production       |
 | `tags.brainstorm.world`         | Feature sandbox      |
-| `communities.brainstorm.world`  | Feature sandbox      |
 | `magic-carpet.brainstorm.world` | Feature sandbox      |
-| `curate.brainstorm.world`       | Feature sandbox      |
+
+### List explorer — [`aburra16/curate`](https://github.com/aburra16/curate)
+
+| Host                      | Role       |
+| ------------------------- | ---------- |
+| `curate.brainstorm.world` | Production |
 
 ### Backend APIs — [`NosFabrica/brainstorm_server`](https://github.com/NosFabrica/brainstorm_server)
 
@@ -92,8 +97,8 @@ Reports or questions are welcome through the contact above.
 
 **The `brainstorm.world` and `nosfabrica.com` domains are both ours**, so any host under either of
 them is operated by us — the tables above are a current inventory, not an exhaustive claim. A site
-that resembles Brainstorm on any _other_ domain is not affiliated with us; if you find one, that
-itself is worth reporting through the link above.
+that resembles Brainstorm on any _other_ domain is not affiliated with us unless a table above names
+it; if you find one, that itself is worth reporting through the link above.
 
 ## Scope
 
