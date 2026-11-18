@@ -112,6 +112,31 @@ describe("NoteTagChips", () => {
     expect(screen.getByTestId("note-tag-loading")).toHaveTextContent("Loading tags");
     expect(screen.queryByTestId("note-tag-create")).toBeNull();
   });
+
+  it("puts a tag that exists above one of your own, and opens again on the whole list", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    h.options = [
+      {
+        key: `${"a".repeat(64)}|bitcoin`,
+        authorPubkey: "a".repeat(64),
+        slug: "bitcoin",
+        name: "Bitcoin",
+        people: 3,
+        vouches: 1,
+        sharesName: 1,
+        unverified: false,
+        band: "content",
+      },
+    ];
+    render(<NoteTagChips eventId={ID} canTag />);
+    fireEvent.click(screen.getByTestId("note-add-tag"));
+    fireEvent.change(await screen.findByTestId("note-tag-search"), { target: { value: "bit" } });
+    expect(screen.getByTestId("note-tag-create")).toBeInTheDocument();
+    expect(screen.getByTestId("note-tag-existing")).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(screen.getByTestId("note-tag-search"), { key: "Escape" });
+    fireEvent.click(screen.getByTestId("note-add-tag"));
+    expect(await screen.findByTestId("note-tag-search")).toHaveValue("");
+  });
 });
 
 describe("inSentence", () => {

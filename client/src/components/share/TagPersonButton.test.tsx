@@ -230,3 +230,28 @@ describe("TagPersonButton — a new tag can carry a description", () => {
     expect(within(confirm).queryByTestId("share-tag-description")).toBeNull();
   });
 });
+
+describe("TagPersonButton — what Enter takes", () => {
+  it("a tag that exists, above one of your own; and it opens again on the whole list", async () => {
+    tags = [];
+    picker = [
+      {
+        key: `${AUTHOR}|bitcoin-vendor`,
+        authorPubkey: AUTHOR,
+        slug: "bitcoin-vendor",
+        name: "Bitcoin Vendor",
+        people: 33,
+        vouches: 9,
+        sharesName: 1,
+        unverified: false,
+        band: "profile",
+      },
+    ];
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    fireEvent.change(await openPicker(), { target: { value: "bit" } });
+    expect(screen.getByTestId("share-tag-create")).toBeInTheDocument();
+    expect(screen.getByTestId("share-tag-existing")).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(screen.getByTestId("share-tag-search"), { key: "Escape" });
+    expect(await openPicker()).toHaveValue("");
+  });
+});

@@ -8,7 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
-import { pickerTagScore } from "@/lib/tagMatch";
+import { newTagValue, pickerTagScore } from "@/lib/tagMatch";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
 import { StanceRow } from "@/components/share/StanceControl";
 import type { NoteTag } from "@/services/tags";
@@ -222,7 +222,14 @@ function TagNoteButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // Each opening starts from the whole list, not what was last typed.
+        if (!next) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -249,19 +256,6 @@ function TagNoteButton({
               </div>
             ) : (
               !isNew && <CommandEmpty>Type to add your own.</CommandEmpty>
-            )}
-
-            {isNew && (
-              <CommandGroup heading="Add your own">
-                <CommandItem
-                  value={typed}
-                  onSelect={() => run({ name: typed }, typed, 1)}
-                  data-testid="note-tag-create"
-                >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  {typed}
-                </CommandItem>
-              </CommandGroup>
             )}
 
             {/* Already on it — where you say whether it fits. One row
@@ -325,6 +319,19 @@ function TagNoteButton({
                     </span>
                   </CommandItem>
                 ))}
+              </CommandGroup>
+            )}
+            {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
+            {isNew && (
+              <CommandGroup heading="Add your own">
+                <CommandItem
+                  value={newTagValue(typed)}
+                  onSelect={() => run({ name: typed }, typed, 1)}
+                  data-testid="note-tag-create"
+                >
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  {typed}
+                </CommandItem>
               </CommandGroup>
             )}
           </CommandList>
