@@ -11,7 +11,7 @@ import type { AssistantActions } from "@/hooks/useAssistantActions";
 import type { DutyGroup } from "@/lib/treasureMap";
 
 /** Settings › Treasure Map, where duties are given and taken away. */
-export const TREASURE_MAP_PATH = "/settings?tab=treasure-map";
+export const TREASURE_MAP_PATH = "/settings?tab=assistants&view=map";
 
 export const DUTY_GROUPS: { key: DutyGroup; label: string }[] = [
   { key: "everything", label: "Everything" },

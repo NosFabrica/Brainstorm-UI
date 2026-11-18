@@ -3,8 +3,8 @@
  * nothing instead of publishing a kind-5 deletion (Zap Cooking's recipes,
  * 2026-09-24: content "", tags `d`, `["deleted","true"]`, `["title",
  * "[Deleted]"]`), and the husk then rendered as a "[Deleted]" article on
- * every surface. Team consensus: ignore an event with blank content and no
- * tags that say anything, however it came to be that way.
+ * every surface. So an event with blank content and no tags that say anything
+ * is ignored, however it came to be that way.
  *
  * Tags that say nothing: the address (`d`), dates, the publishing app, the
  * accessibility summary, the tombstone itself, and a title that only says

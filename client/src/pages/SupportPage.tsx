@@ -35,6 +35,8 @@ import {
   resolveTicket,
   type SupportTicket,
 } from "@/services/support";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 // The server stores the address, but nothing sends mail yet.
 const EMAIL_NOTIFICATIONS_LIVE = false;
@@ -82,7 +84,7 @@ export default function SupportPage() {
   return (
     <div className="min-h-page bg-[#F8FAFC] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {user && <AppHeader user={user} onLogout={() => logout()} />}
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10" data-testid="page-support">
+      <main className={cn(pageWidth("standard"), "py-6 sm:py-10")} data-testid="page-support">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"

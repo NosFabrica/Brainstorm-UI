@@ -28,6 +28,7 @@ import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useMyAssistants } from "@/hooks/useMyAssistants";
 import { useTreasureMapEdit, type TreasureMapEdit } from "@/hooks/useTreasureMapEdit";
 import { useTrustProviderList } from "@/hooks/useTrustProviderStatus";
+import { useVerifiedHost } from "@/hooks/useVerifiedHost";
 import { orderRows } from "@/lib/myAssistants";
 import { CATEGORIES, categoryAssistants, categoryEntries } from "@/lib/treasureMapCards";
 import {
@@ -229,9 +230,12 @@ export function TreasureMapTab({ viewer }: { viewer: string | null | undefined }
                                   <Chip tone="brand" size="sm">
                                     Unsaved
                                   </Chip>
-                                  <span className="text-xs text-slate-600 dark:text-slate-300">
-                                    Will be assigned to {nameOf(chosen)}
-                                  </span>
+                                  <MoveLine
+                                    from={current}
+                                    to={chosen}
+                                    nameOf={nameOf}
+                                    testId={`move-line-${category}`}
+                                  />
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -444,4 +448,32 @@ function SaveProblem({ edit }: { edit: TreasureMapEdit }) {
     );
   }
   return null;
+}
+
+/**
+ * What Save does to one category: an empty one is assigned; one another
+ * Assistant holds is taken from it — so the line names who it moves from and
+ * the site that Assistant's NIP-05 verifies on (fill empty, never take
+ * without saying so).
+ */
+function MoveLine({
+  from,
+  to,
+  nameOf,
+  testId,
+}: {
+  from: string | null;
+  to: string;
+  nameOf: (pubkey: string) => string;
+  testId: string;
+}) {
+  const taking = !!from && from !== to;
+  const site = useVerifiedHost(taking ? from : null);
+  return (
+    <span className="text-xs text-slate-600 dark:text-slate-300" data-testid={testId}>
+      {taking
+        ? `Moves from ${nameOf(from)}${site ? ` (${site})` : ""} to ${nameOf(to)}`
+        : `Will be assigned to ${nameOf(to)}`}
+    </span>
+  );
 }

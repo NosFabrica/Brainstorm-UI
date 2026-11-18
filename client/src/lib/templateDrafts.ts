@@ -8,7 +8,7 @@
  * preview as any other; publishing swaps in the id its signed event has.
  * Templates are kind 9999, never 39999: a header pins one by id, and an
  * addressable template could be edited out from under every list that
- * depends on it (the team, 2026-10-11).
+ * depends on it.
  *
  * A draft that builds the same links as an existing template (lib/linkTemplates
  * `similarTemplates`) isn't published: the form offers the existing one.

@@ -11,6 +11,8 @@ import { PlanPicker } from "@/components/billing/PlanPicker";
 import { CheckoutDialog } from "@/components/billing/CheckoutDialog";
 import { productClaims } from "@/lib/plans";
 import type { BillingPlan } from "@/services/subscription";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * What's on offer is whatever the server says is on offer.
@@ -50,7 +52,7 @@ export default function PricingPage() {
   if (billingAvailable === false) {
     return (
       <InfoPageLayout testId="page-pricing">
-        <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6" data-testid="pricing-unavailable">
+        <div className={cn(pageWidth("reading"), "py-16 text-center")} data-testid="pricing-unavailable">
           <h1
             className="text-2xl font-bold text-slate-900 dark:text-slate-100"
             style={{ fontFamily: "var(--font-display)" }}
@@ -67,7 +69,7 @@ export default function PricingPage() {
 
   return (
     <InfoPageLayout testId="page-pricing">
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+      <div className={cn(pageWidth("standard"), "py-6 sm:py-10")}>
         <PageHeader
           kicker="Pricing"
           // Leads with what staleness costs rather than with a rate, because the

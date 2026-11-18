@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 /** Where the Advanced page's promise is kept: every entry and who provides it, in Assistants & Duties' Duties view. */
 export const ADVANCED_PATH = "/settings?tab=assistants&view=duties";
 /** Where the reader's Assistants are kept. */
-export const ASSISTANTS_PATH = "/settings?tab=assistants";
+export const ASSISTANTS_PATH = "/settings?tab=assistants&view=all";
 
 /** An Assistant's face; the reader's own Assistant here is ringed in the accent. */
 export function MapAvatar({

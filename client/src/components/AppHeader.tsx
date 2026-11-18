@@ -36,7 +36,7 @@ interface AppHeaderProps {
 export function AppHeader({ user, onLogout, active, actions, search, layout = "page" }: AppHeaderProps) {
   const app = layout === "app";
   return (
-    <HeaderBar maxWidthClass="max-w-7xl" search={search} fullBleed={app} testId="nav-app-header">
+    <HeaderBar width="wide" search={search} fullBleed={app} testId="nav-app-header">
       {/* The nudge's words only once there is room for them beside the search box;
           narrower, it is the "Finish setup" chip alone. */}
       <FinishSetupBanner labelFrom={app ? "never" : "xl"} />

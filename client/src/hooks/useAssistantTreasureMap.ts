@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { verifyEvent, type NostrEvent } from "nostr-tools";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import {
@@ -14,6 +14,7 @@ import { eventStore } from "@/lib/eventStore";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { apiClient, TreasureMapUnavailableError, type TreasureMapPublishResult } from "@/services/api";
 import { fetchEventsByFilter } from "@/services/nostr";
+import { useLastOutcome, type PublishOutcome } from "@/hooks/useLastOutcome";
 
 const READ_MS = 8000;
 const NONE: never[] = [];
@@ -41,7 +42,10 @@ export interface AssistantTreasureMap {
   error: Error | null;
   /** Turn on or Update now (`true`), or Turn off (`false`). */
   set: (on: boolean) => Promise<TreasureMapPublishResult>;
+  /** A press is under way, started from anywhere in the app. */
   publishing: boolean;
+  /** How the newest press from anywhere in the app stands; null before any. */
+  lastPublish: PublishOutcome | null;
 }
 
 /**
@@ -89,7 +93,10 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
   const shouldSay = check?.shouldSay ?? NONE;
   const status = assistant && (published || read.settled) ? selfMapStatus(shouldSay, published, assistant) : null;
 
+  // Keyed, so every reader sees a press another one started (components/AutoAssistantSetup).
+  const mutationKey = ["assistant-treasure-map-set", pubkey];
   const mutation = useMutation({
+    mutationKey,
     mutationFn: async (on: boolean) => {
       const result = await apiClient.setAssistantTreasureMap(on);
       const event = result?.event;
@@ -100,6 +107,9 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
+
+  const publishing = useIsMutating({ mutationKey }) > 0;
+  const lastPublish = useLastOutcome(mutationKey);
 
   return {
     supported: checkQuery.isSuccess ? true : unsupported ? false : undefined,
@@ -113,6 +123,7 @@ export function useAssistantTreasureMap(pubkey: string | null | undefined): Assi
     settled: read.settled,
     error: checkQuery.error && !unsupported ? checkQuery.error : null,
     set: mutation.mutateAsync,
-    publishing: mutation.isPending,
+    publishing,
+    lastPublish,
   };
 }

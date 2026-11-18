@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { AlertTriangle, BadgeCheck } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Info } from "lucide-react";
+import { useReplaces } from "@/hooks/useCompromised";
 import { useHandleOwner, useNip05 } from "@/hooks/useNip05";
 import { npubFromPubkey } from "@/lib/shareId";
 
@@ -74,8 +75,33 @@ export function HandleOwnerWarning({
   className?: string;
 }) {
   const owner = useHandleOwner(nip05, pubkey);
+  // The one case where "another account" is the same person: this is the new
+  // account of an owner whose old one was Compromised, and the handle's server
+  // still names the old key. Said as that — a handle not moved yet — and not
+  // as a copy using someone else's handle.
+  const replaces = useReplaces(pubkey);
   if (!owner || !nip05) return null;
   const handle = nip05.replace(/^_@/, "");
+  if (replaces && replaces.pubkey === owner)
+    return (
+      <p
+        className={`flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-slate-500 dark:text-slate-400 ${compact ? "text-xs" : "text-sm"} ${className}`}
+        data-testid="handle-owner-moved"
+        role="note"
+      >
+        <Info className={`${compact ? "h-3 w-3" : "h-3.5 w-3.5"} shrink-0`} aria-hidden="true" />
+        <span>{handle} still points to their old, compromised account</span>
+        {linked && (
+          <Link
+            href={`/p/${npubFromPubkey(owner)}`}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            className="font-semibold underline underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200"
+          >
+            See the old account
+          </Link>
+        )}
+      </p>
+    );
   return (
     <p
       className={`flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-amber-700 dark:text-amber-400 ${compact ? "text-xs" : "text-sm"} ${className}`}

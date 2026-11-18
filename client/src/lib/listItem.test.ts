@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { definitionOf, type HeaderEvent } from "./conceptResolution";
 import { itemD, itemProblems, itemTemplate, randomTail, titleFieldOf } from "./listItem";
 
-const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
+const CURATOR = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const places = definitionOf({
   id: "h".repeat(64),
-  pubkey: AVI,
+  pubkey: CURATOR,
   kind: 39998,
   created_at: 1,
   tags: [
@@ -37,7 +37,7 @@ describe("itemTemplate", () => {
       content: "",
       tags: [
         ["d", "wolf-s-burger-truck-a1b2c3d4"],
-        ["z", `39998:${AVI}:food-and-drink-places`],
+        ["z", `39998:${CURATOR}:food-and-drink-places`],
         ["name", "Wolf's Burger Truck"],
         ["category", "restaurant"],
         ["website", "https://wolfs.example"],
@@ -51,7 +51,7 @@ describe("itemTemplate", () => {
     const id = "9".repeat(64);
     const nines = definitionOf({
       id,
-      pubkey: AVI,
+      pubkey: CURATOR,
       kind: 9998,
       created_at: 1,
       tags: [

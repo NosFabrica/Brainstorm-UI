@@ -120,6 +120,21 @@ async function uploadImage(blob: Blob): Promise<string> {
   throw new Error("Couldn't upload your image right now. Please try again in a moment.");
 }
 
+/**
+ * Resize and upload one image the way the picker does, for a caller with its
+ * own file input — /setup adds a photo or banner straight from the user's files.
+ */
+export async function uploadProfileImage(file: File, aspect: "square" | "banner"): Promise<string> {
+  const square = aspect === "square";
+  const blob = await resizeImage(
+    file,
+    square ? MAX_AVATAR_SIZE : MAX_BANNER_WIDTH,
+    square ? MAX_AVATAR_SIZE : MAX_BANNER_HEIGHT,
+    JPEG_QUALITY,
+  );
+  return uploadImage(blob);
+}
+
 export function ImageUpload({
   value,
   onChange,

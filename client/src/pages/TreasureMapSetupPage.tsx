@@ -23,6 +23,8 @@ import {
 } from "@/lib/assistantTreasureMap";
 import { categoryOf } from "@/lib/dutyMenu";
 import type { TreasureMapPublishResult } from "@/services/api";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * /setup/treasure-map — the checklist's "Publish your Assistant's Treasure
@@ -235,7 +237,7 @@ export default function TreasureMapSetupPage() {
         search={false}
       />
 
-      <main className="mx-auto max-w-2xl space-y-5 px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
+      <main className={cn(pageWidth("reading"), "space-y-5 pb-28 pt-8 sm:pt-10")}>
         <button
           type="button"
           onClick={() => navigate("/setup")}

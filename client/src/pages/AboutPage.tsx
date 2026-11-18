@@ -14,6 +14,8 @@ import heroPosterMore from "@assets/generated_images/about_hero_more_than_search
 import imgTrust from "@assets/generated_images/about_trust_signal.webp";
 import imgEveryone from "@assets/generated_images/about_for_everyone.webp";
 import imgYours from "@assets/generated_images/about_yours_identity.webp";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const HERO_SLIDES = [
   {
@@ -112,10 +114,7 @@ export default function AboutPage() {
   return (
     <InfoPageLayout testId="page-about">
       {/* ============ HERO ============ */}
-      <section
-        className="relative mx-auto w-full max-w-7xl px-4 pb-6 pt-8 sm:px-6 sm:pt-14"
-        data-testid="section-about-hero"
-      >
+      <section className={cn(pageWidth("standard"), "relative pb-6 pt-8 sm:pt-14")} data-testid="section-about-hero">
         <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-2 lg:gap-12">
           {/* Left: copy — `contents` on mobile lets each piece reorder around the video */}
           <div className="contents animate-fade-up lg:order-1 lg:block lg:space-y-6">
@@ -220,7 +219,7 @@ export default function AboutPage() {
       </section>
 
       {/* ============ MISSION ============ */}
-      <section className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <section className={cn(pageWidth("standard"), "py-8 sm:py-12")}>
         <div
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
           data-testid="card-about-mission"
@@ -250,7 +249,7 @@ export default function AboutPage() {
       </section>
 
       {/* ============ BRAINSTORM FAMILY ============ */}
-      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12" data-testid="section-about-family">
+      <section className={cn(pageWidth("standard"), "py-8 sm:py-12")} data-testid="section-about-family">
         <div className="mb-8 max-w-2xl">
           <h2
             className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
@@ -267,10 +266,7 @@ export default function AboutPage() {
       </section>
 
       {/* ============ THEMATIC BANDS ============ */}
-      <section
-        className="mx-auto w-full max-w-5xl space-y-4 px-4 py-8 sm:px-6 sm:py-12"
-        data-testid="section-about-themes"
-      >
+      <section className={cn(pageWidth("standard"), "space-y-4 py-8 sm:py-12")} data-testid="section-about-themes">
         <ThemeBand
           icon={<ShieldCheck className="h-5 w-5 text-brand-deep" />}
           kicker="Trust over noise"
@@ -308,7 +304,7 @@ export default function AboutPage() {
       </section>
 
       {/* ============ PARENT ATTRIBUTION ============ */}
-      <section className="mx-auto w-full max-w-5xl px-4 pb-12 sm:px-6 sm:pb-16">
+      <section className={cn(pageWidth("standard"), "pb-12 sm:pb-16")}>
         <div
           className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row"
           data-testid="about-parent-attribution"

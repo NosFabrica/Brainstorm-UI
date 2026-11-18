@@ -1,0 +1,351 @@
+// @vitest-environment jsdom
+/**
+ * The first run (/start): what you're into → people to follow → all set, then
+ * search. Picking a topic preselects its top three, and dropping it drops
+ * them; a key that already follows people skips straight to "your network is
+ * ready". Finishing publishes one follow list and lets other apps use their
+ * trust scores — always, nothing to choose; skipping publishes nothing.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+const ME = "a".repeat(64);
+const person = (c: string, name: string) => ({ pubkey: c.repeat(64), name, picture: `https://img.example/${c}.png` });
+const MUSIC = [person("1", "Ann"), person("2", "Ben"), person("3", "Cal"), person("4", "Dee")];
+const NEWS = [person("5", "AP News"), person("6", "Reuters"), person("7", "Stacker"), person("8", "Report")];
+
+const h = vi.hoisted(() => ({
+  follows: 0,
+  /** The relays' answer about their follow list; by default it agrees with `follows`. */
+  verdict: undefined as undefined | "checking" | "none" | "has-follows",
+  navigate: vi.fn(),
+  followPubkeys: vi.fn(),
+  trigger: vi.fn(),
+  toast: vi.fn(),
+  byTopic: {} as Record<string, unknown[]>,
+  /** The Assistant's own setup, which the app does in the background. */
+  assistant: { live: true, publishing: false } as { live: boolean; publishing: boolean; lastPublish?: string },
+  menuPublishing: false,
+  mapPublishing: false,
+  /** Whether anyone is signed in. */
+  signedIn: true,
+}));
+
+vi.mock("wouter", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  useLocation: () => ["/start", h.navigate],
+}));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => (h.signedIn ? { pubkey: ME } : null),
+}));
+vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => h.follows }));
+vi.mock("@/hooks/useVerifiedNoFollows", () => ({
+  useVerifiedNoFollows: () => h.verdict ?? (h.follows > 0 ? "has-follows" : "none"),
+}));
+vi.mock("@/hooks/useOnboardingPeople", () => ({
+  useOnboardingPeople: (topics: string[]) => ({
+    byTopic: Object.fromEntries(topics.map((t) => [t, h.byTopic[t] ?? []])),
+    loading: false,
+  }),
+}));
+vi.mock("@/services/socialActions", () => ({
+  followPubkeys: (...a: unknown[]) => h.followPubkeys(...a),
+  recoverFollowListFromRelay: vi.fn(),
+}));
+vi.mock("@/services/trustAnchor", () => ({ triggerScoringAndAnchor: (...a: unknown[]) => h.trigger(...a) }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
+vi.mock("@/hooks/useAssistantProfile", () => ({ useAssistantProfile: () => h.assistant }));
+vi.mock("@/hooks/useAssistantDutyMenu", () => ({ useAssistantDutyMenu: () => ({ publishing: h.menuPublishing }) }));
+vi.mock("@/hooks/useAssistantTreasureMap", () => ({
+  useAssistantTreasureMap: () => ({ publishing: h.mapPublishing }),
+}));
+
+import FirstRunPage from "./FirstRunPage";
+import { isFirstRunDone } from "@/lib/firstRun";
+import { hasNip85Consent } from "@/lib/nip85Consent";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.clear();
+  h.follows = 0;
+  h.verdict = undefined;
+  h.byTopic = { music: MUSIC, news: NEWS };
+  h.followPubkeys.mockResolvedValue({ success: true });
+  h.trigger.mockResolvedValue(undefined);
+  h.assistant = { live: true, publishing: false };
+  h.menuPublishing = false;
+  h.mapPublishing = false;
+  h.signedIn = true;
+  window.history.replaceState({}, "", "/start");
+});
+
+const pick = (label: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${label}`) }));
+const next = () => fireEvent.click(screen.getByTestId("first-run-next"));
+
+describe("FirstRunPage", () => {
+  it("starts with nothing picked, everyday topics first and Money & Bitcoin last", () => {
+    render(<FirstRunPage />);
+    const topics = screen.getAllByTestId(/^first-run-topic-/).map((b) => b.textContent);
+    expect(topics[0]).toBe("News");
+    expect(topics.at(-1)).toBe("Money & Bitcoin");
+    expect(screen.getByTestId("first-run-next")).toBeDisabled();
+  });
+
+  it("picking a topic preselects its top three; dropping it drops them", () => {
+    render(<FirstRunPage />);
+    pick("Music");
+    pick("News");
+    pick("News");
+    next();
+    expect(screen.getByTestId("first-run-next")).toHaveTextContent("Follow 3 and continue");
+    expect(screen.queryByText("AP News")).toBeNull();
+    expect(screen.getByText("Dee")).toBeInTheDocument();
+  });
+
+  it("finishing publishes one follow list with the picks and lands on search", async () => {
+    render(<FirstRunPage />);
+    pick("Music");
+    next();
+    fireEvent.click(screen.getByRole("button", { name: /Dee/ }));
+    next();
+    fireEvent.click(screen.getByTestId("first-run-next"));
+
+    await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/", { replace: true }));
+    expect(h.followPubkeys).toHaveBeenCalledTimes(1);
+    expect(h.followPubkeys.mock.calls[0][0]).toEqual([MUSIC[0], MUSIC[1], MUSIC[2], MUSIC[3]].map((p) => p.pubkey));
+    expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: true });
+    expect(isFirstRunDone(ME)).toBe(true);
+  });
+
+  /**
+   * Other apps using their trust scores isn't a choice here: left off, with
+   * no other provider named, their search came back empty. It's on for
+   * everyone who finishes; Settings is where it's turned off.
+   */
+  describe("letting other apps use their trust scores", () => {
+    it("asks nothing on the last step, for a new network or one that came with them", () => {
+      const fresh = render(<FirstRunPage />);
+      pick("Music");
+      next();
+      next();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.getByTestId("page-first-run")).not.toHaveTextContent(/let other apps/i);
+      fresh.unmount();
+
+      h.follows = 416;
+      render(<FirstRunPage />);
+      next();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.getByTestId("page-first-run")).not.toHaveTextContent(/one last choice/i);
+    });
+
+    it("is on for someone who picked nobody, ready for when they do follow people", () => {
+      render(<FirstRunPage />);
+      pick("Music");
+      next();
+      for (const name of ["Ann", "Ben", "Cal"]) fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+      next();
+      fireEvent.click(screen.getByTestId("first-run-next"));
+      expect(h.followPubkeys).not.toHaveBeenCalled();
+      expect(h.trigger).not.toHaveBeenCalled();
+      expect(hasNip85Consent(ME)).toBe(true);
+    });
+
+    it("is on even when the follows couldn't be saved", async () => {
+      h.followPubkeys.mockResolvedValue({ success: false, error: "relay down" });
+      render(<FirstRunPage />);
+      pick("Music");
+      next();
+      next();
+      fireEvent.click(screen.getByTestId("first-run-next"));
+      await waitFor(() =>
+        expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your follows weren't saved" })),
+      );
+      expect(hasNip85Consent(ME)).toBe(true);
+    });
+  });
+
+  it("a key that already follows people goes straight to 'your network is ready'", async () => {
+    h.follows = 416;
+    render(<FirstRunPage />);
+    expect(screen.queryByTestId(/^first-run-topic-/)).toBeNull();
+    expect(screen.getByTestId("first-run-found")).toHaveTextContent("416 people");
+    next();
+    fireEvent.click(screen.getByTestId("first-run-next"));
+    await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/", { replace: true }));
+    expect(h.followPubkeys).not.toHaveBeenCalled();
+    expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: true });
+  });
+
+  it("skipping publishes nothing, and isn't asked again", () => {
+    render(<FirstRunPage />);
+    fireEvent.click(screen.getByTestId("first-run-skip"));
+    expect(h.navigate).toHaveBeenCalledWith("/", { replace: true });
+    expect(h.followPubkeys).not.toHaveBeenCalled();
+    expect(h.trigger).not.toHaveBeenCalled();
+    expect(isFirstRunDone(ME)).toBe(true);
+  });
+
+  /**
+   * The last step says what's ready for them, in plain words, live: their
+   * Assistant (set up in the background), their follows and their scores —
+   * and where to find it all later. No links out of the flow.
+   */
+  describe("what's ready, on the last step", () => {
+    const toDone = () => {
+      pick("Music");
+      next();
+      next();
+    };
+    const state = (testid: string) => screen.getByTestId(testid).getAttribute("data-state");
+
+    // A spinner means work under way. Nothing is published until they press
+    // Start searching, so their follows and scores are what happens next —
+    // never shown as already in progress.
+    it("tells what's ready apart from what happens when they continue", () => {
+      render(<FirstRunPage />);
+      toDone();
+      expect(screen.getByTestId("ready-assistant")).toHaveTextContent("Your Brainstorm Assistant is live");
+      expect(state("ready-assistant")).toBe("done");
+
+      const next = screen.getByTestId("first-run-next-up");
+      expect(next).toHaveTextContent("When you continue");
+      expect(screen.getByTestId("ready-follows")).toHaveTextContent("We'll follow the 3 people you picked");
+      expect(state("ready-follows")).toBe("next");
+      expect(screen.getByTestId("ready-scores")).toHaveTextContent(/about 5 minutes/i);
+      expect(state("ready-scores")).toBe("next");
+      expect(screen.getByTestId("page-first-run")).toHaveTextContent("You'll find all of this later under Account.");
+    });
+
+    it("shows the Assistant as under way only while the app really is setting it up", () => {
+      h.menuPublishing = true;
+      render(<FirstRunPage />);
+      toDone();
+      expect(screen.getByTestId("ready-assistant")).toHaveTextContent("Setting up your Brainstorm Assistant");
+      expect(state("ready-assistant")).toBe("working");
+    });
+
+    // The app tried and couldn't: no spinner left turning over nothing. It's
+    // finished later, and Account shows it.
+    it("an Assistant the app couldn't set up isn't shown as still working", () => {
+      h.assistant = { live: false, publishing: false, lastPublish: "error" };
+      render(<FirstRunPage />);
+      toDone();
+      expect(state("ready-assistant")).toBe("next");
+      expect(screen.getByTestId("ready-assistant")).not.toHaveTextContent("Setting up");
+      expect(screen.getByTestId("ready-assistant")).toHaveTextContent("Your Brainstorm Assistant");
+    });
+
+    it("a returning key's follows are already done", () => {
+      h.follows = 416;
+      render(<FirstRunPage />);
+      next();
+      expect(screen.getByTestId("ready-follows")).toHaveTextContent("Following 416 people");
+      expect(state("ready-follows")).toBe("done");
+    });
+
+    it("nothing to follow, nothing promised: no follows line when they picked nobody", () => {
+      render(<FirstRunPage />);
+      pick("Music");
+      next();
+      for (const name of ["Ann", "Ben", "Cal"]) fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+      next();
+      expect(screen.queryByTestId("ready-follows")).toBeNull();
+    });
+  });
+
+  /**
+   * Start searching doesn't wait for the follow list: reading the old one,
+   * signing (an extension asks), publishing and the server taking it in can
+   * take seconds. They go to search at once; the list saves in the
+   * background, and one that couldn't be saved says so and points to setup —
+   * where the header's pill already counts it as a step left.
+   */
+  describe("Start searching", () => {
+    const finish = () => {
+      pick("Music");
+      next();
+      next();
+      fireEvent.click(screen.getByTestId("first-run-next"));
+    };
+
+    it("goes to search at once, while the follows save in the background", () => {
+      h.followPubkeys.mockReturnValue(new Promise(() => {}));
+      render(<FirstRunPage />);
+      finish();
+      expect(h.navigate).toHaveBeenCalledWith("/", { replace: true });
+      expect(h.followPubkeys).toHaveBeenCalledTimes(1);
+    });
+
+    it("once saved, starts their scores, shared with other apps, and says so", async () => {
+      render(<FirstRunPage />);
+      finish();
+      await waitFor(() => expect(h.trigger).toHaveBeenCalledWith(ME, { nip85Consent: true }));
+      expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "You're following 3 people" }));
+    });
+
+    it.each([
+      ["a declined signature", { cancelled: true }],
+      ["a failed publish", { success: false, error: "relay down" }],
+      ["a list on the relays that needs confirming first", { needsBaseConfirmation: true }],
+    ])("%s says the follows weren't saved, and points to setup", async (_case, outcome) => {
+      h.followPubkeys.mockResolvedValue(outcome);
+      render(<FirstRunPage />);
+      finish();
+      await waitFor(() =>
+        expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your follows weren't saved" })),
+      );
+      expect(h.toast.mock.calls.at(-1)[0].action).toBeTruthy();
+      expect(h.trigger).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * A key new to Brainstorm on a device that hasn't seen its follow list:
+   * this browser's count is 0 until the relays answer. The first run waits
+   * for that, so someone who follows 416 people is never walked through
+   * "What are you into?".
+   */
+  describe("on a device that hasn't seen their list yet", () => {
+    it("waits for the relays, then shows the network they already have", () => {
+      h.verdict = "checking";
+      const view = render(<FirstRunPage />);
+      expect(screen.getByTestId("first-run-checking")).toHaveTextContent("Checking your network");
+      expect(screen.queryByTestId(/^first-run-topic-/)).toBeNull();
+
+      // The relays found their list, and the count is repaired from it.
+      h.verdict = "has-follows";
+      h.follows = 416;
+      view.rerender(<FirstRunPage />);
+      expect(screen.getByTestId("first-run-found")).toHaveTextContent("416 people");
+      expect(screen.queryByTestId(/^first-run-topic-/)).toBeNull();
+    });
+
+    it("a list the relays don't find is a new network: the topics", () => {
+      h.verdict = "none";
+      render(<FirstRunPage />);
+      expect(screen.getAllByTestId(/^first-run-topic-/).length).toBeGreaterThan(0);
+    });
+  });
+  /**
+   * Nobody signed in: /start sends them to sign in, and keeps where they were
+   * headed. A new account comes back through /start with it (LoginPage); a
+   * returning one lands there directly.
+   */
+  describe("signed out", () => {
+    beforeEach(() => {
+      h.signedIn = false;
+    });
+
+    it("goes to sign in, keeping where they were headed", async () => {
+      window.history.replaceState({}, "", "/start?next=%2Fp%2Fabc");
+      render(<FirstRunPage />);
+      await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login?next=%2Fp%2Fabc", { replace: true }));
+    });
+
+    it("goes to plain sign in when they were headed nowhere in particular", async () => {
+      render(<FirstRunPage />);
+      await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login", { replace: true }));
+    });
+  });
+});

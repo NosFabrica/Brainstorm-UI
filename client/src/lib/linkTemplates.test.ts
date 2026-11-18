@@ -18,15 +18,15 @@ import {
 } from "./linkTemplates";
 
 const TEMPLATE_ID = "f19f39daf75388ff0f19cc37dde5ae1b90124b0d60e35659160c48dc690deca4";
-const VINNEY = "2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331";
+const TEMPLATE_AUTHOR = "2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331";
 const DCOSL = "wss://dcosl.brainstorm.world";
 
 // The template as published on dcosl, 2026-10-01.
 const published = {
   id: TEMPLATE_ID,
-  pubkey: VINNEY,
+  pubkey: TEMPLATE_AUTHOR,
   tags: [
-    ["z", `39998:${VINNEY}:url-templates`],
+    ["z", `39998:${TEMPLATE_AUTHOR}:url-templates`],
     ["name", "GitHub profile"],
     ["url-template", "https://github.com/{username}"],
     ["alt", "URL template: GitHub profile"],
@@ -53,9 +53,7 @@ describe("templatePlaceholders", () => {
 
 describe("expandTemplate", () => {
   it("fills placeholders", () => {
-    expect(expandTemplate("https://github.com/{username}", { username: "vcavallo" })).toBe(
-      "https://github.com/vcavallo",
-    );
+    expect(expandTemplate("https://github.com/{username}", { username: "octocat" })).toBe("https://github.com/octocat");
   });
 
   it("percent-encodes a value, so it can't add a path, query or fragment", () => {
@@ -111,15 +109,15 @@ describe("itemLinks", () => {
   it("reads the published template", () => {
     expect(tpl).toEqual({
       id: TEMPLATE_ID,
-      pubkey: VINNEY,
+      pubkey: TEMPLATE_AUTHOR,
       name: "GitHub profile",
       template: "https://github.com/{username}",
     });
   });
 
   it("builds an item's link from its fields", () => {
-    expect(itemLinks({ tags: [["github-username", "vcavallo"]] }, refs, templates)).toEqual([
-      { label: "GitHub profile", href: "https://github.com/vcavallo", host: "github.com" },
+    expect(itemLinks({ tags: [["github-username", "octocat"]] }, refs, templates)).toEqual([
+      { label: "GitHub profile", href: "https://github.com/octocat", host: "github.com" },
     ]);
   });
 

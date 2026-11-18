@@ -21,6 +21,8 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { tone as getTone, type NamedTone } from "@/lib/tones";
 import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 const BrainLogoIcon = ({ className }: { className?: string }) => <BrainLogo className={className} />;
 
@@ -224,7 +226,7 @@ export default function HowSearchWorksPage() {
 
   return (
     <InfoPageLayout testId="page-how-search-works">
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-12 sm:space-y-16">
           {/* Editorial hero */}
           <PageHeader

@@ -143,6 +143,33 @@ export function menuStatus(
 const ANY = "0".repeat(64);
 const LABEL = { scores: "Scores", lists: "Lists", concepts: "Concepts" } as const;
 
+const SIGNAL_NAME: Record<string, string> = {
+  "30382:rank": "Rank",
+  "30382:followers": "Followers",
+  "30382:reporters": "Reporters",
+  "30382:muters": "Muters",
+  "30382:hops": "Hops",
+};
+
+/**
+ * The offer in plain words, one line per category: "Scores · Rank, Followers"
+ * names the signals; Lists and Concepts count their kinds. The keys and relays
+ * themselves are a detail the page keeps behind a toggle.
+ */
+export function offerSummary(rows: readonly MenuRow[]): { category: string; what: string }[] {
+  const byCategory = new Map<string, MenuRow[]>();
+  for (const r of rows) {
+    if (r.tag !== "duty") continue;
+    const c = categoryOf(r.key);
+    byCategory.set(c, [...(byCategory.get(c) ?? []), r]);
+  }
+  return [...byCategory.entries()].map(([category, rs]) => {
+    const names = rs.map((r) => SIGNAL_NAME[r.key]).filter(Boolean);
+    const what = names.length === rs.length ? names.join(", ") : `${rs.length} ${rs.length === 1 ? "kind" : "kinds"}`;
+    return { category, what };
+  });
+}
+
 /** A row's category as the Treasure Map reads its key: Scores, Lists, Concepts, or Everything. */
 export function categoryOf(key: string): string {
   const entry = entryOf([key, ANY]);

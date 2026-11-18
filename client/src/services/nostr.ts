@@ -1,6 +1,14 @@
 import { nip19, finalizeEvent, generateSecretKey, verifyEvent, type EventTemplate } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
-import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
+import {
+  declaresTrustProvider,
+  listRows,
+  planDesignation,
+  signalRows,
+  withoutProvider,
+  type ListDesignation,
+} from "@/lib/nip85Declaration";
+import type { MapCategory } from "@/lib/treasureMapCards";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
@@ -178,6 +186,29 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
   } catch {}
 
   return held;
+}
+
+/**
+ * `fetchTrustProviderList`, plus whether a majority of the user's relays answered
+ * and none holds one: "declared nothing" proven, not just "couldn't read".
+ */
+export async function probeTrustProviderList(
+  pubkey: string,
+  timeoutMs = 10000,
+): Promise<{ event: NostrEvent | undefined; provenAbsent: boolean }> {
+  const held = eventStore.getReplaceable(10040, pubkey) as NostrEvent | undefined;
+  try {
+    const writeRelays = await outboxRelays(pubkey, PROFILE_RELAYS);
+    const { newest, reach } = await requestNewestWithReach(
+      writeRelays,
+      { kinds: [10040], authors: [pubkey], limit: 5 },
+      timeoutMs,
+    );
+    const event = newerOf(newest, (eventStore.getReplaceable(10040, pubkey) as NostrEvent | undefined) ?? held);
+    return { event, provenAbsent: !event && reach.answered.length * 2 > reach.asked.length };
+  } catch {}
+
+  return { event: held, provenAbsent: false };
 }
 
 export interface Nip85TagCheck {
@@ -1536,30 +1567,32 @@ export async function announceRelayList(): Promise<PublishOutcome> {
 }
 
 /**
- * The user's kind-10040 naming Brainstorm: rank and followers, plus every
- * Trusted List kind when they have lists — merged into the tags they already
- * have (`existing`), so another provider's rows survive. It used to be rebuilt
- * from our two rows alone, dropping everything else.
+ * The user's kind-10040 naming Brainstorm: every signal the Assistant publishes
+ * (`signalRows`), plus every Trusted List kind when they have lists — merged
+ * into the tags they already have (`existing`), so another provider's rows
+ * survive. It used to be rebuilt from our two rows alone, dropping everything
+ * else; and until #313 it named rank and followers only.
  */
 export async function signNip85(
   serviceKey: string,
   relayHint: string,
-  opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
+  opts: { lists?: ListDesignation | null; existing?: string[][]; take?: readonly MapCategory[] } = {},
 ): Promise<NostrEvent> {
-  const ours = [
-    ["30382:rank", serviceKey, relayHint],
-    ["30382:followers", serviceKey, relayHint],
-    ...(opts.lists ? listRows(opts.lists) : []),
-  ];
+  const ours = [...signalRows(serviceKey, relayHint), ...(opts.lists ? listRows(opts.lists) : [])];
   return signAs(requireActiveAccount(), {
     kind: 10040,
-    tags: mergeDesignation(opts.existing ?? [], ours),
+    // Fill empty, never take: another Assistant's slots move only in the categories the caller chose.
+    tags: planDesignation(opts.existing ?? [], ours, { self: serviceKey, take: opts.take }),
     content: "",
   });
 }
 
-export async function signNip85Deactivation(): Promise<NostrEvent> {
-  return signAs(requireActiveAccount(), { kind: 10040, tags: [], content: "" });
+export async function signNip85Deactivation(serviceKey: string, existing: string[][]): Promise<NostrEvent> {
+  return signAs(requireActiveAccount(), {
+    kind: 10040,
+    tags: withoutProvider(existing, serviceKey),
+    content: "",
+  });
 }
 
 export interface ReportMetadata {

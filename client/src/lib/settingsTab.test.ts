@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { settingsTabFor } from "@/lib/settingsTab";
+import { assistantViewsFor, settingsTabFor, settingsTabsFor, settingsTargetFor } from "@/lib/settingsTab";
 
 describe("settingsTabFor — which Settings tab a link opens", () => {
   const all = ["profile", "trust", "messages", "billing", "about"] as const;
@@ -16,5 +16,89 @@ describe("settingsTabFor — which Settings tab a link opens", () => {
     expect(settingsTabFor("trust", "tag-relays", all)).toBe("trust");
     expect(settingsTabFor("nope", null, all)).toBe("profile");
     expect(settingsTabFor(null, null, all)).toBe("profile");
+  });
+});
+
+// One Assistants tab (2026-11-02) with three views — yours, all, map — in place
+// of three tabs. Old links keep landing where they pointed; a view only admins
+// see falls back to "yours" for anyone else.
+describe("settingsTargetFor — the Assistants tab and its views", () => {
+  const all = ["profile", "trust", "assistants", "messages", "billing", "about"] as const;
+
+  it("opens the Assistants tab on a view, 'yours' by default", () => {
+    expect(settingsTargetFor({ tab: "assistants", view: null, focus: null }, all, { admin: true })).toEqual({
+      tab: "assistants",
+      view: "yours",
+    });
+    expect(settingsTargetFor({ tab: "assistants", view: "map", focus: null }, all, { admin: true })).toEqual({
+      tab: "assistants",
+      view: "map",
+    });
+  });
+
+  it("sends the three old tabs to their views", () => {
+    expect(settingsTargetFor({ tab: "brainstorm-assistant", view: null, focus: null }, all, { admin: true })).toEqual({
+      tab: "assistants",
+      view: "yours",
+    });
+    expect(settingsTargetFor({ tab: "treasure-map", view: null, focus: null }, all, { admin: true })).toEqual({
+      tab: "assistants",
+      view: "map",
+    });
+    // The old Assistants & Duties tab was the cross-site list, with its duties view.
+    expect(settingsTargetFor({ tab: "assistants", view: "all", focus: null }, all, { admin: true })).toEqual({
+      tab: "assistants",
+      view: "all",
+    });
+    expect(settingsTargetFor({ tab: "assistants", view: "duties", focus: null }, all, { admin: true })).toEqual({
+      tab: "assistants",
+      view: "duties",
+    });
+  });
+
+  // The Treasure Map is every user's (issue #11): a reader's own Map, which they
+  // sign — never kept from them. The list and duties are operators' surfaces.
+  it("keeps the admin-only views from everyone else — they land on 'yours' — but the Map is theirs", () => {
+    expect(settingsTargetFor({ tab: "treasure-map", view: null, focus: null }, all, { admin: false })).toEqual({
+      tab: "assistants",
+      view: "map",
+    });
+    expect(settingsTargetFor({ tab: "assistants", view: "all", focus: null }, all, { admin: false })).toEqual({
+      tab: "assistants",
+      view: "yours",
+    });
+  });
+
+  it("still sends the old Trust link for messages to Messages, and the unknown to Profile", () => {
+    expect(settingsTargetFor({ tab: "trust", view: null, focus: "messages" }, all, { admin: false })).toEqual({
+      tab: "messages",
+      view: null,
+    });
+    expect(settingsTargetFor({ tab: "nope", view: null, focus: null }, all, { admin: false })).toEqual({
+      tab: "profile",
+      view: null,
+    });
+  });
+});
+
+// The bar an admin sees and the one everyone else sees: the internal pages
+// (the Dictionary; the Assistants tab's list and duties) are admins' only,
+// marked so an admin knows what regular users don't see.
+describe("settingsTabsFor / assistantViewsFor", () => {
+  it("gives everyone five tabs and admins the Dictionary too, marked internal", () => {
+    const everyone = settingsTabsFor({ admin: false });
+    expect(everyone.map((t) => t.key)).toEqual(["profile", "trust", "assistants", "messages", "billing"]);
+    expect(everyone.some((t) => t.internal)).toBe(false);
+    const admin = settingsTabsFor({ admin: true });
+    expect(admin.map((t) => t.key)).toEqual(["profile", "trust", "assistants", "messages", "dictionary", "billing"]);
+    expect(admin.find((t) => t.key === "dictionary")?.internal).toBe(true);
+    expect(admin.find((t) => t.key === "assistants")?.internal).toBe(false);
+  });
+
+  it("gives everyone 'yours' and the Treasure Map, and admins the list and duties too, marked internal", () => {
+    expect(assistantViewsFor({ admin: false }).map((v) => v.key)).toEqual(["yours", "map"]);
+    const admin = assistantViewsFor({ admin: true });
+    expect(admin.map((v) => v.key)).toEqual(["yours", "all", "duties", "map"]);
+    expect(admin.filter((v) => v.internal).map((v) => v.key)).toEqual(["all", "duties"]);
   });
 });

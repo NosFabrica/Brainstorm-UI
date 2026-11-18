@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Check, Info } from "lucide-react";
+import { Check, Info, Loader2 } from "lucide-react";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { FollowPicker } from "@/components/FollowPicker";
 import { OnboardingHeader } from "@/components/OnboardingHeader";
@@ -11,6 +11,9 @@ import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
+import { knownFollowCount } from "@/lib/followStore";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * Post-signup "Build your network" — the primary activation step. New users pick
@@ -44,7 +47,9 @@ export default function WelcomePage() {
   // Mount-time relay verification: repairs the local follow floor for imported
   // keys (so the at-risk path below almost never engages) and warms the outbox
   // list so the commit-time kind-3 read asks the user's real write relays.
-  useVerifiedNoFollows(user?.pubkey);
+  // Also the answer to "do they already follow people?" on a device that
+  // hasn't seen their list: until the relays say, nothing is offered to pick.
+  const verdict = useVerifiedNoFollows(user?.pubkey);
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
@@ -56,6 +61,12 @@ export default function WelcomePage() {
   // Returning to edit an existing list is a lighter action than the first
   // commit — the CTA and the toast both say so.
   const { followDone: alreadyCommitted } = useFinishSetup();
+  // An account that already follows people only adds here — from /setup's
+  // "Find people" or Settings. It says so, and the picker ticks nobody in
+  // advance: the publish merges into their list and never removes anyone.
+  const knownFollows = user?.pubkey ? knownFollowCount(user.pubkey) : 0;
+  const addOnly = alreadyCommitted || knownFollows > 0 || verdict === "has-follows";
+  const checking = !addOnly && verdict === "checking";
 
   // Fire the toast + navigation + background scoring/NIP-85 chain — everything
   // that happens after the kind-3 has been published and acked.
@@ -146,62 +157,95 @@ export default function WelcomePage() {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <OnboardingHeader
-        onSkip={() => navigate("/", { replace: true })}
-        skipLabel="Skip for now"
+        onSkip={() => navigate(addOnly ? returnPath : "/", { replace: true })}
+        skipLabel={addOnly ? "Done" : "Skip for now"}
         skipTestId="welcome-skip"
       />
 
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
-        <div className="mb-5 flex items-center gap-2.5">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
-            Build your network
-          </span>
-          <div className="h-px w-12 bg-brand-accent/40" />
-        </div>
-        <h1
-          className="text-3xl font-bold leading-[1.08] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Follow a few accounts <span className="text-brand-link">to begin</span>.
-        </h1>
-        <button
-          type="button"
-          onClick={() => setWhyOpen((v) => !v)}
-          className="mt-3 text-sm font-semibold text-brand-link hover:underline"
-          aria-expanded={whyOpen}
-          data-testid="welcome-why-toggle"
-        >
-          Why do this?
-        </button>
-        {whyOpen && (
-          <div
-            className="mt-3 flex flex-col gap-2.5 rounded-2xl border border-brand-accent/25 bg-white bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] p-4 dark:bg-slate-900 dark:from-brand-deep/20 dark:to-brand-accent/10"
-            data-testid="welcome-why-panel"
+      <main className={cn(pageWidth("reading"), "py-8")}>
+        {checking ? (
+          <p
+            className="flex items-center gap-2 py-16 text-sm text-slate-500 dark:text-slate-400"
+            data-testid="welcome-checking"
           >
-            <div className="flex items-start gap-2.5">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
-              <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
-                Your Verification Score — and everyone you can see through Brainstorm — is computed from your follow
-                list. No follows, no Web of Trust.
+            <Loader2 className="h-4 w-4 animate-spin" /> Checking your network…
+          </p>
+        ) : (
+          <>
+            <div className="mb-5 flex items-center gap-2.5">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
+                {addOnly ? "Your network" : "Build your network"}
               </span>
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
-            <div className="flex items-start gap-2.5">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
-              <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
-                One follow is enough to start. More follows make your scores richer — and you can change your list
-                anytime.
-              </span>
-            </div>
-          </div>
-        )}
+            <h1
+              className="text-3xl font-bold leading-[1.08] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {addOnly ? (
+                <>
+                  Find more people <span className="text-brand-link">to follow</span>.
+                </>
+              ) : (
+                <>
+                  Follow a few accounts <span className="text-brand-link">to begin</span>.
+                </>
+              )}
+            </h1>
+            {addOnly ? (
+              <p className="mt-3 text-[15px] text-slate-500 dark:text-slate-400" data-testid="welcome-add-only">
+                You follow {knownFollows > 0 ? `${knownFollows.toLocaleString()} people` : "people already"}. Anyone you
+                pick is added — nobody is removed.
+              </p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setWhyOpen((v) => !v)}
+                  className="mt-3 text-sm font-semibold text-brand-link hover:underline"
+                  aria-expanded={whyOpen}
+                  data-testid="welcome-why-toggle"
+                >
+                  Why do this?
+                </button>
+                {whyOpen && (
+                  <div
+                    className="mt-3 flex flex-col gap-2.5 rounded-2xl border border-brand-accent/25 bg-white bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] p-4 dark:bg-slate-900 dark:from-brand-deep/20 dark:to-brand-accent/10"
+                    data-testid="welcome-why-panel"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
+                      <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+                        Your Verification Score — and everyone you can see through Brainstorm — is computed from your
+                        follow list. No follows, no Web of Trust.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
+                      <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+                        One follow is enough to start. More follows make your scores richer — and you can change your
+                        list anytime.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
-        <div className="mt-6">
-          <FollowPicker
-            onContinue={finish}
-            continueLabel={alreadyCommitted ? "Update my follow list" : "Follow & calculate my scores"}
-            busy={submitting}
-          />
-        </div>
+            <div className="mt-6">
+              <FollowPicker
+                onContinue={finish}
+                continueLabel={
+                  addOnly
+                    ? (n: number) => (n > 0 ? `Add ${n} to your follows` : "Add to your follows")
+                    : "Follow & calculate my scores"
+                }
+                busy={submitting}
+                addOnly={addOnly}
+              />
+            </div>
+          </>
+        )}
       </main>
 
       <ConfirmNewFollowListDialog

@@ -15,11 +15,11 @@ import {
   type HeaderEvent,
 } from "./conceptResolution";
 
-const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
+const CURATOR = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const USER = "1".repeat(64);
 const TA = "2".repeat(64);
 const HOUSE = "3".repeat(64);
-const COMMUNITY = `39998:${AVI}:github-accounts`;
+const COMMUNITY = `39998:${CURATOR}:github-accounts`;
 
 const schema = [
   ["names", "GitHub Account", "GitHub Accounts"],
@@ -36,7 +36,7 @@ const header = (pubkey: string, extra: string[][] = [], base = schema): HeaderEv
   tags: [["d", "github-accounts"], ...base, ...extra],
 });
 
-const community = header(AVI);
+const community = header(CURATOR);
 const copyBy = (pubkey: string, base = schema) => header(pubkey, [["b", COMMUNITY, "pointer"]], base);
 
 describe("b links", () => {
@@ -60,7 +60,7 @@ describe("b links", () => {
   });
 
   it("knows a self-declared shared concept", () => {
-    expect(isSelfDeclared(header(AVI, [["b", COMMUNITY]]))).toBe(true);
+    expect(isSelfDeclared(header(CURATOR, [["b", COMMUNITY]]))).toBe(true);
     expect(isSelfDeclared(community)).toBe(false);
     expect(pointsAt(copyBy(TA), COMMUNITY)).toBe(true);
   });
@@ -76,7 +76,7 @@ describe("b links", () => {
         ]),
       ),
     ).toBe(COMMUNITY);
-    expect(versionOf(header(AVI, [["b", COMMUNITY]]))).toBeNull();
+    expect(versionOf(header(CURATOR, [["b", COMMUNITY]]))).toBeNull();
     expect(versionOf(community)).toBeNull();
     expect(versionOf(header(USER, [["b", B_DEFERRED]]))).toBeNull();
   });

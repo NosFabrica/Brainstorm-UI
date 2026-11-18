@@ -1,4 +1,6 @@
 import { BrainLogo } from "@/components/BrainLogo";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * The bar across the top of the setup screens (/welcome, /activate).
@@ -28,7 +30,7 @@ export function OnboardingHeader({
       className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80"
       data-testid="onboarding-header"
     >
-      <div className="mx-auto flex h-14 max-w-xl items-center justify-between px-4 sm:px-6">
+      <div className={cn(pageWidth("reading"), "flex h-14 items-center justify-between")}>
         <BrainLogo size={26} className="shrink-0 dark:hidden" />
         <BrainLogo size={26} mono className="hidden shrink-0 text-white dark:block" />
         <button

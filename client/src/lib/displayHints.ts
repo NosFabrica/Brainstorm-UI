@@ -2,8 +2,7 @@
  * PROVISIONAL (2026-10-01) — presentation hints on a DList header: which
  * declared field is an item's title, its summary, its picture, and what
  * image the list as a whole wears. No spec defines these yet; tapestry has
- * nothing like it on any branch. The shape follows the tapestry agent's
- * review, and the team will settle names with David once this approach has
+ * nothing like it on any branch. The names may change once this approach has
  * been seen working. Every tag name lives here, so a rename is one edit.
  * (A config flag once turned reading them off; removed 2026-10-10, as every
  * list's look depends on them.)

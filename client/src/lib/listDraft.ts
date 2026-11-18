@@ -7,11 +7,11 @@
  * - its own `d`, a slug of its name until it's published, fixed after (a new
  *   `d` is a new list);
  * - a `b` pointing at itself when its author puts it forward as a community
- *   concept — the signal a canonical concept gives (Avi's headers, Tapestry's
- *   shared-concept search). It's the author's choice, never added or dropped
- *   behind their back: new lists start with it (the team, 2026-10-11: a list
- *   authored here is submitted as a community concept), an edit keeps whatever
- *   the list had. A `b` pointing at another list stays as it was;
+ *   concept — the signal a canonical concept gives (Tapestry's shared-concept
+ *   search). It's the author's choice, never added or dropped behind their
+ *   back: new lists start with it (a list authored here is submitted as a
+ *   community concept), an edit keeps whatever the list had. A `b` pointing at
+ *   another list stays as it was;
  * - every tag the form doesn't speak kept as it was when an existing list is
  *   edited (`r`, `license`, `item-kind`, `alt`, …): editing never drops what
  *   it can't show. `client` is the one exception — signing stamps a fresh one.

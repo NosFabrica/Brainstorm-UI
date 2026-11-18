@@ -14,9 +14,9 @@ import {
   withdrawnTemplate,
 } from "./conceptCopy";
 
-const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
+const CURATOR = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const ME = "1".repeat(64);
-const COMMUNITY = `39998:${AVI}:github-accounts`;
+const COMMUNITY = `39998:${CURATOR}:github-accounts`;
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   id: pubkey.slice(0, 8).padEnd(64, "0"),
@@ -26,7 +26,7 @@ const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   tags: [["d", "github-accounts"], ...tags],
 });
 const community = definitionOf(
-  header(AVI, [
+  header(CURATOR, [
     ["names", "GitHub Account", "GitHub Accounts"],
     ["description", "A list of github handles/accounts"],
     ["required", "github-username"],
@@ -36,11 +36,11 @@ const community = definitionOf(
 const items = [
   {
     tags: [
-      ["github-username", "wds4"],
-      ["description", "David Strayhorn"],
+      ["github-username", "octocat"],
+      ["description", "The Octocat"],
     ],
   },
-  { tags: [["github-username", "vitorpamplona"]] },
+  { tags: [["github-username", "hubot"]] },
   {
     tags: [
       ["github-username", "beep-boop"],
@@ -201,7 +201,7 @@ describe("draftProblems", () => {
 
 describe("exactCopyTemplate", () => {
   const full = definitionOf(
-    header(AVI, [
+    header(CURATOR, [
       ["names", "GitHub Account", "GitHub Accounts"],
       ["json", "{}"],
       ["description", "A list of github handles/accounts"],
@@ -437,9 +437,9 @@ describe("facts in the copy (provisional)", () => {
 });
 
 describe("field descriptions in the copy", () => {
-  // Avi's Food and Drink Places: its fields carry descriptions, which label its links.
+  // A Food and Drink Places list: its fields carry descriptions, which label its links.
   const places = definitionOf(
-    header(AVI, [
+    header(CURATOR, [
       ["names", "Food and Drink Place", "Food and Drink Places"],
       ["required", "name", "Name of the business"],
       ["optional", "website", "Website"],

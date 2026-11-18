@@ -6,9 +6,11 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
+import { useCompromisedRing } from "@/hooks/useCompromised";
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { isKey } from "@/lib/searchQuery";
 import { orderTopSections, type TopSection } from "@/lib/topOrder";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
@@ -40,7 +42,7 @@ import type { PanelSections } from "@/components/search/KnowledgePanel";
 import { takeHeadStart, type HeadStartResult } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
 import { ListItemResults } from "@/components/search/ListItemResults";
-import { fetchEventRsvps, type EventRsvps } from "@/services/search";
+import { useEventRsvps } from "@/hooks/useEventRsvps";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 
 /** A file-metadata hit stays in Media only when the file is a picture, a video or a sound. */
@@ -105,6 +107,7 @@ function PersonChip({
   onOpen: (p: SearchResult) => void;
 }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(person.pubkey);
   const pk8 = person.pubkey.slice(0, 8);
   // Nearly everyone here is verified by construction — the relay ranks
   // through the web of trust — so the strip says nothing about it. Only the
@@ -119,7 +122,9 @@ function PersonChip({
       data-testid={`serp-person-${pk8}`}
     >
       <span className="relative">
-        <Avatar className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(score) ?? ""}`}>
+        <Avatar
+          className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(score) ?? ""}`}
+        >
           {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
             <DefaultAvatarImg />
@@ -138,6 +143,7 @@ function PersonChip({
       <span className="w-full truncate text-center text-xs font-semibold text-slate-800 dark:text-slate-100">
         {getDisplayLabel(person)}
       </span>
+      <CompromisedMark pubkey={person.pubkey} />
       {/* The strip has no right edge, so the tag sits under the name; the
           card is a button, so the tag is a label here — the People tab and
           the tag row above are the way in. */}
@@ -190,9 +196,6 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
 }
 
 const TOP: SearchGroup = "search-top";
-
-/** How long the Happening list must stop changing before its RSVPs are asked for. */
-const RSVP_SETTLE_MS = 400;
 
 /**
  * What the Top page asks each section for. index.html's head start asks
@@ -653,7 +656,6 @@ function ComposedResultsBody({
     [articleClusters, coveredArticles],
   );
   // Who is going to what Happening shows — one request for the section.
-  const [happeningRsvps, setHappeningRsvps] = useState<Map<string, EventRsvps>>(new Map());
   const calendarAddr = (e: { kind: number; pubkey: string; tags: string[][] }) =>
     `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
   const happeningEventAddrs = useMemo(
@@ -665,26 +667,7 @@ function ComposedResultsBody({
         : [],
     [happeningF],
   );
-  const happeningAddrKey = happeningEventAddrs.join(",");
-  useEffect(() => {
-    if (!happeningAddrKey) {
-      setHappeningRsvps(new Map());
-      return;
-    }
-    let alive = true;
-    // The list fills in bursts as events arrive, and each burst changes this
-    // key: asking on every one sent five requests for the same page (measured
-    // on staging 2026-09-17), each for up to 500 RSVPs. Ask once it settles.
-    const timer = setTimeout(() => {
-      void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
-        if (alive) setHappeningRsvps(m);
-      });
-    }, RSVP_SETTLE_MS);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [happeningAddrKey]);
+  const happeningRsvps = useEventRsvps(happeningEventAddrs);
   const happeningClusters = useMemo(
     () => (happeningF ? collapseHits(happeningF.hits, undefined, { maxPerAuthor: 2 }) : []),
     [happeningF],

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { CompromisedFollowsAlert } from "@/components/compromised/CompromisedFollowsAlert";
 import { useLocation, useSearch } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -27,6 +28,7 @@ import type { NetworkAlertEntry } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import { cn } from "@/lib/utils";
+import { pageWidth } from "@/lib/pageWidth";
 
 // Two scopes plus the ignored list. There used to be an "All" tab, and it was
 // the default — which is what made this page a dump: it mixed the handful of
@@ -187,7 +189,7 @@ export default function AlertsPage() {
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
+      <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
         <button
           type="button"
           onClick={() => goBack("/dashboard")}
@@ -211,6 +213,8 @@ export default function AlertsPage() {
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
           Accounts in your network that people you trust have reported or muted.
         </p>
+        {/* First, and not in the list below: a compromised follow is a fact, not a count of reports. */}
+        <CompromisedFollowsAlert observer={observer} className="mb-6" />
 
         {/* Toolbar */}
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">

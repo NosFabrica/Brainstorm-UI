@@ -1,3 +1,7 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
+import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -23,6 +27,7 @@ import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
+import { tagTargetOf } from "@/lib/tagTarget";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
@@ -88,6 +93,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { Nip05Check } from "@/components/Nip05Check";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { publicPageUrl } from "@/lib/publicOrigin";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -190,8 +197,8 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
 function DeletedEvent({ expired = false }: { expired?: boolean }) {
   return (
     <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader />
-      <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+      <PublicPageHeader width="reading" />
+      <main className={cn(pageWidth("reading"), "py-8")}>
         <div className="py-10" data-testid={expired ? "event-expired" : "event-deleted"}>
           <DeletedStub expired={expired} />
           <p className="mt-4 text-center">
@@ -259,6 +266,7 @@ function EventView({
   // The author's held profile at once; the event's own relay hints are asked
   // beside their outbox, and a newer profile replaces it as it lands.
   const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
+  const compromisedRing = useCompromisedRing(authorPk || undefined);
   const trustQuery = useQuery({
     queryKey: ["event-author-trust", authorPk],
     queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
@@ -469,11 +477,11 @@ function EventView({
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
-        maxWidthClass="max-w-2xl"
+        width="reading"
         actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />}
       />
 
-      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className={cn(pageWidth("reading"), "py-6 sm:py-8")}>
         {!ptr ? (
           <div className="py-20 text-center">
             <MessageSquare className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
@@ -550,7 +558,7 @@ function EventView({
                 >
                   <span className="relative shrink-0">
                     <Avatar
-                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(score01) ?? ""}`}
+                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${compromisedRing ?? tierRing(score01) ?? ""}`}
                     >
                       {profile.picture ? (
                         <AvatarImage src={profile.picture} alt={authorName} className="object-cover" />
@@ -579,6 +587,7 @@ function EventView({
                       </span>
                       <Nip05Check nip05={profile.nip05} pubkey={authorPk} className="h-4 w-4 shrink-0 text-sky-500" />
                       <TierWordChip score01={score01} />
+                      <CompromisedMark pubkey={authorPk} />
                     </div>
                     {/* A video says when it was published: a restored Vine's created_at is its import day. */}
                     <span className="block text-[13px] text-slate-500 dark:text-slate-400" data-testid="event-date">
@@ -590,6 +599,9 @@ function EventView({
               </div>
             )}
 
+            {/* A compromised author: said under the byline, before the reader reads on. */}
+            <CompromisedAuthorNotice pubkey={authorPk} postedAt={note.created_at} eventId={note.id} className="mb-4" />
+
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (
               <TechnicalStrip event={note} ids={nevent ? [{ label: "nevent", value: nevent }] : []} className="mb-3" />
@@ -597,9 +609,10 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
+              <CompromisedWatermark pubkey={authorPk} postedAt={note.created_at} eventId={note.id} />
               {dlistOfEvent(note) ? (
                 <DListHero event={note} />
               ) : note.kind === 39998 || note.kind === 9998 ? (
@@ -742,7 +755,15 @@ function EventView({
                 the note itself, where a reader has just finished it and a
                 tagger has the content in view. Reads from relays only, so it
                 renders for logged-out visitors too. */}
-            {!activityPage && <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />}
+            {!activityPage && (
+              <NoteTagChips
+                eventId={note.id}
+                // A listing, an article, a DList item: tagged by coordinate, so a tag survives its next edit (#334).
+                address={tagAddressOf(note)}
+                relayHint={relayHints[0]}
+                canTag={canTagNote}
+              />
+            )}
 
             {/* Reply thread — teaser-gated for anon, trust-filterable for members.
                 Not under a zap, a reaction or a report: nobody replies to those,
@@ -835,4 +856,10 @@ function EventView({
       </main>
     </div>
   );
+}
+
+/** The event's coordinate when it is addressable, as its tags are read and written (#334). */
+function tagAddressOf(event: { id: string; pubkey: string; kind: number; tags?: string[][] }): string | undefined {
+  const target = tagTargetOf(event);
+  return "address" in target ? target.address : undefined;
 }

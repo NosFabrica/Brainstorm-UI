@@ -23,6 +23,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { tagShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import { ShareButton } from "@/components/share/ShareButton";
 import type { TagCarrier } from "@/services/tags";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -215,14 +217,14 @@ export default function TagPage() {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader
-        maxWidthClass="max-w-2xl"
+        width="reading"
         actions={
           // Gated like the byline: no link to a tag the relays haven't confirmed.
           shareUrl &&
           status === "ok" && <ShareButton url={shareUrl} title={`${tagName} on Brainstorm`} mint={mintShortUrl} />
         }
       />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6 sm:py-8" data-testid="tag-page">
+      <main className={cn(pageWidth("reading"), "flex-1 py-6 sm:py-8")} data-testid="tag-page">
         <button
           type="button"
           onClick={() => goBack("/tags")}
