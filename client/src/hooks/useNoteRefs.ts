@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { addrCoord, collectRefs, mentionPubkeysFromContent, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
-import { PROFILE_RELAYS } from "@/lib/relays";
+import { MAX_REF_HINTS, PROFILE_RELAYS } from "@/lib/relays";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { newerEvent, useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
@@ -10,12 +10,8 @@ export type ProfileLite = { name?: string; display_name?: string; picture?: stri
 
 const NO_EVENTS: Map<string, MinimalEvent> = new Map();
 
-/**
- * How many of the notes' own relay hints join a read. A page of notes can name
- * dozens of relays between them; the ones it names first are asked, beside the
- * default set, rather than a socket for every one.
- */
-export const MAX_REF_HINTS = 6;
+/** Moved to lib/relays so services can cap hints too; kept here for its importers. */
+export { MAX_REF_HINTS };
 
 /**
  * Everything a list of notes refers to, resolved once: the events they quote,

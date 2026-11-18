@@ -6,7 +6,20 @@
  * newest across relays, or all of them, and those differ in how the deadline is
  * spent.
  */
-import { EMPTY, catchError, lastValueFrom, map, reduce, scan, take, takeUntil, takeWhile, tap, timer } from "rxjs";
+import {
+  EMPTY,
+  catchError,
+  lastValueFrom,
+  map,
+  merge,
+  reduce,
+  scan,
+  take,
+  takeUntil,
+  takeWhile,
+  tap,
+  timer,
+} from "rxjs";
 import type { Observable } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
@@ -215,12 +228,19 @@ export function requestAll(
   relays: string[],
   filter: Filter,
   timeoutMs: number,
-  { enough }: { enough?: (collected: Map<string, NostrEvent>) => boolean } = {},
+  {
+    enough,
+    stop,
+  }: {
+    enough?: (collected: Map<string, NostrEvent>) => boolean;
+    /** Ends the request early, keeping what arrived: for an answer found elsewhere first. */
+    stop?: Observable<unknown>;
+  } = {},
 ): Promise<NostrEvent[]> {
   return lastValueFrom(
     pool.request(relays, filter, options(timeoutMs)).pipe(
       catchError(() => EMPTY),
-      takeUntil(timer(timeoutMs)),
+      takeUntil(stop ? merge(timer(timeoutMs), stop) : timer(timeoutMs)),
       scan((collected, event) => collected.set(event.id, event), new Map<string, NostrEvent>()),
       // inclusive, so the event that satisfied `enough` is itself kept
       takeWhile((collected) => !enough?.(collected), true),
