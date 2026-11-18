@@ -46,7 +46,7 @@ import {
   groupTaggingsByTarget,
   slug as toSlug,
 } from "@/lib/tagging-sdk/event-tagging/index.js";
-import { countNameCollisions, type CountedTag } from "@/lib/tagMerge";
+import { countNameCollisions, normalizeTagName, type CountedTag } from "@/lib/tagMerge";
 import { stanceOnlyRefs } from "@/lib/tagCounts";
 import { buildTagPin, conceptTagPinning, tagRefFromPin } from "@/lib/tagPins";
 import {
@@ -1453,37 +1453,92 @@ export interface PickerTag extends TagSummary {
  *  - It does not sort BY the hint. Only 9 of 39 tags carry one, so ranking on
  *    it buried `AOS 2026 Participant` (88 people) beneath tags with three.
  *    Usage sorts within each band; the hint only chooses the band.
- *  - It does not advertise hint-only tags nobody has applied. The house's
+ *  - It does not advertise pubkey-hinted tags nobody has applied. The house's
  *    pubkey list includes `jumble-qa-profile-1784946392` and `test account`,
  *    so offering them puts harness output in front of users for the sake of
  *    one real unused tag (KIT-FEEDBACK.md §5). Nothing is lost: typing an
  *    existing tag's name still reuses it via `resolveOrMintTag`.
  *
+ * Tags made for events are offered by their hint, though: the catalogue counts
+ * people only, so a tag only ever put on notes (`stoicism`, `asknostr`) would
+ * otherwise be missing from both pickers. A tag made on a note carries the
+ * `tag-for-nostr-event` hint (`applyEventTagging`), so one small read of the
+ * hinted tags finds them — 39 on the hub (2026-11-18) — without reading any
+ * tagging. They come with no count and in the `content` band.
+ *
  * Returns `unverified` entries too. The picker is BOTH surfaces at once — a
  * suggestion list before you type and a query after — so the list/query split
- * has to be made there, not here. `TagPersonButton` does it.
+ * has to be made there, not here. `TagPersonButton` and `NoteTagChips` do it.
  */
 export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObserver = "house"): Promise<PickerTag[]> {
-  const catalogue = await fetchTagIndex(viewerPubkey, observer);
+  const [catalogue, forEvents] = await Promise.all([fetchTagIndex(viewerPubkey, observer), fetchEventHintedTags()]);
   const applicability = await fetchApplicability(catalogue);
 
-  // No opinion available → everything is offered as-is, in usage order.
-  if (applicability.source === "none") {
-    return catalogue.map((t) => ({ ...t, band: "profile" as const }));
-  }
-
-  const banded = catalogue.map((t) => {
+  // Content-only means the split says "notes" AND doesn't say "people".
+  // A tag in both lists is applicable to both and belongs up top. No opinion
+  // available → everything people carry stands as it is, in usage order.
+  const banded: PickerTag[] = catalogue.map((t) => {
     const coord = tagCoordinate(t);
-    // Content-only means the split says "notes" AND doesn't say "people".
-    // A tag in both lists is applicable to both and belongs up top.
     const contentOnly = applicability.event.has(coord) && !applicability.pubkey.has(coord);
-    return { ...t, band: (contentOnly ? "content" : "profile") as PickerTag["band"] };
+    return { ...t, band: contentOnly ? "content" : "profile" };
   });
+
+  // The event-hinted tags nobody carries yet: for notes, and checked for a
+  // scored creator as the catalogue's are.
+  const carried = new Set(catalogue.map((t) => t.key));
+  const unused = forEvents.filter((t) => !carried.has(`${t.authorPubkey}|${t.slug}`));
+  const scored = await fetchScoredPubkeys(Array.from(new Set(unused.map((t) => t.authorPubkey))), observer);
+  for (const t of unused) {
+    banded.push({
+      key: `${t.authorPubkey}|${t.slug}`,
+      authorPubkey: t.authorPubkey,
+      slug: t.slug,
+      name: t.name,
+      description: t.description,
+      people: 0,
+      vouches: 0,
+      sharesName: 1,
+      unverified: !scored.has(t.authorPubkey) && t.authorPubkey !== viewerPubkey,
+      band: "content",
+    });
+  }
+  const perName = new Map<string, number>();
+  for (const t of banded) perName.set(normalizeTagName(t.name), (perName.get(normalizeTagName(t.name)) ?? 0) + 1);
+  for (const t of banded) t.sharesName = perName.get(normalizeTagName(t.name)) ?? 1;
 
   return banded.sort(
     (a, b) =>
       (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
   );
+}
+
+/**
+ * The tags made for events: those carrying the `tag-for-nostr-event` hint, the
+ * newest of each, named from their own content. A failed read is none.
+ */
+async function fetchEventHintedTags(): Promise<
+  Array<{ authorPubkey: string; slug: string; name: string; description?: string }>
+> {
+  let events: NostrEvent[];
+  try {
+    events = await fetchTagEvents(applicabilityHintFilter("event") as Record<string, unknown>);
+  } catch {
+    return [];
+  }
+  const newest = new Map<string, NostrEvent>();
+  for (const ev of events) {
+    const d = tagValue(ev, "d");
+    if (!d) continue;
+    const key = `${ev.pubkey}|${d}`;
+    const prev = newest.get(key);
+    if (!prev || ev.created_at > prev.created_at) newest.set(key, ev);
+  }
+  return Array.from(newest.entries()).map(([key, ev]) => {
+    const slug = key.slice(key.indexOf("|") + 1);
+    cacheElementMeta(ev.pubkey, slug, ev.content);
+    const meta = elementMetaByCoord.get(key);
+    return { authorPubkey: ev.pubkey, slug, name: meta?.name || slug, description: meta?.description };
+  });
 }
 
 // ─── Comments on a tag ───────────────────────────────────────────────────────

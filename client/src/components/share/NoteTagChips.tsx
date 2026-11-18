@@ -154,13 +154,18 @@ function TagNoteButton({
 
   // Content-applicable tags lead HERE, which is the mirror of the profile
   // picker's ordering and the reason the applicability split exists at all
-  // (ACCEPTANCE C3). Usage still sorts within each band.
-  const offered = (options ?? [])
-    .filter((t) => !taken.has(t.name.toLowerCase()))
-    .sort(
-      (a, b) =>
-        (a.band === b.band ? 0 : a.band === "content" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
-    );
+  // (ACCEPTANCE C3); tags mostly put on people follow under their own heading.
+  // `fetchPickerTags` already sorted each band by usage.
+  const offered = (options ?? []).filter((t) => !taken.has(t.name.toLowerCase()));
+  // As in the person picker (TagPersonButton): a tag whose creator is unscored
+  // stays out of the suggestions — the hub holds QA harness output — and joins
+  // them only against two or more letters typed.
+  const typedForMatch = search.trim().toLowerCase();
+  const shown = offered.filter(
+    (t) => !t.unverified || (typedForMatch.length >= 2 && t.name.toLowerCase().includes(typedForMatch)),
+  );
+  const forPosts = shown.filter((t) => t.band === "content");
+  const forPeople = shown.filter((t) => t.band === "profile");
 
   const typed = search.trim();
   const known = new Set([...taken, ...offered.map((t) => t.name.toLowerCase())]);
@@ -248,14 +253,37 @@ function TagNoteButton({
               </CommandGroup>
             )}
 
-            {offered.length > 0 && (
+            {forPosts.length > 0 && (
               <CommandGroup heading="Tags people use">
-                {offered.map((t) => (
+                {forPosts.map((t) => (
                   <CommandItem
                     key={t.key}
                     value={t.name}
                     onSelect={() => run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)}
                     data-testid="note-tag-existing"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{t.name}</span>
+                      {t.description && (
+                        <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
+                      )}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+
+            {/* Tags mostly put on people. Still offered — the hint is never a
+                gate — just not what someone tagging a post usually wants. */}
+            {forPeople.length > 0 && (
+              <CommandGroup heading="Usually used on people">
+                {forPeople.map((t) => (
+                  <CommandItem
+                    key={t.key}
+                    value={t.name}
+                    onSelect={() => run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)}
+                    data-testid="note-tag-for-people"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1">

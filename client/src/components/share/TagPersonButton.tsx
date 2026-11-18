@@ -436,7 +436,10 @@ export function TagPersonButton({
                           <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
                         )}
                       </span>
-                      <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                      {/* A tag made for posts may be on no one yet: no count then. */}
+                      {e.people > 0 && (
+                        <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
