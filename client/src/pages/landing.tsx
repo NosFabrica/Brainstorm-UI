@@ -282,8 +282,9 @@ export default function Landing() {
             currentUrl.searchParams.set("q", q);
             if (f) currentUrl.searchParams.set("f", f);
             else currentUrl.searchParams.delete("f");
-            // A list pressed on All was for the words before (components/search/SearchResults).
+            // A list or tag pressed on All was for the words before (components/search/SearchResults).
             currentUrl.searchParams.delete("list");
+            currentUrl.searchParams.delete("tagged");
             window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
             trackHistoryEntry();
           }
@@ -471,6 +472,7 @@ export default function Landing() {
         url.searchParams.delete("t");
         url.searchParams.delete("f");
         url.searchParams.delete("list");
+        url.searchParams.delete("tagged");
         window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
       }
     } catch {}
@@ -496,6 +498,7 @@ export default function Landing() {
         const url = new URL(window.location.href);
         url.searchParams.delete("q");
         url.searchParams.delete("list");
+        url.searchParams.delete("tagged");
         url.searchParams.set("t", tabKey);
         window.history.pushState({}, "", url.pathname + url.search);
       } catch {}

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * All's categories for its tab row: found among All's rows and the Dictionary's lists, and the
- * kinds Top's tabs ask, counted once each — Notes, People and the biggest list first, then the
- * rest by their results — and kept for the visit.
+ * kinds Top's tabs ask, counted once each — what All shows first, then the standing kinds beside
+ * it; Notes, People and the biggest list first, then the rest by their results — and kept for the visit.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe("useAllCategories", () => {
-  it("counts what it finds and the kinds Top's tabs ask, together; shows nothing until counted", async () => {
+  it("counts what it finds first, lists first, and the kinds Top's tabs ask beside it; shows nothing until counted", async () => {
     const { result } = renderHook(() =>
       useAllCategories("burger", {
         pov: "nosfabrica",
@@ -71,13 +71,56 @@ describe("useAllCategories", () => {
       }),
     );
     expect(result.current.shown).toEqual([]);
-    await waitFor(() => expect(asks).toHaveLength(1));
-    expect(keysAsked()).toEqual(
-      expect.arrayContaining([BOOKS, "kind:Note", "kind:Video", "kind:Person", "kind:Event", "kind:Repo"]),
-    );
+    await waitFor(() => expect(asks).toHaveLength(2));
+    const first = asks[0].categories.map((c) => c.key);
+    expect(first[0]).toBe(BOOKS);
+    expect([...first].sort()).toEqual([BOOKS, "kind:Note", "kind:Person", "kind:Video"].sort());
+    expect(asks[1].categories.map((c) => c.key)).toEqual(expect.arrayContaining(["kind:Event", "kind:Repo"]));
     // Events and Recipes are asked as their tabs ask them.
-    expect(asks[0].categories.find((c) => c.key === "kind:Event")?.tab).toBe("events");
-    expect(asks[0].categories.find((c) => c.key === "kind:Recipe")?.tab).toBe("recipes");
+    expect(asks[1].categories.find((c) => c.key === "kind:Event")?.tab).toBe("events");
+    expect(asks[1].categories.find((c) => c.key === "kind:Recipe")?.tab).toBe("recipes");
+  });
+
+  it("shows the row from the first count, and what the standing kinds find follows it, moving none of it", async () => {
+    const { result } = renderHook(() =>
+      useAllCategories("burger", {
+        pov: "nosfabrica",
+        enabled: true,
+        ready: true,
+        page: [row(1), row(21)],
+        lists: [books],
+      }),
+    );
+    await waitFor(() => expect(asks).toHaveLength(2));
+    act(() =>
+      asks[0].onCounts(
+        new Map([
+          [BOOKS, 6],
+          ["kind:Note", 40],
+          ["kind:Video", 2],
+          ["kind:Person", 3],
+        ]),
+      ),
+    );
+    expect(result.current).toMatchObject({ loading: false });
+    expect(result.current.shown.map((c) => c.name)).toEqual(["Notes", "People", "Books", "Videos"]);
+    act(() =>
+      asks[1].onCounts(
+        new Map([
+          ["kind:Article", 700],
+          ["kind:Repo", 3],
+          ["kind:Event", 0],
+        ]),
+      ),
+    );
+    expect(result.current.shown.map((c) => c.name)).toEqual([
+      "Notes",
+      "People",
+      "Books",
+      "Videos",
+      "Articles",
+      "Repos",
+    ]);
   });
 
   it("goes Notes, People, the biggest list, then the rest by their results — Events and lists among them", async () => {
@@ -91,7 +134,7 @@ describe("useAllCategories", () => {
         lists: [books, places],
       }),
     );
-    await waitFor(() => expect(asks).toHaveLength(1));
+    await waitFor(() => expect(asks).toHaveLength(2));
     answer([
       ["kind:Note", 500],
       ["kind:Video", 2],
@@ -107,14 +150,14 @@ describe("useAllCategories", () => {
     const { result } = renderHook(() =>
       useAllCategories("burger", { pov: "nosfabrica", enabled: true, ready: true, page: [row(1)], lists: [] }),
     );
-    await waitFor(() => expect(asks).toHaveLength(1));
+    await waitFor(() => expect(asks).toHaveLength(2));
     answer([
       ["kind:Note", 0],
       ["kind:Repo", 3],
       ["kind:Person", 0],
       ["kind:Event", null],
     ]);
-    expect(result.current.shown.map((c) => c.name)).toEqual(["Repos", "Notes"]);
+    expect(result.current.shown.map((c) => c.name)).toEqual(["Notes", "Repos"]);
   });
 
   it("keeps the row on a category's page, and coming back counts nothing again", async () => {
@@ -122,7 +165,7 @@ describe("useAllCategories", () => {
     const { result, rerender, unmount } = renderHook(() =>
       useAllCategories("burger", { pov: "nosfabrica", enabled: true, ready: true, page, lists: [] }),
     );
-    await waitFor(() => expect(asks).toHaveLength(1));
+    await waitFor(() => expect(asks).toHaveLength(2));
     answer([["kind:Note", 5]]);
     page = [];
     rerender();
@@ -134,7 +177,7 @@ describe("useAllCategories", () => {
     );
     expect(back.result.current.shown.map((c) => c.name)).toEqual(["Notes"]);
     await new Promise((r) => setTimeout(r, 400));
-    expect(asks).toHaveLength(1);
+    expect(asks).toHaveLength(2);
   });
 
   it("finds nothing off All", () => {
@@ -160,7 +203,7 @@ describe("useAllCategories totals", () => {
         lists: [books],
       }),
     );
-    await waitFor(() => expect(asks).toHaveLength(1));
+    await waitFor(() => expect(asks).toHaveLength(2));
     answer(keysAsked().map((k) => [k, 7]));
     const totals = result.current.totals;
     expect(totals.has(BOOKS) && totals.has("kind:Video") && totals.has("kind:Person")).toBe(true);
@@ -179,7 +222,7 @@ describe("useAllCategories loading", () => {
     expect(result.current.loading).toBe(true);
     ready = true;
     rerender();
-    await waitFor(() => expect(asks).toHaveLength(1));
+    await waitFor(() => expect(asks).toHaveLength(2));
     answer([["kind:Note", 5]]);
     expect(result.current).toMatchObject({ loading: false, shown: [{ name: "Notes" }] });
   });
@@ -200,7 +243,7 @@ describe("useAllCategories and Event Index", () => {
         lists: [eventIndex, books],
       }),
     );
-    await waitFor(() => expect(asks).toHaveLength(1));
+    await waitFor(() => expect(asks).toHaveLength(2));
     expect(keysAsked()).not.toContain(eventIndex.coordinate);
     answer(keysAsked().map((k) => [k, 3]));
     expect(result.current.shown.filter((c) => c.name === "Events")).toHaveLength(1);

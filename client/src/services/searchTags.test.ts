@@ -115,6 +115,21 @@ describe("fetchSearchTags — the tags a search matches, from the search relay",
     expect(tags.map((t) => t.name)).toEqual(["Mine"]);
   });
 
+  it("takes the house's list of a tag the viewer has none of their own for, asked beside theirs", async () => {
+    // Theirs for AOS; only the house's for Developer.
+    answer = [
+      list({ id: "b", observer: OTHER_OBSERVER, title: "Mine" }),
+      list({ id: "a" }),
+      list({ id: "e", slug: "developer", title: "Developer" }),
+    ];
+    const tags = await fetchSearchTags("aos", { pov: "mywot", userPubkey: OTHER_OBSERVER });
+    expect(asked.map((a) => [a.params.pov, a.params.userPubkey])).toEqual([
+      ["mywot", OTHER_OBSERVER],
+      ["nosfabrica", undefined],
+    ]);
+    expect(tags.map((t) => t.name)).toEqual(["Mine", "Developer"]);
+  });
+
   it("shows one tag once: the newest copy, and the full list over the pinned one", async () => {
     answer = [
       list({ id: "c", created_at: 100, title: "Old copy" }),

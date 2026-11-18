@@ -245,6 +245,19 @@ describe("asking for everything", () => {
     await expect(pending).resolves.toHaveLength(1);
   });
 
+  // An event page's relay leg, once the search relay already had the event.
+  it("stops when told to, keeping what arrived and closing the REQ", async () => {
+    const { subject, torndown } = controllable();
+    const stop = new Subject<void>();
+
+    const pending = requestAll(RELAYS, FILTER, 60_000, { stop });
+    subject.next(event("one"));
+    stop.next();
+
+    await expect(pending).resolves.toHaveLength(1);
+    expect(torndown.count).toBe(1);
+  });
+
   it("is empty when nothing answers", async () => {
     controllable();
 

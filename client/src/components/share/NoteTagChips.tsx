@@ -8,6 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
+import { newTagValue, pickerTagScore } from "@/lib/tagMatch";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
 import { StanceRow } from "@/components/share/StanceControl";
 import type { NoteTag } from "@/services/tags";
@@ -35,6 +36,7 @@ export function NoteTagChips({
   address,
   relayHint,
   canTag = false,
+  noun,
 }: {
   eventId: string;
   /**
@@ -46,6 +48,8 @@ export function NoteTagChips({
   relayHint?: string;
   /** The viewer is signed in AND holds a signer. A session token can't sign. */
   canTag?: boolean;
+  /** What the event is, by its own name ("GitHub Account", a Dictionary item's): a post when not given. */
+  noun?: string;
 }) {
   const { data } = useEventTags(eventId, address);
   const tags = data?.tags ?? [];
@@ -55,7 +59,15 @@ export function NoteTagChips({
 
   return (
     <NoteTagRow tags={tags}>
-      {canTag && <TagNoteButton eventId={eventId} address={address} relayHint={relayHint} onNote={tags} />}
+      {canTag && (
+        <TagNoteButton
+          eventId={eventId}
+          address={address}
+          relayHint={relayHint}
+          onNote={tags}
+          noun={noun ? inSentence(noun) : "post"}
+        />
+      )}
     </NoteTagRow>
   );
 }
@@ -130,17 +142,28 @@ export function NoteTagRow({
   );
 }
 
+/**
+ * A name as it reads mid-sentence: a word that is only capitalised goes lower
+ * case, one cased on purpose stays ("GitHub Account" → "GitHub account").
+ */
+export function inSentence(name: string): string {
+  return name.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase());
+}
+
 /** The picker. Same vocabulary and ordering as the profile one. */
 function TagNoteButton({
   eventId,
   address,
   relayHint,
   onNote,
+  noun,
 }: {
   eventId: string;
   address?: string;
   relayHint?: string;
   onNote: NoteTag[];
+  /** What the event is called mid-sentence: "post", "GitHub account". */
+  noun: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -148,23 +171,30 @@ function TagNoteButton({
   const applyTag = useApplyEventTag(eventId, relayHint, address ? { address } : undefined);
   // Only fetched once the picker is opened — no relay traffic for a button
   // nobody clicked.
-  const { data: options } = usePickerTags(open);
+  const { data: options, isPending: loadingTags } = usePickerTags(open);
 
   const taken = new Set(onNote.map((t) => t.name.toLowerCase()));
 
   // Content-applicable tags lead HERE, which is the mirror of the profile
   // picker's ordering and the reason the applicability split exists at all
-  // (ACCEPTANCE C3). Usage still sorts within each band.
-  const offered = (options ?? [])
-    .filter((t) => !taken.has(t.name.toLowerCase()))
-    .sort(
-      (a, b) =>
-        (a.band === b.band ? 0 : a.band === "content" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
-    );
+  // (ACCEPTANCE C3); tags mostly put on people follow under their own heading.
+  // `fetchPickerTags` already sorted each band by usage.
+  const offered = (options ?? []).filter((t) => !taken.has(t.name.toLowerCase()));
+  // As in the person picker (TagPersonButton): a tag whose creator is unscored
+  // stays out of the suggestions — the hub holds QA harness output — and joins
+  // them only against two or more letters typed.
+  const typedForMatch = search.trim().toLowerCase();
+  const shown = offered.filter(
+    (t) => !t.unverified || (typedForMatch.length >= 2 && t.name.toLowerCase().includes(typedForMatch)),
+  );
+  const forPosts = shown.filter((t) => t.band === "content");
+  const forPeople = shown.filter((t) => t.band === "profile");
 
   const typed = search.trim();
   const known = new Set([...taken, ...offered.map((t) => t.name.toLowerCase())]);
-  const isNew = typed.length > 0 && !known.has(typed.toLowerCase());
+  // Not before the tags people use are in: "Add your own" over a name that
+  // exists would make a second tag of it (the list takes ~5 s to come).
+  const isNew = !loadingTags && typed.length > 0 && !known.has(typed.toLowerCase());
 
   async function run(tag: { authorPubkey: string; slug: string } | { name: string }, label: string, polarity: 1 | -1) {
     setOpen(false);
@@ -183,16 +213,23 @@ function TagNoteButton({
       }
       toast({
         title: polarity === 1 ? `Tagged as "${label}"` : `Disagreed with "${label}"`,
-        description: polarity === 1 ? "Anyone can see this on the post." : "Your agreement has been taken back.",
+        description: polarity === 1 ? `Anyone can see this on the ${noun}.` : "Your agreement has been taken back.",
       });
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
-      if (description) toast({ title: "Couldn't tag this post", description, variant: "destructive" });
+      if (description) toast({ title: `Couldn't tag this ${noun}`, description, variant: "destructive" });
     }
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // Each opening starts from the whole list, not what was last typed.
+        if (!next) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -201,38 +238,31 @@ function TagNoteButton({
           disabled={applyTag.isPending}
         >
           {applyTag.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          {applyTag.isPending ? "Saving" : "Tag this post"}
+          {applyTag.isPending ? "Saving" : `Tag this ${noun}`}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
-        <Command shouldFilter>
+        <Command shouldFilter filter={pickerTagScore}>
           <CommandInput
-            placeholder="What is this post about?"
+            placeholder={`What is this ${noun} about?`}
             value={search}
             onValueChange={setSearch}
             data-testid="note-tag-search"
           />
           <CommandList>
-            {!isNew && <CommandEmpty>Type to add your own.</CommandEmpty>}
-
-            {isNew && (
-              <CommandGroup heading="Add your own">
-                <CommandItem
-                  value={typed}
-                  onSelect={() => run({ name: typed }, typed, 1)}
-                  data-testid="note-tag-create"
-                >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  {typed}
-                </CommandItem>
-              </CommandGroup>
+            {loadingTags ? (
+              <div className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-loading">
+                Loading tags…
+              </div>
+            ) : (
+              !isNew && <CommandEmpty>Type to add your own.</CommandEmpty>
             )}
 
-            {/* Already on this post — where you say whether it fits. One row
+            {/* Already on it — where you say whether it fits. One row
                 per tag with Agree and Disagree side by side (StanceRow), for
                 the reasons in StanceControl. */}
             {onNote.length > 0 && (
-              <CommandGroup heading="Already on this post">
+              <CommandGroup heading={`Already on this ${noun}`}>
                 {onNote.map((tag) => (
                   <StanceRow
                     key={tag.key}
@@ -248,9 +278,9 @@ function TagNoteButton({
               </CommandGroup>
             )}
 
-            {offered.length > 0 && (
+            {forPosts.length > 0 && (
               <CommandGroup heading="Tags people use">
-                {offered.map((t) => (
+                {forPosts.map((t) => (
                   <CommandItem
                     key={t.key}
                     value={t.name}
@@ -266,6 +296,42 @@ function TagNoteButton({
                     </span>
                   </CommandItem>
                 ))}
+              </CommandGroup>
+            )}
+
+            {/* Tags mostly put on people. Still offered — the hint is never a
+                gate — just not what someone tagging a post or an item usually wants. */}
+            {forPeople.length > 0 && (
+              <CommandGroup heading="Usually used on people">
+                {forPeople.map((t) => (
+                  <CommandItem
+                    key={t.key}
+                    value={t.name}
+                    onSelect={() => run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)}
+                    data-testid="note-tag-for-people"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{t.name}</span>
+                      {t.description && (
+                        <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
+                      )}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
+            {isNew && (
+              <CommandGroup heading="Add your own">
+                <CommandItem
+                  value={newTagValue(typed)}
+                  onSelect={() => run({ name: typed }, typed, 1)}
+                  data-testid="note-tag-create"
+                >
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  {typed}
+                </CommandItem>
               </CommandGroup>
             )}
           </CommandList>
