@@ -119,22 +119,82 @@ describe("CompromisedCard", () => {
     await waitFor(() => expect(unmarkCompromised).toHaveBeenCalledWith(PK));
   });
 
-  it("refuses to re-mark a listed account unless told to replace its proof", async () => {
-    listCompromised.mockResolvedValue([ROW]);
-    markCompromised.mockResolvedValue(ROW);
+  it("calls a PUT the gateway timed out on sent, not failed, and keeps watching the list", async () => {
+    const { AdminRequestError } = await import("@/services/api/compromised");
+    listCompromised.mockResolvedValue([]);
+    markCompromised.mockRejectedValue(new AdminRequestError("Gateway Timeout (504)", 504));
     renderWithProviders(<CompromisedCard active />);
-    await screen.findByTestId(`compromised-row-${PK}`);
+    await screen.findByTestId("compromised-empty");
 
     fireEvent.change(screen.getByTestId("input-compromised-account"), { target: { value: nip19.npubEncode(PK) } });
     fireEvent.change(screen.getByTestId("input-compromised-proof-id"), { target: { value: NEVENT } });
     fireEvent.click(screen.getByTestId("button-mark-compromised"));
 
-    expect(await screen.findByTestId("error-mark-compromised")).toHaveTextContent(/already marked/);
-    expect(markCompromised).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/Sent/) })),
+    );
+    expect(screen.queryByTestId("error-mark-compromised")).toBeNull();
+    await waitFor(() => expect(listCompromised.mock.calls.length).toBeGreaterThan(1));
+  });
 
-    fireEvent.click(screen.getByTestId("checkbox-replace-proof"));
+  it("still reports a PUT the server refused", async () => {
+    const { AdminRequestError } = await import("@/services/api/compromised");
+    listCompromised.mockResolvedValue([]);
+    markCompromised.mockRejectedValue(new AdminRequestError("No relay we asked holds event", 422));
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId("compromised-empty");
+
+    fireEvent.change(screen.getByTestId("input-compromised-account"), { target: { value: nip19.npubEncode(PK) } });
+    fireEvent.change(screen.getByTestId("input-compromised-proof-id"), { target: { value: NEVENT } });
     fireEvent.click(screen.getByTestId("button-mark-compromised"));
-    await waitFor(() => expect(markCompromised).toHaveBeenCalledWith(PK, { proof_event_id: NEVENT }));
+
+    expect(await screen.findByTestId("error-mark-compromised")).toHaveTextContent(/No relay/);
+  });
+
+  it("sends an account that's already marked to its Edit dialog, where the proof is replaced", async () => {
+    const bridged = { ...ROW, proof_event: { ...ROW.proof_event, pubkey: "f".repeat(64) } };
+    listCompromised.mockResolvedValue([bridged]);
+    markCompromised.mockResolvedValue(ROW);
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId(`compromised-row-${PK}`);
+    // A proof the account didn't sign (a bridge's copy) is called out on the row.
+    expect(screen.getByTestId("proof-other-signer")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("input-compromised-account"), { target: { value: nip19.npubEncode(PK) } });
+    expect(screen.getByTestId("compromised-already-marked")).toBeInTheDocument();
+    expect(screen.getByTestId("button-mark-compromised")).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Edit it, proof included/ }));
+    fireEvent.click(await screen.findByTestId("button-replace-proof"));
+    fireEvent.change(screen.getByTestId("input-edit-proof-id"), { target: { value: NEVENT } });
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+
+    await waitFor(() =>
+      expect(markCompromised).toHaveBeenCalledWith(PK, {
+        proof_event_id: NEVENT,
+        successor_pubkey: null,
+        successor_event_id: null,
+        reason: "leak",
+      }),
+    );
+    expect(updateCompromisedMetadata).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Proof replaced" }));
+  });
+
+  it("checks a replacement proof before sending it", async () => {
+    listCompromised.mockResolvedValue([ROW]);
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId(`compromised-row-${PK}`);
+    expect(screen.queryByTestId("proof-other-signer")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("button-edit-compromised"));
+    fireEvent.click(await screen.findByTestId("button-replace-proof"));
+    fireEvent.change(screen.getByTestId("input-edit-proof-id"), { target: { value: "nope" } });
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+
+    expect(await screen.findByText(/The proof must be/)).toBeInTheDocument();
+    expect(markCompromised).not.toHaveBeenCalled();
+    expect(updateCompromisedMetadata).not.toHaveBeenCalled();
   });
 
   it("edits the successor through PATCH, zeroing nothing", async () => {
@@ -151,8 +211,42 @@ describe("CompromisedCard", () => {
     fireEvent.click(screen.getByTestId("button-save-compromised"));
 
     await waitFor(() =>
-      expect(updateCompromisedMetadata).toHaveBeenCalledWith(PK, { successor_pubkey: next, reason: "leak" }),
+      expect(updateCompromisedMetadata).toHaveBeenCalledWith(PK, {
+        successor_pubkey: next,
+        successor_event_id: null,
+        reason: "leak",
+      }),
     );
     expect(markCompromised).not.toHaveBeenCalled();
+  });
+
+  it("shows and edits their post and the time it was taken, sending the time only when it changes", async () => {
+    const post = "e".repeat(64);
+    const row = {
+      ...ROW,
+      successor_pubkey: "b".repeat(64),
+      successor_event_id: post,
+      compromised_since: "2026-11-16T00:00:00",
+    };
+    listCompromised.mockResolvedValue([row]);
+    updateCompromisedMetadata.mockResolvedValue(row);
+    renderWithProviders(<CompromisedCard active />);
+    await screen.findByTestId(`compromised-row-${PK}`);
+    expect(screen.getByTestId("link-successor-post").getAttribute("href")).toBe(`/e/${nip19.noteEncode(post)}`);
+    expect(screen.getByTestId("compromised-since").textContent).not.toMatch(/not set/);
+
+    fireEvent.click(screen.getByTestId("button-edit-compromised"));
+    expect(((await screen.findByTestId("input-edit-successor-post")) as HTMLInputElement).value).toBe(
+      nip19.noteEncode(post),
+    );
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+    await waitFor(() => expect(updateCompromisedMetadata).toHaveBeenCalledTimes(1));
+    expect(updateCompromisedMetadata.mock.calls[0][1]).not.toHaveProperty("compromised_since");
+
+    fireEvent.click(screen.getByTestId("button-edit-compromised"));
+    fireEvent.change(await screen.findByTestId("input-edit-since"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("button-save-compromised"));
+    await waitFor(() => expect(updateCompromisedMetadata).toHaveBeenCalledTimes(2));
+    expect(updateCompromisedMetadata.mock.calls[1][1]).toMatchObject({ compromised_since: null });
   });
 });

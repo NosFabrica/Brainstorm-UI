@@ -18,15 +18,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient, type CompromisedPubkey } from "@/services/api";
+import { apiClient, mayHaveLanded, type CompromisedPubkey } from "@/services/api";
 import { useProfileBits } from "../useProfileBits";
 import {
   EMPTY_FORM,
   buildMarkRequest,
+  inputFromSince,
+  isEventPointer,
+  noteOf,
   parseAccount,
+  sinceFromInput,
   zeroState,
   zeroSummary,
+  buildProof,
   type MarkForm,
+  type ProofForm,
   type ZeroState,
 } from "./compromisedForm";
 
@@ -57,6 +63,13 @@ function day(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** A PUT that may have landed though no answer came (a long zeroing behind a gateway timeout). */
+const STILL_WORKING = {
+  title: "Sent; the server may still be working",
+  description:
+    "No answer came in time, which a long zeroing can cause. The list below shows the outcome when it lands.",
+};
+
 /** What the PUT's answer says the zeroing did, for a toast. */
 function zeroToast(row: CompromisedPubkey | undefined): string {
   if (!row) return "Its scores are being zeroed.";
@@ -65,15 +78,80 @@ function zeroToast(row: CompromisedPubkey | undefined): string {
     : zeroSummary(row);
 }
 
+/** The proof control both forms share: an event pointer the server fetches, or the signed event pasted whole. */
+function ProofInput({
+  id,
+  value,
+  onChange,
+  testPrefix,
+}: {
+  id: string;
+  value: ProofForm;
+  onChange: (patch: Partial<ProofForm>) => void;
+  testPrefix: string;
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          className="text-xs font-medium text-brand-link underline underline-offset-2"
+          onClick={() => onChange({ proofMode: value.proofMode === "id" ? "json" : "id" })}
+          data-testid={`button-${testPrefix}-proof-mode`}
+        >
+          {value.proofMode === "id" ? "Paste the signed event instead" : "Give its id instead"}
+        </button>
+      </div>
+      {value.proofMode === "id" ? (
+        <Input
+          id={id}
+          placeholder="nevent1…, note1… or hex id: the server fetches it and keeps it whole"
+          value={value.proofId}
+          onChange={(e) => onChange({ proofId: e.target.value })}
+          data-testid={`input-${testPrefix}-proof-id`}
+        />
+      ) : (
+        <Textarea
+          id={id}
+          rows={5}
+          className="font-mono text-xs"
+          placeholder='{"id": "…", "pubkey": "…", "sig": "…", …}: for when no relay the server asks still holds it'
+          value={value.proofJson}
+          onChange={(e) => onChange({ proofJson: e.target.value })}
+          data-testid={`input-${testPrefix}-proof-json`}
+        />
+      )}
+    </>
+  );
+}
+
+/** Who signed a stored proof: the account itself, or another key (a bridge's copy, a friend's report). */
+function ProofSigner({ row }: { row: CompromisedPubkey }) {
+  if (row.proof_event.pubkey === row.pubkey) {
+    return <span className="text-xs text-slate-500 dark:text-slate-400">signed by this account</span>;
+  }
+  return (
+    <Chip tone="warning" size="sm" data-testid="proof-other-signer">
+      signed by another key, {short(npub(row.proof_event.pubkey))}
+    </Chip>
+  );
+}
+
 /**
- * The form that marks a new account. An account already listed is refused
- * unless the admin ticks "Replace its stored proof": a second marking would
- * overwrite the proof, which may be gone from relays by now.
+ * The form that marks a new account. An account already listed goes to its
+ * Edit dialog instead, where its proof and everything else can be changed.
  */
-function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; onMarked: () => void }) {
+function MarkAccountForm({
+  marked,
+  onMarked,
+  onEdit,
+}: {
+  marked: ReadonlySet<string>;
+  onMarked: () => void;
+  onEdit: (pubkey: string) => void;
+}) {
   const { toast } = useToast();
   const [form, setForm] = useState<MarkForm>(EMPTY_FORM);
-  const [replace, setReplace] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<MarkForm>) => setForm((f) => ({ ...f, ...patch }));
@@ -82,15 +160,10 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (alreadyMarked) return;
     const req = buildMarkRequest(form);
     if (req.error !== undefined) {
       setError(req.error);
-      return;
-    }
-    if (marked.has(req.pubkey) && !replace) {
-      setError(
-        "This account is already marked (below). Use Edit for its new account or note, or tick “Replace its stored proof”.",
-      );
       return;
     }
     setBusy(true);
@@ -99,9 +172,14 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
       const row = await apiClient.markCompromised(req.pubkey, req.body);
       toast({ title: "Marked compromised", description: zeroToast(row) });
       setForm(EMPTY_FORM);
-      setReplace(false);
       onMarked();
     } catch (err) {
+      if (mayHaveLanded(err)) {
+        // Kept filled: once the list shows the account, the form says it's marked.
+        toast(STILL_WORKING);
+        onMarked();
+        return;
+      }
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setBusy(false);
@@ -131,39 +209,34 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
             data-testid="input-compromised-successor"
           />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="compromised-successor-post">Their post about the move (optional)</Label>
+          <Input
+            id="compromised-successor-post"
+            placeholder="nevent1…, note1… or hex, from the new account"
+            value={form.successorPost}
+            onChange={(e) => set({ successorPost: e.target.value })}
+            data-testid="input-compromised-successor-post"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="compromised-since">Taken since (optional, your time)</Label>
+          <Input
+            id="compromised-since"
+            type="datetime-local"
+            value={form.since}
+            onChange={(e) => set({ since: e.target.value })}
+            data-testid="input-compromised-since"
+          />
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            When the owner says it began. Left empty, the marking time stands in, and posts before it read as theirs.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label htmlFor="compromised-proof">Proof of the compromise</Label>
-          <button
-            type="button"
-            className="text-xs font-medium text-brand-link underline underline-offset-2"
-            onClick={() => set({ proofMode: form.proofMode === "id" ? "json" : "id" })}
-            data-testid="button-compromised-proof-mode"
-          >
-            {form.proofMode === "id" ? "Paste the signed event instead" : "Give its id instead"}
-          </button>
-        </div>
-        {form.proofMode === "id" ? (
-          <Input
-            id="compromised-proof"
-            placeholder="nevent1…, note1… or hex id: the server fetches it and keeps it whole"
-            value={form.proofId}
-            onChange={(e) => set({ proofId: e.target.value })}
-            data-testid="input-compromised-proof-id"
-          />
-        ) : (
-          <Textarea
-            id="compromised-proof"
-            rows={5}
-            className="font-mono text-xs"
-            placeholder='{"id": "…", "pubkey": "…", "sig": "…", …}: for when no relay the server asks still holds it'
-            value={form.proofJson}
-            onChange={(e) => set({ proofJson: e.target.value })}
-            data-testid="input-compromised-proof-json"
-          />
-        )}
+        <Label htmlFor="compromised-proof">Proof of the compromise</Label>
+        <ProofInput id="compromised-proof" value={form} onChange={set} testPrefix="compromised" />
       </div>
 
       <div className="space-y-1">
@@ -177,23 +250,23 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
         />
       </div>
 
-      {alreadyMarked && (
-        <label className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
-          <input
-            type="checkbox"
-            checked={replace}
-            onChange={(e) => setReplace(e.target.checked)}
-            data-testid="checkbox-replace-proof"
-          />
-          Already marked — replace its stored proof
-        </label>
+      {alreadyMarked && listedPubkey && (
+        <p
+          className="flex flex-wrap items-center gap-2 text-sm text-amber-700 dark:text-amber-300"
+          data-testid="compromised-already-marked"
+        >
+          This account is already marked.
+          <Button type="button" size="sm" variant="outline" onClick={() => onEdit(listedPubkey)}>
+            <Pencil className="mr-1 h-3.5 w-3.5" /> Edit it, proof included
+          </Button>
+        </p>
       )}
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400" data-testid="error-mark-compromised">
           {error}
         </p>
       )}
-      <Button type="submit" disabled={busy} data-testid="button-mark-compromised">
+      <Button type="submit" disabled={busy || alreadyMarked} data-testid="button-mark-compromised">
         {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <KeyRound className="mr-1 h-3.5 w-3.5" />}
         Mark compromised
       </Button>
@@ -201,11 +274,20 @@ function MarkAccountForm({ marked, onMarked }: { marked: ReadonlySet<string>; on
   );
 }
 
-/** Edit the successor and note of a marked account; the proof stays. */
+/**
+ * Edit a marked account: its successor, their post, the time it was taken, the
+ * note, and its proof. Without a new proof this is a PATCH that zeroes
+ * nothing; a new proof goes through PUT, which stores it and zeroes again.
+ */
 function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast();
   const [successor, setSuccessor] = useState(row.successor_pubkey ? npub(row.successor_pubkey) : "");
+  const [successorPost, setSuccessorPost] = useState(row.successor_event_id ? noteOf(row.successor_event_id) : "");
+  const initialSince = inputFromSince(row.compromised_since);
+  const [since, setSince] = useState(initialSince);
   const [reason, setReason] = useState(row.reason ?? "");
+  const [replacingProof, setReplacingProof] = useState(false);
+  const [proof, setProof] = useState<ProofForm>({ proofMode: "id", proofId: "", proofJson: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,17 +301,46 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
       setError("The new account can't be the compromised one.");
       return;
     }
+    if (successorPost.trim() && !isEventPointer(successorPost)) {
+      setError("Their post about the move must be an nevent, a note, or a hex event id.");
+      return;
+    }
+    const sinceIso = sinceFromInput(since);
+    if (sinceIso.error !== undefined) {
+      setError(sinceIso.error);
+      return;
+    }
+    const newProof = replacingProof ? buildProof(proof) : null;
+    if (newProof?.error !== undefined) {
+      setError(newProof.error);
+      return;
+    }
+    const fields = {
+      successor_pubkey: successorHex,
+      successor_event_id: successorPost.trim() || null,
+      // Only when changed: the input holds minutes, the stored time may hold seconds.
+      ...(since !== initialSince ? { compromised_since: sinceIso.iso } : {}),
+      reason: reason.trim() || null,
+    };
     setBusy(true);
     setError(null);
     try {
-      await apiClient.updateCompromisedMetadata(row.pubkey, {
-        successor_pubkey: successorHex,
-        reason: reason.trim() || null,
-      });
-      toast({ title: "Saved" });
+      if (newProof) {
+        const saved = await apiClient.markCompromised(row.pubkey, { ...newProof.body, ...fields });
+        toast({ title: "Proof replaced", description: zeroToast(saved) });
+      } else {
+        await apiClient.updateCompromisedMetadata(row.pubkey, fields);
+        toast({ title: "Saved" });
+      }
       onSaved();
       onClose();
     } catch (err) {
+      if (newProof && mayHaveLanded(err)) {
+        toast(STILL_WORKING);
+        onSaved();
+        onClose();
+        return;
+      }
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setBusy(false);
@@ -238,12 +349,44 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit {short(npub(row.pubkey))}</DialogTitle>
-          <DialogDescription>The proof stays as stored, and nothing is zeroed again.</DialogDescription>
+          <DialogDescription>
+            {replacingProof
+              ? "Saving stores the new proof and zeroes its scores again."
+              : "Nothing is zeroed again unless you replace the proof."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="space-y-1" data-testid="edit-proof">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex flex-wrap items-center gap-2">
+                <Label htmlFor="edit-proof">Proof</Label>
+                <ProofSigner row={row} />
+              </span>
+              <button
+                type="button"
+                className="text-xs font-medium text-brand-link underline underline-offset-2"
+                onClick={() => setReplacingProof((v) => !v)}
+                data-testid="button-replace-proof"
+              >
+                {replacingProof ? "Keep the stored proof" : "Replace the proof"}
+              </button>
+            </div>
+            <blockquote className="max-h-24 overflow-auto whitespace-pre-wrap break-words border-l-2 border-slate-300 pl-2.5 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-300">
+              {row.proof_event.content}
+            </blockquote>
+            {replacingProof && <p className="pt-1 text-xs font-medium text-slate-700 dark:text-slate-200">New proof</p>}
+            {replacingProof && (
+              <ProofInput
+                id="edit-proof"
+                value={proof}
+                onChange={(patch) => setProof((p) => ({ ...p, ...patch }))}
+                testPrefix="edit"
+              />
+            )}
+          </div>
           <div className="space-y-1">
             <Label htmlFor="edit-successor">Their new account</Label>
             <Input
@@ -253,6 +396,29 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
               onChange={(e) => setSuccessor(e.target.value)}
               data-testid="input-edit-successor"
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-successor-post">Their post about the move</Label>
+            <Input
+              id="edit-successor-post"
+              placeholder="nevent1…, note1… or hex — empty clears it"
+              value={successorPost}
+              onChange={(e) => setSuccessorPost(e.target.value)}
+              data-testid="input-edit-successor-post"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-since">Taken since (your time)</Label>
+            <Input
+              id="edit-since"
+              type="datetime-local"
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              data-testid="input-edit-since"
+            />
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Empty: the marking time stands in, and posts before it read as the owner's.
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="edit-reason">Note</Label>
@@ -266,7 +432,7 @@ function EditDialog({ row, onClose, onSaved }: { row: CompromisedPubkey; onClose
           </Button>
           <Button disabled={busy} onClick={save} data-testid="button-save-compromised">
             {busy && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-            Save
+            {replacingProof ? "Save and zero again" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -363,6 +529,14 @@ function CompromisedRow({
             {row.added_by ? ` by ${short(npub(row.added_by))}` : ""}
             {row.reason ? ` — ${row.reason}` : ""}
           </p>
+          <p className="text-xs text-slate-600 dark:text-slate-300" data-testid="compromised-since">
+            Taken since:{" "}
+            {row.compromised_since ? (
+              day(row.compromised_since)
+            ) : (
+              <span className="text-slate-400">not set, so the marking time</span>
+            )}
+          </p>
           <p className="text-xs text-slate-600 dark:text-slate-300">
             New account:{" "}
             {row.successor_pubkey ? (
@@ -372,24 +546,39 @@ function CompromisedRow({
             ) : (
               <span className="text-slate-400">not known yet</span>
             )}
+            {row.successor_event_id && (
+              <>
+                {" · their post "}
+                <Link
+                  href={`/e/${noteOf(row.successor_event_id)}`}
+                  className="font-mono text-[11px] text-brand-link underline underline-offset-2"
+                  data-testid="link-successor-post"
+                >
+                  {short(noteOf(row.successor_event_id))}
+                </Link>
+              </>
+            )}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="compromised-zero-summary">
             {zeroSummary(row)}
             {row.last_zeroed_at && state !== "pending" ? ` (${day(row.last_zeroed_at)})` : ""}
           </p>
-          <button
-            type="button"
-            className="text-xs font-medium text-brand-link underline underline-offset-2"
-            onClick={() => setShowProof((v) => !v)}
-            aria-expanded={showProof}
-          >
-            {showProof ? "Hide the proof" : "Show the proof"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <button
+              type="button"
+              className="font-medium text-brand-link underline underline-offset-2"
+              onClick={() => setShowProof((v) => !v)}
+              aria-expanded={showProof}
+            >
+              {showProof ? "Hide the proof" : "Show the proof"}
+            </button>
+            <ProofSigner row={row} />
+          </div>
           {showProof && (
             <blockquote className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 border-slate-300 pl-2.5 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-300">
               {row.proof_event.content}
               <span className="mt-1 block font-mono text-[10px] text-slate-400">
-                kind {row.proof_event.kind} · {short(row.proof_event.id)} · by {short(npub(row.proof_event.pubkey))}
+                kind {row.proof_event.kind} · {short(row.proof_event.id)}
               </span>
             </blockquote>
           )}
@@ -461,6 +650,11 @@ export function CompromisedCard({ active }: { active: boolean }) {
       await refresh();
       toast({ title: "Zeroed again", description: zeroToast(updated) });
     } catch (err) {
+      if (mayHaveLanded(err)) {
+        toast(STILL_WORKING);
+        await refresh();
+        return;
+      }
       toast({
         title: "Couldn't zero again",
         description: err instanceof Error ? err.message : "Unknown error",
@@ -488,7 +682,11 @@ export function CompromisedCard({ active }: { active: boolean }) {
       </div>
 
       <div className="space-y-6 px-5 py-4">
-        <MarkAccountForm marked={markedSet} onMarked={refresh} />
+        <MarkAccountForm
+          marked={markedSet}
+          onMarked={refresh}
+          onEdit={(pubkey) => setEditing(rows.find((r) => r.pubkey === pubkey) ?? null)}
+        />
 
         <div className="space-y-2">
           {query.isLoading && (
