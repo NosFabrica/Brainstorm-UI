@@ -5,6 +5,7 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { FEATURES } from "@/config/featureFlags";
 import { NewAccountResult } from "@/components/compromised/NewAccountResult";
 import { CurrentAccountResult } from "@/components/retired/CurrentAccountResult";
 import { retiredBy, retiredStatus } from "@/services/retired";
@@ -1342,7 +1343,7 @@ export function SearchResults({
     },
     [effectiveQuery],
   );
-  const tagFilter = onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
+  const tagFilter = FEATURES.searchTagFilters && onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
   // A tag the link names comes without its name: its slug's words find its lists as well.
   const tagMembers = useTagMembers(
     tagFilter
@@ -1697,7 +1698,7 @@ export function SearchResults({
   // none, it keeps the loaded rows carrying it.
   const resultTags = useResultTags(hits, {
     observer: pov === "mywot" && userPubkey ? userPubkey : "house",
-    enabled: onAll,
+    enabled: onAll && FEATURES.searchTagFilters,
   });
   const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
   const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
@@ -1716,8 +1717,12 @@ export function SearchResults({
   // The tags the words name outright, each a tab of its own holding everything that carries it
   // (services/namedTags): after Notes and People, before the lists. The row waits for them too,
   // so it still lands whole. The link holds a pressed one as it holds a category (`list`).
-  const namedTags = useNamedTags(scopeOf(query) ? "" : query, { pov, userPubkey, enabled: onAll });
-  const tagTabKey = categoryAsked?.startsWith(TAG_TAB) ? categoryAsked : null;
+  const namedTags = useNamedTags(scopeOf(query) ? "" : query, {
+    pov,
+    userPubkey,
+    enabled: onAll && FEATURES.searchTagFilters,
+  });
+  const tagTabKey = FEATURES.searchTagFilters && categoryAsked?.startsWith(TAG_TAB) ? categoryAsked : null;
   const tagTab = tagTabKey ? (namedTags.tags.find((t) => tagTabKeyOf(t) === tagTabKey) ?? null) : null;
   const rowLoading = categories.loading || !namedTags.settled;
   const rowCategories = useMemo(() => {
@@ -2719,7 +2724,7 @@ export function SearchResults({
                 </FacetRow>
               )}
               {/* The tags the results carry, most carried first: each a filter over them. */}
-              {onAll && !tagTabKey && serverStatus.search !== "down" && (
+              {FEATURES.searchTagFilters && onAll && !tagTabKey && serverStatus.search !== "down" && (
                 <TagFacets
                   key={effectiveQuery}
                   tags={resultTags.tags}
