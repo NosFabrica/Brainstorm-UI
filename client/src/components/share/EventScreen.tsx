@@ -23,7 +23,7 @@ import {
 } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
 import { eventStore } from "@/lib/eventStore";
-import { loadEventForPage } from "@/services/eventPageLoad";
+import { loadEventForPage, seedSearchWithHeld } from "@/services/eventPageLoad";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
@@ -163,12 +163,18 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
     : (given ?? null);
   const relayHints = ptr?.relays || [];
   // An event by id never changes, so a held copy is the answer: no spinner,
-  // and no relay asked for what the store already has.
+  // and no relay asked for what the store already has — only search, which is
+  // given the copy if it lacks one. Otherwise search and the pointer's relays
+  // are asked at once, and what search lacks is handed to it (services/eventPageLoad).
   const eventQuery = useStoreEvents(
-    ptr?.id && !event && !eventStore.getEvent(ptr.id) ? `event:${ptr.id}` : null,
+    ptr?.id && !event ? `event:${ptr.id}` : null,
     ptr?.id && !event ? [{ ids: [ptr.id] }] : null,
-    // Search and the pointer's relays at once; what search lacks is handed to it.
-    () => loadEventForPage({ id: ptr!.id, relays: relayHints }),
+    () => {
+      const held = eventStore.getEvent(ptr!.id);
+      if (!held) return loadEventForPage({ id: ptr!.id, relays: relayHints });
+      void seedSearchWithHeld(held).catch(() => {});
+      return Promise.resolve([held]);
+    },
   );
   const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
     MinimalEvent | null | undefined;

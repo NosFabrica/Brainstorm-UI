@@ -48,12 +48,16 @@ vi.mock("@/services/nostr", async () => ({
 }));
 // The page's own event: the address is `served`, an id asked of `pageEvent`.
 const pageEvent = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
+const pageAddress = vi.fn((..._args: unknown[]) => {});
+const heldSeed = vi.fn(async (..._args: unknown[]) => {});
 vi.mock("@/services/eventPageLoad", () => ({
   loadEventForPage: (...args: unknown[]) => pageEvent(...args),
-  loadAddressForPage: async () => {
+  loadAddressForPage: async (...args: unknown[]) => {
+    pageAddress(...args);
     const ev = await served();
     return ev ? [ev] : [];
   },
+  seedSearchWithHeld: (...args: unknown[]) => heldSeed(...args),
 }));
 // The author-score batch (services/trustSignals) flushes on a timer, which can fire after the test that asked.
 vi.mock("@/services/api", () => ({
@@ -482,5 +486,34 @@ describe("an event by id the device already holds", () => {
     expect(await screen.findByText("A note the device already has.")).toBeInTheDocument();
     expect(pageEvent).not.toHaveBeenCalled();
     expect(eventsByIds.mock.calls.some((call) => (call[0] as string[]).includes(note.id))).toBe(false);
+    // Search alone is asked whether it has the held copy.
+    await waitFor(() => expect(heldSeed).toHaveBeenCalledWith(expect.objectContaining({ id: note.id })));
+  });
+});
+
+// The page's own pointer reaches the loader with its hints, which is what makes
+// the hint leg (and handing search what it lacks) happen at all.
+describe("the pointer's relay hints reach the page loader", () => {
+  const HINT = "wss://hint.example/";
+
+  it("an nevent's hints", async () => {
+    const id = "6".repeat(64);
+    pageEvent.mockClear();
+    window.history.pushState({}, "", `/e/${nip19.neventEncode({ id, relays: [HINT] })}`);
+    renderPage();
+    await waitFor(() => expect(pageEvent).toHaveBeenCalledWith({ id, relays: [HINT] }));
+  });
+
+  it("an naddr's hints", async () => {
+    pageAddress.mockClear();
+    served.mockReturnValue(null);
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "hinted", relays: [HINT] });
+    window.history.pushState({}, "", `/e/${naddr}`);
+    renderPage();
+    await waitFor(() =>
+      expect(pageAddress).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 30023, pubkey: AUTHOR, identifier: "hinted", relays: [HINT] }),
+      ),
+    );
   });
 });

@@ -23,7 +23,8 @@ vi.mock("@/services/searchSeed", async (orig) => ({
   seedSearchRelay: (event: NostrEvent) => seed(event),
 }));
 
-import { loadAddressForPage, loadEventForPage } from "./eventPageLoad";
+import { firstValueFrom, type Observable } from "rxjs";
+import { loadAddressForPage, loadEventForPage, seedSearchWithHeld } from "./eventPageLoad";
 import { SEARCH_RELAY } from "@/lib/relays";
 
 const PK = "f".repeat(64);
@@ -92,6 +93,50 @@ describe("loadEventForPage", () => {
     requestAll.mockResolvedValueOnce([]);
     expect(await loadEventForPage({ id: ID })).toEqual([]);
     await settle();
+    expect(seed).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadEventForPage: limits", () => {
+  it("asks only the first few hints a link names", async () => {
+    search.mockResolvedValue({ events: [], answered: true });
+    requestAll.mockResolvedValue([]);
+    const hints = Array.from({ length: 30 }, (_, i) => `wss://hint${i}.example/`);
+    await loadEventForPage({ id: ID, relays: hints });
+    const asked = requestAll.mock.calls[0][0];
+    expect(asked.filter((r) => r.startsWith("wss://hint"))).toEqual(hints.slice(0, 6));
+  });
+
+  it("stops asking the relays once search has the event", async () => {
+    search.mockResolvedValue({ events: [note()], answered: true });
+    requestAll.mockReturnValue(new Promise(() => {}));
+    await loadEventForPage({ id: ID, relays: [HINT] });
+    const { stop } = requestAll.mock.calls[0][3] as { stop: Observable<unknown> };
+    await expect(firstValueFrom(stop)).resolves.toBeTruthy();
+  });
+
+  it("keeps asking the relays when search has nothing", async () => {
+    search.mockResolvedValue({ events: [], answered: true });
+    requestAll.mockResolvedValue([]);
+    await loadEventForPage({ id: ID, relays: [HINT] });
+    const { stop } = requestAll.mock.calls[0][3] as { stop: Observable<unknown> };
+    await expect(firstValueFrom(stop, { defaultValue: "never fired" })).resolves.toBe("never fired");
+  });
+});
+
+describe("seedSearchWithHeld", () => {
+  it("asks search alone, and gives it the held copy it lacks", async () => {
+    search.mockResolvedValue({ events: [], answered: true });
+    await seedSearchWithHeld(note());
+    expect(requestAll).not.toHaveBeenCalled();
+    expect(seed).toHaveBeenCalledWith(note());
+  });
+
+  it("leaves search alone when it has it, or did not answer", async () => {
+    search.mockResolvedValueOnce({ events: [note()], answered: true });
+    await seedSearchWithHeld(note());
+    search.mockResolvedValueOnce({ events: [], answered: false });
+    await seedSearchWithHeld(note());
     expect(seed).not.toHaveBeenCalled();
   });
 });

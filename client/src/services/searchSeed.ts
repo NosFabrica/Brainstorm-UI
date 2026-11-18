@@ -15,13 +15,51 @@
 import type { NostrEvent } from "nostr-tools";
 import { beats } from "@/lib/relayRequest";
 import { searchRelay } from "@/lib/searchRelay";
+import { isExpired } from "@/lib/nip40";
 
-/** Ids handed to search this session, so a page re-rendered or reopened asks once. */
-const seeded = new Set<string>();
+/**
+ * Ids this device already handed to search, kept across sessions. Search can
+ * accept an event and still never serve it (a moderated author, a deleted
+ * note), and then every visit would push it again; once per device is enough.
+ * Bounded: the oldest are forgotten first.
+ */
+const STORAGE_KEY = "brainstorm_search_seeded";
+const REMEMBERED = 500;
+let seeded: string[] | null = null;
 
-/** NIP-70: a `["-"]` tag means only its author may publish it, so we never do. */
-function isProtected(event: NostrEvent): boolean {
-  return event.tags.some((t) => t.length === 1 && t[0] === "-");
+function remembered(): string[] {
+  if (seeded) return seeded;
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    seeded = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    seeded = [];
+  }
+  return seeded;
+}
+
+function remember(id: string): void {
+  const ids = remembered();
+  ids.push(id);
+  if (ids.length > REMEMBERED) ids.splice(0, ids.length - REMEMBERED);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    /* private window, full storage: this session still remembers */
+  }
+}
+
+/**
+ * Events search has no use for: NIP-70 protected ones (`["-"]`, only their
+ * author may publish them), ephemeral kinds (20000–29999, never stored), and
+ * ones past their NIP-40 expiration.
+ */
+function unseedable(event: NostrEvent): boolean {
+  return (
+    event.tags.some((t) => t.length === 1 && t[0] === "-") ||
+    (event.kind >= 20000 && event.kind < 30000) ||
+    isExpired(event, Math.floor(Date.now() / 1000))
+  );
 }
 
 /**
@@ -34,7 +72,7 @@ export function searchLacks(
   searchCopy: NostrEvent | undefined,
   searchAnswered: boolean,
 ): found is NostrEvent {
-  if (!found || !searchAnswered || isProtected(found)) return false;
+  if (!found || !searchAnswered || unseedable(found)) return false;
   return !searchCopy || (searchCopy.id !== found.id && beats(found, searchCopy));
 }
 
@@ -44,7 +82,7 @@ export function searchLacks(
  * changed its mind) changes nothing for them.
  */
 export function seedSearchRelay(event: NostrEvent): void {
-  if (seeded.has(event.id)) return;
+  if (remembered().includes(event.id)) return;
   let relay: ReturnType<typeof searchRelay>;
   try {
     relay = searchRelay();
@@ -52,15 +90,10 @@ export function seedSearchRelay(event: NostrEvent): void {
     relay = null;
   }
   if (!relay) return;
-  seeded.add(event.id);
+  remember(event.id);
   // The wire fields alone: the store hangs its own caches on the objects it holds.
   const { id, pubkey, created_at, kind, tags, content, sig } = event;
   relay
     .publish({ id, pubkey, created_at, kind, tags, content, sig }, { timeout: 10_000, retries: false })
     .catch(() => {});
-}
-
-/** For tests: forget what this session already handed over. */
-export function resetSeededForTests(): void {
-  seeded.clear();
 }

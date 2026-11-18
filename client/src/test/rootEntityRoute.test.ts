@@ -5,16 +5,27 @@
 import { describe, expect, it } from "vitest";
 import { locationBody, nginxConf } from "./nginxConf";
 
-const PERSON = "~* ^/(?:nostr:)?((?:npub|nprofile)1[02-9ac-hj-np-z]+)/?$";
-const EVENT = "~* ^/(?:nostr:)?((?:note|nevent|naddr)1[02-9ac-hj-np-z]+)/?$";
+const PERSON = "~ ^/(?:nostr:)?((?:npub|nprofile)1[02-9ac-hj-np-z]+)/?$";
+const EVENT = "~ ^/(?:nostr:)?((?:note|nevent|naddr)1[02-9ac-hj-np-z]+)/?$";
 
-/** The location's regex, as nginx (PCRE, `~*`) would run it. */
-const regexOf = (matcher: string) => new RegExp(matcher.replace(/^~\*\s+/, ""), "i");
+/** The location's regex, as nginx (PCRE, case-sensitive `~`) would run it. */
+const regexOf = (matcher: string) => new RegExp(matcher.replace(/^~\s+/, ""));
 
 describe("nginx /<bech32>", () => {
   it("redirects a person's id to /p/ and an event's to /e/, query kept", () => {
     expect(locationBody(PERSON)).toContain("return 301 /p/$1$is_args$args;");
     expect(locationBody(EVENT)).toContain("return 301 /e/$1$is_args$args;");
+  });
+
+  // Behind the ingress, an absolute Location would carry nginx's own http and :3000.
+  it("answers with a relative Location", () => {
+    expect(locationBody(PERSON)).toContain("absolute_redirect off;");
+    expect(locationBody(EVENT)).toContain("absolute_redirect off;");
+  });
+
+  it("leaves an all-caps id to the SPA, which lowercases it", () => {
+    expect("/NPUB1SG6PLZPTD64U62A878HEP2KEV88SWJH3TW00GJSFL8F237LMU63Q0UF63M").not.toMatch(regexOf(PERSON));
+    expect("/NEVENT1QQS8WUMN8GHJ7").not.toMatch(regexOf(EVENT));
   });
 
   it("matches entities, not words that start like one", () => {

@@ -47,13 +47,16 @@ than the public relays. It refuses a plain read without sign-in, so the pool's
 relay adds the NIP-50 `include:spam` token to any filter sent there that has no
 `search` of its own (`withSearchToken`, `lib/relayPool.ts`). It is an index, not
 a publish target: publishes leave it out. One exception fills its gaps: an event
-page (`/e/…`) asks search and the pointer's relays (its hints beside the floor)
-at once, shows whichever answers first, and hands search a copy it lacks or holds
-an older version of — never a NIP-70 protected one, and only once search has
-answered (`services/eventPageLoad.ts`, `services/searchSeed.ts`). Search takes any
-signed event, anonymously. A bare `brainstorm.world/<bech32>` is 301'd by nginx
-to `/p/` (npub, nprofile) or `/e/` (note, nevent, naddr), the njump shape;
-`RootEntityRedirect` in `App.tsx` does the same in dev.
+page (`/e/…`) asks search and the pointer's relays (its first few hints beside
+the floor) at once, shows whichever answers first, and hands search a copy it
+lacks or holds an older version of; an event the device already holds is checked
+against search alone. Only once search has answered, never a NIP-70 protected,
+ephemeral or expired event, and once per device (`services/eventPageLoad.ts`,
+`services/searchSeed.ts`). Search takes any signed event, anonymously. A bare
+`brainstorm.world/<bech32>` is 301'd by nginx (relative Location; lowercase ids
+only, the SPA lowercases the rest) to `/p/` (npub, nprofile) or `/e/` (note,
+nevent, naddr), the njump shape; `RootEntityRedirect` in `App.tsx` does the same
+in dev.
 
 My-WoT search is offered (once the Account has an assistant, `useHasMywot`'s `taPubkey`) only
 when the search relay already ranks through the Active Account: one REQ on the search socket,

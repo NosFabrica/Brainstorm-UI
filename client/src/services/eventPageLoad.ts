@@ -13,17 +13,24 @@
  * found on a default relay is as much a gap in search as one on a hint.
  */
 import type { NostrEvent } from "nostr-tools";
+import { filter, from } from "rxjs";
 import { requestAll } from "@/lib/relayRequest";
 import { dedupeRelays } from "@/lib/relayList";
-import { PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
+import { addressOf, newestPerAddress } from "@/lib/newestPerAddress";
+import { MAX_REF_HINTS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { fetchAddressableEvents, querySearchRelay } from "@/services/nostr";
 import { searchLacks, seedSearchRelay } from "@/services/searchSeed";
 
 const SEARCH_TIMEOUT_MS = 5000;
 
-/** The relay leg's relays: the hints first, the defaults beside them, never search (its own leg). */
+/**
+ * The relay leg's relays: the hints first — the first few only, since a link
+ * from anywhere can name dozens — the defaults beside them, and never search
+ * (its own leg).
+ */
 function relaysFor(hints: string[] | undefined): string[] {
-  return dedupeRelays([...(hints ?? []), ...PROFILE_RELAYS]).filter((r) => r !== SEARCH_RELAY);
+  const capped = dedupeRelays(hints ?? []).slice(0, MAX_REF_HINTS);
+  return dedupeRelays([...capped, ...PROFILE_RELAYS]).filter((r) => r !== SEARCH_RELAY);
 }
 
 /**
@@ -52,24 +59,45 @@ function firstFound(legs: Promise<NostrEvent[]>[]): Promise<NostrEvent[]> {
 export function loadEventForPage(ptr: { id: string; relays?: string[] }, timeoutMs = 6000): Promise<NostrEvent[]> {
   const id = ptr.id;
   const fromSearch = querySearchRelay([{ ids: [id], limit: 1 }], Math.min(timeoutMs, SEARCH_TIMEOUT_MS));
-  // An id names one event: the first copy from any relay is the answer.
+  const searchFound = fromSearch.then((s) => s.events.filter((e) => e.id === id));
+  // An id names one event: the first copy from any relay is the answer, and
+  // once search has it there is nothing left to show or hand over.
   const fromRelays = requestAll(relaysFor(ptr.relays), { ids: [id] }, timeoutMs, {
     enough: (collected) => collected.has(id),
+    stop: from(searchFound).pipe(filter((found) => found.length > 0)),
   }).then((events) => events.filter((e) => e.id === id));
 
-  void Promise.all([fromSearch, fromRelays]).then(([search, relays]) => {
-    const found = relays[0];
-    if (
-      searchLacks(
-        found,
-        search.events.find((e) => e.id === id),
-        search.answered,
+  void Promise.all([fromSearch, fromRelays])
+    .then(([search, relays]) => {
+      const found = relays[0];
+      if (
+        searchLacks(
+          found,
+          search.events.find((e) => e.id === id),
+          search.answered,
+        )
       )
-    )
-      seedSearchRelay(found);
-  });
+        seedSearchRelay(found);
+    })
+    .catch(() => {});
 
-  return firstFound([fromSearch.then((s) => s.events.filter((e) => e.id === id)), fromRelays]);
+  return firstFound([searchFound, fromRelays]);
+}
+
+/**
+ * An event the device already holds, so its page asks no relay for it: search
+ * alone is asked, and given it if it has none.
+ */
+export async function seedSearchWithHeld(event: NostrEvent, timeoutMs = SEARCH_TIMEOUT_MS): Promise<void> {
+  const search = await querySearchRelay([{ ids: [event.id], limit: 1 }], timeoutMs);
+  if (
+    searchLacks(
+      event,
+      search.events.find((e) => e.id === event.id),
+      search.answered,
+    )
+  )
+    seedSearchRelay(event);
 }
 
 /** An `naddr`: whatever its author last published at the address. */
@@ -78,10 +106,7 @@ export function loadAddressForPage(
   timeoutMs = 6000,
 ): Promise<NostrEvent[]> {
   const coord = `${ptr.kind}:${ptr.pubkey}:${ptr.identifier}`;
-  const atAddress = (e: NostrEvent) =>
-    e.kind === ptr.kind && e.pubkey === ptr.pubkey && (e.tags.find((t) => t[0] === "d")?.[1] ?? "") === ptr.identifier;
-  const newestOf = (events: NostrEvent[]) =>
-    events.filter(atAddress).sort((a, b) => b.created_at - a.created_at || (a.id < b.id ? -1 : 1))[0];
+  const newestAt = (events: NostrEvent[]) => newestPerAddress(events).find((e) => addressOf(e) === coord);
 
   const fromSearch = querySearchRelay(
     [{ kinds: [ptr.kind], authors: [ptr.pubkey], "#d": [ptr.identifier] }],
@@ -98,14 +123,16 @@ export function loadAddressForPage(
     return found ? [found] : [];
   });
 
-  void Promise.all([fromSearch, fromRelays]).then(([search, relays]) => {
-    const found = relays[0];
-    if (searchLacks(found, newestOf(search.events), search.answered)) seedSearchRelay(found);
-  });
+  void Promise.all([fromSearch, fromRelays])
+    .then(([search, relays]) => {
+      const found = relays[0];
+      if (searchLacks(found, newestAt(search.events), search.answered)) seedSearchRelay(found);
+    })
+    .catch(() => {});
 
   return firstFound([
     fromSearch.then((s) => {
-      const found = newestOf(s.events);
+      const found = newestAt(s.events);
       return found ? [found] : [];
     }),
     fromRelays,
