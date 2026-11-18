@@ -8,10 +8,10 @@ import { parseFieldDecls } from "./dlistFields";
 import { definitionOf, differencesBetween, type HeaderEvent } from "./conceptResolution";
 import { presentItem } from "./itemPresentation";
 
-const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
+const CURATOR = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const header = (tags: string[][]): HeaderEvent => ({
   id: "h".padEnd(64, "0"),
-  pubkey: AVI,
+  pubkey: CURATOR,
   kind: 39998,
   created_at: 1,
   tags: [["d", "github-accounts"], ["names", "GitHub Account", "GitHub Accounts"], ...tags],
@@ -23,8 +23,8 @@ const fields = [
 ];
 const item = {
   tags: [
-    ["github-username", "vcavallo"],
-    ["description", "Vinney Cavallo"],
+    ["github-username", "octocat"],
+    ["description", "The Octocat"],
     ["avatar", "https://avatars.example/v.png"],
   ],
 };
@@ -83,9 +83,9 @@ describe("presentItem", () => {
 
   it("with no hints: the first required field is the title, a description the summary", () => {
     expect(presentItem(item, plain)).toMatchObject({
-      title: "vcavallo",
+      title: "octocat",
       titleField: "github-username",
-      summary: "Vinney Cavallo",
+      summary: "The Octocat",
       image: null,
       listImage: null,
     });
@@ -93,7 +93,7 @@ describe("presentItem", () => {
 
   it("a hint decides: the header's author has the say", () => {
     expect(presentItem(item, hinted)).toMatchObject({
-      title: "Vinney Cavallo",
+      title: "The Octocat",
       image: "https://avatars.example/v.png",
       listImage: "https://x.example/i.svg",
     });

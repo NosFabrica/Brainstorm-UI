@@ -123,12 +123,15 @@ the menu, and the UI's Duties view, which shows these as Brainstorm's default du
   nothing; `/setup` stays at three steps.
 - **401**: as any other signed-in call.
 - **Any other error**: "Couldn't reach your Assistant right now", with the detail.
+- **Published for them**: with a Brainstorm session, the app sends this POST itself, from any page, when the
+  relays show the menu missing or out of date (`components/AutoAssistantSetup`): once for each offer, never
+  retried within a visit. `/setup` reads "Publishing" meanwhile; a failure turns the row back into a step.
 
 ## Not asked for (yet)
 
 - A **storefront** menu for the instance's main key, and `not-offered` exceptions.
 - A **NIP-09 deletion** on withdrawal: an empty menu withdraws every offer (§ 11).
-- **Republishing on its own** when the offer changes: the UI shows the menu as out of
-  date and the user republishes.
+- **Republishing on its own**, on the server, when the offer changes: the UI does it on
+  the user's next visit instead (What the UI shows).
 - The Assistant's own **self-Map** (Treasure Maps § 9.2), which says which offered
   duties are active now. Now asked for in [TREASURE-MAP-ASK.md](TREASURE-MAP-ASK.md).

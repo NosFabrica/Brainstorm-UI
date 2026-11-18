@@ -10,8 +10,7 @@
  * their copy, so every copy agrees; the day someone can, the renderer is
  * already drawing from their copy and the reader is told it differs. Reading
  * only the community header would work now and quietly make every copy
- * decorative — the shortcut this module exists to rule out (the team,
- * 2026-10-01).
+ * decorative — the shortcut this module exists to rule out.
  *
  * Precedence, after tapestry's assistant-designation draft: the reader's
  * personally signed copy, then the one their Tapestry Assistant authored,

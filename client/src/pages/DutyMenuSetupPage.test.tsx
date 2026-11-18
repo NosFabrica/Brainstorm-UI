@@ -51,12 +51,34 @@ function show(menu: Partial<AssistantDutyMenu>) {
 describe("DutyMenuSetupPage", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows what the Assistant offers, by category, key and relay", () => {
+  /**
+   * Plain words first — what the Assistant can do, by category — and the kind
+   * keys and relays one tap away, for whoever wants them. The average user
+   * reads "Scores · Rank"; the protocol side opens the details.
+   */
+  it("shows what the Assistant offers in plain words, with keys and relays behind Show details", () => {
     show({});
     const offer = screen.getByTestId("duty-menu-offer");
-    expect(offer).toHaveTextContent("Scores · 30382:rank · wss://scores.example/");
-    expect(offer).toHaveTextContent("Lists · 30392");
-    expect(offer).toHaveTextContent("Concepts · 39998 · wss://dcosl.brainstorm.world/");
+    expect(offer).toHaveTextContent("Scores");
+    expect(offer).toHaveTextContent("Rank");
+    expect(offer).toHaveTextContent("Lists");
+    expect(offer).toHaveTextContent("Concepts");
+    expect(offer).not.toHaveTextContent("30382:rank");
+    expect(offer).not.toHaveTextContent("wss://");
+
+    fireEvent.click(screen.getByTestId("duty-menu-offer-details"));
+    const details = screen.getByTestId("duty-menu-offer-rows");
+    expect(details).toHaveTextContent("Scores · 30382:rank · wss://scores.example/");
+    expect(details).toHaveTextContent("Lists · 30392");
+    expect(details).toHaveTextContent("Concepts · 39998 · wss://dcosl.brainstorm.world/");
+  });
+
+  it("says what the step is, what it does, and who signs it — and the button is just Publish", () => {
+    show({});
+    expect(screen.getByTestId("duty-menu-intro")).toHaveTextContent(
+      "Your Assistant’s Duty Menu tells other apps what it can do for you. Your Assistant signs it — one tap.",
+    );
+    expect(screen.getByTestId("duty-menu-publish")).toHaveTextContent("Publish Duty Menu");
   });
 
   it("with no menu yet, says so and offers to publish", () => {

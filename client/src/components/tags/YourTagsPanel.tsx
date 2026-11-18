@@ -143,11 +143,15 @@ export function YourTagsPanel() {
                polarity 0 and no deletion — you can change your mind, but not
                erase having spoken. The buttons no longer imply otherwise, and
                neither should the paragraph above them. */}
-      <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
-        Something here that's wrong? Disagree with it. That's a public vote against, and once more people disagree than
-        agree the tag stops counting. It stays on the page either way, marked as disagreed. You can change your mind
-        later, but there's no way to un-say it.
-      </p>
+      {/* Advice about tags that exist: on a page with none it was a paragraph
+            about votes and take-backs before there was anything to vote on. */}
+      {(tagsOnMe.length > 0 || said.length > 0) && (
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
+          See a tag that's wrong? Disagree with it. Once more people disagree than agree, the tag stops counting.
+          Nothing gets deleted: the tag stays on the page, marked as disagreed. Your vote is public, and you can change
+          it later but not take it back.
+        </p>
+      )}
 
       {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
       <section className="mt-8" data-testid="my-tags-on-me">
@@ -176,7 +180,10 @@ export function YourTagsPanel() {
 
       {/* ── 2. Tags I've applied ──────────────────────────────────────── */}
       <section className="mt-8" data-testid="my-tags-said">
-        <SectionLabel count={groups.length} hint="Public and signed by you. These are your claims about other people.">
+        <SectionLabel
+          count={groups.length}
+          hint="Tags you've put on other people. Anyone can see them, with your name on them."
+        >
           What you've said
         </SectionLabel>
 
@@ -213,7 +220,7 @@ export function YourTagsPanel() {
               icon={TagIcon}
               compact
               title="You haven't tagged anyone yet"
-              description="Open someone's profile and use “Add a tag” to say what they're known for. It shows up here so you can look back at it."
+              description="Open someone's profile and choose “Add a tag” to say what they're known for. It will show up here."
             />
           </Card>
         ) : groups.length === 0 ? (

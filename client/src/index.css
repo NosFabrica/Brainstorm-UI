@@ -440,6 +440,23 @@
   }
 }
 
+/* The Compromised watermark (components/compromised/CompromisedWatermark): it arrives,
+   stays long enough to be read once, then settles to a trace the content reads through. */
+@keyframes cw-settle {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.28;
+  }
+}
+
 @keyframes softPulse {
   0%,
   100% {

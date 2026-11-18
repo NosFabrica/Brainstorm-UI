@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 
 function SignInIcon({ className = "" }: { className?: string }) {
   return (
@@ -44,13 +45,12 @@ export function SignInButton({
   onSuccess,
   "data-testid": testId = "button-sign-in",
 }: SignInButtonProps) {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
+  const href = useLoginHref();
 
   const onClick = () => {
     onSuccess?.();
-    const next =
-      location && location.startsWith("/") && location !== "/login" ? `?next=${encodeURIComponent(location)}` : "";
-    navigate(`/login${next}`);
+    navigate(href);
   };
 
   return (

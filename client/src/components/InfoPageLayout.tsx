@@ -42,7 +42,7 @@ export function InfoPageLayout({ children, testId, active, headerSearch = true }
         // Signed out: the public-page header — B mark, the shared search box, Sign in —
         // at the signed-in bar's width, so the bar is the same bar either way.
         <PublicPageHeader
-          maxWidthClass="max-w-7xl"
+          width="wide"
           search={headerSearch}
           actions={
             <SignInButton

@@ -167,6 +167,17 @@ describe("parseTrack — a category tag is a genre, never the artist", () => {
     expect(t?.artist).toBe("NOVA");
     expect(t?.genre).toBe("Rock");
   });
+  it("skips a leading `t` music for the real genre", () => {
+    const t = parseTrack(
+      ev([
+        ["title", "Old Carbon"],
+        ["t", "music"],
+        ["t", "rock"],
+        ["media", "https://x.test/a.mp3"],
+      ]),
+    );
+    expect(t?.genre).toBe("rock");
+  });
 });
 
 describe("parseTrack — the other kinds the Music tab plays", () => {

@@ -1,3 +1,5 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { useCompromisedRingOf } from "@/hooks/useCompromised";
 import { PersonMarks } from "@/components/PersonMarks";
 import { useListKinds } from "@/hooks/useListKinds";
 import { useHandlePointers } from "@/hooks/useHandlePointers";
@@ -328,6 +330,11 @@ export function SearchBox({
     });
   }, []);
   const rows = effectivePov === "mywot" ? offered : peopleAboveLine(offered, suggestScoreOf);
+  // Compromised accounts wear the red ring in the dropdown too, whatever the trust display says.
+  const compromisedRingOf = useCompromisedRingOf(
+    [...rows.map((r) => r.pubkey), ...recent.flatMap((r) => ("pubkey" in r && r.pubkey ? [r.pubkey] : []))],
+    "sm",
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<SearchFieldHandle | null>(null);
@@ -941,7 +948,7 @@ export function SearchBox({
                       data-testid={`home-suggestion-${i}`}
                     >
                       <Avatar
-                        className={`h-8 w-8 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(rank) ?? ""}`}
+                        className={`h-8 w-8 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${compromisedRingOf(s.pubkey) ?? tierRing(rank) ?? ""}`}
                       >
                         {s.picture ? (
                           <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" />
@@ -959,6 +966,7 @@ export function SearchBox({
                           {/* Their own things the kinds list (a GitHub account), beside the name:
                               one person, one row (hooks/useListKinds PersonMark). */}
                           <PersonMarks pubkey={s.pubkey} nip05={s.nip05} website={s.website} inRow />
+                          <CompromisedMark pubkey={s.pubkey} />
                         </p>
                         {/* A handle is only a claim: the check waits on its domain. */}
                         <Nip05Handle
@@ -1149,7 +1157,9 @@ export function SearchBox({
                       }
                       data-testid={`home-recent-open-${i}`}
                     >
-                      <Avatar className="h-7 w-7 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
+                      <Avatar
+                        className={`h-7 w-7 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${compromisedRingOf(item.pubkey) ?? ""}`}
+                      >
                         {item.picture ? (
                           <AvatarImage src={item.picture} alt={item.label} className="object-cover" />
                         ) : null}
@@ -1158,8 +1168,9 @@ export function SearchBox({
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
-                          {item.label}
+                        <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
+                          <span className="truncate">{item.label}</span>
+                          <CompromisedMark pubkey={item.pubkey} />
                         </p>
                         <Nip05Handle
                           nip05={item.nip05}
@@ -1179,7 +1190,9 @@ export function SearchBox({
                       onClick={() => leave(scopedSearchHref(item.pubkey, item.tab, item.words))}
                       data-testid={`home-recent-scoped-${i}`}
                     >
-                      <Avatar className="h-7 w-7 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
+                      <Avatar
+                        className={`h-7 w-7 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${compromisedRingOf(item.pubkey) ?? ""}`}
+                      >
                         {item.picture ? (
                           <AvatarImage src={item.picture} alt={item.label} className="object-cover" />
                         ) : null}
@@ -1188,8 +1201,9 @@ export function SearchBox({
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
-                          {item.label}
+                        <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
+                          <span className="truncate">{item.label}</span>
+                          <CompromisedMark pubkey={item.pubkey} />
                         </p>
                         <p
                           className="truncate text-xs leading-tight text-slate-500 dark:text-slate-400"

@@ -32,16 +32,22 @@ import type { NoteTag } from "@/services/tags";
  */
 export function NoteTagChips({
   eventId,
+  address,
   relayHint,
   canTag = false,
 }: {
   eventId: string;
+  /**
+   * The event's coordinate, when it is addressable (`tagTargetOf`): its tags
+   * are read and written by coordinate, so a tag survives its next edit (#334).
+   */
+  address?: string;
   /** Where the note actually lives, so readers can fetch it without us copying it. */
   relayHint?: string;
   /** The viewer is signed in AND holds a signer. A session token can't sign. */
   canTag?: boolean;
 }) {
-  const { data } = useEventTags(eventId);
+  const { data } = useEventTags(eventId, address);
   const tags = data?.tags ?? [];
 
   // Nothing to show and no way in — render nothing rather than an empty shell.
@@ -49,7 +55,7 @@ export function NoteTagChips({
 
   return (
     <NoteTagRow tags={tags}>
-      {canTag && <TagNoteButton eventId={eventId} relayHint={relayHint} onNote={tags} />}
+      {canTag && <TagNoteButton eventId={eventId} address={address} relayHint={relayHint} onNote={tags} />}
     </NoteTagRow>
   );
 }
@@ -125,11 +131,21 @@ export function NoteTagRow({
 }
 
 /** The picker. Same vocabulary and ordering as the profile one. */
-function TagNoteButton({ eventId, relayHint, onNote }: { eventId: string; relayHint?: string; onNote: NoteTag[] }) {
+function TagNoteButton({
+  eventId,
+  address,
+  relayHint,
+  onNote,
+}: {
+  eventId: string;
+  address?: string;
+  relayHint?: string;
+  onNote: NoteTag[];
+}) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
-  const applyTag = useApplyEventTag(eventId, relayHint);
+  const applyTag = useApplyEventTag(eventId, relayHint, address ? { address } : undefined);
   // Only fetched once the picker is opened — no relay traffic for a button
   // nobody clicked.
   const { data: options } = usePickerTags(open);

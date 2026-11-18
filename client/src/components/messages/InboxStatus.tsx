@@ -62,7 +62,7 @@ export function InboxSetup() {
         <p className="text-center text-xs text-slate-500 dark:text-slate-400">
           Publishes your kind 10050 list and lets these relays sign you in. With no kind 10063 file server list yet,
           also publishes one ({ENCRYPTED_BLOSSOM_SERVERS.map((u) => u.replace(/^https?:\/\//, "")).join(", ")}) for the
-          files you send. Change any of it in Settings › Trust & search.
+          files you send. Change any of it in Settings › Trust & Search.
         </p>
       </Card>
     </div>

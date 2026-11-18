@@ -88,6 +88,7 @@ vi.mock("@/hooks/useSelf", async (orig) => ({
 }));
 
 import NetworkPage from "./NetworkPage";
+import { accountKey } from "@/lib/accountStorage";
 
 function show() {
   renderWithProviders(
@@ -102,7 +103,7 @@ function show() {
 beforeEach(() => {
   perspective = "mywot";
   connectionsAsked.mockClear();
-  localStorage.setItem("brainstorm_calc_completed", "true");
+  localStorage.setItem(accountKey("brainstorm_calc_completed", ME), "true");
 });
 
 describe("NetworkPage reach strip", () => {

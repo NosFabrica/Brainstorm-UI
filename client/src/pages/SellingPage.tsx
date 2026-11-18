@@ -11,6 +11,8 @@ import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { Chip } from "@/components/ui/chip";
 import { useGoBack } from "@/hooks/useGoBack";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 /**
  * Everything a person has for sale. The share page keeps a short shelf and
@@ -31,12 +33,9 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
-      <PublicPageHeader
-        maxWidthClass="max-w-3xl"
-        back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }}
-      />
+      <PublicPageHeader width="standard" back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }} />
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6">
+      <main className={cn(pageWidth("standard"), "flex-1 py-6")}>
         <div className="mb-5 flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">
             <ShoppingBag className="h-4 w-4" />

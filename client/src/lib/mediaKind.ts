@@ -1,8 +1,8 @@
 /**
  * What a media hit is — a photo, a video or audio — in one word, so the
- * Media tab can narrow to it (Benjamin, 2026-09-25: "we don't have images as
- * an option or videos"). The URL, the poster and the mime are read here too,
- * lifted out of the media card so the card and the facets agree.
+ * Media tab can narrow to it: images and videos have no tabs of their own.
+ * The URL, the poster and the mime are read here too, lifted out of the media
+ * card so the card and the facets agree.
  */
 import { parseNoteContent, type NoteToken } from "@/lib/noteContent";
 

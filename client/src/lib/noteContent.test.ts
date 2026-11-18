@@ -136,9 +136,9 @@ describe("Primal URLs that carry a bech32", () => {
 });
 
 describe("parseNoteContent — client links that carry the entity", () => {
-  // The team (2026-09-24): keep readers in Brainstorm instead of bouncing to
-  // another client. A link that carries the nevent/naddr/npub is the entity,
-  // whichever client's site wraps it.
+  // Keep readers in Brainstorm instead of bouncing to another client. A link
+  // that carries the nevent/naddr/npub is the entity, whichever client's site
+  // wraps it.
   const PK = "a".repeat(64);
   const npub = nip19.npubEncode(PK);
   const note = nip19.noteEncode("b".repeat(64));

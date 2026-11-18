@@ -11,7 +11,7 @@
  * A claimant is a Nostr profile whose kind 0 carries a NIP-39 `i` tag naming
  * the GitHub handle (`["i", "github:<handle>", <proof>]`). The claim is the
  * profile's own word; nothing here checks the proof. Our index matches an
- * `#i` filter loosely (probed 2026-10-12: `github:vitorpamplona` also
+ * `#i` filter loosely (probed 2026-10-12: a `github:` filter also
  * returned Twitter claims), so the claim is checked here, exactly, case-
  * insensitively as GitHub handles are.
  *

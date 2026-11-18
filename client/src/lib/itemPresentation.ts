@@ -1,8 +1,8 @@
 /**
  * How one list item reads — title, summary, picture, and the list's own
  * image — from its governing definition (ADR 0004), and nothing else: no
- * concept gets code of its own (the team, 2026-10-02: "burn the ships"). The
- * page, the card, the popup row and the list row all read it, so they agree.
+ * concept gets code of its own. The page, the card, the popup row and the
+ * list row all read it, so they agree.
  *
  * The definition's provisional display hints (lib/displayHints) decide;
  * where it gives none, the first required field is the title and a
@@ -10,7 +10,7 @@
  *
  * Chosen per definition, never per item: an item missing its title field
  * reads "Untitled <singular>" rather than borrowing another field, so the
- * same field always fills the same slot down a list (the team, 2026-10-02).
+ * same field always fills the same slot down a list.
  */
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
 import { factLabel } from "@/lib/displayHints";

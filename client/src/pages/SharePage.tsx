@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -13,6 +14,7 @@ import {
   Headphones,
   Radio,
   AlertTriangle,
+  ShieldAlert,
   CalendarDays,
   Copy,
   Check,
@@ -27,7 +29,7 @@ import { relativeTime } from "@/lib/relativeTime";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
-import { liveStateOf } from "@/lib/liveStream";
+import { profileLiveStreams, profileTracks } from "@/lib/profileShelves";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { wavlakeSongHref } from "@/lib/upNext";
 import { WavlakeSongCard } from "@/components/search/cards";
@@ -50,13 +52,12 @@ import { FollowedByRow } from "@/components/share/FollowedByRow";
 import { TrustReviews } from "@/components/share/TrustReviews";
 import { PanelIdentityChip } from "@/components/search/EndorsementLine";
 import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
-import { nip19 } from "nostr-tools";
 import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
-import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
+import { setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
 import { ProfileTagChips } from "@/components/share/ProfileTagChips";
@@ -65,7 +66,7 @@ import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
 import { ProfileBio } from "@/components/share/ProfileBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
-import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { parseCalendarEvent } from "@/lib/calendarEvent";
 import { videoItemOf, type VideoItem } from "@/components/share/VideoGrid";
 import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
@@ -106,6 +107,9 @@ import {
 } from "@/components/score/VerificationCoin";
 import { extractImageUrls } from "@/lib/noteContent";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
+import { CompromisedBanner } from "@/components/compromised/CompromisedBanner";
+import { useCompromised, useCompromisedRing, useReplaces } from "@/hooks/useCompromised";
+import { ReplacesBanner } from "@/components/compromised/ReplacesBanner";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
@@ -122,6 +126,8 @@ import { HandleOwnerWarning, Nip05Handle } from "@/components/Nip05Check";
 import { PersonMarks } from "@/components/PersonMarks";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { articleTitle, isBookIndex, PUBLICATION_INDEX_KIND } from "@/lib/publication";
+import { hasOwnScores } from "@/lib/ownScores";
+import { pageWidth } from "@/lib/pageWidth";
 
 const NO_RELAYS: string[] = [];
 
@@ -193,16 +199,10 @@ export default function SharePage() {
   const { pov: scorePov } = useScorePov();
   // A USABLE personal point of view — the same rule ConnectionListPage applies
   // to the follower lists, so a count and the list behind it can never come
-  // from different perspectives. `brainstorm_calc_completed` is a localStorage
+  // from different perspectives. `hasOwnScores` is a per-Account localStorage
   // breadcrumb, not server truth; without it the personalized stats would be
   // an empty perspective pretending to be one.
-  const calcDone = (() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  })();
+  const calcDone = hasOwnScores(currentUser?.pubkey);
   const myPov = loggedIn && calcDone && scorePov === "personalized";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
@@ -531,6 +531,9 @@ export default function SharePage() {
   // toggle — same verdict for every viewer — and so does the banner's evidence
   // count below, because a verdict and its evidence must come from one ledger.
   const houseVerifiedReporters = num(houseStats?.reported_by?.verified);
+  const compromised = useCompromised(pubkey);
+  const compromisedRing = useCompromisedRing(pubkey);
+  const replaces = useReplaces(pubkey);
   const isFlagged = isFlaggedByReporters(houseVerifiedReporters ?? 0, num(houseStats?.followed_by?.verified) ?? 0);
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
@@ -590,27 +593,7 @@ export default function SharePage() {
     [videosQuery.events],
   );
 
-  const tracks = useMemo(
-    () =>
-      (musicQuery.events ?? []).map((ev) => {
-        const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-        const genres = ev.tags
-          .filter((t) => t[0] === "t")
-          .map((t) => t[1])
-          .filter((g) => g && g.toLowerCase() !== "music");
-        const genre = genres[0] ? genres[0].charAt(0).toUpperCase() + genres[0].slice(1) : undefined;
-        return {
-          id: ev.id,
-          title: tag("title") || tag("subject") || "Track",
-          artist: tag("artist") || tag("creator") || tag("c"),
-          cover: tag("image") || tag("cover"),
-          audio: audioUrlFromEvent(ev),
-          genre,
-          ts: ev.created_at,
-        };
-      }),
-    [musicQuery.events],
-  );
+  const tracks = useMemo(() => profileTracks(musicQuery.events ?? []), [musicQuery.events]);
 
   // The person's Wavlake catalogue beside their relay tracks: Joe Martin
   // publishes one track to relays and six to Wavlake (2026-09-05). The artist
@@ -639,42 +622,7 @@ export default function SharePage() {
   }, [audio]);
 
   // NIP-53 live streams (kind 30311) → live now + upcoming only (no replays).
-  const liveStreams = useMemo(() => {
-    const evs = (liveQuery.events ?? []) as MinimalEvent[];
-    const nowSec = Math.floor(Date.now() / 1000);
-    const parsed = evs.map((ev) => {
-      const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-      const starts = Number(tag("starts")) || 0;
-      let watchUrl: string | undefined;
-      try {
-        watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: ev.pubkey, identifier: tag("d") || "", relays: [] })}`;
-      } catch {
-        /* skip */
-      }
-      return {
-        id: ev.id,
-        authorPubkey: ev.pubkey,
-        title: tag("title") || tag("summary") || "Live stream",
-        image: tag("image"),
-        status: (tag("status") || "").toLowerCase(),
-        starts,
-        watchUrl,
-        // Forward-looking label only when the start is actually in the future.
-        timing: starts && starts >= nowSec ? `Starts ${relativeEventTime(starts).toLowerCase()}` : "Planned",
-      };
-    });
-    // Which shelf each stream is on by the Live tab's rule (liveStateOf): a
-    // "live" nobody updated for a week is over — no badge on the avatar, no
-    // "Live now" block (Benjamin, over a months-old LIVE badge: "deceiving").
-    // Replays are not this page's business; the Live tab has them.
-    const stateById = new Map(evs.map((ev) => [ev.id, liveStateOf(ev, nowSec)]));
-    const liveNow = parsed.filter((s) => stateById.get(s.id) === "live");
-    const upcoming = parsed
-      .filter((s) => stateById.get(s.id) === "upcoming")
-      .sort((a, b) => a.starts - b.starts)
-      .slice(0, 2);
-    return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
-  }, [liveQuery.events]);
+  const liveStreams = useMemo(() => profileLiveStreams(liveQuery.events ?? []), [liveQuery.events]);
 
   // NIP-38 status: latest non-expired "general" line + optional "music" now-playing.
   const status = useMemo(() => {
@@ -980,11 +928,17 @@ export default function SharePage() {
       }
     >
       <ShareNavProvider>
+        {/* Compromised: the page leads with it, above the identity it is about. */}
+        {compromised && <CompromisedBanner status={compromised} className="mb-4" />}
+        {/* …or the other end of the same story: the owner's new account. */}
+        {!compromised && replaces && <ReplacesBanner replaces={replaces} className="mb-4" />}
         {/* Identity hero */}
         <div
-          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className={`${WATERMARK_HOST} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900`}
           data-testid="share-hero"
         >
+          {/* Compromised: the stamp plays across the identity card as the page opens, then rests as a trace. */}
+          <CompromisedWatermark pubkey={pubkey} when="view" />
           <div className="relative h-24 w-full sm:h-28">
             {profile.banner ? (
               <img src={profile.banner} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -1019,7 +973,7 @@ export default function SharePage() {
                 )}
                 <Avatar
                   key={pubkey}
-                  className={`h-20 w-20 rounded-full border-4 border-white bg-white dark:bg-slate-900 sm:h-24 sm:w-24 ${tierRing(coinScore01) ?? "shadow-lg"}`}
+                  className={`h-20 w-20 rounded-full border-4 border-white bg-white dark:bg-slate-900 sm:h-24 sm:w-24 ${compromisedRing ?? tierRing(coinScore01) ?? "shadow-lg"}`}
                 >
                   {profile.picture ? (
                     <AvatarImage size="lg" src={profile.picture} alt={displayName} className="object-cover" />
@@ -1031,7 +985,7 @@ export default function SharePage() {
                 {liveStreams.liveNow[0] && (
                   <Link
                     href={eventPath(
-                      { id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].authorPubkey },
+                      { id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].pubkey },
                       relayHints,
                     )}
                     className="absolute -bottom-1 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border-2 border-white bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:border-slate-900"
@@ -1050,8 +1004,22 @@ export default function SharePage() {
                   pov={scorePov}
                   size={32}
                   onClick={() => setScoreModalOpen(true)}
-                  className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+                  className={
+                    compromised || (tierRing(coinScore01) && coinReplaced) ? "sr-only" : "absolute -bottom-1 -right-1"
+                  }
                 />
+                {/* Compromised: the badge takes the score's corner. A score says how far to
+                  trust the person; this says the person isn't the one posting. */}
+                {compromised && (
+                  <span
+                    className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white shadow-md ring-2 ring-white dark:bg-red-500 dark:ring-slate-900"
+                    title="Compromised: someone other than the owner controls this account"
+                    data-testid="share-compromised-badge"
+                  >
+                    <ShieldAlert className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                    <span className="sr-only">Compromised account</span>
+                  </span>
+                )}
               </div>
               {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
                 the icons here, Follow/⋯ in a row below the identity. */}
@@ -1557,7 +1525,7 @@ export default function SharePage() {
             >
               <div className="space-y-2">
                 {[...liveStreams.liveNow, ...liveStreams.upcoming].map((s) => {
-                  const isLive = s.status === "live";
+                  const isLive = s.live;
                   const body = (
                     <>
                       <img
@@ -1589,7 +1557,7 @@ export default function SharePage() {
                   return (
                     <Link
                       key={s.id}
-                      href={eventPath({ id: s.id, pubkey: s.authorPubkey }, [
+                      href={eventPath({ id: s.id, pubkey: s.pubkey }, [
                         "wss://relay.zap.stream",
                         "wss://relay.nostr.band",
                       ])}
@@ -1713,8 +1681,8 @@ function ProfileShareSheet({
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">{children}</main>
+      <PublicPageHeader width="standard" actions={actions} />
+      <main className={cn(pageWidth("standard"), "flex-1 py-6")}>{children}</main>
     </div>
   );
 }

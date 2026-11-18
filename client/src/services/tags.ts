@@ -13,6 +13,7 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
+import type { TagTarget } from "@/lib/tagTarget";
 import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
 import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -2210,17 +2211,18 @@ function targetIdOf(ev: NostrEvent): string | null {
   return e?.[1] ?? null;
 }
 
-/** What a candidate assertion targets: an event by id (`e`), else an addressable one (`a`). */
-function targetOf(ev: NostrEvent): string | null {
-  return targetIdOf(ev) ?? (ev.tags || []).find((t) => t[0] === "a")?.[1] ?? null;
-}
-
 /** An addressable event's coordinate (`<kind>:<pubkey>:<d>`), told from a 64-hex event id. */
 const isCoordinate = (target: string) => target.includes(":");
 
 /** The longest filter value the hub (strfry) takes. */
 const FILTER_ITEM_BYTES = 255;
 const utf8Length = (s: string) => new TextEncoder().encode(s).length;
+
+/** The coordinate a tagging names in its `a` tag, when it names one. */
+function targetAddressOf(ev: NostrEvent): string | null {
+  const a = (ev.tags || []).find((t) => t[0] === "a");
+  return a?.[1] ?? null;
+}
 
 /**
  * Every tag applied to each of N notes, in ONE pass (ACCEPTANCE C2).
@@ -2245,6 +2247,12 @@ export async function fetchEventTagsBatch(
   eventIds: string[],
   viewerPubkey?: string,
   observer: TrustObserver = "house",
+  /**
+   * An addressable event's coordinate, by its id (#334): its taggings are read
+   * by coordinate as well as by id — what is written now, and what was written
+   * before — and counted under the id.
+   */
+  addresses: Record<string, string> = {},
 ): Promise<Map<string, NoteTagsResult>> {
   const out = new Map<string, NoteTagsResult>();
   // A value past the hub's size limit fails its whole REQ ("filter item too
@@ -2253,6 +2261,11 @@ export async function fetchEventTagsBatch(
   const ids = Array.from(new Set(eventIds.filter((t) => t && FILTER_ITEM_BYTES >= utf8Length(t))));
   if (!ids.length) return out;
   const wanted = new Set(ids);
+  const idByAddress = new Map(
+    Object.entries(addresses)
+      .filter(([id, address]) => ids.includes(id) && address)
+      .map(([id, address]) => [address, id]),
+  );
 
   // One REQ per chunk, never per note. 200 keeps the filter under the size
   // most relays accept while still collapsing any realistic page to one query.
@@ -2275,6 +2288,16 @@ export async function fetchEventTagsBatch(
       // no chips, which is what an untagged note looks like anyway.
     }
   }
+  const coords = Array.from(idByAddress.keys());
+  for (let i = 0; i < coords.length; i += 200) {
+    const chunk = coords.slice(i, i + 200);
+    const filter = filterTagsAppliedToEvent({ target: { address: chunk[0] } }) as Record<string, unknown>;
+    try {
+      candidates.push(...(await fetchTagEvents({ ...filter, "#a": chunk })));
+    } catch {
+      // As above: an item we couldn't ask about by coordinate keeps what its id found.
+    }
+  }
   if (!candidates.length) return out;
 
   const deduped = latestByReplaceableKey(candidates);
@@ -2287,7 +2310,11 @@ export async function fetchEventTagsBatch(
 
   const byTarget = new Map<string, NostrEvent[]>();
   for (const ev of deduped) {
-    const target = targetOf(ev);
+    // By id; else by coordinate, filed under the item's id when the page asked by both (#334), or
+    // under the coordinate when that is what was asked (a search result's address).
+    const byId = targetIdOf(ev);
+    const address = targetAddressOf(ev);
+    const target = byId && wanted.has(byId) ? byId : address ? (idByAddress.get(address) ?? address) : null;
     if (!target || !wanted.has(target)) continue;
     if (!byTarget.has(target)) byTarget.set(target, []);
     byTarget.get(target)!.push(ev);
@@ -2385,8 +2412,10 @@ export async function fetchEventTags(
   eventId: string,
   viewerPubkey?: string,
   observer: TrustObserver = "house",
+  /** The event's coordinate, when it is addressable (#334). */
+  address?: string,
 ): Promise<NoteTagsResult> {
-  const batch = await fetchEventTagsBatch([eventId], viewerPubkey, observer);
+  const batch = await fetchEventTagsBatch([eventId], viewerPubkey, observer, address ? { [eventId]: address } : {});
   return batch.get(eventId) ?? EMPTY_NOTE_TAGS;
 }
 
@@ -2521,12 +2550,13 @@ export async function fetchTagNotes(
  */
 export async function applyTagToEvent({
   tag,
-  eventId,
+  target,
   relayHint,
   polarity = 1,
 }: {
   tag: { authorPubkey: string; slug: string } | { name: string; description?: string };
-  eventId: string;
+  /** What the tagging names (`tagTargetOf`): a note by id, an addressable event by coordinate (#334). */
+  target: TagTarget;
   relayHint?: string;
   polarity?: Polarity;
 }) {
@@ -2535,7 +2565,7 @@ export async function applyTagToEvent({
 
   return applyEventTagging({
     tagInput: tag,
-    target: { id: eventId, ...(relayHint ? { relays: [relayHint] } : {}) },
+    target: { ...target, ...(relayHint ? { relays: [relayHint] } : {}) },
     polarity,
     asserterPubkey: user.pubkey,
     taPubkeys: Z_HANDLE_PUBKEYS,

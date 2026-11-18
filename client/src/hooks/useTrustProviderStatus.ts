@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { askTrustProviderList, type TrustProviderStatus } from "@/services/trustAnchor";
 import { getNip85RelayUrl } from "@/services/nostr";
-import { declaresTrustProvider, trustProviderStatusOf } from "@/lib/nip85Declaration";
+import { declaresTrustProvider, missingSignals, trustProviderStatusOf } from "@/lib/nip85Declaration";
 import { clearNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
@@ -31,18 +31,20 @@ export function useTrustProviderList(pubkey: string | null | undefined) {
  * Derived from the 10040 in the store, so our own publish shows at once and a
  * lagging relay can't take it back (the store keeps the newest). The flag only
  * moves once the relays have answered: a held copy may be stale.
+ *
+ * `missingSignals` reads the same 10040 for #313: the signals a Map that gives
+ * their own Assistant the rank duty leaves without a provider. Undefined until
+ * the relays have answered, like `data`; empty when nothing is missing.
  */
 export function useTrustProviderStatus(
   pubkey: string | null | undefined,
   taPubkey: string | null | undefined,
-): { data: TrustProviderStatus | undefined } {
+): { data: TrustProviderStatus | undefined; missingSignals: string[] | undefined } {
   const enabled = !!pubkey && !!taPubkey;
   const list = useTrustProviderList(enabled ? pubkey : null);
-  const data = !enabled
-    ? undefined
-    : list.event || list.settled
-      ? trustProviderStatusOf(list.event, taPubkey, nip85Relay())
-      : undefined;
+  const answered = enabled && (!!list.event || list.settled);
+  const data = answered ? trustProviderStatusOf(list.event, taPubkey, nip85Relay()) : undefined;
+  const missing = answered ? missingSignals(list.event, taPubkey, nip85Relay()) : undefined;
 
   // Only the exact declaration is recorded as fact.
   const exact = !!list.event && !!taPubkey && declaresTrustProvider(list.event, taPubkey, nip85Relay());
@@ -52,5 +54,5 @@ export function useTrustProviderStatus(
     else if (data === "other") clearNip85Activated(pubkey);
   }, [pubkey, data, exact, list.settled]);
 
-  return { data };
+  return { data, missingSignals: missing };
 }

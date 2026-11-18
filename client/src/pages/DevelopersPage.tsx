@@ -1,10 +1,13 @@
 import { Link } from "wouter";
+import { AgentSetupCard } from "@/components/settings/AgentSetupCard";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ArrowRight, BadgeCheck } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection } from "@/components/developers/DevShared";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { tone as getTone } from "@/lib/tones";
+import { pageWidth } from "@/lib/pageWidth";
 
 // The developer landing/index: an editorial hero + one clickable card per way to
 // bring Brainstorm's web-of-trust scores into a nostr client. Each card links to
@@ -43,10 +46,12 @@ const METHODS: {
 ];
 
 export default function DevelopersPage() {
+  // The AI agent setup is internal for now: admins only, as in Settings.
+  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const accent = getTone("accent");
   return (
     <InfoPageLayout testId="page-developers">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-10">
           {/* Editorial hero */}
           <header className="max-w-3xl" data-testid="section-dev-header">
@@ -136,6 +141,7 @@ export default function DevelopersPage() {
           </div>
 
           <OpenSourceSection />
+          {isAdmin && <AgentSetupCard internal />}
         </div>
       </div>
     </InfoPageLayout>

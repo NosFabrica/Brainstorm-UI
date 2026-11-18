@@ -129,4 +129,35 @@ describe("useAssistantTreasureMap", () => {
     });
     expect(h.added).toHaveLength(1);
   });
+
+  it("a press started anywhere shows in every reader: in flight, then how it ended", async () => {
+    let finish!: (v: unknown) => void;
+    h.setAssistantTreasureMap.mockImplementationOnce(() => new Promise((res) => (finish = res)));
+    const { result } = renderHook(
+      () => ({ runner: useAssistantTreasureMap("a".repeat(64)), page: useAssistantTreasureMap("a".repeat(64)) }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.page.supported).toBe(true));
+    expect(result.current.page.lastPublish).toBeNull();
+
+    let run!: Promise<unknown>;
+    act(() => {
+      run = result.current.runner.set(true);
+    });
+    await waitFor(() => expect(result.current.page.publishing).toBe(true));
+    expect(result.current.page.lastPublish).toBe("pending");
+
+    await act(async () => {
+      finish({ on: true, published: false, event: null, relays: [] });
+      await run;
+    });
+    await waitFor(() => expect(result.current.page.publishing).toBe(false));
+    expect(result.current.page.lastPublish).toBe("success");
+
+    h.setAssistantTreasureMap.mockRejectedValueOnce(new Error("relay down"));
+    await act(async () => {
+      await result.current.runner.set(true).catch(() => undefined);
+    });
+    await waitFor(() => expect(result.current.page.lastPublish).toBe("error"));
+  });
 });

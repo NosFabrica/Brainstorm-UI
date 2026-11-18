@@ -1,3 +1,6 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useState, useMemo, type MouseEvent } from "react";
 import { EMBEDDED_THING_KINDS } from "@/components/share/ThingAddressRef";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -159,6 +162,8 @@ export function ShareNoteCard({
   // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
   // the rest (more-from-author, tagged notes) ride the shared house cache.
   const authorFallbackOf = useAuthorScores(isRepost || authorScore != null ? [] : [event.pubkey]);
+  // A compromised author's ring is red whatever the trust display is set to.
+  const compromisedRing = useCompromisedRing(event.pubkey);
   const onCardClick = openOnCardClick(href, navigate);
   const clickable = href ? "cursor-pointer" : "";
   const a = analyzeNote(event);
@@ -252,10 +257,11 @@ export function ShareNoteCard({
   const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
   // Through the hook, not an inline boxShadow — the old style drew in EVERY
   // display mode (number and off included); the ring is tier/word chrome.
-  const authorRing = tierRing(effectiveAuthorScore) ?? "";
+  const authorRing = compromisedRing ?? tierRing(effectiveAuthorScore) ?? "";
 
   return (
-    <div data-testid="note-card" onClick={onCardClick} className={clickable}>
+    <div data-testid="note-card" onClick={onCardClick} className={`${WATERMARK_HOST} ${clickable}`}>
+      <CompromisedWatermark pubkey={event.pubkey} postedAt={event.created_at} eventId={event.id} />
       {showAuthor && (
         <div className="mb-2.5 flex items-center gap-2.5" data-testid="note-author">
           <HoverCard openDelay={150} closeDelay={80}>
@@ -279,11 +285,11 @@ export function ShareNoteCard({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p
-                    className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline dark:text-slate-100"
-                    data-testid="note-author-name"
-                  >
-                    <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                  <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <span className="truncate group-hover/author:underline" data-testid="note-author-name">
+                      <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                    </span>
+                    <CompromisedMark pubkey={event.pubkey} />
                   </p>
                   {authorHandle && (
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
@@ -307,8 +313,11 @@ export function ShareNoteCard({
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
-                      <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
+                      <span className="truncate">
+                        <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                      </span>
+                      <CompromisedMark pubkey={event.pubkey} />
                     </p>
                     {authorHandle && (
                       <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>

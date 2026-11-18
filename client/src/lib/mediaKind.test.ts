@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { MEDIA_KIND_ORDER, MEDIA_KIND_LABELS, mediaItemsOf, mediaKindOf, mediaKindOfUrl } from "./mediaKind";
 import { parseNoteContent } from "./noteContent";
 
-// Benjamin (2026-09-25): "we don't have images as an option or videos — that
-// gets filtered into Media". The tab's facets need one word per hit.
+// Images and videos have no tabs of their own: they're filtered into Media.
+// The tab's facets need one word per hit.
 const ev = (kind: number, tags: string[][] = [], content = "") => ({
   id: "e".repeat(64),
   pubkey: "a".repeat(64),
@@ -135,7 +135,7 @@ describe("mediaItemsOf — each file as what it is", () => {
     expect(mediaKindOf(ev(1808, [["url", "https://cdn/a.webm"]]))).toBe("audio");
   });
 
-  // Audit: the names and mimes the note text (lib/noteContent) already knows.
+  // The names and mimes the note text (lib/noteContent) already knows.
   it("an .m4v is a video, a .bmp or .svg a picture, and a mime in capitals is still a mime", () => {
     expect(mediaKindOfUrl("https://x.test/a.m4v")).toBe("video");
     expect(mediaItemsOf(ev(20, [["imeta", "url https://x.test/a.m4v"]]))[0].kind).toBe("video");
@@ -155,7 +155,7 @@ describe("mediaItemsOf — each file as what it is", () => {
   });
 
   it("a .webm that says a duration but no size is a sound in a sound's kind; one in a voice message always is", () => {
-    // Audit: only where the event is a sound — a track, an episode, an audio header. In a note
+    // Only where the event is a sound — a track, an episode, an audio header. In a note
     // a running time is what every clip has, and mediaKindOf already called it a video.
     for (const kind of [31337, 36787, 54, 30054, 30055, 1808])
       expect(mediaItemsOf(ev(kind, [["imeta", "url https://x.test/a.webm", "duration 12"]]))[0].kind).toBe("audio");
@@ -184,7 +184,7 @@ describe("mediaItemsOf — each file as what it is", () => {
 });
 
 describe("mediaKindOf and mediaItemsOf agree", () => {
-  // Audit: the Media tab's word for a hit and the page's drawing of its first file were two readings.
+  // The Media tab's word for a hit and the page's drawing of its first file were two readings.
   it("the hit's kind is its first file's", () => {
     for (const e of [
       ev(1, [["imeta", "url https://x.test/clip.webm", "duration 12.5"]]),
@@ -201,7 +201,7 @@ describe("mediaKindOf and mediaItemsOf agree", () => {
 });
 
 describe("a `url` tag is a file only when it says it is one", () => {
-  // Audit: a note's `url` tag naming a web page was a "photo", drawn as a broken picture.
+  // A note's `url` tag naming a web page was a "photo", drawn as a broken picture.
   it("a web page in a `url` tag is no file; a picture, a typed file or a sound kind's file is", () => {
     expect(mediaItemsOf(ev(1, [["url", "https://news.example/article"]], "read this"))).toEqual([]);
     expect(mediaKindOf(ev(1, [["url", "https://news.example/article"]], "read this"))).toBeNull();
@@ -221,7 +221,7 @@ describe("a `url` tag is a file only when it says it is one", () => {
 });
 
 describe("the files in a note's words are the ones its text draws", () => {
-  // Audit: the fallback kept a markdown picture's closing paren, so the page drew it twice.
+  // The fallback kept a markdown picture's closing paren, so the page drew it twice.
   it("each is the URL the note's tokenizer reads, a markdown picture's paren left out", () => {
     expect(mediaItemsOf(ev(20, [], "pic ![](https://x.test/b.png?x=1)")).map((i) => i.url)).toEqual([
       "https://x.test/b.png?x=1",

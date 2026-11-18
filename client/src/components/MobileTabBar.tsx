@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { registerBottomChrome } from "@/lib/bottomChrome";
 import { useLocation } from "wouter";
+import { useLoginHref } from "@/hooks/useLoginHref";
 import { Search, Home, Users, LogIn, MessageCircle } from "lucide-react";
 import { DmBadge } from "@/components/messages/MessagesNavButton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,6 +29,7 @@ export function MobileTabBar() {
   const isMobile = useIsMobile();
   const user = useActiveAccountDisplay();
   const [location, navigate] = useLocation();
+  const loginHref = useLoginHref();
   const sheetOpen = useAccountSheetOpen();
   // Out of the way while typing, as a native tab bar is under the keyboard. iOS Safari
   // shrinks its own toolbar when a field takes focus without telling the page, and this bar
@@ -142,7 +144,7 @@ export function MobileTabBar() {
                 label="Sign in"
                 icon={LogIn}
                 active={isActive("/login")}
-                onClick={() => go("/login")}
+                onClick={() => go(loginHref)}
                 testId="tab-signin"
               />
             </>

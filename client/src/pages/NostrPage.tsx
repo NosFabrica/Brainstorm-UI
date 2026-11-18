@@ -16,6 +16,8 @@ import {
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { Card } from "@/components/ui/card";
 import { tone as getTone } from "@/lib/tones";
+import { pageWidth } from "@/lib/pageWidth";
+import { cn } from "@/lib/utils";
 
 type Benefit = {
   icon: typeof Fingerprint;
@@ -82,7 +84,7 @@ export default function NostrPage() {
 
   return (
     <InfoPageLayout testId="page-nostr">
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
+      <div className={cn(pageWidth("standard"), "py-10 sm:py-16")}>
         <div className="animate-fade-up space-y-12 sm:space-y-16">
           {/* Editorial hero */}
           <header className="max-w-3xl" data-testid="section-nostr-header">
