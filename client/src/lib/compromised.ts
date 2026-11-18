@@ -17,10 +17,10 @@ export interface ProofEvent {
 export interface CompromisedStatus {
   pubkey: string;
   /**
-   * From when its content may be anyone's, epoch seconds: the earliest we know
-   * of. The server's record says when it was marked, which is after the key
-   * changed hands, so the owner's proof post (and our own estimate, for an
-   * account in config/compromised) can only move it earlier.
+   * From when its content may be anyone's, epoch seconds: the earlier of the
+   * server's `since` (when the admin says the key was taken, or else when it
+   * was marked) and the owner's proof post, which was written with the key
+   * already taken.
    */
   since: number | null;
   proofEventId: string | null;
@@ -76,9 +76,14 @@ export function statusFromServer(row: unknown): CompromisedStatus | null {
     proofEventId: hexOrNull(r.proof_event_id) ?? proofEvent?.id ?? null,
     proofEvent,
     successorPubkey: hexOrNull(r.successor_pubkey),
-    // Not in the server's record today; ours carries it (config/compromised).
-    successorEventId: null,
+    successorEventId: hexOrNull(r.successor_event_id),
   };
+}
+
+/** The Compromised account a `/compromised` result's key replaces (its owner's old account), if any. */
+export function replacesFromServer(row: unknown): CompromisedStatus | null {
+  if (!row || typeof row !== "object") return null;
+  return statusFromServer((row as Record<string, unknown>).replaces);
 }
 
 /**

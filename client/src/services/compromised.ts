@@ -1,5 +1,4 @@
-import { KNOWN_COMPROMISED } from "@/config/compromised";
-import { earliest, statusFromServer, type CompromisedStatus } from "@/lib/compromised";
+import { replacesFromServer, statusFromServer, type CompromisedStatus } from "@/lib/compromised";
 import { getBrainstormApi } from "@/services/api/core";
 
 /**
@@ -11,18 +10,20 @@ import { getBrainstormApi } from "@/services/api/core";
  *
  * Three answers, kept apart: a status (compromised), `null` (asked, not
  * marked) and `undefined` (not answered yet). A failed request reads as
- * `null`: an outage must never paint an account as compromised, and the
- * accounts we already know (config/compromised) don't wait on the server.
+ * `null`: an outage must never paint an account as compromised.
+ *
+ * The server is the only record: an account it hasn't been told about reads
+ * as not compromised here too.
  */
 const BATCH_WINDOW_MS = 50;
 const MAX_BATCH = 500;
 const TIMEOUT_MS = 8000;
 const HEX_PUBKEY = /^[0-9a-f]{64}$/i;
 
-const known = new Map(KNOWN_COMPROMISED.map((s) => [s.pubkey, s]));
-
 const cache = new Map<string, Promise<CompromisedStatus | null>>();
 const settled = new Map<string, CompromisedStatus | null>();
+/** An owner's new account → the Compromised account it replaces (the server's `replaces`). */
+const replacing = new Map<string, CompromisedStatus>();
 let queued = new Map<string, (status: CompromisedStatus | null) => void>();
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 /** The server answered that it has no such check (an older deploy): stop asking. */
@@ -47,22 +48,6 @@ function announce(): void {
   for (const listener of [...listeners]) listener();
 }
 
-/** The server's record wins, but it can neither clear an account we know nor lose its proof. */
-function merge(pubkey: string, found: CompromisedStatus | null): CompromisedStatus | null {
-  const ours = known.get(pubkey) ?? null;
-  if (!found || !ours) return found ?? ours;
-  return {
-    ...found,
-    // The earlier start: ours is an estimate of when the key changed hands, the
-    // server's is when it was marked (later), and content in between is not the owner's.
-    since: earliest(found.since, ours.since),
-    proofEventId: found.proofEventId ?? ours.proofEventId,
-    proofEvent: found.proofEvent ?? ours.proofEvent,
-    successorPubkey: found.successorPubkey ?? ours.successorPubkey,
-    successorEventId: found.successorEventId ?? ours.successorEventId,
-  };
-}
-
 async function ask(pubkeys: string[]): Promise<Map<string, CompromisedStatus>> {
   const out = new Map<string, CompromisedStatus>();
   if (serverLacksCheck) return out;
@@ -79,6 +64,9 @@ async function ask(pubkeys: string[]): Promise<Map<string, CompromisedStatus>> {
     for (const row of json.data?.results ?? []) {
       const status = statusFromServer(row);
       if (status) out.set(status.pubkey, status);
+      const replaced = replacesFromServer(row);
+      const asked = (row as { pubkey?: unknown })?.pubkey;
+      if (replaced && typeof asked === "string") replacing.set(asked.toLowerCase(), replaced);
     }
   } catch {
     // not marked, as far as this session can tell
@@ -96,7 +84,7 @@ function flush(): void {
     void ask(chunk.map(([pubkey]) => pubkey)).then((found) => {
       if (gen !== generation) return;
       for (const [pubkey, resolve] of chunk) {
-        const status = merge(pubkey, found.get(pubkey) ?? null);
+        const status = found.get(pubkey) ?? null;
         settled.set(pubkey, status);
         resolve(status);
       }
@@ -120,18 +108,19 @@ export function lookupCompromised(rawPubkey: string): Promise<CompromisedStatus 
 /** What we know right now: a status, `null` once asked and not marked, `undefined` before that. */
 export function settledCompromised(rawPubkey: string): CompromisedStatus | null | undefined {
   const pubkey = rawPubkey.toLowerCase();
-  return settled.has(pubkey) ? settled.get(pubkey) : known.get(pubkey);
+  return settled.get(pubkey);
 }
 
 /**
  * The Compromised account this one replaces, when `pubkey` is an owner's new
- * account. Read from what we hold — the known list and every record that has
- * landed this session — because the server answers by the old key only.
+ * account: the server's `replaces` once this key has been asked about, or any
+ * record landed this session that names it as the successor.
  */
 export function replacedCompromised(rawPubkey: string): CompromisedStatus | null {
   const pubkey = rawPubkey.toLowerCase();
+  const replaced = replacing.get(pubkey);
+  if (replaced) return replaced;
   for (const status of settled.values()) if (status?.successorPubkey === pubkey) return status;
-  for (const status of known.values()) if (status.successorPubkey === pubkey) return status;
   return null;
 }
 
@@ -147,5 +136,6 @@ export function __resetCompromised(): void {
   queued = new Map();
   cache.clear();
   settled.clear();
+  replacing.clear();
   serverLacksCheck = false;
 }

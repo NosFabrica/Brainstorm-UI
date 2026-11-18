@@ -37,6 +37,10 @@ export interface CompromisedPubkey {
   proof_event_id: string;
   proof_event: NostrEventJson;
   successor_pubkey: string | null;
+  /** The new account's post about the move (hex id). */
+  successor_event_id?: string | null;
+  /** From when the key may have been in someone else's hands (naive UTC); unset, the marking time stands in. */
+  compromised_since?: string | null;
   reason: string | null;
   added_by: string | null;
   created_at: string;
@@ -59,8 +63,18 @@ export interface MarkCompromisedBody {
   proof_event?: NostrEventJson;
   /** npub or hex. */
   successor_pubkey?: string | null;
+  /** The new account's post about the move: hex, note1… or nevent1…. */
+  successor_event_id?: string | null;
+  /** ISO time; one with an offset is stored as UTC. */
+  compromised_since?: string | null;
   reason?: string | null;
 }
+
+/** `PATCH /admin/compromised/{pubkey}`: these fields only; one left out stays, `null` clears it. */
+export type CompromisedMetadataBody = Pick<
+  MarkCompromisedBody,
+  "successor_pubkey" | "successor_event_id" | "compromised_since" | "reason"
+>;
 
 /**
  * FastAPI answers a validation 422 with `detail` as a list of `{loc, msg}`;
@@ -80,13 +94,33 @@ async function readError(response: Response, fallback: string): Promise<string> 
   return (await extractApiError(response)) || `${fallback} (${response.status})`;
 }
 
+/** An admin call that failed with an HTTP status; `status` lets a caller tell a gateway timeout from a refusal. */
+export class AdminRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Whether a failed call may still have landed: our timeout, a dropped
+ * connection, or a gateway giving up (502/503/504) before the server answered.
+ */
+export function mayHaveLanded(err: unknown): boolean {
+  if (err instanceof AdminRequestError) return err.status === 502 || err.status === 503 || err.status === 504;
+  if (err instanceof DOMException) return err.name === "TimeoutError" || err.name === "AbortError";
+  return err instanceof TypeError; // fetch's network failure
+}
+
 /** One admin call, its error read as a sentence; unwraps a `{ data }` envelope, undefined on a 204. */
 async function adminRequest<T>(path: string, fallback: string, init: RequestInit = {}, timeoutMs = 15000): Promise<T> {
   const response = await authenticatedFetch(`${getBrainstormApi()}${path}`, {
     ...init,
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!response.ok) throw new Error(await readError(response, fallback));
+  if (!response.ok) throw new AdminRequestError(await readError(response, fallback), response.status);
   const text = await response.text();
   if (!text) return undefined as T;
   const json = JSON.parse(text);
@@ -99,10 +133,11 @@ export const compromisedApi = {
   },
 
   /**
-   * Mark (or update) an account. The server fetches a proof given by id, then
-   * zeroes the account's scores and answers with the outcome in
-   * `last_zero_report` (it waits up to 20 s; a longer zeroing lands after the
-   * answer, which a later list shows), so this can take a while.
+   * Mark (or update) an account. The server fetches a proof given by id,
+   * records it and starts zeroing the account's scores. A current server
+   * answers before the zeroing ends (the row is pending until a later list
+   * shows `last_zero_report`); an older one waited up to 20 s, hence the long
+   * timeout. A timeout or gateway error may still have landed: `mayHaveLanded`.
    */
   async markCompromised(pubkey: string, body: MarkCompromisedBody): Promise<CompromisedPubkey> {
     return adminRequest(
@@ -113,11 +148,8 @@ export const compromisedApi = {
     );
   },
 
-  /** Change only the successor and/or note: the proof stays and nothing is zeroed. */
-  async updateCompromisedMetadata(
-    pubkey: string,
-    body: { successor_pubkey?: string | null; reason?: string | null },
-  ): Promise<CompromisedPubkey> {
+  /** Change only the successor, its post, the time it was taken and/or the note: the proof stays and nothing is zeroed. */
+  async updateCompromisedMetadata(pubkey: string, body: CompromisedMetadataBody): Promise<CompromisedPubkey> {
     return adminRequest(
       `/admin/compromised/${encodeURIComponent(pubkey)}`,
       "Failed to save the account",
