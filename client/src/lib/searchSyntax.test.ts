@@ -17,6 +17,7 @@ import {
   personScope,
   readFilters,
   scopeOf,
+  listSearchHref,
   scopedSearchHref,
   seeAllLabel,
   sinceForPreset,
@@ -398,5 +399,16 @@ describe("seeAllLabel — the typeahead's footer row under a scope, never the ra
   it("a name still arriving reads as them", () => {
     expect(seeAllLabel("guitar", null)).toBe('See all results for "guitar" from them');
     expect(seeAllLabel("", null)).toBe("See everything from them");
+  });
+});
+
+describe("listSearchHref", () => {
+  it("is search for the list's name, on All, with the list's tab open", () => {
+    const coordinate = `39998:${"b".repeat(64)}:github-accounts`;
+    const url = new URL(listSearchHref(coordinate, " GitHub Accounts "), "http://x");
+    expect(url.pathname).toBe("/");
+    expect(url.searchParams.get("q")).toBe("GitHub Accounts");
+    expect(url.searchParams.get("t")).toBe("all");
+    expect(url.searchParams.get("list")).toBe(coordinate);
   });
 });

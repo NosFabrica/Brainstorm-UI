@@ -350,6 +350,16 @@ export function personScope(query: string): string | null {
   return q.authors.length === 1 ? q.authors[0] : null;
 }
 
+/**
+ * The search page on a Dictionary list's own tab: its name as the words — which ask for all its
+ * items, not only those the words find (hooks/useListRibbon `whole`) — on All, with the list's tab
+ * open. Where a list item's page sends a reader to the rest of its list: the search they know,
+ * with its tab row and tag filters.
+ */
+export function listSearchHref(coordinate: string, name: string): string {
+  return `/?q=${encodeURIComponent(name.trim())}&t=all&list=${encodeURIComponent(coordinate)}`;
+}
+
 /** The search page, scoped to one person, on one vertical. */
 export function scopedSearchHref(pubkey: string, tab: string, words = ""): string {
   let key = pubkey;

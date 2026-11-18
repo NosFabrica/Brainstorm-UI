@@ -94,7 +94,10 @@ function Defined({ event, view, preview }: { event: ItemEvent; view: ReadyItemVi
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
           {r.governing.singular}{" "}
           <span className="font-medium normal-case tracking-normal text-slate-400 dark:text-slate-500">
-            in <ConceptLink event={event}>{r.governing.plural}</ConceptLink>
+            in{" "}
+            <ConceptLink event={event} list={r.governing.plural}>
+              {r.governing.plural}
+            </ConceptLink>
           </span>
         </p>
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">

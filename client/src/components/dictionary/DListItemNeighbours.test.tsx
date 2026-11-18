@@ -98,13 +98,12 @@ describe("DListItemNeighbours", () => {
     ).toEqual(["vcavallo", "aburra16"]);
   });
 
-  it("only an admin gets the way in to the whole list: the Dictionary is admins-only for now", () => {
-    const { unmount } = render(<DListItemNeighbours event={mine} resolved={resolved} />);
-    expect(screen.queryByTestId("dlist-item-see-all")).toBeNull();
-    unmount();
-    viewer.isAdmin = true;
+  it("anyone gets the way in to the whole list: search, on the list's own tab — not the admins' Dictionary", () => {
     render(<DListItemNeighbours event={mine} resolved={resolved} />);
-    expect(screen.getByTestId("dlist-item-see-all")).toHaveTextContent("See all 3");
+    const seeAll = screen.getByTestId("dlist-item-see-all");
+    expect(seeAll).toHaveTextContent("See all 3");
+    expect(new URL(seeAll.getAttribute("href")!, "http://x").searchParams.get("t")).toBe("all");
+    expect(new URL(seeAll.getAttribute("href")!, "http://x").searchParams.get("list")).toMatch(/^39998:/);
   });
 
   it("is nothing at all for an item alone in its list", () => {

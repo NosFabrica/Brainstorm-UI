@@ -13,6 +13,7 @@ import { FieldValue } from "@/components/dictionary/FieldValue";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf } from "@/services/dictionary";
+import { listSearchHref } from "@/lib/searchSyntax";
 import { fieldCell, type FieldDecl } from "@/lib/dlistFields";
 import type { DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
 
@@ -42,7 +43,11 @@ export function DefinitionLine({ event, resolved: r }: { event: ItemEvent; resol
       data-testid="dlist-item-definition"
     >
       <span>
-        Shown as {SOURCE_WORDS[r.source]} <ConceptLink event={event}>{r.governing.plural}</ConceptLink>.
+        Shown as {SOURCE_WORDS[r.source]}{" "}
+        <ConceptLink event={event} list={r.governing.plural}>
+          {r.governing.plural}
+        </ConceptLink>
+        .
       </span>
       <AgreementChip agreement={r.agreement} />
     </p>
@@ -50,21 +55,17 @@ export function DefinitionLine({ event, resolved: r }: { event: ItemEvent; resol
 }
 
 /**
- * The concept's Dictionary entry for an admin; plain words for anyone else —
- * the Dictionary is admins-only while it's an internal demo (SettingsPage
- * `ADMIN_ONLY_TABS`), and the admin claim rides on a Session.
+ * The rest of the list, for anyone: the search page on the list's own tab
+ * (`listSearchHref`; `list` is its plural name), with its tab row and tag filters.
+ * Not Settings › Dictionary, which is admins-only (SettingsPage `ADMIN_ONLY_TABS`).
  */
-export function ConceptLink({ event, children }: { event: ItemEvent; children: ReactNode }) {
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
-  // Infrastructure (URL Templates) renders, but has no Dictionary entry to link to.
+export function ConceptLink({ event, list, children }: { event: ItemEvent; list: string; children: ReactNode }) {
+  // Infrastructure (URL Templates) renders, but has no list of its own to link to.
   const { shown } = useDictionaryConcepts();
   const coordinate = dictionaryConceptOf(event, shown);
-  if (!isAdmin || !coordinate) return <>{children}</>;
+  if (!coordinate) return <>{children}</>;
   return (
-    <Link
-      href={`/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`}
-      className="text-brand-link hover:underline"
-    >
+    <Link href={listSearchHref(coordinate, list)} className="text-brand-link hover:underline">
       {children}
     </Link>
   );
