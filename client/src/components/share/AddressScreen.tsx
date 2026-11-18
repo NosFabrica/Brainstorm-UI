@@ -1,6 +1,6 @@
 import { Loader2, FileText } from "lucide-react";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
-import { fetchAddressableEvents } from "@/services/nostr";
+import { loadAddressForPage } from "@/services/eventPageLoad";
 import { newerEvent, useHeldReplaceable } from "@/hooks/useHeldEvents";
 import { READER_KINDS } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -26,12 +26,10 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
     `article:${naddr}`,
     null,
     // The naddr's own relay hints ride on the pointer, beside the default
-    // relays and the author's outbox — added to them, never instead of them.
-    async () => {
-      const map = await fetchAddressableEvents([ptr]);
-      const found = map.get(`${ptr.kind}:${ptr.pubkey}:${ptr.identifier}`);
-      return found ? [found] : [];
-    },
+    // relays and the author's outbox — added to them, never instead of them —
+    // and the search relay is asked at the same time. A newer version a relay
+    // holds, or one search has no copy of, is handed to search.
+    () => loadAddressForPage(ptr),
   );
   const held = useHeldReplaceable(ptr.kind, ptr.pubkey, ptr.identifier);
   const ev = newerEvent(articleQuery.events[0], held) as ArticleEvent | undefined;

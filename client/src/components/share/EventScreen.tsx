@@ -23,6 +23,7 @@ import {
 } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
 import { eventStore } from "@/lib/eventStore";
+import { loadEventForPage } from "@/services/eventPageLoad";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
@@ -166,7 +167,8 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   const eventQuery = useStoreEvents(
     ptr?.id && !event && !eventStore.getEvent(ptr.id) ? `event:${ptr.id}` : null,
     ptr?.id && !event ? [{ ids: [ptr.id] }] : null,
-    () => fetchEventsByIds([ptr!.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    // Search and the pointer's relays at once; what search lacks is handed to it.
+    () => loadEventForPage({ id: ptr!.id, relays: relayHints }),
   );
   const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
     MinimalEvent | null | undefined;

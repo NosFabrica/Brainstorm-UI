@@ -46,6 +46,15 @@ vi.mock("@/services/nostr", async () => ({
   fetchEventsByIds: (...args: unknown[]) => eventsByIds(...args),
   fetchProfileMap: async () => new Map(),
 }));
+// The page's own event: the address is `served`, an id asked of `pageEvent`.
+const pageEvent = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
+vi.mock("@/services/eventPageLoad", () => ({
+  loadEventForPage: (...args: unknown[]) => pageEvent(...args),
+  loadAddressForPage: async () => {
+    const ev = await served();
+    return ev ? [ev] : [];
+  },
+}));
 // The author-score batch (services/trustSignals) flushes on a timer, which can fire after the test that asked.
 vi.mock("@/services/api", () => ({
   apiClient: { getHouseInfluence: async () => null, getTrustSignals: async () => new Map() },
@@ -467,9 +476,11 @@ describe("an event by id the device already holds", () => {
     };
     eventStore.add(note);
     eventsByIds.mockClear();
+    pageEvent.mockClear();
     window.history.pushState({}, "", `/e/${nip19.noteEncode(note.id)}`);
     renderPage();
     expect(await screen.findByText("A note the device already has.")).toBeInTheDocument();
+    expect(pageEvent).not.toHaveBeenCalled();
     expect(eventsByIds.mock.calls.some((call) => (call[0] as string[]).includes(note.id))).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchEventsByIds: async () => fetched,
 }));
+vi.mock("@/services/eventPageLoad", () => ({ loadEventForPage: async () => fetched }));
 vi.mock("@/services/api", () => ({
   apiClient: {
     getHouseInfluence: async () => null,
