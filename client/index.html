@@ -31,15 +31,22 @@
     </script>
     <title>Brainstorm - Web of Trust for Nostr</title>
     <meta
-      name="description"
-      content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr."
-    />
-    <meta
       name="keywords"
       content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation"
     />
     <meta name="author" content="Brainstorm" />
 
+    <!-- Preview tags. On a share page (/p/, /e/, /s/) nginx replaces this block
+         with that page's own — og's /meta/ fragment, included server-side (SSI,
+         nginx.conf) — and keeps it when og has nothing to say or isn't there.
+         Everywhere else, and in dev, the two SSI lines around it are plain
+         comments and the block is simply the page's tags. `<title>` stays outside it:
+         it names the tab, not the link. -->
+    <!--# block name="share_meta" -->
+    <meta
+      name="description"
+      content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr."
+    />
     <link rel="canonical" href="https://brainstorm.nosfabrica.com/" />
 
     <meta property="og:title" content="Brainstorm — Your Network. Your Rules." />
@@ -63,6 +70,8 @@
     />
     <meta name="twitter:image" content="https://brainstorm.nosfabrica.com/og-image.png" />
     <meta name="twitter:image:alt" content="Brainstorm — Search through the people you trust." />
+    <!--# endblock -->
+    <!--# include virtual="$share_meta" stub="share_meta" -->
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
