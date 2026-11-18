@@ -5,7 +5,10 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
+import { FEATURES } from "@/config/featureFlags";
 import { NewAccountResult } from "@/components/compromised/NewAccountResult";
+import { CurrentAccountResult } from "@/components/retired/CurrentAccountResult";
+import { retiredBy, retiredStatus } from "@/services/retired";
 import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
@@ -58,6 +61,7 @@ import {
   tabLabel,
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
+import { TagFacets } from "./TagFacets";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
@@ -97,11 +101,21 @@ import {
   belongsTo,
   categoryTestId,
   groupCategories,
+  isKindKey,
+  NOTES_KEY,
   pagedWords,
+  PEOPLE_KEY,
   type Category,
   type CategoryGroup,
 } from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
+import { useResultTags } from "@/hooks/useResultTags";
+import { useNamedTags } from "@/hooks/useNamedTags";
+import { useTagMembers } from "@/hooks/useTagMembers";
+import { useListTags } from "@/hooks/useListTags";
+import { carriersOf } from "@/lib/resultTags";
+import { TagTabResults } from "@/components/search/TagTabResults";
+import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
@@ -293,6 +307,9 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 ];
 /** On All, how many of its categories stand in the row before More. */
 const CATEGORIES_IN_ROW = 4;
+/** A tag's tab in All's row, by key: `tag:<author>:<slug>`, as the link holds it. */
+const TAG_TAB = "tag:";
+const tagTabKeyOf = (tag: NamedTag) => `${TAG_TAB}${tag.authorPubkey}:${tag.slug}`;
 /**
  * Behind More, grouped by what a person is doing — consumer things first,
  * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
@@ -715,13 +732,34 @@ function writeListToUrl(coordinate: string | null) {
   }
 }
 
-/** A searched map area (`area`) is the Places page's, and a pressed list All's: another page or tab leaves them out of the link. */
+/** The tag narrowing All's results (`tagged`), by its `<author>|<slug>` key: kept in the link like a list. */
+function urlTagged(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("tagged");
+  } catch {
+    return null;
+  }
+}
+
+function writeTaggedToUrl(key: string | null) {
+  try {
+    const url = new URL(window.location.href);
+    if (key) url.searchParams.set("tagged", key);
+    else url.searchParams.delete("tagged");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
+/** A searched map area (`area`) is the Places page's, and a pressed list or tag All's: another page or tab leaves them out of the link. */
 function writeKindToUrl(key: string) {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("t", key);
     url.searchParams.delete("area");
     url.searchParams.delete("list");
+    url.searchParams.delete("tagged");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -735,6 +773,7 @@ function writeTabToUrl(tab: SearchTab) {
     else url.searchParams.set("t", tab);
     url.searchParams.delete("area");
     url.searchParams.delete("list");
+    url.searchParams.delete("tagged");
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
     /* URL sync is a convenience, never a blocker */
@@ -1279,6 +1318,47 @@ export function SearchResults({
     return known ? { query: effectiveQuery, category: known } : null;
   });
   const category = onAll && openCategory?.query === effectiveQuery ? openCategory.category : null;
+  // A pressed tag narrows All to what carries it: the search asked again of the tag's Trusted Lists'
+  // members (hooks/useTagMembers), shown with the loaded rows it was pressed on that carry it, so
+  // none of those goes. The link holds it (`tagged`), for the words it was pressed on, as it holds
+  // a category; a category pressed keeps it.
+  const [tagPressed, setTagPressed] = useState<{
+    query: string;
+    key: string;
+    name?: string;
+    carriers?: SearchHit[];
+  } | null>(() => {
+    const key = urlTagged();
+    return key ? { query: effectiveQuery, key } : null;
+  });
+  useEffect(() => {
+    setTagPressed((pressed) => {
+      if (pressed?.query === effectiveQuery) return pressed;
+      const key = urlTagged();
+      return key ? { query: effectiveQuery, key } : null;
+    });
+  }, [effectiveQuery]);
+  const pressTag = useCallback(
+    (tag: { key: string; name: string; carriers: SearchHit[] } | null) => {
+      setTagPressed(tag ? { query: effectiveQuery, ...tag } : null);
+      writeTaggedToUrl(tag?.key ?? null);
+    },
+    [effectiveQuery],
+  );
+  const tagFilter = FEATURES.searchTagFilters && onAll && tagPressed?.query === effectiveQuery ? tagPressed.key : null;
+  // A tag the link names comes without its name: its slug's words find its lists as well.
+  const tagMembers = useTagMembers(
+    tagFilter
+      ? { key: tagFilter, name: tagPressed?.name ?? tagFilter.slice(tagFilter.indexOf("|") + 1).replace(/-/g, " ") }
+      : null,
+    { pov, userPubkey },
+  );
+  const narrowTo = tagMembers.members;
+  const narrowKey = tagFilter && narrowTo ? tagFilter : null;
+  const tagCarriers = tagFilter ? tagPressed?.carriers : undefined;
+  // Which tag the stream's rows were asked for, set beside them: until the narrowed answer is in,
+  // the rows on hand are All's, which the tag thins.
+  const [streamTag, setStreamTag] = useState<string | null>(null);
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -1334,7 +1414,12 @@ export function SearchResults({
     // the relay answers — and, when the page itself is coming back (a reader
     // returning from a result), to where they were in it.
     // A category of All's remembers its own pages.
-    const key = rememberKey(category ? `${effectiveQuery}\n${category.key}` : effectiveQuery, tab, pov, userPubkey);
+    const key = rememberKey(
+      [effectiveQuery, category?.key, narrowKey].filter(Boolean).join("\n"),
+      tab,
+      pov,
+      userPubkey,
+    );
     const remembered = recallSearch(key);
     const restoreScroll = firstRun.current && remembered ? remembered.scrollY : null;
     firstRun.current = false;
@@ -1342,15 +1427,23 @@ export function SearchResults({
       ? { hits: remembered.hits, eose: false, timeMs: null, error: null }
       : null;
     setSnapshot(latest);
+    setStreamTag(narrowKey);
     // All's question was asked while the bundle loaded (index.html, lib/headStart): its
     // first page follows that request rather than asking again — for the house's
     // Perspective, at the default depth, on a first visit to this search only.
     const firstPage =
-      tab === "all" && !category && !remembered && !userPubkey && pov === "nosfabrica" && limit === undefined
+      tab === "all" &&
+      !category &&
+      !narrowKey &&
+      !remembered &&
+      !userPubkey &&
+      pov === "nosfabrica" &&
+      limit === undefined
         ? (followHeadStart(effectiveQuery) ?? undefined)
         : undefined;
     const handle = searchStream(
-      effectiveQuery,
+      // A list the words name asks for its items whatever their words.
+      category?.whole ? "" : effectiveQuery,
       {
         // A category of All's asks its kinds alone, or as its tab asks it (Events, Recipes).
         tab: category?.tab ?? tab,
@@ -1360,6 +1453,7 @@ export function SearchResults({
         seed: remembered?.hits,
         firstPage,
         ...(category && !category.tab ? { kinds: category.kinds, tags: category.tags } : {}),
+        ...(narrowKey && narrowTo ? { members: narrowTo } : {}),
       },
       (snap) => {
         latest = snap;
@@ -1383,9 +1477,9 @@ export function SearchResults({
       // Followed, the stream closed it; cancelled before its first page, nobody did.
       firstPage?.release();
     };
-    // `category` by its key: the same category found again asks nothing new.
+    // `category` by its key: the same category found again asks nothing new; a tag likewise.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery, category?.key]);
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery, category?.key, narrowKey]);
 
   useEffect(() => {
     setMediaNotes(null);
@@ -1493,7 +1587,13 @@ export function SearchResults({
   // profiles' handles belong to (hooks/useHandlePointers), asked of every People hit before the floor.
   const pointers = useHandlePointers(tab === "people" ? (snapshot?.hits ?? []) : []);
   const rawHits = useMemo(() => {
-    const base = snapshot?.hits ?? [];
+    const sent = snapshot?.hits ?? [];
+    // A pressed tag's own answer keeps the rows the page showed carrying it: the relay may have
+    // found those through a list whose title holds the words ("verified" finds Verified Human's
+    // people), which the narrowed ask doesn't match again.
+    const kept = streamTag && streamTag === tagFilter && tagCarriers?.length ? tagCarriers : null;
+    const sentIds = kept ? new Set(sent.map((h) => h.event.id)) : null;
+    const base = kept ? [...sent, ...kept.filter((h) => !sentIds!.has(h.event.id))] : sent;
     // A listing is for sale or it is not a result: sold, hidden and priceless
     // never count, so the count line and the cards agree.
     // One product, one card: a seller's same-title copies from two apps fold
@@ -1530,7 +1630,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits]);
+  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits, streamTag, tagFilter, tagCarriers]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -1595,8 +1695,32 @@ export function SearchResults({
     lists: ribbon.lists,
     ready: ribbon.settled && (!!snapshot?.eose || !!snapshot?.error),
   });
+  // The tags the loaded results carry, offered as filters (hooks/useResultTags). A pressed one
+  // narrows the search itself where the tag has lists (above); until they answer, or where it has
+  // none, it keeps the loaded rows carrying it.
+  const resultTags = useResultTags(hits, {
+    observer: pov === "mywot" && userPubkey ? userPubkey : "house",
+    enabled: onAll && FEATURES.searchTagFilters,
+  });
   const categoryAsked = onAll && categoryPressed?.query === effectiveQuery ? categoryPressed.key : null;
   const pressedCategory = categoryAsked ? (categories.known.get(categoryAsked) ?? null) : null;
+  // The tags kept on the Dictionary lists in view — the one a page is open on, or those the words
+  // name on All — offered whatever page of their items is loaded (hooks/useListTags): a list of
+  // hundreds has its tagged items past the first page.
+  const listsInView = useMemo(
+    () =>
+      pressedCategory
+        ? isKindKey(pressedCategory.key)
+          ? []
+          : [{ coordinate: pressedCategory.key, name: pressedCategory.name }]
+        : ribbon.lists.filter((l) => l.whole).map((l) => ({ coordinate: l.coordinate, name: l.name })),
+    [pressedCategory, ribbon.lists],
+  );
+  const listTags = useListTags(listsInView, { pov, userPubkey, enabled: onAll && FEATURES.searchTagFilters });
+  const facetTags = useMemo(() => {
+    const kept = new Set(listTags.tags.map((t) => t.key));
+    return [...listTags.tags, ...resultTags.tags.filter((t) => !kept.has(t.key))];
+  }, [listTags.tags, resultTags.tags]);
   useEffect(() => {
     setOpenCategory((open) =>
       !pressedCategory
@@ -1609,22 +1733,37 @@ export function SearchResults({
   // The tab strip fades at an edge it scrolls past.
   const [tabStripRef, tabStripEdges] = useScrollEdges();
   // The row: the first few, the rest behind More — and the pressed one, counted or not yet.
+  // The tags the words name outright, each a tab of its own holding everything that carries it
+  // (services/namedTags): after Notes and People, before the lists. The row waits for them too,
+  // so it still lands whole. The link holds a pressed one as it holds a category (`list`).
+  const namedTags = useNamedTags(scopeOf(query) ? "" : query, {
+    pov,
+    userPubkey,
+    enabled: onAll && FEATURES.searchTagFilters,
+  });
+  const tagTabKey = FEATURES.searchTagFilters && categoryAsked?.startsWith(TAG_TAB) ? categoryAsked : null;
+  const tagTab = tagTabKey ? (namedTags.tags.find((t) => tagTabKeyOf(t) === tagTabKey) ?? null) : null;
+  const rowLoading = categories.loading || !namedTags.settled;
   const rowCategories = useMemo(() => {
-    const all =
-      pressedCategory && !categories.shown.some((c) => c.key === pressedCategory.key)
-        ? [...categories.shown, pressedCategory]
-        : categories.shown;
-    // A list a kind's page stands for sits under that page's heading: Places is Out & about.
+    const tabs: Category[] = namedTags.tags.map((t) => ({ key: tagTabKeyOf(t), name: t.name, kinds: [] }));
+    const lead = categories.shown.findIndex((c) => c.key !== NOTES_KEY && c.key !== PEOPLE_KEY);
+    const at = lead < 0 ? categories.shown.length : lead;
+    const found = rowLoading ? [] : [...categories.shown.slice(0, at), ...tabs, ...categories.shown.slice(at)];
+    const pressed = pressedCategory ?? tabs.find((t) => t.key === tagTabKey) ?? null;
+    const all = pressed && !found.some((c) => c.key === pressed.key) ? [...found, pressed] : found;
+    // A list a kind's page stands for sits under that page's heading: Places is Out & about. A tag's
+    // tab follows Notes and People, so it is always in the row, never behind More.
     const listGroups = new Map(kinds.map((k) => [k.community, k.group]));
     return {
       inRow: all.slice(0, CATEGORIES_IN_ROW),
       behindMore: groupCategories(all.slice(CATEGORIES_IN_ROW), ALL_MORE_GROUPS, listGroups),
     };
-  }, [categories.shown, pressedCategory, kinds]);
+  }, [categories.shown, namedTags.tags, rowLoading, pressedCategory, tagTabKey, kinds]);
   // A category the link names waits to be found — in All's first page, or the lists' answer —
-  // rather than showing all of All first; one that isn't found lets All show.
-  const categoryWaiting =
-    !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
+  // rather than showing all of All first; one that isn't found lets All show. So does a tag's.
+  const categoryWaiting = tagTabKey
+    ? !tagTab && !namedTags.settled
+    : !!categoryAsked && !category && (!pressedCategory ? !ribbon.settled || !snapshot?.eose : true);
   const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
   // What the floor held back, said once and quietly — Google's "some results
   // were removed" — with the one tap that lifts it. Rendered under the list,
@@ -2058,6 +2197,10 @@ export function SearchResults({
       ];
     // A kind of All's keeps the rows it names: a Recipe is an article's kind, and so are Articles.
     if (category) shown = shown.filter((h) => belongsTo(category, h));
+    // A pressed tag the stream wasn't asked for keeps the rows known to carry it; one whose tags
+    // are still coming joins once they are. The tag's own answer is all carriers.
+    if (tagFilter && streamTag !== tagFilter)
+      shown = shown.filter((h) => resultTags.byHit.get(h.event.id)?.has(tagFilter));
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
@@ -2277,6 +2420,9 @@ export function SearchResults({
     effectiveShelf,
     proven,
     category,
+    tagFilter,
+    streamTag,
+    resultTags.byHit,
   ]);
 
   // Compromised people on the page, and whose new account each one's is: the new account is
@@ -2335,7 +2481,8 @@ export function SearchResults({
   }, [displayHits, tab, effectiveWhen]);
 
   // A chip or a Filters control has narrowed the page.
-  const narrowed =
+  // Narrowed by something besides a pressed tag, which says its own count.
+  const narrowedBesidesTag =
     activeFilters > 0 ||
     !!shopCategory ||
     !!shopPrice ||
@@ -2348,6 +2495,14 @@ export function SearchResults({
     !!repoLabel ||
     (tab === "events" && eventWhen !== "upcoming") ||
     (tab === "live" && liveShelf !== null);
+  const narrowed = narrowedBesidesTag || !!tagFilter;
+  const tagName =
+    resultTags.tags.find((t) => t.key === tagFilter)?.name ?? tagFilter?.slice(tagFilter.indexOf("|") + 1) ?? "";
+  // A tag the link names waits for the rows' tags rather than saying nothing carries it.
+  const tagWaiting =
+    !!tagFilter &&
+    displayHits.length === 0 &&
+    (streamTag === tagFilter ? !snapshot?.eose : !tagMembers.settled || !!narrowKey || !resultTags.settled);
   const totalCount = rawHits.length + extraCount;
   const displayedCount = displayHits.length + extraCount;
 
@@ -2426,7 +2581,7 @@ export function SearchResults({
                   </button>
                 ))}
               {/* Until the categories are counted, the row says they are coming — then they land at once. */}
-              {onAll && categories.loading && (
+              {onAll && rowLoading && (
                 <span
                   className="flex shrink-0 items-center gap-2 px-2"
                   aria-label="Finding categories"
@@ -2587,6 +2742,20 @@ export function SearchResults({
                   })}
                 </FacetRow>
               )}
+              {/* The tags the results carry, most carried first: each a filter over them. */}
+              {FEATURES.searchTagFilters && onAll && !tagTabKey && serverStatus.search !== "down" && (
+                <TagFacets
+                  key={effectiveQuery}
+                  tags={facetTags}
+                  pressed={tagFilter}
+                  settled={resultTags.settled && listTags.settled}
+                  onPress={(t) =>
+                    pressTag(
+                      t ? { key: t.key, name: t.name, carriers: carriersOf(hits, resultTags.byHit, t.key) } : null,
+                    )
+                  }
+                />
+              )}
               {activeKind ? (
                 <activeKind.Page query={query} onTabChange={changeTab} />
               ) : serverStatus.search === "down" ? (
@@ -2608,6 +2777,14 @@ export function SearchResults({
                   onOpenProfile={openProfile}
                   onQueryRewrite={onQueryRewrite}
                 />
+              ) : tagTab ? (
+                // A tag's tab holds what carries it, not a search of the words.
+                <TagTabResults
+                  tag={tagTab}
+                  scoreOf={scoreOf}
+                  query={query}
+                  observer={pov === "mywot" && userPubkey ? userPubkey : "house"}
+                />
               ) : snapshot?.error ? (
                 <div
                   className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
@@ -2615,7 +2792,7 @@ export function SearchResults({
                 >
                   {snapshot.error}
                 </div>
-              ) : searching || categoryWaiting ? (
+              ) : searching || categoryWaiting || tagWaiting ? (
                 <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div
@@ -3035,7 +3212,11 @@ export function SearchResults({
                   {narrowed && totalCount > 0 && (
                     <div className="mb-2 px-1 sm:mb-3">
                       <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                        {displayedCount} of {totalCount} match
+                        {/* A pressed tag says what it found, not "of" the rows loaded so far: those are a
+                        page of the search, not what the words match. */}
+                        {tagFilter && !narrowedBesidesTag
+                          ? `${displayedCount} ${displayedCount === 1 ? "result" : "results"} tagged ${tagName}${snapshot?.exhausted ? "" : " so far"}`
+                          : `${displayedCount} of ${totalCount} match`}
                       </p>
                     </div>
                   )}
@@ -3136,6 +3317,22 @@ export function SearchResults({
                             // A new account whose compromised one is on this page is already shown, above that one.
                             const replaced = newAccountOf.get(event.pubkey);
                             if (replaced && peopleOnPage.includes(replaced)) return null;
+                            // The same for a Current account whose Retired one is on this page.
+                            const retiredOne = retiredBy(event.pubkey)?.pubkey;
+                            if (retiredOne && peopleOnPage.includes(retiredOne)) return null;
+                            // …and a Retired account leads with its owner's Current one: that account's
+                            // own row from this page when it has one, so its score comes along.
+                            const currentOne = retiredStatus(event.pubkey)?.currentPubkey;
+                            const currentRow = currentOne
+                              ? displayHits.find((d) => d.hit.event.kind === 0 && d.hit.event.pubkey === currentOne)
+                                  ?.hit
+                              : undefined;
+                            const currentAuthor = currentRow?.author
+                              ? {
+                                  ...currentRow.author,
+                                  wotRank: currentRow.author.wotRank ?? scoreOf(currentRow.event.pubkey) ?? null,
+                                }
+                              : undefined;
                             const idx = peopleIdx.current++;
                             // The one tag the words matched, if this person carries it.
                             const cardTag =
@@ -3150,6 +3347,13 @@ export function SearchResults({
                               <>
                                 {/* A compromised account: the owner's new one goes first, highlighted. */}
                                 <NewAccountResult compromisedPubkey={event.pubkey} pov={pov} onOpen={openProfile} />
+                                {/* A retired account: the owner's current one goes first, lightly set apart. */}
+                                <CurrentAccountResult
+                                  retiredPubkey={event.pubkey}
+                                  known={currentAuthor}
+                                  pov={pov}
+                                  onOpen={openProfile}
+                                />
                                 <PersonCard
                                   result={scored}
                                   idx={idx}

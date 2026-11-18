@@ -21,6 +21,13 @@ export const DCOSL_RELAY = "wss://dcosl.brainstorm.world";
 /** Answers any filter over the whole corpus, unranked — what a fallback lookup wants. */
 export const SEARCH_RELAY_READ_TOKEN = "include:spam";
 
+/**
+ * How many of the notes' own relay hints join a read. A page of notes can name
+ * dozens of relays between them; the ones it names first are asked, beside the
+ * default set, rather than a socket for every one.
+ */
+export const MAX_REF_HINTS = 6;
+
 /** Where profiles and other replaceable metadata are looked for. */
 export const PROFILE_RELAYS = [
   "wss://relay.damus.io/",

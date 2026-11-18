@@ -317,7 +317,9 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
     <div className="space-y-5" data-testid="dlist-item-hero" data-definition="read" data-view="place">
       {isAdmin && (
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
-          <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
+          <ConceptLink event={event} list={r.governing.plural}>
+            {r.governing.singular}
+          </ConceptLink>
         </p>
       )}
 

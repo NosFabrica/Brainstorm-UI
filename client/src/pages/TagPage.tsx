@@ -184,6 +184,7 @@ export default function TagPage() {
    * is furniture, and the row badges already do the job at that size.
    */
   const showFilters = carriers.length >= FILTER_THRESHOLD;
+  const noPeople = !loading && status !== "unavailable" && carriers.length === 0;
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try {
@@ -334,129 +335,125 @@ export default function TagPage() {
           </div>
         )}
 
-        <div className="mb-2 mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            {loading ? "Loading" : `${carriers.length} ${carriers.length === 1 ? "person" : "people"}`}
-          </span>
-          {/* How many DISTINCT accounts built this list. Without it, a list one
-              account assembled reads exactly like a list two dozen people
-              agreed on — and on this hub that's the common case, not the edge
-              one. Cheapest brigading tell available while trust is inert. */}
-          {!loading && distinctVouchers > 0 && (
-            <span className="font-medium normal-case tracking-normal" data-testid="tag-voucher-count">
-              · added by {distinctVouchers} {distinctVouchers === 1 ? "account" : "accounts"}
-            </span>
-          )}
-        </div>
-
-        {/* The trust source gave us nothing, so nobody here was filtered.
-            ACCEPTANCE C7 wants that to degrade quietly rather than error — but
-            quietly isn't the same as invisibly, and a list that looks vetted
-            when it wasn't is the one failure worth a line of text. */}
-        {!loading && detailQuery.data?.trustUnverified && carriers.length > 0 && (
-          <p className="mb-3 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-trust-unverified">
-            We couldn't check who's reputable right now, so everyone who added a name is counted here.
-          </p>
-        )}
-
-        {!loading && carriers.length > 1 && (
-          <div className="mb-2 flex flex-wrap items-center gap-1.5" data-testid="tag-controls">
-            <SortChip active={sort === "vouched"} onClick={() => setSort("vouched")} testId="tag-sort-vouched">
-              Most vouched
-            </SortChip>
-            <SortChip active={sort === "recent"} onClick={() => setSort("recent")} testId="tag-sort-recent">
-              Recently added
-            </SortChip>
-            {showFilters && (
-              <>
-                <span className="mx-1 h-3 w-px bg-slate-200 dark:bg-slate-700" />
-                <SortChip
-                  active={hideSelfDeclared}
-                  onClick={() => setHideSelfDeclared((v) => !v)}
-                  testId="tag-filter-self"
-                >
-                  Vouched only
-                </SortChip>
-                <SortChip
-                  active={hideContested}
-                  onClick={() => setHideContested((v) => !v)}
-                  testId="tag-filter-contested"
-                >
-                  Hide contested
-                </SortChip>
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900">
-          {loading ? (
-            <PersonListSkeleton testId="tag-skeleton" />
-          ) : visible.length === 0 && carriers.length > 0 ? (
-            <div className="px-4 py-8">
-              <EmptyState
-                icon={TagIcon}
-                compact
-                title="Nothing matches those filters"
-                description="Turn one off to see the rest of the list."
-              />
-            </div>
-          ) : carriers.length === 0 ? (
-            <div className="px-4 py-8">
-              {/* "Nobody has this tag" is a claim about the world, and we can
-                  only make it if we actually got an answer. When the relays
-                  didn't respond we know nothing, and saying the tag is empty
-                  would be inventing a fact — the same mistake in the other
-                  direction from rendering a tag that doesn't exist (#41 B3). */}
-              {status === "unavailable" ? (
-                <EmptyState
-                  icon={TagIcon}
-                  compact
-                  title="Can't load this tag right now"
-                  description="The connection didn't come back. Reload in a moment and it should be here."
-                />
-              ) : (
-                <EmptyState
-                  icon={TagIcon}
-                  compact
-                  title="Nobody has this tag yet"
-                  description="When someone adds it, they'll show up here."
-                />
+        {/* A tag nobody carries — one made for posts and things, or not yet used — shows no
+            people at all: an empty "0 people" card above what it is on reads as a broken page.
+            A tag the relays didn't answer for still says so below; that count isn't known. */}
+        {!noPeople && (
+          <>
+            <div className="mb-2 mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                {loading ? "Loading" : `${carriers.length} ${carriers.length === 1 ? "person" : "people"}`}
+              </span>
+              {/* How many DISTINCT accounts built this list. Without it, a list one
+                account assembled reads exactly like a list two dozen people
+                agreed on — and on this hub that's the common case, not the edge
+                one. Cheapest brigading tell available while trust is inert. */}
+              {!loading && distinctVouchers > 0 && (
+                <span className="font-medium normal-case tracking-normal" data-testid="tag-voucher-count">
+                  · added by {distinctVouchers} {distinctVouchers === 1 ? "account" : "accounts"}
+                </span>
               )}
             </div>
-          ) : (
-            visible.map((c) => {
-              const p = profileMap?.get(c.pubkey);
-              return (
-                <PersonListRow
-                  key={c.pubkey}
-                  pubkey={c.pubkey}
-                  displayName={p?.display_name || p?.name}
-                  picture={p?.picture}
-                  nip05={p?.nip05}
-                  pov={scorePov}
-                  testId={`tag-row-${c.pubkey.slice(0, 8)}`}
-                  actions={
-                    canVote ? (
-                      <TagVoteButton
-                        stance={c.myStance}
-                        pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
-                        onVote={(polarity) => vote.mutate({ targetPubkey: c.pubkey, polarity })}
-                        testId={`tag-vote-${c.pubkey.slice(0, 8)}`}
-                      />
-                    ) : undefined
-                  }
-                  meta={
-                    // Not `tag-row-count`: that would match a `tag-row-*`
-                    // prefix selector and double-count every row.
-                    <CarrierMeta carrier={c} profileMap={profileMap} isViewer={c.pubkey === viewerPubkey} />
-                  }
-                />
-              );
-            })
-          )}
-        </div>
+
+            {/* The trust source gave us nothing, so nobody here was filtered.
+              ACCEPTANCE C7 wants that to degrade quietly rather than error — but
+              quietly isn't the same as invisibly, and a list that looks vetted
+              when it wasn't is the one failure worth a line of text. */}
+            {!loading && detailQuery.data?.trustUnverified && carriers.length > 0 && (
+              <p className="mb-3 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-trust-unverified">
+                We couldn't check who's reputable right now, so everyone who added a name is counted here.
+              </p>
+            )}
+
+            {!loading && carriers.length > 1 && (
+              <div className="mb-2 flex flex-wrap items-center gap-1.5" data-testid="tag-controls">
+                <SortChip active={sort === "vouched"} onClick={() => setSort("vouched")} testId="tag-sort-vouched">
+                  Most vouched
+                </SortChip>
+                <SortChip active={sort === "recent"} onClick={() => setSort("recent")} testId="tag-sort-recent">
+                  Recently added
+                </SortChip>
+                {showFilters && (
+                  <>
+                    <span className="mx-1 h-3 w-px bg-slate-200 dark:bg-slate-700" />
+                    <SortChip
+                      active={hideSelfDeclared}
+                      onClick={() => setHideSelfDeclared((v) => !v)}
+                      testId="tag-filter-self"
+                    >
+                      Vouched only
+                    </SortChip>
+                    <SortChip
+                      active={hideContested}
+                      onClick={() => setHideContested((v) => !v)}
+                      testId="tag-filter-contested"
+                    >
+                      Hide contested
+                    </SortChip>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900">
+              {loading ? (
+                <PersonListSkeleton testId="tag-skeleton" />
+              ) : visible.length === 0 && carriers.length > 0 ? (
+                <div className="px-4 py-8">
+                  <EmptyState
+                    icon={TagIcon}
+                    compact
+                    title="Nothing matches those filters"
+                    description="Turn one off to see the rest of the list."
+                  />
+                </div>
+              ) : carriers.length === 0 ? (
+                <div className="px-4 py-8">
+                  {/* Reached only when the relays didn't answer: a tag known to have
+                    nobody shows no people section at all (`noPeople`). Saying it
+                    is empty here would be inventing a fact (#41 B3). */}
+                  <EmptyState
+                    icon={TagIcon}
+                    compact
+                    title="Can't load this tag right now"
+                    description="The connection didn't come back. Reload in a moment and it should be here."
+                  />
+                </div>
+              ) : (
+                visible.map((c) => {
+                  const p = profileMap?.get(c.pubkey);
+                  return (
+                    <PersonListRow
+                      key={c.pubkey}
+                      pubkey={c.pubkey}
+                      displayName={p?.display_name || p?.name}
+                      picture={p?.picture}
+                      nip05={p?.nip05}
+                      pov={scorePov}
+                      testId={`tag-row-${c.pubkey.slice(0, 8)}`}
+                      actions={
+                        canVote ? (
+                          <TagVoteButton
+                            stance={c.myStance}
+                            pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
+                            onVote={(polarity) => vote.mutate({ targetPubkey: c.pubkey, polarity })}
+                            testId={`tag-vote-${c.pubkey.slice(0, 8)}`}
+                          />
+                        ) : undefined
+                      }
+                      meta={
+                        // Not `tag-row-count`: that would match a `tag-row-*`
+                        // prefix selector and double-count every row.
+                        <CarrierMeta carrier={c} profileMap={profileMap} isViewer={c.pubkey === viewerPubkey} />
+                      }
+                    />
+                  );
+                })
+              )}
+            </div>
+          </>
+        )}
 
         {/* Voted down, kept reachable. Hiding a disputed claim outright would
             make the page look tidier than the network actually is, and you

@@ -7,9 +7,10 @@
  * `applyEventTagging` decides the 1/2/3-publish sequence, builds every event via
  * the pure core builders, signs them ALL, then publishes them in dependency order
  * stopping on the first failure. It is itself pure: signing, transport, header
- * discovery, and the clock are INJECTED as `deps = { findHeaders, sign, publish,
- * now }`, so it carries no `window`/`fetch`/`Date` and stays CJS-testable with
- * fakes (the core purity guard covers it). A thin UI hook supplies the real deps.
+ * discovery, the clock, and the SHA-256 digest are INJECTED as `deps = { findHeaders,
+ * sign, publish, now, hash8 }`, so it carries no `window`/`fetch`/`Date` and stays
+ * CJS-testable with fakes (the core purity guard covers it). A thin UI hook supplies
+ * the real deps.
  *
  * Why sign-all-then-publish is safe: every reference is an ADDRESSABLE COORDINATE
  * (`kind:pubkey:slug`), derivable from author + slug up front — never a signed id.
@@ -86,12 +87,15 @@ function dTagValue(built) {
  * @param {1|-1}     args.polarity   apply (+1) or dispute (-1).
  * @param {string}   args.asserterPubkey  current user (64-hex).
  * @param {string[]} args.taPubkeys  [canonical, local] concept namespaces — app-supplied.
- * @param {object}   args.deps       { findHeaders, sign, publish, now } — injected.
+ * @param {object}   args.deps       { findHeaders, sign, publish, now, hash8 } — injected.
+ *                                   `hash8(str)` → first 8 lowercase hex of the SHA-256 digest of
+ *                                   str's UTF-8 bytes; may be sync or async (awaited once, up front).
  * @returns {Promise<{ sequence:'a'|'b'|'c', published:Array<{kind,address,id}>, failedAt?:{kind,address,error} }>}
  */
 async function applyEventTagging({ tagInput, target, polarity, asserterPubkey, taPubkeys, deps } = {}) {
-  if (!deps || typeof deps.sign !== 'function' || typeof deps.publish !== 'function' || typeof deps.now !== 'function') {
-    throw new Error('event-tagging: applyEventTagging requires deps { findHeaders, sign, publish, now }');
+  if (!deps || typeof deps.sign !== 'function' || typeof deps.publish !== 'function' || typeof deps.now !== 'function'
+    || typeof deps.hash8 !== 'function') {
+    throw new Error('event-tagging: applyEventTagging requires deps { findHeaders, sign, publish, now, hash8 }');
   }
   // Guard the asserter up front: it is required in every sequence and composes
   // signed coordinates. Fail before any discovery read (mirrors the builders).
@@ -151,9 +155,19 @@ async function applyEventTagging({ tagInput, target, polarity, asserterPubkey, t
     }
   }
 
-  // The assertion is always the last (most-dependent) event.
+  // The assertion is always the last (most-dependent) event. An `a` target's d
+  // embeds hash8 of its full coordinate: resolve the (possibly async) supplier
+  // ONCE here and hand the sync builder a closure pinned to that exact string.
+  // Never consulted for an `e` target.
+  const targetHash8 = target && typeof target.address === 'string' && typeof target.id !== 'string'
+    ? await deps.hash8(target.address)
+    : null;
   wrap(buildEventTaggingAssertion({
     headerAuthorPubkey: headerAuthor, slug, target, polarity, asserterPubkey, taPubkeys,
+    hash8: (s) => {
+      if (s !== target.address) throw new Error('event-tagging: hash8 closure called with a different string than it was resolved for');
+      return targetHash8;
+    },
   }), asserterPubkey);
 
   // ── Sign ALL (in order) before any publish. A signer rejection here throws

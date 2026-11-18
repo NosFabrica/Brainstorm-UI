@@ -5,6 +5,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { ROLES } from "@/config/personalization";
+import { newTagValue, pickerTagScore } from "@/lib/tagMatch";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
 import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
 import { SOFT_SELECTED_ROW, StanceRow } from "@/components/share/StanceControl";
@@ -257,7 +258,11 @@ export function TagPersonButton({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setPendingAdd(null);
+        if (!next) {
+          setPendingAdd(null);
+          // Each opening starts from the whole list, not what was last typed.
+          setSearch("");
+        }
       }}
     >
       <PopoverTrigger asChild>
@@ -326,7 +331,7 @@ export function TagPersonButton({
             </div>
           </div>
         ) : (
-          <Command shouldFilter>
+          <Command shouldFilter filter={pickerTagScore}>
             <CommandInput
               placeholder={isOwner ? "What are you known for?" : "What are they known for?"}
               value={search}
@@ -335,20 +340,6 @@ export function TagPersonButton({
             />
             <CommandList>
               {!isNew && <CommandEmpty>Type to add your own.</CommandEmpty>}
-
-              {isNew && (
-                <CommandGroup heading="Add your own">
-                  <CommandItem
-                    value={typed}
-                    onSelect={() => confirmNew(typed)}
-                    className={SOFT_SELECTED_ROW}
-                    data-testid="share-tag-create"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5" />
-                    {typed}
-                  </CommandItem>
-                </CommandGroup>
-              )}
 
               {/* Already on this profile — where you say whether it fits. Listed
                 first because reacting to what's there beats scrolling a generic
@@ -436,7 +427,10 @@ export function TagPersonButton({
                           <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
                         )}
                       </span>
-                      <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                      {/* A tag made for posts may be on no one yet: no count then. */}
+                      {e.people > 0 && (
+                        <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -455,6 +449,20 @@ export function TagPersonButton({
                       {role.label}
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+              {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
+              {isNew && (
+                <CommandGroup heading="Add your own">
+                  <CommandItem
+                    value={newTagValue(typed)}
+                    onSelect={() => confirmNew(typed)}
+                    className={SOFT_SELECTED_ROW}
+                    data-testid="share-tag-create"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    {typed}
+                  </CommandItem>
                 </CommandGroup>
               )}
             </CommandList>

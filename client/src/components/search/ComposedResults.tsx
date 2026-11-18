@@ -57,7 +57,7 @@ import { isFeedAccount } from "@/lib/feedAccount";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
-import { applyFilters, liftQuery, queryWords, readFilters } from "@/lib/searchSyntax";
+import { applyFilters, latestFloor, liftQuery, queryWords, readFilters } from "@/lib/searchSyntax";
 import { Link } from "wouter";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { useSpecsForKind } from "@/hooks/useSpecsForKind";
@@ -350,7 +350,8 @@ function ComposedResultsBody({
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, TOP_SECTIONS.notes.limit, {
+  // Latest is the raw newest posts, so it alone reads above a trust floor (lib/searchSyntax).
+  const latest = useSectionStream(latestFloor(fresh), "notes", pov, userPubkey, TOP_SECTIONS.notes.limit, {
     group: TOP,
     seed: seeds.notes,
     since: sinceFor("notes"),

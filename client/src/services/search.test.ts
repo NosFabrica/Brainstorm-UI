@@ -108,6 +108,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   searchStream,
+  narrowToMembers,
   countCategories,
   countTabs,
   suggestProfiles,
@@ -164,7 +165,56 @@ const asked = (call = 0) => askedFilters(call)[0];
 
 beforeEach(() => vi.clearAllMocks());
 
+describe("narrowToMembers", () => {
+  const PERSON = "1".repeat(64);
+  const NOTE = "2".repeat(64);
+  const AUTHOR = "3".repeat(64);
+  const members = {
+    pubkeys: [PERSON],
+    ids: [NOTE],
+    addresses: [`39999:${AUTHOR}:cafe`, `30023:${AUTHOR}:a:b`],
+  };
+
+  it("asks each filter once for the people, once by id and once by author and d", () => {
+    expect(narrowToMembers([{ search: "coffee", limit: 100 }], members)).toEqual([
+      { search: "coffee", limit: 100, kinds: [0], authors: [PERSON] },
+      { search: "coffee", limit: 100, ids: [NOTE] },
+      { search: "coffee", limit: 100, kinds: [39999, 30023], authors: [AUTHOR], "#d": ["cafe", "a:b"] },
+    ]);
+  });
+
+  it("keeps a filter's own kinds and authors, and drops a part none of them fit", () => {
+    expect(narrowToMembers([{ search: "coffee", kinds: [1, 30023] }], members)).toEqual([
+      { search: "coffee", kinds: [1, 30023], ids: [NOTE] },
+      { search: "coffee", kinds: [30023], authors: [AUTHOR], "#d": ["cafe", "a:b"] },
+    ]);
+  });
+});
+
 describe("searchStream", () => {
+  it("narrowed to members, keeps only them: not another author's item under a d it asked", async () => {
+    const { subject } = controllable();
+    const AUTHOR = "3".repeat(64);
+    const snaps: SearchSnapshot[] = [];
+    searchStream(
+      "coffee",
+      {
+        tab: "all",
+        pov: "nosfabrica",
+        members: { pubkeys: [], ids: [], addresses: [`39999:${AUTHOR}:cafe`, `39999:${"4".repeat(64)}:bar`] },
+      },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    expect(askedFilters()).toEqual([expect.objectContaining({ kinds: [39999], "#d": ["cafe", "bar"] })]);
+    const item = (id: string, pubkey: string, d: string) => ({ ...ev(id, 39999, pubkey), tags: [["d", d]] });
+    subject.next(frame(item("a".repeat(64), AUTHOR, "cafe")));
+    subject.next(frame(item("b".repeat(64), AUTHOR, "bar")));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a".repeat(64)]);
+  });
+
   it("a typed kind narrows the tab it is on — spec: on Articles asks for specs alone", async () => {
     controllable();
 
@@ -3322,6 +3372,20 @@ describe("countCategories", () => {
   const settle = () => new Promise((r) => setTimeout(r, 0));
   const PLACES = `39998:${"b".repeat(64)}:food-and-drink-places`;
 
+  it("counts a list the words name without the words: all its items", async () => {
+    sideCountMock.mockImplementation(() => of({ count: 6 }));
+    countCategories(
+      "github accounts",
+      [{ key: PLACES, kinds: [39999, 9999], tags: { "#z": [PLACES] }, whole: true }],
+      { pov: "nosfabrica" },
+      () => {},
+    );
+    await settle();
+    expect(sideCountMock.mock.calls.map(([f]) => f)).toEqual([
+      [{ kinds: [39999, 9999], "#z": [PLACES], search: `observer:${HOUSE}` }],
+    ]);
+  });
+
   it("counts each of All's categories as its page asks it — its kinds, a list's headers, in the page's own order", async () => {
     sideCountMock.mockImplementation((filters: { kinds?: number[] }[]) =>
       of({ count: String(filters[0].kinds) === "21,22" ? 212 : 701 }),
@@ -3346,6 +3410,46 @@ describe("countCategories", () => {
       new Map([
         ["kind:Video", 212],
         [PLACES, 701],
+      ]),
+    );
+  });
+
+  it("deals its counts among the lanes asked, never more sockets than counts, and closes them all", async () => {
+    const lane = () => {
+      const kinds: string[] = [];
+      const close = vi.fn();
+      return {
+        kinds,
+        close,
+        relay: {
+          count: (filters: { kinds?: number[] }[]) => (kinds.push(String(filters[0].kinds)), of({ count: 1 })),
+          close,
+        },
+      };
+    };
+    const lanes = [lane(), lane(), lane()];
+    lanes.forEach((l) => sideOpenMock.mockImplementationOnce(() => l.relay as never));
+    let got: Map<string, number | null> | null = null;
+    countCategories(
+      "burger",
+      [
+        { key: "kind:Note", kinds: [1] },
+        { key: "kind:Video", kinds: [21, 22] },
+        { key: "kind:Repo", kinds: [30617] },
+      ],
+      { pov: "nosfabrica" },
+      (counts) => (got = counts),
+      { lanes: 2 },
+    );
+    await settle();
+    expect(sideOpenMock).toHaveBeenCalledTimes(2);
+    expect(lanes.map((l) => l.kinds)).toEqual([["1", "30617"], ["21,22"], []]);
+    expect(lanes.map((l) => l.close.mock.calls.length)).toEqual([1, 1, 0]);
+    expect(got).toEqual(
+      new Map([
+        ["kind:Note", 1],
+        ["kind:Video", 1],
+        ["kind:Repo", 1],
       ]),
     );
   });

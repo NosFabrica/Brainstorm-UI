@@ -43,3 +43,23 @@ export function resolveEntityToPath(input: string): { path: string; kind: Resolv
   }
   return null;
 }
+
+/**
+ * `brainstorm.world/<bech32>`, the njump shape: a path segment that is a whole
+ * Nostr entity — an `npub`/`nprofile`, or a `note`/`nevent`/`naddr`, with or
+ * without a `nostr:` scheme — and where it lives on-site. Strict, unlike
+ * `resolveEntityToPath`: `/about` or a word with an npub buried in it is not an
+ * entity, and a bare hex id is ambiguous (person or event), so neither resolves.
+ */
+export function entityPathForSegment(segment: string): string | null {
+  let s = segment;
+  try {
+    s = decodeURIComponent(segment);
+  } catch {
+    /* keep it as it came */
+  }
+  s = s.trim().replace(/^(?:web\+)?nostr:/i, "");
+  if (!new RegExp(`^${BECH32_RE.source}$`, "i").test(s)) return null;
+  // bech32 is one case or the other; the decoder wants it lower.
+  return resolveEntityToPath(s.toLowerCase())?.path ?? null;
+}

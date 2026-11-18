@@ -277,6 +277,7 @@ import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { __forgetAllCategories } from "@/hooks/useAllCategories";
+import { __forgetResultTags } from "@/hooks/useResultTags";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
@@ -294,11 +295,57 @@ vi.mock("@/lib/nip05", async (orig) => ({
   handleOwner: (nip05: string, pubkey: string) => handleOwnerMock(nip05, pubkey),
   peekHandleOwner: () => undefined,
 }));
+// The tags a page of results carry (hooks/useResultTags): none, unless a test says.
+const resultTagsMock = vi.hoisted(() => ({
+  events: vi.fn(async (_targets: string[]) => new Map<string, { tags: unknown[] }>()),
+  people: vi.fn(async (_pubkeys: string[]) => new Map<string, { tags: unknown[] }>()),
+}));
+vi.mock("@/services/tags", async (orig) => ({
+  ...(await orig<typeof import("@/services/tags")>()),
+  fetchEventTagsBatch: (targets: string[]) => resultTagsMock.events(targets),
+  fetchProfileTagsBatch: (pubkeys: string[]) => resultTagsMock.people(pubkeys),
+}));
+// Who and what a pressed tag's Trusted Lists say carry it (services/tagLists): no list, unless a test says.
+const tagMembersMock = vi.hoisted(() =>
+  vi.fn(
+    async (_tag: { key: string; name: string }) =>
+      null as null | { pubkeys: string[]; ids: string[]; addresses: string[] },
+  ),
+);
+// The tags kept on a Dictionary list's items (services/tagLists): none, unless a test says.
+const listTagsMock = vi.hoisted(() =>
+  vi.fn(
+    async (_list: { coordinate: string; name: string }) =>
+      [] as { key: string; authorPubkey: string; slug: string; name: string; items: number }[],
+  ),
+);
+vi.mock("@/services/tagLists", async (orig) => ({
+  ...(await orig<typeof import("@/services/tagLists")>()),
+  fetchTagMembers: (tag: { key: string; name: string }) => tagMembersMock(tag),
+  fetchListTags: (list: { coordinate: string; name: string }) => listTagsMock(list),
+}));
+// The tags the words name, each a tab in All's row (services/namedTags): none, unless a test says.
+const namedTagsMock = vi.hoisted(() => ({
+  tags: vi.fn(async (_query: string) => [] as unknown[]),
+  rows: vi.fn(async (_tag: unknown) => [] as unknown[]),
+}));
+vi.mock("@/services/namedTags", async (orig) => ({
+  ...(await orig<typeof import("@/services/namedTags")>()),
+  fetchNamedTags: (query: string) => namedTagsMock.tags(query),
+  fetchNamedTagRows: (tag: unknown) => namedTagsMock.rows(tag),
+}));
 // The accounts a search's handles point at, as the face cache reads them.
 const pillProfilesMock = vi.hoisted(() => vi.fn(async (_pks: string[]) => new Map()));
 vi.mock("@/services/searchFaces", async (orig) => ({
   ...(await orig<typeof import("@/services/searchFaces")>()),
   fetchPillProfiles: (pks: string[]) => pillProfilesMock(pks),
+}));
+
+// One Retired account for the suite: RETIRED_PK's owner is at CURRENT_PK now (config/retired).
+const RETIRED_PK = "7e".repeat(32);
+const CURRENT_PK = "8e".repeat(32);
+vi.mock("@/config/retired", () => ({
+  KNOWN_RETIRED: [{ pubkey: "7e".repeat(32), currentPubkey: "8e".repeat(32) }],
 }));
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
@@ -393,6 +440,33 @@ describe("SearchResults", () => {
     expect(within(second).getByTestId("tier-word-chip")).toHaveTextContent("Outside your network");
     // Nothing else in the results wears a ring either.
     expect(visibleRing(screen.getByTestId("search-results"))).toBeNull();
+  });
+
+  // A Retired account outranks nobody on purpose, but it can outrank its owner's Current account
+  // for a name search: years of followers on one, the same name on both. The page puts the
+  // Current account first, says why, and doesn't repeat it further down.
+  it("puts a retired account's owner's current account above it, once", async () => {
+    setUrlTab("people");
+    render(<SearchResults query="pip" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", RETIRED_PK, "pip (old)"), author: author(RETIRED_PK, "pip (old)"), rank: null },
+        { event: person("p2", "1".repeat(64), "pippa"), author: author("1".repeat(64), "pippa"), rank: null },
+        { event: person("p3", CURRENT_PK, "pip"), author: author(CURRENT_PK, "pip"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const lead = await screen.findByTestId("current-account-result");
+    expect(lead).toHaveTextContent("Their current account");
+    expect(within(lead).getByTestId("result-profile-current-account")).toHaveTextContent("pip");
+    // The retired account follows it, marked; then everyone else, the current account not repeated.
+    const retired = screen.getByTestId("result-profile-0");
+    expect(retired).toHaveTextContent("pip (old)");
+    expect(within(retired).getByTestId("retired-mark")).toBeInTheDocument();
+    expect(lead.compareDocumentPosition(retired) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("result-profile-1")).toHaveTextContent("pippa");
+    expect(screen.queryByTestId("result-profile-2")).toBeNull();
   });
 
   it("streams people into profile cards, skeleton first, count line at EOSE", async () => {
@@ -5526,6 +5600,23 @@ describe("All's categories", () => {
     await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
   });
 
+  it("a list's page offers the tags kept on its items, though no row loaded carries them", async () => {
+    listTagsMock.mockImplementation(async (list) =>
+      list.coordinate === PLACES
+        ? [{ key: `${"a".repeat(64)}|vegan`, authorPubkey: "a".repeat(64), slug: "vegan", name: "Vegan", items: 40 }]
+        : [],
+    );
+    setUrlTab("all");
+    render(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    emit({ hits: page, eose: true });
+    await answerCounts();
+    fireEvent.click(screen.getByTestId("search-category-food-and-drink-places"));
+    expect(await screen.findByTestId("tag-facet-vegan")).toHaveTextContent("Vegan");
+    expect(listTagsMock).toHaveBeenCalledWith({ coordinate: PLACES, name: "Food and Drink Places" });
+    listTagsMock.mockReset();
+    listTagsMock.mockImplementation(async () => []);
+  });
+
   it("coming back to a link with a kind opens on it at once: the kinds Top's tabs ask are known before any page", async () => {
     window.history.replaceState({}, "", "/?q=jack&t=all&list=kind%3AVideo");
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
@@ -5548,14 +5639,16 @@ describe("All's categories", () => {
     await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
   });
 
-  it("Events stands by its results, and pressed is asked as the Events tab asks it — Event Index's items with it — and stays on All", async () => {
+  it("Events, which All's rows don't show, follows what they do, and pressed is asked as the Events tab asks it — Event Index's items with it — and stays on All", async () => {
     setUrlTab("all");
     render(<SearchResults query="fork & coin" pov="nosfabrica" />);
     emit({ hits: page, eose: true });
     await waitFor(() => expect(categoryCountAsks.length).toBeGreaterThan(0));
     act(() => categoryCountAsks.forEach((a) => a.onCounts(new Map([...COUNTS, ["kind:Event", 1000]]))));
-    expect(rowTabs().slice(2, 5)).toEqual(["Notes", "Food and Drink Places", "Events"]);
-    fireEvent.click(screen.getByTestId("search-category-event"));
+    expect(rowTabs().slice(2, 5)).toEqual(["Notes", "Food and Drink Places", "Videos"]);
+    expect(rowTabs()).not.toContain("Events");
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(await screen.findByTestId("search-category-event"));
     await waitFor(() => expect(lastMain()).toMatchObject({ tab: "events" }));
     expect(lastMain().kinds).toBeUndefined();
     expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
@@ -5772,5 +5865,269 @@ describe("SearchResults: tabs the words find nothing under", () => {
     emit({ eose: true, timeMs: 5 });
     await act(async () => {});
     expect(tabCountAsks).toHaveLength(1);
+  });
+});
+
+describe("All's tag filters", () => {
+  const AUTHOR = "b".repeat(64);
+  const tag = (slug: string, name: string, counted = true) => ({
+    key: `${AUTHOR}|${slug}`,
+    authorPubkey: AUTHOR,
+    slug,
+    name,
+    counted,
+  });
+  const stoicism = tag("stoicism", "Stoicism");
+  const artist = tag("artist", "Artist");
+  const row = (n: string, kind: number, tags: string[][] = []) => ({
+    event: ev(n.repeat(64), kind, "a".repeat(64), "the obstacle is the way", tags),
+    author: null,
+    rank: null,
+  });
+  // A note and an article carry Stoicism, the article Artist too; a video only an uncounted tag.
+  const note = row("1", 1);
+  const article = row("2", 30023, [["d", "meditations"]]);
+  const video = row("3", 21);
+  const ARTICLE = `30023:${"a".repeat(64)}:meditations`;
+  const resultRows = () => screen.getByTestId("container-search-results").children.length;
+  const tagged = () => new URLSearchParams(window.location.search).get("tagged");
+
+  beforeEach(() => {
+    __forgetResultTags();
+    resultTagsMock.events.mockImplementation(
+      async () =>
+        new Map([
+          [note.event.id, { tags: [stoicism] }],
+          [ARTICLE, { tags: [artist, stoicism] }],
+          [video.event.id, { tags: [tag("spam", "Spam", false)] }],
+        ]),
+    );
+  });
+  // Back to none, not to nothing: a page still asking after the test gets an answer.
+  afterEach(() => resultTagsMock.events.mockImplementation(async () => new Map()));
+
+  it("offers the results' tags, most carried first; pressing one keeps the results carrying it", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+
+    const facets = await screen.findByTestId("tag-facets");
+    // The note's id and the article's coordinate were asked; a tag nobody's support carries isn't offered.
+    expect(resultTagsMock.events).toHaveBeenCalledWith(expect.arrayContaining([note.event.id, ARTICLE]));
+    expect(
+      within(facets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Stoicism", "Artist"]);
+    expect(resultRows()).toBe(3);
+
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    expect(resultRows()).toBe(2);
+    expect(tagged()).toBe(stoicism.key);
+    // What the tag found, not "of" the rows loaded: those are a page of the search, not its whole.
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^2 results tagged Stoicism so far$/);
+
+    fireEvent.click(screen.getByTestId("tag-facet-artist"));
+    expect(resultRows()).toBe(1);
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^1 result tagged Artist so far$/);
+    // Once the search has no more to load, what it found is all there is.
+    emit({ hits: [note, article, video], eose: true, exhausted: true });
+    await waitFor(() => expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^1 result tagged Artist$/));
+    fireEvent.click(screen.getByTestId("tag-facet-artist"));
+    expect(resultRows()).toBe(3);
+    expect(tagged()).toBeNull();
+  });
+
+  it("a tag the link names waits for the results' tags, then keeps those carrying it", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&tagged=${encodeURIComponent(artist.key)}`);
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+    // Not "nothing found" while the tags are still coming.
+    expect(screen.queryByTestId("container-search-results")).not.toBeInTheDocument();
+    await waitFor(() => expect(resultRows()).toBe(1));
+    expect(screen.getByTestId("tag-facet-artist")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a tag with lists asks the search again, of everything carrying it, and shows that answer", async () => {
+    const PERSON = "d".repeat(64);
+    const PLACE = `39999:${"e".repeat(64)}:cafe`;
+    tagMembersMock.mockImplementation(async () => ({ pubkeys: [PERSON], ids: ["9".repeat(64)], addresses: [PLACE] }));
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+    await screen.findByTestId("tag-facets");
+    const asked = allStreams.length;
+
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    expect(tagMembersMock).toHaveBeenCalledWith({ key: stoicism.key, name: "Stoicism" });
+    await waitFor(() => expect(allStreams.length).toBeGreaterThan(asked));
+    const narrowed = allStreams[allStreams.length - 1].params as { members?: unknown };
+    expect(narrowed.members).toEqual({ pubkeys: [PERSON], ids: ["9".repeat(64)], addresses: [PLACE] });
+    // The relay's answer is the tag's, not thinned again by what the loaded rows were tagged — and
+    // the loaded rows that carried it stay, though the relay sent only one of them again.
+    const place = row("4", 39999, [["d", "cafe"]]);
+    emit({ hits: [place, note], eose: true, exhausted: true });
+    await waitFor(() => expect(resultRows()).toBe(3));
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent(/^3 results tagged Stoicism$/);
+
+    // Let go, All's own search again.
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    await waitFor(() =>
+      expect((allStreams[allStreams.length - 1].params as { members?: unknown }).members).toBeUndefined(),
+    );
+    tagMembersMock.mockReset();
+    tagMembersMock.mockImplementation(async () => null);
+  });
+
+  it("a tag with no list keeps thinning the loaded rows, and asks nothing again", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note, article, video], eose: true });
+    await screen.findByTestId("tag-facets");
+    const asked = allStreams.length;
+    fireEvent.click(screen.getByTestId("tag-facet-stoicism"));
+    await waitFor(() => expect(tagMembersMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(allStreams.length).toBe(asked);
+    expect(resultRows()).toBe(2);
+  });
+
+  it("shows the first few, and the rest on asking", async () => {
+    const many = Array.from({ length: 8 }, (_, i) => tag(`t${i}`, `Tag ${i}`));
+    resultTagsMock.events.mockImplementation(async () => new Map([[note.event.id, { tags: many }]]));
+    setUrlTab("all");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+
+    const more = await screen.findByTestId("tag-facets-more");
+    expect(more).toHaveTextContent("+2 more");
+    expect(within(screen.getByTestId("tag-facets")).getAllByRole("button")).toHaveLength(7);
+    fireEvent.click(more);
+    expect(within(screen.getByTestId("tag-facets")).getAllByRole("button")).toHaveLength(8);
+  });
+
+  it("isn't offered off All", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="stoicism" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+    await screen.findByTestId("container-search-results");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(resultTagsMock.events).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("tag-facets")).not.toBeInTheDocument();
+  });
+});
+
+describe("A tag's tab in All's row", () => {
+  const AUTHOR = "b".repeat(64);
+  const GITHUB = `39998:${"c".repeat(64)}:github-accounts`;
+  const vh = {
+    key: `${AUTHOR}|verified-human`,
+    authorPubkey: AUTHOR,
+    slug: "verified-human",
+    name: "Verified Human",
+    people: [{ pubkey: "d".repeat(64), applications: 2, addedAt: 1 }],
+    things: [{ address: `39999:${"e".repeat(64)}:vcavallo`, applications: 1, addedAt: 1, relays: [] }],
+  };
+  const profile = ev("1".repeat(64), 0, "d".repeat(64), JSON.stringify({ name: "Avi" }));
+  const account = ev("2".repeat(64), 39999, "e".repeat(64), "", [
+    ["d", "vcavallo"],
+    ["z", GITHUB],
+    ["name", "vcavallo"],
+  ]);
+  const note = { event: ev("3".repeat(64), 1, "a".repeat(64), "verified human"), author: null, rank: null };
+  const rowTabs = () =>
+    within(screen.getByTestId("search-tabs"))
+      .getAllByRole("tab")
+      .map((t) => t.textContent);
+  const answerCounts = async () => {
+    await waitFor(() => expect(categoryCountAsks.length).toBeGreaterThan(0));
+    act(() => categoryCountAsks.forEach((a) => a.onCounts(new Map([["kind:Note", 5]]))));
+  };
+
+  beforeEach(() => {
+    __forgetAllCategories();
+    categoryCountAsks.length = 0;
+    ribbonMock.mockImplementation(() => []);
+    ribbonSettled = true;
+    namedTagsMock.tags.mockImplementation(async () => [vh]);
+    namedTagsMock.rows.mockImplementation(async () => [profile, account]);
+  });
+  afterEach(() => {
+    namedTagsMock.tags.mockReset();
+    namedTagsMock.rows.mockReset();
+  });
+
+  it("stands after Notes and People when the words name a tag, and holds everything carrying it", async () => {
+    setUrlTab("all");
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+    await answerCounts();
+    await waitFor(() => expect(rowTabs()).toEqual(["Top", "All", "Notes", "Verified Human"]));
+
+    fireEvent.click(screen.getByTestId("search-category-verified-human"));
+    expect(new URLSearchParams(window.location.search).get("list")).toBe(`tag:${AUTHOR}:verified-human`);
+    const page = await screen.findByTestId("tag-tab-results");
+    expect(within(page).getByTestId("tag-tab-count")).toHaveTextContent("2 tagged Verified Human");
+    await waitFor(() => expect(within(page).getByTestId("container-search-results").children).toHaveLength(2));
+    // The words' own results aren't the tag's page, and neither are their tag filters.
+    expect(screen.queryByTestId("tag-facets")).not.toBeInTheDocument();
+  });
+
+  it("keeps one kind of thing carrying the tag: its people, or one list's items", async () => {
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(`tag:${AUTHOR}:verified-human`)}`);
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+
+    const kinds = await screen.findByTestId("tag-tab-kinds");
+    expect(
+      within(kinds)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual([
+      "All",
+      // A tie goes by name; a list is named by its header once read, its `d` until then.
+      "github-accounts 1",
+      "People 1",
+    ]);
+    fireEvent.click(within(kinds).getByText("People"));
+    expect(screen.getByTestId("container-search-results").children).toHaveLength(1);
+    expect(screen.getByTestId("tag-tab-count")).toHaveTextContent("1 of 2 tagged Verified Human");
+  });
+
+  it("offers the other tags what carries it carry, and keeps those carrying the one pressed", async () => {
+    __forgetResultTags();
+    const own = { key: vh.key, authorPubkey: AUTHOR, slug: vh.slug, name: vh.name, counted: true };
+    const podcaster = {
+      key: `${AUTHOR}|podcaster`,
+      authorPubkey: AUTHOR,
+      slug: "podcaster",
+      name: "Podcaster",
+      counted: true,
+    };
+    resultTagsMock.people.mockImplementation(async () => new Map([["d".repeat(64), { tags: [own, podcaster] }]]));
+    window.history.replaceState({}, "", `/?q=jack&t=all&list=${encodeURIComponent(`tag:${AUTHOR}:verified-human`)}`);
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+
+    const facets = await screen.findByTestId("tag-facets");
+    // The tab's own tag is on every row: not a filter.
+    expect(
+      within(facets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Podcaster"]);
+    fireEvent.click(within(facets).getByText("Podcaster"));
+    expect(screen.getByTestId("container-search-results").children).toHaveLength(1);
+    expect(screen.getByTestId("tag-tab-count")).toHaveTextContent("1 of 2 tagged Verified Human");
+    resultTagsMock.people.mockImplementation(async () => new Map());
+  });
+
+  it("isn't there when the words name no tag", async () => {
+    namedTagsMock.tags.mockImplementation(async () => []);
+    setUrlTab("all");
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [note], eose: true });
+    await answerCounts();
+    await waitFor(() => expect(rowTabs()).toEqual(["Top", "All", "Notes"]));
   });
 });

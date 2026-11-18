@@ -1,6 +1,7 @@
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { memo, useMemo, useState, type ReactNode } from "react";
 import type { NoteToken } from "@/lib/noteContent";
@@ -695,6 +696,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             </div>
           </div>
           <CompromisedAuthorNotice pubkey={ev.pubkey} postedAt={ev.created_at} className="mt-4" />
+          <RetiredAuthorNotice pubkey={ev.pubkey} className="mt-4" />
           {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
           <TechnicalStrip event={ev} ids={naddr ? [{ label: "naddr", value: naddr }] : []} className="mt-2" />
 

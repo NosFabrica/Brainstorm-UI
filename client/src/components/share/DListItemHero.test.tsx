@@ -71,6 +71,7 @@ vi.mock("@/components/share/FeedVideo", () => ({
 }));
 
 import { DListItemHero } from "./DListItemHero";
+import { listSearchHref } from "@/lib/searchSyntax";
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
   id: pubkey.slice(0, 8).padEnd(64, "0"),
@@ -154,19 +155,13 @@ describe("DListItemHero", () => {
     expect(screen.getByText("GitHub Account")).toBeInTheDocument();
   });
 
-  it("an admin can follow the concept's name to its Dictionary entry", () => {
-    renderWithProviders(<DListItemHero event={item} />);
-    const links = screen.getAllByRole("link", { name: "GitHub Accounts" });
-    expect(links.length).toBeGreaterThan(0);
-    for (const a of links)
-      expect(a).toHaveAttribute("href", `/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`);
-  });
-
-  it("anyone else reads the concept's name as plain words: the Dictionary is admins-only for now", () => {
+  it("anyone can follow the list's name to the rest of the list: search, on its own tab", () => {
     viewer.isAdmin = false;
     renderWithProviders(<DListItemHero event={item} />);
     expect(screen.getByTestId("dlist-item-hero")).toHaveTextContent("Shown as the community concept GitHub Accounts.");
-    expect(screen.queryByRole("link", { name: "GitHub Accounts" })).toBeNull();
+    const links = screen.getAllByRole("link", { name: "GitHub Accounts" });
+    expect(links.length).toBeGreaterThan(0);
+    for (const a of links) expect(a).toHaveAttribute("href", listSearchHref(COMMUNITY, "GitHub Accounts"));
   });
 
   it("folds tags outside the definition into More fields", async () => {

@@ -1,11 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { kindCategories, listCategory, rowOrder, standingCategories, type Category } from "@/lib/allCategories";
+import {
+  byResults,
+  isKindKey,
+  kindCategories,
+  listCategory,
+  NOTES_KEY,
+  PEOPLE_KEY,
+  rowOrder,
+  standingCategories,
+  type Category,
+} from "@/lib/allCategories";
 import { EVENT_LISTS } from "@/config/events";
 import type { RibbonList } from "@/hooks/useListRibbon";
 import { countCategories, type SearchHit, type SearchPov } from "@/services/search";
 
-/** How long new categories wait for others before they are counted together. */
+/** How long categories found after the first count wait for others before they are counted together. */
 const COUNT_AFTER_MS = 300;
+/**
+ * Sockets for the first count, and for the standing kinds': the relay answers a socket's counts one
+ * at a time, and these four are the most the row holds open at once.
+ */
+const FIRST_LANES = 3;
+const STANDING_LANES = 1;
 /** How many searches' categories this visit remembers, so Back and a category's page keep the row. */
 const REMEMBERED = 20;
 
@@ -53,6 +69,12 @@ export interface AllCategories {
   loading: boolean;
 }
 
+/**
+ * Counted first, and leading the row: what All's rows and the lists show, and Notes and People,
+ * which lead it whatever the page holds. The other standing kinds only their counts can find.
+ */
+const leads = (found: Found, c: Category) => found.seen.has(c.key) || c.key === NOTES_KEY || c.key === PEOPLE_KEY;
+
 function totalsOf(categories: readonly Category[], counts: ReadonlyMap<string, number | null>): Map<string, number> {
   // A list is told from the others by its headers, and its page keeps every row it is sent.
   const holders = new Map<number, number>();
@@ -77,7 +99,11 @@ function totalsOf(categories: readonly Category[], counts: ReadonlyMap<string, n
  * counted, so the row changes when the counts land, not a category at a time as rows arrive.
  *
  * The first count waits for `ready` — All's first page and the lists' answer in — so the row comes
- * whole, once, instead of as each lands; until then it is `loading`. What a search has found is
+ * whole instead of as each lands; until then it is `loading`. It comes in two: what All shows (and
+ * Notes and People) is counted first, lists first, and the row shows from that; the standing kinds
+ * nothing showed are counted beside it, and those that find some follow the row, moving none of it.
+ * The relay answers a socket's counts one at a time, so the forty-odd standing kinds, most of them
+ * none, would otherwise hold the row for seconds (probed 2026-11-18: 61 counts, 2.1 s). What a search has found is
  * kept for the visit and only grows: on a category's page All's rows are that category's, and the
  * row still holds the rest.
  */
@@ -137,18 +163,38 @@ export function useAllCategories(
   }, [found, counting]);
   useEffect(() => {
     if (!found || (!ready && found.asked.size === 0)) return;
-    const timer = setTimeout(() => {
-      const uncounted = [...found.categories.values()].filter((c) => !found.asked.has(c.key));
-      if (!uncounted.length) return;
-      uncounted.forEach((c) => found.asked.add(c.key));
-      const ask = { keys: uncounted.map((c) => c.key), cancel: () => {} };
-      counting.add(ask);
-      ask.cancel = countCategories(query, uncounted, { pov, userPubkey }, (counts) => {
-        counting.delete(ask);
-        counts.forEach((n, k) => found.counts.set(k, n));
-        bump();
-      });
-    }, COUNT_AFTER_MS);
+    // The first count has nothing more to wait for: `ready` says what it is found from is in.
+    const timer = setTimeout(
+      () => {
+        const uncounted = [...found.categories.values()].filter((c) => !found.asked.has(c.key));
+        // Lists before kinds: a socket's counts are answered in the order asked.
+        const first = uncounted
+          .filter((c) => leads(found, c))
+          .sort((a, b) => Number(isKindKey(a.key)) - Number(isKindKey(b.key)));
+        const waves = [
+          { wave: first, lanes: FIRST_LANES },
+          { wave: uncounted.filter((c) => !leads(found, c)), lanes: STANDING_LANES },
+        ];
+        for (const { wave, lanes } of waves) {
+          if (!wave.length) continue;
+          wave.forEach((c) => found.asked.add(c.key));
+          const ask = { keys: wave.map((c) => c.key), cancel: () => {} };
+          counting.add(ask);
+          ask.cancel = countCategories(
+            query,
+            wave,
+            { pov, userPubkey },
+            (counts) => {
+              counting.delete(ask);
+              counts.forEach((n, k) => found.counts.set(k, n));
+              bump();
+            },
+            { lanes },
+          );
+        }
+      },
+      found.asked.size ? COUNT_AFTER_MS : 0,
+    );
     return () => clearTimeout(timer);
     // `version` says the categories grew; `found` names the words and the lens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,7 +208,16 @@ export function useAllCategories(
       (c) => found.counts.has(c.key) && (found.seen.has(c.key) || (found.counts.get(c.key) ?? 0) > 0),
     );
     return {
-      shown: rowOrder(counted, found.counts),
+      shown: [
+        ...rowOrder(
+          counted.filter((c) => leads(found, c)),
+          found.counts,
+        ),
+        ...byResults(
+          counted.filter((c) => !leads(found, c)),
+          found.counts,
+        ),
+      ],
       known: new Map(found.categories),
       totals: totalsOf(all, found.counts),
       loading: found.counts.size === 0,

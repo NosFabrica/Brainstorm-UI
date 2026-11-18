@@ -1,6 +1,7 @@
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -22,6 +23,7 @@ import {
 } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
 import { eventStore } from "@/lib/eventStore";
+import { loadEventForPage, seedSearchWithHeld } from "@/services/eventPageLoad";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
@@ -161,11 +163,18 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
     : (given ?? null);
   const relayHints = ptr?.relays || [];
   // An event by id never changes, so a held copy is the answer: no spinner,
-  // and no relay asked for what the store already has.
+  // and no relay asked for what the store already has — only search, which is
+  // given the copy if it lacks one. Otherwise search and the pointer's relays
+  // are asked at once, and what search lacks is handed to it (services/eventPageLoad).
   const eventQuery = useStoreEvents(
-    ptr?.id && !event && !eventStore.getEvent(ptr.id) ? `event:${ptr.id}` : null,
+    ptr?.id && !event ? `event:${ptr.id}` : null,
     ptr?.id && !event ? [{ ids: [ptr.id] }] : null,
-    () => fetchEventsByIds([ptr!.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    () => {
+      const held = eventStore.getEvent(ptr!.id);
+      if (!held) return loadEventForPage({ id: ptr!.id, relays: relayHints });
+      void seedSearchWithHeld(held).catch(() => {});
+      return Promise.resolve([held]);
+    },
   );
   const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
     MinimalEvent | null | undefined;
@@ -601,6 +610,8 @@ function EventView({
 
             {/* A compromised author: said under the byline, before the reader reads on. */}
             <CompromisedAuthorNotice pubkey={authorPk} postedAt={note.created_at} eventId={note.id} className="mb-4" />
+            {/* A retired author: one calm line, and where its owner is now. */}
+            <RetiredAuthorNotice pubkey={authorPk} className="mb-4" />
 
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (
@@ -762,6 +773,8 @@ function EventView({
                 address={tagAddressOf(note)}
                 relayHint={relayHints[0]}
                 canTag={canTagNote}
+                // A Dictionary item is tagged as what its list calls it: "Tag this GitHub account".
+                noun={asDictionaryItem && isReady(itemView) ? itemView.resolved.governing.singular : undefined}
               />
             )}
 
