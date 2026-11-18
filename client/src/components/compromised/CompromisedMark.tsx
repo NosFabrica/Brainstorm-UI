@@ -1,5 +1,6 @@
 import { ShieldAlert, UserCheck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
+import { RetiredMark } from "@/components/retired/RetiredMark";
 import { useCompromised, useReplaces } from "@/hooks/useCompromised";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,9 @@ import { cn } from "@/lib/utils";
  * is the same story from the other end and what tells the two apart in a list.
  * Draws nothing for anyone else, so it can sit in every name row. The word
  * stays: a coloured icon alone says "something", not what.
+ *
+ * A Retired account's mark rides here too (components/retired), since this is
+ * the mark every name row carries: Compromised first, when an account is both.
  */
 export function CompromisedMark({
   pubkey,
@@ -47,5 +51,5 @@ export function CompromisedMark({
         New account
       </Chip>
     );
-  return null;
+  return <RetiredMark pubkey={pubkey} size={size} className={className} />;
 }

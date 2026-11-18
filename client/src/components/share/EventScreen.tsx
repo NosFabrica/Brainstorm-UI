@@ -1,6 +1,7 @@
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -601,6 +602,8 @@ function EventView({
 
             {/* A compromised author: said under the byline, before the reader reads on. */}
             <CompromisedAuthorNotice pubkey={authorPk} postedAt={note.created_at} eventId={note.id} className="mb-4" />
+            {/* A retired author: one calm line, and where its owner is now. */}
+            <RetiredAuthorNotice pubkey={authorPk} className="mb-4" />
 
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (

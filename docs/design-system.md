@@ -303,3 +303,26 @@ all of it draws nothing for anyone else, so it can sit on every surface that sho
 All of it reads `hooks/useCompromised`, which batches lookups against the server's public
 `/compromised` check (`services/compromised.ts`), the only record: admins mark accounts in
 the Admin page's Compromised tab.
+
+## Retired accounts
+
+An account its owner no longer uses (CONTEXT.md **Retired**), and the owner's **Current
+account**. The calm sibling of Compromised: slate, the archive icon, `role="note"`, and no
+ring, watermark, report or dashboard alert, because nothing is wrong with the account.
+Everything is in `components/retired/`, and all of it draws nothing for anyone else.
+
+| Piece                                      | Where it goes                                                                                                                          | What it says                                                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `RetiredMark pubkey`                       | beside a name. `CompromisedMark` falls back to it, so every row that names a person has it; the profile's name row carries it directly | grey "Retired" chip. Nothing on the current account                                                                            |
+| `RetiredBanner pubkey`                     | top of the retired account's page                                                                                                      | one slim row: the account is retired, and the current account by name with a Follow; under it, a quiet Unfollow for a follower |
+| `CurrentAccountNote pubkey`                | above the current account's page                                                                                                       | one line: this is their current account, an older one is retired; link back                                                    |
+| `RetiredAuthorNotice pubkey`               | under the byline of a post or article page                                                                                             | posted from a retired account; link to the current one                                                                         |
+| `CurrentAccountResult retiredPubkey known` | above a retired account's card in a list of people                                                                                     | the current account as a lightly set-apart person card, put first; its own row further down steps aside                        |
+| `RetiredChatNote pubkeys`                  | under a chat's header                                                                                                                  | messages here may go unseen; message the current account instead                                                               |
+
+On the retired profile itself, two things step back so the current account is the one
+action: the profile's own Follow is an outline (`FollowButton quiet`), and the signed-out
+"Join free" invites through the current account (`inviteThrough` in `services/retired.ts`).
+
+All of it reads `hooks/useRetired`. The record is `config/retired.ts` for now
+(`services/retired.ts`): the server holds no retired record yet.

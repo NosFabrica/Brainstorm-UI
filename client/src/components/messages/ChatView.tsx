@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompromisedChatWarning } from "@/components/compromised/CompromisedChatWarning";
+import { RetiredChatNote } from "@/components/retired/RetiredChatNote";
 import { flushSync } from "react-dom";
 import {
   Archive,
@@ -544,6 +545,8 @@ export function ChatView({
       </header>
       {/* A compromised account in the chat: said under the header, where it can't scroll away. */}
       <CompromisedChatWarning pubkeys={others} />
+      {/* A retired account in the chat: a quiet note that messages here may go unseen. */}
+      <RetiredChatNote pubkeys={others} />
 
       <div
         ref={scroller}

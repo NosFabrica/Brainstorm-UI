@@ -301,6 +301,13 @@ vi.mock("@/services/searchFaces", async (orig) => ({
   fetchPillProfiles: (pks: string[]) => pillProfilesMock(pks),
 }));
 
+// One Retired account for the suite: RETIRED_PK's owner is at CURRENT_PK now (config/retired).
+const RETIRED_PK = "7e".repeat(32);
+const CURRENT_PK = "8e".repeat(32);
+vi.mock("@/config/retired", () => ({
+  KNOWN_RETIRED: [{ pubkey: "7e".repeat(32), currentPubkey: "8e".repeat(32) }],
+}));
+
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
   return { id, kind, pubkey, tags, content, created_at: 1_700_000_000, sig: "s" } as NostrEvent;
 }
@@ -393,6 +400,33 @@ describe("SearchResults", () => {
     expect(within(second).getByTestId("tier-word-chip")).toHaveTextContent("Outside your network");
     // Nothing else in the results wears a ring either.
     expect(visibleRing(screen.getByTestId("search-results"))).toBeNull();
+  });
+
+  // A Retired account outranks nobody on purpose, but it can outrank its owner's Current account
+  // for a name search: years of followers on one, the same name on both. The page puts the
+  // Current account first, says why, and doesn't repeat it further down.
+  it("puts a retired account's owner's current account above it, once", async () => {
+    setUrlTab("people");
+    render(<SearchResults query="pip" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", RETIRED_PK, "pip (old)"), author: author(RETIRED_PK, "pip (old)"), rank: null },
+        { event: person("p2", "1".repeat(64), "pippa"), author: author("1".repeat(64), "pippa"), rank: null },
+        { event: person("p3", CURRENT_PK, "pip"), author: author(CURRENT_PK, "pip"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const lead = await screen.findByTestId("current-account-result");
+    expect(lead).toHaveTextContent("Their current account");
+    expect(within(lead).getByTestId("result-profile-current-account")).toHaveTextContent("pip");
+    // The retired account follows it, marked; then everyone else, the current account not repeated.
+    const retired = screen.getByTestId("result-profile-0");
+    expect(retired).toHaveTextContent("pip (old)");
+    expect(within(retired).getByTestId("retired-mark")).toBeInTheDocument();
+    expect(lead.compareDocumentPosition(retired) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("result-profile-1")).toHaveTextContent("pippa");
+    expect(screen.queryByTestId("result-profile-2")).toBeNull();
   });
 
   it("streams people into profile cards, skeleton first, count line at EOSE", async () => {

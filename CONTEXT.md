@@ -125,6 +125,19 @@ appears itself — it has few followers and no score yet, so without the mark th
 real account reads as the copy.
 _Avoid_: successor (code only), replacement, backup account
 
+**Retired**:
+An account its owner no longer uses, by the owner's own word. Not **Compromised**:
+the owner still holds the key, and nothing it posted is in doubt. The UI says so
+quietly wherever the account is shown, in the page's neutral tone and never as a
+warning, and sends the reader on to the owner's **Current account**.
+_Avoid_: abandoned, dead, inactive (an account can be quiet without being retired), deprecated
+
+**Current account** (of a Retired account):
+The account the owner of a Retired account uses now, recorded beside it. Shown
+wherever the retired one is, with a Follow, and placed above it in a list of
+people. It carries no mark of its own: it is simply them.
+_Avoid_: new account (that is a Compromised account's), main account, real account
+
 ### Assistants and the Treasure Map
 
 **Deployment**:
