@@ -34,7 +34,7 @@ docker run -d -p 3000:3000 --name brainstorm-ui brnstui
 
 ## Configuration
 
-Six variables configure a deployment. Vite bakes them in at build time; the production
+Seven variables configure a deployment. Vite bakes them in at build time; the production
 container additionally substitutes them into `config.js` at container start
 (`docker-entrypoint.sh`), so one image can serve several environments. Both paths are
 read through [`client/src/lib/runtimeEnv.ts`](client/src/lib/runtimeEnv.ts), which
@@ -48,6 +48,7 @@ prefers the runtime value and falls back to the build-time one.
 | `VITE_TAG_RELAY_URLS`           | Comma-separated tag relays; unset falls back to the hub in `client/src/config/tagging.config.json` |
 | `VITE_FEATURE_AGENT_SUITE`      | Feature flag — agent suite (default off)                                                           |
 | `VITE_FEATURE_ASSISTANTS_ADMIN` | Feature flag — assistants admin (default off)                                                      |
+| `VITE_HOUSE_OBSERVER`           | House observer (64-hex) logged-out search ranks through; unset → looked up via NIP-05 `_`          |
 
 ## Deploying to staging
 

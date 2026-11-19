@@ -107,6 +107,7 @@ import {
   fetchRepoForks,
   fetchRepoByAddress,
   fetchEventRsvps,
+  NO_PERSPECTIVE,
   searchStream,
   narrowToMembers,
   countCategories,
@@ -1328,12 +1329,23 @@ describe("the observer lens", () => {
     expect((asked(1) as { search: string }).search).toBe("jack include:spam");
   });
 
-  it("falls back to include:spam when no observer can be resolved", async () => {
-    // The relay refuses lens-less reads outright — a missing house observer
-    // must degrade to the unranked corpus, not a dead search box.
+  it("says the Perspective is missing instead of searching unranked when no observer can be resolved", async () => {
+    // Unranked (`include:spam`) answered a search for a person with every impostor
+    // copying their name, ahead of the person — worse than saying the search can't run.
     houseMock.mockResolvedValueOnce(null);
     controllable();
-    searchStream("jack", { tab: "people", pov: "nosfabrica" }, () => {});
+    const snaps: SearchSnapshot[] = [];
+    searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snaps.at(-1)?.error).toBe(NO_PERSPECTIVE);
+  });
+
+  it("still searches unranked when the query asks for it, Perspective or not", async () => {
+    // "Show everyone" puts include:spam in the query: that is the reader's choice, not a fallback.
+    houseMock.mockResolvedValueOnce(null);
+    controllable();
+    searchStream("jack include:spam", { tab: "people", pov: "nosfabrica" }, () => {});
     await tick();
     expect((asked() as { search: string }).search).toBe("jack include:spam");
   });
@@ -3226,6 +3238,20 @@ describe("countTabs", () => {
       ["events", 3],
     ]);
     expect(sideCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers every count unknown, asking nothing, when the house can't be found", async () => {
+    // Counting the unranked corpus would put numbers on tabs the search itself refuses to fill.
+    houseMock.mockResolvedValueOnce(null);
+    answerBy({}, of({ count: 0 }));
+    const got: [string, number | null][] = [];
+    countTabs("jack", ["people", "events"], { pov: "nosfabrica" }, (tab, n) => got.push([tab, n]));
+    await settle();
+    expect(sideCountMock).not.toHaveBeenCalled();
+    expect(got).toEqual([
+      ["people", null],
+      ["events", null],
+    ]);
   });
 
   it("asks the pointer kinds from anyone, with the same words, whether any could add rows a COUNT can't see", async () => {

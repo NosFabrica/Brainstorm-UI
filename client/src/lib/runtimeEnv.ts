@@ -6,7 +6,8 @@ type EnvKey =
   | "VITE_FEATURE_AGENT_SUITE"
   | "VITE_FEATURE_ASSISTANTS_ADMIN"
   | "VITE_IMG_PROXY"
-  | "VITE_PUBLIC_ORIGIN";
+  | "VITE_PUBLIC_ORIGIN"
+  | "VITE_HOUSE_OBSERVER";
 
 declare global {
   interface Window {
@@ -35,6 +36,9 @@ export const env = {
   VITE_IMG_PROXY: read("VITE_IMG_PROXY") ?? "",
   // Origin for links others open and for /link-preview. Unset → this page's origin; the APK sets it.
   VITE_PUBLIC_ORIGIN: read("VITE_PUBLIC_ORIGIN") ?? "",
+  // 64-hex pubkey whose Perspective logged-out readers see (services/trustSource.ts).
+  // Unset → discovered from the server's NIP-05 `_` name, as before.
+  VITE_HOUSE_OBSERVER: read("VITE_HOUSE_OBSERVER") ?? "",
 } as const;
 
 export {};

@@ -204,6 +204,15 @@ describe("the inline script in index.html", () => {
     expect(html).toContain('"brainstorm_house_observer"');
   });
 
+  it("takes the house observer the deployment configured before looking it up", () => {
+    // config.js loads before this script, so VITE_HOUSE_OBSERVER is in hand: no
+    // round trip stands between the page and its first search (services/trustSource).
+    // The read itself, not the comment above it: that is what must come after config.js.
+    const read = "(window.__ENV__ || {}).VITE_HOUSE_OBSERVER";
+    expect(html).toContain(read);
+    expect(html.indexOf('<script src="/config.js"></script>')).toBeLessThan(html.indexOf(read));
+  });
+
   it("stays out of the way of a reader who is signed in", () => {
     // Their Perspective is their own; the house's answer is not theirs, so the
     // app would discard it (ComposedResults) — better not to ask at all.

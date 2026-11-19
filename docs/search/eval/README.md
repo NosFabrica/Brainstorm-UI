@@ -143,8 +143,8 @@ listings, two per seller, four in all.
 **The list previews.** A list's preview shows only when its concept is in the Dictionary, which
 the runner reads as the app does (`lib/dictionaryConcepts`, mirrored in `mirror.mjs`): the
 house's taggings with the curator tag say who curates, and the curators' own headers that point
-at themselves are the concepts, read from the tag hub. The house is the server's NIP-05 `_`,
-whatever `--observer` says. The results file records what it found (`dlist.dictionary`).
+at themselves are the concepts, read from the tag hub. The house is `VITE_HOUSE_OBSERVER` when
+set, else the server's NIP-05 `_`, whatever `--observer` says. The results file records what it found (`dlist.dictionary`).
 
 Places, Books and GitHub accounts are then matched in the browser, over two sets of items
 (`services/dictionary.ts`, `components/items/ListKindSearch.tsx`). First, what the search relay
