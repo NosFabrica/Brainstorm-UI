@@ -37,9 +37,9 @@ export function AppHeader({ user, onLogout, active, actions, search, layout = "p
   const app = layout === "app";
   return (
     <HeaderBar search={search} fullBleed={app} testId="nav-app-header">
-      {/* The "Finish setup" chip alone: its words beside it pushed the search box off the
-          middle of the bar (HeaderBar). The full-screen app view has the room for a count. */}
-      <FinishSetupBanner labelFrom={app ? "never" : "chip"} />
+      {/* The "Finish setup" chip alone: its words, or a count, beside it made this end wider
+          than the other and pushed the search box off the middle of the bar (HeaderBar). */}
+      <FinishSetupBanner labelFrom="chip" />
       {actions && <div className="mr-1 hidden items-center lg:flex">{actions}</div>}
       {user.isAdmin && <AdminBadge />}
       <MessagesNavButton />

@@ -3,7 +3,7 @@
  * of them, centered, with the same gutter. Before this each page chose its own
  * width, and on a wide screen no two neighbours lined up.
  *
- *   wide      1280px  the header, the footer, and the pages built of panels
+ *   wide      1280px  the footer, and the pages built of panels
  *   standard  1024px  every page someone browses
  *   reading    672px  a single post or article, a focused task
  *

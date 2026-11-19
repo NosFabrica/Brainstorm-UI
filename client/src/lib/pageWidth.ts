@@ -3,12 +3,15 @@
  * with one gutter — so on a wide screen neighbouring pages line up. A page
  * never writes its own `mx-auto max-w-… px-4 sm:px-6` (pageWidth.guard.test).
  *
- *   wide      1280px  the header on every page, the footer, and the pages built
- *                     of panels (dashboard, settings, admin)
+ *   wide      1280px  the footer, and the pages built of panels (dashboard,
+ *                     settings, admin)
  *   standard  1024px  every page someone browses: profiles, tags, lists of
  *                     people, alerts, the network, the info pages
  *   reading    672px  reading one thing (a post, an article) or doing one task
  *                     (setup, the first run)
+ *
+ * The header is none of them: it runs edge to edge on every page (HeaderBar),
+ * pinned to the window so it never moves with the page under it.
  *
  * Which page gets which is pinned in pageWidth.guard.test, so moving between
  * pages nothing shifts that doesn't have to: a new page is `standard` unless it

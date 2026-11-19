@@ -53,7 +53,7 @@ describe("page widths", () => {
  * Which page gets which width (2026-11-19). Moving between pages, nothing should
  * shift that doesn't have to:
  *
- *  - the header is one width everywhere, so no page hands it one;
+ *  - the header runs edge to edge on every page (HeaderBar), so no page hands it a width;
  *  - a page someone browses (a profile, a tag, a list of people, alerts, pricing) is
  *    `standard`;
  *  - `wide` is for the pages that are columns of panels;
@@ -94,11 +94,10 @@ describe("which page gets which width", () => {
     );
   });
 
-  it("only the header, the footer and the pages built of panels are the wide width", () => {
+  it("only the footer and the pages built of panels are the wide width", () => {
     expect(using("wide")).toEqual(
       [
         "components/Footer.tsx",
-        "components/HeaderBar.tsx",
         "pages/AdminPage.tsx",
         "pages/DashboardPage.tsx",
         "pages/SettingsPage.tsx",

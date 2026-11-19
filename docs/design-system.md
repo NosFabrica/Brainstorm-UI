@@ -17,7 +17,7 @@ Every page's content sits in one of three widths, centered, with one gutter
 
 | Width      | Size   | For                                                                                          |
 | ---------- | ------ | -------------------------------------------------------------------------------------------- |
-| `wide`     | 1280px | the header on every page, the footer, pages built of panels (dashboard, settings, admin)     |
+| `wide`     | 1280px | the footer, pages built of panels (dashboard, settings, admin)                               |
 | `standard` | 1024px | every page someone browses: profiles, tags, lists of people, alerts, the network, info pages |
 | `reading`  | 672px  | reading one thing (a post, an article) or doing one task (setup, the first run)              |
 
@@ -25,8 +25,9 @@ Every page's content sits in one of three widths, centered, with one gutter
 <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
 ```
 
-- The top bar is `wide` on every page and takes no width: the B mark, the search box
-  and the account menu stay where they are as the page under them changes.
+- The top bar is none of these. It runs edge to edge on every page, pinned to the
+  window: the B mark at the left, the search box in the middle, the account menu at the
+  right, in the same place whatever the page under them and however wide the screen.
 - A new page is `standard`. `reading` and `wide` are the exceptions, and
   `pageWidth.guard.test.ts` lists the pages that are allowed them.
 - Long text in a `standard` page caps its own measure (`max-w-3xl`, left-aligned),
