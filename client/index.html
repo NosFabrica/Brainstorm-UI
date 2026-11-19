@@ -319,9 +319,11 @@
           window.__headStart = head;
           var socket = new WebSocket(url);
           head.socket = socket;
-          // The relay refuses a Perspective-less read and the house identity is
-          // discovered, never configured (services/trustSource.ts), so it is
-          // looked up — from the last visit's copy where there is one.
+          // The relay refuses a Perspective-less read. The deployment names the
+          // house observer in config.js (VITE_HOUSE_OBSERVER, services/trustSource.ts);
+          // only where it names none is it looked up — from the last visit's copy
+          // where there is one. An unsubstituted "__VITE_…__" placeholder fails the test.
+          var configured = String((window.__ENV__ || {}).VITE_HOUSE_OBSERVER || "").trim();
           var KEY = "brainstorm_house_observer";
           var cached = null;
           try {
@@ -330,23 +332,25 @@
             // no way to go stale would rank against it forever.
             if (held && Date.now() - held.at < 86400000) cached = held.pk;
           } catch (e) {}
-          var observer = /^[0-9a-f]{64}$/.test(cached || "")
-            ? Promise.resolve(cached)
-            : fetch("/.well-known/nostr.json?name=_")
-                .then(function (r) {
-                  return r.json();
-                })
-                .then(function (d) {
-                  var pk = d && d.names && d.names._;
-                  if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
-                  try {
-                    localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() }));
-                  } catch (e) {}
-                  return pk;
-                })
-                .catch(function () {
-                  return null;
-                });
+          var observer = /^[0-9a-fA-F]{64}$/.test(configured)
+            ? Promise.resolve(configured.toLowerCase())
+            : /^[0-9a-f]{64}$/.test(cached || "")
+              ? Promise.resolve(cached)
+              : fetch("/.well-known/nostr.json?name=_")
+                  .then(function (r) {
+                    return r.json();
+                  })
+                  .then(function (d) {
+                    var pk = d && d.names && d.names._;
+                    if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
+                    try {
+                      localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() }));
+                    } catch (e) {}
+                    return pk;
+                  })
+                  .catch(function () {
+                    return null;
+                  });
           var open = new Promise(function (done) {
             socket.onopen = done;
           });

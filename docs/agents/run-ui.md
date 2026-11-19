@@ -10,6 +10,7 @@ without deploying. Values are staging's, from brainstorm-k8s
 VITE_API_URL=https://brainstormserver-staging.nosfabrica.com \
 VITE_NIP85_RELAY_URL=wss://nip85-staging.nosfabrica.com \
 VITE_SEARCH_RELAY_URL=wss://search.brainstorm.world/ \
+VITE_HOUSE_OBSERVER=be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a \
 npm run dev
 ```
 

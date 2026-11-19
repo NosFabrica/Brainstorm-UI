@@ -40,8 +40,9 @@ if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
   window.history.scrollRestoration = "manual";
 }
 
-// The relay refuses a lens-less read, so every search waits on this lookup.
-// Asking now means the first search doesn't wait for it in series.
+// The relay refuses a lens-less read, so every search waits on the house observer.
+// Configured (VITE_HOUSE_OBSERVER) it is already in hand; discovered, asking now
+// means the first search doesn't wait for the lookup in series.
 void resolveHouseObserver();
 
 // A page opened on a search (`?q=`) opens the search socket now, not when the results

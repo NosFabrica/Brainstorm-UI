@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /**
  * Resolving whose scores decide a tagging — issue #41 B1-proper.
@@ -114,10 +114,69 @@ describe("resolveTrustSource", () => {
 });
 
 describe("resolveHouseObserver", () => {
-  it("discovers the house identity from NIP-05 rather than a constant", async () => {
-    // The client is deliberately built never to hardcode the house — it says
-    // "house" by omitting a token and lets the server answer. Relays have no
-    // such notion, so we ask the server who it is, the standard way.
+  /** config.js as a deployment fills it in; runtimeEnv reads it at module load. */
+  function configure(house: string) {
+    window.__ENV__ = { ...window.__ENV__, VITE_HOUSE_OBSERVER: house };
+  }
+  const original = { ...window.__ENV__ };
+  afterEach(() => {
+    window.__ENV__ = { ...original };
+  });
+
+  it("takes the house the deployment configured, without asking the network", async () => {
+    // The lookup it replaces stood in front of every logged-out search: past its
+    // timeout the search went out with no Perspective and filled with impostors.
+    configure(HOUSE);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("prefers the configured house to a copy an earlier lookup kept", async () => {
+    configure(HOUSE);
+    localStorage.setItem("brainstorm_house_observer", JSON.stringify({ pk: USER, at: Date.now() }));
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+  });
+
+  it("hands a relay filter the configured key in lowercase", async () => {
+    configure(HOUSE.toUpperCase());
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+  });
+
+  it("ignores a configured value that is not a pubkey, and discovers instead", async () => {
+    configure("not-a-pubkey");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: HOUSE } }) }));
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+  });
+
+  it("treats an unsubstituted config.js placeholder as unset", async () => {
+    configure("__VITE_HOUSE_OBSERVER__");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: HOUSE } }) }));
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+  });
+
+  it("asks again after a failed lookup instead of keeping the failure for the visit", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ ok: true, json: async () => ({ names: { _: HOUSE } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBeNull();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+  });
+
+  it("without a configured house, discovers it from NIP-05", async () => {
+    // A deployment that sets no VITE_HOUSE_OBSERVER yet: relays need a pubkey,
+    // so we ask the server who it is, the standard way.
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ names: { _: HOUSE } }),

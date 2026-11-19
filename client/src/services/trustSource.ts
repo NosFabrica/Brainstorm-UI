@@ -45,22 +45,39 @@ export interface TrustSourceRef {
 const HEX64 = /^[0-9a-f]{64}$/i;
 
 /**
- * The house observer, discovered rather than configured.
+ * The house observer: the pubkey whose Perspective a logged-out reader sees.
  *
- * The client is deliberately built never to hardcode the house identity — it
- * expresses "house" as the ABSENCE of a token and lets the server decide
- * (`optionalAuthFetch`, and `opts.house` on the read helpers). That works for
- * REST, but a relay has no notion of "unauthenticated observer", so the tag path
- * has to name a pubkey.
+ * The REST paths express "house" as the ABSENCE of a token and let the server
+ * decide (`optionalAuthFetch`, and `opts.house` on the read helpers). A relay has
+ * no notion of "unauthenticated observer", so every relay read — search above all,
+ * which the relay refuses without a lens — has to name a pubkey.
  *
- * The server already publishes it: `brainstorm_server`'s `nip05_service.py`
- * serves `default_observer_pubkey()` under the reserved NIP-05 name `_`. So we
- * ask for it the same way any Nostr client would, and nothing is baked in.
+ * The deployment names it in `VITE_HOUSE_OBSERVER` (config.js, filled in at
+ * container start like the API URL), so it is in hand before the first search.
+ * It used to be discovered from `brainstorm_server`'s NIP-05 `_` name at runtime,
+ * and that lookup stood in front of every logged-out search: past its 8 s timeout
+ * on a slow link, or blocked by an extension, it answered null and the search went
+ * out with no Perspective at all (`include:spam`), so a search for a person came
+ * back full of impostors copying their name.
+ *
+ * The NIP-05 lookup is kept only for a deployment that sets no
+ * `VITE_HOUSE_OBSERVER` yet, and a failed one is not remembered: the next caller
+ * asks again instead of inheriting the failure for the rest of the visit.
  */
+export function configuredHouseObserver(): string | null {
+  const raw = env.VITE_HOUSE_OBSERVER.trim();
+  if (!raw) return null;
+  if (!HEX64.test(raw)) {
+    console.warn("[trust] VITE_HOUSE_OBSERVER is not a 64-character hex pubkey; ignoring it");
+    return null;
+  }
+  return raw.toLowerCase();
+}
+
 /**
- * The same copy index.html's head start keeps (see the comment there): it looks
- * the house observer up before the bundle lands, so reading what it wrote saves
- * asking again. Still discovered, never configured — only remembered.
+ * The copy index.html's head start keeps (see the comment there) when it had to
+ * discover the house observer: reading what it wrote saves asking again. Only used
+ * when `VITE_HOUSE_OBSERVER` is unset.
  */
 const HOUSE_KEY = "brainstorm_house_observer";
 const HOUSE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -86,11 +103,22 @@ function holdHouseObserver(pk: string): void {
 let housePubkeyPromise: Promise<string | null> | null = null;
 
 export function resolveHouseObserver(): Promise<string | null> {
-  if (!housePubkeyPromise) housePubkeyPromise = fetchHouseObserver();
+  const configured = configuredHouseObserver();
+  if (configured) return Promise.resolve(configured);
+  if (!housePubkeyPromise) {
+    const asking = discoverHouseObserver();
+    housePubkeyPromise = asking;
+    // A failure is not an answer: forget it, so the next search asks again rather
+    // than going out without a Perspective for the rest of the visit.
+    void asking.then((pk) => {
+      if (!pk && housePubkeyPromise === asking) housePubkeyPromise = null;
+    });
+  }
   return housePubkeyPromise;
 }
 
-async function fetchHouseObserver(): Promise<string | null> {
+/** The fallback for a deployment without `VITE_HOUSE_OBSERVER`: the server's NIP-05 `_` name. */
+async function discoverHouseObserver(): Promise<string | null> {
   const held = heldHouseObserver();
   if (held) return held;
   // Plain `fetch`, never `authenticatedFetch`: tag reads are anon-viewable and a
