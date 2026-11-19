@@ -107,3 +107,47 @@ describe("TrustedListRunResult", () => {
     expect(screen.queryByTestId("trusted-list-view-bitcoiner")).toBeNull();
   });
 });
+
+describe("TrustedListRunResult and tagged notes and items", () => {
+  const PEOPLE_ONLY: TrustedListRunData = {
+    ...EMPTY,
+    taggings_in_store: 7013,
+    qualifying_asserters: 46,
+    dictionary_size: 73,
+    published: 73,
+    event_taggings_in_store: 0,
+    unresolved_targets: 0,
+    content_skipped_reason: null,
+  };
+
+  it("says when the server holds no taggings of notes or items, so built people lists only", () => {
+    render(<TrustedListRunResult run={PEOPLE_ONLY} observerName="nosfabrica" />);
+    expect(screen.getByTestId("trusted-lists-no-content")).toHaveTextContent(/built people lists only/i);
+    expect(screen.getByTestId("trusted-lists-taggings-held")).toHaveTextContent(
+      "Taggings held: 7,013 of people · 0 of notes and items",
+    );
+  });
+
+  it("says why those lists were skipped, and how many tagged things weren't found", () => {
+    render(
+      <TrustedListRunResult
+        run={{
+          ...PEOPLE_ONLY,
+          event_taggings_in_store: 120,
+          unresolved_targets: 2,
+          content_skipped_reason: "lookup failed: wss://r.example",
+        }}
+        observerName="nosfabrica"
+      />,
+    );
+    expect(screen.queryByTestId("trusted-lists-no-content")).toBeNull();
+    expect(screen.getByTestId("trusted-lists-content-skipped")).toHaveTextContent("lookup failed: wss://r.example");
+    expect(screen.getByTestId("trusted-lists-taggings-held")).toHaveTextContent("2 tagged things not found");
+  });
+
+  it("says nothing of them for a server that doesn't report them", () => {
+    render(<TrustedListRunResult run={{ ...PEOPLE_ONLY, event_taggings_in_store: undefined }} observerName="x" />);
+    expect(screen.queryByTestId("trusted-lists-no-content")).toBeNull();
+    expect(screen.queryByTestId("trusted-lists-taggings-held")).toBeNull();
+  });
+});
