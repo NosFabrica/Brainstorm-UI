@@ -121,6 +121,8 @@ describe("resolveHouseObserver", () => {
   const original = { ...window.__ENV__ };
   afterEach(() => {
     window.__ENV__ = { ...original };
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("takes the house the deployment configured, without asking the network", async () => {
@@ -162,16 +164,33 @@ describe("resolveHouseObserver", () => {
     expect(await resolveHouseObserver()).toBe(HOUSE);
   });
 
-  it("asks again after a failed lookup instead of keeping the failure for the visit", async () => {
+  it("asks again after a failed lookup, after a pause, instead of keeping the failure for the visit", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error("offline"))
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValue({ ok: true, json: async () => ({ names: { _: HOUSE } }) });
     vi.stubGlobal("fetch", fetchMock);
-    const { resolveHouseObserver } = await load();
+    const { resolveHouseObserver, DISCOVERY_RETRY_MS } = await load();
     expect(await resolveHouseObserver()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2); // both bases
+    // Straight after a failure: null at once, so a search doesn't wait out the timeouts again.
+    expect(await resolveHouseObserver()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(DISCOVERY_RETRY_MS);
     expect(await resolveHouseObserver()).toBe(HOUSE);
+  });
+
+  it("warns about a malformed configured key once, not on every read", async () => {
+    configure("not-a-pubkey");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: HOUSE } }) }));
+    const { resolveHouseObserver } = await load();
+    await resolveHouseObserver();
+    await resolveHouseObserver();
+    await resolveHouseObserver();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("without a configured house, discovers it from NIP-05", async () => {

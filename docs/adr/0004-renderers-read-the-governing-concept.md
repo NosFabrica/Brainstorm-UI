@@ -27,8 +27,8 @@ for itself.
    1. the reader's personally signed copy;
    2. else their Tapestry Assistant's copy;
    3. else Brainstorm's own copy: the house observer's, or its Assistant's. The house is
-      the one the rest of the app uses, discovered from the server
-      (`services/trustSource`), never a key in config;
+      the one the rest of the app uses (`services/trustSource`: the deployment's
+      `VITE_HOUSE_OBSERVER`, once discovered from the server), never a key in this config;
    4. else the community header itself.
 
    This is tapestry's dual-author rule (`protocols/drafts/assistant-designation.md`)

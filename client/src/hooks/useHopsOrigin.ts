@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useScorePov, type ScorePov } from "@/components/score/TrustScorePov";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { resolveHouseObserver } from "@/services/trustSource";
+import { houseObserverQuery } from "@/lib/houseObserverQuery";
 import { hasOwnScores } from "@/lib/ownScores";
 
 /**
@@ -40,14 +40,8 @@ export function resolveHopsOrigin(input: {
 export function useHopsOrigin(): HopsOrigin {
   const { pov } = useScorePov();
   const me = useActiveAccountDisplay();
-  // Resolves once per app load (module-memoized promise underneath too);
-  // both surfaces share this cache entry.
-  const houseQuery = useQuery({
-    queryKey: ["house-observer"],
-    queryFn: resolveHouseObserver,
-    staleTime: Infinity,
-    retry: 1,
-  });
+  // Shared with every surface that asks (lib/houseObserverQuery); a miss is retried, not kept.
+  const houseQuery = useQuery({ ...houseObserverQuery, retry: 1 });
   const calcDone = hasOwnScores(me?.pubkey);
   const resolved = resolveHopsOrigin({
     pov,

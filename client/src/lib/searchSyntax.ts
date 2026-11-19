@@ -279,12 +279,19 @@ export function latestFloor(query: string): string {
   return q ? `${q} filter:rank:gte:${LATEST_RANK_FLOOR}` : `filter:rank:gte:${LATEST_RANK_FLOOR}`;
 }
 
+/** Whether the query names its own lens (`observer:` or `include:spam`), which `withObserver` keeps as typed. */
+export function namesLens(query: string): boolean {
+  return /(^|\s)(observer:|include:spam)/.test(query.trim());
+}
+
 /** Append our lens unless the query already names one. The SearchOverTrust relay refuses a
  *  read with neither `observer:` nor `include:spam` (`auth-required:`), so every search the UI
- *  sends carries one; with no observer to name, the waiver is the only way to be answered. */
+ *  sends carries one. With no observer to name it waives the lens, which only a caller that
+ *  wants the unranked corpus may ask for: a ranked search with no Perspective refuses instead
+ *  (services/search `NO_PERSPECTIVE`), or a person search fills with impostors. */
 export function withObserver(query: string, observer: string | null): string {
   const q = query.trim();
-  if (/(^|\s)(observer:|include:spam)/.test(q)) return q;
+  if (namesLens(q)) return q;
   if (!observer) return q ? `${q} include:spam` : "include:spam";
   return q ? `${q} observer:${observer}` : `observer:${observer}`;
 }

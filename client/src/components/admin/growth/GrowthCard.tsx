@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAuthorRanks } from "@/services/wotRanks";
-import { resolveHouseObserver } from "@/services/trustSource";
+import { houseObserverQuery } from "@/lib/houseObserverQuery";
 import type { AdminRange } from "@/pages/adminRange";
 import { growthCohorts, type GrowthCohorts, type GrowthPerson, type RunRecord } from "./growthCohorts";
 
@@ -93,7 +93,7 @@ export function GrowthCard({
   const [scored, setScored] = useState<Scored>("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "lastRun", dir: "desc" });
   // The system observer runs every period; it isn't a user.
-  const observer = useQuery({ queryKey: ["house-observer"], queryFn: resolveHouseObserver, staleTime: Infinity });
+  const observer = useQuery(houseObserverQuery);
   const cohorts = useMemo(
     () => growthCohorts(records, { range, now: Date.now(), exclude: observer.data ? [observer.data] : [] }),
     [records, range, observer.data],

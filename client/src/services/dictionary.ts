@@ -244,8 +244,8 @@ export async function searchListItems(
 
 /**
  * Whose copies are Brainstorm's own definitions: the house observer — the
- * deployment's default observer, discovered from the server and never
- * configured (services/trustSource) — then the Assistant its kind-10040
+ * deployment's default observer, `VITE_HOUSE_OBSERVER` (services/trustSource)
+ * — then the Assistant its kind-10040
  * names, as a reader's own copy comes before their Assistant's. What a reader
  * with no copy of their own sees, signed in or not. Empty when the house
  * can't be found: the community's definition governs.

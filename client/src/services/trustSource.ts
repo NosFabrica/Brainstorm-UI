@@ -61,10 +61,15 @@ const HEX64 = /^[0-9a-f]{64}$/i;
  * back full of impostors copying their name.
  *
  * The NIP-05 lookup is kept only for a deployment that sets no
- * `VITE_HOUSE_OBSERVER` yet, and a failed one is not remembered: the next caller
- * asks again instead of inheriting the failure for the rest of the visit.
+ * `VITE_HOUSE_OBSERVER` yet. A failed one is not remembered for the visit, but
+ * it isn't asked again at once either: every search would wait out the lookup's
+ * timeouts again. For [DISCOVERY_RETRY_MS] after a failure the answer is null at
+ * once, and the next caller after that asks afresh.
+ *
+ * The REST paths' house is the server's own default observer, so the two must
+ * name the same key: change them together.
  */
-export function configuredHouseObserver(): string | null {
+function readConfiguredHouseObserver(): string | null {
   const raw = env.VITE_HOUSE_OBSERVER.trim();
   if (!raw) return null;
   if (!HEX64.test(raw)) {
@@ -73,6 +78,18 @@ export function configuredHouseObserver(): string | null {
   }
   return raw.toLowerCase();
 }
+
+/** Read once: `env` is fixed for the page's life, so neither the check nor its warning repeats. */
+let configuredHouse: string | null | undefined;
+
+export function configuredHouseObserver(): string | null {
+  if (configuredHouse === undefined) configuredHouse = readConfiguredHouseObserver();
+  return configuredHouse;
+}
+
+/** How long a failed discovery answers null at once before the next caller asks again. */
+export const DISCOVERY_RETRY_MS = 30_000;
+let discoveryFailedAt: number | null = null;
 
 /**
  * The copy index.html's head start keeps (see the comment there) when it had to
@@ -106,12 +123,17 @@ export function resolveHouseObserver(): Promise<string | null> {
   const configured = configuredHouseObserver();
   if (configured) return Promise.resolve(configured);
   if (!housePubkeyPromise) {
+    if (discoveryFailedAt !== null && Date.now() - discoveryFailedAt < DISCOVERY_RETRY_MS) {
+      return Promise.resolve(null);
+    }
     const asking = discoverHouseObserver();
     housePubkeyPromise = asking;
-    // A failure is not an answer: forget it, so the next search asks again rather
-    // than going out without a Perspective for the rest of the visit.
+    // A failure is not an answer: forget it, so a later search asks again rather than
+    // going without a Perspective for the rest of the visit, after a pause.
     void asking.then((pk) => {
-      if (!pk && housePubkeyPromise === asking) housePubkeyPromise = null;
+      if (pk || housePubkeyPromise !== asking) return;
+      housePubkeyPromise = null;
+      discoveryFailedAt = Date.now();
     });
   }
   return housePubkeyPromise;
@@ -197,4 +219,6 @@ async function fetchTrustSource(observerPubkey: string): Promise<TrustSourceRef 
 export function __resetTrustSourceCaches(): void {
   sourceCache.clear();
   housePubkeyPromise = null;
+  configuredHouse = undefined;
+  discoveryFailedAt = null;
 }

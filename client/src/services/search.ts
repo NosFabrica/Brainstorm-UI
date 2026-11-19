@@ -33,6 +33,7 @@ import {
   queryWords,
   readFilters,
   searchFilters,
+  namesLens,
   typeaheadWords,
   withObserver,
 } from "@/lib/searchSyntax";
@@ -433,6 +434,19 @@ export function kind0ToSearchResult(event: NostrEvent): SearchResult {
   };
 }
 
+/**
+ * What a ranked search answers when it has no Perspective to rank through: the house observer
+ * could not be found (trustSource) and the query names no lens of its own. Searching unranked
+ * instead (`include:spam`) answers a person search with every impostor copying their name.
+ */
+export const NO_PERSPECTIVE =
+  "Brainstorm's trust perspective couldn't be loaded, so this search wasn't sent. Check your connection and search again in a moment.";
+
+/** Whether a read resolved to `observer` would go out unranked though nobody asked it to. */
+function lacksPerspective(query: string, observer: string | null): boolean {
+  return !observer && !namesLens(query);
+}
+
 async function resolveObserver(params: SearchParams): Promise<string | null> {
   if (params.pov === "mywot" && params.userPubkey) return params.userPubkey;
   return resolveHouseObserver();
@@ -785,6 +799,11 @@ function countQuestions(
   void (async () => {
     const observer = await resolveObserver({ tab: "top", ...lens });
     if (cancelled) return;
+    // No Perspective: every count is unknown rather than a count of the unranked corpus.
+    if (lacksPerspective(query, observer)) {
+      for (const { key } of build(query, observer)) answers.set(key, null);
+      return report();
+    }
     const questions = build(query, observer);
     for (const { key, filters } of questions) {
       if (filters.length === 0) answers.set(key, 0);
@@ -873,6 +892,10 @@ export function searchStream(
     }
     const observer = await resolveObserver(params);
     if (cancelled) return;
+    if (lacksPerspective(query, observer)) {
+      emit({ error: NO_PERSPECTIVE });
+      return;
+    }
 
     const { filters, keeps: hostedByThem } = askForTab(query, params, observer);
     // A section the typed kind doesn't fit, or a scope asked of a tab that holds no comments,
@@ -2428,6 +2451,8 @@ export async function searchListItems(
     (!lifted.kinds || lifted.kinds.some((k) => (kinds as number[]).includes(k)));
   if (!relay || !asked || lists.length === 0) return answers;
   const observer = await resolveObserver({ tab: "all", pov, userPubkey }).catch(() => null);
+  // No Perspective: no list items, rather than the unranked corpus's.
+  if (lacksPerspective(query, observer)) return answers;
   const base = {
     kinds,
     search: withObserver(lifted.search, observer),

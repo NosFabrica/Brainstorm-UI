@@ -60,6 +60,8 @@ const FULL = flag("full");
  * deployment's VITE_HOUSE_OBSERVER, else the server's NIP-05 `_` at these origins.
  */
 const HOUSE_CONFIGURED = (process.env.VITE_HOUSE_OBSERVER ?? "").trim().toLowerCase();
+if (HOUSE_CONFIGURED && !/^[0-9a-f]{64}$/.test(HOUSE_CONFIGURED))
+  throw new Error("VITE_HOUSE_OBSERVER must be 64 hex characters; unset it to discover the house instead.");
 const HOUSE_ORIGINS = ["https://brainstorm.world", "https://api.brainstorm.world"];
 
 // ---------------------------------------------------------------------------
