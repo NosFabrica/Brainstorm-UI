@@ -33,7 +33,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
-      <PublicPageHeader width="standard" back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }} />
+      <PublicPageHeader back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }} />
 
       <main className={cn(pageWidth("standard"), "flex-1 py-6")}>
         <div className="mb-5 flex items-center gap-2.5">

@@ -42,8 +42,8 @@ export function TagsPageShell({
 }) {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader width="reading" />
-      <main className={cn(pageWidth("reading"), "flex-1 py-6 sm:py-8")} data-testid={`tags-view-${view}`}>
+      <PublicPageHeader />
+      <main className={cn(pageWidth("standard"), "flex-1 py-6 sm:py-8")} data-testid={`tags-view-${view}`}>
         <PageHeader kicker="Tags" title={title} subtitle={subtitle} testId="tags-page-header" />
 
         {/* With a video to watch, the pointer is a row with its still; grey small print was easy to miss. */}

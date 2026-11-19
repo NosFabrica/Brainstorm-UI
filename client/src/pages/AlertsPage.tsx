@@ -189,7 +189,7 @@ export default function AlertsPage() {
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
+      <main className={cn(pageWidth("standard"), "flex-1 py-8")}>
         <button
           type="button"
           onClick={() => goBack("/dashboard")}

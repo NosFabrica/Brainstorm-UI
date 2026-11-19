@@ -31,6 +31,46 @@ function visit(path: string, depth: number) {
 }
 
 describe("the header bar", () => {
+  // One width on every page (2026-11-19): the bar used to take its page's width, so the B
+  // mark, the box and the avatar sat somewhere else on a profile, a tag and the dashboard.
+  it("is the wide page width, whatever page it is on", () => {
+    render(<HeaderBar testId="bar" />);
+    const row = screen.getByTestId("bar").firstElementChild!;
+    expect(row.className.split(" ")).toEqual(expect.arrayContaining(["mx-auto", "w-full", "max-w-7xl"]));
+  });
+
+  // The bar is wider than most pages' content, so a box pushed up against the mark sat off to
+  // one side of the page under it. It is centred: the mark on the left, the box in the middle
+  // of the bar (and so over the middle of the page), the account on the right.
+  it("puts the search box in the middle of the bar, between the mark and the account", () => {
+    at(1024);
+    render(
+      <HeaderBar testId="bar">
+        <span data-testid="account" />
+      </HeaderBar>,
+    );
+    const [left, middle, right] = Array.from(screen.getByTestId("bar").firstElementChild!.children);
+    expect(left).toContainElement(screen.getByTestId("header-brand"));
+    expect(middle).toBe(screen.getByTestId("header-box"));
+    expect(right).toContainElement(screen.getByTestId("account"));
+    // Equal room either side of the box, whatever the two ends hold.
+    expect(screen.getByTestId("bar").firstElementChild!.className).toContain("grid-cols-[1fr_minmax(0,42rem)_1fr]");
+  });
+
+  it("keeps the mark left and the account right on a page with no search box", () => {
+    at(1024);
+    render(
+      <HeaderBar testId="bar" search={false}>
+        <span data-testid="account" />
+      </HeaderBar>,
+    );
+    const cells = Array.from(screen.getByTestId("bar").firstElementChild!.children);
+    expect(cells).toHaveLength(3);
+    expect(cells[0]).toContainElement(screen.getByTestId("header-brand"));
+    expect(cells[1]).toBeEmptyDOMElement();
+    expect(cells[2]).toContainElement(screen.getByTestId("account"));
+  });
+
   it("mounts the search box on a wide screen, with no magnifier", () => {
     at(1024);
     render(<HeaderBar />);

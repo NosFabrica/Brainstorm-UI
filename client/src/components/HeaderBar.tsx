@@ -7,7 +7,7 @@ import { openMobileSearch } from "@/components/MobileSearchOverlay";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { historyDepth, trackHistoryEntry } from "@/lib/historyState";
 import { isInstalledPhoneApp } from "@/lib/installedApp";
-import { pageWidth, type PageWidth } from "@/lib/pageWidth";
+import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 
 /**
@@ -51,15 +51,12 @@ const SM = 640;
  * and a phone never shows it.
  */
 export function HeaderBar({
-  width = "wide",
   search = true,
   fullBleed = false,
   back,
   children,
   testId,
 }: {
-  /** The page's width (lib/pageWidth), so the bar's edges are its content's. */
-  width?: PageWidth;
   /** False on a page whose own content is a search box, or a flow a search would abandon. */
   search?: boolean;
   /**
@@ -101,13 +98,16 @@ export function HeaderBar({
       data-testid={testId}
     >
       <div
-        className={
-          // Full bleed, the search box sits in the middle of the window — as wide
-          // a gap on either side whatever the right-hand cluster holds.
-          fullBleed
-            ? "grid min-h-14 grid-cols-[1fr_minmax(0,42rem)_1fr] items-center gap-3 px-4"
-            : cn(pageWidth(width), "flex min-h-14 items-center gap-3")
-        }
+        className={cn(
+          // Three cells: the mark, the search box, the account. The box sits in the middle
+          // of the bar — as wide a gap on either side whatever the two ends hold — and so
+          // over the middle of the page under it, whichever width that page is.
+          "grid min-h-14 grid-cols-[1fr_minmax(0,42rem)_1fr] items-center gap-3",
+          // Full bleed (Messages) runs edge to edge. Everywhere else the bar is one width
+          // on every page, so the mark, the box and the account menu stay where they are
+          // as the page under them changes (pageWidth.guard.test).
+          fullBleed ? "px-4" : pageWidth("wide"),
+        )}
       >
         <div className="flex shrink-0 items-center gap-3">
           {backButton && (
@@ -134,7 +134,7 @@ export function HeaderBar({
           </Link>
         </div>
 
-        {search && !isPhone ? <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" /> : fullBleed && <div />}
+        {search && !isPhone ? <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" /> : <div />}
 
         <div className="ml-auto flex shrink-0 items-center gap-2 justify-self-end sm:gap-3">
           {/* Opens search OVER the page — search is a lookup, not a destination. */}

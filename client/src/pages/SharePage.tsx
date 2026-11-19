@@ -1691,7 +1691,7 @@ function ProfileShareSheet({
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader width="standard" actions={actions} />
+      <PublicPageHeader actions={actions} />
       <main className={cn(pageWidth("standard"), "flex-1 py-6")}>{children}</main>
     </div>
   );

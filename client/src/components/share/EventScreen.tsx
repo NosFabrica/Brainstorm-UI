@@ -206,7 +206,7 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
 function DeletedEvent({ expired = false }: { expired?: boolean }) {
   return (
     <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader width="reading" />
+      <PublicPageHeader />
       <main className={cn(pageWidth("reading"), "py-8")}>
         <div className="py-10" data-testid={expired ? "event-expired" : "event-deleted"}>
           <DeletedStub expired={expired} />
@@ -485,10 +485,7 @@ function EventView({
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
-      <PublicPageHeader
-        width="reading"
-        actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />}
-      />
+      <PublicPageHeader actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />} />
 
       <main className={cn(pageWidth("reading"), "py-6 sm:py-8")}>
         {!ptr ? (

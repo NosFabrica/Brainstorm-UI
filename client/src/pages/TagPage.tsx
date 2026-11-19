@@ -225,14 +225,13 @@ export default function TagPage() {
   return (
     <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader
-        width="reading"
         actions={
           // Gated like the byline: no link to a tag the relays haven't confirmed.
           shareUrl &&
           status === "ok" && <ShareButton url={shareUrl} title={`${tagName} on Brainstorm`} mint={mintShortUrl} />
         }
       />
-      <main className={cn(pageWidth("reading"), "flex-1 py-6 sm:py-8")} data-testid="tag-page">
+      <main className={cn(pageWidth("standard"), "flex-1 py-6 sm:py-8")} data-testid="tag-page">
         <button
           type="button"
           onClick={() => goBack("/tags")}

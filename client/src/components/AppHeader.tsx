@@ -36,10 +36,10 @@ interface AppHeaderProps {
 export function AppHeader({ user, onLogout, active, actions, search, layout = "page" }: AppHeaderProps) {
   const app = layout === "app";
   return (
-    <HeaderBar width="wide" search={search} fullBleed={app} testId="nav-app-header">
-      {/* The nudge's words only once there is room for them beside the search box;
-          narrower, it is the "Finish setup" chip alone. */}
-      <FinishSetupBanner labelFrom={app ? "never" : "xl"} />
+    <HeaderBar search={search} fullBleed={app} testId="nav-app-header">
+      {/* The "Finish setup" chip alone: its words beside it pushed the search box off the
+          middle of the bar (HeaderBar). The full-screen app view has the room for a count. */}
+      <FinishSetupBanner labelFrom={app ? "never" : "chip"} />
       {actions && <div className="mr-1 hidden items-center lg:flex">{actions}</div>}
       {user.isAdmin && <AdminBadge />}
       <MessagesNavButton />

@@ -351,7 +351,7 @@ export function ArticleShell({
 }) {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <PublicPageHeader width="reading" actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />} />
+      <PublicPageHeader actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />} />
       <main className={cn(pageWidth("reading"), "py-6 sm:py-10")}>
         {children}
         <div className="mt-10 text-center">

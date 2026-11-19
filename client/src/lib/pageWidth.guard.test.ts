@@ -48,3 +48,62 @@ describe("page widths", () => {
     expect(handWritten('<main className={cn(pageWidth("reading"), "flex-1 py-8")}>')).toBe(false);
   });
 });
+
+/**
+ * Which page gets which width (2026-11-19). Moving between pages, nothing should
+ * shift that doesn't have to:
+ *
+ *  - the header is one width everywhere, so no page hands it one;
+ *  - a page someone browses (a profile, a tag, a list of people, alerts, pricing) is
+ *    `standard`;
+ *  - `wide` is for the pages that are columns of panels;
+ *  - `reading` is for reading one thing (a post, an article) or doing one task (setup).
+ *
+ * A new page is `standard` unless it is added here on purpose.
+ */
+describe("which page gets which width", () => {
+  const files = sources(src).map((file) => ({ name: path.relative(src, file), text: readFileSync(file, "utf8") }));
+  const using = (width: string) =>
+    files
+      .filter((f) => f.text.includes(`pageWidth("${width}")`))
+      .map((f) => f.name)
+      .sort();
+
+  it("no page gives the header a width of its own", () => {
+    const given = files.filter((f) => /<(?:PublicPageHeader|HeaderBar|AppHeader)\b[^>]*?\swidth=/s.test(f.text));
+    expect(given.map((f) => f.name)).toEqual([]);
+  });
+
+  it("only a post, an article and a single task are the reading width", () => {
+    expect(using("reading")).toEqual(
+      [
+        "components/OnboardingHeader.tsx",
+        "components/share/ArticleScreen.tsx",
+        "components/share/EventScreen.tsx",
+        "pages/ActivatePage.tsx",
+        "pages/DutyMenuSetupPage.tsx",
+        "pages/FinishSetupPage.tsx",
+        "pages/FirstRunPage.tsx",
+        // Its signed-out prompt: one sentence and a button, centred on the screen.
+        "pages/NetworkPage.tsx",
+        // Its "not available" notice, the same shape.
+        "pages/PricingPage.tsx",
+        "pages/TreasureMapSetupPage.tsx",
+        "pages/WelcomePage.tsx",
+      ].sort(),
+    );
+  });
+
+  it("only the header, the footer and the pages built of panels are the wide width", () => {
+    expect(using("wide")).toEqual(
+      [
+        "components/Footer.tsx",
+        "components/HeaderBar.tsx",
+        "pages/AdminPage.tsx",
+        "pages/DashboardPage.tsx",
+        "pages/SettingsPage.tsx",
+        "pages/UserPanelPage.tsx",
+      ].sort(),
+    );
+  });
+});
