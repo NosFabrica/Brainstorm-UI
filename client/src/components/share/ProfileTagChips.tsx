@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
 import { TagPersonButton } from "@/components/share/TagPersonButton";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useProfileTags } from "@/hooks/useTags";
 import { npubFromPubkey } from "@/lib/shareId";
 import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
@@ -19,6 +21,15 @@ import { ONLY_YOU_SEE_IT, onlyViewerSees } from "@/components/share/tagCopy";
  * Each chip links to its tag page (`/tags/:author/:slug`) — the list of everyone
  * carrying it, which is what makes a tag legible as a list rather than a label.
  */
+/**
+ * How many tags the row carries before the rest go behind "+N more". The row
+ * sits in the identity block, above the facts a visitor came for, so it shows
+ * the best-supported few (the service sorts them: counted first, most vouched
+ * first) and opens the rest in place. Six fill one line of a desktop profile;
+ * on a phone a chip takes about a third of a line, so four keep it to two.
+ */
+const SHOWN = { wide: 6, phone: 4 };
+
 export function ProfileTagChips({
   pubkey,
   canTag = false,
@@ -35,6 +46,14 @@ export function ProfileTagChips({
 }) {
   const { data } = useProfileTags(pubkey);
   const tags = data?.tags ?? [];
+  const [expanded, setExpanded] = useState(false);
+  const limit = useIsMobile() ? SHOWN.phone : SHOWN.wide;
+  // Never behind "more": a tag of the viewer's own, or one still publishing. It is the chip
+  // they look for, and hidden it reads as "it didn't work".
+  const collapsed = tags.filter((tag, i) => i < limit || !!tag.myStance || !!tag.pending);
+  // Hiding one tag behind a button the size of a tag saves nothing.
+  const hidden = tags.length - collapsed.length > 1 ? tags.length - collapsed.length : 0;
+  const shown = expanded || !hidden ? tags : collapsed;
   const tagButton =
     canTag && pubkey ? <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoles} /> : null;
 
@@ -45,7 +64,7 @@ export function ProfileTagChips({
       <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
         Tagged as
       </span>
-      {tags.map((tag) => {
+      {shown.map((tag) => {
         // Plain-language tooltip. The count is how many people vouched, so say
         // that — "3 applications" means nothing to someone who just opened a
         // profile.
@@ -118,6 +137,17 @@ export function ProfileTagChips({
           chip
         );
       })}
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((open) => !open)}
+          aria-expanded={expanded}
+          className="rounded-full px-1.5 py-0.5 text-xs font-semibold text-brand-link underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="share-tags-more"
+        >
+          {expanded ? "Show less" : `+${hidden} more`}
+        </button>
+      )}
       {tagButton}
       {/* Owner-only shortcut to the one place that lists every tag on them AND
           everything they've said about others. Not on someone else's profile —
