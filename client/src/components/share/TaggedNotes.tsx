@@ -10,6 +10,7 @@ import type { SearchHit } from "@/services/search";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { eventPath } from "@/lib/shareId";
 import { useTagNotes } from "@/hooks/useTags";
+import { WHEN_OTHERS_SEE_IT, onlyViewerSees } from "@/components/share/tagCopy";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 /**
@@ -117,6 +118,9 @@ export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug
   // asserter attached no hint, and quietly reporting the smaller number would
   // put this page out of agreement with any client that can reach the note.
   const missing = tagged.length - ordered.length - items.length;
+  // Posts on this list only because the viewer tagged them, from an account the trust filter
+  // doesn't count yet: theirs to see, nobody else's (services/tags fetchTagNotes).
+  const onlyYou = tagged.filter(onlyViewerSees).length;
 
   return (
     <section className="mt-8" data-testid="tag-notes">
@@ -124,6 +128,14 @@ export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug
       {missing > 0 && !loading && (
         <p className="-mt-2 mb-3 text-[11px] text-slate-400 dark:text-slate-500" data-testid="tag-notes-missing">
           {missing === 1 ? "1 isn't" : `${missing} aren't`} on the relays we can reach.
+        </p>
+      )}
+      {onlyYou > 0 && (
+        <p className="-mt-2 mb-3 text-[11px] text-slate-400 dark:text-slate-500" data-testid="tag-notes-only-you">
+          {onlyYou === tagged.length
+            ? `Only you can see ${tagged.length === 1 ? "this" : "these"} here for now.`
+            : `Only you can see ${onlyYou} of these here for now.`}{" "}
+          {WHEN_OTHERS_SEE_IT}
         </p>
       )}
       <div className="space-y-3">

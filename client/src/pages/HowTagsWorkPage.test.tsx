@@ -105,7 +105,8 @@ describe("the copy on /how-tags-work backs the video", () => {
   it("ends by telling the reader how to tag someone, and the one rule", () => {
     render(<HowTagsWorkPage />);
     const turn = screen.getByTestId("section-htw-try");
-    expect(turn).toHaveTextContent("Add a tag");
+    // The button as the profile names it (TagPersonButton).
+    expect(turn).toHaveTextContent("Tag this profile");
     expect(turn).toHaveTextContent("There are no take-backs, so say it the way you'd say it in person.");
   });
 });

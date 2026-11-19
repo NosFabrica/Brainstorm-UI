@@ -159,8 +159,8 @@ export default function HowTagsWorkPage() {
           <Section icon={Tag} title="Your turn." testId="section-htw-try">
             <p>
               Open someone's profile, choose{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">Add a tag</span>, and say what they're
-              known for. If the tag is already there, add your name to it.
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Tag this profile</span>, and say what
+              they're known for. If the tag is already there, add your name to it.
             </p>
             <p>To find people, search a word like "musician" or "podcast" and see who is known for it.</p>
             <p>One rule. There are no take-backs, so say it the way you'd say it in person.</p>

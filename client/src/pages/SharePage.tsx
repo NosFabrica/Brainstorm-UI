@@ -93,7 +93,6 @@ import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { FollowButton } from "@/components/share/FollowButton";
 import { ProfileMenu } from "@/components/share/ProfileMenu";
 import { ProfileActions } from "@/components/share/ProfileActions";
-import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { ShareButton } from "@/components/share/ShareButton";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
@@ -193,7 +192,7 @@ export default function SharePage() {
   const isOwner = useActiveAccount()?.pubkey === pubkey;
   // Tagging needs a SIGNER, which is a stricter thing than being signed in: a
   // session token is backend auth and can't sign an event, so gating on one
-  // would show an "Add a tag" button that throws the moment it is used. Anyone
+  // would show a "Tag this profile" button that throws the moment it is used. Anyone
   // with a signer can tag anyone, including themselves.
   //
   // Under the accounts model an Account *is* a Signer, so holding one is the
@@ -1135,15 +1134,15 @@ export default function SharePage() {
                   onZap={() => setZapOpen(true)}
                 />
 
-                {/* "Known for" — what the network says about this person, counted from
-              the configured trust perspective. Reads from relays only, so it
-              renders for logged-out visitors too; only when there is something
-              to say (the "+ Tag" way in sits on the Posts about row below).
+                {/* "Tagged as": what the network says about this person, counted from
+              the configured trust perspective, and the "Tag this profile" button
+              for a viewer who can sign. Reads from relays only, so the tags
+              render for logged-out visitors too.
               These replaced the self-declared "What you do" role chips that used
               to sit below (the placeholder this slot's old TODO referred to).
               The `roles` field stays in ProfilePrefs so nobody's stored data is
               erased — it just no longer renders. */}
-                <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
+                <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} legacyRoles={legacyRoleLabels} />
 
                 {/* The prompt half of Q2's "one-time, owner-prompted conversion".
               Only the owner sees it, only when they have roles that aren't
@@ -1152,22 +1151,9 @@ export default function SharePage() {
                   <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
                 )}
 
-                {/* "Posts about" — top hashtags as a skills-style chip row, with the
-              quiet "+ Tag" for a signed-in tagger at its end. Hiding topics
-              keeps the way in. */}
-                <TopicChips
-                  topics={isHidden("topics") ? [] : topics}
-                  trailing={
-                    canTag && pubkey ? (
-                      <TagPersonButton
-                        pubkey={pubkey}
-                        isOwner={isOwner}
-                        legacyRoles={legacyRoleLabels}
-                        variant="link"
-                      />
-                    ) : undefined
-                  }
-                />
+                {/* "Posts about": their top hashtags, as plain hashtag text so they
+              don't read as tags. */}
+                <TopicChips topics={isHidden("topics") ? [] : topics} />
 
                 {/* Prominent, factual flag — when reported beyond the follower-scaled
               threshold (house POV → same verdict for every viewer). */}

@@ -1,19 +1,20 @@
 import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
+import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { useProfileTags } from "@/hooks/useTags";
 import { npubFromPubkey } from "@/lib/shareId";
 import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
+import { ONLY_YOU_SEE_IT, onlyViewerSees } from "@/components/share/tagCopy";
 
 /**
- * Network-attested tags on the public profile — the chip row that fills the slot
- * the hero has been reserving. Distinct from the owner's own "What you do" role
- * chips rendered just below: those are self-declared, these are what *other*
- * people say, counted from the trust perspective.
+ * "Tagged as": the network's tags on the public profile, and the way to add
+ * one. Distinct from the owner's own "What you do" role chips: those were
+ * self-declared, these are what *other* people say, counted from the trust
+ * perspective.
  *
- * Renders nothing until there's something to show — no skeleton, and no
- * "Add a tag" pill either: a form control between the key and the bio read as
- * clutter (Benjamin, 2026-09-08). The way in — TagPersonButton — sits beside
- * the "Posts about" chips instead; this row is display only.
+ * The same row a post has (NoteTagChips): label, chips, then the dashed "Tag
+ * this profile" button for a viewer who can sign. With nothing to show and no
+ * way to add, it renders nothing; no skeleton.
  *
  * Each chip links to its tag page (`/tags/:author/:slug`) — the list of everyone
  * carrying it, which is what makes a tag legible as a list rather than a label.
@@ -22,22 +23,27 @@ export function ProfileTagChips({
   pubkey,
   canTag = false,
   isOwner = false,
+  legacyRoles,
 }: {
   pubkey: string | undefined;
-  /** The viewer is signed in AND holds a signer — gates the owner's Manage link. */
+  /** The viewer is signed in AND holds a signer — gates the tag button and the owner's Manage link. */
   canTag?: boolean;
   /** Viewing their own profile. */
   isOwner?: boolean;
+  /** What the owner listed under the retired "What you do", offered in the picker (TagPersonButton). */
+  legacyRoles?: string[];
 }) {
   const { data } = useProfileTags(pubkey);
   const tags = data?.tags ?? [];
+  const tagButton =
+    canTag && pubkey ? <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoles} /> : null;
 
-  if (!tags.length) return null;
+  if (!tags.length && !tagButton) return null;
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="share-tags">
       <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        Known for
+        Tagged as
       </span>
       {tags.map((tag) => {
         // Plain-language tooltip. The count is how many people vouched, so say
@@ -52,11 +58,13 @@ export function ProfileTagChips({
         // vouched, or a tag someone gave themselves reads as "1 person added
         // this" — true of the number, misleading about the claim.
         const others = corroborations(tag);
-        const who = onlySelfDeclared(tag)
-          ? "Says this about themselves"
-          : others === 1
-            ? "1 person added this"
-            : `${others} people added this`;
+        const who = onlyViewerSees(tag)
+          ? ONLY_YOU_SEE_IT
+          : onlySelfDeclared(tag)
+            ? "Says this about themselves"
+            : others === 1
+              ? "1 person added this"
+              : `${others} people added this`;
         const notes = [
           // A tag the subject also claims is different from one only others say.
           tag.selfDeclared && others > 0 ? "also says it themselves" : "",
@@ -110,6 +118,7 @@ export function ProfileTagChips({
           chip
         );
       })}
+      {tagButton}
       {/* Owner-only shortcut to the one place that lists every tag on them AND
           everything they've said about others. Not on someone else's profile —
           there's nothing of yours to manage there. */}

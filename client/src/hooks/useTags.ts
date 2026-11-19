@@ -17,6 +17,7 @@ import {
   publishTagComment,
   applyTagToProfile,
   applyTagToEvent,
+  editTagDescription,
   predictedTagKey,
   type ApplyTagArgs,
   type ProfileTag,
@@ -200,6 +201,28 @@ export function useTagDetail(authorPubkey: string | undefined, slug: string | un
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     retry: 1,
+  });
+}
+
+/**
+ * Change a tag's description, as its creator (services/tags `editTagDescription`).
+ *
+ * The page it is saved from shows the new words at once: every cached reading
+ * of this tag, whoever's lens it was read through, takes them. The lists that
+ * print a tag's meaning (the pickers, chips' tooltips) read again.
+ */
+export function useEditTagDescription(authorPubkey: string | undefined, slug: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (description: string) => editTagDescription(slug!, description),
+    onSuccess: ({ description }) => {
+      queryClient.setQueriesData<TagDetail>({ queryKey: ["tag-detail", authorPubkey, slug] }, (old) =>
+        old ? { ...old, tag: { ...old.tag, description } } : old,
+      );
+      for (const key of ["tag-picker-options", "tag-index", "profile-tags", "event-tags"]) {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    },
   });
 }
 
