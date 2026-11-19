@@ -10,6 +10,7 @@ import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
 import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
+import { TagDescriptionEditor } from "@/components/tags/TagDescriptionEditor";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
 import { TAG_COMMENTS_ENABLED, TAG_PINS_ENABLED } from "@/config/tagging";
@@ -138,6 +139,12 @@ export default function TagPage() {
   // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
   // signer; this includes them.
   const canVote = !!viewerPubkey;
+  // A tag made for posts ("Dance", put on a video) that no person carries: "Add me to this
+  // tag" would ask the reader to call themselves a video. How a tag is used outranks what it
+  // was made for, so once anybody carries it, it is a tag about people too.
+  const forPostsOnly =
+    detailQuery.data?.tag.madeFor === "posts" &&
+    !(detailQuery.data?.carriers.length || detailQuery.data?.disputed.length);
 
   // The tag's author rides along with the carriers so their name resolves in
   // the same round-trip — the alternative was a second query for one pubkey.
@@ -249,11 +256,23 @@ export default function TagPage() {
             detailQuery.data?.tag.description ? (
               <LinkedText text={detailQuery.data.tag.description} />
             ) : (
-              "People the network says this describes."
+              `${forPostsOnly ? "Posts" : "People"} the network says this describes.`
             )
           }
           testId="tag-header"
         />
+
+        {/* The tag's creator can change what it means, never what it is called. */}
+        {status === "ok" && authorPubkey && slug && (
+          <TagDescriptionEditor
+            authorPubkey={authorPubkey}
+            slug={slug}
+            name={tagName}
+            description={detailQuery.data?.tag.description}
+            viewerPubkey={viewerPubkey}
+            className="mt-3"
+          />
+        )}
 
         {/* Who defined this tag. Tags aren't owned by the app — someone minted
             this one, and saying who is part of the point. Show their NAME: a
@@ -278,7 +297,7 @@ export default function TagPage() {
             a chip or a shared link — sending them off to a profile to act was
             the whole distance between "I see this list" and "I'm on it".
             Web-of-trust can only rank assertions people actually make. */}
-        {canVote && !loading && (
+        {canVote && !loading && !forPostsOnly && (
           <div className="mt-4" data-testid="tag-self-add">
             {iAmListed ? (
               <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">

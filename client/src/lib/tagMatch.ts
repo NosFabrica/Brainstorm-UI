@@ -52,7 +52,7 @@ export function leadingTags(tags: readonly TagSummary[], query: string): TagSumm
 
 const NEW_TAG = "+new tag:";
 
-/** The value a picker's "Add your own" row carries: always matched, ranked after every tag that exists. */
+/** The value a picker's "New tag" row carries: always matched, ranked after every tag that exists. */
 export const newTagValue = (typed: string) => NEW_TAG + typed;
 
 /**

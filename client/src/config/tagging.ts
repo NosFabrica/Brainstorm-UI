@@ -222,6 +222,8 @@ export const TRUST_SETTINGS = {
  * picker can later tell profile tags from note tags.
  */
 export const TAG_FOR_NOSTR_PUBKEY_Z = "tag-for-nostr-pubkey";
+/** Its counterpart, which the kit puts on a tag created while tagging an event (applicability.js). */
+export const TAG_FOR_NOSTR_EVENT_Z = "tag-for-nostr-event";
 
 /**
  * Comments on tags — a Brainstorm extension, NOT part of the kit.

@@ -56,8 +56,10 @@ import {
   Z_HANDLE_PUBKEYS,
   TRUST_SETTINGS,
   TAG_FOR_NOSTR_PUBKEY_Z,
+  TAG_FOR_NOSTR_EVENT_Z,
 } from "@/config/tagging";
 import { activeAccount, requireActiveAccount, signAs } from "@/accounts/signing";
+import { editedTagElement } from "@/lib/tagEdit";
 
 export interface NostrEvent {
   id: string;
@@ -76,6 +78,12 @@ export interface TagIdentity {
   /** Display name from the tag-element's content; falls back to the slug. */
   name: string;
   description?: string;
+  /**
+   * What its creator made it for, when the tag says: "posts" for one created
+   * while tagging a post, "people" for one created on a profile (the kit's
+   * applicability hints). A hint about intent, never a rule about use.
+   */
+  madeFor?: "posts" | "people";
 }
 
 /** One tag as it appears on a profile, with its counted support. */
@@ -1102,11 +1110,13 @@ export async function fetchTagDetail(
       /* malformed content → slug */
     }
   }
+  const hints = new Set((element?.tags ?? []).filter((t) => t[0] === "z").map((t) => t[1]));
   const tag: TagIdentity = {
     authorPubkey,
     slug,
     name: meta.name || slug,
     description: meta.description,
+    madeFor: hints.has(TAG_FOR_NOSTR_EVENT_Z) ? "posts" : hints.has(TAG_FOR_NOSTR_PUBKEY_Z) ? "people" : undefined,
   };
 
   // Both halves of the union: modern assertions point at the tag's coordinate,
@@ -1713,6 +1723,36 @@ export async function publishTagComment(authorPubkey: string, slug: string, cont
   // the tag-hub one: see fetchCommentEvents above for why.
   const result = await publishToRelays(signed);
   if (!result.success) throw new Error(result.error || "No relay accepted the comment");
+}
+
+/**
+ * Change what a tag means, as its creator: the description, never the name.
+ *
+ * The definition is addressable, so the edit is the creator's own definition
+ * published again under the same `d` (lib/tagEdit): taggings point at the
+ * coordinate and keep pointing at it. Only the creator has a definition to
+ * publish again, which is the whole permission check: anyone else's edit would
+ * be a different tag under their own key.
+ *
+ * A tagging that names the tag by event id alone (the shape from before the
+ * `a` correction) pointed at the version this replaces; the hub's are test
+ * output, and the `#a` half of every read is what counts the real ones.
+ */
+export async function editTagDescription(slug: string, description: string): Promise<{ description: string }> {
+  const user = activeAccount();
+  if (!user?.pubkey) throw new Error("Sign in to edit this tag.");
+
+  const mine = (await fetchTagEvents({ kinds: [TAG_ELEMENT_KIND], authors: [user.pubkey], "#d": [slug] }))
+    .filter((ev) => ev.pubkey === user.pubkey && tagValue(ev, "d") === slug)
+    .sort((a, b) => b.created_at - a.created_at)[0];
+  if (!mine) throw new Error("Only the person who created a tag can edit its description.");
+
+  const template = editedTagElement(mine, description, Math.floor(Date.now() / 1000));
+  const signed = await signAs(requireActiveAccount(), template as never);
+  await publishTagEvent(signed as unknown as Record<string, unknown>);
+  // Every surface that names the tag reads this cache before it asks a relay.
+  cacheElementMeta(user.pubkey, slug, template.content);
+  return { description: description.trim() };
 }
 
 // ─── Writing (floor B: yourself only) ────────────────────────────────────────
@@ -2572,7 +2612,17 @@ export async function fetchTagNotes(
     hintsFor.get(e[1])!.add(hint);
   }
 
-  return grouped.targets
+  // The viewer's own tagging when the trust filter doesn't count them (a new or
+  // unscored account): the classifier keeps it in `mine` and out of `targets`,
+  // so it has to be put back or the post they just tagged is on the post's page
+  // ("Tagged as") and missing from the tag's. Theirs alone: nobody else's read
+  // has a `mine` for it, and it adds nothing to the count.
+  const countedKeys = new Set(grouped.targets.map((t) => t.target.id ?? t.target.address ?? ""));
+  const mineOnly = grouped.mine
+    .filter((m) => m.stance === "apply" && !countedKeys.has(m.target.id ?? m.target.address ?? ""))
+    .map((m) => ({ target: m.target, applications: [], disputes: [], mineAt: m.createdAt }));
+
+  return [...grouped.targets.map((t) => ({ ...t, mineAt: 0 })), ...mineOnly]
     .map((t) => {
       const applied = new Set(t.applications.map((a) => a.authorPubkey));
       const disputed = new Set(t.disputes.map((d) => d.authorPubkey));
@@ -2583,7 +2633,7 @@ export async function fetchTagNotes(
         disputes: disputed.size,
         asserters: Array.from(applied),
         myStance: mineFor.get(t.target.id ?? t.target.address ?? ""),
-        addedAt: t.applications.reduce((max, a) => Math.max(max, a.createdAt ?? 0), 0),
+        addedAt: t.applications.reduce((max, a) => Math.max(max, a.createdAt ?? 0), t.mineAt),
         relays: Array.from(hintsFor.get(t.target.id ?? "") ?? []),
       };
     })

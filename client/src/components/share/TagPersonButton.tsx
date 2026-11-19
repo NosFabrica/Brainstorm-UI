@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,14 @@ import { newTagValue, pickerTagScore } from "@/lib/tagMatch";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
 import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
 import { SOFT_SELECTED_ROW, StanceRow } from "@/components/share/StanceControl";
+import { TagConfirmPanel, type PendingTag } from "@/components/share/TagConfirmPanel";
+import {
+  TAG_SEARCH_PLACEHOLDER,
+  UNFINISHED_TAGGING,
+  UNSAVED_VOTE,
+  taggedToast,
+  voteToast,
+} from "@/components/share/tagCopy";
 
 /**
  * Add a tag to a person — your own profile or anyone else's.
@@ -38,11 +46,8 @@ export function TagPersonButton({
   pubkey,
   isOwner = false,
   legacyRoles = [],
-  variant = "pill",
 }: {
   pubkey: string;
-  /** "pill": the dotted chip. "link": a quiet "+ Tag" beside other chips (the profile's Posts about row). */
-  variant?: "pill" | "link";
   /** Only changes wording — the permission is the same either way. */
   isOwner?: boolean;
   /**
@@ -55,16 +60,14 @@ export function TagPersonButton({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  // A tag not yet on the profile asks first: what it is, and that it is
-  // public and permanent. Agree/Disagree on existing tags stay one tap.
+  // A tag not yet on the profile asks first (TagConfirmPanel): what it is, and
+  // that it is public and permanent. A tag nobody has minted yet is named and
+  // described there (issue #202). Agree/Disagree on existing tags stay one tap.
   const [pendingAdd, setPendingAdd] = useState<{
-    label: string;
-    description?: string;
-    /** A tag nobody has minted yet: the panel also asks for an optional description (issue #202). */
-    isNew?: boolean;
-    run: (description?: string) => Promise<void>;
+    tag: PendingTag;
+    /** Add the tag that was picked. A new one is run from what the panel hands back. */
+    run?: () => Promise<void>;
   } | null>(null);
-  const [newDescription, setNewDescription] = useState("");
   const { toast } = useToast();
   const { data } = useProfileTags(pubkey);
   const applyTag = useApplyTag(pubkey);
@@ -163,31 +166,21 @@ export function TagPersonButton({
         displayName: tag.name,
       });
       if (result.failedAt) {
-        toast({
-          title: "Couldn't save that",
-          description: "Give it another try in a moment.",
-          variant: "destructive",
-        });
+        toast(UNSAVED_VOTE);
         return;
       }
-      toast({
-        title: agreeing ? `You agree with "${tag.name}"` : `You disagreed with "${tag.name}"`,
-        description: agreeing ? "Your vote is public." : "Your vote is public, and counts against this tag.",
-      });
+      toast(voteToast(tag.name, agreeing));
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
-      if (description) toast({ title: "Couldn't save that", description, variant: "destructive" });
+      if (description) toast({ ...UNSAVED_VOTE, description });
     }
   }
 
   /** Stage an add behind the confirm panel. */
   const confirmAdd = (label: string, run: () => Promise<void>, description?: string) =>
-    setPendingAdd({ label, description, run });
-  /** Stage a brand-new tag: the panel asks what it means before minting. */
-  const confirmNew = (name: string) => {
-    setNewDescription("");
-    setPendingAdd({ label: name, isNew: true, run: (description) => addByName(name, description) });
-  };
+    setPendingAdd({ tag: { kind: "existing", label, description }, run });
+  /** Stage a brand-new tag: the panel asks its name and what it means before minting. */
+  const confirmNew = (name: string) => setPendingAdd({ tag: { kind: "new", name } });
 
   /**
    * Apply a tag we already have coordinates for. Skips `resolveOrMintTag`
@@ -196,11 +189,9 @@ export function TagPersonButton({
    */
   // The chip shows the moment you confirm (useApplyTag is optimistic) and so
   // does the word; the relays reconcile quietly, and only a failure speaks.
-  const addedToast = (label: string) =>
-    toast({
-      title: `Added "${label}"`,
-      description: isOwner ? "Others can see this on your profile." : "Anyone can see this on their profile.",
-    });
+  const reach = isOwner ? "Others can see this on your profile" : "Anyone can see this on their profile";
+  const addedToast = (label: string) => toast(taggedToast(label, reach));
+  const couldNotTag = `Couldn't tag ${isOwner ? "your" : "this"} profile`;
 
   async function applyExisting(tag: { authorPubkey: string; slug: string }, label: string) {
     setOpen(false);
@@ -209,16 +200,12 @@ export function TagPersonButton({
     try {
       const result = await applyTag.mutateAsync({ tag, displayName: label });
       if (result.failedAt) {
-        toast({
-          title: `Couldn't add "${label}"`,
-          description: "The relays did not take it. Give it another try in a moment.",
-          variant: "destructive",
-        });
+        toast(UNFINISHED_TAGGING);
         return;
       }
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
-      if (description) toast({ title: "Couldn't add that tag", description, variant: "destructive" });
+      if (description) toast({ title: couldNotTag, description, variant: "destructive" });
     }
   }
 
@@ -240,16 +227,12 @@ export function TagPersonButton({
       // Minting is two publishes and can't be atomic. If the second one failed
       // we must not claim success — the tag exists but nothing points at it.
       if (result.failedAt) {
-        toast({
-          title: `Couldn't finish adding "${name}"`,
-          description: "The relays did not take it. Give it another try in a moment.",
-          variant: "destructive",
-        });
+        toast(UNFINISHED_TAGGING);
         return;
       }
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
-      if (description) toast({ title: "Couldn't add that tag", description, variant: "destructive" });
+      if (description) toast({ title: couldNotTag, description, variant: "destructive" });
     }
   }
 
@@ -268,78 +251,43 @@ export function TagPersonButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={
-            variant === "link"
-              ? "inline-flex items-center gap-0.5 text-[11px] font-semibold text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
-              : "inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
-          }
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
           data-testid="share-add-tag"
         >
           <Plus className="h-3 w-3" />
-          {variant === "link" ? "Tag" : "Add a tag"}
+          Tag {isOwner ? "your" : "this"} profile
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         {pendingAdd ? (
-          <div className="p-3" data-testid="share-tag-confirm">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Add "{pendingAdd.label}"?</p>
-            {pendingAdd.description && (
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{pendingAdd.description}</p>
-            )}
-            {pendingAdd.isNew && (
-              <label className="mt-2 block">
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Description (optional)</span>
-                <textarea
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  rows={2}
-                  maxLength={280}
-                  placeholder="What does this tag mean?"
-                  className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  data-testid="share-tag-description"
-                />
-                <span className="mt-1 block text-[11px] leading-snug text-slate-400 dark:text-slate-500">
-                  If a tag with this name already exists, the shared one is used and your description isn't needed.
-                </span>
-              </label>
-            )}
-            <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              {isOwner ? "Others can see this on your profile" : "Anyone can see this on their profile"}, and there is
-              no delete — only disagreeing later.
-            </p>
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPendingAdd(null)}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                data-testid="share-tag-confirm-cancel"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const { run, isNew } = pendingAdd;
-                  setPendingAdd(null);
-                  void run(isNew ? newDescription : undefined);
-                }}
-                className="rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
-                data-testid="share-tag-confirm-add"
-              >
-                Add tag
-              </button>
-            </div>
-          </div>
+          <TagConfirmPanel
+            pending={pendingAdd.tag}
+            target={isOwner ? "your profile" : "this profile"}
+            reach={reach}
+            known={offered}
+            testId="share-tag"
+            onCancel={() => setPendingAdd(null)}
+            onConfirm={(decision) => {
+              const { run } = pendingAdd;
+              setPendingAdd(null);
+              if (decision.kind === "new") void addByName(decision.name, decision.description);
+              else if (decision.kind === "match") {
+                // The name they typed is a tag people use: add that one, by its coordinates.
+                const found = offered.find((t) => t.label === decision.label);
+                if (found) void applyExisting(found.tag, found.label);
+              } else void run?.();
+            }}
+          />
         ) : (
           <Command shouldFilter filter={pickerTagScore}>
             <CommandInput
-              placeholder={isOwner ? "What are you known for?" : "What are they known for?"}
+              placeholder={TAG_SEARCH_PLACEHOLDER}
               value={search}
               onValueChange={setSearch}
               data-testid="share-tag-search"
             />
             <CommandList>
-              {!isNew && <CommandEmpty>Type to add your own.</CommandEmpty>}
+              {!isNew && <CommandEmpty>Type a name to create a new tag.</CommandEmpty>}
 
               {/* Already on this profile — where you say whether it fits. Listed
                 first because reacting to what's there beats scrolling a generic
@@ -453,15 +401,20 @@ export function TagPersonButton({
               )}
               {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
               {isNew && (
-                <CommandGroup heading="Add your own">
+                <CommandGroup heading="New tag">
+                  {/* Says what comes next: this opens the form, it publishes nothing. */}
                   <CommandItem
                     value={newTagValue(typed)}
                     onSelect={() => confirmNew(typed)}
                     className={SOFT_SELECTED_ROW}
                     data-testid="share-tag-create"
                   >
-                    <Plus className="mr-2 h-3.5 w-3.5" />
-                    {typed}
+                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">Create "{typed}"</span>
+                      <span className="block truncate text-[10px] text-slate-400">Add a description next</span>
+                    </span>
+                    <ChevronRight className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
                   </CommandItem>
                 </CommandGroup>
               )}

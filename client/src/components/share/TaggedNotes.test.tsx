@@ -60,6 +60,28 @@ describe("TaggedNotes", () => {
     expect(screen.queryByTestId("tag-notes-unreachable")).toBeNull();
   });
 
+  // A post only the viewer tagged, from an account the trust filter doesn't count yet
+  // (services/tags fetchTagNotes): it is on their list and nobody else's, and the page says so,
+  // or a tag that works for them looks, to them, like one everybody sees.
+  it("says a post only you tagged is shown to you alone, while your tags aren't counted", () => {
+    h.tagged = [
+      { address: ADDRESS, applications: 0, disputes: 0, asserters: [], myStance: "apply", addedAt: 1, relays: [] },
+    ];
+    h.store.set("tag-item-events", [item]);
+    render(<TaggedNotes authorPubkey={"a".repeat(64)} slug="fake-repo-owner" />);
+    expect(screen.getByTestId("tag-notes")).toHaveTextContent("1 item");
+    expect(screen.getByTestId("tag-notes-only-you")).toHaveTextContent("Only you can see this here for now");
+  });
+
+  it("says nothing of the kind about a post other people's tags already count for", () => {
+    h.tagged = [
+      { address: ADDRESS, applications: 2, disputes: 0, asserters: [], myStance: "apply", addedAt: 1, relays: [] },
+    ];
+    h.store.set("tag-item-events", [item]);
+    render(<TaggedNotes authorPubkey={"a".repeat(64)} slug="fake-repo-owner" />);
+    expect(screen.queryByTestId("tag-notes-only-you")).toBeNull();
+  });
+
   it("says it couldn't load them only when nothing tagged could be read", () => {
     h.tagged = [{ address: ADDRESS, applications: 1, disputes: 0, asserters: [], addedAt: 1, relays: [] }];
     render(<TaggedNotes authorPubkey={"a".repeat(64)} slug="fake-repo-owner" />);

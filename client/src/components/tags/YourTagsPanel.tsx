@@ -220,7 +220,7 @@ export function YourTagsPanel() {
               icon={TagIcon}
               compact
               title="You haven't tagged anyone yet"
-              description="Open someone's profile and choose “Add a tag” to say what they're known for. It will show up here."
+              description="Open someone's profile and choose “Tag this profile” to say what they're known for. It will show up here."
             />
           </Card>
         ) : groups.length === 0 ? (

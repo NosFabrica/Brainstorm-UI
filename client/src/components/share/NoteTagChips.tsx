@@ -1,7 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 import { Link } from "wouter";
-import { Loader2, Plus } from "lucide-react";
+import { ChevronRight, Loader2, Plus } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -10,7 +10,17 @@ import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
 import { newTagValue, pickerTagScore } from "@/lib/tagMatch";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
-import { StanceRow } from "@/components/share/StanceControl";
+import { SOFT_SELECTED_ROW, StanceRow } from "@/components/share/StanceControl";
+import { TagConfirmPanel, type PendingTag } from "@/components/share/TagConfirmPanel";
+import {
+  TAG_SEARCH_PLACEHOLDER,
+  UNFINISHED_TAGGING,
+  UNSAVED_VOTE,
+  ONLY_YOU_SEE_IT,
+  onlyViewerSees,
+  taggedToast,
+  voteToast,
+} from "@/components/share/tagCopy";
 import type { NoteTag } from "@/services/tags";
 
 /**
@@ -20,6 +30,10 @@ import type { NoteTag } from "@/services/tags";
  * Deliberately the same shape as the profile chip row: chips link to their tag
  * page, and every stance lives in one popover rather than hanging a control off
  * each pill. Someone who has tagged a person already knows how this works.
+ *
+ * Adding a tag asks first, through the same panel (TagConfirmPanel): a tag on
+ * a post is as public and as permanent as one on a person, and a new tag is
+ * named and described there.
  *
  * Two things differ from profile tagging, both from the protocol rather than
  * from taste:
@@ -97,7 +111,11 @@ export function NoteTagRow({
       </span>
 
       {tags.map((tag) => {
-        const who = tag.applications === 1 ? "1 person tagged this" : `${tag.applications} people tagged this`;
+        const who = onlyViewerSees(tag)
+          ? ONLY_YOU_SEE_IT
+          : tag.applications === 1
+            ? "1 person tagged this"
+            : `${tag.applications} people tagged this`;
         let authorNpub = "";
         try {
           authorNpub = npubFromPubkey(tag.authorPubkey);
@@ -167,6 +185,12 @@ function TagNoteButton({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // A tag not yet on it asks first; Agree/Disagree on the tags already there stay one tap.
+  const [pending, setPending] = useState<{
+    tag: PendingTag;
+    /** An existing tag's coordinates; a new one is named in the panel. */
+    coords?: { authorPubkey: string; slug: string };
+  } | null>(null);
   const { toast } = useToast();
   const applyTag = useApplyEventTag(eventId, relayHint, address ? { address } : undefined);
   // Only fetched once the picker is opened — no relay traffic for a button
@@ -192,11 +216,27 @@ function TagNoteButton({
 
   const typed = search.trim();
   const known = new Set([...taken, ...offered.map((t) => t.name.toLowerCase())]);
-  // Not before the tags people use are in: "Add your own" over a name that
+  // Not before the tags people use are in: a new tag over a name that
   // exists would make a second tag of it (the list takes ~5 s to come).
   const isNew = !loadingTags && typed.length > 0 && !known.has(typed.toLowerCase());
 
-  async function run(tag: { authorPubkey: string; slug: string } | { name: string }, label: string, polarity: 1 | -1) {
+  const confirmExisting = (t: { authorPubkey: string; slug: string; name: string; description?: string }) =>
+    setPending({
+      tag: { kind: "existing", label: t.name, description: t.description },
+      coords: { authorPubkey: t.authorPubkey, slug: t.slug },
+    });
+
+  /**
+   * Publish a tagging. `vote` is a stance on a tag already on it (Agree,
+   * Disagree); without it this is adding a tag, and the words say which
+   * (components/share/tagCopy).
+   */
+  async function run(
+    tag: { authorPubkey: string; slug: string } | { name: string; description?: string },
+    label: string,
+    polarity: 1 | -1,
+    vote = false,
+  ) {
     setOpen(false);
     setSearch("");
     try {
@@ -204,20 +244,18 @@ function TagNoteButton({
       // Up to three publishes and no atomicity. If the assertion didn't land we
       // must not claim it did — whatever did land is reusable, not a tagging.
       if (result.failedAt) {
-        toast({
-          title: "Couldn't finish tagging",
-          description: "Part of it went through. Try again in a moment.",
-          variant: "destructive",
-        });
+        toast(vote ? UNSAVED_VOTE : UNFINISHED_TAGGING);
         return;
       }
-      toast({
-        title: polarity === 1 ? `Tagged as "${label}"` : `Disagreed with "${label}"`,
-        description: polarity === 1 ? `Anyone can see this on the ${noun}.` : "Your agreement has been taken back.",
-      });
+      toast(vote ? voteToast(label, polarity === 1) : taggedToast(label, `Anyone can see this on the ${noun}`));
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
-      if (description) toast({ title: `Couldn't tag this ${noun}`, description, variant: "destructive" });
+      if (!description) return;
+      toast(
+        vote
+          ? { ...UNSAVED_VOTE, description }
+          : { title: `Couldn't tag this ${noun}`, description, variant: "destructive" },
+      );
     }
   }
 
@@ -226,8 +264,11 @@ function TagNoteButton({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        // Each opening starts from the whole list, not what was last typed.
-        if (!next) setSearch("");
+        if (!next) {
+          setPending(null);
+          // Each opening starts from the whole list, not what was last typed.
+          setSearch("");
+        }
       }}
     >
       <PopoverTrigger asChild>
@@ -242,100 +283,130 @@ function TagNoteButton({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
-        <Command shouldFilter filter={pickerTagScore}>
-          <CommandInput
-            placeholder={`What is this ${noun} about?`}
-            value={search}
-            onValueChange={setSearch}
-            data-testid="note-tag-search"
+        {pending ? (
+          <TagConfirmPanel
+            pending={pending.tag}
+            target={`this ${noun}`}
+            reach={`Anyone can see this on the ${noun}`}
+            known={offered.map((t) => ({ label: t.name, description: t.description }))}
+            testId="note-tag"
+            onCancel={() => setPending(null)}
+            onConfirm={(decision) => {
+              const { tag, coords } = pending;
+              setPending(null);
+              if (decision.kind === "new") {
+                void run({ name: decision.name, description: decision.description }, decision.name, 1);
+              } else if (decision.kind === "match") {
+                // The name they typed is a tag people use: add that one, by its coordinates.
+                const found = offered.find((t) => t.name === decision.label);
+                if (found) void run({ authorPubkey: found.authorPubkey, slug: found.slug }, found.name, 1);
+              } else if (coords && tag.kind === "existing") void run(coords, tag.label, 1);
+            }}
           />
-          <CommandList>
-            {loadingTags ? (
-              <div className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-loading">
-                Loading tags…
-              </div>
-            ) : (
-              !isNew && <CommandEmpty>Type to add your own.</CommandEmpty>
-            )}
+        ) : (
+          <Command shouldFilter filter={pickerTagScore}>
+            <CommandInput
+              placeholder={TAG_SEARCH_PLACEHOLDER}
+              value={search}
+              onValueChange={setSearch}
+              data-testid="note-tag-search"
+            />
+            <CommandList>
+              {loadingTags ? (
+                <div className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-loading">
+                  Loading tags…
+                </div>
+              ) : (
+                !isNew && <CommandEmpty>Type a name to create a new tag.</CommandEmpty>
+              )}
 
-            {/* Already on it — where you say whether it fits. One row
+              {/* Already on it — where you say whether it fits. One row
                 per tag with Agree and Disagree side by side (StanceRow), for
                 the reasons in StanceControl. */}
-            {onNote.length > 0 && (
-              <CommandGroup heading={`Already on this ${noun}`}>
-                {onNote.map((tag) => (
-                  <StanceRow
-                    key={tag.key}
-                    name={tag.name}
-                    stance={tag.myStance}
-                    pending={applyTag.isPending}
-                    onVote={(polarity) =>
-                      void run({ authorPubkey: tag.authorPubkey, slug: tag.slug }, tag.name, polarity)
-                    }
-                    testId="note-tag-stance"
-                  />
-                ))}
-              </CommandGroup>
-            )}
+              {onNote.length > 0 && (
+                <CommandGroup heading={`Already on this ${noun}`}>
+                  {onNote.map((tag) => (
+                    <StanceRow
+                      key={tag.key}
+                      name={tag.name}
+                      stance={tag.myStance}
+                      pending={applyTag.isPending}
+                      onVote={(polarity) =>
+                        void run({ authorPubkey: tag.authorPubkey, slug: tag.slug }, tag.name, polarity, true)
+                      }
+                      testId="note-tag-stance"
+                    />
+                  ))}
+                </CommandGroup>
+              )}
 
-            {forPosts.length > 0 && (
-              <CommandGroup heading="Tags people use">
-                {forPosts.map((t) => (
-                  <CommandItem
-                    key={t.key}
-                    value={t.name}
-                    onSelect={() => run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)}
-                    data-testid="note-tag-existing"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{t.name}</span>
-                      {t.description && (
-                        <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
-                      )}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
+              {forPosts.length > 0 && (
+                <CommandGroup heading="Tags people use">
+                  {forPosts.map((t) => (
+                    <CommandItem
+                      key={t.key}
+                      value={t.name}
+                      onSelect={() => confirmExisting(t)}
+                      className={SOFT_SELECTED_ROW}
+                      data-testid="note-tag-existing"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{t.name}</span>
+                        {t.description && (
+                          <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
 
-            {/* Tags mostly put on people. Still offered — the hint is never a
+              {/* Tags mostly put on people. Still offered — the hint is never a
                 gate — just not what someone tagging a post or an item usually wants. */}
-            {forPeople.length > 0 && (
-              <CommandGroup heading="Usually used on people">
-                {forPeople.map((t) => (
+              {forPeople.length > 0 && (
+                <CommandGroup heading="Usually used on people">
+                  {forPeople.map((t) => (
+                    <CommandItem
+                      key={t.key}
+                      value={t.name}
+                      onSelect={() => confirmExisting(t)}
+                      className={SOFT_SELECTED_ROW}
+                      data-testid="note-tag-for-people"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{t.name}</span>
+                        {t.description && (
+                          <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
+              {isNew && (
+                <CommandGroup heading="New tag">
+                  {/* Says what comes next: this opens the form, it publishes nothing. */}
                   <CommandItem
-                    key={t.key}
-                    value={t.name}
-                    onSelect={() => run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)}
-                    data-testid="note-tag-for-people"
+                    value={newTagValue(typed)}
+                    onSelect={() => setPending({ tag: { kind: "new", name: typed } })}
+                    className={SOFT_SELECTED_ROW}
+                    data-testid="note-tag-create"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate">{t.name}</span>
-                      {t.description && (
-                        <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
-                      )}
+                      <span className="block truncate">Create "{typed}"</span>
+                      <span className="block truncate text-[10px] text-slate-400">Add a description next</span>
                     </span>
+                    <ChevronRight className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
                   </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-            {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
-            {isNew && (
-              <CommandGroup heading="Add your own">
-                <CommandItem
-                  value={newTagValue(typed)}
-                  onSelect={() => run({ name: typed }, typed, 1)}
-                  data-testid="note-tag-create"
-                >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  {typed}
-                </CommandItem>
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        )}
       </PopoverContent>
     </Popover>
   );
