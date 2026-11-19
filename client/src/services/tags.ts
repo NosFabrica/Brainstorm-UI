@@ -365,8 +365,8 @@ async function getTrustSource(
 /**
  * Which observer's perspective a read runs from.
  *
- * `"house"` is the logged-out / Brainstorm view — resolved by asking the server
- * who it is (NIP-05 `_`), never hardcoded here. A hex pubkey is a specific
+ * `"house"` is the logged-out / Brainstorm view — the deployment's house observer
+ * (`resolveHouseObserver`: `VITE_HOUSE_OBSERVER`), never hardcoded here. A hex pubkey is a specific
  * observer, normally the signed-in viewer in personalized mode.
  */
 export type TrustObserver = "house" | string;

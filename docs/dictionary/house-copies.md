@@ -1,6 +1,6 @@
 # House copies to publish on staging
 
-Headers the house key (the server's NIP-05 `_`, `be7bf5de…` on staging) should hold so
+Headers the house key (`VITE_HOUSE_OBSERVER`, also the server's NIP-05 `_`; `be7bf5de…` on staging) should hold so
 the tier-three views (ADR 0007) and every tier-two surface agree. Each is published
 from its entry in Settings › Dictionary while signed in as the house ("Add to my own
 Dictionary", then "Edit"), or by whoever holds that key. Nothing here is signed by a
