@@ -194,7 +194,13 @@ export function EmbeddedTrackCard({
           <p
             className={`min-w-0 truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}
           >
-            {open ? (
+            {href && !onOpen ? (
+              // A track with a page of its own: a real link, so it opens in a new tab and copies
+              // like any other result. The row's tap plays; the link is not part of it.
+              <Link href={href} className="block truncate hover:underline" onClick={(e) => e.stopPropagation()}>
+                {title}
+              </Link>
+            ) : open ? (
               <button
                 type="button"
                 onClick={(e) => {

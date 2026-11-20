@@ -99,3 +99,35 @@ describe("fetchTagDetail — what the tag was made for", () => {
     expect((await tags.fetchTagDetail(VIEWER, "dancer", VIEWER)).tag.madeFor).not.toBe("posts");
   });
 });
+
+/**
+ * Your tags lists everything you have tagged. A post is named by its id; an
+ * article, a repo, a listing or a list's item by its address (#334), and those
+ * were being left out: the read looked for an id and skipped a tagging that
+ * had none, so a thing you tagged was on its own page and missing from yours.
+ */
+describe("fetchMyAssertions — things tagged by their address", () => {
+  it("lists a thing you tagged by its address beside a post you tagged by its id", async () => {
+    const tags = await import("./tags");
+    await tags.applyTagToEvent({ tag: { name: "Dance" }, target: { id: NOTE_ID } });
+    await tags.applyTagToEvent({ tag: { name: "Handmade" }, target: { address: LISTING } });
+
+    const mine = await tags.fetchMyAssertions(VIEWER);
+    expect(mine.map((m) => [m.name, m.targetKind, m.target]).sort()).toEqual(
+      [
+        ["Dance", "event", NOTE_ID],
+        ["Handmade", "event", LISTING],
+      ].sort(),
+    );
+  });
+
+  it("keeps two things you gave the same tag apart, one by id and one by address", async () => {
+    const tags = await import("./tags");
+    await tags.applyTagToEvent({ tag: { name: "Dance" }, target: { id: NOTE_ID } });
+    await tags.applyTagToEvent({ tag: { name: "Dance" }, target: { address: LISTING } });
+
+    const mine = await tags.fetchMyAssertions(VIEWER);
+    expect(mine.map((m) => m.target).sort()).toEqual([NOTE_ID, LISTING].sort());
+    expect(new Set(mine.map((m) => m.key)).size).toBe(1);
+  });
+});

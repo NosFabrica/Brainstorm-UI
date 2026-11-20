@@ -15,6 +15,7 @@ import {
   UNFINISHED_TAGGING,
   UNSAVED_VOTE,
   taggedToast,
+  unconfirmedToast,
   voteToast,
 } from "@/components/share/tagCopy";
 
@@ -169,6 +170,10 @@ export function TagPersonButton({
         toast(UNSAVED_VOTE);
         return;
       }
+      if (result.confirmed === false) {
+        toast(unconfirmedToast(tag.name, true));
+        return;
+      }
       toast(voteToast(tag.name, agreeing));
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
@@ -203,6 +208,8 @@ export function TagPersonButton({
         toast(UNFINISHED_TAGGING);
         return;
       }
+      // The answer showed at once; this takes it back when the relays don't have it after all.
+      if (result.confirmed === false) toast(unconfirmedToast(label));
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
       if (description) toast({ title: couldNotTag, description, variant: "destructive" });
@@ -230,6 +237,7 @@ export function TagPersonButton({
         toast(UNFINISHED_TAGGING);
         return;
       }
+      if (result.confirmed === false) toast(unconfirmedToast(name));
     } catch (error) {
       const description = signingProblem(error, "Check your connection and try again.");
       if (description) toast({ title: couldNotTag, description, variant: "destructive" });

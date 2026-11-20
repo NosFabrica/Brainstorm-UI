@@ -9,10 +9,32 @@ export type TagTarget = { id: string } | { address: string };
  * a tagging by id stops pointing at it; Trusted Lists of tagged items list
  * their members by coordinate too. Any other event is named by its id.
  */
+/** The event's coordinate when it is addressable, as its tags are read and written (#334). */
+export function tagAddressOf(event: {
+  id: string;
+  pubkey: string;
+  kind: number;
+  tags?: string[][];
+}): string | undefined {
+  const target = tagTargetOf(event);
+  return "address" in target ? target.address : undefined;
+}
+
 export function tagTargetOf(event: { id: string; pubkey: string; kind: number; tags?: string[][] }): TagTarget {
   if (event.kind >= 30000 && event.kind < 40000) {
     const d = event.tags?.find((t) => t[0] === "d")?.[1] ?? "";
     return { address: `${event.kind}:${event.pubkey}:${d}` };
   }
   return { id: event.id };
+}
+
+/**
+ * A target written as a coordinate (`<kind>:<pubkey>:<d>`), in parts; null for
+ * an event id, or anything malformed. A `d` may hold colons of its own.
+ */
+export function coordinateOf(target: string): { kind: number; pubkey: string; identifier: string } | null {
+  const [kind, pubkey, ...d] = target.split(":");
+  return /^\d+$/.test(kind ?? "") && pubkey && d.length
+    ? { kind: Number(kind), pubkey, identifier: d.join(":") }
+    : null;
 }

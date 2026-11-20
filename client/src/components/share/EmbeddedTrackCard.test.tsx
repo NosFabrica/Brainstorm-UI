@@ -89,6 +89,17 @@ describe("EmbeddedTrackCard — a tap on the row plays, like Spotify", () => {
     expect(toggleTrackMock).toHaveBeenCalledTimes(1);
   });
 
+  // The title was a button: it opened the track's page, and could not be opened in a new tab,
+  // copied, or found by anything that looks for links (2026-11-20).
+  it("the title of a track with a page of its own is a link to it, and tapping it does not play", () => {
+    toggleTrackMock.mockClear();
+    render(<EmbeddedTrackCard {...track} href="/e/nevent1track" flat />);
+    const title = screen.getByRole("link", { name: "Hand Me Down Heart" });
+    expect(title).toHaveAttribute("href", "/e/nevent1track");
+    fireEvent.click(title);
+    expect(toggleTrackMock).not.toHaveBeenCalled();
+  });
+
   it("a row with nothing to play still opens on tap", () => {
     toggleTrackMock.mockClear();
     const onOpen = vi.fn();
