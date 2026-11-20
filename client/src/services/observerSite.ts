@@ -13,7 +13,7 @@ import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { beats, requestNewestWithReach } from "@/lib/relayRequest";
-import { loadRelayList, outboxRelays } from "@/lib/relayRouting";
+import { dedupeRelays, loadRelayList, outboxRelays } from "@/lib/relayRouting";
 import { relayLimits } from "@/lib/relayLimits";
 import {
   BLOSSOM_SERVER_LIST_KIND,
@@ -254,13 +254,16 @@ export async function askObserverSite(pubkey: string, timeoutMs = 6_000): Promis
  * relays holds (each read to its end, and the store's copy if that is newer), and its
  * `editions.json` merged with the dated paths the manifest serves — or, when that file
  * can't be fetched, the entries those paths name. A reader with no site yet gets an
- * empty index; `reached` says whether "no site" was an answer or a silence.
+ * empty index; `reached` says whether "no site" was an answer or a silence: one of their
+ * write relays answered (any relay asked, when they list none). A fallback relay alone may
+ * hold a stale copy, and a rewrite built on it would drop the editions since (Amethyst's
+ * `ObserverFailure.READ`).
  */
 export async function loadObserverSite(
   pubkey: string,
   { timeoutMs = 6_000, signal }: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<ObserverSite> {
-  const relays = await siteRelays(pubkey);
+  const [relays, write] = await Promise.all([siteRelays(pubkey), writeRelays(pubkey)]);
   const [read, own] = await Promise.all([
     requestNewestWithReach(
       relays,
@@ -271,7 +274,9 @@ export async function loadObserverSite(
   ]);
   const held = eventStore.getReplaceable(OBSERVER_SITE_KIND, pubkey, OBSERVER_D) as NostrEvent | undefined;
   const site = held && beats(held, read.newest) ? held : read.newest;
-  const reached = read.reach.answered.length > 0;
+  const answered = dedupeRelays(read.reach.answered);
+  const counted = write.length ? dedupeRelays(write) : answered;
+  const reached = answered.some((url) => counted.includes(url));
   if (reached) siteReachedAt.set(pubkey, Date.now());
   const servers = siteServers(site, own.servers);
   const base = { servers, own: own.servers, relays, reached };

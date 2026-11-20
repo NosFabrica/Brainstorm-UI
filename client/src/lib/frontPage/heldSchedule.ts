@@ -16,13 +16,31 @@ export function holdSchedule(pubkey: string, createdAt: number, tags: TaskTags) 
   held.set(pubkey, { createdAt, tags });
 }
 
+/** When the newest schedule opened for `pubkey` was signed (seconds), or null when none has been. */
+export function heldScheduleAt(pubkey: string): number | null {
+  return held.get(pubkey)?.createdAt ?? null;
+}
+
 /** The newest schedule opened for `pubkey`, or null when none has been. */
 export function heldScheduleTask(pubkey: string): ScheduledTask | null {
   const known = held.get(pubkey);
   return known ? readTask(known.tags, pubkey) : null;
 }
 
-/** Forgets every account's schedule (tests, sign-out). */
+/** What else holds a decrypted schedule, or a choice read from one, and must forget it with these. */
+const forgetters = new Set<() => void>();
+
+/** `forget` runs whenever the held schedules are forgotten (sign-out). */
+export function onForgetSchedules(forget: () => void) {
+  forgetters.add(forget);
+}
+
+/**
+ * Forgets every account's schedule, and every read of one that registered with
+ * `onForgetSchedules` (the decrypted reads in `services/observerSchedule`, the print job's
+ * publishing choice): sign-out, so a shared device keeps none of them in memory.
+ */
 export function forgetHeldSchedules() {
   held.clear();
+  for (const forget of forgetters) forget();
 }

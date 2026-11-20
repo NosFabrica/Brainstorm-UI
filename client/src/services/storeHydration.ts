@@ -16,6 +16,7 @@ import { clearDmCache } from "@/lib/dm/cache";
 import { clearBlobCache } from "@/lib/blobCache";
 import { warmOwnAccount } from "@/services/ownAccountWarmup";
 import { forgetDmPrefs } from "@/lib/dm/prefs";
+import { forgetHeldSchedules } from "@/lib/frontPage/heldSchedule";
 
 let hydratedFor: string | null = null;
 
@@ -61,4 +62,7 @@ export function clearHydratedStore(): void {
   void clearDmCache().catch(() => undefined);
   // …and what this tab remembers of their prefs, whose rows sign-out just removed.
   forgetDmPrefs();
+  // The schedules this session decrypted (and the choices read from them): in memory only,
+  // but a shared device should not keep them past the session either.
+  forgetHeldSchedules();
 }

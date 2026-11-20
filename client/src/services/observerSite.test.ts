@@ -38,7 +38,8 @@ vi.mock("@/lib/relayRequest", async (orig) => ({
     return Promise.resolve({ newest: mocks.site, reach: { asked: ["wss://write.example"], answered: mocks.answered } });
   },
 }));
-vi.mock("@/lib/relayRouting", () => ({
+vi.mock("@/lib/relayRouting", async (orig) => ({
+  ...(await orig<object>()),
   outboxRelays: () => Promise.resolve(["wss://write.example"]),
   loadRelayList: (pubkey: string) =>
     Promise.resolve({ read: [], write: mocks.write[pubkey] ?? ["wss://write.example"] }),
@@ -323,6 +324,14 @@ describe("loadObserverSite", () => {
     };
     const site = await loadObserverSite(PK);
     expect(site.index.editions.map((e) => e.day)).toEqual(["2026-11-11"]);
+  });
+
+  it("counts only the reader's write relays as an answer, never the fallback floor alone", async () => {
+    // A floor relay that holds a stale copy answered; the write relays, which hold the newest, didn't.
+    mocks.answered = ["wss://floor.example/"];
+    expect((await loadObserverSite(PK)).reached).toBe(false);
+    mocks.answered = ["wss://write.example/"];
+    expect((await loadObserverSite(PK)).reached).toBe(true);
   });
 
   it("is empty for a reader with no site yet", async () => {

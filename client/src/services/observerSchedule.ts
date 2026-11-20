@@ -35,7 +35,7 @@ import {
   type TaskTags,
 } from "@/lib/scheduledTasks";
 import { decodePrivateTags } from "@/lib/agentKeys";
-import { holdSchedule } from "@/lib/frontPage/heldSchedule";
+import { holdSchedule, onForgetSchedules } from "@/lib/frontPage/heldSchedule";
 import {
   activeAccount,
   encryptFor,
@@ -68,6 +68,8 @@ export type ScheduleRead =
 const settled = new Map<string, ScheduleRead>();
 const pending = new Map<string, Promise<ScheduleRead>>();
 const MAX_HELD = 16;
+// Sign-out forgets them, with the held schedules (`clearHydratedStore`).
+onForgetSchedules(() => settled.clear());
 
 const majority = (n: number) => Math.floor(n / 2) + 1;
 
@@ -211,7 +213,14 @@ export function readSchedule(account: BrainstormAccount, event: NostrEvent): Pro
  * copy it made sure most relays hold). `retryable`: trying again may work (a relay or the
  * relay list didn't answer, too few took it); otherwise it won't until something changes.
  */
-export type ScheduleSave = PublishOutcome & { doc?: TaskTags; id?: string; createdAt?: number; retryable?: boolean };
+export type ScheduleSave = PublishOutcome & {
+  doc?: TaskTags;
+  id?: string;
+  createdAt?: number;
+  retryable?: boolean;
+  /** `existingOnly` and most write relays said there is no schedule: nothing was written. */
+  absent?: boolean;
+};
 
 /**
  * The user's NIP-65 write relays (all of them, nothing added), from a fresh read of their
@@ -251,15 +260,22 @@ function publishTo(relays: string[], event: NostrEvent, need: number) {
  * those that lack it). `claim` and `ran` are only ever carried over; a public `client` tag is the one
  * tag dropped. Edits run one after another, never two at once, each as the account active
  * when it was asked: another one active at its turn writes nothing.
+ *
+ * `existingOnly`: a change to a schedule the account has, never a reason to make one. With
+ * none on most write relays it succeeds as `absent`, asking the signer nothing (a choice the
+ * schedule only carries, like publishing, stays in this browser until there is one).
  */
-export function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Promise<ScheduleSave> {
+export function updateObserverSchedule(
+  change: (doc: TaskTags) => TaskTags,
+  { existingOnly = false }: { existingOnly?: boolean } = {},
+): Promise<ScheduleSave> {
   // One edit at a time, whoever asks (the card, the pickers): two edits read at once would
   // build on the same copy and sign the same `created_at`, and the relays would keep one.
   // Each waits for the one before it, so it reads (from the store, at least) what that one
   // wrote. A failed edit doesn't stop the next. Whose edit it is is fixed now: a switch while
   // it waits must not write this account's change into another's schedule.
   const asker = activeAccount()?.pubkey ?? null;
-  const run = editQueue.then(() => updateNow(change, asker));
+  const run = editQueue.then(() => updateNow(change, asker, existingOnly));
   editQueue = run.then(
     () => undefined,
     () => undefined,
@@ -270,7 +286,11 @@ export function updateObserverSchedule(change: (doc: TaskTags) => TaskTags): Pro
 /** The last edit asked for: the next one starts when it has settled. */
 let editQueue: Promise<void> = Promise.resolve();
 
-async function updateNow(change: (doc: TaskTags) => TaskTags, asker: string | null): Promise<ScheduleSave> {
+async function updateNow(
+  change: (doc: TaskTags) => TaskTags,
+  asker: string | null,
+  existingOnly: boolean,
+): Promise<ScheduleSave> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   if (account.pubkey !== asker) {
@@ -319,6 +339,8 @@ async function updateNow(change: (doc: TaskTags) => TaskTags, asker: string | nu
       if (read.status !== "ready")
         return { success: false, error: "Couldn't read your schedule, so nothing was changed." };
       doc = read.tags;
+    } else if (existingOnly) {
+      return { success: true, absent: true };
     } else {
       doc = emptyObserverSchedule();
     }

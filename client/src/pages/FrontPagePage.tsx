@@ -370,10 +370,15 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
 
   // Read by the print job when a paper is ready, not when Print was pressed: turning
   // publishing off while the paper is being written keeps that paper private.
+  // A choice the schedule didn't take holds here, but the reader's other devices don't know it.
+  const [publishSaveError, setPublishSaveError] = useState<string | null>(null);
   const choosePublish = (on: boolean) => {
     setPublish(on);
+    setPublishSaveError(null);
     if (!pubkey) return;
-    writePublish(pubkey, on);
+    void writePublish(pubkey, on).then((saved) => {
+      if (saved && !saved.success) setPublishSaveError(saved.error ?? "Couldn't save it to your schedule.");
+    });
     if (!on) declinePublish(pubkey);
   };
   const displayName = user?.displayName ?? "";
@@ -558,7 +563,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
       <SettingNote saving={setting.saving} error={setting.error} />
     </div>
   );
-  const publishSwitch = <PublishSwitch on={publish} onChange={choosePublish} />;
+  const publishSwitch = <PublishSwitch on={publish} onChange={choosePublish} saveError={publishSaveError} />;
   // Today's paper is the hint: it shows where Print does while there is one (the dialog).
   const printedHint = today && <PrintedTodayHint printedAt={today.printedAt} onOpen={() => setPrintOpen(false)} />;
   const observerLinks = pubkey && (site?.exists || publishState.state === "published") ? pubkey : null;
@@ -914,14 +919,34 @@ function PrintedTodayHint({ printedAt, onOpen }: { printedAt?: number; onOpen: (
 }
 
 /** Publish each clean paper to the reader's public Observer site; on unless turned off. */
-function PublishSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+function PublishSwitch({
+  on,
+  onChange,
+  saveError,
+}: {
+  on: boolean;
+  onChange: (on: boolean) => void;
+  /** The schedule didn't take the choice: it holds on this device only. */
+  saveError: string | null;
+}) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 pt-1 text-sm text-muted-foreground">
-      <span className="flex items-center gap-1.5">
-        <Globe className="h-3.5 w-3.5" /> Publish to my Observer
-      </span>
-      <Switch checked={on} onCheckedChange={onChange} data-testid="front-page-publish-switch" />
-    </label>
+    <div className="flex flex-col gap-1 pt-1">
+      <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Globe className="h-3.5 w-3.5" /> Publish to my Observer
+        </span>
+        <Switch checked={on} onCheckedChange={onChange} data-testid="front-page-publish-switch" />
+      </label>
+      {saveError && (
+        <p
+          className="text-xs text-amber-700 dark:text-amber-400"
+          role="status"
+          data-testid="front-page-publish-unsaved"
+        >
+          Saved on this device only, not for your other devices: {saveError}
+        </p>
+      )}
+    </div>
   );
 }
 

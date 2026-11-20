@@ -133,6 +133,31 @@ describe("no write without a read", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it("existingOnly: with no schedule on most write relays, nothing is made and no signer asked", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
+
+    const res = await service.updateObserverSchedule(
+      (d) => lib.withObserverPublishing(d, { publish: false, noticeSeen: false }),
+      {
+        existingOnly: true,
+      },
+    );
+
+    expect(res).toMatchObject({ success: true, absent: true });
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("sign-out forgets the schedules this session decrypted", async () => {
+    const event = scheduleEvent(amethystPrivate);
+    await service.readSchedule(account as never, event);
+    expect(service.heldSchedule(event.id)).toBeDefined();
+    const { forgetHeldSchedules, heldScheduleTask } = await import("@/lib/frontPage/heldSchedule");
+    forgetHeldSchedules();
+    expect(service.heldSchedule(event.id)).toBeUndefined();
+    expect(heldScheduleTask(event.pubkey)).toBeNull();
+  });
+
   it("writes nothing when only half of the relays answered", async () => {
     requestNewestWithReach.mockResolvedValue({
       newest: scheduleEvent(amethystPrivate),

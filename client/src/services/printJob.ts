@@ -3,11 +3,19 @@ import { providerName, type AgentKey } from "@/lib/agentKeys";
 import { accountKey, tabKey } from "@/lib/accountStorage";
 import { EditionClock, emptyContext } from "@/lib/frontPage/edition";
 import { utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
-import { observerPublishing, withObserverPublishing, type WritingEffort } from "@/lib/frontPage/observerSchedule";
-import { heldScheduleTask } from "@/lib/frontPage/heldSchedule";
+import {
+  SCHEDULE_D,
+  SCHEDULE_KIND,
+  observerPublishing,
+  withObserverPublishing,
+  type ObserverPublishing,
+  type WritingEffort,
+} from "@/lib/frontPage/observerSchedule";
+import { heldScheduleAt, heldScheduleTask, onForgetSchedules } from "@/lib/frontPage/heldSchedule";
+import { eventStore } from "@/lib/eventStore";
 import { readTask, type TaskTags } from "@/lib/scheduledTasks";
 import { activeAccount } from "@/accounts/signing";
-import { updateObserverSchedule } from "@/services/observerSchedule";
+import { updateObserverSchedule, type ScheduleSave } from "@/services/observerSchedule";
 import { reduceProgress, startProgress, type PrintEvent, type PrintProgress } from "@/lib/frontPage/printProgress";
 import type { ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
@@ -122,32 +130,92 @@ const publishKey = (pubkey: string) => accountKey("frontPage:publish", pubkey);
 const noticeKey = (pubkey: string) => accountKey("frontPage:observerNotice", pubkey);
 
 /**
- * "Publish to my Observer", one choice for every app and device of the account: the schedule's
- * `publish` param (`observerPublishing`) once this session has opened the schedule; until then
- * (none yet, or still locked) what this browser last knew, on unless it was turned off.
+ * The choice the reader made in this session, ahead of the schedule: set the moment they make
+ * it, so a write still out (a bunker waiting for approval) or one that failed never leaves the
+ * schedule's older answer in charge. It goes once its write lands, when the held schedule says
+ * the same; a later one from another device then decides again. Forgotten at sign-out.
  */
-export function readPublish(pubkey: string): boolean {
-  const task = heldScheduleTask(pubkey);
-  if (task) return observerPublishing(task).publish;
+const chosen = new Map<string, ObserverPublishing>();
+onForgetSchedules(() => chosen.clear());
+
+function localChoice(pubkey: string): ObserverPublishing {
   try {
-    return localStorage.getItem(publishKey(pubkey)) !== "off";
+    return {
+      publish: localStorage.getItem(publishKey(pubkey)) !== "off",
+      noticeSeen: localStorage.getItem(noticeKey(pubkey)) === "1",
+    };
   } catch {
-    return true;
+    return { publish: true, noticeSeen: false };
   }
 }
 
+/** The account's schedule, as far as this session can read it; null when it hasn't opened one. */
+function scheduleChoice(pubkey: string): ObserverPublishing | null {
+  const task = heldScheduleTask(pubkey);
+  return task ? observerPublishing(task) : null;
+}
+
 /**
- * Turns publishing on or off for every device: written into the schedule (turned back on, the
- * notice is asked again before the next publish), and remembered here for the moments before
- * the schedule is open.
+ * The store holds a schedule for the account newer than any this session opened (the prompt
+ * was dismissed, the key is locked, the bunker timed out): what it says of publishing is
+ * unknown, and another device may have turned it off.
  */
-export function writePublish(pubkey: string, on: boolean) {
+function scheduleUnread(pubkey: string): boolean {
+  const stored = eventStore.getReplaceable(SCHEDULE_KIND, pubkey, SCHEDULE_D);
+  if (!stored) return false;
+  const opened = heldScheduleAt(pubkey);
+  return opened === null || opened < stored.created_at;
+}
+
+/** What the reader is shown: this session's choice, else the schedule's, else this browser's. */
+function currentChoice(pubkey: string): ObserverPublishing {
+  return chosen.get(pubkey) ?? scheduleChoice(pubkey) ?? localChoice(pubkey);
+}
+
+/**
+ * "Publish to my Observer", one choice for every app and device of the account: what the
+ * reader chose in this session, else the schedule's `publish` param (`observerPublishing`)
+ * once this session has opened the schedule, else what this browser last knew, on unless it
+ * was turned off.
+ */
+export function readPublish(pubkey: string): boolean {
+  return currentChoice(pubkey).publish;
+}
+
+/**
+ * What happens to a paper once it is ready: `publish` it unasked only when every source this
+ * session knows says on (its own choice, the schedule, this browser) and the reader has agreed
+ * to a public site; `ask` when it is on but one of them says otherwise, hasn't been agreed to,
+ * or the account has a schedule this session couldn't open; `off` when publishing is off.
+ */
+export function publishDecision(pubkey: string): "publish" | "ask" | "off" {
+  const current = currentChoice(pubkey);
+  if (!current.publish) return "off";
+  const mine = chosen.get(pubkey);
+  const schedule = scheduleChoice(pubkey);
+  const everyOn =
+    (mine?.publish ?? true) && (schedule?.publish ?? true) && localChoice(pubkey).publish && !scheduleUnread(pubkey);
+  return everyOn && current.noticeSeen ? "publish" : "ask";
+}
+
+/**
+ * Turns publishing on or off for every device: in force here at once, written into the
+ * schedule (turned back on, the notice is asked again before the next publish), and
+ * remembered in this browser for the moments before the schedule is open. Answers what the
+ * schedule's write came to (null when none was tried), for the page to say a failure.
+ */
+export function writePublish(pubkey: string, on: boolean): Promise<ScheduleSave | null> {
   try {
     localStorage.setItem(publishKey(pubkey), on ? "on" : "off");
   } catch {
     // remembered for this visit only
   }
-  void saveChoice(pubkey, (tags) => {
+  const was = currentChoice(pubkey);
+  const choice = on
+    ? { publish: true, noticeSeen: was.publish && was.noticeSeen }
+    : { publish: false, noticeSeen: false };
+  chosen.set(pubkey, choice);
+  return saveChoice(pubkey, choice, (tags) => {
     const now = observerPublishing(readTask(tags, pubkey));
     return withObserverPublishing(
       tags,
@@ -157,21 +225,34 @@ export function writePublish(pubkey: string, on: boolean) {
 }
 
 /**
- * Writes a publishing change into the account's schedule, for every device. Only for the account
- * signed in now (the edit signs as it); a failure leaves what this browser remembers, and the
- * next change tries again.
+ * Writes a publishing change into the account's schedule, for every device: only into one it
+ * has (no schedule is made for it: this browser keeps the choice until there is one), and only
+ * for the account signed in now (the edit signs as it). A failure leaves this session's choice
+ * in force and what this browser remembers, and the next change tries again.
  */
-async function saveChoice(pubkey: string, change: (tags: TaskTags) => TaskTags) {
+async function saveChoice(
+  pubkey: string,
+  choice: ObserverPublishing,
+  change: (tags: TaskTags) => TaskTags,
+): Promise<ScheduleSave | null> {
   // The edit signs as whoever is signed in: never another account's choice into theirs.
-  if (activeAccount()?.pubkey !== pubkey) return;
+  if (activeAccount()?.pubkey !== pubkey) return null;
+  let saved: ScheduleSave;
   try {
-    await updateObserverSchedule((tags) => {
-      const next = change(tags);
-      return sameTags(next, tags) ? tags : next;
-    });
+    saved = await updateObserverSchedule(
+      (tags) => {
+        const next = change(tags);
+        return sameTags(next, tags) ? tags : next;
+      },
+      { existingOnly: true },
+    );
   } catch {
-    // the choice stays in this browser
+    saved = { success: false, error: "Couldn't save the choice to your schedule." };
   }
+  // Landed in the schedule (or there is none): the held copy says the same, so it decides
+  // from here, unless a newer choice was made meanwhile.
+  if (saved.success && !saved.absent && chosen.get(pubkey) === choice) chosen.delete(pubkey);
+  return saved;
 }
 
 function sameTags(a: TaskTags, b: TaskTags): boolean {
@@ -192,23 +273,20 @@ export function acceptObserverNotice(pubkey: string) {
 }
 
 function noticeSeen(pubkey: string): boolean {
-  const task = heldScheduleTask(pubkey);
-  if (task) return observerPublishing(task).noticeSeen;
-  try {
-    return localStorage.getItem(noticeKey(pubkey)) === "1";
-  } catch {
-    return false;
-  }
+  return currentChoice(pubkey).noticeSeen;
 }
 
 /** The reader said yes to a public site: `["param", "publish", "yes"]` for every device, and remembered here. */
 function markNoticeSeen(pubkey: string) {
   try {
     localStorage.setItem(noticeKey(pubkey), "1");
+    localStorage.setItem(publishKey(pubkey), "on");
   } catch {
     // shown again next time
   }
-  void saveChoice(pubkey, (tags) => withObserverPublishing(tags, { publish: true, noticeSeen: true }));
+  const choice = { publish: true, noticeSeen: true };
+  chosen.set(pubkey, choice);
+  void saveChoice(pubkey, choice, (tags) => withObserverPublishing(tags, choice));
 }
 
 // --- the store -----------------------------------------------------------------------
@@ -355,7 +433,10 @@ async function runPrint(id: number, controller: AbortController, opts: StartPrin
       // Only a page the check passed gets here: that is the only one published. Whether to
       // is read now, when the paper is ready, not when Print was pressed: turning publishing
       // off while the paper is written keeps that paper private.
-      if (readPublish(pubkey)) offerPublish(pubkey, printed, displayName);
+      // Unasked only when every source says on; asked when one doesn't know (a schedule
+      // this session couldn't open) or disagrees.
+      const decision = publishDecision(pubkey);
+      if (decision !== "off") offerPublish(pubkey, printed, displayName, { ask: decision === "ask" });
     }
   } catch (err) {
     if (controller.signal.aborted) return;
@@ -403,7 +484,12 @@ export function settlePending(pubkey: string) {
  * for a paper this tab kept from before a reload that never reached the site: with no job
  * yet, one starts that holds it (no print runs).
  */
-export function offerPublish(pubkey: string, paper: Printed, displayName: string) {
+export function offerPublish(
+  pubkey: string,
+  paper: Printed,
+  displayName: string,
+  { ask = false }: { ask?: boolean } = {},
+) {
   if (!job) {
     job = {
       id: nextId++,
@@ -418,7 +504,7 @@ export function offerPublish(pubkey: string, paper: Printed, displayName: string
     };
   }
   if (job.pubkey !== pubkey || job.publish.state === "publishing") return;
-  if (noticeSeen(pubkey)) void publishPaper(pubkey, paper, displayName);
+  if (!ask && noticeSeen(pubkey)) void publishPaper(pubkey, paper, displayName);
   else {
     log(job.id, { type: "publish", state: "confirm" });
     update(job.id, (j) => ({ ...j, publish: { state: "confirm", paper } }));
@@ -491,6 +577,7 @@ export function resetPrintJob() {
   publishAbort?.abort();
   publishAbort = null;
   job = null;
+  chosen.clear();
   if (notifyTimer !== null) clearTimeout(notifyTimer);
   notifyTimer = null;
   notifyNow();

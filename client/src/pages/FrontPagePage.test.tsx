@@ -32,6 +32,8 @@ const state = vi.hoisted(() => ({
   runnerSiteFor: vi.fn(),
   /** The runner this device remembers each reader's schedule naming (lib/eventCache). */
   rememberedRunner: {} as Record<string, string | null>,
+  /** Who `activeAccount()` names: the schedule's edits sign as them. None unless a test says. */
+  signedIn: undefined as { pubkey: string } | undefined,
 }));
 
 vi.mock("@/lib/eventCache", async (importOriginal) => ({
@@ -45,6 +47,10 @@ vi.mock("@/lib/eventCache", async (importOriginal) => ({
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/Footer", () => ({ Footer: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
+vi.mock("@/accounts/signing", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  activeAccount: () => state.signedIn,
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => state.user,
 }));
@@ -719,6 +725,19 @@ describe("FrontPagePage", () => {
     expect(screen.queryByTestId("front-page-observer-notice")).toBeNull();
     expect(state.publish).not.toHaveBeenCalled();
     expect(localStorage.getItem(`frontPage:observerNotice:${"a".repeat(64)}`)).toBeNull();
+  });
+
+  it("says when the schedule didn't take a publishing change, which still holds here", async () => {
+    state.updateSchedule.mockResolvedValue({ success: false, error: "None of your write relays took the change." });
+    state.signedIn = { pubkey: "a".repeat(64) };
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("front-page-publish-switch"));
+    expect(await screen.findByTestId("front-page-publish-unsaved")).toHaveTextContent(
+      "None of your write relays took the change.",
+    );
+    expect(screen.getByTestId("front-page-publish-switch")).toHaveAttribute("data-state", "unchecked");
+    state.signedIn = undefined;
   });
 
   it("turning publishing off while the paper is written keeps that paper private", async () => {
