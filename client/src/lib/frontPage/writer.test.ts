@@ -13,16 +13,32 @@ import {
   userMessage,
 } from "./writer";
 import brief from "./editorial.md?raw";
-import houseCss from "./house.css?raw";
+import { createHash } from "node:crypto";
+import { HOUSE_CSS, HOUSE_CSS_FOR_WRITER, houseCssForWriter } from "./plan";
 
 const openRouter = { key: "sk-or-v1-x", url: "https://openrouter.ai/api/v1" };
 const anthropic = { key: "sk-ant-x", url: "https://api.anthropic.com/v1" };
 
 describe("the prompt", () => {
+  it("carries the stylesheet's rules and layout list, not its maintainer notes, byte for byte as Amethyst does", () => {
+    expect(HOUSE_CSS_FOR_WRITER).toBe(houseCssForWriter(HOUSE_CSS));
+    expect(HOUSE_CSS_FOR_WRITER.length).toBeLessThan((HOUSE_CSS.length * 3) / 4);
+    expect(HOUSE_CSS_FOR_WRITER).toMatch(/color-scheme: light/);
+    expect(HOUSE_CSS_FOR_WRITER).toMatch(/\.agate \{/);
+    expect(HOUSE_CSS_FOR_WRITER).toMatch(/LAYOUTS THE MARKUP CAN USE/);
+    expect(HOUSE_CSS_FOR_WRITER).toMatch(/figure\.whole/);
+    expect(HOUSE_CSS_FOR_WRITER).not.toMatch(/THE FOLIO GOES ON TOP/);
+    expect(HOUSE_CSS_FOR_WRITER).not.toMatch(/\n\n/);
+    // Amethyst's `HOUSE_CSS_FOR_WRITER` (commons/frontpage/HouseCss.kt) is these bytes: change both together.
+    expect(createHash("sha256").update(HOUSE_CSS_FOR_WRITER, "utf8").digest("hex")).toBe(
+      "b5ba4b049c5c023289ed2bdc33bc0dbf330ebce5982f91e2414fbdc81bc59b7a",
+    );
+  });
+
   it("is the brief, then the light-only house stylesheet for reference, as Amethyst sends it", () => {
     const prompt = systemPrompt();
     expect(prompt).toBe(
-      `\n${brief}\n\n## The house stylesheet\n\nFor reference: the app puts this into your page's \`<style id="house">\`. Do not copy it.\n\n\`\`\`css\n\n${houseCss}\n\`\`\``,
+      `\n${brief}\n\n## The house stylesheet\n\nFor reference: the app puts this into your page's \`<style id="house">\`. Do not copy it.\n\n\`\`\`css\n${HOUSE_CSS_FOR_WRITER}\n\`\`\``,
     );
     expect(prompt).not.toMatch(/Corrections for this harness/);
     expect(prompt).toMatch(/You are the editor of a one-reader daily newspaper/);

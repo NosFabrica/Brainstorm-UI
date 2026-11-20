@@ -20,6 +20,29 @@ import houseCss from "./house.css?raw";
  */
 export const HOUSE_CSS = `\n${houseCss}`;
 
+const LAYOUTS_MARKER = "LAYOUTS THE MARKUP CAN USE";
+
+/**
+ * The house stylesheet as the writer reads it in its prompt: every rule, and the list of layouts
+ * it can use, without the notes kept for the people who edit it. Every byte of the prompt is paid
+ * for on every print, by the reader's own key; the notes are about a third of the sheet.
+ * Amethyst's `houseCssForWriter`, line for line, so the two apps send the same prompt.
+ */
+export function houseCssForWriter(css: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => {
+      const at = comment.indexOf(LAYOUTS_MARKER);
+      return at < 0 ? "" : "/* " + comment.slice(at).trimEnd();
+    })
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .join("\n");
+}
+
+/** [houseCssForWriter] of the house stylesheet, once. */
+export const HOUSE_CSS_FOR_WRITER = houseCssForWriter(HOUSE_CSS);
+
 /** At most this many posts are asked for in full. */
 export const FULL_MAX_POSTS = 40;
 

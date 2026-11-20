@@ -35,6 +35,7 @@ import {
   type TaskTags,
 } from "@/lib/scheduledTasks";
 import { decodePrivateTags } from "@/lib/agentKeys";
+import { holdSchedule } from "@/lib/frontPage/heldSchedule";
 import {
   activeAccount,
   encryptFor,
@@ -192,6 +193,8 @@ export function readSchedule(account: BrainstormAccount, event: NostrEvent): Pro
     (result) => {
       pending.delete(event.id);
       if (result.status !== "failed") remember(event.id, result);
+      // What the print job reads the account's shared choices from (publishing).
+      if (result.status === "ready") holdSchedule(event.pubkey, event.created_at, result.tags);
       return result;
     },
     (error) => {
@@ -396,6 +399,7 @@ async function updateNow(change: (doc: TaskTags) => TaskTags, asker: string | nu
       };
     }
     eventStore.add(signed);
+    holdSchedule(account.pubkey, signed.created_at, next);
     return {
       success: true,
       relay: accepted[0],

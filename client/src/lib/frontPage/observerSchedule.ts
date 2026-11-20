@@ -178,8 +178,43 @@ export function withObserverEffort(tags: TaskTags, effort: WritingEffort): TaskT
   return effort === "deep" ? setParam(tags, EFFORT_PARAM, ["deep"]) : removeParam(tags, EFFORT_PARAM);
 }
 
+/**
+ * Publishing to the reader's public Observer site, one choice for every app and device of the
+ * account (Amethyst's `FrontPageParams.PUBLISH`): absent is on and not yet confirmed (the notice
+ * is asked before the first publish), `yes` is on and confirmed, `no` (or any other value) is off.
+ */
+export const PUBLISH_PARAM = "publish";
+
+export interface ObserverPublishing {
+  publish: boolean;
+  /** The reader said yes to a public site: no notice before the next publish. */
+  noticeSeen: boolean;
+}
+
+/** The schedule's publishing choice; with no schedule, the default (on, not yet confirmed). */
+export function observerPublishing(task: ScheduledTask | null | undefined): ObserverPublishing {
+  const values = task ? paramValues(task, PUBLISH_PARAM) : null;
+  if (!values) return { publish: true, noticeSeen: false };
+  return values[0]?.trim().toLowerCase() === "yes"
+    ? { publish: true, noticeSeen: true }
+    : { publish: false, noticeSeen: false };
+}
+
+/** Publishing as `choice` says: off writes `no`, confirmed writes `yes`, on but unconfirmed removes the param. */
+export function withObserverPublishing(tags: TaskTags, choice: ObserverPublishing): TaskTags {
+  if (!choice.publish) return setParam(tags, PUBLISH_PARAM, ["no"]);
+  return choice.noticeSeen ? setParam(tags, PUBLISH_PARAM, ["yes"]) : removeParam(tags, PUBLISH_PARAM);
+}
+
+/**
+ * Where the paper's weather is for (Amethyst's `FrontPageParams.PLACE`): a name, a latitude and
+ * a longitude to 0.01°, then `us` (°F) or `metric`. Amethyst draws the forecast over the copy it
+ * shows; Brainstorm shows no weather, so it only keeps the param, and prints as before.
+ */
+export const PLACE_PARAM = "place";
+
 /** The params this code understands (quartz `ObserverParams.KNOWN`); `size` isn't defined yet. */
-export const KNOWN_PARAMS: readonly string[] = [MODEL_PARAM, KEY_PARAM, EFFORT_PARAM];
+export const KNOWN_PARAMS: readonly string[] = [MODEL_PARAM, KEY_PARAM, EFFORT_PARAM, PUBLISH_PARAM, PLACE_PARAM];
 
 /** The names of the schedule's params this code doesn't understand, in order, each once. */
 export function unknownObserverParams(task: ScheduledTask): string[] {

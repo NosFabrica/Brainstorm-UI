@@ -3,7 +3,11 @@ import { providerName, type AgentKey } from "@/lib/agentKeys";
 import { accountKey, tabKey } from "@/lib/accountStorage";
 import { EditionClock, emptyContext } from "@/lib/frontPage/edition";
 import { utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
-import type { WritingEffort } from "@/lib/frontPage/observerSchedule";
+import { observerPublishing, withObserverPublishing, type WritingEffort } from "@/lib/frontPage/observerSchedule";
+import { heldScheduleTask } from "@/lib/frontPage/heldSchedule";
+import { readTask, type TaskTags } from "@/lib/scheduledTasks";
+import { activeAccount } from "@/accounts/signing";
+import { updateObserverSchedule } from "@/services/observerSchedule";
 import { reduceProgress, startProgress, type PrintEvent, type PrintProgress } from "@/lib/frontPage/printProgress";
 import type { ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
@@ -117,8 +121,14 @@ function writeLast(pubkey: string, page: Printed | null) {
 const publishKey = (pubkey: string) => accountKey("frontPage:publish", pubkey);
 const noticeKey = (pubkey: string) => accountKey("frontPage:observerNotice", pubkey);
 
-/** "Publish to my Observer": on unless this account turned it off. */
+/**
+ * "Publish to my Observer", one choice for every app and device of the account: the schedule's
+ * `publish` param (`observerPublishing`) once this session has opened the schedule; until then
+ * (none yet, or still locked) what this browser last knew, on unless it was turned off.
+ */
 export function readPublish(pubkey: string): boolean {
+  const task = heldScheduleTask(pubkey);
+  if (task) return observerPublishing(task).publish;
   try {
     return localStorage.getItem(publishKey(pubkey)) !== "off";
   } catch {
@@ -126,12 +136,46 @@ export function readPublish(pubkey: string): boolean {
   }
 }
 
+/**
+ * Turns publishing on or off for every device: written into the schedule (turned back on, the
+ * notice is asked again before the next publish), and remembered here for the moments before
+ * the schedule is open.
+ */
 export function writePublish(pubkey: string, on: boolean) {
   try {
     localStorage.setItem(publishKey(pubkey), on ? "on" : "off");
   } catch {
     // remembered for this visit only
   }
+  void saveChoice(pubkey, (tags) => {
+    const now = observerPublishing(readTask(tags, pubkey));
+    return withObserverPublishing(
+      tags,
+      on ? { publish: true, noticeSeen: now.publish && now.noticeSeen } : { publish: false, noticeSeen: false },
+    );
+  });
+}
+
+/**
+ * Writes a publishing change into the account's schedule, for every device. Only for the account
+ * signed in now (the edit signs as it); a failure leaves what this browser remembers, and the
+ * next change tries again.
+ */
+async function saveChoice(pubkey: string, change: (tags: TaskTags) => TaskTags) {
+  // The edit signs as whoever is signed in: never another account's choice into theirs.
+  if (activeAccount()?.pubkey !== pubkey) return;
+  try {
+    await updateObserverSchedule((tags) => {
+      const next = change(tags);
+      return sameTags(next, tags) ? tags : next;
+    });
+  } catch {
+    // the choice stays in this browser
+  }
+}
+
+function sameTags(a: TaskTags, b: TaskTags): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /**
@@ -148,6 +192,8 @@ export function acceptObserverNotice(pubkey: string) {
 }
 
 function noticeSeen(pubkey: string): boolean {
+  const task = heldScheduleTask(pubkey);
+  if (task) return observerPublishing(task).noticeSeen;
   try {
     return localStorage.getItem(noticeKey(pubkey)) === "1";
   } catch {
@@ -155,12 +201,14 @@ function noticeSeen(pubkey: string): boolean {
   }
 }
 
+/** The reader said yes to a public site: `["param", "publish", "yes"]` for every device, and remembered here. */
 function markNoticeSeen(pubkey: string) {
   try {
     localStorage.setItem(noticeKey(pubkey), "1");
   } catch {
     // shown again next time
   }
+  void saveChoice(pubkey, (tags) => withObserverPublishing(tags, { publish: true, noticeSeen: true }));
 }
 
 // --- the store -----------------------------------------------------------------------

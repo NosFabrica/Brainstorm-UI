@@ -10,7 +10,9 @@ import {
   keyParamValues,
   lastPrinted,
   observerUnderstands,
+  observerPublishing,
   unknownObserverParams,
+  withObserverPublishing,
   missedOnSites,
   observerKeyChoice,
   observerModel,
@@ -183,6 +185,43 @@ describe("the Observer's settings, as params", () => {
     // Remembered for another endpoint than the one the schedule prints with: nothing.
     const anthropic = withObserverKey(emptyObserverSchedule(), keys[2]);
     expect(withRememberedModel(anthropic, keys, remembered)).toBe(anthropic);
+  });
+});
+
+describe("publishing and the weather's place, as params (Amethyst's `publish` and `place`)", () => {
+  const base: TaskTags = { public: [], private: [["task", "observer"]] };
+  const t = (tags: TaskTags) => readTask(tags);
+
+  it("no param is on, not yet confirmed; `yes` confirmed; `no` or anything else off", () => {
+    expect(observerPublishing(t(base))).toEqual({ publish: true, noticeSeen: false });
+    expect(observerPublishing(null)).toEqual({ publish: true, noticeSeen: false });
+    expect(observerPublishing(t(setParam(base, "publish", ["yes"])))).toEqual({ publish: true, noticeSeen: true });
+    expect(observerPublishing(t(setParam(base, "publish", ["no"])))).toEqual({ publish: false, noticeSeen: false });
+    expect(observerPublishing(t(setParam(base, "publish", ["maybe"])))).toEqual({ publish: false, noticeSeen: false });
+  });
+
+  it("round-trips: off writes `no`, confirmed `yes`, back on removes it (the notice is asked again)", () => {
+    const yes = withObserverPublishing(base, { publish: true, noticeSeen: true });
+    expect(yes.private).toContainEqual(["param", "publish", "yes"]);
+    const no = withObserverPublishing(yes, { publish: false, noticeSeen: false });
+    expect(no.private).toContainEqual(["param", "publish", "no"]);
+    const again = withObserverPublishing(no, { publish: true, noticeSeen: false });
+    expect(again.private.some((x) => x[0] === "param" && x[1] === "publish")).toBe(false);
+  });
+
+  it("both are understood, so a schedule Amethyst wrote them into is still one this app runs with", () => {
+    const both = setParam(setParam(base, "publish", ["no"]), "place", ["Lisboa, Portugal", "38.72", "-9.13", "metric"]);
+    expect(unknownObserverParams(t(both))).toEqual([]);
+    expect(observerUnderstands(t(both))).toBe(true);
+    // An edit here keeps the place, which Brainstorm doesn't use.
+    expect(withObserverPublishing(both, { publish: true, noticeSeen: true }).private).toContainEqual([
+      "param",
+      "place",
+      "Lisboa, Portugal",
+      "38.72",
+      "-9.13",
+      "metric",
+    ]);
   });
 });
 

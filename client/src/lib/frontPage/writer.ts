@@ -14,7 +14,7 @@ import type { WritingEffort } from "./observerSchedule";
 import type { Corpus } from "./corpus";
 import { MASTHEAD as HOUSE_MASTHEAD, emptyContext, longDay, type EditionContext } from "./edition";
 import { BRAINSTORM_LINKS, linksLine } from "./links";
-import { FULL_BLOCK_CHARS, HOUSE_CSS, PLAN_MAX_TOKENS, PLAN_OUTPUT_TOKENS, WRITE_INSTRUCTION } from "./plan";
+import { FULL_BLOCK_CHARS, HOUSE_CSS_FOR_WRITER, PLAN_MAX_TOKENS, PLAN_OUTPUT_TOKENS, WRITE_INSTRUCTION } from "./plan";
 import type { Violation } from "./validate";
 import brief from "./editorial.md?raw";
 
@@ -24,11 +24,14 @@ export const MASTHEAD = { name: HOUSE_MASTHEAD };
 /**
  * The system message, the same in every call of a print (the plan, the page, each repair),
  * so a provider that caches a prefix reads it once: the brief, then the house stylesheet for
- * reference. The page carries an empty `<style id="house">` that `insertHouseCss` fills. The
- * leading newline matches Amethyst's constant, so the two apps send the same bytes.
+ * reference, without its maintainer notes (`HOUSE_CSS_FOR_WRITER`). The page carries an empty
+ * `<style id="house">` that `insertHouseCss` fills with the whole sheet. The leading newline
+ * matches Amethyst's constant, so the two apps send the same bytes. Built once.
  */
+const SYSTEM_PROMPT = `\n${brief}\n\n## The house stylesheet\n\nFor reference: the app puts this into your page's \`<style id="house">\`. Do not copy it.\n\n\`\`\`css\n${HOUSE_CSS_FOR_WRITER}\n\`\`\``;
+
 export function systemPrompt(): string {
-  return `\n${brief}\n\n## The house stylesheet\n\nFor reference: the app puts this into your page's \`<style id="house">\`. Do not copy it.\n\n\`\`\`css\n${HOUSE_CSS}\n\`\`\``;
+  return SYSTEM_PROMPT;
 }
 
 /** The size of the day, as the dateline prints it: events read, the voices among them, and the events kept in the digest. */
