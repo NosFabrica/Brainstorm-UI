@@ -5,15 +5,11 @@ import { fetchProfileMap, refreshProfileEvent } from "@/services/nostr";
 import { profileContentOf } from "@/lib/profileContent";
 import { eventStore } from "@/lib/eventStore";
 import { __resetAsks, claim, inFlightFor, isDue, track } from "@/lib/askOnce";
+import { PROFILE_ASK_WINDOW, profileAskKey } from "@/lib/profileAsk";
 import { newerEvent, useHeldReplaceable, useHeldReplaceables } from "@/hooks/useHeldEvents";
 
-/**
- * How long one ask for a person's profile covers every hook that shows them:
- * 10–15 minutes, picked per ask so a page of hundreds asked together doesn't
- * come due together.
- */
-const ASK_WINDOW = { minMs: 10 * 60_000, spreadMs: 5 * 60_000 };
-const askKey = (pubkey: string) => `profile:${pubkey}`;
+const ASK_WINDOW = PROFILE_ASK_WINDOW;
+const askKey = profileAskKey;
 
 /**
  * The people here due an ask, claimed. Only an ask that FOUND something covers

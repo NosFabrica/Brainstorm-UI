@@ -1,0 +1,9 @@
+{
+  "name": "Sats Go Brrr Token Emporium",
+  "description": "Free-range, artisanal tokens hand-routed by four caffeinated hamsters on a Postgres wheel. Pay in sats, receive wisdom. Hallucinations included at no extra charge.",
+  "version": "0.5.0+g10f0618",
+  "npub": "npub1yyf9vpptgnvp8r3l5x20x8ts9s9dvlttykycfktur667w5a4mnhqyp6ld7",
+  "mints": ["https://mint.minibits.cash/Bitcoin", "https://mint.cubabitcoin.org", "https://mint.mountainlake.io"],
+  "http_url": "https://routstr.nostrnative.com",
+  "onion_url": ""
+}

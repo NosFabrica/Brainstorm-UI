@@ -135,10 +135,14 @@ export const SIGNED_KINDS = [
   10002, // relay list
   10040, // NIP-85 provider declaration
   10050, // NIP-17 inbox relays for private messages
+  10063, // NIP-B7 Blossom server list
+  12000, // NIP-FA AI keys: saving one, or a key bought from Routstr
   22242, // Brainstorm login challenge
   24242, // Blossom upload auth
   27235, // NIP-98 HTTP auth
   30078, // NIP-78 app data
+  34817, // NIP-FB scheduled task (the Observer's morning paper)
+  35128, // NIP-5A site manifest: the reader's Observer site
 ];
 
 /**

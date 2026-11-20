@@ -5,13 +5,21 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
+import type { BrainstormAccount } from "@/accounts/metadata";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import { eventStore } from "@/lib/eventStore";
 import { BLOSSOM_SERVER_LIST_KIND, blossomServerTags } from "@/lib/blossomServers";
 import { publishToRelays } from "@/services/nostr";
 
-export async function nostrAuthHeader(template: { kind: number; tags: string[][]; content: string }): Promise<string> {
-  const account = activeAccount();
+/**
+ * A BUD-11 `Authorization` header, signed by `account`, else by the Active Account. A flow
+ * that outlives a moment (publishing the Observer) passes the account it started for: an
+ * account switched in meanwhile must never sign for the other one's files.
+ */
+export async function nostrAuthHeader(
+  template: { kind: number; tags: string[][]; content: string },
+  account: BrainstormAccount | undefined = activeAccount(),
+): Promise<string> {
   if (!account) throw new Error("Sign in to upload a file.");
   const signed = await signAs(account, template);
   return `Nostr ${btoa(JSON.stringify(signed))}`;

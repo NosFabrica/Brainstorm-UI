@@ -22,6 +22,14 @@
  *   relay round trip. Theirs ONLY: other people's arrive in the store too (a
  *   profile's "muted by" reads dozens), and a mute list can run to thousands
  *   of entries — they would crowd the profiles and routing out of the cache.
+ * - **The signed-in account's Blossom servers (kind 10063) and Observer site
+ *   (kind 35128, `d=observer`).** So the front page lists the reader's earlier
+ *   papers, and knows where to fetch them, on the first render instead of
+ *   after a relay read. Theirs ONLY, like the mute list: other people's are
+ *   unbounded and nothing here waits on them. The one exception is the site
+ *   their runner prints for them (NIP-FB: their Brainstorm Assistant's own
+ *   kind 35128, `["p", reader]`): one row, by the runner their own signed
+ *   schedule last named (`rememberObserverRunner`), tagging them.
  *
  * What may NOT be kept: kind 30078. It is per-account data encrypted to self
  * and scoped by an `authors` filter alone, so persisting it would carry one
@@ -67,12 +75,100 @@ const WRITE_BATCH_MS = 2000;
 /** Bounded, so it cannot grow until the browser evicts the lot. */
 export const MAX_CACHED = 2000;
 
+/** NIP-B7 Blossom server list. */
+const BLOSSOM_SERVER_LIST_KIND = 10063;
+/** The Observer site's manifest and its one `d` — restated, as RELAY_LIST_KIND is, to keep this module a leaf. */
+const OBSERVER_SITE_KIND = 35128;
+const OBSERVER_D = "observer";
+
 /** Kinds worth a disk read. Everything else is unbounded or nobody waits on it. */
-export const CACHED_KINDS = [0, 3, 10000, 10002, 10040, 10050];
+export const CACHED_KINDS = [0, 3, 10000, 10002, 10040, 10050, BLOSSOM_SERVER_LIST_KIND, OBSERVER_SITE_KIND];
 const CACHED = new Set(CACHED_KINDS);
 
 /** Cached for the account being hydrated only — see the module comment. */
-const OWN_ONLY = new Set([10000]);
+const OWN_ONLY = new Set([10000, BLOSSOM_SERVER_LIST_KIND, OBSERVER_SITE_KIND]);
+
+/** The one `d` kept for an addressable kind. A replaceable kind's `d`, if it has one, means nothing. */
+const KEPT_D: Record<number, string> = { [OBSERVER_SITE_KIND]: OBSERVER_D };
+
+const dOf = (event: NostrEvent) => event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
+
+/** Whether this is the one address kept of its kind — always, for a replaceable kind. */
+const keptAddress = (event: NostrEvent) => !(event.kind in KEPT_D) || KEPT_D[event.kind] === dOf(event);
+
+/** Whether this event belongs on the device at all — kind, whose, and which address. */
+function keepable(event: NostrEvent): boolean {
+  if (!CACHED.has(event.kind)) return false;
+  if (OWN_ONLY.has(event.kind) && event.pubkey !== hydratingFor && !isRunnerSite(event)) return false;
+  return keptAddress(event);
+}
+
+/** Where the runner each reader's schedule names is remembered (lib/accountStorage). */
+const OBSERVER_RUNNER_NS = "brainstorm_observer_runner";
+const HEX_KEY = /^[0-9a-f]{64}$/;
+/** This session's reads of it: `keepable` runs on every store insert. */
+const runners = new Map<string, string | null>();
+
+/**
+ * The runner `reader`'s own signed schedule last named (NIP-FB, Runner), as this device
+ * remembers it — whose Observer site for them is kept here, and put in the store at boot
+ * so their paper is on the first render. Null when none is remembered.
+ */
+export function rememberedObserverRunner(reader: string): string | null {
+  if (runners.has(reader)) return runners.get(reader)!;
+  let runner: string | null = null;
+  try {
+    const raw = localStorage.getItem(`${OBSERVER_RUNNER_NS}:${reader}`);
+    runner = raw && HEX_KEY.test(raw) && raw !== reader ? raw : null;
+  } catch {
+    /* no storage: nothing remembered */
+  }
+  runners.set(reader, runner);
+  return runner;
+}
+
+/**
+ * Remember the runner `reader`'s own signed schedule names, or (null) that it names none.
+ * Only ever from that schedule: a key a site names for itself is never trusted here.
+ */
+/** Every reader's remembered runner, on this device: sign-out, with the rest of the cache. */
+function forgetRememberedRunners(): void {
+  try {
+    const prefix = `${OBSERVER_RUNNER_NS}:`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    /* no storage: nothing was remembered there */
+  }
+}
+
+export function rememberObserverRunner(reader: string, runner: string | null): void {
+  const next = runner && HEX_KEY.test(runner) && runner !== reader ? runner : null;
+  if (rememberedObserverRunner(reader) === next) return;
+  runners.set(reader, next);
+  try {
+    if (next) localStorage.setItem(`${OBSERVER_RUNNER_NS}:${reader}`, next);
+    else localStorage.removeItem(`${OBSERVER_RUNNER_NS}:${reader}`);
+  } catch {
+    /* no storage: kept for this session only */
+  }
+  // Kept from now on: the copy the store already holds goes to the device too.
+  if (next) {
+    const held = eventStore.getReplaceable(OBSERVER_SITE_KIND, next, OBSERVER_D) as NostrEvent | undefined;
+    if (held) void writeEvents([held]);
+  }
+}
+
+/** The signed-in reader's runner's site for them: the one other author's 35128 kept. */
+function isRunnerSite(event: NostrEvent): boolean {
+  if (event.kind !== OBSERVER_SITE_KIND || !hydratingFor) return false;
+  const runner = rememberedObserverRunner(hydratingFor);
+  return !!runner && event.pubkey === runner && event.tags.some((tag) => tag[0] === "p" && tag[1] === hydratingFor);
+}
 
 /** NIP-65, restated so this module needs no import from the routing one. */
 const RELAY_LIST_KIND = 10002;
@@ -258,6 +354,7 @@ function device(): CacheStore | null {
 function trustworthy(row: CachedRow | undefined): row is CachedRow {
   const event = row?.event;
   if (!event || !CACHED.has(event.kind) || event.pubkey !== row.pubkey) return false;
+  if (!keptAddress(event)) return false;
   if (event.kind === 0) return true;
   try {
     return verifyEvent(event);
@@ -397,7 +494,7 @@ async function refreshStale(rows: CachedRow[]): Promise<void> {
 /** Hold these events for next time, newest copy winning, oldest evicted. */
 export async function writeEvents(events: NostrEvent[]): Promise<void> {
   const s = device();
-  const worth = events.filter((e) => CACHED.has(e.kind) && (!OWN_ONLY.has(e.kind) || e.pubkey === hydratingFor));
+  const worth = events.filter(keepable);
   if (!s || worth.length === 0) return;
   try {
     const addrs = worth.map(coordinate);
@@ -475,8 +572,14 @@ async function hydrate(pubkey: string): Promise<number> {
     held.push(snapshot);
   }
 
-  const routing = CACHED_KINDS.filter((kind) => kind !== 0).map((kind) => `${kind}:${pubkey}:`);
-  for (const row of await liveRows(routing)) held.push(row.event);
+  const own = CACHED_KINDS.filter((kind) => kind !== 0).map((kind) => `${kind}:${pubkey}:${KEPT_D[kind] ?? ""}`);
+  const runner = rememberedObserverRunner(pubkey);
+  if (runner) own.push(`${OBSERVER_SITE_KIND}:${runner}:${OBSERVER_D}`);
+  for (const row of await liveRows(own)) {
+    // A runner's row is theirs only while it is still their site for this reader.
+    if (row.pubkey !== pubkey && !row.event.tags.some((tag) => tag[0] === "p" && tag[1] === pubkey)) continue;
+    held.push(row.event);
+  }
 
   let added = 0;
   for (const event of held) {
@@ -490,7 +593,8 @@ async function hydrate(pubkey: string): Promise<number> {
     }
   }
 
-  void revalidate(held);
+  // The runner's site is asked for by the page that shows it (useRunnerSite).
+  void revalidate(held.filter((event) => event.pubkey === pubkey));
   return added;
 }
 
@@ -548,7 +652,7 @@ export function startEventCacheSync(): () => void {
     void writeEvents(batch);
   };
   const sub = eventStore.insert$.subscribe((event: NostrEvent) => {
-    if (!CACHED.has(event.kind) || (OWN_ONLY.has(event.kind) && event.pubkey !== hydratingFor)) return;
+    if (!keepable(event)) return;
     const addr = coordinate(event);
     const waiting = pending.get(addr);
     if (waiting && waiting.created_at >= event.created_at) return;
@@ -576,6 +680,8 @@ export async function clearEventCache(): Promise<void> {
   refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
+  runners.clear();
+  forgetRememberedRunners();
   const s = device();
   if (!s) return;
   try {
@@ -609,6 +715,7 @@ export function __resetEventCache(): void {
   refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
+  runners.clear();
   stopWriting?.();
   stopWriting = null;
 }

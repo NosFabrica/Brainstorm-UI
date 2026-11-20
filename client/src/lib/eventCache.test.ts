@@ -171,7 +171,7 @@ describe("what goes to disk", () => {
   /** Every row on the device, whatever its kind. */
   const readAll = async () => {
     const events = await cache.cachedEventsForFilters([
-      { authors: [ME, ...Array.from({ length: 520 }, (_, i) => i.toString(16).padStart(64, "0"))] },
+      { authors: [ME, OTHER, ...Array.from({ length: 520 }, (_, i) => i.toString(16).padStart(64, "0"))] },
     ]);
     return events;
   };
@@ -221,6 +221,125 @@ describe("what goes to disk", () => {
 
     expect(added).toBe(1);
     expect(storeAdd.mock.calls.at(-1)?.[0]).toMatchObject({ kind: 10000, pubkey: ME });
+  });
+
+  /**
+   * The front page draws the reader's earlier papers from these on the first render:
+   * their Observer manifest and where its files are. Theirs only, and only the one
+   * Observer address — not every 35128 they might publish.
+   */
+  it("keeps the signed-in account's Blossom list and Observer site, and nobody else's", async () => {
+    await cache.hydrateEventStore(ME);
+    await cache.writeEvents([
+      signed(10063, [["server", "https://files.example"]]),
+      signed(35128, [["d", "observer"]]),
+      signed(35128, [["d", "another-site"]]),
+      signed(10063, [["server", "https://theirs.example"]], OTHER_SECRET),
+      signed(35128, [["d", "observer"]], OTHER_SECRET),
+    ]);
+
+    const kept = (await readAll()).map((e) => [e.kind, e.pubkey, e.tags.find((t) => t[0] === "d")?.[1]]);
+    expect(kept).toHaveLength(2);
+    expect(kept).toEqual(
+      expect.arrayContaining([
+        [10063, ME, undefined],
+        [35128, ME, "observer"],
+      ]),
+    );
+  });
+
+  it("hydrates them back into the store, and refreshes the site at its address", async () => {
+    await cache.hydrateEventStore(ME);
+    await cache.writeEvents([signed(10063, [["server", "https://files.example"]]), signed(35128, [["d", "observer"]])]);
+
+    cache.__resetEventCache(); // as a page unload would
+    vi.resetModules();
+    const fresh = await import("./eventCache");
+    const added = await fresh.hydrateEventStore(ME);
+    cache = fresh;
+
+    expect(added).toBe(2);
+    const kinds = storeAdd.mock.calls.map((c) => c[0].kind);
+    expect(kinds).toEqual(expect.arrayContaining([10063, 35128]));
+    await vi.waitFor(() =>
+      expect(loadReplaceableMock).toHaveBeenCalledWith(35128, ME, expect.objectContaining({ identifier: "observer" })),
+    );
+  });
+
+  describe("the site their runner prints for them", () => {
+    /** A device's localStorage, kept across the "reloads" below. */
+    const local = new Map<string, string>();
+    beforeEach(() => {
+      local.clear();
+      vi.stubGlobal("localStorage", {
+        getItem: (k: string) => local.get(k) ?? null,
+        setItem: (k: string, v: string) => void local.set(k, v),
+        removeItem: (k: string) => void local.delete(k),
+      });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    const runnerSite = (p = ME) =>
+      signed(
+        35128,
+        [
+          ["d", "observer"],
+          ["p", p],
+        ],
+        OTHER_SECRET,
+      );
+
+    it("keeps the named runner's site for this reader, and no other", async () => {
+      await cache.hydrateEventStore(ME);
+      await cache.writeEvents([runnerSite()]);
+      expect(await readAll()).toHaveLength(0); // no runner named yet
+
+      cache.rememberObserverRunner(ME, OTHER);
+      await cache.writeEvents([runnerSite("b".repeat(64)), signed(35128, [["d", "observer"]], OTHER_SECRET)]);
+      expect(await readAll()).toHaveLength(0); // the runner's site, but not for this reader
+
+      await cache.writeEvents([runnerSite()]);
+      expect((await readAll()).map((e) => e.pubkey)).toEqual([OTHER]);
+    });
+
+    it("writes the copy the store already holds once the runner is named", async () => {
+      await cache.hydrateEventStore(ME);
+      const held = runnerSite();
+      storeReplaceable.mockImplementation((kind, pubkey) => (kind === 35128 && pubkey === OTHER ? held : undefined));
+      cache.rememberObserverRunner(ME, OTHER);
+      await vi.waitFor(async () => expect((await readAll()).map((e) => e.id)).toEqual([held.id]));
+    });
+
+    it("hydrates it at boot without asking for it again, and forgets it once the schedule names none", async () => {
+      await cache.hydrateEventStore(ME);
+      cache.rememberObserverRunner(ME, OTHER);
+      await cache.writeEvents([runnerSite()]);
+
+      cache.__resetEventCache(); // as a page unload would
+      vi.resetModules();
+      let fresh = await import("./eventCache");
+      expect(await fresh.hydrateEventStore(ME)).toBe(1);
+      cache = fresh;
+      expect(storeAdd.mock.calls.map((c) => c[0].pubkey)).toEqual([OTHER]);
+      // useRunnerSite asks for it; hydration doesn't ask twice.
+      await new Promise((r) => setTimeout(r, 0));
+      expect(loadReplaceableMock).not.toHaveBeenCalledWith(35128, OTHER, expect.anything());
+
+      cache.rememberObserverRunner(ME, null);
+      cache.__resetEventCache();
+      vi.resetModules();
+      storeAdd.mockClear();
+      fresh = await import("./eventCache");
+      expect(await fresh.hydrateEventStore(ME)).toBe(0);
+      cache = fresh;
+    });
+
+    it("never remembers the reader as their own runner, or a malformed key", () => {
+      cache.rememberObserverRunner(ME, ME);
+      expect(cache.rememberedObserverRunner(ME)).toBeNull();
+      cache.rememberObserverRunner(ME, "not-a-key");
+      expect(cache.rememberedObserverRunner(ME)).toBeNull();
+    });
   });
 
   it("one row per coordinate, not one per version", async () => {
@@ -287,6 +406,32 @@ describe("what goes to disk", () => {
     await cache.clearEventCache();
 
     expect(await readAll()).toHaveLength(0);
+  });
+
+  it("forgets which runner each reader's schedule names on sign-out", async () => {
+    const reader = "a".repeat(64);
+    const runner = "b".repeat(64);
+    // This file runs in node: a Storage of its own.
+    const items = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return items.size;
+      },
+      key: (i: number) => [...items.keys()][i] ?? null,
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, String(v)),
+      removeItem: (k: string) => void items.delete(k),
+    });
+    cache.rememberObserverRunner(reader, runner);
+    localStorage.setItem("unrelated", "kept");
+    expect(localStorage.getItem(`brainstorm_observer_runner:${reader}`)).toBe(runner);
+
+    await cache.clearEventCache();
+
+    expect(localStorage.getItem(`brainstorm_observer_runner:${reader}`)).toBeNull();
+    expect(cache.rememberedObserverRunner(reader)).toBeNull();
+    expect(localStorage.getItem("unrelated")).toBe("kept");
+    vi.unstubAllGlobals();
   });
 });
 

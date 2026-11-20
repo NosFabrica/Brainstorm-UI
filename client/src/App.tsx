@@ -33,6 +33,8 @@ import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { DmNotifications } from "@/components/messages/DmNotifications";
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
+import { PrintJobHost } from "@/components/frontPage/PrintJobHost";
+import { RoutstrPurchaseHost } from "@/components/settings/RoutstrPurchaseHost";
 import { InstallAppDialog } from "@/components/InstallApp";
 import { openTarget } from "@/lib/openTarget";
 import { entityPathForSegment } from "@/lib/resolveNostrEntity";
@@ -53,6 +55,7 @@ import { isAdminPubkey } from "@/config/adminAccess";
 const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
 const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
 const DutyMenuSetupPage = lazyWithReload(() => import("@/pages/DutyMenuSetupPage"));
+const OpenRouterCallbackPage = lazyWithReload(() => import("@/pages/OpenRouterCallbackPage"));
 const TreasureMapSetupPage = lazyWithReload(() => import("@/pages/TreasureMapSetupPage"));
 const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
 const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
@@ -74,6 +77,7 @@ const HopsPathPage = lazyWithReload(() => import("@/pages/HopsPathPage"));
 const HowSearchWorksPage = lazyWithReload(() => import("@/pages/HowSearchWorksPage"));
 const HowTagsWorkPage = lazyWithReload(() => import("@/pages/HowTagsWorkPage"));
 const InsightsPage = lazyWithReload(() => import("@/pages/InsightsPage"));
+const FrontPagePage = lazyWithReload(() => import("@/pages/FrontPagePage"));
 const LoginPage = lazyWithReload(() => import("@/pages/LoginPage"));
 const MyTagsPage = lazyWithReload(() => import("@/pages/MyTagsPage"));
 // Dev only: `import.meta.env.DEV` is false in a production build, so this and its chunk drop out.
@@ -262,6 +266,7 @@ function Router() {
             <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
             <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
             <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
+            <Route path="/front-page">{() => <RequireAuth component={FrontPagePage} />}</Route>
             <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
             <Route path="/messages">{() => <RequireAuth component={MessagesPage} />}</Route>
             <Route path="/messages/:slug">{() => <RequireAuth component={MessagesPage} />}</Route>
@@ -295,6 +300,8 @@ function Router() {
             <Route path="/setup/treasure-map">{() => <RequireAuth component={TreasureMapSetupPage} />}</Route>
             <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
             <Route path="/activate" component={ActivatePage} />
+            {/* "Connect with OpenRouter" comes back here (lib/openRouterOAuth). Before /settings. */}
+            <Route path="/settings/openrouter">{() => <RequireAuth component={OpenRouterCallbackPage} />}</Route>
             <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
             <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
             <Route path="/what-is-wot" component={WhatIsWotPage} />
@@ -356,6 +363,8 @@ function App() {
                 <NowPlayingBar />
                 <CommandPalette />
                 <DmNotifications />
+                <PrintJobHost />
+                <RoutstrPurchaseHost />
                 <AppUpdatePrompt />
                 <InstallAppDialog />
                 <MobileSearchOverlay />

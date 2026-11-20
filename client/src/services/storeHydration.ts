@@ -13,7 +13,10 @@
 import { accountManager } from "@/accounts";
 import { clearEventCache, dropLegacyProfileDb, hydrateEventStore, startEventCacheSync } from "@/lib/eventCache";
 import { clearDmCache } from "@/lib/dm/cache";
+import { clearBlobCache } from "@/lib/blobCache";
+import { warmOwnAccount } from "@/services/ownAccountWarmup";
 import { forgetDmPrefs } from "@/lib/dm/prefs";
+import { forgetHeldSchedules } from "@/lib/frontPage/heldSchedule";
 
 let hydratedFor: string | null = null;
 
@@ -36,7 +39,13 @@ function hydrateFor(pubkey: string | null): void {
   // `clearEventCache` stops the writer on sign-out, so signing back in has to
   // start it again. Idempotent, so the boot call above costs nothing.
   startEventCacheSync();
-  void hydrateEventStore(pubkey).catch(() => 0);
+  // After hydration, so the REQ goes to the relay list the device kept rather than
+  // the default set; ahead of every page, so they find what they read in the store.
+  void hydrateEventStore(pubkey)
+    .catch(() => 0)
+    .then(() => {
+      if (hydratedFor === pubkey) warmOwnAccount(pubkey);
+    });
 }
 
 /**
@@ -46,9 +55,14 @@ function hydrateFor(pubkey: string | null): void {
 export function clearHydratedStore(): void {
   hydratedFor = null;
   void clearEventCache().catch(() => undefined);
+  // The Observer papers read here, by hash: as much a trail as the profiles.
+  void clearBlobCache().catch(() => undefined);
   // Private messages too — sealed to this device, but a shared device should not
   // keep anyone's conversations past their session.
   void clearDmCache().catch(() => undefined);
   // …and what this tab remembers of their prefs, whose rows sign-out just removed.
   forgetDmPrefs();
+  // The schedules this session decrypted (and the choices read from them): in memory only,
+  // but a shared device should not keep them past the session either.
+  forgetHeldSchedules();
 }

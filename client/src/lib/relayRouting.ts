@@ -25,6 +25,7 @@ import {
 import { eventStore } from "./eventStore";
 import { whenHydrated } from "./eventCache";
 import { loadReplaceable } from "./loaders";
+import { beats, requestNewestWithReach } from "./relayRequest";
 import { PROFILE_RELAYS } from "./relays";
 import { RELAY_LIST_KIND, dedupeRelays, parseRelayList, type RelayList } from "./relayList";
 
@@ -158,6 +159,41 @@ export async function loadRelayList(
 
   inFlight.set(pubkey, request);
   return request;
+}
+
+/** A relay list read fresh: what it names, that there is none, or that nobody could say. */
+export type FreshRelayList = { status: "found"; list: RelayList } | { status: "none" } | { status: "unavailable" };
+
+/**
+ * One author's relay list read from the relays now, newest wins (the store's copy too,
+ * when it is newer): for a caller about to count a quorum over its write relays, which a
+ * stale copy would miscount. Asks the bootstrap set and the write relays a held copy
+ * names. `none` only when most of them answered and none holds one; `unavailable` when
+ * too few answered to tell, and nothing is held. With no answer but a held copy, that
+ * copy: the best there is.
+ */
+export async function loadFreshRelayList(
+  pubkey: string,
+  { timeoutMs = 4000 }: { timeoutMs?: number } = {},
+): Promise<FreshRelayList> {
+  if (!/^[0-9a-f]{64}$/i.test(pubkey || "")) return { status: "none" };
+  await whenHydrated();
+  const heldEvent = () => eventStore.getReplaceable(RELAY_LIST_KIND, pubkey) as NostrEvent | undefined;
+  const before = heldEvent();
+  const ask = dedupeRelays([...PROFILE_RELAYS, ...(before ? parseRelayList(before).write : [])]);
+  let fetched: NostrEvent | undefined;
+  let answered = 0;
+  try {
+    const read = await requestNewestWithReach(ask, { kinds: [RELAY_LIST_KIND], authors: [pubkey] }, timeoutMs);
+    fetched = read.newest;
+    answered = read.reach.answered.length;
+  } catch {
+    // Counted as no answer.
+  }
+  const held = heldEvent();
+  const event = fetched && beats(fetched, held) ? fetched : held;
+  if (event) return { status: "found", list: parseRelayList(event) };
+  return answered >= Math.floor(ask.length / 2) + 1 ? { status: "none" } : { status: "unavailable" };
 }
 
 /** The same for several authors at once — they share the loader's buffer window. */

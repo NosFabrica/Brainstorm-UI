@@ -20,7 +20,7 @@ const heldAccount = { id: "local-1", pubkey: "a".repeat(64) };
 vi.mock("@/accounts/login-flow", () => ({
   removeAccountFromDevice: (account: unknown) => removeAccountFromDevice(account),
 }));
-vi.mock("@/accounts/login", () => ({ localAccountFor: () => heldAccount }));
+vi.mock("@/accounts/login", () => ({ localAccountFor: () => heldAccount, accountsFor: () => [heldAccount] }));
 vi.mock("@/accounts/passkey-flow", () => ({ syncPendingPasskeys: vi.fn(async () => {}) }));
 vi.mock("wouter", () => ({ useLocation: () => ["/dashboard", (to: string) => navigate(to)] }));
 

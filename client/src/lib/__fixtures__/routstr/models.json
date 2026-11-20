@@ -1,0 +1,274 @@
+{
+  "data": [
+    {
+      "id": "bge-m3",
+      "name": "BAAI/bge-m3",
+      "created": 0,
+      "description": "BAAI/bge-m3 via local-ai-proxy",
+      "context_length": 8194,
+      "architecture": {
+        "modality": "text->embeddings",
+        "input_modalities": ["text"],
+        "output_modalities": ["embeddings"],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": 6e-9,
+        "completion": 0.0,
+        "request": 0.0,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 0.0,
+        "input_cache_write": 0.0,
+        "max_prompt_cost": 4.9164e-5,
+        "max_completion_cost": 0.0,
+        "max_cost": 4.9164e-5
+      },
+      "sats_pricing": {
+        "prompt": 8.54521977201496e-6,
+        "completion": 0.0,
+        "request": 0.001,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 0.0,
+        "input_cache_write": 0.0,
+        "max_prompt_cost": 0.07001953081189058,
+        "max_completion_cost": 0.0,
+        "max_cost": 0.07001953081189058
+      },
+      "per_request_limits": null,
+      "top_provider": {
+        "context_length": 8194,
+        "max_completion_tokens": 8194,
+        "is_moderated": false
+      },
+      "enabled": true,
+      "upstream_provider_id": "generic",
+      "canonical_slug": null,
+      "alias_ids": null,
+      "forwarded_model_id": null,
+      "image_pricing": null
+    },
+    {
+      "id": "claude-opus-5.5",
+      "name": "Claude Opus 5.5",
+      "created": 1791746967,
+      "description": "Claude Opus 5.5",
+      "context_length": 1000000,
+      "architecture": {
+        "modality": "text+image+file->text",
+        "input_modalities": ["text", "image", "file"],
+        "output_modalities": ["text"],
+        "tokenizer": "Claude",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": 4e-6,
+        "completion": 2e-5,
+        "request": 0.0,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 2e-7,
+        "input_cache_write": 5e-6,
+        "max_prompt_cost": 4.0,
+        "max_completion_cost": 2.56,
+        "max_cost": 6.048
+      },
+      "sats_pricing": {
+        "prompt": 0.005696813181343306,
+        "completion": 0.028484065906716535,
+        "request": 0.001,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 0.00028484065906716533,
+        "input_cache_write": 0.007121016476679134,
+        "max_prompt_cost": 5696.8131813433065,
+        "max_completion_cost": 3645.9604360597164,
+        "max_cost": 8613.581530191079
+      },
+      "per_request_limits": null,
+      "top_provider": {
+        "context_length": 1000000,
+        "max_completion_tokens": 128000,
+        "is_moderated": true
+      },
+      "enabled": true,
+      "upstream_provider_id": "generic",
+      "canonical_slug": null,
+      "alias_ids": null,
+      "forwarded_model_id": null,
+      "image_pricing": null
+    },
+    {
+      "id": "claude-sonnet-5.5",
+      "name": "Claude Sonnet 5.5",
+      "created": 1791746987,
+      "description": "Claude Sonnet 5.5",
+      "context_length": 1000000,
+      "architecture": {
+        "modality": "text+image+file->text",
+        "input_modalities": ["text", "image", "file"],
+        "output_modalities": ["text"],
+        "tokenizer": "Claude",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": 2e-6,
+        "completion": 1e-5,
+        "request": 0.0,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 1e-7,
+        "input_cache_write": 2.5e-6,
+        "max_prompt_cost": 2.0,
+        "max_completion_cost": 1.28,
+        "max_cost": 3.024
+      },
+      "sats_pricing": {
+        "prompt": 0.002848406590671653,
+        "completion": 0.014242032953358267,
+        "request": 0.001,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 0.00014242032953358267,
+        "input_cache_write": 0.003560508238339567,
+        "max_prompt_cost": 2848.4065906716532,
+        "max_completion_cost": 1822.9802180298582,
+        "max_cost": 4306.790765095539
+      },
+      "per_request_limits": null,
+      "top_provider": {
+        "context_length": 1000000,
+        "max_completion_tokens": 128000,
+        "is_moderated": true
+      },
+      "enabled": true,
+      "upstream_provider_id": "generic",
+      "canonical_slug": null,
+      "alias_ids": null,
+      "forwarded_model_id": null,
+      "image_pricing": null
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro 0423",
+      "created": 1791747015,
+      "description": "DeepSeek V4 Pro 0423",
+      "context_length": 1000000,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
+        "tokenizer": "unknown",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": 1.32e-6,
+        "completion": 3.96e-6,
+        "request": 0.0,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 4.4e-8,
+        "input_cache_write": 0.0,
+        "max_prompt_cost": 1.32,
+        "max_completion_cost": 1.5571353600000002,
+        "max_cost": 2.35809024
+      },
+      "sats_pricing": {
+        "prompt": 0.0018799483498432913,
+        "completion": 0.005639845049529874,
+        "request": 0.001,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 6.266494499477637e-5,
+        "input_cache_write": 0.0,
+        "max_prompt_cost": 1879.9483498432912,
+        "max_completion_cost": 2217.677310995939,
+        "max_cost": 3358.3998905072503
+      },
+      "per_request_limits": null,
+      "top_provider": {
+        "context_length": 1000000,
+        "max_completion_tokens": 393216,
+        "is_moderated": false
+      },
+      "enabled": true,
+      "upstream_provider_id": "generic",
+      "canonical_slug": null,
+      "alias_ids": null,
+      "forwarded_model_id": null,
+      "image_pricing": null
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o-mini",
+      "created": 1793806298,
+      "description": "GPT-4o-mini",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
+        "tokenizer": "unknown",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": 1.5e-7,
+        "completion": 6e-7,
+        "request": 0.0,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 7.5e-8,
+        "input_cache_write": 0.0,
+        "max_prompt_cost": 0.0192,
+        "max_completion_cost": 0.0098304,
+        "max_cost": 0.026572799999999997
+      },
+      "sats_pricing": {
+        "prompt": 0.000213630494300374,
+        "completion": 0.000854521977201496,
+        "request": 0.001,
+        "image": 0.0,
+        "image_output": 0.0,
+        "web_search": 0.0,
+        "internal_reasoning": 0.0,
+        "input_cache_read": 0.000106815247150187,
+        "input_cache_write": 0.0,
+        "max_prompt_cost": 27.34470327044787,
+        "max_completion_cost": 14.00048807446931,
+        "max_cost": 37.84506932629985
+      },
+      "per_request_limits": null,
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 16384,
+        "is_moderated": false
+      },
+      "enabled": true,
+      "upstream_provider_id": "generic",
+      "canonical_slug": null,
+      "alias_ids": null,
+      "forwarded_model_id": null,
+      "image_pricing": null
+    }
+  ]
+}

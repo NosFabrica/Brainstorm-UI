@@ -1,0 +1,280 @@
+/**
+ * The relay and signer half of the user's AI agent keys (lib/agentKeys holds the
+ * format). Reads fill the EventStore (docs/adr/0005); an edit is a read-modify-write
+ * that asks the relays first, because it replaces the event, and refuses to write
+ * when it can't tell what is there: a replaceable event overwritten from a blank
+ * guess loses every key the user saved from another app.
+ */
+import type { NostrEvent } from "nostr-tools";
+import { eventStore } from "@/lib/eventStore";
+import { loadReplaceable } from "@/lib/loaders";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { beats, requestNewestWithReach } from "@/lib/relayRequest";
+import { outboxRelays } from "@/lib/relayRouting";
+import {
+  AGENT_KEYS_KIND,
+  decodePrivateTags,
+  modelsRequest,
+  parseAgentKeys,
+  readTestAnswer,
+  withAgentKeys,
+  type AgentKey,
+  type KeyTestResult,
+} from "@/lib/agentKeys";
+import {
+  activeAccount,
+  encryptToSelf,
+  hasExternalSigner,
+  signAs,
+  signingFailure,
+  type PublishOutcome,
+} from "@/accounts/signing";
+import { classifySignerError } from "@/accounts/signer-errors";
+import { NoUnlockPathError } from "@/accounts/local-signer";
+import type { BrainstormAccount } from "@/accounts/metadata";
+import { publishToRelays } from "@/services/nostr";
+
+/** The user's kind 12000 into the store: the ask behind `useAgentKeys`. */
+export async function loadAgentKeys(pubkey: string, timeoutMs = 6000): Promise<NostrEvent | undefined> {
+  const relays = await outboxRelays(pubkey, PROFILE_RELAYS, { timeoutMs: Math.min(timeoutMs, 2500) }).catch(
+    () => PROFILE_RELAYS,
+  );
+  const event = await loadReplaceable(AGENT_KEYS_KIND, pubkey, { relays, timeoutMs });
+  return event ?? (eventStore.getReplaceable(AGENT_KEYS_KIND, pubkey) as NostrEvent | undefined);
+}
+
+/**
+ * Decrypts by event id: the ones read (an extension or bunker asks its user each time),
+ * and the ones still out, which a second ask joins instead of starting another. A read
+ * that came to nothing isn't kept, so asking again (Unlock, Retry) tries again.
+ */
+const readKeys = new Map<string, string[][]>();
+const readingKeys = new Map<string, Promise<AgentKeyRead>>();
+const MAX_READ = 8;
+
+/**
+ * What reading the keys came to: their private tags; `unreadable`, this Account can't read
+ * them (someone else's, a ciphertext its key doesn't open, plaintext that isn't a tag
+ * array); or `failed`, the signer didn't decrypt (a bunker that went quiet, an extension
+ * that errored, a key here with no way to unlock it in this browser), worth asking again.
+ */
+export type AgentKeyRead =
+  { status: "ready"; tags: string[][] } | { status: "unreadable" } | { status: "failed"; error: string };
+
+async function readOnce(account: BrainstormAccount, event: NostrEvent): Promise<AgentKeyRead> {
+  if (!account.nip44) return { status: "unreadable" };
+  let plain: string;
+  try {
+    plain = await account.nip44.decrypt(account.pubkey, event.content);
+  } catch (error) {
+    const kind = classifySignerError(error);
+    // They declined to unlock: the caller keeps it locked.
+    if (kind === "cancelled") throw error;
+    if (error instanceof NoUnlockPathError) {
+      return { status: "failed", error: "Your key couldn't be unlocked in this browser." };
+    }
+    // A key held here that can't open it never will; nor will a signer that tried.
+    if (!hasExternalSigner(account) || kind === "bad-payload") return { status: "unreadable" };
+    return { status: "failed", error: signingFailure(error, "Your signer didn't decrypt your keys.").error! };
+  }
+  const tags = typeof plain === "string" ? decodePrivateTags(plain) : null;
+  return tags ? { status: "ready", tags } : { status: "unreadable" };
+}
+
+function rememberRead(eventId: string, tags: string[][]) {
+  readKeys.set(eventId, tags);
+  if (readKeys.size > MAX_READ) readKeys.delete(readKeys.keys().next().value!);
+}
+
+/** The event's private tags, read once per event (`AgentKeyRead`). Rethrows a declined unlock. */
+export function readAgentKeyTags(account: BrainstormAccount, event: NostrEvent): Promise<AgentKeyRead> {
+  if (event.pubkey !== account.pubkey || !event.content) return Promise.resolve({ status: "unreadable" });
+  const done = readKeys.get(event.id);
+  if (done) return Promise.resolve({ status: "ready", tags: done });
+  const out = readingKeys.get(event.id);
+  if (out) return out;
+  const read = readOnce(account, event).then(
+    (result) => {
+      readingKeys.delete(event.id);
+      if (result.status === "ready") rememberRead(event.id, result.tags);
+      return result;
+    },
+    (error) => {
+      readingKeys.delete(event.id);
+      throw error;
+    },
+  );
+  readingKeys.set(event.id, read);
+  return read;
+}
+
+/** The event's private tags, decrypted; null when they can't be read, for whatever reason. One decrypt per event. */
+export function decryptAgentKeyTags(account: BrainstormAccount, event: NostrEvent): Promise<string[][] | null> {
+  return readAgentKeyTags(account, event).then((read) => (read.status === "ready" ? read.tags : null));
+}
+
+/** What an edit came to. `notActive`: it was asked for an account that isn't the one signed in now, so nothing was read or written. */
+export type AgentKeysSave = PublishOutcome & { notActive?: boolean };
+
+/**
+ * Replaces the keys with `change(current)`, keeping every private tag that isn't a
+ * key and the event's public tags. Fails, writing nothing, when half or fewer of the relays
+ * answered, or when the newest copy can't be read; writes nothing, and succeeds, when the
+ * keys come out the same. An edit not done within EDIT_DEADLINE_MS fails, and publishes
+ * nothing if its signature comes later.
+ *
+ * Edits run one after another, never two at once, whoever asks (the AI model page, a
+ * bought key's save, the Assistant's keys): two read at once would build on the same copy,
+ * and the relays would keep only one of them, losing the other's key. Each runs as the
+ * account that asked: `pubkey` when given (a purchase names whose it is), else the one
+ * active when it was asked. When another is active at its turn, it writes nothing
+ * (`notActive`).
+ */
+export function updateAgentKeys(
+  change: (keys: AgentKey[]) => AgentKey[],
+  { pubkey }: { pubkey?: string } = {},
+): Promise<AgentKeysSave> {
+  const asker = pubkey ?? activeAccount()?.pubkey ?? null;
+  const run = editQueue.then(() => withinDeadline(change, asker));
+  editQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** The last edit asked for: the next one starts when it has settled. */
+let editQueue: Promise<void> = Promise.resolve();
+
+/**
+ * How long one edit may take before the queue moves on: the signer's own timeout (a bunker
+ * round trip, an extension prompt) with margin. Without it, an edit that never settles would
+ * hold every later one, a bought key's save among them.
+ */
+export const EDIT_DEADLINE_MS = 120_000;
+
+const TOO_LATE = "Your signer didn't answer in time, so nothing was changed. Try again.";
+
+/** `updateNow`, given up at the deadline: a late signature is then never published. */
+function withinDeadline(change: (keys: AgentKey[]) => AgentKey[], asker: string | null): Promise<AgentKeysSave> {
+  const late = { passed: false };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<AgentKeysSave>((resolve) => {
+    timer = setTimeout(() => {
+      late.passed = true;
+      resolve({ success: false, error: TOO_LATE });
+    }, EDIT_DEADLINE_MS);
+  });
+  return Promise.race([updateNow(change, asker, late), deadline]).finally(() => clearTimeout(timer));
+}
+
+const NOT_ACTIVE = "You've switched accounts since, so nothing was changed.";
+
+async function updateNow(
+  change: (keys: AgentKey[]) => AgentKey[],
+  asker: string | null,
+  late: { passed: boolean } = { passed: false },
+): Promise<AgentKeysSave> {
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in", notActive: asker !== null };
+  if (asker !== null && account.pubkey !== asker) return { success: false, error: NOT_ACTIVE, notActive: true };
+  try {
+    const relays = await outboxRelays(account.pubkey, PROFILE_RELAYS);
+    const { newest: fetched, reach } = await requestNewestWithReach(
+      relays,
+      { kinds: [AGENT_KEYS_KIND], authors: [account.pubkey], limit: 1 },
+      6000,
+    );
+    // The store can hold a newer copy than the relays that answered (one this session
+    // just wrote, or one another relay served earlier): rewriting from an older read
+    // would drop the keys it added.
+    // Most of them, whatever they said (as the server's own edits do): a copy only a few
+    // relays answered with may not be the newest the rest hold.
+    if (reach.answered.length * 2 <= reach.asked.length) {
+      return { success: false, error: "Too few of your relays answered to be sure. Nothing was changed; try again." };
+    }
+    const held = eventStore.getReplaceable(AGENT_KEYS_KIND, account.pubkey) as NostrEvent | undefined;
+    const newest = held && beats(held, fetched) ? held : fetched;
+    let privateTags: string[][] = [];
+    if (newest) {
+      const read = await decryptAgentKeyTags(account, newest);
+      if (!read) return { success: false, error: "Couldn't read the keys you saved before, so nothing was changed." };
+      privateTags = read;
+    }
+
+    const before = parseAgentKeys(privateTags);
+    const keys = change(before);
+    // The same list (a key already there): no prompt, no event.
+    if (newest && JSON.stringify(keys) === JSON.stringify(before)) return { success: true };
+    const next = withAgentKeys(privateTags, keys);
+    // Always the JSON, `[]` included: NIP-44 can't encrypt an empty string.
+    const ciphertext = await encryptToSelf(account, JSON.stringify(next));
+    if (!ciphertext) return { success: false, error: "Could not encrypt" };
+
+    // NIP-FA needs no public tags; an `alt` an older version carried (NIP-31, unrecommended)
+    // is dropped, anything else (NIP-70's `["-"]`) kept.
+    const publicTags = newest?.tags.filter((t) => t[0] !== "alt") ?? [];
+    const now = Math.floor(Date.now() / 1000);
+    if (late.passed) return { success: false, error: TOO_LATE };
+    const signed = await signAs(account, {
+      kind: AGENT_KEYS_KIND,
+      tags: publicTags,
+      content: ciphertext,
+      // Past the copy we read, so relays keep this one even when this clock lags.
+      created_at: newest ? Math.max(now, newest.created_at + 1) : now,
+    });
+    // What it says is known: the next read of it (the next edit, a purchase checking its
+    // key landed) asks the signer nothing.
+    // Signed after the deadline: the queue has moved on, and a later edit may have read and
+    // written meanwhile. Publishing this one would undo it.
+    if (late.passed) return { success: false, error: TOO_LATE };
+    rememberRead(signed.id, next);
+    return await publishToRelays(signed);
+  } catch (err) {
+    return signingFailure(err, "Failed to sign");
+  }
+}
+
+/**
+ * Whether `pubkey`'s kind 12000, read again from their relays (the store's copy where it is
+ * newer), holds `entry`: what a bought key waits for before this device lets it go. Null
+ * when it can't tell: another account is active, too few relays answered, the copy can't be
+ * read.
+ */
+export async function agentKeysHold(pubkey: string, entry: AgentKey): Promise<boolean | null> {
+  const account = activeAccount();
+  if (!account || account.pubkey !== pubkey) return null;
+  try {
+    const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
+    const { newest: fetched, reach } = await requestNewestWithReach(
+      relays,
+      { kinds: [AGENT_KEYS_KIND], authors: [pubkey], limit: 1 },
+      6000,
+    );
+    if (reach.answered.length * 2 <= reach.asked.length) return null;
+    const held = eventStore.getReplaceable(AGENT_KEYS_KIND, pubkey) as NostrEvent | undefined;
+    const newest = held && beats(held, fetched) ? held : fetched;
+    if (!newest) return false;
+    const tags = await decryptAgentKeyTags(account, newest);
+    if (!tags) return null;
+    // As `addKey` tells a duplicate: the same key at the same URL.
+    return parseAgentKeys(tags).some((k) => k.key === entry.key && k.url === entry.url);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Asks the provider for its model list with this key, from this page. A thrown
+ * fetch is a host that is down, wrong, or that doesn't let web pages call it.
+ */
+export async function testAgentKey(entry: AgentKey, timeoutMs = 10_000): Promise<KeyTestResult> {
+  const { url, headers, keyChecked } = modelsRequest(entry);
+  try {
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+    const body = await response.json().catch(() => null);
+    return readTestAnswer(response.status, body, keyChecked);
+  } catch {
+    return { status: "unreachable" };
+  }
+}

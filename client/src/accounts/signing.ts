@@ -115,9 +115,10 @@ const CLIENT_TAG = ["client", "Brainstorm"];
 /**
  * Auth proofs (NIP-98, Blossom, NIP-42) are never published, so they carry no
  * client tag. Nor does a NIP-59 seal (13): its tags MUST be empty, because
- * anything in them travels to the recipient beside the message.
+ * anything in them travels to the recipient beside the message. Nor does a
+ * NIP-FB scheduled task (34817), whose only public tag is its `d`.
  */
-const UNTAGGED_KINDS = new Set([13, 22242, 24242, 27235]);
+const UNTAGGED_KINDS = new Set([13, 22242, 24242, 27235, 34817]);
 
 /** Replace any existing client tag with ours. */
 function withClientTag(tags: string[][]): string[][] {
@@ -141,8 +142,19 @@ export function signAs(account: BrainstormAccount, template: UnsignedTemplate): 
  * a ciphertext from here must never be kept or sent unsigned.
  */
 export async function encryptToSelf(account: BrainstormAccount, plaintext: string): Promise<string | null> {
+  return encryptFor(account, account.pubkey, plaintext);
+}
+
+/**
+ * NIP-44 encrypt from the Account to `peer` (itself, or another key both sides read with,
+ * such as the reader's Brainstorm Assistant). Through the Account, as `encryptToSelf`. An
+ * extension on another profile seals it with the wrong key here too: a signed event
+ * catches that, and a ciphertext sent unsigned (to Brainstorm's server, for the Assistant's
+ * keys) fails to open there, since the server opens it only as the owner's.
+ */
+export async function encryptFor(account: BrainstormAccount, peer: string, plaintext: string): Promise<string | null> {
   try {
-    return (await account.nip44?.encrypt(account.pubkey, plaintext)) ?? null;
+    return (await account.nip44?.encrypt(peer, plaintext)) ?? null;
   } catch (error) {
     // "They declined to unlock" is not "this key can't encrypt" — let the caller
     // abandon the action instead of reporting that the encryption failed.

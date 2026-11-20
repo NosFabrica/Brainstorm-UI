@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
@@ -113,11 +113,18 @@ import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { YourAssistants } from "@/components/settings/YourAssistants";
 import { markOwnScores } from "@/lib/ownScores";
 import { InternalChip } from "@/components/InternalChip";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+
+// The AI model tab prices Routstr models by the Observer's brief (lib/frontPage/writer): loaded
+// when it is opened, not with every Settings tab.
+const AiModelTab = lazyWithReload(() =>
+  import("@/components/settings/AiModelTab").then((m) => ({ default: m.AiModelTab })),
+);
 
 type SettingsTab = SettingsTabKey;
 
@@ -134,8 +141,8 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "trust", label: "Trust & Search", icon: ShieldCheck },
   // The reader's Assistants (2026-10-23, one tab since 2026-11-02): the one Brainstorm
   // hosts for them; every one they've tagged and what each does (Tapestry's My
-  // Assistants); and the Treasure Map that hands out the duties — as views
-  // (lib/settingsTab assistantViewsFor), the last three admins' only for now.
+  // Assistants); the Treasure Map that hands out the duties; and the keys to their
+  // own AI provider — as views (lib/settingsTab assistantViewsFor).
   { key: "assistants", label: "Assistants", icon: Bot },
   // Its own tab (2026-10-05), out of Trust & search: a reader looks for message settings
   // under "Messages". Where the inbox's "Manage" (and its settings icon) lands.
@@ -179,6 +186,7 @@ export default function SettingsPage() {
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
   //   ?tab=trust&focus=tag-relays → Trust > Advanced > Where tags come from
+  //   ?tab=messages&focus=file-servers → Messages > File servers
   const focusParam = new URLSearchParams(search).get("focus");
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const highlightBackup = highlighted === "backup";
@@ -193,7 +201,9 @@ export default function SettingsPage() {
           ? "tag-relays-section"
           : focusParam === "messages"
             ? "messages-section"
-            : null;
+            : focusParam === "file-servers"
+              ? "file-servers-section"
+              : null;
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2014,6 +2024,11 @@ export default function SettingsPage() {
                 <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />
               )}
               {assistantView === "map" && <TreasureMapTab viewer={user?.pubkey} />}
+              {assistantView === "ai" && (
+                <Suspense fallback={<Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />}>
+                  <AiModelTab />
+                </Suspense>
+              )}
             </div>
           )}
 

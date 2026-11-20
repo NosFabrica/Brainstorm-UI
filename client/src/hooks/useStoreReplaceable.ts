@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { NostrEvent } from "nostr-tools";
-import type { AskWindow } from "@/lib/askOnce";
+import { replaceableAskKey, type AskWindow } from "@/lib/askOnce";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 
 /**
@@ -24,11 +24,6 @@ export function useStoreReplaceable(
         : null,
     [kind, pubkey, identifier],
   );
-  const query = useStoreEvents(
-    pubkey ? `replaceable:${kind}:${pubkey}:${identifier ?? ""}` : null,
-    filters,
-    ask,
-    window,
-  );
+  const query = useStoreEvents(pubkey ? replaceableAskKey(kind, pubkey, identifier) : null, filters, ask, window);
   return { event: query.events[0], loading: query.loading, settled: query.settled };
 }

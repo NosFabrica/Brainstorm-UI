@@ -15,7 +15,13 @@ import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/
  * REQ and a flash of the wrong ranking. Only while loading: with no Session (nothing will be
  * asked) or after a failed ask, the answer is "no", as it always was.
  */
-export function useCanSearchMywot(): { hasMywot: boolean; isSearchObserver: boolean; canUseMywot: boolean } {
+export function useCanSearchMywot(): {
+  hasMywot: boolean;
+  isSearchObserver: boolean;
+  canUseMywot: boolean;
+  /** When the search relay last answered the observer probe (ms); 0 before it has. */
+  observerCheckedAt: number;
+} {
   // Read, not subscribed: an Account switch re-renders through the two queries' own keys.
   const account = accountManager.active as BrainstormAccount | undefined;
   const mywot = useHasMywot();
@@ -33,5 +39,5 @@ export function useCanSearchMywot(): { hasMywot: boolean; isSearchObserver: bool
     if (getMetadata(account).canSearchMywot !== answered) updateMetadata(account, { canSearchMywot: answered });
   }, [account, answered]);
 
-  return { hasMywot, isSearchObserver, canUseMywot };
+  return { hasMywot, isSearchObserver, canUseMywot, observerCheckedAt: observer.checkedAt };
 }

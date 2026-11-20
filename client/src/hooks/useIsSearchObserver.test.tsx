@@ -54,7 +54,7 @@ describe("useIsSearchObserver", () => {
   it("does not ask without an assistant", () => {
     taPubkey = null;
     const { result } = renderHook(() => useIsSearchObserver(), { wrapper: queryWrapper() });
-    expect(result.current).toEqual({ isSearchObserver: false, isLoading: false, known: true });
+    expect(result.current).toEqual({ isSearchObserver: false, isLoading: false, known: true, checkedAt: 0 });
     expect(onRelay).not.toHaveBeenCalled();
   });
 
@@ -62,14 +62,14 @@ describe("useIsSearchObserver", () => {
     taPubkey = null;
     mywotLoading = true;
     const { result } = renderHook(() => useIsSearchObserver(), { wrapper: queryWrapper() });
-    expect(result.current).toEqual({ isSearchObserver: false, isLoading: true, known: false });
+    expect(result.current).toEqual({ isSearchObserver: false, isLoading: true, known: false, checkedAt: 0 });
     expect(onRelay).not.toHaveBeenCalled();
   });
 
   it("does not ask when logged out", () => {
     user = null;
     const { result } = renderHook(() => useIsSearchObserver(), { wrapper: queryWrapper() });
-    expect(result.current).toEqual({ isSearchObserver: false, isLoading: false, known: false });
+    expect(result.current).toEqual({ isSearchObserver: false, isLoading: false, known: false, checkedAt: 0 });
     expect(onRelay).not.toHaveBeenCalled();
   });
 

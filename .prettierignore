@@ -7,3 +7,5 @@ brand-assets
 client/src/lib/tagging-sdk
 dist
 package-lock.json
+# The Observer brief is byte for byte Amethyst's EditorialBrief.kt (a test pins its hash).
+client/src/lib/frontPage/editorial.md

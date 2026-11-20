@@ -19,7 +19,13 @@ import { isSearchObserverOnRelay } from "@/services/searchObserver";
  */
 const NOT_YET_MS = 60_000;
 
-export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: boolean; known: boolean } {
+export function useIsSearchObserver(): {
+  isSearchObserver: boolean;
+  isLoading: boolean;
+  known: boolean;
+  /** When the relay last answered (ms); 0 before it has. */
+  checkedAt: number;
+} {
   const pubkey = useActiveAccountDisplay()?.pubkey;
   const mywot = useHasMywot();
   const enabled = !!pubkey && !!mywot.taPubkey;
@@ -45,11 +51,17 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
 
   // No check without an assistant: until `/user/history` answers, this is loading too.
   if (!enabled)
-    return { isSearchObserver: false, isLoading: !!pubkey && mywot.isLoading, known: !!pubkey && mywot.known };
+    return {
+      isSearchObserver: false,
+      isLoading: !!pubkey && mywot.isLoading,
+      known: !!pubkey && mywot.known,
+      checkedAt: 0,
+    };
   return {
     isSearchObserver: query.data === true,
     isLoading: query.isPending,
     /** The relay has answered — `isSearchObserver` is only a default before that. */
     known: query.isSuccess,
+    checkedAt: query.dataUpdatedAt,
   };
 }
