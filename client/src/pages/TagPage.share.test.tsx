@@ -9,6 +9,9 @@ const AUTHOR = "ab".repeat(32);
 const NPUB = nip19.npubEncode(AUTHOR);
 const SLUG = "bitcoin-dev";
 let status: "ok" | "absent" | "unavailable" = "ok";
+let viewer: string | null = null;
+let madeFor: "posts" | "people" | undefined;
+let carriers: unknown[] = [];
 
 const createShortUrl = vi.hoisted(() => vi.fn());
 vi.mock("@/services/api", () => ({ apiClient: { createShortUrl } }));
@@ -25,17 +28,20 @@ vi.mock("@/hooks/useTags", () => ({
     isLoading: false,
     data: {
       status,
-      tag: { name: "Bitcoin Developer", description: "" },
+      tag: { name: "Bitcoin Developer", description: "", madeFor },
       elementId: "",
-      carriers: [],
+      carriers,
       disputed: [],
     },
   }),
   useTagVote: () => ({ mutate: () => {}, isPending: false }),
   usePinnedTags: () => ({ data: [] }),
   useTogglePin: () => ({ mutate: () => {}, isPending: false }),
+  useEditTagDescription: () => ({ mutateAsync: async () => ({ description: "" }), isPending: false }),
 }));
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => (viewer ? { pubkey: viewer } : null),
+}));
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
 vi.mock("@/hooks/useGoBack", () => ({ useGoBack: () => () => {} }));
 vi.mock("@/components/score/TrustScorePov", () => ({ useScorePov: () => ({ pov: "global" }) }));
@@ -50,6 +56,9 @@ import TagPage from "./TagPage";
 
 beforeEach(() => {
   status = "ok";
+  viewer = null;
+  madeFor = undefined;
+  carriers = [];
   createShortUrl.mockReset();
 });
 afterEach(() => {
@@ -94,5 +103,68 @@ describe("sharing a tag page", () => {
     status = "unavailable";
     renderWithProviders(<TagPage />);
     expect(screen.queryByTestId("share-open-modal")).toBeNull();
+  });
+});
+
+describe("a tag nobody carries", () => {
+  it("shows no people section: no empty card, no '0 people'", () => {
+    renderWithProviders(<TagPage />);
+    expect(screen.queryByText("Nobody has this tag yet")).toBeNull();
+    expect(screen.queryByText(/^0 people$/i)).toBeNull();
+  });
+});
+
+// A tag's description is its creator's to change, later and as often as they like; its name isn't.
+describe("editing a tag's description from its page", () => {
+  it("is offered to the tag's creator", () => {
+    viewer = AUTHOR;
+    renderWithProviders(<TagPage />);
+    expect(screen.getByTestId("tag-description-edit")).toHaveTextContent("Add a description");
+  });
+
+  it("is offered to nobody else, signed in or not", () => {
+    viewer = "cd".repeat(32);
+    const { unmount } = renderWithProviders(<TagPage />);
+    expect(screen.queryByTestId("tag-description-edit")).toBeNull();
+    unmount();
+    viewer = null;
+    renderWithProviders(<TagPage />);
+    expect(screen.queryByTestId("tag-description-edit")).toBeNull();
+  });
+
+  it("is not offered until the relays confirm the tag exists", () => {
+    viewer = AUTHOR;
+    status = "unavailable";
+    renderWithProviders(<TagPage />);
+    expect(screen.queryByTestId("tag-description-edit")).toBeNull();
+  });
+});
+
+// "Add me to this tag" is how a person joins a tag about people. On a tag made
+// for posts ("Dance", put on a video) it asked the reader to call themselves a video.
+describe("adding yourself from a tag's page", () => {
+  it("is offered on a tag about people", () => {
+    viewer = "cd".repeat(32);
+    renderWithProviders(<TagPage />);
+    expect(screen.getByTestId("tag-self-add")).toHaveTextContent("Add me to this tag");
+    expect(screen.getByTestId("tag-header")).toHaveTextContent("People the network says this describes.");
+  });
+
+  it("is not offered on a tag made for posts that nobody carries", () => {
+    viewer = "cd".repeat(32);
+    madeFor = "posts";
+    renderWithProviders(<TagPage />);
+    expect(screen.queryByTestId("tag-self-add")).toBeNull();
+    expect(screen.getByTestId("tag-header")).toHaveTextContent("Posts the network says this describes.");
+  });
+
+  it("is offered again once people carry it: how a tag is used outranks what it was made for", () => {
+    viewer = "cd".repeat(32);
+    madeFor = "posts";
+    carriers = [
+      { pubkey: "ef".repeat(32), applications: 2, disputes: 0, asserters: [], addedAt: 1, selfDeclared: false },
+    ];
+    renderWithProviders(<TagPage />);
+    expect(screen.getByTestId("tag-self-add")).toBeInTheDocument();
   });
 });

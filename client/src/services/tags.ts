@@ -46,7 +46,7 @@ import {
   groupTaggingsByTarget,
   slug as toSlug,
 } from "@/lib/tagging-sdk/event-tagging/index.js";
-import { countNameCollisions, type CountedTag } from "@/lib/tagMerge";
+import { countNameCollisions, normalizeTagName, type CountedTag } from "@/lib/tagMerge";
 import { stanceOnlyRefs } from "@/lib/tagCounts";
 import { buildTagPin, conceptTagPinning, tagRefFromPin } from "@/lib/tagPins";
 import {
@@ -56,8 +56,10 @@ import {
   Z_HANDLE_PUBKEYS,
   TRUST_SETTINGS,
   TAG_FOR_NOSTR_PUBKEY_Z,
+  TAG_FOR_NOSTR_EVENT_Z,
 } from "@/config/tagging";
 import { activeAccount, requireActiveAccount, signAs } from "@/accounts/signing";
+import { editedTagElement } from "@/lib/tagEdit";
 
 export interface NostrEvent {
   id: string;
@@ -76,6 +78,12 @@ export interface TagIdentity {
   /** Display name from the tag-element's content; falls back to the slug. */
   name: string;
   description?: string;
+  /**
+   * What its creator made it for, when the tag says: "posts" for one created
+   * while tagging a post, "people" for one created on a profile (the kit's
+   * applicability hints). A hint about intent, never a rule about use.
+   */
+  madeFor?: "posts" | "people";
 }
 
 /** One tag as it appears on a profile, with its counted support. */
@@ -365,8 +373,8 @@ async function getTrustSource(
 /**
  * Which observer's perspective a read runs from.
  *
- * `"house"` is the logged-out / Brainstorm view — resolved by asking the server
- * who it is (NIP-05 `_`), never hardcoded here. A hex pubkey is a specific
+ * `"house"` is the logged-out / Brainstorm view — the deployment's house observer
+ * (`resolveHouseObserver`: `VITE_HOUSE_OBSERVER`), never hardcoded here. A hex pubkey is a specific
  * observer, normally the signed-in viewer in personalized mode.
  */
 export type TrustObserver = "house" | string;
@@ -846,6 +854,64 @@ export async function fetchProfileTags(
   return profileTagsFromCandidates(candidates, viewerPubkey, observer);
 }
 
+/**
+ * Every tag applied to each of N pubkeys, in one pass — the profile read for a
+ * page of people (a search's), as `fetchEventTagsBatch` is the note read. Each
+ * person's answer is exactly what `fetchProfileTags` gives on their profile:
+ * the same candidates, trust and names, so a chip and its profile agree.
+ *
+ * Returns a map keyed by pubkey; people with no tags are absent.
+ */
+export async function fetchProfileTagsBatch(
+  pubkeys: string[],
+  viewerPubkey?: string,
+  observer: TrustObserver = "house",
+): Promise<Map<string, ProfileTagsResult>> {
+  const out = new Map<string, ProfileTagsResult>();
+  const targets = Array.from(new Set(pubkeys.filter((p) => /^[0-9a-f]{64}$/.test(p))));
+  if (!targets.length) return out;
+
+  const candidates: NostrEvent[] = [];
+  for (let i = 0; i < targets.length; i += 200) {
+    const chunk = targets.slice(i, i + 200);
+    // The SDK's filter for one person, widened to the chunk.
+    const filter = filterTagsAppliedToPubkey({ targetPubkey: chunk[0], zHandlePubkeys: Z_HANDLE_PUBKEYS });
+    try {
+      candidates.push(...(await fetchTagEvents({ ...filter, "#p": chunk })));
+    } catch {
+      // Partial results beat none: the people we couldn't ask about show no tags.
+    }
+  }
+  const byTarget = new Map<string, NostrEvent[]>();
+  for (const ev of candidates) {
+    const target = tagValue(ev, "p");
+    if (!target || !targets.includes(target)) continue;
+    if (!byTarget.has(target)) byTarget.set(target, []);
+    byTarget.get(target)!.push(ev);
+  }
+  if (!byTarget.size) return out;
+
+  // Tag-elements, trust and names once for the whole page; each person's read
+  // below then finds them cached instead of asking again, person by person.
+  const assertions = await normalizeAssertions(candidates);
+  const asserters = new Set(assertions.map((a) => a.asserter));
+  if (viewerPubkey) asserters.add(viewerPubkey);
+  await Promise.all([
+    resolveTrust(Array.from(asserters), observer),
+    resolveTagNames(
+      Array.from(new Map(assertions.map((a) => [a.tagKey, { authorPubkey: a.tagAuthor, slug: a.slug }])).values()),
+    ),
+  ]);
+  const results = await Promise.all(
+    Array.from(
+      byTarget,
+      async ([target, evs]) => [target, await profileTagsFromCandidates(evs, viewerPubkey, observer)] as const,
+    ),
+  );
+  for (const [target, result] of results) if (result.tags.length) out.set(target, result);
+  return out;
+}
+
 async function profileTagsFromCandidates(
   candidates: NostrEvent[],
   viewerPubkey: string | undefined,
@@ -1044,11 +1110,13 @@ export async function fetchTagDetail(
       /* malformed content → slug */
     }
   }
+  const hints = new Set((element?.tags ?? []).filter((t) => t[0] === "z").map((t) => t[1]));
   const tag: TagIdentity = {
     authorPubkey,
     slug,
     name: meta.name || slug,
     description: meta.description,
+    madeFor: hints.has(TAG_FOR_NOSTR_EVENT_Z) ? "posts" : hints.has(TAG_FOR_NOSTR_PUBKEY_Z) ? "people" : undefined,
   };
 
   // Both halves of the union: modern assertions point at the tag's coordinate,
@@ -1453,37 +1521,92 @@ export interface PickerTag extends TagSummary {
  *  - It does not sort BY the hint. Only 9 of 39 tags carry one, so ranking on
  *    it buried `AOS 2026 Participant` (88 people) beneath tags with three.
  *    Usage sorts within each band; the hint only chooses the band.
- *  - It does not advertise hint-only tags nobody has applied. The house's
+ *  - It does not advertise pubkey-hinted tags nobody has applied. The house's
  *    pubkey list includes `jumble-qa-profile-1784946392` and `test account`,
  *    so offering them puts harness output in front of users for the sake of
  *    one real unused tag (KIT-FEEDBACK.md §5). Nothing is lost: typing an
  *    existing tag's name still reuses it via `resolveOrMintTag`.
  *
+ * Tags made for events are offered by their hint, though: the catalogue counts
+ * people only, so a tag only ever put on notes (`stoicism`, `asknostr`) would
+ * otherwise be missing from both pickers. A tag made on a note carries the
+ * `tag-for-nostr-event` hint (`applyEventTagging`), so one small read of the
+ * hinted tags finds them — 39 on the hub (2026-11-18) — without reading any
+ * tagging. They come with no count and in the `content` band.
+ *
  * Returns `unverified` entries too. The picker is BOTH surfaces at once — a
  * suggestion list before you type and a query after — so the list/query split
- * has to be made there, not here. `TagPersonButton` does it.
+ * has to be made there, not here. `TagPersonButton` and `NoteTagChips` do it.
  */
 export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObserver = "house"): Promise<PickerTag[]> {
-  const catalogue = await fetchTagIndex(viewerPubkey, observer);
+  const [catalogue, forEvents] = await Promise.all([fetchTagIndex(viewerPubkey, observer), fetchEventHintedTags()]);
   const applicability = await fetchApplicability(catalogue);
 
-  // No opinion available → everything is offered as-is, in usage order.
-  if (applicability.source === "none") {
-    return catalogue.map((t) => ({ ...t, band: "profile" as const }));
-  }
-
-  const banded = catalogue.map((t) => {
+  // Content-only means the split says "notes" AND doesn't say "people".
+  // A tag in both lists is applicable to both and belongs up top. No opinion
+  // available → everything people carry stands as it is, in usage order.
+  const banded: PickerTag[] = catalogue.map((t) => {
     const coord = tagCoordinate(t);
-    // Content-only means the split says "notes" AND doesn't say "people".
-    // A tag in both lists is applicable to both and belongs up top.
     const contentOnly = applicability.event.has(coord) && !applicability.pubkey.has(coord);
-    return { ...t, band: (contentOnly ? "content" : "profile") as PickerTag["band"] };
+    return { ...t, band: contentOnly ? "content" : "profile" };
   });
+
+  // The event-hinted tags nobody carries yet: for notes, and checked for a
+  // scored creator as the catalogue's are.
+  const carried = new Set(catalogue.map((t) => t.key));
+  const unused = forEvents.filter((t) => !carried.has(`${t.authorPubkey}|${t.slug}`));
+  const scored = await fetchScoredPubkeys(Array.from(new Set(unused.map((t) => t.authorPubkey))), observer);
+  for (const t of unused) {
+    banded.push({
+      key: `${t.authorPubkey}|${t.slug}`,
+      authorPubkey: t.authorPubkey,
+      slug: t.slug,
+      name: t.name,
+      description: t.description,
+      people: 0,
+      vouches: 0,
+      sharesName: 1,
+      unverified: !scored.has(t.authorPubkey) && t.authorPubkey !== viewerPubkey,
+      band: "content",
+    });
+  }
+  const perName = new Map<string, number>();
+  for (const t of banded) perName.set(normalizeTagName(t.name), (perName.get(normalizeTagName(t.name)) ?? 0) + 1);
+  for (const t of banded) t.sharesName = perName.get(normalizeTagName(t.name)) ?? 1;
 
   return banded.sort(
     (a, b) =>
       (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
   );
+}
+
+/**
+ * The tags made for events: those carrying the `tag-for-nostr-event` hint, the
+ * newest of each, named from their own content. A failed read is none.
+ */
+async function fetchEventHintedTags(): Promise<
+  Array<{ authorPubkey: string; slug: string; name: string; description?: string }>
+> {
+  let events: NostrEvent[];
+  try {
+    events = await fetchTagEvents(applicabilityHintFilter("event") as Record<string, unknown>);
+  } catch {
+    return [];
+  }
+  const newest = new Map<string, NostrEvent>();
+  for (const ev of events) {
+    const d = tagValue(ev, "d");
+    if (!d) continue;
+    const key = `${ev.pubkey}|${d}`;
+    const prev = newest.get(key);
+    if (!prev || ev.created_at > prev.created_at) newest.set(key, ev);
+  }
+  return Array.from(newest.entries()).map(([key, ev]) => {
+    const slug = key.slice(key.indexOf("|") + 1);
+    cacheElementMeta(ev.pubkey, slug, ev.content);
+    const meta = elementMetaByCoord.get(key);
+    return { authorPubkey: ev.pubkey, slug, name: meta?.name || slug, description: meta?.description };
+  });
 }
 
 // ─── Comments on a tag ───────────────────────────────────────────────────────
@@ -1600,6 +1723,36 @@ export async function publishTagComment(authorPubkey: string, slug: string, cont
   // the tag-hub one: see fetchCommentEvents above for why.
   const result = await publishToRelays(signed);
   if (!result.success) throw new Error(result.error || "No relay accepted the comment");
+}
+
+/**
+ * Change what a tag means, as its creator: the description, never the name.
+ *
+ * The definition is addressable, so the edit is the creator's own definition
+ * published again under the same `d` (lib/tagEdit): taggings point at the
+ * coordinate and keep pointing at it. Only the creator has a definition to
+ * publish again, which is the whole permission check: anyone else's edit would
+ * be a different tag under their own key.
+ *
+ * A tagging that names the tag by event id alone (the shape from before the
+ * `a` correction) pointed at the version this replaces; the hub's are test
+ * output, and the `#a` half of every read is what counts the real ones.
+ */
+export async function editTagDescription(slug: string, description: string): Promise<{ description: string }> {
+  const user = activeAccount();
+  if (!user?.pubkey) throw new Error("Sign in to edit this tag.");
+
+  const mine = (await fetchTagEvents({ kinds: [TAG_ELEMENT_KIND], authors: [user.pubkey], "#d": [slug] }))
+    .filter((ev) => ev.pubkey === user.pubkey && tagValue(ev, "d") === slug)
+    .sort((a, b) => b.created_at - a.created_at)[0];
+  if (!mine) throw new Error("Only the person who created a tag can edit its description.");
+
+  const template = editedTagElement(mine, description, Math.floor(Date.now() / 1000));
+  const signed = await signAs(requireActiveAccount(), template as never);
+  await publishTagEvent(signed as unknown as Record<string, unknown>);
+  // Every surface that names the tag reads this cache before it asks a relay.
+  cacheElementMeta(user.pubkey, slug, template.content);
+  return { description: description.trim() };
 }
 
 // ─── Writing (floor B: yourself only) ────────────────────────────────────────
@@ -2153,6 +2306,13 @@ function targetIdOf(ev: NostrEvent): string | null {
   return e?.[1] ?? null;
 }
 
+/** An addressable event's coordinate (`<kind>:<pubkey>:<d>`), told from a 64-hex event id. */
+const isCoordinate = (target: string) => target.includes(":");
+
+/** The longest filter value the hub (strfry) takes. */
+const FILTER_ITEM_BYTES = 255;
+const utf8Length = (s: string) => new TextEncoder().encode(s).length;
+
 /** The coordinate a tagging names in its `a` tag, when it names one. */
 function targetAddressOf(ev: NostrEvent): string | null {
   const a = (ev.tags || []).find((t) => t[0] === "a");
@@ -2173,6 +2333,10 @@ function targetAddressOf(ev: NostrEvent): string | null {
  * which is deliberately trust-unfiltered.
  *
  * Returns a map keyed by event id. Ids with no tags are simply absent.
+ *
+ * An entry may be an addressable event's coordinate instead (a Dictionary list
+ * item, an article): its taggings point at it by `a`, and its answer is keyed by
+ * the coordinate.
  */
 export async function fetchEventTagsBatch(
   eventIds: string[],
@@ -2186,8 +2350,12 @@ export async function fetchEventTagsBatch(
   addresses: Record<string, string> = {},
 ): Promise<Map<string, NoteTagsResult>> {
   const out = new Map<string, NoteTagsResult>();
-  const ids = Array.from(new Set(eventIds.filter(Boolean)));
+  // A value past the hub's size limit fails its whole REQ ("filter item too
+  // large", 2026-10-29: an article whose `d` is a 300-character URL emptied a
+  // search's every tag). A tagging couldn't name such a target there anyway.
+  const ids = Array.from(new Set(eventIds.filter((t) => t && FILTER_ITEM_BYTES >= utf8Length(t))));
   if (!ids.length) return out;
+  const wanted = new Set(ids);
   const idByAddress = new Map(
     Object.entries(addresses)
       .filter(([id, address]) => ids.includes(id) && address)
@@ -2197,13 +2365,19 @@ export async function fetchEventTagsBatch(
   // One REQ per chunk, never per note. 200 keeps the filter under the size
   // most relays accept while still collapsing any realistic page to one query.
   const candidates: NostrEvent[] = [];
-  for (let i = 0; i < ids.length; i += 200) {
-    const chunk = ids.slice(i, i + 200);
-    // The SDK owns the filter's shape; we only widen `#e` from one id to the
-    // chunk, which is exactly the batching the checklist asks for.
-    const filter = filterTagsAppliedToEvent({ target: { id: chunk[0] } }) as Record<string, unknown>;
+  const chunks: Array<{ target: { id: string } | { address: string }; key: "#e" | "#a"; values: string[] }> = [];
+  const byId = ids.filter((t) => !isCoordinate(t));
+  const byAddress = ids.filter(isCoordinate);
+  for (let i = 0; i < byId.length; i += 200)
+    chunks.push({ target: { id: byId[i] }, key: "#e", values: byId.slice(i, i + 200) });
+  for (let i = 0; i < byAddress.length; i += 200)
+    chunks.push({ target: { address: byAddress[i] }, key: "#a", values: byAddress.slice(i, i + 200) });
+  for (const chunk of chunks) {
+    // The SDK owns the filter's shape; we only widen `#e` (or `#a`) from one
+    // target to the chunk, which is exactly the batching the checklist asks for.
+    const filter = filterTagsAppliedToEvent({ target: chunk.target }) as Record<string, unknown>;
     try {
-      candidates.push(...(await fetchTagEvents({ ...filter, "#e": chunk })));
+      candidates.push(...(await fetchTagEvents({ ...filter, [chunk.key]: chunk.values })));
     } catch {
       // Partial results beat none; the notes we couldn't ask about just show
       // no chips, which is what an untagged note looks like anyway.
@@ -2231,10 +2405,12 @@ export async function fetchEventTagsBatch(
 
   const byTarget = new Map<string, NostrEvent[]>();
   for (const ev of deduped) {
-    // By id, or by coordinate filed under the item's id.
+    // By id; else by coordinate, filed under the item's id when the page asked by both (#334), or
+    // under the coordinate when that is what was asked (a search result's address).
     const byId = targetIdOf(ev);
-    const target = byId && ids.includes(byId) ? byId : idByAddress.get(targetAddressOf(ev) ?? "");
-    if (!target || !ids.includes(target)) continue;
+    const address = targetAddressOf(ev);
+    const target = byId && wanted.has(byId) ? byId : address ? (idByAddress.get(address) ?? address) : null;
+    if (!target || !wanted.has(target)) continue;
     if (!byTarget.has(target)) byTarget.set(target, []);
     byTarget.get(target)!.push(ev);
   }
@@ -2436,7 +2612,17 @@ export async function fetchTagNotes(
     hintsFor.get(e[1])!.add(hint);
   }
 
-  return grouped.targets
+  // The viewer's own tagging when the trust filter doesn't count them (a new or
+  // unscored account): the classifier keeps it in `mine` and out of `targets`,
+  // so it has to be put back or the post they just tagged is on the post's page
+  // ("Tagged as") and missing from the tag's. Theirs alone: nobody else's read
+  // has a `mine` for it, and it adds nothing to the count.
+  const countedKeys = new Set(grouped.targets.map((t) => t.target.id ?? t.target.address ?? ""));
+  const mineOnly = grouped.mine
+    .filter((m) => m.stance === "apply" && !countedKeys.has(m.target.id ?? m.target.address ?? ""))
+    .map((m) => ({ target: m.target, applications: [], disputes: [], mineAt: m.createdAt }));
+
+  return [...grouped.targets.map((t) => ({ ...t, mineAt: 0 })), ...mineOnly]
     .map((t) => {
       const applied = new Set(t.applications.map((a) => a.authorPubkey));
       const disputed = new Set(t.disputes.map((d) => d.authorPubkey));
@@ -2447,7 +2633,7 @@ export async function fetchTagNotes(
         disputes: disputed.size,
         asserters: Array.from(applied),
         myStance: mineFor.get(t.target.id ?? t.target.address ?? ""),
-        addedAt: t.applications.reduce((max, a) => Math.max(max, a.createdAt ?? 0), 0),
+        addedAt: t.applications.reduce((max, a) => Math.max(max, a.createdAt ?? 0), t.mineAt),
         relays: Array.from(hintsFor.get(t.target.id ?? "") ?? []),
       };
     })
@@ -2510,6 +2696,17 @@ export async function applyTagToEvent({
       sign: (template: unknown) => signAs(requireActiveAccount(), template as never),
       publish: publishTagEvent,
       now: () => Math.floor(Date.now() / 1000),
+      hash8,
     },
   });
+}
+
+/**
+ * The first 8 lowercase hex of the SHA-256 of `s`'s UTF-8 bytes. An addressable target's tagging
+ * `d` carries it of the full coordinate, so one asserter's taggings of two items by the same author
+ * land at two addresses instead of one replacing the other (lib/tagging-sdk, Tapestry 2417b807).
+ */
+export async function hash8(s: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(digest).slice(0, 4), (b) => b.toString(16).padStart(2, "0")).join("");
 }

@@ -3,9 +3,11 @@
  * of them, centered, with the same gutter. Before this each page chose its own
  * width, and on a wide screen no two neighbours lined up.
  *
- *   wide      1280px  multi-column app pages, and the footer
- *   standard  1024px  info pages, profiles
- *   reading    672px  feeds, a single post, a focused task
+ *   wide      1280px  the footer, and the pages built of panels
+ *   standard  1024px  every page someone browses
+ *   reading    672px  a single post or article, a focused task
+ *
+ * Which page gets which: pageWidth.guard.test.
  */
 import { describe, expect, it } from "vitest";
 import { PAGE_WIDTHS, pageWidth, type PageWidth } from "./pageWidth";

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { CompromisedFollowsAlert } from "@/components/compromised/CompromisedFollowsAlert";
 import { useLocation, useSearch } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -188,7 +189,7 @@ export default function AlertsPage() {
   return (
     <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
+      <main className={cn(pageWidth("standard"), "flex-1 py-8")}>
         <button
           type="button"
           onClick={() => goBack("/dashboard")}
@@ -212,6 +213,8 @@ export default function AlertsPage() {
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
           Accounts in your network that people you trust have reported or muted.
         </p>
+        {/* First, and not in the list below: a compromised follow is a fact, not a count of reports. */}
+        <CompromisedFollowsAlert observer={observer} className="mb-6" />
 
         {/* Toolbar */}
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">

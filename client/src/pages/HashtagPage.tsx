@@ -195,12 +195,9 @@ export default function HashtagPage() {
   return (
     <ShareNavProvider>
       <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        <PublicPageHeader
-          width="reading"
-          actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} mint={mintShortUrl} />}
-        />
+        <PublicPageHeader actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} mint={mintShortUrl} />} />
 
-        <main className={cn(pageWidth("reading"), "flex-1 py-8")} data-testid="hashtag-page">
+        <main className={cn(pageWidth("standard"), "flex-1 py-8")} data-testid="hashtag-page">
           <PageHeader
             kicker="Topic"
             title={

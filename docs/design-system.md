@@ -15,18 +15,21 @@ Every page's content sits in one of three widths, centered, with one gutter
 (16px, 24px from `sm`). A page never writes its own
 `mx-auto max-w-… px-4 sm:px-6`; `pageWidth.guard.test.ts` fails when one does.
 
-| Width      | Size   | For                                                         |
-| ---------- | ------ | ----------------------------------------------------------- |
-| `wide`     | 1280px | multi-column app pages (dashboard, settings, admin), footer |
-| `standard` | 1024px | info pages, profiles, the network                           |
-| `reading`  | 672px  | feeds, a single post, a focused task (setup, the first run) |
+| Width      | Size   | For                                                                                          |
+| ---------- | ------ | -------------------------------------------------------------------------------------------- |
+| `wide`     | 1280px | the footer, pages built of panels (dashboard, settings, admin)                               |
+| `standard` | 1024px | every page someone browses: profiles, tags, lists of people, alerts, the network, info pages |
+| `reading`  | 672px  | reading one thing (a post, an article) or doing one task (setup, the first run)              |
 
 ```tsx
 <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
 ```
 
-- The top bar takes the same name: `<PublicPageHeader width="reading" />`, so
-  its edges are the content's. The signed-in bar and the info pages' bar are `wide`.
+- The top bar is none of these. It runs edge to edge on every page, pinned to the
+  window: the B mark at the left, the search box in the middle, the account menu at the
+  right, in the same place whatever the page under them and however wide the screen.
+- A new page is `standard`. `reading` and `wide` are the exceptions, and
+  `pageWidth.guard.test.ts` lists the pages that are allowed them.
 - Long text in a `standard` page caps its own measure (`max-w-3xl`, left-aligned),
   so lines stay readable while the page's edges match its neighbours'.
 - A capped block inside a page (a centered paragraph, a card) is not a page
@@ -217,6 +220,18 @@ backup nag, the plan you are on). Reach for `accent` rather than spelling out a
 <Card accent={isMine}>…</Card>
 ```
 
+## Explainer videos — `components/ExplainerVideo.tsx`, `config/explainers.ts`
+
+A walkthrough video we made has one home and any number of pointers to it.
+
+- **`ExplainerVideo`** plays it, on the page that explains the feature
+  (`/how-tags-work`). It has sound, so it shows the still and a play button and
+  loads nothing until pressed; give it an `id` so links can land on it.
+- **`ExplainerVideoLink`** is the pointer from the feature's own pages: a row
+  with the still, the title and the length.
+- The file ships with the app and is named once, in `config/explainers.ts`,
+  which also says how to size it. With `src` null, neither renders.
+
 ## ReadingText — `components/share/ReadingText.tsx`
 
 Any body of network prose shown in full on an event page — a note, a listing's
@@ -269,3 +284,48 @@ tier rings, network donut, sparklines) · the AccountMenu panel + AppsLauncher t
 
 Interface icons should be Phosphor per guidelines p16; the app uses `lucide-react`.
 Migration deferred — do not treat lucide as a bug. Primitives are icon-agnostic.
+
+## Compromised accounts
+
+An account whose key is in someone else's hands (CONTEXT.md **Compromised**), and the
+owner's **New account** when there is one. Everything is in `components/compromised/`, and
+all of it draws nothing for anyone else, so it can sit on every surface that shows a person.
+
+| Piece                                             | Where it goes                                                                                | What it says                                                                                                                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompromisedMark pubkey`                          | beside a name, in every row that names a person                                              | red "Compromised" chip; green "New account" chip on the owner's new account                                                                                  |
+| `useCompromisedRing(pubkey)`                      | an avatar's class, ahead of the tier ring: `useCompromisedRing(pk) ?? tierRing(score) ?? ""` | a red ring. Not trust chrome: it ignores the score display setting and search's quiet chrome                                                                 |
+| `CompromisedBanner status`                        | top of the compromised account's page                                                        | the fact, what not to do, the new account (`SuccessorCard`: Follow + latest post), Unfollow / Report (`CompromisedActions`), the owner's post that proves it |
+| `ReplacesBanner replaces`                         | top of the new account's page                                                                | this account replaces a compromised one; link back                                                                                                           |
+| `CompromisedAuthorNotice pubkey postedAt eventId` | under the byline of a post or article page                                                   | calm for content from before the compromise, a warning for content after it, the proof post named as where the owner said so                                 |
+| `CompromisedWatermark pubkey postedAt eventId`    | first child of a content container that carries `WATERMARK_HOST`                             | a shield-and-word stamp across content posted after the compromise only, on hover: it shows, then settles to a trace. Never the message on its own           |
+| `NewAccountResult compromisedPubkey`              | above a compromised account's card in a list of people                                       | the owner's new account as a highlighted person card, put first whatever the ranking says                                                                    |
+| `CompromisedChatWarning pubkeys`                  | under a chat's header, and with `placement="composer"` above its composer                    | you're messaging a compromised account; message the new one instead                                                                                          |
+| `CompromisedFollowsAlert observer`                | dashboard and /alerts, above the flagged-follows count                                       | which accounts you follow are compromised, with Unfollow and the new account to follow                                                                       |
+
+All of it reads `hooks/useCompromised`, which batches lookups against the server's public
+`/compromised` check (`services/compromised.ts`), the only record: admins mark accounts in
+the Admin page's Compromised tab.
+
+## Retired accounts
+
+An account its owner no longer uses (CONTEXT.md **Retired**), and the owner's **Current
+account**. The calm sibling of Compromised: slate, the archive icon, `role="note"`, and no
+ring, watermark, report or dashboard alert, because nothing is wrong with the account.
+Everything is in `components/retired/`, and all of it draws nothing for anyone else.
+
+| Piece                                      | Where it goes                                                                                                                          | What it says                                                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `RetiredMark pubkey`                       | beside a name. `CompromisedMark` falls back to it, so every row that names a person has it; the profile's name row carries it directly | grey "Retired" chip. Nothing on the current account                                                                            |
+| `RetiredBanner pubkey`                     | top of the retired account's page                                                                                                      | one slim row: the account is retired, and the current account by name with a Follow; under it, a quiet Unfollow for a follower |
+| `CurrentAccountNote pubkey`                | above the current account's page                                                                                                       | one line: this is their current account, an older one is retired; link back                                                    |
+| `RetiredAuthorNotice pubkey`               | under the byline of a post or article page                                                                                             | posted from a retired account; link to the current one                                                                         |
+| `CurrentAccountResult retiredPubkey known` | above a retired account's card in a list of people                                                                                     | the current account as a lightly set-apart person card, put first; its own row further down steps aside                        |
+| `RetiredChatNote pubkeys`                  | under a chat's header                                                                                                                  | messages here may go unseen; message the current account instead                                                               |
+
+On the retired profile itself, two things step back so the current account is the one
+action: the profile's own Follow is an outline (`FollowButton quiet`), and the signed-out
+"Join free" invites through the current account (`inviteThrough` in `services/retired.ts`).
+
+All of it reads `hooks/useRetired`. The record is `config/retired.ts` for now
+(`services/retired.ts`): the server holds no retired record yet.

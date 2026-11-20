@@ -7,8 +7,8 @@
  * the curators, the people the house tagged "Dictionary Concept Curator", so
  * adding one is a publish, not a deploy (lib/dictionaryConcepts,
  * hooks/useDictionaryConcepts). The house isn't here either: that's the house
- * observer, discovered from the server like everywhere else in the app
- * (services/trustSource), never a key written here.
+ * observer the deployment names (VITE_HOUSE_OBSERVER, read like everywhere else
+ * in the app through services/trustSource), never a key written here.
  *
  * The repo's rule for identifiers (config/tagging.config.json says it too):
  * a Nostr identifier that's the same on every deployment — a list's or a

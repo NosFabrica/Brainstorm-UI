@@ -1,4 +1,6 @@
 import type { NostrEvent } from "applesauce-core/helpers";
+import { treasureMapDuties, type Duty } from "@/lib/treasureMap";
+import { appliesTo, CATEGORIES, entryOf, type MapCategory } from "@/lib/treasureMapCards";
 
 /**
  * Does this kind-10040 declare `taPubkey` (publishing on `relayUrl`) as the
@@ -33,9 +35,10 @@ export function trustProviderStatusOf(
 ): "none" | "brainstorm" | "other" {
   if (!event) return "none";
   if (taPubkey && declaresTrustProvider(event as NostrEvent, taPubkey, relayUrl)) return "brainstorm";
-  const rankTarget = event.tags.find((t) => t[0] === "30382:rank")?.[1];
-  if (!rankTarget) return "none";
-  return rankTarget === taPubkey ? "brainstorm" : "other";
+  // Who the Map resolves the rank duty to — by its own row or a broader key.
+  const holder = holderOf(event.tags, "30382:rank");
+  if (!holder) return "none";
+  return holder === taPubkey?.toLowerCase() ? "brainstorm" : "other";
 }
 
 /**
@@ -47,7 +50,10 @@ export function trustProviderStatusOf(
 export function rankProviderOf(
   event: Pick<NostrEvent, "tags"> | null | undefined,
 ): { pubkey: string; relay: string } | null {
-  const row = event?.tags.find((t) => t[0] === "30382:rank" && t[1]);
+  const duty = dutyOf(event?.tags ?? [], "30382:rank");
+  const holder = duty?.assistants[0];
+  // The row that gives it: the rank row itself, or the broader key covering it.
+  const row = holder ? duty.entries.find((t) => String(t[1]).toLowerCase() === holder) : undefined;
   return row ? { pubkey: row[1], relay: String(row[2] ?? "") } : null;
 }
 
@@ -79,6 +85,87 @@ export function mergeDesignation(existing: string[][], rows: string[][]): string
   return [...existing.filter((t) => !ours.has(t[0])), ...rows];
 }
 
+/** The Duty group (Scores, Lists, Concepts) a row's key falls in, as the Treasure Map reads it; null for a key that isn't a Duty. */
+function categoryOfKey(key: string): MapCategory | null {
+  const entry = entryOf([key, "0".repeat(64)]);
+  return entry ? (CATEGORIES.find((c) => appliesTo(c, entry)) ?? null) : null;
+}
+
+const NOBODY = "0".repeat(64);
+
+/**
+ * The Assistant a Treasure Map gives this key's Duty to: its Preferred, found
+ * the way the Map is read — through the most specific key that reaches it
+ * (Treasure Maps § 6), so a Duty given through `*`, a family (`3038x`) or a
+ * whole kind is held, not empty. Null when nobody holds it, or the key names
+ * no Duty. Lowercase.
+ */
+export function holderOf(tags: string[][], key: string): string | null {
+  return dutyOf(tags, key)?.assistants[0] ?? null;
+}
+
+/** This key's Duty as the Map reads it: its own rows, or those of the most specific key covering it. */
+function dutyOf(tags: string[][], key: string): Duty | null {
+  const asked = entryOf([key, NOBODY]);
+  if (!asked) return null;
+  return treasureMapDuties({ tags }, [{ key, pubkey: NOBODY }]).find((d) => d.key === asked.norm) ?? null;
+}
+
+interface PlanOptions {
+  /** This deployment's Assistant. */
+  self: string;
+  /** The Duty groups the person chose to move here. */
+  take?: readonly MapCategory[];
+}
+
+/**
+ * The rows of `rows` that may be set on this Map: those whose Duty nobody
+ * holds, or `self` already does — or whose Duty group is in `take`. What the
+ * lists pill offers and what a publish writes both ask this, so they agree.
+ */
+export function fillableRows(existing: string[][], rows: string[][], { self, take = [] }: PlanOptions): string[][] {
+  const me = self.toLowerCase();
+  return rows.filter((r) => {
+    const holder = holderOf(existing, r[0]);
+    if (holder === null || holder === me) return true;
+    const category = categoryOfKey(r[0]);
+    return category !== null && take.includes(category);
+  });
+}
+
+/**
+ * Fill empty, never take. The user's 10040 tags with this deployment's
+ * Assistant (`self`) set in `rows` — but a row is only set where nobody holds
+ * that Duty, or `self` already does (`fillableRows`). A Duty another
+ * Assistant holds (another deployment's, or an external service's), by its own
+ * key or a broader one, is kept as it is unless its Duty group is in `take`:
+ * the groups the person chose to move. Rows it isn't setting are kept.
+ * Compares keys, never hosts.
+ *
+ * A row of ours is refreshed where it stands, so a Preferred stays Preferred
+ * and its Alternates stay beside it. Taking a Duty drops the other
+ * Assistants' rows of that same key; a broader key of theirs is kept — it
+ * still gives them everything ours doesn't name.
+ */
+export function planDesignation(existing: string[][], rows: string[][], options: PlanOptions): string[][] {
+  const me = options.self.toLowerCase();
+  const mine = (t: string[]) => typeof t[1] === "string" && t[1].toLowerCase() === me;
+  let tags = existing;
+  for (const row of fillableRows(existing, rows, options)) {
+    const taking = (holderOf(existing, row[0]) ?? me) !== me;
+    let placed = false;
+    tags = tags.flatMap((t) => {
+      if (t[0] !== row[0]) return [t];
+      if (!mine(t)) return taking ? [] : [t];
+      if (placed) return [];
+      placed = true;
+      return [row];
+    });
+    if (!placed) tags = [...tags, row];
+  }
+  return tags;
+}
+
 /** The user's 10040 tags without the rows naming `key`; every other provider's rows are kept. */
 export function withoutProvider(existing: string[][], key: string): string[][] {
   return existing.filter((t) => t[1] !== key);
@@ -95,7 +182,12 @@ export function declaresLists(
   { key, relay }: ListDesignation,
 ): boolean {
   if (!event || !key || !relay) return false;
-  return LIST_KINDS.every((kind) => event.tags.some((t) => t[0] === kind && t[1] === key && sameRelay(t[2], relay)));
+  return undeclaredRows(event.tags, listRows({ key, relay })).length === 0;
+}
+
+/** The `rows` the Map doesn't carry yet: same key and Assistant, on the same relay. */
+export function undeclaredRows(existing: string[][], rows: string[][]): string[][] {
+  return rows.filter((r) => !existing.some((t) => t[0] === r[0] && t[1] === r[1] && sameRelay(t[2], r[2])));
 }
 
 /** What a 10040 says, read for people — a row's line, a page's card. */

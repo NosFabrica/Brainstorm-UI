@@ -34,7 +34,7 @@ docker run -d -p 3000:3000 --name brainstorm-ui brnstui
 
 ## Configuration
 
-Six variables configure a deployment. Vite bakes them in at build time; the production
+Seven variables configure a deployment. Vite bakes them in at build time; the production
 container additionally substitutes them into `config.js` at container start
 (`docker-entrypoint.sh`), so one image can serve several environments. Both paths are
 read through [`client/src/lib/runtimeEnv.ts`](client/src/lib/runtimeEnv.ts), which
@@ -48,6 +48,7 @@ prefers the runtime value and falls back to the build-time one.
 | `VITE_TAG_RELAY_URLS`           | Comma-separated tag relays; unset falls back to the hub in `client/src/config/tagging.config.json` |
 | `VITE_FEATURE_AGENT_SUITE`      | Feature flag — agent suite (default off)                                                           |
 | `VITE_FEATURE_ASSISTANTS_ADMIN` | Feature flag — assistants admin (default off)                                                      |
+| `VITE_HOUSE_OBSERVER`           | House observer (64-hex) logged-out search ranks through; unset → looked up via NIP-05 `_`          |
 
 ## Deploying to staging
 
@@ -81,7 +82,7 @@ there is no deploy script to run. Details in
 
 ## The wider estate
 
-This repository is the production UI of a two-organization estate operated by one team. Protocols and features are piloted in the R&D counterpart, [`nous-clawds4/tapestry`](https://github.com/nous-clawds4/tapestry), then adopted here. The canonical map of the estate — every repository, deployment, and role — is [ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md) in [`NosFabrica/protocols`](https://github.com/NosFabrica/protocols), which also houses the wire-format specifications this UI consumes.
+This repository is the production UI of a two-organization estate operated by one team. Protocols and features are piloted in the R&D counterpart, [`TapestryProtocol/tapestry`](https://github.com/TapestryProtocol/tapestry), then adopted here. The canonical map of the estate — every repository, deployment, and role — is [ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md) in [`NosFabrica/protocols`](https://github.com/NosFabrica/protocols), which also houses the wire-format specifications this UI consumes.
 
 ## License
 

@@ -11,7 +11,8 @@ const HOUSE = "f".repeat(64);
 const ME = "1".repeat(64);
 const reqMock = vi.fn();
 vi.mock("@/lib/searchRelay", () => ({ searchRelay: () => ({ req: (...args: unknown[]) => reqMock(...args) }) }));
-vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: () => Promise.resolve(HOUSE) }));
+const houseMock = vi.fn(() => Promise.resolve<string | null>(HOUSE));
+vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: () => houseMock() }));
 
 import { searchListItems } from "./search";
 
@@ -40,6 +41,13 @@ beforeEach(() => {
 });
 
 describe("searchListItems", () => {
+  it("asks nothing when the house can't be found, rather than every list's unranked items", async () => {
+    houseMock.mockResolvedValueOnce(null);
+    const answers = await searchListItems("fork coin", [{ key: PLACES, headers: [PLACES] }], { pov: "nosfabrica" });
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(answers.get(PLACES)).toEqual({ events: [], full: false });
+  });
+
   it("asks every list in one REQ, each capped on its own, through the house's lens", async () => {
     const pending = searchListItems(
       `fork coin from:${nip19.npubEncode(ME)}`,

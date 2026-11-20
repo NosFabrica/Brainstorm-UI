@@ -90,6 +90,13 @@ describe("listCategory", () => {
     expect(belongsTo(books, hit(39999))).toBe(true);
     expect(categoryTestId(books.key)).toBe("books");
   });
+
+  it("is all of a list's items when the words are its name", () => {
+    expect(listCategory({ coordinate: BOOKS, name: "Books", headers: [BOOKS], whole: true }).whole).toBe(true);
+    expect(listCategory({ coordinate: BOOKS, name: "Books", headers: [BOOKS], whole: false })).not.toHaveProperty(
+      "whole",
+    );
+  });
 });
 
 describe("byResults", () => {

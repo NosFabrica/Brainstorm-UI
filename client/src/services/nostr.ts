@@ -3,11 +3,12 @@ import { env } from "@/lib/runtimeEnv";
 import {
   declaresTrustProvider,
   listRows,
-  mergeDesignation,
+  planDesignation,
   signalRows,
   withoutProvider,
   type ListDesignation,
 } from "@/lib/nip85Declaration";
+import type { MapCategory } from "@/lib/treasureMapCards";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
@@ -935,6 +936,20 @@ export function fetchFromSearchRelayByFilters(
   filters: Record<string, unknown>[],
   timeoutMs: number,
 ): Promise<NostrEvent[]> {
+  return querySearchRelay(filters, timeoutMs).then((r) => r.events);
+}
+
+/**
+ * `fetchFromSearchRelayByFilters`, saying whether the search relay actually
+ * answered. `answered` is true only on EOSE: a refusal (CLOSED), a timeout or
+ * no relay at all leaves it false, so an empty result there means "not asked",
+ * never "search does not have it" — which is what deciding to push an event
+ * into search (services/searchSeed) has to tell apart.
+ */
+export function querySearchRelay(
+  filters: Record<string, unknown>[],
+  timeoutMs: number,
+): Promise<{ events: NostrEvent[]; answered: boolean }> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
@@ -942,8 +957,9 @@ export function fetchFromSearchRelayByFilters(
     } catch {
       relay = null;
     }
-    if (!relay) return resolve([]);
+    if (!relay) return resolve({ events: [], answered: false });
     const events: NostrEvent[] = [];
+    let answered = false;
     let sub: { unsubscribe: () => void } | null = null;
     const timer = setTimeout(finish, timeoutMs);
     try {
@@ -966,7 +982,10 @@ export function fetchFromSearchRelayByFilters(
               return;
             }
             events.push(msg.event);
-          } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+          } else if (msg.type === "EOSE") {
+            answered = true;
+            finish();
+          } else if (msg.type === "CLOSED") finish();
         });
     } catch {
       finish();
@@ -974,7 +993,7 @@ export function fetchFromSearchRelayByFilters(
     function finish() {
       clearTimeout(timer);
       sub?.unsubscribe();
-      resolve(events);
+      resolve({ events, answered });
     }
   });
 }
@@ -1080,6 +1099,16 @@ export async function fetchAddressableEvents(
   coords: { kind: number; pubkey: string; identifier: string; relays?: string[] }[],
   relays: string[] = PROFILE_RELAYS,
   timeoutMs = 6000,
+  {
+    askSearch = true,
+    newest = false,
+  }: {
+    /** false when the caller asks the search relay itself, alongside (services/eventPageLoad). */
+    askSearch?: boolean;
+    /** Wait out every relay rather than stopping at the first copy of each
+     *  address: for a caller that must know whether a hint holds a newer version. */
+    newest?: boolean;
+  } = {},
 ): Promise<Map<string, NostrEvent>> {
   const result = new Map<string, NostrEvent>();
   const valid = coords.filter((c) => c && Number.isFinite(c.kind) && /^[0-9a-f]{64}$/i.test(c.pubkey));
@@ -1126,6 +1155,7 @@ export async function fetchAddressableEvents(
     `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
   const enough = {
     enough: (collected: Map<string, NostrEvent>) => {
+      if (newest) return false;
       const seen = new Set<string>();
       for (const e of collected.values()) seen.add(wantedKey(e));
       return [...wanted].every((k) => seen.has(k));
@@ -1144,7 +1174,7 @@ export async function fetchAddressableEvents(
   // wider than the content relays'. GitCitadel's wiki articles (kind 30818)
   // were listed by search and unopenable — their naddr names no relay, and
   // the content relays never had them (Benjamin, 2026-09-05).
-  const missing = valid.filter((c) => !result.has(coordKey(c)));
+  const missing = askSearch ? valid.filter((c) => !result.has(coordKey(c))) : [];
   if (missing.length) {
     const found = await fetchFromSearchRelayByFilters(
       [
@@ -1575,12 +1605,13 @@ export async function announceRelayList(): Promise<PublishOutcome> {
 export async function signNip85(
   serviceKey: string,
   relayHint: string,
-  opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
+  opts: { lists?: ListDesignation | null; existing?: string[][]; take?: readonly MapCategory[] } = {},
 ): Promise<NostrEvent> {
   const ours = [...signalRows(serviceKey, relayHint), ...(opts.lists ? listRows(opts.lists) : [])];
   return signAs(requireActiveAccount(), {
     kind: 10040,
-    tags: mergeDesignation(opts.existing ?? [], ours),
+    // Fill empty, never take: another Assistant's slots move only in the categories the caller chose.
+    tags: planDesignation(opts.existing ?? [], ours, { self: serviceKey, take: opts.take }),
     content: "",
   });
 }

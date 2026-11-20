@@ -263,12 +263,35 @@ export function typeaheadWords(query: string): string | null {
   return words.split(/\s+/).some((w) => OPERATOR_WORD.test(w)) ? null : words;
 }
 
+/**
+ * The trust floor the Top tab's Latest reads at unless the query names its own: rank 10 of 100.
+ * Latest is the raw newest posts from anyone the lens reaches, so low-ranked accounts and bots
+ * fill it; every other search is sorted by score and sinks them already. The relay deletes the
+ * rows below the floor and fills the page from those above (probed 2026-11-18: newest-first
+ * "bitcoin" lost its block-announcement bots and kept its length).
+ */
+export const LATEST_RANK_FLOOR = 10;
+
+/** `query` with the Latest section's floor: kept as typed when it chose a floor or waives the lens. */
+export function latestFloor(query: string): string {
+  const q = query.trim();
+  if (/(^|\s)(filter:rank:|include:spam)/i.test(q)) return q;
+  return q ? `${q} filter:rank:gte:${LATEST_RANK_FLOOR}` : `filter:rank:gte:${LATEST_RANK_FLOOR}`;
+}
+
+/** Whether the query names its own lens (`observer:` or `include:spam`), which `withObserver` keeps as typed. */
+export function namesLens(query: string): boolean {
+  return /(^|\s)(observer:|include:spam)/.test(query.trim());
+}
+
 /** Append our lens unless the query already names one. The SearchOverTrust relay refuses a
  *  read with neither `observer:` nor `include:spam` (`auth-required:`), so every search the UI
- *  sends carries one; with no observer to name, the waiver is the only way to be answered. */
+ *  sends carries one. With no observer to name it waives the lens, which only a caller that
+ *  wants the unranked corpus may ask for: a ranked search with no Perspective refuses instead
+ *  (services/search `NO_PERSPECTIVE`), or a person search fills with impostors. */
 export function withObserver(query: string, observer: string | null): string {
   const q = query.trim();
-  if (/(^|\s)(observer:|include:spam)/.test(q)) return q;
+  if (namesLens(q)) return q;
   if (!observer) return q ? `${q} include:spam` : "include:spam";
   return q ? `${q} observer:${observer}` : `observer:${observer}`;
 }
@@ -332,6 +355,16 @@ export function personScope(query: string): string | null {
   if (q.labels.length || q.scopes.length || q.groups.length) return null;
   if (q.since != null || q.until != null) return null;
   return q.authors.length === 1 ? q.authors[0] : null;
+}
+
+/**
+ * The search page on a Dictionary list's own tab: its name as the words — which ask for all its
+ * items, not only those the words find (hooks/useListRibbon `whole`) — on All, with the list's tab
+ * open. Where a list item's page sends a reader to the rest of its list: the search they know,
+ * with its tab row and tag filters.
+ */
+export function listSearchHref(coordinate: string, name: string): string {
+  return `/?q=${encodeURIComponent(name.trim())}&t=all&list=${encodeURIComponent(coordinate)}`;
 }
 
 /** The search page, scoped to one person, on one vertical. */

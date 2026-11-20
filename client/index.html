@@ -31,15 +31,22 @@
     </script>
     <title>Brainstorm - Web of Trust for Nostr</title>
     <meta
-      name="description"
-      content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr."
-    />
-    <meta
       name="keywords"
       content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation"
     />
     <meta name="author" content="Brainstorm" />
 
+    <!-- Preview tags. On a share page (/p/, /e/, /s/) nginx replaces this block
+         with that page's own — og's /meta/ fragment, included server-side (SSI,
+         nginx.conf) — and keeps it when og has nothing to say or isn't there.
+         Everywhere else, and in dev, the two SSI lines around it are plain
+         comments and the block is simply the page's tags. `<title>` stays outside it:
+         it names the tab, not the link. -->
+    <!--# block name="share_meta" -->
+    <meta
+      name="description"
+      content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr."
+    />
     <link rel="canonical" href="https://brainstorm.nosfabrica.com/" />
 
     <meta property="og:title" content="Brainstorm — Your Network. Your Rules." />
@@ -63,6 +70,8 @@
     />
     <meta name="twitter:image" content="https://brainstorm.nosfabrica.com/og-image.png" />
     <meta name="twitter:image:alt" content="Brainstorm — Search through the people you trust." />
+    <!--# endblock -->
+    <!--# include virtual="$share_meta" stub="share_meta" -->
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -283,6 +292,9 @@
           // (accounts/persist.ts clears this key on sign-out).
           if (localStorage.getItem("brainstorm_active_account")) return;
           var fresh = q + " sort:recent";
+          // Latest alone reads above a trust floor, as the app asks it (lib/searchSyntax latestFloor).
+          // Plain words only reach here, so q never carries a floor or a waiver of its own.
+          var latest = fresh + " filter:rank:gte:10";
           // `complete` means the relay said EOSE: one REQ, one EOSE, so every
           // filter finished. A CLOSED is an ending, not a completion.
           // `failed`: it ended without an answer — the app asks for itself.
@@ -307,9 +319,11 @@
           window.__headStart = head;
           var socket = new WebSocket(url);
           head.socket = socket;
-          // The relay refuses a Perspective-less read and the house identity is
-          // discovered, never configured (services/trustSource.ts), so it is
-          // looked up — from the last visit's copy where there is one.
+          // The relay refuses a Perspective-less read. The deployment names the
+          // house observer in config.js (VITE_HOUSE_OBSERVER, services/trustSource.ts);
+          // only where it names none is it looked up — from the last visit's copy
+          // where there is one. An unsubstituted "__VITE_…__" placeholder fails the test.
+          var configured = String((window.__ENV__ || {}).VITE_HOUSE_OBSERVER || "").trim();
           var KEY = "brainstorm_house_observer";
           var cached = null;
           try {
@@ -318,23 +332,25 @@
             // no way to go stale would rank against it forever.
             if (held && Date.now() - held.at < 86400000) cached = held.pk;
           } catch (e) {}
-          var observer = /^[0-9a-f]{64}$/.test(cached || "")
-            ? Promise.resolve(cached)
-            : fetch("/.well-known/nostr.json?name=_")
-                .then(function (r) {
-                  return r.json();
-                })
-                .then(function (d) {
-                  var pk = d && d.names && d.names._;
-                  if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
-                  try {
-                    localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() }));
-                  } catch (e) {}
-                  return pk;
-                })
-                .catch(function () {
-                  return null;
-                });
+          var observer = /^[0-9a-fA-F]{64}$/.test(configured)
+            ? Promise.resolve(configured.toLowerCase())
+            : /^[0-9a-f]{64}$/.test(cached || "")
+              ? Promise.resolve(cached)
+              : fetch("/.well-known/nostr.json?name=_")
+                  .then(function (r) {
+                    return r.json();
+                  })
+                  .then(function (d) {
+                    var pk = d && d.names && d.names._;
+                    if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
+                    try {
+                      localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() }));
+                    } catch (e) {}
+                    return pk;
+                  })
+                  .catch(function () {
+                    return null;
+                  });
           var open = new Promise(function (done) {
             socket.onopen = done;
           });
@@ -392,7 +408,7 @@
                   "REQ",
                   "head",
                   { kinds: [0], search: q + perspective, limit: 8 },
-                  { kinds: [1, 11, 1111, 9802, 1068, 6969], search: fresh + perspective, limit: 10 },
+                  { kinds: [1, 11, 1111, 9802, 1068, 6969], search: latest + perspective, limit: 10 },
                   {
                     kinds: [30023, 30024, 30818, 30040, 30041, 30045, 30817, 30142],
                     search: q + perspective,

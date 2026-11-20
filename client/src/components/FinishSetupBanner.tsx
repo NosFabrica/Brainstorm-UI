@@ -13,10 +13,11 @@ import { ListsUpdatePill } from "./ListsUpdate";
  *
  * Responsive like the rest of the header: the full sentence + count on
  * desktop, sentence only on tablet, just the ⚠ + "Finish setup" chip on
- * phones. `labelFrom` moves the sentence's breakpoint: beside the app
- * header's search box there is only room for it from `xl`.
+ * phones. `labelFrom` moves the sentence's breakpoint. `chip` is the ⚠ and the
+ * button at every width: beside the page header's centred search box there is
+ * room for that and no more.
  */
-export function FinishSetupBanner({ labelFrom = "sm" }: { labelFrom?: "sm" | "xl" | "never" } = {}) {
+export function FinishSetupBanner({ labelFrom = "sm" }: { labelFrom?: "sm" | "xl" | "never" | "chip" } = {}) {
   const [location, navigate] = useLocation();
   const { signedIn, remaining, listsPending } = useFinishSetup();
   const amber = tone("amber");
@@ -35,18 +36,22 @@ export function FinishSetupBanner({ labelFrom = "sm" }: { labelFrom?: "sm" | "xl
       data-testid="banner-finish-setup"
     >
       <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${amber.icon}`} />
-      <span
-        className={`hidden whitespace-nowrap text-[13px] font-bold text-amber-900 dark:text-amber-200 ${labelFrom === "never" ? "" : labelFrom === "xl" ? "xl:block" : "sm:block"}`}
-      >
-        Finish setting up your account
-      </span>
-      <span
-        className={`hidden whitespace-nowrap text-xs font-semibold tabular-nums ${labelFrom === "never" ? "sm:block" : labelFrom === "xl" ? "2xl:block" : "lg:block"} ${amber.text}`}
-        data-testid="banner-finish-setup-count"
-      >
-        {labelFrom === "never" ? "" : "· "}
-        {remaining} {remaining === 1 ? "step" : "steps"} left
-      </span>
+      {labelFrom !== "chip" && (
+        <>
+          <span
+            className={`hidden whitespace-nowrap text-[13px] font-bold text-amber-900 dark:text-amber-200 ${labelFrom === "never" ? "" : labelFrom === "xl" ? "xl:block" : "sm:block"}`}
+          >
+            Finish setting up your account
+          </span>
+          <span
+            className={`hidden whitespace-nowrap text-xs font-semibold tabular-nums ${labelFrom === "never" ? "sm:block" : labelFrom === "xl" ? "2xl:block" : "lg:block"} ${amber.text}`}
+            data-testid="banner-finish-setup-count"
+          >
+            {labelFrom === "never" ? "" : "· "}
+            {remaining} {remaining === 1 ? "step" : "steps"} left
+          </span>
+        </>
+      )}
       <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-600 px-3 py-1 text-xs font-bold text-white">
         Finish setup
         <ArrowRight className="h-3 w-3" />

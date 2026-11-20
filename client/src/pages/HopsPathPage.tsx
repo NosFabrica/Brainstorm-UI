@@ -211,14 +211,13 @@ export default function HopsPathPage() {
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader
-        width="reading"
         // Pops history instead of pushing the profile again — same fix and
         // same reasoning as ConnectionListPage. `backLink` is the fallback
         // for a cold deep-link with nothing to pop.
         back={{ label: "Back", onClick: () => goBack(backLink) }}
       />
 
-      <main className={cn(pageWidth("reading"), "py-8")}>
+      <main className={cn(pageWidth("standard"), "py-8")}>
         <div className="mb-3 flex items-center gap-2.5">
           <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
             Connection

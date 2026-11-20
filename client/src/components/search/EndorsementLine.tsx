@@ -148,7 +148,7 @@ export function PersonCardSlot({
   npub: string;
   personal: boolean;
   enabled?: boolean;
-  idx: number;
+  idx: number | string;
   className?: string;
 }) {
   const e = usePersonEndorsements(enabled ? pubkey : null, personal);

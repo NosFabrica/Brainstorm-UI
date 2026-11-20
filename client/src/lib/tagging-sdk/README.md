@@ -24,6 +24,17 @@ entry points we actually import (`profile-tagging.d.ts`, `trust.d.ts`,
 - The `.d.ts` files are ours. They describe only the surface we call. Widen them
   as we start using more of the SDK.
 
+## Local patches
+
+Applied here ahead of a re-vendor; a re-vendor must carry them, or come from a kit that has them.
+
+- **Tapestry 2417b807** (2026-09-10, `nous-clawds4/tapestry` `feat/tags`): an `a`-target
+  assertion `d` is `event-tag-<slug>-<author8>-<d16>-<hash8>-<asserter8>`, `hash8` being the
+  first 8 hex of SHA-256 over the full coordinate. The old `event-tag-<slug>-<author8>-<asserter8>`
+  gave one asserter a single tagging per tag across every item by one author. Ported 2026-11-18
+  into `event-tagging/builders.js` and `event-tagging/apply.js`, line for line; the caller
+  supplies `hash8` (`services/tags.ts`). The packaged kit did not have it yet.
+
 ## Re-vendoring
 
 ```

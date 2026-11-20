@@ -55,7 +55,13 @@ const WITH_DLIST = !flag("no-dlist");
 const PRINT_FILTERS = flag("print-filters");
 /** Keep every section's top 10, not only the sections an entry names: for reading a run, not for committing. */
 const FULL = flag("full");
-/** Where the app finds the house observer: the server's NIP-05 `_` (services/trustSource, index.html). */
+/**
+ * The house observer, found as the app finds it (services/trustSource, index.html): the
+ * deployment's VITE_HOUSE_OBSERVER, else the server's NIP-05 `_` at these origins.
+ */
+const HOUSE_CONFIGURED = (process.env.VITE_HOUSE_OBSERVER ?? "").trim().toLowerCase();
+if (HOUSE_CONFIGURED && !/^[0-9a-f]{64}$/.test(HOUSE_CONFIGURED))
+  throw new Error("VITE_HOUSE_OBSERVER must be 64 hex characters; unset it to discover the house instead.");
 const HOUSE_ORIGINS = ["https://brainstorm.world", "https://api.brainstorm.world"];
 
 // ---------------------------------------------------------------------------
@@ -678,8 +684,9 @@ const mean = (xs) => {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 };
 
-/** The house: the server's NIP-05 `_`, as the app finds it (services/trustSource). Null when no origin answers. */
+/** The house, as the app finds it (services/trustSource): VITE_HOUSE_OBSERVER, else the server's NIP-05 `_`. Null when neither answers. */
 async function discoverHouse() {
+  if (/^[0-9a-f]{64}$/.test(HOUSE_CONFIGURED)) return { house: HOUSE_CONFIGURED, source: "VITE_HOUSE_OBSERVER" };
   for (const origin of HOUSE_ORIGINS) {
     try {
       const res = await fetch(`${origin}/.well-known/nostr.json?name=_`, { signal: AbortSignal.timeout(8000) });

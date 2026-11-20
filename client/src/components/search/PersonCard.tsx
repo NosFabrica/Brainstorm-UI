@@ -4,6 +4,8 @@
  * follower pill, npub copy), extracted from landing.tsx so every vertical
  * shares it.
  */
+import { useCompromisedRing } from "@/hooks/useCompromised";
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { HandleOwnerWarning } from "@/components/Nip05Check";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { PersonTagChips } from "@/components/search/PersonTagChips";
@@ -49,7 +51,8 @@ export function PersonCard({
   pointedBy,
 }: {
   result: SearchResult;
-  idx: number;
+  /** The row's place in the list, for its test ids; a row put in by hand (a new account) names itself. */
+  idx: number | string;
   pov: "nosfabrica" | "mywot";
   onOpen: (result: SearchResult) => void;
   onPrefetchEnter?: (result: SearchResult) => void;
@@ -66,6 +69,7 @@ export function PersonCard({
   tag?: TagChip;
 }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(result.pubkey);
   const quiet = useQuietTrustChrome();
   const coinReplaced = useCoinReplacedByRing();
   // The kind-0 nip05 is only a claim: shown once its domain confirms it, and not otherwise.
@@ -92,7 +96,7 @@ export function PersonCard({
       <div className="flex items-start gap-3 p-3 sm:gap-4 sm:p-4">
         <div className="relative shrink-0">
           <Avatar
-            className={`h-10 w-10 border-2 border-slate-200/80 dark:border-slate-800/80 sm:h-12 sm:w-12 ${tierRing(result.wotRank) ?? ""}`}
+            className={`h-10 w-10 border-2 border-slate-200/80 dark:border-slate-800/80 sm:h-12 sm:w-12 ${compromisedRing ?? tierRing(result.wotRank) ?? ""}`}
           >
             {result.picture ? (
               <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" />
@@ -122,6 +126,7 @@ export function PersonCard({
             </span>
             <TierWordChip score01={result.wotRank} />
             <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
+            <CompromisedMark pubkey={result.pubkey} />
           </div>
           {result.nip05 && nip05Status === "verified" && (
             <p

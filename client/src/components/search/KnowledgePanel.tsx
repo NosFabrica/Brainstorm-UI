@@ -4,6 +4,9 @@
  * (mobile) — avatar with tier ring, identity rows, and the deep-dive CTA.
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
+import { SuccessorCard } from "@/components/compromised/SuccessorCard";
+import { useCompromised, useCompromisedRing } from "@/hooks/useCompromised";
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { useListKinds } from "@/hooks/useListKinds";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchLiveStreams } from "@/services/nostr";
@@ -293,6 +296,9 @@ function KnowledgePanelBody({
   let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
   // The person's things, live from the store: each ask about them leaves in one batch.
   const personPk = person?.pubkey ?? null;
+  // Compromised: a red ring whatever the trust chrome says, and the owner's new account in reach.
+  const personCompromised = useCompromised(personPk);
+  const compromisedRing = useCompromisedRing(personPk);
   const listingEvents = useRecentByKinds(personPk, [LISTING_KIND], 12).events;
   // Products, not listings: a shirt in five sizes is one row.
   const personListings = useMemo<VariantGroup[]>(
@@ -891,7 +897,7 @@ function KnowledgePanelBody({
     strip = {
       icon: (
         <Avatar
-          className={`h-8 w-8 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}
+          className={`h-8 w-8 border-2 border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(effectiveRank) ?? ""}`}
         >
           {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
@@ -902,6 +908,8 @@ function KnowledgePanelBody({
       title: getDisplayLabel(person),
       line:
         [
+          // The folded row has no room for the chip, so its one line leads with the word.
+          personCompromised ? "Compromised account" : undefined,
           nip05Status === "verified" ? person.nip05?.replace(/^_@/, "") : undefined,
           followers != null ? `${followers.toLocaleString()} followers` : null,
         ]
@@ -926,7 +934,7 @@ function KnowledgePanelBody({
         <div className="flex items-center gap-3">
           <div className="relative shrink-0">
             <Avatar
-              className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}
+              className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${compromisedRing ?? tierRing(effectiveRank) ?? ""}`}
             >
               {person.picture ? <AvatarImage size="lg" src={person.picture} alt="" className="object-cover" /> : null}
               <AvatarFallback className="overflow-hidden">
@@ -950,6 +958,7 @@ function KnowledgePanelBody({
               <ProfileEmojiText pubkey={person.pubkey} text={getDisplayLabel(person)} />
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              <CompromisedMark pubkey={person.pubkey} />
               <TierWordChip score01={effectiveRank} />
               {followers != null && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">
@@ -961,6 +970,9 @@ function KnowledgePanelBody({
             </div>
           </div>
         </div>
+        {personCompromised?.successorPubkey && (
+          <SuccessorCard pubkey={personCompromised.successorPubkey} latestPost={false} className="mt-3" />
+        )}
         {/* Identity rows first, right under the name — who this is and how to
           pay them — then the social proof. The person card's order. */}
         {((person.nip05 && nip05Status === "verified") || person.lud16) && (

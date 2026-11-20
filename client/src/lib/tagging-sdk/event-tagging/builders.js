@@ -14,7 +14,10 @@
  * it alone passes `[<own>]` (its own island). The canonical pubkey is a caller
  * policy decision — this generic core embeds NO deployment identity.
  *
- * Dependency-free: the only imports are sibling modules in this folder.
+ * Dependency-free: the only imports are sibling modules in this folder. The
+ * SHA-256 digest an `a`-target assertion `d` needs is NOT shipped here — it is
+ * INJECTED by the caller as `hash8` (ADR dlist-item-tagging/0001), for the same
+ * reason the signer is injected into the orchestrator.
  */
 
 import { slug as toSlug } from './slug.js';
@@ -27,10 +30,17 @@ import {
 } from './handles.js';
 
 const HEX64 = /^[0-9a-f]{64}$/;
+const HEX8 = /^[0-9a-f]{8}$/;
 
 function requireHex64(value, label) {
   if (typeof value !== 'string' || !HEX64.test(value)) {
     throw new Error(`event-tagging: ${label} must be a 64-char lowercase hex pubkey (got: ${value})`);
+  }
+}
+
+function requireHex8(value, label) {
+  if (typeof value !== 'string' || !HEX8.test(value)) {
+    throw new Error(`event-tagging: ${label} must be exactly 8 lowercase hex chars (got: ${value})`);
   }
 }
 
@@ -117,8 +127,12 @@ function buildTaggingHeader({ tagAuthorPubkey, slug, names, description, taPubke
  * @param polarity 1 (apply) or -1 (dispute).
  * @param {string}   asserterPubkey  64-hex asserting pubkey (forms the d-tag identity).
  * @param {string[]} taPubkeys       concept namespaces to join (e.g. [canonical, local]).
+ * @param {(str:string)=>string} [hash8]  SYNC `(str) => first 8 lowercase hex of the SHA-256
+ *                digest of the UTF-8 bytes of str` (the house hash8 convention). REQUIRED for an
+ *                `a` target, never consulted for an `e` target. Injected, not shipped
+ *                (ADR dlist-item-tagging/0001).
  */
-function buildEventTaggingAssertion({ headerAuthorPubkey, slug, target, polarity, asserterPubkey, taPubkeys }) {
+function buildEventTaggingAssertion({ headerAuthorPubkey, slug, target, polarity, asserterPubkey, taPubkeys, hash8 }) {
   // Both pubkeys end up as permanent, signed, published coordinates: asserterPubkey
   // into the deterministic d-tag (replaceability key), headerAuthorPubkey into the
   // descriptor z-coordinate (39999:<author>:tagging:<slug>-tagging). A malformed
@@ -147,7 +161,21 @@ function buildEventTaggingAssertion({ headerAuthorPubkey, slug, target, polarity
     target8 = target.id.slice(0, 8);
   } else if (target && typeof target.address === 'string') {
     targetTag = ['a', target.address];
-    target8 = (target.address.split(':')[1] || '').slice(0, 8); // the coord's author-pubkey segment
+    // a target: <author8>-<d16>-<hash8> (spec § "The assertion d-tag (normative)").
+    // author8 + d16 are READABLE DECORATION only; hash8 — the SHA-256 digest of the
+    // FULL coordinate exactly as placed in the `a` tag — is the only uniqueness
+    // segment. The old author-segment-only rule collided across one author's
+    // addressables (superseded 2026-09-10). Fail loud without the injected digest
+    // rather than mint a collidable address.
+    if (typeof hash8 !== 'function') {
+      throw new Error('event-tagging: hash8 dep is required to build an a-target assertion (SHA-256 first-8-hex over the full coordinate)');
+    }
+    const parts = target.address.split(':');
+    const author8 = (parts[1] || '').slice(0, 8);
+    const d16 = parts.slice(2).join(':').slice(0, 16); // d = everything after the 2nd colon, verbatim
+    const h = hash8(target.address);
+    requireHex8(h, 'hash8 result');
+    target8 = `${author8}-${d16}-${h}`;
   } else {
     throw new Error('event-tagging: target must be { id } (event id) or { address } (a-coordinate)');
   }

@@ -28,6 +28,8 @@ export const nostrReadDefaults = {
   fetchAlertPrefs: async () => null,
   fetchOutboxRelayList: async () => undefined,
   fetchTrustProviderList: async () => undefined,
+  // The relays answered and hold no 10040: a first one may be written.
+  probeTrustProviderList: async () => ({ event: undefined, provenAbsent: true }),
   fetchReportsForPubkey: async () => [],
   getNip85RelayUrl: () => "wss://nip85.test",
 };

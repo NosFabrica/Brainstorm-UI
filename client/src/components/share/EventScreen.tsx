@@ -1,3 +1,8 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
+import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -18,6 +23,7 @@ import {
 } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
 import { eventStore } from "@/lib/eventStore";
+import { loadEventForPage, seedSearchWithHeld } from "@/services/eventPageLoad";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
@@ -157,11 +163,18 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
     : (given ?? null);
   const relayHints = ptr?.relays || [];
   // An event by id never changes, so a held copy is the answer: no spinner,
-  // and no relay asked for what the store already has.
+  // and no relay asked for what the store already has — only search, which is
+  // given the copy if it lacks one. Otherwise search and the pointer's relays
+  // are asked at once, and what search lacks is handed to it (services/eventPageLoad).
   const eventQuery = useStoreEvents(
-    ptr?.id && !event && !eventStore.getEvent(ptr.id) ? `event:${ptr.id}` : null,
+    ptr?.id && !event ? `event:${ptr.id}` : null,
     ptr?.id && !event ? [{ ids: [ptr.id] }] : null,
-    () => fetchEventsByIds([ptr!.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    () => {
+      const held = eventStore.getEvent(ptr!.id);
+      if (!held) return loadEventForPage({ id: ptr!.id, relays: relayHints });
+      void seedSearchWithHeld(held).catch(() => {});
+      return Promise.resolve([held]);
+    },
   );
   const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
     MinimalEvent | null | undefined;
@@ -193,7 +206,7 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
 function DeletedEvent({ expired = false }: { expired?: boolean }) {
   return (
     <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <PublicPageHeader width="reading" />
+      <PublicPageHeader />
       <main className={cn(pageWidth("reading"), "py-8")}>
         <div className="py-10" data-testid={expired ? "event-expired" : "event-deleted"}>
           <DeletedStub expired={expired} />
@@ -262,6 +275,7 @@ function EventView({
   // The author's held profile at once; the event's own relay hints are asked
   // beside their outbox, and a newer profile replaces it as it lands.
   const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
+  const compromisedRing = useCompromisedRing(authorPk || undefined);
   const trustQuery = useQuery({
     queryKey: ["event-author-trust", authorPk],
     queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
@@ -471,10 +485,7 @@ function EventView({
 
   return (
     <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
-      <PublicPageHeader
-        width="reading"
-        actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />}
-      />
+      <PublicPageHeader actions={<ShareButton url={shareUrl} title={pageTitle} mint={mintShortUrl} />} />
 
       <main className={cn(pageWidth("reading"), "py-6 sm:py-8")}>
         {!ptr ? (
@@ -553,7 +564,7 @@ function EventView({
                 >
                   <span className="relative shrink-0">
                     <Avatar
-                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(score01) ?? ""}`}
+                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${compromisedRing ?? tierRing(score01) ?? ""}`}
                     >
                       {profile.picture ? (
                         <AvatarImage src={profile.picture} alt={authorName} className="object-cover" />
@@ -582,6 +593,7 @@ function EventView({
                       </span>
                       <Nip05Check nip05={profile.nip05} pubkey={authorPk} className="h-4 w-4 shrink-0 text-sky-500" />
                       <TierWordChip score01={score01} />
+                      <CompromisedMark pubkey={authorPk} />
                     </div>
                     {/* A video says when it was published: a restored Vine's created_at is its import day. */}
                     <span className="block text-[13px] text-slate-500 dark:text-slate-400" data-testid="event-date">
@@ -593,6 +605,11 @@ function EventView({
               </div>
             )}
 
+            {/* A compromised author: said under the byline, before the reader reads on. */}
+            <CompromisedAuthorNotice pubkey={authorPk} postedAt={note.created_at} eventId={note.id} className="mb-4" />
+            {/* A retired author: one calm line, and where its owner is now. */}
+            <RetiredAuthorNotice pubkey={authorPk} className="mb-4" />
+
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (
               <TechnicalStrip event={note} ids={nevent ? [{ label: "nevent", value: nevent }] : []} className="mb-3" />
@@ -600,9 +617,10 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
+              <CompromisedWatermark pubkey={authorPk} postedAt={note.created_at} eventId={note.id} />
               {dlistOfEvent(note) ? (
                 <DListHero event={note} />
               ) : note.kind === 39998 || note.kind === 9998 ? (
@@ -752,6 +770,8 @@ function EventView({
                 address={tagAddressOf(note)}
                 relayHint={relayHints[0]}
                 canTag={canTagNote}
+                // A Dictionary item is tagged as what its list calls it: "Tag this GitHub account".
+                noun={asDictionaryItem && isReady(itemView) ? itemView.resolved.governing.singular : undefined}
               />
             )}
 

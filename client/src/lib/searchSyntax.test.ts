@@ -17,10 +17,12 @@ import {
   personScope,
   readFilters,
   scopeOf,
+  listSearchHref,
   scopedSearchHref,
   seeAllLabel,
   sinceForPreset,
   splitFilters,
+  latestFloor,
   typeaheadWords,
 } from "./searchSyntax";
 
@@ -277,6 +279,27 @@ describe("typeaheadWords — what the people typeahead may look up", () => {
   });
 });
 
+/**
+ * The Top tab's Latest is the raw newest posts from anyone the lens reaches, so low-ranked
+ * accounts and bots fill it; every other search is sorted by score and sinks them already.
+ * Latest alone reads above a trust floor, rank 10 of 100, unless the query chose one.
+ */
+describe("latestFloor — the Latest section's trust floor", () => {
+  it("adds rank 10 to a newest-first query", () => {
+    expect(latestFloor("bitcoin sort:recent")).toBe("bitcoin sort:recent filter:rank:gte:10");
+    expect(latestFloor("sort:recent")).toBe("sort:recent filter:rank:gte:10");
+  });
+
+  it("keeps a floor the person chose, No floor included", () => {
+    expect(latestFloor("bitcoin sort:recent filter:rank:gte:50")).toBe("bitcoin sort:recent filter:rank:gte:50");
+    expect(latestFloor("bitcoin sort:recent filter:rank:gte:0")).toBe("bitcoin sort:recent filter:rank:gte:0");
+  });
+
+  it("adds none to the spam waiver, which asks for everyone", () => {
+    expect(latestFloor("bitcoin include:spam sort:recent")).toBe("bitcoin include:spam sort:recent");
+  });
+});
+
 describe("readFilters", () => {
   it("reads the panel's state back out of a hand-edited query", () => {
     expect(readFilters("btc sort:rank since:2026-01-01 filter:rank:gte:30 include:spam")).toEqual({
@@ -376,5 +399,16 @@ describe("seeAllLabel — the typeahead's footer row under a scope, never the ra
   it("a name still arriving reads as them", () => {
     expect(seeAllLabel("guitar", null)).toBe('See all results for "guitar" from them');
     expect(seeAllLabel("", null)).toBe("See everything from them");
+  });
+});
+
+describe("listSearchHref", () => {
+  it("is search for the list's name, on All, with the list's tab open", () => {
+    const coordinate = `39998:${"b".repeat(64)}:github-accounts`;
+    const url = new URL(listSearchHref(coordinate, " GitHub Accounts "), "http://x");
+    expect(url.pathname).toBe("/");
+    expect(url.searchParams.get("q")).toBe("GitHub Accounts");
+    expect(url.searchParams.get("t")).toBe("all");
+    expect(url.searchParams.get("list")).toBe(coordinate);
   });
 });

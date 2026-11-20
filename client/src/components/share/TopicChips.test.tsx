@@ -1,35 +1,35 @@
 /**
- * "Posts about" — the person's most-used hashtags, one measured line. It can
- * carry a trailing affordance after the chips (the quiet "+ Tag" that used
- * to be a dotted pill in its own "Known for" row, 2026-09-08).
+ * "Posts about" — the person's most-used hashtags, one measured line. Plain
+ * hashtag text, not pills: a pill is a tag ("Tagged as", ProfileTagChips), and
+ * the two rows sit one above the other, so the shapes are what tell a tag
+ * someone gave from a hashtag the person typed (2026-11-19). The way to tag a
+ * person used to trail this row; it lives in the "Tagged as" row now.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { TopicChips } from "./TopicChips";
 
 const requestNav = vi.fn();
 vi.mock("@/components/share/ShareNavContext", () => ({ useShareNav: () => requestNav }));
 
 describe("TopicChips", () => {
-  it("chips for the topics, and the trailing affordance after them", () => {
-    render(<TopicChips topics={["word5", "wordle"]} trailing={<button data-testid="tag-them">+ Tag</button>} />);
-    const row = screen.getByTestId("share-topics");
-    expect(row).toHaveTextContent("Posts about");
-    // jsdom measures every chip at 0px, so the fit keeps only the first; the
-    // order and the trailing slot are what matter here.
-    const chips = screen.getAllByTestId("share-topic-chip");
-    expect(chips[0]).toHaveTextContent("#word5");
-    const tail = screen.getByTestId("tag-them");
-    expect(chips.at(-1)!.compareDocumentPosition(tail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  it("shows the hashtags under their label, and opens one when it is pressed", () => {
+    render(<TopicChips topics={["word5", "wordle"]} />);
+    expect(screen.getByTestId("share-topics")).toHaveTextContent("Posts about");
+    // jsdom measures every hashtag at 0px, so the fit keeps only the first.
+    const first = screen.getAllByTestId("share-topic-chip")[0];
+    expect(first).toHaveTextContent("#word5");
+    fireEvent.click(first);
+    expect(requestNav).toHaveBeenCalledWith({ kind: "hashtag", target: "#word5", label: "#word5" });
   });
 
-  it("no topics but a trailing affordance: the affordance alone, no label", () => {
-    render(<TopicChips topics={[]} trailing={<button data-testid="tag-them">+ Tag</button>} />);
-    expect(screen.getByTestId("tag-them")).toBeInTheDocument();
-    expect(screen.queryByText("Posts about")).toBeNull();
+  it("draws a hashtag as text, with none of a tag pill's shape", () => {
+    render(<TopicChips topics={["word5"]} />);
+    const hashtag = screen.getByTestId("share-topic-chip");
+    expect(hashtag.className).not.toMatch(/rounded-full|\bbg-|\bborder\b/);
   });
 
-  it("neither topics nor an affordance: nothing", () => {
+  it("no hashtags: nothing", () => {
     const { container } = render(<TopicChips topics={[]} />);
     expect(container).toBeEmptyDOMElement();
   });

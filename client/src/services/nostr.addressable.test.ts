@@ -46,7 +46,7 @@ vi.mock("@/lib/loaders", () => ({
   loadReplaceable: async () => undefined,
 }));
 
-import { fetchAddressableEvents, fetchFromSearchRelayByFilters } from "./nostr";
+import { fetchAddressableEvents, fetchFromSearchRelayByFilters, querySearchRelay } from "./nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 
 const GITCITADEL = "3e1ad0f3a5d3c12245db7788546c43ade3d97c6e046c594f6017cd6cd4164690";
@@ -178,5 +178,40 @@ describe("fetchFromSearchRelayByFilters", () => {
     expect((searchReqMock.mock.calls[0][0] as { search: string }).search).toBe("Austin include:spam");
     searchRelaySubject!.next({ type: "EOSE" });
     await pending;
+  });
+});
+
+// The event page asks search on a leg of its own (services/eventPageLoad).
+describe("fetchAddressableEvents for an event page", () => {
+  it("askSearch: false leaves the search relay alone, even with the address missing", async () => {
+    requestAllMock.mockResolvedValue([]);
+    const map = await fetchAddressableEvents([ptr], ptr.relays, 1000, { askSearch: false });
+    expect(map.size).toBe(0);
+    expect(searchReqMock).not.toHaveBeenCalled();
+  });
+
+  it("newest: a first copy is not enough — every relay is waited out", async () => {
+    requestAllMock.mockResolvedValue([isis()]);
+    await fetchAddressableEvents([ptr], ptr.relays, 1000, { askSearch: false, newest: true });
+    const opts = (requestAllMock.mock.calls[0] as unknown[])[3] as { enough: (m: Map<string, NostrEvent>) => boolean };
+    expect(opts.enough(new Map([[isis().id, isis()]]))).toBe(false);
+  });
+});
+
+// Deciding to push into search needs "search said no" told apart from "search said nothing".
+describe("querySearchRelay", () => {
+  it("is answered on EOSE", async () => {
+    const pending = querySearchRelay([{ ids: ["1".repeat(64)] }], 1000);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
+    searchRelaySubject!.next({ type: "EVENT", event: isis() });
+    searchRelaySubject!.next({ type: "EOSE" });
+    expect(await pending).toEqual({ events: [isis()], answered: true });
+  });
+
+  it("is not answered when refused", async () => {
+    const pending = querySearchRelay([{ ids: ["1".repeat(64)] }], 1000);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
+    searchRelaySubject!.next({ type: "CLOSED" });
+    expect(await pending).toEqual({ events: [], answered: false });
   });
 });

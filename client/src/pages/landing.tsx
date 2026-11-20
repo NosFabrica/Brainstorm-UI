@@ -10,6 +10,7 @@ import { resolveNip05 } from "@/lib/nip05";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
+import { BrainLogo } from "@/components/BrainLogo";
 import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
@@ -282,8 +283,9 @@ export default function Landing() {
             currentUrl.searchParams.set("q", q);
             if (f) currentUrl.searchParams.set("f", f);
             else currentUrl.searchParams.delete("f");
-            // A list pressed on All was for the words before (components/search/SearchResults).
+            // A list or tag pressed on All was for the words before (components/search/SearchResults).
             currentUrl.searchParams.delete("list");
+            currentUrl.searchParams.delete("tagged");
             window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
             trackHistoryEntry();
           }
@@ -471,6 +473,7 @@ export default function Landing() {
         url.searchParams.delete("t");
         url.searchParams.delete("f");
         url.searchParams.delete("list");
+        url.searchParams.delete("tagged");
         window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
       }
     } catch {}
@@ -496,6 +499,7 @@ export default function Landing() {
         const url = new URL(window.location.href);
         url.searchParams.delete("q");
         url.searchParams.delete("list");
+        url.searchParams.delete("tagged");
         url.searchParams.set("t", tabKey);
         window.history.pushState({}, "", url.pathname + url.search);
       } catch {}
@@ -590,7 +594,11 @@ export default function Landing() {
           ref={heroRef}
           className={
             hasSearched
-              ? "sticky top-0 z-30 mx-auto -mt-3 flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:-mt-4 sm:flex-nowrap sm:gap-x-5 sm:py-2.5"
+              ? // The header's own layout (HeaderBar), so opening a result moves nothing: edge to
+                // edge (`-mx-4` undoes this page's padding) with the header's gutter and height,
+                // its three columns from `sm`, and the box in the middle from `lg`. On a phone
+                // it wraps: the mark and the account above, the box below.
+                "sticky top-0 z-30 -mx-4 -mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 self-stretch px-4 py-2 sm:-mt-4 sm:grid sm:min-h-14 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-3 sm:px-6 sm:py-0 lg:grid-cols-[1fr_minmax(0,42rem)_1fr]"
               : "mx-auto w-full max-w-2xl text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
           }
           data-testid={hasSearched ? "search-band" : "search-hero"}
@@ -619,8 +627,13 @@ export default function Landing() {
           )}
 
           <div
+            // The band's ends keep the header's floor (`lg:min-w-64`), so both are the same
+            // size and the box sits in the middle of the window, as it does on every page.
+            data-band-end={hasSearched ? "mark" : undefined}
             className={
-              hasSearched ? "order-1 flex shrink-0 items-center" : "mb-8 flex flex-col items-center short:mb-3.5"
+              hasSearched
+                ? "order-1 flex shrink-0 items-center lg:min-w-64"
+                : "mb-8 flex flex-col items-center short:mb-3.5"
             }
           >
             <h1 className={hasSearched ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
@@ -654,16 +667,27 @@ export default function Landing() {
                 className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="wordmark-home"
               >
-                <Wordmark
-                  height={hasSearched ? 26 : 52}
-                  variant="gradient"
-                  className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"}
-                />
-                <Wordmark
-                  height={hasSearched ? 26 : 52}
-                  variant="white"
-                  className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"}
-                />
+                {/* In the band, between a phone and a desktop width, the B every other page's
+                    header shows: there the box starts beside the mark, and the wordmark (four
+                    times as wide) pushed it 91px further in than on the page a result opens. */}
+                <span data-band-mark="word" className={hasSearched ? "block sm:hidden lg:block" : undefined}>
+                  <Wordmark
+                    height={hasSearched ? 26 : 52}
+                    variant="gradient"
+                    className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"}
+                  />
+                  <Wordmark
+                    height={hasSearched ? 26 : 52}
+                    variant="white"
+                    className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"}
+                  />
+                </span>
+                {hasSearched && (
+                  <span data-band-mark="compact" className="hidden sm:block lg:hidden">
+                    <BrainLogo size={26} className="dark:hidden" />
+                    <BrainLogo size={26} mono className="hidden text-white dark:block" />
+                  </span>
+                )}
               </button>
             </h1>
             {!hasSearched && (
@@ -678,11 +702,7 @@ export default function Landing() {
 
           <SearchBox
             boxRef={boxRef}
-            className={
-              hasSearched
-                ? "order-3 basis-full sm:order-2 sm:mx-auto sm:min-w-0 sm:max-w-2xl sm:flex-1 sm:basis-auto"
-                : undefined
-            }
+            className={hasSearched ? "order-3 basis-full sm:order-2 sm:min-w-0 sm:max-w-2xl sm:basis-auto" : undefined}
             value={query}
             onChange={setQuery}
             onSearch={(q) => {
@@ -786,7 +806,7 @@ export default function Landing() {
           {/* Band, right: the same account actions the pristine bar carries. */}
           {hasSearched && (
             <div
-              className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2"
+              className="order-2 ml-auto flex shrink-0 items-center justify-end gap-1 sm:order-3 sm:ml-0 sm:gap-2 lg:min-w-64"
               data-testid="band-actions"
             >
               {user ? (

@@ -33,6 +33,7 @@ import {
   queryWords,
   readFilters,
   searchFilters,
+  namesLens,
   typeaheadWords,
   withObserver,
 } from "@/lib/searchSyntax";
@@ -309,11 +310,74 @@ export interface SearchParams {
    */
   tags?: Record<`#${string}`, string[]>;
   /**
+   * Only these: the people, events and addressable events a tag is on (services/tagLists), so a
+   * pressed tag on All asks the relay for the words among everything carrying it rather than
+   * thinning the rows loaded so far.
+   */
+  members?: Members;
+  /**
    * The first page's answer already on its way — All's head start (lib/headStart),
    * asked while the bundle loaded. Followed in place of asking; should it fail,
    * the relay is asked after all. Further pages ask as usual.
    */
   firstPage?: FirstPage;
+}
+
+/** What a search can be narrowed to: people by pubkey, events by id, addressable events by coordinate. */
+export interface Members {
+  pubkeys: string[];
+  ids: string[];
+  /** `<kind>:<pubkey>:<d>`. */
+  addresses: string[];
+}
+
+type Filter = ReturnType<typeof searchFilters>[number];
+
+/** `<kind>:<pubkey>:<d>` read apart — the `d` may hold colons of its own. */
+function readAddress(address: string): { kind: number; pubkey: string; d: string } | null {
+  const [kind, pubkey, ...d] = address.split(":");
+  const k = Number(kind);
+  return Number.isInteger(k) && pubkey && d.length ? { kind: k, pubkey, d: d.join(":") } : null;
+}
+
+/**
+ * `filters` asked of `members` alone: each filter once for the people (their profiles), once for
+ * the events by id and once for the addressable events — by author and `d`, which also lets in
+ * one author's `d` under another's; `isMember` keeps those out. A part none of a filter's kinds
+ * fit asks nothing.
+ */
+export function narrowToMembers(filters: readonly Filter[], members: Members): Filter[] {
+  const addresses = members.addresses.map(readAddress).filter((a): a is NonNullable<typeof a> => !!a);
+  const unique = <T>(xs: T[]) => [...new Set(xs)];
+  const parts: Record<string, string[] | number[]>[] = [];
+  if (members.pubkeys.length) parts.push({ kinds: [0], authors: members.pubkeys });
+  if (members.ids.length) parts.push({ ids: members.ids });
+  if (addresses.length)
+    parts.push({
+      kinds: unique(addresses.map((a) => a.kind)),
+      authors: unique(addresses.map((a) => a.pubkey)),
+      "#d": unique(addresses.map((a) => a.d)),
+    });
+  return filters.flatMap((f) =>
+    parts.flatMap((part) => {
+      const out: Record<string, unknown> = { ...f };
+      for (const [field, wanted] of Object.entries(part)) {
+        const had = (f as Record<string, unknown>)[field] as (string | number)[] | undefined;
+        const both = had ? had.filter((v) => (wanted as (string | number)[]).includes(v)) : wanted;
+        if (!both.length) return [];
+        out[field] = both;
+      }
+      return [out as Filter];
+    }),
+  );
+}
+
+/** Whether an event is one of `members`: a profile by its person, anything else by id or coordinate. */
+export function isMember(event: NostrEvent, members: Members): boolean {
+  if (event.kind === 0) return members.pubkeys.includes(event.pubkey);
+  if (members.ids.includes(event.id)) return true;
+  const d = event.tags.find((t) => t[0] === "d")?.[1];
+  return d !== undefined && members.addresses.includes(`${event.kind}:${event.pubkey}:${d}`);
 }
 
 /** A page's size — index.html's head start for All asks the same (headStart.test holds it). */
@@ -368,6 +432,19 @@ export function kind0ToSearchResult(event: NostrEvent): SearchResult {
     wotRank: null,
     wotFollowers: null,
   };
+}
+
+/**
+ * What a ranked search answers when it has no Perspective to rank through: the house observer
+ * could not be found (trustSource) and the query names no lens of its own. Searching unranked
+ * instead (`include:spam`) answers a person search with every impostor copying their name.
+ */
+export const NO_PERSPECTIVE =
+  "Brainstorm's trust perspective couldn't be loaded, so this search wasn't sent. Check your connection and search again in a moment.";
+
+/** Whether a read resolved to `observer` would go out unranked though nobody asked it to. */
+function lacksPerspective(query: string, observer: string | null): boolean {
+  return !observer && !namesLens(query);
 }
 
 async function resolveObserver(params: SearchParams): Promise<string | null> {
@@ -567,7 +644,12 @@ function askForTab(query: string, params: SearchParams, observer: string | null)
           built.filter((f) => f["#l"]?.includes(VINE_ARCHIVE_LABEL))
         : [...built, ...listed];
   // A scope asked of a tab that holds no comments has nothing to ask: `filters` is empty.
-  return { filters, keeps: hostedByThem };
+  const { members } = params;
+  if (!members) return { filters, keeps: hostedByThem };
+  return {
+    filters: narrowToMembers(filters, members),
+    keeps: (event) => hostedByThem(event) && isMember(event, members),
+  };
 }
 
 /** How long the tab counts wait for the relay, at most: a count not in by then is unknown. */
@@ -638,6 +720,8 @@ export interface CategoryAsk {
   tags?: Record<`#${string}`, string[]>;
   /** Asked as this tab asks, in place of its kinds: Events with Event Index's items, Recipes by their tag. */
   tab?: SearchTab;
+  /** Asked without the words, which are its own name: a Dictionary list's items, all of them. */
+  whole?: boolean;
 }
 
 /**
@@ -646,13 +730,15 @@ export interface CategoryAsk {
  * Unlike a tab's, in the page's own order: best match matches fewer than newest-first, and asked
  * so it is the number the page holds (Food and Drink Places for "burger": 701 counted, 701 sent;
  * newest-first counts 704 — probed 2026-10-28). A count that fails or doesn't arrive in time is null.
+ * `lanes` spreads them over that many sockets, since the relay answers one socket's counts one at
+ * a time (vespa-relay's per-connection search gate).
  */
 export function countCategories(
   query: string,
   categories: readonly CategoryAsk[],
   lens: Pick<SearchParams, "pov" | "userPubkey">,
   onCounts: (counts: Map<string, number | null>) => void,
-  timeoutMs = TAB_COUNT_TIMEOUT_MS,
+  { lanes = 1, timeoutMs = TAB_COUNT_TIMEOUT_MS }: { lanes?: number; timeoutMs?: number } = {},
 ): () => void {
   return countQuestions(
     query,
@@ -661,26 +747,31 @@ export function countCategories(
       categories.map((c) => ({
         key: c.key,
         filters: askForTab(
-          words,
+          c.whole ? "" : words,
           c.tab ? { tab: c.tab, ...lens } : { tab: "all", kinds: c.kinds, tags: c.tags, ...lens },
           observer,
         ).filters,
       })),
     (answers) => onCounts(new Map(categories.map((c) => [c.key, answers.get(c.key) ?? null]))),
     timeoutMs,
+    lanes,
   );
 }
 
-/** A COUNT per question on a side socket of its own, reported once every answer is in or timed out. */
+/**
+ * A COUNT per question on side sockets of their own — `lanes` of them at most, the questions dealt
+ * among them in turn — reported once every answer is in or timed out.
+ */
 function countQuestions(
   query: string,
   lens: Pick<SearchParams, "pov" | "userPubkey">,
   build: (words: string, observer: string | null) => { key: string; filters: ReturnType<typeof searchFilters> }[],
   onAnswers: (answers: Map<string, number | null>, asked: Set<string>) => void,
   timeoutMs: number,
+  lanes = 1,
 ): () => void {
   let cancelled = false;
-  let relay: Relay | null = null;
+  let relays: Relay[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   const subs: { unsubscribe: () => void }[] = [];
   const answers = new Map<string, number | null>();
@@ -688,8 +779,8 @@ function countQuestions(
   const close = () => {
     clearTimeout(timer);
     subs.forEach((s) => s.unsubscribe());
-    relay?.close();
-    relay = null;
+    relays.forEach((r) => r.close());
+    relays = [];
   };
   const report = () => {
     if (!cancelled) onAnswers(answers, asked);
@@ -708,25 +799,34 @@ function countQuestions(
   void (async () => {
     const observer = await resolveObserver({ tab: "top", ...lens });
     if (cancelled) return;
+    // No Perspective: every count is unknown rather than a count of the unranked corpus.
+    if (lacksPerspective(query, observer)) {
+      for (const { key } of build(query, observer)) answers.set(key, null);
+      return report();
+    }
     const questions = build(query, observer);
     for (const { key, filters } of questions) {
       if (filters.length === 0) answers.set(key, 0);
       else asked.add(key);
     }
     if (asked.size === 0) return report();
-    const socket = openSideSearchRelay();
-    if (!socket) {
+    for (let i = 0; i < Math.min(lanes, asked.size); i++) {
+      const socket = openSideSearchRelay();
+      if (socket) relays.push(socket);
+    }
+    if (!relays.length) {
       asked.forEach((key) => answers.set(key, null));
       return report();
     }
-    relay = socket;
+    const lanesOpen = relays;
     // Set the timer BEFORE subscribing: a synchronous answer (the fake transport in tests) can
     // settle every count during subscribe, and close() clears this timer.
     timer = setTimeout(() => [...asked].forEach((key) => settle(key, null)), timeoutMs);
+    let dealt = 0;
     for (const { key, filters } of questions) {
       if (!asked.has(key)) continue;
       subs.push(
-        socket.count(bounded(filters)).subscribe({
+        lanesOpen[dealt++ % lanesOpen.length].count(bounded(filters)).subscribe({
           next: (r: { count?: number }) => settle(key, typeof r?.count === "number" ? r.count : null),
           error: () => settle(key, null),
           complete: () => settle(key, null),
@@ -792,6 +892,10 @@ export function searchStream(
     }
     const observer = await resolveObserver(params);
     if (cancelled) return;
+    if (lacksPerspective(query, observer)) {
+      emit({ error: NO_PERSPECTIVE });
+      return;
+    }
 
     const { filters, keeps: hostedByThem } = askForTab(query, params, observer);
     // A section the typed kind doesn't fit, or a scope asked of a tab that holds no comments,
@@ -2347,6 +2451,8 @@ export async function searchListItems(
     (!lifted.kinds || lifted.kinds.some((k) => (kinds as number[]).includes(k)));
   if (!relay || !asked || lists.length === 0) return answers;
   const observer = await resolveObserver({ tab: "all", pov, userPubkey }).catch(() => null);
+  // No Perspective: no list items, rather than the unranked corpus's.
+  if (lacksPerspective(query, observer)) return answers;
   const base = {
     kinds,
     search: withObserver(lifted.search, observer),

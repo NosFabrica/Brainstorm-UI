@@ -10,6 +10,7 @@ import type { NostrEvent } from "nostr-tools";
 import { followHeadStart, takeHeadStart, __resetHeadStart, type PageMessage } from "./headStart";
 import { DEFAULT_LIMIT, bandKindsForTab } from "@/services/search";
 import { TOP_SECTIONS } from "@/components/search/ComposedResults";
+import { LATEST_RANK_FLOOR } from "@/lib/searchSyntax";
 
 const added: NostrEvent[] = [];
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: NostrEvent) => added.push(e) } }));
@@ -158,10 +159,11 @@ describe("followHeadStart", () => {
 describe("the inline script in index.html", () => {
   const html = readFileSync(join(__dirname, "../../index.html"), "utf8");
   const asked = [
-    ...html.matchAll(/\{\s*kinds: \[([\d,\s]+)\],\s*search: (q|fresh) \+ perspective,\s*limit: (\d+),?\s*\}/g),
+    ...html.matchAll(/\{\s*kinds: \[([\d,\s]+)\],\s*search: (q|fresh|latest) \+ perspective,\s*limit: (\d+),?\s*\}/g),
   ].map((m) => ({
     kinds: m[1].split(",").map((n) => Number(n.trim())),
-    recent: m[2] === "fresh",
+    recent: m[2] !== "q",
+    floor: m[2] === "latest",
     limit: Number(m[3]),
   }));
 
@@ -171,9 +173,16 @@ describe("the inline script in index.html", () => {
       tabs.map((tab) => ({
         kinds: [...(bandKindsForTab(tab) ?? [])],
         recent: TOP_SECTIONS[tab].recent,
+        // Latest alone reads above a trust floor (lib/searchSyntax latestFloor).
+        floor: tab === "notes",
         limit: TOP_SECTIONS[tab].limit,
       })),
     );
+  });
+
+  it("asks Latest at the same trust floor the app does", () => {
+    // Plain words only reach here, so the query never carries a floor or a waiver of its own.
+    expect(html).toContain(`var latest = fresh + " filter:rank:gte:${LATEST_RANK_FLOOR}";`);
   });
 
   it("leaves a socket the app is following to the app, past its 30s cleanup", () => {
@@ -193,6 +202,15 @@ describe("the inline script in index.html", () => {
     // The key is spelled in two places — here and in trustSource — because an
     // inline script cannot import. If they drift, each pays its own round trip.
     expect(html).toContain('"brainstorm_house_observer"');
+  });
+
+  it("takes the house observer the deployment configured before looking it up", () => {
+    // config.js loads before this script, so VITE_HOUSE_OBSERVER is in hand: no
+    // round trip stands between the page and its first search (services/trustSource).
+    // The read itself, not the comment above it: that is what must come after config.js.
+    const read = "(window.__ENV__ || {}).VITE_HOUSE_OBSERVER";
+    expect(html).toContain(read);
+    expect(html.indexOf('<script src="/config.js"></script>')).toBeLessThan(html.indexOf(read));
   });
 
   it("stays out of the way of a reader who is signed in", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { boolEnv } from "./featureFlags";
+import { boolEnv, onStagingHost } from "./featureFlags";
 
 /**
  * The assumption that cost a release: `runtimeEnv` coerces every missing key to
@@ -47,5 +47,19 @@ describe("FEATURES with nothing configured", () => {
     expect(FEATURES.assistantsAdmin).toBe(false);
     vi.doUnmock("@/lib/runtimeEnv");
     vi.resetModules();
+  });
+});
+
+describe("onStagingHost", () => {
+  it("is staging's two hosts and a local copy, and nothing else", () => {
+    for (const host of [
+      "brainstorm-staging.nosfabrica.com",
+      "brainstorm-staging.relay.tools",
+      "localhost",
+      "127.0.0.1",
+    ])
+      expect(onStagingHost(host)).toBe(true);
+    for (const host of ["brainstorm.world", "brainstorm.nosfabrica.com", "", "staging.example.com"])
+      expect(onStagingHost(host)).toBe(false);
   });
 });

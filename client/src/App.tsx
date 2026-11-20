@@ -37,6 +37,7 @@ import { PrintJobHost } from "@/components/frontPage/PrintJobHost";
 import { RoutstrPurchaseHost } from "@/components/settings/RoutstrPurchaseHost";
 import { InstallAppDialog } from "@/components/InstallApp";
 import { openTarget } from "@/lib/openTarget";
+import { entityPathForSegment } from "@/lib/resolveNostrEntity";
 import { DmShelvesProvider } from "@/hooks/useDirectMessages";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
@@ -193,6 +194,19 @@ function OpenRedirect() {
   return <Redirect to={openTarget(search)} replace />;
 }
 
+/**
+ * `/<bech32>`, the njump shape: a person's id opens `/p/`, an event's `/e/`
+ * (whose own redirect already covers `/a/`). Anything else in a root segment is
+ * a page we do not have. nginx answers this with a 301 in production, so a
+ * crawler reaches the card in one hop; this covers dev and in-app links.
+ */
+function RootEntityRedirect() {
+  const params = useParams<{ entity: string }>();
+  const path = entityPathForSegment(params.entity || "");
+  if (!path) return <NotFound />;
+  return <Redirect to={`${path}${window.location.search}${window.location.hash}`} replace />;
+}
+
 function SearchRedirect() {
   let search = "";
   try {
@@ -314,6 +328,8 @@ function Router() {
             <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
             {RendererPlayground && <Route path="/dev/renderers" component={RendererPlayground} />}
             {MessagesPlayground && <Route path="/dev/messages" component={MessagesPlayground} />}
+            {/* Last before NotFound: any single segment matches, and only an entity redirects. */}
+            <Route path="/:entity" component={RootEntityRedirect} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>

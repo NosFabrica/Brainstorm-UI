@@ -1,3 +1,8 @@
+import { CompromisedMark } from "@/components/compromised/CompromisedMark";
+import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
+import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAuthorNotice";
+import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
+import { useCompromisedRing } from "@/hooks/useCompromised";
 import { memo, useMemo, useState, type ReactNode } from "react";
 import type { NoteToken } from "@/lib/noteContent";
 import { Link, useLocation } from "wouter";
@@ -346,7 +351,7 @@ export function ArticleShell({
 }) {
   return (
     <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <PublicPageHeader width="reading" actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />} />
+      <PublicPageHeader actions={<ShareButton url={publicPageUrl()} title={title} mint={mint} />} />
       <main className={cn(pageWidth("reading"), "py-6 sm:py-10")}>
         {children}
         <div className="mt-10 text-center">
@@ -369,6 +374,7 @@ export function ArticleShell({
  */
 export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: string; ptr: AddressPointer }) {
   const tierRing = useTierRing();
+  const compromisedRing = useCompromisedRing(ev.pubkey);
   const coinReplaced = useCoinReplacedByRing();
 
   const author = useLiveProfile(ptr?.pubkey, ptr?.relays);
@@ -506,7 +512,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   return (
     <ArticleShell title={`${title} — Brainstorm`} mint={mintShortUrl}>
       <ShareNavProvider>
-        <article>
+        <article className={WATERMARK_HOST}>
+          <CompromisedWatermark pubkey={ev.pubkey} postedAt={ev.created_at} eventId={ev.id} />
           {/* The book a section or a part belongs to; the shelf a shelf sits on. */}
           {isPublication && (
             <div className="mb-4">
@@ -625,7 +632,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             >
               <span className="relative shrink-0">
                 <Avatar
-                  className={`h-11 w-11 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(score01) ?? ""}`}
+                  className={`h-11 w-11 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${compromisedRing ?? tierRing(score01) ?? ""}`}
                 >
                   {profile.picture ? (
                     <AvatarImage src={profile.picture} alt={authorName} className="object-cover" />
@@ -653,6 +660,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
                     <ProfileEmojiText pubkey={ev.pubkey} text={authorName} />
                   </span>
                   <TierWordChip score01={score01} />
+                  <CompromisedMark pubkey={ev.pubkey} />
                   <Nip05Check nip05={profile.nip05} pubkey={ev.pubkey} className="h-4 w-4 shrink-0 text-sky-500" />
                 </div>
                 <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
@@ -687,6 +695,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
               )}
             </div>
           </div>
+          <CompromisedAuthorNotice pubkey={ev.pubkey} postedAt={ev.created_at} className="mt-4" />
+          <RetiredAuthorNotice pubkey={ev.pubkey} className="mt-4" />
           {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
           <TechnicalStrip event={ev} ids={naddr ? [{ label: "naddr", value: naddr }] : []} className="mt-2" />
 

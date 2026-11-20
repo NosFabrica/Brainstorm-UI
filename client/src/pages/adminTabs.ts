@@ -8,6 +8,7 @@ export type AdminTab =
   | "scheduling"
   | "billing"
   | "trusted-lists"
+  | "compromised"
   | "support"
   | "growth";
 
@@ -18,6 +19,7 @@ const ALWAYS: readonly AdminTab[] = [
   "scheduling",
   "billing",
   "trusted-lists",
+  "compromised",
   "support",
   "growth",
 ];

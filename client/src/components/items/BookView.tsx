@@ -85,7 +85,9 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
     <div className="space-y-6" data-testid="dlist-item-hero" data-definition="read" data-view="book">
       {isAdmin && (
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
-          <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
+          <ConceptLink event={event} list={r.governing.plural}>
+            {r.governing.singular}
+          </ConceptLink>
         </p>
       )}
 
