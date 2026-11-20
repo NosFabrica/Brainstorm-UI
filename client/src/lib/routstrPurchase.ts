@@ -70,6 +70,12 @@ export interface PendingPurchase {
    * the key is `sk-` + sha256(token), so asking its balance tells whether it exists.
    */
   unconfirmed?: boolean;
+  /**
+   * Secrets this record let go, never to come back: the change once the reader took it, the
+   * key once kind 12000 was read back with it. A turn that read the record before can't
+   * restore them (`updatePurchase`).
+   */
+  letGo?: ("key" | "change")[];
   /** Past the settlement grace, `/v2/lightning/recover` was asked once for a paid-here invoice. */
   recoverTried?: boolean;
   /**
@@ -246,7 +252,11 @@ export function readPurchases(pubkey: string | null | undefined): PendingPurchas
  */
 export function writePurchases(pubkey: string, list: PendingPurchase[]): boolean {
   try {
-    if (list.length) localStorage.setItem(storageKey(pubkey), JSON.stringify(list));
+    const next = list.length ? JSON.stringify(list) : null;
+    // The same list (a poll that moved nothing): no write, so no listener and no `storage`
+    // event in every other tab.
+    if (localStorage.getItem(storageKey(pubkey)) === next) return true;
+    if (next !== null) localStorage.setItem(storageKey(pubkey), next);
     else localStorage.removeItem(storageKey(pubkey));
   } catch {
     return false;
@@ -278,14 +288,32 @@ export function updatePurchase(pubkey: string, next: PendingPurchase): boolean {
   if (now.paidHere || next.paidHere) merged.paidHere = true;
   if (now.payAttempted || next.payAttempted) merged.payAttempted = true;
   if (now.recoverTried || next.recoverTried) merged.recoverTried = true;
-  const key = next.key ?? now.key;
+  const gone = new Set([...(now.letGo ?? []), ...(next.letGo ?? [])]);
+  if (gone.size) merged.letGo = [...gone].sort() as PendingPurchase["letGo"];
+  const key = gone.has("key") ? undefined : (next.key ?? now.key);
   if (key) merged.key = key;
-  const change = now.change ?? next.change;
+  else delete merged.key;
+  const change = gone.has("change") ? undefined : (now.change ?? next.change);
   if (change) merged.change = change;
+  else delete merged.change;
   return writePurchases(
     pubkey,
     list.map((r) => (r.id === next.id ? merged : r)),
   );
+}
+
+/** `record` without its `what` (the key, the change), marked so no later write brings it back. */
+export function letGo(record: PendingPurchase, what: "key" | "change"): PendingPurchase {
+  const out: PendingPurchase = {
+    ...record,
+    letGo: [...new Set([...(record.letGo ?? []), what])].sort() as PendingPurchase["letGo"],
+  };
+  if (what === "key") {
+    delete out.key;
+    delete out.savedAt;
+    delete out.saveError;
+  } else delete out.change;
+  return out;
 }
 
 /** Removes a record only if, as it is now, nothing says money moved (`canDrop`). */

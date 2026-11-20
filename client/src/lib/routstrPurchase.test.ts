@@ -11,6 +11,8 @@ import {
   putPurchase,
   readPurchases,
   removePurchase,
+  updatePurchase,
+  letGo,
   writePurchases,
   type PendingPurchase,
 } from "./routstrPurchase";
@@ -161,5 +163,42 @@ describe("storage", () => {
     } finally {
       Storage.prototype.setItem = setItem;
     }
+  });
+});
+
+describe("updatePurchase never brings back a secret that was let go (audit, 2026-11-20)", () => {
+  beforeEach(() => localStorage.clear());
+  const CHANGE = { token: "cashuBchangechangechange", amount: 1, unit: "sat" };
+
+  it("a change taken stays taken, a key confirmed stays gone, whatever a turn read before", () => {
+    const held = invoice({ paid: true, key: "sk-x", change: CHANGE });
+    putPurchase(ME, held);
+    // A turn read the record (key and change) and is out.
+    const stale = readPurchases(ME)[0];
+    // The reader took the change; kind 12000 was read back and the key let go.
+    putPurchase(ME, letGo(letGo(stale, "change"), "key"));
+    expect(updatePurchase(ME, { ...stale, reconciling: false })).toBe(true);
+    const now = readPurchases(ME)[0];
+    expect(now.change).toBeUndefined();
+    expect(now.key).toBeUndefined();
+  });
+
+  it("a key the node hands over is still added", () => {
+    putPurchase(ME, invoice({ paid: true }));
+    expect(updatePurchase(ME, { ...readPurchases(ME)[0], key: "sk-new" })).toBe(true);
+    expect(readPurchases(ME)[0].key).toBe("sk-new");
+  });
+});
+
+describe("readRefund", () => {
+  it("reads a refund's token and amount, sats or msats, as numbers or strings", async () => {
+    const { readRefund } = await import("./routstr");
+    expect(readRefund({ token: "cashuBrefundrefundrefund", sats: "21" })).toEqual({
+      token: "cashuBrefundrefundrefund",
+      amount: 21,
+      unit: "sat",
+    });
+    expect(readRefund({ token: "cashuBrefundrefundrefund", msats: 21_900 })?.amount).toBe(21);
+    expect(readRefund({ sats: 21 })).toBeNull();
   });
 });

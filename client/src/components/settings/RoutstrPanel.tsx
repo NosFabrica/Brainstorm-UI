@@ -102,9 +102,12 @@ import {
   markPaidHere,
   markPayAttempted,
   pollPurchase,
+  refundToCashu,
   startLightningPurchase,
   topUpWithCashu,
+  useInvoiceInView,
   usePurchases,
+  usePurchasesInView,
 } from "@/services/routstrPurchase";
 
 const NODE_FILTERS = [{ kinds: [ROUTSTR_KIND] }];
@@ -611,8 +614,11 @@ export function BuyKey({
       setError(
         err instanceof RoutstrError
           ? err.message
-          : // Silence: the token may or may not have been taken. The node gives the same key for it again.
-            "No answer from the node. Keep the token: sending it again gives back the same key if it was taken.",
+          : purpose === "topup"
+            ? // A top-up the node took isn't undone by sending the token again: it would be refused, or counted twice.
+              "No answer from the node. Keep the token, and check the key's balance before you send it again: it may have been added."
+            : // Silence: the token may or may not have been taken. The node gives the same key for it again.
+              "No answer from the node. Keep the token: sending it again gives back the same key if it was taken.",
       );
     } finally {
       setWorking(false);
@@ -743,14 +749,23 @@ export function BuyKey({
 }
 
 /** Change the node handed back: the reader's money, shown until they say they took it. */
-function ChangeCard({ change, onTaken }: { change: CashuChange; onTaken: () => void }) {
+function ChangeCard({
+  change,
+  onTaken,
+  title = "Your change",
+}: {
+  change: CashuChange;
+  onTaken: () => void;
+  title?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <Card className="flex flex-col gap-3 p-4" data-testid="routstr-change">
       <div className="flex items-center gap-2">
         <Wallet className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden />
         <h3 className="text-sm font-semibold text-foreground">
-          Your change{change.amount !== null ? `: ${change.amount.toLocaleString()} ${change.unit ?? "sat"}` : ""}
+          {title}
+          {change.amount !== null ? `: ${change.amount.toLocaleString()} ${change.unit ?? "sat"}` : ""}
         </h3>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -782,6 +797,8 @@ function ChangeCard({ change, onTaken }: { change: CashuChange; onTaken: () => v
 export function InvoiceStep({ id, onDone }: { id: string; onDone: () => void }) {
   const pubkey = usePubkey();
   const purchases = usePurchases(pubkey);
+  // On screen: asked about every few seconds, and a save it brings may ask the signer.
+  useInvoiceInView(pubkey, id);
   const record = purchases.find((r) => r.id === id) ?? null;
   const last = useRef<PendingPurchase | null>(record);
   if (record) last.current = record;
@@ -1005,6 +1022,8 @@ function PasteKey({
 export function PendingPurchases() {
   const pubkey = usePubkey();
   const purchases = usePurchases(pubkey);
+  // The AI model page is open: a bought key's save may ask the signer here, as it won't elsewhere.
+  usePurchasesInView();
   if (!purchases.length) return null;
   return (
     <section className="flex flex-col gap-2" data-testid="routstr-pending">
@@ -1189,6 +1208,96 @@ function useBestWriter(apiUrl: string): RoutstrModel | null {
 }
 
 /** A Routstr node's own name (its `/v1/info`), for a saved key's card; null for anything else. */
+/**
+ * In the Remove dialog of a Routstr key: what it still holds, that removing it loses those
+ * sats, and a refund of them as a Cashu token first, behind a confirm. Nothing for another
+ * provider's key.
+ */
+export function RoutstrRemoveWarning({ entry }: { entry: AgentKey }) {
+  const pubkey = usePubkey();
+  const isRoutstr = useIsRoutstr(entry.url);
+  const balance = useRoutstrBalance(entry, isRoutstr === true);
+  const nodeName = useRoutstrNodeName(entry.url);
+  const [step, setStep] = useState<"warn" | "confirm" | "refunding">("warn");
+  const [error, setError] = useState<string | null>(null);
+  const [refunded, setRefunded] = useState<{ change: CashuChange; id: string } | null>(null);
+  if (!isRoutstr) return null;
+  const where = nodeName ?? nodeHost({ https: [entry.url] });
+  if (refunded) {
+    return (
+      <ChangeCard
+        title="Your refund"
+        change={refunded.change}
+        onTaken={() => {
+          if (pubkey) changeTaken(pubkey, refunded.id);
+          setRefunded(null);
+        }}
+      />
+    );
+  }
+  const sats = balance?.status === "ready" ? Math.floor(balance.balance.msats / 1000) : null;
+  if (sats === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="ai-model-remove-routstr">
+        It holds no balance at {where}.
+      </p>
+    );
+  }
+  const refund = async () => {
+    if (!pubkey) return;
+    setStep("refunding");
+    setError(null);
+    try {
+      setRefunded(await refundToCashu({ pubkey, entry, nodeName }));
+    } catch (err) {
+      setError(
+        err instanceof RoutstrError
+          ? err.message
+          : "No answer from the node. Try again: it hands back the same token if it already refunded.",
+      );
+    } finally {
+      setStep("warn");
+    }
+  };
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10"
+      data-testid="ai-model-remove-routstr"
+    >
+      <p className="text-foreground">
+        {sats !== null
+          ? `It still holds ${formatSats(sats)} at ${where}. Removed, they're lost with it: refund them first.`
+          : `It may still hold sats at ${where}. Removed, they're lost with it.`}
+      </p>
+      {step === "confirm" && sats !== null ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1">Refund {formatSats(sats)} as a Cashu token, to put in your wallet?</span>
+          <Button size="sm" onClick={() => void refund()} data-testid="ai-model-refund-confirm">
+            Refund
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setStep("warn")}>
+            Not now
+          </Button>
+        </div>
+      ) : (
+        sats !== null && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start"
+            disabled={step === "refunding"}
+            onClick={() => setStep("confirm")}
+            data-testid="ai-model-refund"
+          >
+            {step === "refunding" ? <Loader2 className="animate-spin" /> : <Wallet />} Refund as a Cashu token
+          </Button>
+        )
+      )}
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 export function useRoutstrNodeName(apiUrl: string): string | null {
   const isRoutstr = useIsRoutstr(apiUrl);
   const [name, setName] = useState<string | null>(null);

@@ -654,6 +654,21 @@ export function readChange(json: unknown): CashuChange | null {
   };
 }
 
+/**
+ * `POST /v1/balance/refund` with the key: the balance as a Cashu token (routstr-core answers
+ * `token` with `sats` or `msats`, the latter as strings when it replays a refund made
+ * before). Null when there is no token in it.
+ */
+export function readRefund(json: unknown): CashuChange | null {
+  const o = asObject(json);
+  const token = typeof o?.token === "string" ? cashuToken(o.token) : null;
+  if (!token) return null;
+  const sats = price(o?.sats);
+  const msats = price(o?.msats);
+  const amount = sats ?? (msats !== null ? Math.floor(msats / 1000) : null);
+  return { token, amount, unit: amount !== null ? "sat" : null };
+}
+
 /** `POST /v1/balance/create`: the new key (never logged), its balance, and any change. */
 export function readCreated(json: unknown): {
   apiKey: string | null;

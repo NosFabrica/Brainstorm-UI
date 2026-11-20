@@ -31,6 +31,7 @@ vi.mock("@/accounts/signing", () => ({ activeAccount: () => ({ pubkey: ME }) }))
 
 import { clearHandoff, handOff, peekHandoff } from "@/lib/openRouterOAuth";
 import { AiModelTab } from "./AiModelTab";
+import info from "@/lib/__fixtures__/routstr/info.json";
 
 const SECRET = "sk-or-v1-0123456789abcdef";
 const OPENROUTER = "https://openrouter.ai/api/v1";
@@ -289,5 +290,48 @@ describe("AiModelTab", () => {
     expect(testAgentKey).not.toHaveBeenCalled();
     expect(screen.getByTestId("ai-model-url-error").textContent).toContain("https://");
     expect((screen.getByTestId("ai-model-save") as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("removing a Routstr key (audit, 2026-11-20)", () => {
+  const NODE = "https://routstr.example.org/v1";
+  const BOUGHT = `sk-${"c".repeat(64)}`;
+  const TOKEN = "cashuBrefundrefundrefundrefund";
+
+  it("says what it holds, that those sats go with it, and refunds them first behind a confirm", async () => {
+    // Every node call this screen makes, answered here: no network.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/v1/balance/info")) return new Response(JSON.stringify({ balance: 21_000 }), { status: 200 });
+        if (url.endsWith("/v1/balance/refund"))
+          return new Response(JSON.stringify({ token: TOKEN, sats: "21" }), { status: 200 });
+        if (url.endsWith("/v1/info")) return new Response(JSON.stringify(info), { status: 200 });
+        if (url.endsWith("/v1/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        return new Response("{}", { status: 404 });
+      }),
+    );
+    try {
+      const { markRoutstr } = await import("@/services/routstr");
+      markRoutstr(NODE);
+      state.mockReturnValue({ status: "ready", keys: [{ key: BOUGHT, url: NODE }] });
+      render(<AiModelTab />);
+      fireEvent.click(screen.getByRole("button", { name: /Remove the .* key/ }));
+      await vi.waitFor(() => expect(screen.getByTestId("ai-model-remove-routstr")).toHaveTextContent("21 sats"), {
+        timeout: 3000,
+      });
+      const warning = screen.getByTestId("ai-model-remove-routstr");
+      expect(warning).toHaveTextContent(/lost with it/);
+      fireEvent.click(screen.getByTestId("ai-model-refund"));
+      await act(async () => fireEvent.click(screen.getByTestId("ai-model-refund-confirm")));
+      const dialog = screen.getByRole("alertdialog");
+      expect(await within(dialog).findByTestId("routstr-change")).toHaveTextContent("Your refund: 21 sat");
+      expect(within(dialog).getByDisplayValue(TOKEN)).toBeTruthy();
+      // Kept on this device until it is taken.
+      expect(JSON.stringify(localStorage)).toContain(TOKEN);
+    } finally {
+      vi.unstubAllGlobals();
+      localStorage.clear();
+    }
   });
 });

@@ -131,3 +131,23 @@ describe("what makes a key a Routstr key", () => {
     expect(listed.map((n) => n.https[0])).toEqual([]);
   });
 });
+
+describe("the hooks subscribe once, not on every render (audit, 2026-11-20)", () => {
+  it("useIsRoutstr, useRoutstrBalance and useConfirmedOwners keep their subscription across renders", async () => {
+    const { renderHook } = await import("@testing-library/react");
+    const { useIsRoutstr, useRoutstrBalance, useConfirmedOwners } = await load();
+    const entry = { key: "sk-x", url: "https://api.routstr.com/v1" };
+    const { rerender } = renderHook(() => {
+      useIsRoutstr(entry.url);
+      useRoutstrBalance(entry);
+      useConfirmedOwners();
+    });
+    // A subscribe adds its listener to a Set: none should be added again by a re-render.
+    const add = vi.spyOn(Set.prototype, "add");
+    for (let i = 0; i < 5; i++) rerender();
+    // (Vitest's own spies are functions too: they aren't listeners.)
+    const listeners = add.mock.calls.filter(([value]) => typeof value === "function" && !("mock" in value)).length;
+    add.mockRestore();
+    expect(listeners).toBe(0);
+  });
+});

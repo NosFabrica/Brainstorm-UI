@@ -15,6 +15,13 @@ vi.mock("@/services/agentKeys", () => ({
 }));
 // No relay is asked here.
 vi.mock("@/lib/relayRequest", () => ({ requestAll: vi.fn(async () => []) }));
+// The account signed in, and whether it signs without a prompt (a key held here, unlocked).
+const signer = vi.hoisted(() => ({ unasked: true }));
+vi.mock("@/accounts/signing", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  activeAccount: () => ({ pubkey: "ab".repeat(32) }),
+  canSignUnasked: async () => signer.unasked,
+}));
 
 const ME = "ab".repeat(32);
 const NODE = "https://routstr.example.org/v1";
@@ -35,6 +42,7 @@ function respond(status: number, body: unknown) {
 
 beforeEach(() => {
   localStorage.clear();
+  signer.unasked = true;
   calls.length = 0;
   updateAgentKeys.mockReset();
   updateAgentKeys.mockResolvedValue({ success: true });
@@ -671,6 +679,43 @@ describe("round-2 audit (2026-11-13)", () => {
   });
 });
 
+describe("the signer, from the background (audit, 2026-11-20)", () => {
+  const base = {
+    node: NODE,
+    nodeName: null,
+    purpose: "create" as const,
+    method: "lightning" as const,
+    bolt11: BOLT11,
+    amountSats: 1,
+    createdAt: Date.now(),
+  };
+
+  it("a key bought here waits, unprompted, for a page that shows it when the signer would ask", async () => {
+    signer.unasked = false;
+    const { putPurchase, pollPurchase, readPurchases } = await load();
+    putPurchase(ME, { ...base, id: "k", invoiceId: "k", expiresAt: NOW + 600, paid: true, key: KEY });
+    expect(await pollPurchase(ME, "k", undefined, { background: true })).toBe("waiting");
+    expect(updateAgentKeys).not.toHaveBeenCalled();
+    // Saved, waiting to be read back: no decrypt prompt either.
+    putPurchase(ME, { ...readPurchases(ME)[0], savedAt: Date.now() });
+    expect(await pollPurchase(ME, "k", undefined, { background: true })).toBe("waiting");
+    expect(agentKeysHold).not.toHaveBeenCalled();
+    // Asked (Retry), it saves.
+    putPurchase(ME, { ...readPurchases(ME)[0], savedAt: undefined });
+    expect(await pollPurchase(ME, "k")).toBe("saved");
+  });
+
+  it("a declined unlock is a quiet wait, not the destructive 'not saved', and isn't asked again at once", async () => {
+    const { putPurchase, pollPurchase, readPurchases } = await load();
+    putPurchase(ME, { ...base, id: "k", invoiceId: "k", expiresAt: NOW + 600, paid: true, key: KEY });
+    updateAgentKeys.mockResolvedValue({ success: false, cancelled: true });
+    expect(await pollPurchase(ME, "k", undefined, { background: true })).toBe("waiting");
+    expect(readPurchases(ME)[0].saveError).toBeUndefined();
+    expect(await pollPurchase(ME, "k", undefined, { background: true })).toBe("waiting");
+    expect(updateAgentKeys).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("the poller (round-2 audit)", () => {
   const rec = (id: string) => ({
     id,
@@ -682,7 +727,7 @@ describe("the poller (round-2 audit)", () => {
     bolt11: "lnbc1" + id,
     amountSats: 1000,
     expiresAt: Math.floor(Date.now() / 1000) + 600,
-    createdAt: 0,
+    createdAt: Date.now(),
   });
 
   it("a record going while another's status call is out doesn't stop the other's polling", async () => {
@@ -704,7 +749,7 @@ describe("the poller (round-2 audit)", () => {
       });
       gateA = true;
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_000);
+        await vi.advanceTimersByTimeAsync(11_000);
       });
       expect(release).not.toBeNull();
       await act(async () => {
@@ -717,7 +762,7 @@ describe("the poller (round-2 audit)", () => {
       const asks = () => calls.filter((c) => c.url.includes("/a/")).length;
       const before = asks();
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(120_000);
       });
       expect(asks() - before).toBeGreaterThan(5);
     } finally {
@@ -744,9 +789,75 @@ describe("the poller (round-2 audit)", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10);
       });
-      // b asked at once, a still on its own three seconds.
+      // b asked at once, a still on its own ten seconds.
       expect(calls.filter((c) => c.url.includes("/b/"))).toHaveLength(1);
       expect(asks()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("paces each record: fast on screen or paid here, slower unwatched and as it ages (audit, 2026-11-20)", async () => {
+    const { nextTurnIn } = await import("./routstrPurchasePoller");
+    const now = Date.now();
+    const fresh = { ...rec("p"), createdAt: now };
+    expect(nextTurnIn(fresh, now)).toBe(10_000);
+    expect(nextTurnIn({ ...fresh, paidHere: true }, now)).toBe(3_000);
+    expect(nextTurnIn({ ...fresh, payAttempted: true }, now)).toBe(3_000);
+    expect(nextTurnIn({ ...fresh, createdAt: now - 20 * 60_000 }, now)).toBe(30_000);
+    expect(nextTurnIn({ ...fresh, createdAt: now - 45 * 60_000 }, now)).toBe(60_000);
+    // Past its expiry, through the day the node may still settle it: every two minutes.
+    expect(nextTurnIn({ ...fresh, expiresAt: Math.floor(now / 1000) - 5 }, now)).toBe(120_000);
+  });
+
+  it("an invoice on screen is asked about every few seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      const { renderHook, act } = await import("@testing-library/react");
+      handle = () => respond(200, statusBody("pending"));
+      const { usePurchasePoller, putPurchase } = await load();
+      const { useInvoiceInView } = await import("./routstrPurchasePoller");
+      putPurchase(ME, rec("v"));
+      renderHook(() => {
+        usePurchasePoller(ME);
+        useInvoiceInView(ME, "v");
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(9_500);
+      });
+      expect(calls.filter((c) => c.url.includes("/v/")).length).toBeGreaterThanOrEqual(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a poll that moves nothing writes nothing: no listener, no storage event (audit, 2026-11-20)", async () => {
+    const { putPurchase, subscribePurchases, updatePurchase, readPurchases } = await load();
+    putPurchase(ME, rec("w"));
+    const heard = vi.fn();
+    const stop = subscribePurchases(heard);
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    expect(updatePurchase(ME, readPurchases(ME)[0])).toBe(true);
+    expect(heard).not.toHaveBeenCalled();
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+    stop();
+  });
+
+  it("only the tab holding the account's lock polls (audit, 2026-11-20)", async () => {
+    vi.useFakeTimers();
+    // Another tab holds it: the request waits, never granted here.
+    vi.stubGlobal("navigator", { ...navigator, locks: { request: () => new Promise(() => {}) } });
+    try {
+      const { renderHook, act } = await import("@testing-library/react");
+      handle = () => respond(200, statusBody("pending"));
+      const { usePurchasePoller, putPurchase } = await load();
+      putPurchase(ME, rec("l"));
+      renderHook(() => usePurchasePoller(ME));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(calls.filter((c) => c.url.includes("/l/"))).toHaveLength(0);
     } finally {
       vi.useRealTimers();
     }

@@ -13,6 +13,7 @@ import { msatsToSats, nodeApiUrl, nodeBase, type CashuChange } from "@/lib/routs
 import {
   advance,
   dropIfDroppable,
+  letGo,
   localId,
   putPurchase,
   readPurchases,
@@ -23,6 +24,8 @@ import {
   type PurchasePurpose,
 } from "@/lib/routstrPurchase";
 import { agentKeysHold, updateAgentKeys } from "@/services/agentKeys";
+import { activeAccount, canSignUnasked } from "@/accounts/signing";
+import { purchasesInView } from "@/services/routstrPurchasePoller";
 import {
   RoutstrError,
   createInvoice,
@@ -31,11 +34,12 @@ import {
   invoiceStatus,
   recoverInvoice,
   refreshBalance,
+  refundKey,
   topupWithCashu,
 } from "@/services/routstr";
 
 /** What saving a key came to. `notActive`: another account is signed in now, so nothing was tried. */
-export type KeySave = { ok: true } | { ok: false; error?: string; notActive?: boolean };
+export type KeySave = { ok: true } | { ok: false; error?: string; notActive?: boolean; declined?: boolean };
 
 /** What the driver calls, so tests (and nothing else) can stand in for the node and the signer. */
 export interface PurchaseDeps {
@@ -47,6 +51,8 @@ export interface PurchaseDeps {
   keyHeld: (pubkey: string, entry: AgentKey) => Promise<boolean | null>;
   /** Whether a key exists on its node (its balance answers): `missing` for a 401 `key_not_found`. */
   keyLive: (entry: AgentKey) => Promise<"live" | "missing" | "unknown">;
+  /** Whether `pubkey`'s signer signs and decrypts without asking anyone (a key held here, unlocked). */
+  signsUnasked?: (pubkey: string) => Promise<boolean>;
   now: () => number;
 }
 
@@ -56,6 +62,7 @@ export const defaultDeps: PurchaseDeps = {
   saveKey: async (pubkey, entry) => {
     const outcome = await updateAgentKeys((cur) => addKey(cur, entry), { pubkey });
     if (outcome.success) return { ok: true };
+    if (outcome.cancelled || outcome.declined) return { ok: false, declined: true };
     return { ok: false, error: outcome.error ?? "Couldn't save the key.", notActive: outcome.notActive };
   },
   keyHeld: (pubkey, entry) => agentKeysHold(pubkey, entry),
@@ -67,8 +74,42 @@ export const defaultDeps: PurchaseDeps = {
       return err instanceof RoutstrError && err.failure.code === "key_not_found" ? "missing" : "unknown";
     }
   },
+  signsUnasked: async (pubkey) => {
+    const account = activeAccount();
+    return !!account && account.pubkey === pubkey && (await canSignUnasked(account));
+  },
   now: () => Math.floor(Date.now() / 1000),
 };
+
+/**
+ * Records whose signer said no (or gave no answer), by `pubkey:id`: the background asks it
+ * again only after a wait that doubles each time, up to half an hour. A Retry clears it.
+ */
+const quiet = new Map<string, { until: number; wait: number }>();
+const QUIET_FIRST_MS = 30_000;
+const QUIET_MAX_MS = 30 * 60_000;
+
+function backOff(pubkey: string, id: string) {
+  const key = `${pubkey}:${id}`;
+  const wait = Math.min((quiet.get(key)?.wait ?? QUIET_FIRST_MS / 2) * 2, QUIET_MAX_MS);
+  quiet.set(key, { until: Date.now() + wait, wait });
+}
+
+/**
+ * Whether this turn may ask the signer (a save signs kind 12000, a read back decrypts it).
+ * Asked by the reader (Retry, a purchase they just made), or with the AI model page open,
+ * yes; from the background, only when nobody would be prompted, and not while backing off.
+ */
+async function mayAskSigner(pubkey: string, id: string, deps: PurchaseDeps, background: boolean) {
+  if (!background) {
+    quiet.delete(`${pubkey}:${id}`);
+    return true;
+  }
+  const held = quiet.get(`${pubkey}:${id}`);
+  if (held && Date.now() < held.until) return false;
+  if (purchasesInView()) return true;
+  return (await deps.signsUnasked?.(pubkey)) ?? true;
+}
 
 const NOT_KEPT = "This browser won't keep the purchase safe while it's paid (private browsing?). Nothing was bought.";
 
@@ -137,16 +178,25 @@ export type PollOutcome = "waiting" | "saved" | "unsaved" | "confirmed" | "toppe
  * the answer, and save a key the moment one arrives. The record on disk is updated before
  * anything that could fail, so a reload at any point resumes from where this left off.
  */
-export async function pollPurchase(pubkey: string, id: string, deps: PurchaseDeps = defaultDeps): Promise<PollOutcome> {
+/**
+ * `background`: the app's poller, with nobody looking. A turn that would ask the signer then
+ * waits (`mayAskSigner`) for the AI model page, a Retry, or a signer that asks nobody.
+ */
+export async function pollPurchase(
+  pubkey: string,
+  id: string,
+  deps: PurchaseDeps = defaultDeps,
+  { background = false }: { background?: boolean } = {},
+): Promise<PollOutcome> {
   let record = readPurchases(pubkey).find((r) => r.id === id);
   if (!record) return "gone";
   if (record.key) {
     // A Cashu token sent with no answer: its key exists only if the node took it.
     if (record.unconfirmed) return checkCashuKey(pubkey, record, deps);
     // Written: let it go once kind 12000, read again, shows it; write it again if it doesn't.
-    if (record.savedAt) return confirmSaved(pubkey, record, deps);
+    if (record.savedAt) return confirmSaved(pubkey, record, deps, background);
     // A key in hand (a save that failed, a Cashu purchase): save it, ask the node nothing.
-    return saveBought(pubkey, record, deps);
+    return saveBought(pubkey, record, deps, background);
   }
   if (record.ended) return "waiting";
   if (record.method !== "lightning" || !record.bolt11) return record.change ? "waiting" : "gone";
@@ -181,7 +231,7 @@ export async function pollPurchase(pubkey: string, id: string, deps: PurchaseDep
         // close. The one write that brings a record back: a key the node just handed over
         // is kept whatever happened to the record meanwhile.
         if (!updatePurchase(pubkey, step.record)) putPurchase(pubkey, step.record);
-        return saveBought(pubkey, readPurchases(pubkey).find((r) => r.id === id) ?? step.record, deps);
+        return saveBought(pubkey, readPurchases(pubkey).find((r) => r.id === id) ?? step.record, deps, background);
     }
   }
   return "waiting";
@@ -201,14 +251,26 @@ async function once(pubkey: string, record: PendingPurchase, work: () => Promise
   }
 }
 
-function saveBought(pubkey: string, record: PendingPurchase, deps: PurchaseDeps): Promise<PollOutcome> {
+function saveBought(
+  pubkey: string,
+  record: PendingPurchase,
+  deps: PurchaseDeps,
+  background = false,
+): Promise<PollOutcome> {
   return once(pubkey, record, async () => {
+    if (!(await mayAskSigner(pubkey, record.id, deps, background))) return "waiting";
     const entry: AgentKey = { key: record.key!, url: record.node };
     const saved: KeySave = await deps.saveKey(pubkey, entry).catch(() => ({ ok: false }) as const);
     const now = readPurchases(pubkey).find((r) => r.id === record.id) ?? record;
     // Another account is signed in now (a switch, a sign-out mid-turn): this one's key waits
     // for it, untouched, with no error to stop the poller and nothing to say.
     if (!saved.ok && saved.notActive) return "waiting";
+    // They said no to the unlock (or the signer did): the key stays, unsaved, with nothing
+    // alarming to say, and the background asks again only after a while.
+    if (!saved.ok && saved.declined) {
+      backOff(pubkey, record.id);
+      return "waiting";
+    }
     if (!saved.ok) {
       updatePurchase(pubkey, { ...now, saveError: saved.error ?? "Couldn't save the key." });
       return "unsaved";
@@ -219,15 +281,25 @@ function saveBought(pubkey: string, record: PendingPurchase, deps: PurchaseDeps)
 }
 
 /** A saved key: the record goes once a read shows it in kind 12000; one a later write undid is saved again. */
-function confirmSaved(pubkey: string, record: PendingPurchase, deps: PurchaseDeps): Promise<PollOutcome> {
+function confirmSaved(
+  pubkey: string,
+  record: PendingPurchase,
+  deps: PurchaseDeps,
+  background = false,
+): Promise<PollOutcome> {
   return once(pubkey, record, async () => {
+    if (!(await mayAskSigner(pubkey, record.id, deps, background))) return "waiting";
     const held = await deps.keyHeld(pubkey, { key: record.key!, url: record.node });
-    if (held === null) return "waiting";
+    if (held === null) {
+      // Couldn't tell (a declined decrypt, relays that didn't answer): not again at once.
+      if (background) backOff(pubkey, record.id);
+      return "waiting";
+    }
     const now = readPurchases(pubkey).find((r) => r.id === record.id);
     if (!now) return "gone";
     if (held) {
       // The key leaves this device's storage. Change still to hand back keeps the record.
-      if (now.change) putPurchase(pubkey, { ...now, key: undefined, savedAt: undefined, saveError: undefined });
+      if (now.change) putPurchase(pubkey, letGo(now, "key"));
       else removePurchase(pubkey, now.id);
       return "confirmed";
     }
@@ -322,6 +394,41 @@ export async function buyWithCashu(
 }
 
 /**
+ * A saved Routstr key's whole balance back as a Cashu token, before the key is removed: kept
+ * on this device as change until the reader has taken it (`changeTaken`), so a closed tab
+ * doesn't lose it. `id` names that record.
+ */
+export async function refundToCashu({
+  pubkey,
+  entry,
+  nodeName,
+}: {
+  pubkey: string;
+  entry: AgentKey;
+  nodeName: string | null;
+}): Promise<{ change: CashuChange; id: string }> {
+  const change = await refundKey(entry);
+  const record: PendingPurchase = {
+    id: localId(),
+    node: entry.url,
+    nodeName,
+    purpose: "topup",
+    method: "cashu",
+    invoiceId: null,
+    bolt11: null,
+    amountSats: change.amount ?? 0,
+    expiresAt: null,
+    createdAt: Date.now(),
+    topsUp: keySuffix(entry),
+    paid: true,
+    change,
+  };
+  putPurchase(pubkey, record);
+  void refreshBalance(entry);
+  return { change, id: record.id };
+}
+
+/**
  * A Cashu top-up of a saved key. Change the node hands back is kept until the reader takes
  * it; `id` names that record (null with no change), for `changeTaken`.
  */
@@ -364,7 +471,7 @@ export async function topUpWithCashu({
 export function changeTaken(pubkey: string, id: string) {
   const record = readPurchases(pubkey).find((r) => r.id === id);
   if (!record) return;
-  if (record.key) putPurchase(pubkey, { ...record, change: undefined });
+  if (record.key) putPurchase(pubkey, letGo(record, "change"));
   else removePurchase(pubkey, id);
 }
 
@@ -383,4 +490,9 @@ export function forgetPurchase(pubkey: string, id: string): boolean {
 // The poller and the live list are their own light module: the app mounts the poller on
 // every page (RoutstrPurchaseHost), and it loads this one, with the node's calls, only when
 // a purchase is in flight.
-export { usePurchasePoller, usePurchases } from "@/services/routstrPurchasePoller";
+export {
+  useInvoiceInView,
+  usePurchasePoller,
+  usePurchases,
+  usePurchasesInView,
+} from "@/services/routstrPurchasePoller";

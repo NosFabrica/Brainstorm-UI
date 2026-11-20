@@ -29,6 +29,7 @@ import {
   parseModels,
   readCreated,
   readRoutstrError,
+  readRefund,
   readTopup,
   routstrProblem,
   type CashuChange,
@@ -141,19 +142,28 @@ export function getNodeInfo(apiUrl: string): Promise<RoutstrInfo | null> {
 
 let ownersSnapshot: ReadonlyMap<string, string> = new Map();
 /** Endpoint base to the key its own `/v1/info` named, for the nodes this session asked: what `nodesFrom` prefers. */
+/** Hoisted: an inline subscribe is a new function each render, and React resubscribes on each. */
+function subscribeDetect(listener: () => void) {
+  detectListeners.add(listener);
+  return () => {
+    detectListeners.delete(listener);
+  };
+}
+
+function subscribeBalances(listener: () => void) {
+  balanceListeners.add(listener);
+  return () => {
+    balanceListeners.delete(listener);
+  };
+}
+
 export function useConfirmedOwners(): ReadonlyMap<string, string> {
-  return useSyncExternalStore(
-    (l) => {
-      detectListeners.add(l);
-      return () => detectListeners.delete(l);
-    },
-    () => {
-      if (ownersSnapshot.size !== owners.size || [...owners].some(([k, v]) => ownersSnapshot.get(k) !== v)) {
-        ownersSnapshot = new Map(owners);
-      }
-      return ownersSnapshot;
-    },
-  );
+  return useSyncExternalStore(subscribeDetect, () => {
+    if (ownersSnapshot.size !== owners.size || [...owners].some(([k, v]) => ownersSnapshot.get(k) !== v)) {
+      ownersSnapshot = new Map(owners);
+    }
+    return ownersSnapshot;
+  });
 }
 
 const modelLists = new Map<string, { at: number; ask: Promise<RoutstrModel[]> }>();
@@ -230,13 +240,7 @@ export const markRoutstr = (apiUrl: string) => setDetected(nodeBase(apiUrl), tru
 
 /** Whether `apiUrl` is a Routstr node, live: undefined while it is being asked. */
 export function useIsRoutstr(apiUrl: string | null | undefined): boolean | undefined {
-  const value = useSyncExternalStore(
-    (l) => {
-      detectListeners.add(l);
-      return () => detectListeners.delete(l);
-    },
-    () => (apiUrl ? knownRoutstr(apiUrl) : false),
-  );
+  const value = useSyncExternalStore(subscribeDetect, () => (apiUrl ? knownRoutstr(apiUrl) : false));
   useEffect(() => {
     if (apiUrl && knownRoutstr(apiUrl) === undefined) void detectRoutstr(apiUrl);
   }, [apiUrl]);
@@ -311,13 +315,7 @@ export function refreshBalancesAt(apiUrl: string): Promise<void[]> {
  */
 export function useRoutstrBalance(entry: AgentKey | null, enabled = true): BalanceState | null {
   const id = entry && enabled ? balanceId(entry) : null;
-  const state = useSyncExternalStore(
-    (l) => {
-      balanceListeners.add(l);
-      return () => balanceListeners.delete(l);
-    },
-    () => (id ? (balances.get(id) ?? LOADING) : null),
-  );
+  const state = useSyncExternalStore(subscribeBalances, () => (id ? (balances.get(id) ?? LOADING) : null));
   useEffect(() => {
     if (entry && id) void refreshBalance(entry);
     // `id` is the entry, as a value.
@@ -415,6 +413,25 @@ export async function createWithCashu(
   // which the caller already holds and can ask the node about.
   if (!created.apiKey) throw new RoutstrUnanswered();
   return { apiKey: created.apiKey, msats: created.msats, change: created.change };
+}
+
+/**
+ * `POST /v1/balance/refund` with the key: its whole balance back as a Cashu token, to put
+ * in a wallet. A node asked again after the balance went answers with the same token, so
+ * an answer lost on the way can be asked for again. Throws `RoutstrError` when the node
+ * refuses (no balance, requests still running), `RoutstrUnanswered` when a 2xx holds no token.
+ */
+export async function refundKey(entry: AgentKey): Promise<CashuChange> {
+  const { ok, status, body } = await call(
+    `${nodeBase(entry.url)}/v1/balance/refund`,
+    // No Lightning address: the node answers with a Cashu token.
+    { method: "POST", headers: { ...json, ...bearer(entry.key) }, body: "{}" },
+    60_000,
+  );
+  if (!ok) throw new RoutstrError(readRoutstrError(status, body), `The node didn't refund the key (${status}).`);
+  const change = readRefund(body);
+  if (!change) throw new RoutstrUnanswered();
+  return change;
 }
 
 /**

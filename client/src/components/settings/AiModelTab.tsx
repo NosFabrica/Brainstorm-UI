@@ -47,12 +47,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAgentKeys } from "@/hooks/useAgentKeys";
+import { keySuffix } from "@/lib/assistantKeys";
 import { useAssistantAgentKeys } from "@/hooks/useAssistantAgentKeys";
 import { AssistantKeys } from "@/components/settings/AssistantKeys";
 import {
   PendingPurchases,
   RoutstrKeyExtras,
   RoutstrPanel,
+  RoutstrRemoveWarning,
   useRoutstrNodeName,
 } from "@/components/settings/RoutstrPanel";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -830,7 +832,8 @@ export function AiModelTab() {
               <AnimatePresence initial={false}>
                 {saved.map((entry, i) => (
                   <KeyCard
-                    key={`${entry.url}|${entry.key}`}
+                    // As AssistantKeys names a row: never the whole key, even in the DOM's bookkeeping.
+                    key={`${i}|${entry.url}|${keySuffix(entry)}`}
                     entry={entry}
                     preferred={i === 0}
                     busy={busy}
@@ -917,6 +920,8 @@ export function AiModelTab() {
                 Apps stop using it. Revoke it at {removing ? providerName(removing.url) : "the provider"} too.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {/* A Routstr key holds sats: what it holds, and a refund before it goes. */}
+            {removing && <RoutstrRemoveWarning entry={removing} />}
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
