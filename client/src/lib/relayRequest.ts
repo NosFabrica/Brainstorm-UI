@@ -190,10 +190,15 @@ export function requestNewestWithReach(
         tap((message) => {
           const from = normalize(message?.from);
           if (message?.type === "EVENT" && message.event) {
-            const id = (message.event as NostrEvent).id;
-            if (typeof id === "string" && !(sentBy[id] ??= []).includes(from)) sentBy[id].push(from);
-            const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
-            if (beats(stored, newest)) newest = stored;
+            // The store answers null for an event it refused: a bad signature, or one
+            // already expired. That copy is dropped, never read: a forged 34817 or 10002
+            // with a later created_at would otherwise be the base the next edit builds on.
+            const stored = eventStore.add(message.event as NostrEvent);
+            if (stored) {
+              const id = (message.event as NostrEvent).id;
+              if (typeof id === "string" && !(sentBy[id] ??= []).includes(from)) sentBy[id].push(from);
+              if (beats(stored, newest)) newest = stored;
+            }
           } else if (message?.type === "EOSE") {
             answered.add(from);
             settled.add(from);

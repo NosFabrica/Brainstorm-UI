@@ -543,6 +543,21 @@ function styleRules(css: string, refusedAt: (name: string) => void): CssRule[] {
   return out;
 }
 
+/**
+ * Whether a declaration block holds a `{` outside its strings: a nested rule
+ * (`main { & blockquote em { display: none } }`). Browsers apply those, and the
+ * checks below read only flat declarations, so they are refused outright.
+ */
+function hasNestedRule(body: string): boolean {
+  for (let i = 0; i < body.length;) {
+    const ch = body[i];
+    if (ch === '"' || ch === "'") i = skipString(body, i);
+    else if (ch === "{") return true;
+    else i++;
+  }
+  return false;
+}
+
 /** `prop: value` pairs of a declaration block. */
 function declarations(body: string): { prop: string; value: string }[] {
   const out: { prop: string; value: string }[] = [];
@@ -592,9 +607,17 @@ function isHouseRule(rule: CssRule): boolean {
 const QUOTE_MARKS = /^[\s"'“”‘’«»‹›„‚‛‟「」『』〝〞]*$/;
 const CSS_STRING = /"([^"]*)"|'([^']*)'/g;
 
+/** Properties whose value can print a string of its own: keywords only. */
+const MARKER_TEXT = new Set(["list-style", "list-style-type", "hyphenate-character"]);
+
 function declarationViolations(prop: string, value: string): string | null {
   if (prop === "content" && !/^(none|normal|""|'')$/i.test(value.trim())) {
     return "CSS generated content - every word on the page is in its markup";
+  }
+  // `list-style-type: "Nobody believes this: "` on a `display: list-item` prints words
+  // the markup doesn't hold; `symbols()` and `hyphenate-character` do the same.
+  if (MARKER_TEXT.has(prop) && !/^[-\w\s]*$/.test(value.trim())) {
+    return `CSS ${prop} that is not a keyword - every word on the page is in its markup`;
   }
   if (prop === "quotes") {
     for (const match of value.matchAll(CSS_STRING)) {
@@ -726,6 +749,8 @@ function quoteRuleViolation(doc: Document, rule: CssRule, quotes: Element[]): st
   return null;
 }
 
+const NESTED = "a nested CSS rule - every rule is flat, so the checks read what a browser applies";
+
 function cssViolations(doc: Document, out: Violation[]): void {
   const quotes = Array.from(doc.querySelectorAll("q, blockquote"));
   const refuseConstructs = (css: string, excerpt: string) => {
@@ -740,6 +765,10 @@ function cssViolations(doc: Document, out: Violation[]): void {
       out.push({ kind: "MARKUP", detail: `a CSS @${name} rule`, excerpt: `@${name}` }),
     );
     for (const rule of rules) {
+      if (hasNestedRule(rule.body)) {
+        out.push({ kind: "MARKUP", detail: NESTED, excerpt: squash(rule.selector).slice(0, 80) });
+        continue;
+      }
       for (const { prop, value } of declarations(rule.body)) {
         const detail = declarationViolations(prop, value);
         if (detail)
@@ -752,6 +781,10 @@ function cssViolations(doc: Document, out: Violation[]): void {
   for (const el of Array.from(doc.querySelectorAll("[style]"))) {
     const css = el.getAttribute("style") ?? "";
     refuseConstructs(css, css.slice(0, 80));
+    if (hasNestedRule(stripComments(css))) {
+      out.push({ kind: "MARKUP", detail: NESTED, excerpt: excerptOf(el) });
+      continue;
+    }
     for (const { prop, value } of declarations(stripComments(css))) {
       const detail = declarationViolations(prop, value);
       if (detail) out.push({ kind: "MARKUP", detail, excerpt: excerptOf(el) });

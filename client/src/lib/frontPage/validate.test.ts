@@ -491,6 +491,38 @@ describe("paper boundary v2: the audit's bypasses", () => {
     expect(kinds(`<style>.rule::after{content:""}</style><p class="rule">x</p>`)).toEqual([]);
   });
 
+  it("nested CSS rules are refused, wherever they sit", () => {
+    const quote = "<main><blockquote><p>and then it <em>didn't</em> answer at all</p></blockquote></main>";
+    expect(kinds(`<style>main { & blockquote em { display:none } }</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>main { & blockquote::after { content:" - just kidding" } }</style>${quote}`)).toContain(
+      "MARKUP",
+    );
+    expect(kinds(`<style>main { blockquote em { display:none } }</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>@media screen { main { & em { display:none } } }</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<main style="& em { display:none }">${quote}</main>`)).toContain("MARKUP");
+    // The flat versions stay refused.
+    expect(kinds(`<style>main blockquote em { display:none }</style>${quote}`)).toContain("MARKUP");
+    expect(kinds(`<style>blockquote::after { content:" - just kidding" }</style>${quote}`)).toContain("MARKUP");
+    // A brace inside a string is not a nested rule.
+    expect(kinds(`<style>.rule::after{content:""} p{font-family:"a{b}"}</style><p class="rule">x</p>`)).toEqual([]);
+  });
+
+  it("list markers and hyphens print no words", () => {
+    const quote = `<blockquote><p>${QUOTE}</p></blockquote>`;
+    for (const css of [
+      'body { list-style-type: "Nobody believes this: " } blockquote p { display: list-item }',
+      "body { list-style: 'Nobody believes this: ' inside } blockquote p { display: list-item }",
+      'body { list-style-type: symbols(cyclic "Nobody") } blockquote p { display: list-item }',
+      'blockquote p { hyphens: manual; hyphenate-character: " - not really - " }',
+    ]) {
+      expect(kinds(`<style>${css}</style>${quote}`), css).toContain("MARKUP");
+    }
+    expect(kinds(`<p style="list-style-type:'Nobody: '">x</p>`)).toContain("MARKUP");
+    // Keyword markers and the house's own hyphens are fine.
+    expect(kinds("<style>ul{list-style:disc inside}ol{list-style-type:decimal}p{hyphens:auto}</style>")).toEqual([]);
+    expect(kinds("<style>p{hyphenate-character:auto}</style>")).toEqual([]);
+  });
+
   it("every elision fragment is checked, however short", () => {
     expect(kinds("<q>The relay answered … no … at all</q>")).toEqual(["QUOTE"]);
     expect(kinds("<q>The relay answered … it … at all</q>")).toEqual([]);

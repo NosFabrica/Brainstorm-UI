@@ -345,6 +345,24 @@ describe("asking the newest, and who answered", () => {
     expect(newest?.id).toBe("newer");
   });
 
+  it("a copy the store refuses (a bad signature) never wins, however new it claims to be", async () => {
+    const { subject } = messages();
+    // EventStore.add answers null for an event whose signature fails.
+    storeAdd.mockImplementation((e: unknown) => ((e as NostrEvent).sig === "forged" ? null : e) as never);
+
+    const pending = requestNewestWithReach(RELAYS, FILTER, 1000);
+    subject.next(arrived("wss://one", event("real", 10)));
+    subject.next(arrived("wss://two", { ...event("forged", 99), sig: "forged" }));
+    subject.next(eose("wss://one"));
+    subject.next(eose("wss://two"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const { newest, sentBy } = await pending;
+    expect(newest?.id).toBe("real");
+    expect(sentBy).not.toHaveProperty("forged");
+    storeAdd.mockImplementation((e: unknown) => e);
+  });
+
   it("answers as soon as every relay is accounted for, without waiting out the window", async () => {
     const { subject, torndown } = messages();
 
