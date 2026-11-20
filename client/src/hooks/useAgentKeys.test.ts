@@ -36,6 +36,24 @@ const A = { pubkey: "aa".repeat(32) };
 const B = { pubkey: "bb".repeat(32) };
 
 describe("useAgentKeys", () => {
+  it("keeps its answer's identity across renders while nothing changed (audit, 2026-11-20)", async () => {
+    // No account: no event, settled: "none".
+    current.account = undefined;
+    current.settled = true;
+    const { result, rerender } = renderHook(() => useAgentKeys());
+    const none = result.current;
+    rerender();
+    expect(result.current).toBe(none);
+    // Loading: the store hasn't settled.
+    current.settled = false;
+    rerender();
+    const loading = result.current;
+    expect(loading.status).toBe("loading");
+    rerender();
+    expect(result.current).toBe(loading);
+    current.settled = true;
+  });
+
   it("reads as loading after a switch until the new account's keys are decrypted", async () => {
     silently.mockResolvedValue(true);
     decrypt.mockImplementation(async (account: { pubkey: string }) =>

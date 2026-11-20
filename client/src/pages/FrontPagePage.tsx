@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -557,6 +557,17 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const hasEditions = (site?.editions.length ?? 0) > 0 || page ? true : site ? false : null;
   const setupShown = blocker === "setup";
 
+  // The model list's handlers keep their identity: the memoized picker then sits out every
+  // print-job update (ten a second while a paper streams), and its hundreds of items with it.
+  const modelHandlers = useRef({ chooseModel, commitModel, listed: false });
+  modelHandlers.current = { chooseModel, commitModel, listed: models.status === "listed" };
+  const onChooseModel = useCallback((id: string) => {
+    const h = modelHandlers.current;
+    h.chooseModel(id);
+    if (h.listed) h.commitModel(id);
+  }, []);
+  const onCommitModel = useCallback((id: string) => modelHandlers.current.commitModel(id), []);
+
   const picker = key && blocker === null && (
     <div className="flex flex-col gap-2">
       {allKeys.length > 1 && <KeyPicker keys={allKeys} chosen={key} disabled={setting.saving} onChoose={chooseKey} />}
@@ -565,11 +576,8 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
         models={models}
         model={model}
         saving={setting.saving}
-        onChoose={(id) => {
-          chooseModel(id);
-          if (models.status === "listed") commitModel(id);
-        }}
-        onCommit={commitModel}
+        onChoose={onChooseModel}
+        onCommit={onCommitModel}
         effort={effort}
       />
       <EffortPicker effort={effort} saving={setting.saving} onChoose={chooseEffort} />
@@ -1494,7 +1502,11 @@ function SettingNote({ saving, error }: { saving: boolean; error: string | null 
   );
 }
 
-function ModelPicker({
+/**
+ * The model list. Memoized, with its items worked out once per list, model and effort: a
+ * Routstr node lists hundreds, each priced, and the page re-renders on every streamed chunk.
+ */
+const ModelPicker = memo(function ModelPicker({
   keyUrl,
   models,
   model,
@@ -1514,6 +1526,25 @@ function ModelPicker({
   /** A typed model id, once the field is left or Enter pressed. */
   onCommit?: (id: string) => void;
 }) {
+  const items = useMemo(() => {
+    if (models.status !== "listed") return null;
+    // One estimate for the effort, then each model's price over it.
+    const tokens = editionEstimate(effort);
+    // The schedule's model, when the endpoint's list doesn't name it: still the reader's choice.
+    return (model && !models.ids.includes(model) ? [model, ...models.ids] : models.ids).map((id) => {
+      const sats = models.routstr ? estimateSats(models.routstr.get(id), tokens) : null;
+      return (
+        <SelectItem key={id} value={id}>
+          {id}
+          {sats !== null && (
+            <span className="ml-2 text-xs text-muted-foreground" data-testid="front-page-model-sats">
+              ≈ {formatSats(sats)}
+            </span>
+          )}
+        </SelectItem>
+      );
+    });
+  }, [models, model, effort]);
   if (models.status === "loading") {
     return (
       <div className="flex h-10 items-center gap-2 text-xs text-muted-foreground">
@@ -1543,25 +1574,10 @@ function ModelPicker({
       <SelectTrigger aria-label="Model" data-testid="front-page-model">
         <SelectValue placeholder="Model" />
       </SelectTrigger>
-      <SelectContent className="max-h-72">
-        {/* The schedule's model, when the endpoint's list doesn't name it: still the reader's choice. */}
-        {(model && !models.ids.includes(model) ? [model, ...models.ids] : models.ids).map((id) => {
-          const sats = models.routstr ? estimateSats(models.routstr.get(id), editionEstimate(effort)) : null;
-          return (
-            <SelectItem key={id} value={id}>
-              {id}
-              {sats !== null && (
-                <span className="ml-2 text-xs text-muted-foreground" data-testid="front-page-model-sats">
-                  ≈ {formatSats(sats)}
-                </span>
-              )}
-            </SelectItem>
-          );
-        })}
-      </SelectContent>
+      <SelectContent className="max-h-72">{items}</SelectContent>
     </Select>
   );
-}
+});
 
 const EFFORTS: { value: WritingEffort; label: string }[] = [
   { value: "standard", label: "Standard" },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { canSignSilently } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -72,7 +72,12 @@ export function useAgentKeys(): AgentKeysState & { reveal: () => void } {
 
   const reveal = useCallback(() => setAsks((a) => ({ pubkey, n: (a.pubkey === pubkey ? a.n : 0) + 1 })), [pubkey]);
   let value: AgentKeysState;
-  if (!own) value = list.settled ? { status: "none" } : { status: "loading" };
-  else value = state.pubkey === pubkey ? state.value : { status: "loading" };
-  return { ...value, reveal };
+  if (!own) value = list.settled ? NONE : LOADING;
+  else value = state.pubkey === pubkey ? state.value : LOADING;
+  // The same object until something in it changes: the page hands it to `allKeys`, the
+  // schedule's migration and the memoized schedule card, which re-render on a new one.
+  return useMemo(() => ({ ...value, reveal }), [value, reveal]);
 }
+
+const NONE: AgentKeysState = { status: "none" };
+const LOADING: AgentKeysState = { status: "loading" };

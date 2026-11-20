@@ -35,6 +35,10 @@ const state = vi.hoisted(() => ({
   runnerSiteFor: vi.fn(),
   /** The runner this device remembers each reader's schedule naming (lib/eventCache). */
   rememberedRunner: {} as Record<string, string | null>,
+  /** A Routstr node's priced list, when a test is about one; the page then shows sats per model. */
+  routstrModels: null as null | Record<string, unknown>[],
+  /** How many sats estimates the model picker worked out (lib/routstr's estimateSats). */
+  estimates: 0,
   /** Who `activeAccount()` names: the schedule's edits sign as them. None unless a test says. */
   signedIn: undefined as { pubkey: string } | undefined,
 }));
@@ -50,6 +54,16 @@ vi.mock("@/lib/eventCache", async (importOriginal) => ({
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/Footer", () => ({ Footer: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
+vi.mock("@/lib/routstr", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/routstr")>();
+  return {
+    ...actual,
+    estimateSats: (...args: Parameters<typeof actual.estimateSats>) => {
+      state.estimates++;
+      return actual.estimateSats(...args);
+    },
+  };
+});
 vi.mock("@/accounts/signing", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   activeAccount: () => state.signedIn,
@@ -89,7 +103,7 @@ vi.mock("@/services/frontPage", async (importOriginal) => ({
   // The page asks for the list with its prices; these endpoints aren't Routstr nodes.
   fetchModelList: async (key: { url: string }) => ({
     ids: await (state.modelsFor ? state.modelsFor(key.url) : Promise.resolve(state.models)),
-    routstr: null,
+    routstr: state.routstrModels,
   }),
   printFrontPage: (...args: unknown[]) => state.print(...args),
 }));
@@ -1049,6 +1063,37 @@ describe("FrontPagePage", () => {
       renderWithProviders(<FrontPagePage />);
       expect(screen.getByTestId("front-page-progress")).toBeInTheDocument();
       expect(screen.getByTestId("front-page-print")).toBeDisabled();
+    });
+
+    it("a streaming print doesn't re-render the model list, nor price it again (audit, 2026-11-20)", async () => {
+      const ids = Array.from({ length: 40 }, (_, i) => `vendor/model-${i}`);
+      state.models = ids;
+      state.routstrModels = ids.map((id) => ({
+        id,
+        name: id,
+        contextLength: 200_000,
+        text: true,
+        enabled: true,
+        usd: null,
+        sats: { prompt: 0.001, completion: 0.002, request: 0, maxCost: null },
+        maxCompletionTokens: null,
+      }));
+      const held = heldPrint();
+      renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      await waitFor(() => expect(state.print).toHaveBeenCalled());
+      await act(async () => held.emit({ type: "write", round: 1, event: { type: "sent", streamed: true } }));
+      const before = state.estimates;
+      // A second of streaming: ten updates.
+      for (let i = 0; i < 10; i++) {
+        await act(async () =>
+          held.emit({ type: "write", round: 1, event: { type: "content", text: `<p>chunk ${i}</p>` } }),
+        );
+        await act(async () => void (await new Promise((r) => setTimeout(r, 110))));
+      }
+      expect(state.estimates - before).toBe(0);
+      state.routstrModels = null;
     });
 
     it("says Thinking, then Writing: the headline, with the details behind a disclosure", async () => {
