@@ -659,7 +659,7 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
               />
             </div>
             {statusShown && (
-              <div className={cn(pageWidth("wide"), "max-h-[45%] shrink-0 space-y-3 overflow-y-auto py-3")}>
+              <div className={cn(pageWidth("standard"), "max-h-[45%] shrink-0 space-y-3 overflow-y-auto py-3")}>
                 {notice}
                 {publishOffer}
                 <PublishStatus
@@ -690,8 +690,8 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
       ) : (
         <div className="flex min-h-page flex-col bg-background">
           {user && <AppHeader user={user} onLogout={() => logout()} />}
-          <main className={cn(pageWidth("wide"), "flex-1 py-6 sm:py-8")} data-testid="front-page-print-view">
-            <div className="mx-auto max-w-5xl space-y-5">
+          <main className={cn(pageWidth("standard"), "flex-1 py-6 sm:py-8")} data-testid="front-page-print-view">
+            <div className="space-y-5">
               <Hero
                 ready={blocker === null}
                 busy={busy}
