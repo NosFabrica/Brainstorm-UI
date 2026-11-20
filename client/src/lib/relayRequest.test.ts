@@ -37,7 +37,8 @@ const REACHED = ["wss://one/", "wss://two/"];
 const FILTER = { kinds: [0], authors: ["a".repeat(64)] };
 
 function event(id: string, created_at = 0): NostrEvent {
-  return { id, created_at, kind: 0, pubkey: "p", tags: [], content: "", sig: "s" } as NostrEvent;
+  // By the filter's author, of its kind: what a relay that answers the REQ honestly sends.
+  return { id, created_at, kind: 0, pubkey: "a".repeat(64), tags: [], content: "", sig: "s" } as NostrEvent;
 }
 
 /**
@@ -361,6 +362,24 @@ describe("asking the newest, and who answered", () => {
     expect(newest?.id).toBe("real");
     expect(sentBy).not.toHaveProperty("forged");
     storeAdd.mockImplementation((e: unknown) => e);
+  });
+
+  it("a validly signed event the filter didn't ask for never wins: another author, another kind", async () => {
+    const { subject } = messages();
+
+    const pending = requestNewestWithReach(RELAYS, FILTER, 1000);
+    subject.next(arrived("wss://one", event("real", 10)));
+    // A relay that answers with someone else's newer event, or another kind of the author's.
+    subject.next(arrived("wss://two", { ...event("stranger", 99), pubkey: "b".repeat(64) }));
+    subject.next(arrived("wss://two", { ...event("other-kind", 98), kind: 3 }));
+    subject.next(eose("wss://one"));
+    subject.next(eose("wss://two"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const { newest, sentBy } = await pending;
+    expect(newest?.id).toBe("real");
+    expect(sentBy).not.toHaveProperty("stranger");
+    expect(sentBy).not.toHaveProperty("other-kind");
   });
 
   it("answers as soon as every relay is accounted for, without waiting out the window", async () => {

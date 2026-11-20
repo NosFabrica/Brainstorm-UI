@@ -24,7 +24,7 @@ import type { Observable } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
 import { createFilterMap } from "applesauce-core/helpers/relay-selection";
-import type { Filter as NostrFilter } from "applesauce-core/helpers/filter";
+import { matchFilter, type Filter as NostrFilter } from "applesauce-core/helpers/filter";
 
 import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
@@ -194,7 +194,10 @@ export function requestNewestWithReach(
             // already expired. That copy is dropped, never read: a forged 34817 or 10002
             // with a later created_at would otherwise be the base the next edit builds on.
             const stored = eventStore.add(message.event as NostrEvent);
-            if (stored) {
+            // And only what the REQ asked for: a relay can answer with another author's
+            // validly signed event, or another kind, and the newest of those is no read of
+            // this one's schedule, relay list or keys.
+            if (stored && matchFilter(filter as NostrFilter, stored)) {
               const id = (message.event as NostrEvent).id;
               if (typeof id === "string" && !(sentBy[id] ??= []).includes(from)) sentBy[id].push(from);
               if (beats(stored, newest)) newest = stored;
