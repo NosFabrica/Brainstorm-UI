@@ -57,8 +57,11 @@ export type Run =
   | { state: "idle" }
   | { state: "running" }
   | { state: "refused"; violations: Violation[]; changes: ResolveChange[] }
-  /** The relay turned the print away: not ranking yet. `at`: when, so a later check clears it. */
-  | { state: "pending"; at: number }
+  /**
+   * The relay turned the print away: not ranking yet. `at`: when, so a later check clears it;
+   * `settled`: a later check said it ranks now. Shown until the reader prints or dismisses it.
+   */
+  | { state: "pending"; at: number; settled?: boolean }
   | { state: "error"; message: string };
 
 export type PublishState =
@@ -473,8 +476,18 @@ export function cancelPrintUnlessFor(pubkey: string | null) {
   notifyNow();
 }
 
-/** The turned-away state has been answered by a later check: back to idle. */
+/**
+ * The turned-away state has been answered by a later check: it ranks now. Kept, settled, so
+ * the page can say so until the reader prints again or dismisses it.
+ */
 export function settlePending(pubkey: string) {
+  if (job?.pubkey !== pubkey || job.run.state !== "pending" || job.run.settled) return;
+  const at = job.run.at;
+  update(job.id, (j) => ({ ...j, run: { state: "pending", at, settled: true } }));
+}
+
+/** The reader dismissed the turned-away notice: back to idle. */
+export function dismissPending(pubkey: string) {
   if (job?.pubkey !== pubkey || job.run.state !== "pending") return;
   update(job.id, (j) => ({ ...j, run: { state: "idle" } }));
 }

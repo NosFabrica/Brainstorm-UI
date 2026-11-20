@@ -45,6 +45,7 @@ import {
   cancelPrint,
   confirmPublish,
   declinePublish,
+  dismissPending,
   offerPublish,
   readLast,
   readPublish,
@@ -84,6 +85,7 @@ import { noteworthy, type ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import { DESKS, shortNpub } from "@/lib/frontPage/desks";
 import { cn } from "@/lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { dropUnownedModels, readModel, writeModel } from "@/lib/frontPage/modelMemory";
 import { withPaperCsp } from "@/lib/frontPage/validate";
 import {
@@ -244,7 +246,10 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   );
   // Editions fetched from the site, by sha256 (a day reprinted is other bytes): html, or
   // null when no server had them.
-  const [fetched, setFetched] = useState<Record<string, string | null>>({});
+  const [fetched, setFetched] = useState<Record<string, string>>({});
+  // Editions no server had, by the server list they were asked of: a later, longer list (the
+  // reader's own arriving after the manifest's hints) asks again.
+  const [missed, setMissed] = useState<Record<string, string>>({});
 
   // The page is about today: today's paper (this tab's print, or one on the site printed
   // today) or, with none, the print view. An older paper is only ever a past edition. Today
@@ -353,14 +358,17 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
     } else navigate(FRONT_PAGE, { replace: true });
   };
   const [pastOpen, setPastOpen] = useState(false);
-  useEditionHtml(today?.from === "site" ? today.entry : undefined, sites, fetched, setFetched);
-  useEditionHtml(opened?.from === "site" ? opened.entry : undefined, sites, fetched, setFetched);
+  useEditionHtml(today?.from === "site" ? today.entry : undefined, sites, fetched, setFetched, missed, setMissed);
+  useEditionHtml(opened?.from === "site" ? opened.entry : undefined, sites, fetched, setFetched, missed, setMissed);
   const paperOf = (e: Edition<Printed>): Printed =>
     e.from === "session" ? e.paper : fromEntry(e.entry, fetched[e.entry.sha256] ?? "");
   // No servers to ask is not an answer: nothing is remembered, so a later load can try.
-  // Only once the servers are final is "none" a failure; until then it is loading.
+  // Only once the servers are final is a miss a failure; until then it is loading.
   const failedOf = (e: Edition<Printed>) =>
-    e.from === "site" && (fetched[e.entry.sha256] === null || (!!sites?.settled && sites.servers.length === 0));
+    e.from === "site" &&
+    fetched[e.entry.sha256] === undefined &&
+    !!sites?.settled &&
+    (sites.servers.length === 0 || missed[e.entry.sha256] === serversKeyOf(sites));
   const shown = today ? paperOf(today) : null;
   // The edition on the page: the asked past one, else today's.
   const viewing: Edition<Printed> | null = asked ? opened : today;
@@ -383,6 +391,12 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   };
   const displayName = user?.displayName ?? "";
   const [printOpen, setPrintOpen] = useState(false);
+  // The dialog is over today's paper: when that goes (the day turned, the print view shows
+  // the controls itself), so does the reader's open, and it doesn't come back with the paper.
+  const paperShown = !!shown;
+  useEffect(() => {
+    if (!paperShown) setPrintOpen(false);
+  }, [paperShown]);
 
   const models = useModels(key);
   // The model is one provider's: when the key changes, the last provider's choice is
@@ -527,10 +541,10 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   const ranked = isSearchObserver && canUseMywot;
   // A print the relay turned away says the ranking isn't there yet, whatever the gate
   // answered then; the gate's next answer (asked again on the spot) stands over it.
-  const turnedAway = run.state === "pending" && observerCheckedAt <= run.at;
+  const turnedAway = run.state === "pending" && !run.settled && observerCheckedAt <= run.at;
   const wotStep = wotStepOf({ hasAssistant: hasMywot, ranked: ranked && !turnedAway, scoring, activated });
   useEffect(() => {
-    if (run.state === "pending" && !turnedAway && pubkey) settlePending(pubkey);
+    if (run.state === "pending" && !run.settled && !turnedAway && pubkey) settlePending(pubkey);
   }, [run, turnedAway, pubkey]);
   const checking =
     keys.status === "loading" ||
@@ -610,6 +624,11 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
           <Refused violations={run.violations} changes={run.changes} />
         </Fade>
       )}
+      {run.state === "pending" && pubkey && (
+        <Fade key="pending">
+          <TurnedAway settled={!!run.settled} onDismiss={() => dismissPending(pubkey)} />
+        </Fade>
+      )}
     </AnimatePresence>
   );
   const setupCard = setupShown && (
@@ -672,6 +691,9 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
                   onRetry={() => page && pubkey && offerPublish(pubkey, page, displayName)}
                 />
                 {runStatus}
+                {/* Print again's dialog shut when the print started: what setup still needs
+                    shows here, under why the print was turned away. */}
+                {run.state === "pending" && setupCard}
               </div>
             )}
             {viewed && viewing ? (
@@ -754,28 +776,38 @@ function FrontPageBody({ user }: { user: ReturnType<typeof useActiveAccountDispl
   );
 }
 
-/** Fetches a site edition's html once, into `fetched`; a later site answer can try again. */
+/** The servers' names, as one key: what a miss is remembered against. */
+const serversKeyOf = (site: SiteState | null) => site?.servers.join("\n") ?? "";
+
+/**
+ * Fetches a site edition's html once, into `fetched`. A miss is remembered with the server
+ * list it was asked of (`missed`): the same list isn't asked again, a different one is.
+ */
 function useEditionHtml(
   entry: EditionEntry | undefined,
   site: SiteState | null,
-  fetched: Record<string, string | null>,
-  setFetched: React.Dispatch<React.SetStateAction<Record<string, string | null>>>,
+  fetched: Record<string, string>,
+  setFetched: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+  missed: Record<string, string>,
+  setMissed: React.Dispatch<React.SetStateAction<Record<string, string>>>,
 ) {
   const sha = entry?.sha256;
-  const known = sha !== undefined && fetched[sha] !== undefined;
   // Keyed on the servers' names, not the list's identity: every new site object (a store
   // update, a publish) is a new list, and the download it restarted had to begin again.
-  const serversKey = site?.servers.join("\n") ?? "";
+  const serversKey = serversKeyOf(site);
+  const known = sha !== undefined && (fetched[sha] !== undefined || missed[sha] === serversKey);
   useEffect(() => {
     if (!sha || known || !serversKey) return;
     const controller = new AbortController();
     fetchBlob(sha, serversKey.split("\n"), { signal: controller.signal })
       .catch(() => null)
       .then((html) => {
-        if (!controller.signal.aborted) setFetched((m) => ({ ...m, [sha]: html }));
+        if (controller.signal.aborted) return;
+        if (html === null) setMissed((m) => ({ ...m, [sha]: serversKey }));
+        else setFetched((m) => ({ ...m, [sha]: html }));
       });
     return () => controller.abort();
-  }, [sha, known, serversKey, setFetched]);
+  }, [sha, known, serversKey, setFetched, setMissed]);
 }
 
 function Fade({ children }: { children: React.ReactNode }) {
@@ -915,6 +947,29 @@ function PrintedTodayHint({ printedAt, onOpen }: { printedAt?: number; onOpen: (
         Open
       </Button>
     </div>
+  );
+}
+
+/**
+ * The search relay turned the print away: it doesn't rank through the reader yet. Said until
+ * the reader prints again or dismisses it, including once a later check says it ranks now.
+ */
+function TurnedAway({ settled, onDismiss }: { settled: boolean; onDismiss: () => void }) {
+  return (
+    <Alert data-testid="front-page-turned-away" data-settled={settled}>
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>{settled ? "Your ranking is ready now" : "Not printed yet"}</AlertTitle>
+      <AlertDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="min-w-0 flex-1">
+          {settled
+            ? "Search ranks through you now. Print again for today's paper."
+            : "Search isn't ranking through you yet, so the print was turned away. It's checked again; print once it's ready."}
+        </span>
+        <Button variant="ghost" size="sm" onClick={onDismiss} data-testid="front-page-turned-away-dismiss">
+          Dismiss
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -1532,27 +1587,33 @@ function EffortPicker({
       <span id={labelId} className="text-xs font-medium text-muted-foreground">
         Writing effort
       </span>
-      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+      {/* One radio group: Tab reaches the chosen effort, the arrow keys move between them. */}
+      <ToggleGroup
+        type="single"
+        value={effort}
+        onValueChange={(v) => {
+          const picked = EFFORTS.find((e) => e.value === v);
+          if (picked) onChoose(picked.value);
+        }}
+        disabled={saving}
+        aria-labelledby={labelId}
+        className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1"
+      >
         {EFFORTS.map(({ value, label }) => (
-          <button
+          <ToggleGroupItem
             key={value}
-            type="button"
-            role="radio"
-            aria-checked={effort === value}
-            disabled={saving}
-            onClick={() => onChoose(value)}
+            value={value}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-              effort === value
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+              "h-auto rounded-md px-3 py-1.5 text-sm font-normal transition-colors disabled:opacity-60",
+              "text-muted-foreground hover:bg-transparent hover:text-foreground",
+              "data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm",
             )}
             data-testid={`front-page-effort-${value}`}
           >
             {label}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
       {effort === "deep" && (
         <p className="text-xs text-muted-foreground" data-testid="front-page-effort-note">
           Deep lets the model think longer before it plans and writes. It costs more.

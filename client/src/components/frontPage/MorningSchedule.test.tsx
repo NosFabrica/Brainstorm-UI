@@ -4,7 +4,7 @@
  * until the event it wrote is what the hook shows.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import type { ObserverSchedule } from "@/hooks/useObserverSchedule";
 import { browserTimeZone, readTask, type TaskTags } from "@/lib/scheduledTasks";
@@ -262,6 +262,32 @@ describe("what it says", () => {
     expect(screen.getByTestId("front-page-schedule-missed")).toHaveTextContent("Not printed since");
   });
 
+  it("backs off asking again while the relays don't answer, and asks nothing for a paused schedule (audit, 2026-11-20)", () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
+    try {
+      const now = Date.now();
+      const cron = `0 ${new Date(now - 5 * HOUR).getHours()} * * *`;
+      const ran = String(Math.floor((now - 20 * HOUR) / 1000));
+      // The relays never answer: checkedAt stays where it was.
+      state = { ...ready(cron, [["ran", ran]]), checkedAt: now - 10 * HOUR };
+      render(<Card />);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      // Twenty minutes of silence: asked again at 1, 2, 4 and 8 minutes after, not every minute.
+      for (let m = 0; m < 20; m++) act(() => void vi.advanceTimersByTime(60_000));
+      expect(refresh.mock.calls.length).toBeLessThanOrEqual(6);
+      expect(refresh.mock.calls.length).toBeGreaterThan(1);
+      cleanup();
+      refresh.mockReset();
+      // Paused: no morning is due, so nothing is missed and nothing is asked.
+      state = { ...ready(cron, [["ran", ran], ["paused"]]), checkedAt: now - 10 * HOUR };
+      render(<Card />);
+      for (let m = 0; m < 5; m++) act(() => void vi.advanceTimersByTime(60_000));
+      expect(refresh).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("offers a retry when the signer failed", () => {
     state = { status: "failed", error: "Your signer didn't answer.", reveal, refresh, checkedAt: null };
     render(<Card />);
@@ -407,6 +433,40 @@ describe("focus and the editor's semantics (audit, 2026-11-12)", () => {
     expect(update).toHaveBeenCalledTimes(2);
     expect(update.mock.calls[1][0]).toBe(update.mock.calls[0][0]);
     await waitFor(() => expect(screen.queryByTestId("front-page-schedule-error")).toBeNull());
+  });
+});
+
+describe("small UI bugs (audit, 2026-11-20)", () => {
+  it("Retry runs the card's current save: its overlay is built on the schedule as it is now", async () => {
+    state = ready("0 6 * * *", [["paused"]]);
+    update.mockResolvedValueOnce({ success: false, retryable: true, error: "Only 1 of your 3 write relays answered." });
+    render(<Card />);
+    await act(async () => fireEvent.click(switchEl()));
+    expect(screen.getByTestId("front-page-schedule-error")).toBeInTheDocument();
+    // Meanwhile another device moved the time.
+    hookSays(ready("0 9 * * *", [["paused"]], "e2", 2000));
+    update.mockReturnValueOnce(new Promise(() => {}));
+    await act(async () => fireEvent.click(screen.getByTestId("front-page-schedule-save-retry")));
+    // On, at nine: the overlay starts from the copy the hook holds now, not the one Retry was made with.
+    expect(switchEl()).toHaveAttribute("data-state", "checked");
+    expect(screen.getByTestId("front-page-schedule-status")).toHaveTextContent(/9:00/);
+  });
+
+  it("turning the schedule off closes its panel, which doesn't come back when it is turned on again", async () => {
+    state = ready("0 6 * * *");
+    update.mockResolvedValue({ success: true });
+    render(<Card />);
+    fireEvent.click(screen.getByTestId("front-page-schedule-edit"));
+    expect(screen.getByTestId("front-page-schedule-panel")).toBeInTheDocument();
+    act(() => switchEl().focus());
+    await act(async () => fireEvent.click(switchEl()));
+    hookSays(ready("0 6 * * *", [["paused"]], "e2", 2000));
+    expect(screen.queryByTestId("front-page-schedule-panel")).toBeNull();
+    // Edit went with it: the focus stays on the switch, not on nothing.
+    expect(document.activeElement).toBe(switchEl());
+    await act(async () => fireEvent.click(switchEl()));
+    hookSays(ready("0 6 * * *", [], "e3", 3000));
+    expect(screen.queryByTestId("front-page-schedule-panel")).toBeNull();
   });
 });
 

@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
   /** When the search relay was last asked whether it ranks through the reader. */
   observerCheckedAt: 1,
   siteLoad: null as null | (() => Promise<unknown>),
+  /** Later answers of the same hook (the reader's full server list arriving), each once the one before is shown. */
+  siteLater: [] as Promise<unknown>[],
   updateSchedule: vi.fn(),
   runnerSite: null as null | Record<string, unknown>,
   runnerSiteFor: vi.fn(),
@@ -101,23 +103,28 @@ vi.mock("@/hooks/useObserverSite", async () => {
       const [view, setView] = useState<unknown>(null);
       useEffect(() => {
         let live = true;
-        (state.siteLoad ? state.siteLoad() : Promise.resolve(state.site))
-          .then((loaded) => {
-            const site = loaded as {
-              event: unknown;
-              index: { editions: unknown[] };
-              servers: string[];
-              settled?: boolean;
-            };
-            if (live) {
-              setView({
-                editions: site.index.editions,
-                servers: site.servers,
-                exists: !!site.event,
-                settled: site.settled ?? true,
-              });
-            }
-          })
+        const show = (loaded: unknown) => {
+          const site = loaded as {
+            event: unknown;
+            index: { editions: unknown[] };
+            servers: string[];
+            settled?: boolean;
+          };
+          if (live) {
+            setView({
+              editions: site.index.editions,
+              servers: site.servers,
+              exists: !!site.event,
+              settled: site.settled ?? true,
+            });
+          }
+        };
+        const later = state.siteLater;
+        later
+          .reduce(
+            (shown, next) => shown.then(() => next.then(show)),
+            (state.siteLoad ? state.siteLoad() : Promise.resolve(state.site)).then(show),
+          )
           .catch(() => undefined);
         return () => {
           live = false;
@@ -203,6 +210,7 @@ describe("FrontPagePage", () => {
     state.trustProvider = "brainstorm";
     state.observerCheckedAt = 1;
     state.siteLoad = null;
+    state.siteLater = [];
     state.updateSchedule.mockReset().mockResolvedValue({ success: true });
     state.runnerSite = null;
     state.runnerSiteFor.mockReset();
@@ -437,6 +445,36 @@ describe("FrontPagePage", () => {
       state.observerCheckedAt = Date.now() + 1000;
       rerender(<FrontPagePage />);
       await waitFor(() => expect(screen.queryByTestId("front-page-setup")).toBeNull());
+    });
+
+    it("a turned-away print says so, and still says so once the ranking is ready, until the reader acts (audit, 2026-11-20)", async () => {
+      state.print.mockResolvedValue({ status: "not-ready", reason: "projection-pending" });
+      const { rerender } = renderWithProviders(<FrontPagePage />);
+      await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(screen.getByTestId("front-page-print"));
+      const notice = await screen.findByTestId("front-page-turned-away");
+      expect(notice).toHaveTextContent(/isn't ranking through you yet/);
+      state.observerCheckedAt = Date.now() + 1000;
+      rerender(<FrontPagePage />);
+      await waitFor(() => expect(screen.queryByTestId("front-page-setup")).toBeNull());
+      expect(screen.getByTestId("front-page-turned-away")).toHaveTextContent(/ready now/);
+      fireEvent.click(screen.getByTestId("front-page-turned-away-dismiss"));
+      await waitFor(() => expect(screen.queryByTestId("front-page-turned-away")).toBeNull());
+    });
+
+    it("over today's paper, a turned-away Print again shows why, with the setup, outside the closed dialog", async () => {
+      state.site = siteWith([todayEntry("b")]);
+      state.fetchBlob.mockResolvedValue(printed.html);
+      state.print.mockResolvedValue({ status: "not-ready", reason: "projection-pending" });
+      renderWithProviders(<FrontPagePage />);
+      await screen.findByTestId("front-page-frame");
+      fireEvent.click(screen.getByTestId("front-page-print-again"));
+      const dialog = await screen.findByTestId("front-page-print-dialog");
+      await waitFor(() => expect(within(dialog).getByTestId("front-page-print")).not.toBeDisabled());
+      fireEvent.click(within(dialog).getByTestId("front-page-print"));
+      const today = screen.getByTestId("front-page-today");
+      expect(await within(today).findByTestId("front-page-turned-away")).toBeInTheDocument();
+      expect(within(today).getByTestId("front-page-setup")).toBeInTheDocument();
     });
 
     it("a print the relay turns away marks the web of trust in progress", async () => {
@@ -910,6 +948,44 @@ describe("FrontPagePage", () => {
     expect(screen.getByTestId("front-page-back-today")).toBeInTheDocument();
   });
 
+  it("an edition the first servers didn't have is fetched again from the full list (audit, 2026-11-20)", async () => {
+    const entry = todayEntry("2", { printedAt: undefined });
+    state.site = { ...siteWith([entry], ["https://a.example"]), settled: false };
+    let full!: (v: unknown) => void;
+    state.siteLater = [new Promise((r) => (full = r))];
+    state.fetchBlob.mockImplementation((_sha: string, servers: string[]) =>
+      Promise.resolve(servers.includes("https://b.example") ? "<html><body><p>edition 2</p></body></html>" : null),
+    );
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(state.fetchBlob).toHaveBeenCalledTimes(1));
+    // Not settled: a miss is not "missing" yet.
+    expect(await screen.findByTestId("front-page-frame-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("front-page-frame-missing")).toBeNull();
+    full(siteWith([entry], ["https://a.example", "https://b.example"]));
+    await waitFor(() => expect(screen.getByTestId("front-page-frame").getAttribute("srcdoc")).toContain("edition 2"));
+    expect(state.fetchBlob).toHaveBeenCalledTimes(2);
+  });
+
+  it("Print again doesn't reopen by itself when today's paper goes and comes back (audit, 2026-11-20)", async () => {
+    const withToday = siteWith([todayEntry("b")]);
+    let gone!: (v: unknown) => void;
+    let back!: (v: unknown) => void;
+    state.site = withToday;
+    state.siteLater = [new Promise((r) => (gone = r)), new Promise((r) => (back = r))];
+    state.fetchBlob.mockResolvedValue(printed.html);
+    renderWithProviders(<FrontPagePage />);
+    await screen.findByTestId("front-page-frame");
+    fireEvent.click(screen.getByTestId("front-page-print-again"));
+    expect(await screen.findByTestId("front-page-print-dialog")).toBeInTheDocument();
+    // Today's paper is gone (the day turned, a site answer without it): the print view.
+    await act(async () => gone(siteWith([])));
+    await screen.findByTestId("front-page-print-view");
+    // It comes back: the paper, and no dialog the reader didn't open again.
+    await act(async () => back(withToday));
+    await screen.findByTestId("front-page-frame");
+    expect(screen.queryByTestId("front-page-print-dialog")).toBeNull();
+  });
+
   it("with no servers to ask, asks none and remembers no failure", async () => {
     state.site = siteWith([todayEntry("2", { printedAt: undefined })], []);
     renderWithProviders(<FrontPagePage />);
@@ -1097,6 +1173,7 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     state.schedule = { status: "none" };
     state.trustProvider = "brainstorm";
     state.siteLoad = null;
+    state.siteLater = [];
     state.updateSchedule.mockReset().mockResolvedValue({ success: true });
     state.runnerSite = null;
     state.runnerSiteFor.mockReset();
@@ -1152,6 +1229,20 @@ describe("FrontPagePage: settings and the Assistant through the schedule", () =>
     fireEvent.click(screen.getByTestId("front-page-print"));
     await waitFor(() => expect(state.print).toHaveBeenCalled());
     expect(state.print.mock.calls[0][0]).toMatchObject({ effort: "deep" });
+  });
+
+  it("the writing effort moves with the arrow keys, as one radio group (audit, 2026-11-20)", async () => {
+    renderWithProviders(<FrontPagePage />);
+    await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
+    const standard = screen.getByTestId("front-page-effort-standard");
+    expect(standard).toHaveAttribute("role", "radio");
+    act(() => standard.focus());
+    // Radix moves the focus on the next tick.
+    await act(async () => {
+      fireEvent.keyDown(standard, { key: "ArrowRight" });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(document.activeElement).toBe(screen.getByTestId("front-page-effort-deep"));
   });
 
   it("writes a model picked here back to the schedule, so every app shares it", async () => {

@@ -84,6 +84,10 @@ export interface ScheduleSites {
 const NO_SITES: ScheduleSites = { reader: null, runner: null };
 const KEEP = (doc: TaskTags) => doc;
 
+/** The missed-morning re-ask: a minute after the last, doubling while the relays don't answer. */
+const REASK_MS = 60_000;
+const REASK_MAX_MS = 30 * 60_000;
+
 /**
  * The Observer's morning paper, a NIP-FB scheduled task (quartz
  * `plans/2026-11-11-observer-site.md`): when it prints, who printed it last, and whether
@@ -137,6 +141,7 @@ export const MorningSchedule = memo(function MorningSchedule({
   const [retry, setRetry] = useState<(() => void) | null>(null);
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const switchRef = useRef<HTMLButtonElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
   const doneRef = useRef<HTMLButtonElement>(null);
   // Focus follows the panel: into it on open (the time, or Done in the details), back to
@@ -144,7 +149,8 @@ export const MorningSchedule = memo(function MorningSchedule({
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current) (timeRef.current ?? doneRef.current)?.focus();
-    else if (!open && wasOpen.current) toggleRef.current?.focus();
+    // Back to Edit, or to the switch when Edit went with the panel (the schedule turned off).
+    else if (!open && wasOpen.current) (toggleRef.current ?? switchRef.current)?.focus();
     wasOpen.current = open;
   }, [open]);
 
@@ -203,7 +209,9 @@ export const MorningSchedule = memo(function MorningSchedule({
       setPending(null);
       if (!outcome.cancelled) {
         setError(outcome.error ?? "Couldn't save your schedule.");
-        if (outcome.retryable) setRetry(() => () => void save(change, onSaved, write));
+        // Through the ref: Retry runs the save of the render it is pressed in, built on the
+        // schedule as it is then, not on the copy this one read.
+        if (outcome.retryable) setRetry(() => () => void saveRef.current(change, onSaved, write));
       }
       return false;
     } finally {
@@ -211,6 +219,9 @@ export const MorningSchedule = memo(function MorningSchedule({
       setBusy(false);
     }
   };
+
+  const saveRef = useRef(save);
+  saveRef.current = save;
 
   const turn = (on: boolean) =>
     void save((d) => {
@@ -259,9 +270,20 @@ export const MorningSchedule = memo(function MorningSchedule({
   // The choice is offered to a reader with an Assistant, on a schedule this account reads.
   const canChoose = !!assistant && !!schedule && (state.status === "ready" || state.status === "none");
   const { refresh } = state;
+  // The last ask, and how many in a row went unanswered: while the relays stay silent
+  // (checkedAt doesn't move) each ask waits twice as long as the last, up to half an hour.
+  const reask = useRef({ at: 0, checkedAt: null as number | null, unanswered: 0 });
   useEffect(() => {
     if (!schedule || checkedAt === null || checkedAt >= now) return;
-    if (lastDue(schedule, now) !== lastDue(schedule, checkedAt)) refresh();
+    // Paused or never runs: no morning is due, so none can be missed.
+    if (taskStatus(schedule, now) !== "scheduled") return;
+    if (lastDue(schedule, now) === lastDue(schedule, checkedAt)) return;
+    const last = reask.current;
+    const silent = last.at > 0 && last.checkedAt === checkedAt;
+    const wait = silent ? Math.min(REASK_MS * 2 ** last.unanswered, REASK_MAX_MS) : 0;
+    if (now - last.at < wait) return;
+    reask.current = { at: now, checkedAt, unanswered: silent ? last.unanswered + 1 : 0 };
+    refresh();
   }, [schedule, now, checkedAt, refresh]);
 
   const ids = useId();
@@ -271,6 +293,10 @@ export const MorningSchedule = memo(function MorningSchedule({
   // (or none yet) opens the editor; anything else opens what was written.
   const canOpen = !!schedule && schedule.enabled && (state.status === "ready" || state.status === "none");
   const editable = canOpen && (!!view?.simple || schedule.cron === null);
+  // Turned off (or unreadable) while open: the panel goes, and doesn't come back on its own.
+  useEffect(() => {
+    if (!canOpen && open) setOpen(false);
+  }, [canOpen, open]);
   const base = useMemo(() => (heldSchedule ? localSimple(heldSchedule, zone, now) : null), [heldSchedule, zone, now]);
   const zoneNote =
     schedule?.tz && !sameZone(schedule.tz, zone, now)
@@ -375,6 +401,7 @@ export const MorningSchedule = memo(function MorningSchedule({
         )}
         {schedule && state.status !== "unreadable" && (
           <Switch
+            ref={switchRef}
             checked={schedule.enabled}
             onCheckedChange={turn}
             disabled={busy}
