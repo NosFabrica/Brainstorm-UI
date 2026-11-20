@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
@@ -113,12 +113,18 @@ import { SignOutEverywhereRow } from "@/components/settings/SignOutEverywhereRow
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 import { AssistantsTab } from "@/components/settings/AssistantsTab";
 import { TreasureMapTab } from "@/components/settings/TreasureMapTab";
-import { AiModelTab } from "@/components/settings/AiModelTab";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { YourAssistants } from "@/components/settings/YourAssistants";
 import { markOwnScores } from "@/lib/ownScores";
 import { InternalChip } from "@/components/InternalChip";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+
+// The AI model tab prices Routstr models by the Observer's brief (lib/frontPage/writer): loaded
+// when it is opened, not with every Settings tab.
+const AiModelTab = lazyWithReload(() =>
+  import("@/components/settings/AiModelTab").then((m) => ({ default: m.AiModelTab })),
+);
 
 type SettingsTab = SettingsTabKey;
 
@@ -2018,7 +2024,11 @@ export default function SettingsPage() {
                 <AssistantsTab viewer={user?.pubkey} view={assistantView === "duties" ? "duties" : "assistants"} />
               )}
               {assistantView === "map" && <TreasureMapTab viewer={user?.pubkey} />}
-              {assistantView === "ai" && <AiModelTab />}
+              {assistantView === "ai" && (
+                <Suspense fallback={<Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />}>
+                  <AiModelTab />
+                </Suspense>
+              )}
             </div>
           )}
 

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { providerName, type AgentKey } from "@/lib/agentKeys";
 import { accountKey, tabKey } from "@/lib/accountStorage";
 import { EditionClock, emptyContext } from "@/lib/frontPage/edition";
-import { utcDay, type EditionEntry } from "@/lib/frontPage/observerSite";
+import type { EditionEntry } from "@/lib/frontPage/observerSite";
 import {
   SCHEDULE_D,
   SCHEDULE_KIND,
@@ -15,14 +15,18 @@ import { heldScheduleAt, heldScheduleTask, onForgetSchedules } from "@/lib/front
 import { eventStore } from "@/lib/eventStore";
 import { readTask, type TaskTags } from "@/lib/scheduledTasks";
 import { activeAccount } from "@/accounts/signing";
-import { updateObserverSchedule, type ScheduleSave } from "@/services/observerSchedule";
+import type { ScheduleSave } from "@/services/observerSchedule";
 import { reduceProgress, startProgress, type PrintEvent, type PrintProgress } from "@/lib/frontPage/printProgress";
 import type { ResolveChange } from "@/lib/frontPage/resolve";
 import type { Violation } from "@/lib/frontPage/validate";
 import type { ModelLimits, Usage } from "@/lib/frontPage/writer";
-import { WriterError, printFrontPage } from "@/services/frontPage";
-import { loadEditionContext, rememberLocalPrint, type EditionHistory } from "@/services/editionContext";
-import { PublishError, leadHeadline, publishToObserver, type PublishFailure } from "@/services/observerSite";
+// The engine (the writer, the brief, the house stylesheet, the paper boundary) and the site's
+// publisher are loaded when a print or a publish starts, not with the app: this store is
+// mounted on every page (PrintJobHost, the header's indicator), and most visitors never print.
+import type { EditionHistory } from "@/services/editionContext";
+import type { PublishFailure } from "@/services/observerSite";
+
+const loadEngine = () => import("@/services/printEngine");
 
 /**
  * The print that is running, owned by the app rather than the Observer page: it keeps
@@ -242,6 +246,8 @@ async function saveChoice(
   if (activeAccount()?.pubkey !== pubkey) return null;
   let saved: ScheduleSave;
   try {
+    // Loaded with the first change: the schedule's relay and signer code isn't the app's first chunk.
+    const { updateObserverSchedule } = await import("@/services/observerSchedule");
     saved = await updateObserverSchedule(
       (tags) => {
         const next = change(tags);
@@ -378,7 +384,12 @@ async function runPrint(id: number, controller: AbortController, opts: StartPrin
   const { pubkey, key, model, readerName, displayName } = opts;
   const finish = (outcome: PrintOutcome, run: Run, change: Partial<PrintJob> = {}) =>
     update(id, (j) => ({ ...j, ...change, run, outcome, finishedAt: Date.now() }));
+  let isWriterError = (_err: unknown) => false;
   try {
+    const { WriterError, printFrontPage, loadEditionContext, rememberLocalPrint, leadHeadline, utcDay } =
+      await loadEngine();
+    isWriterError = (err) => err instanceof WriterError;
+    if (controller.signal.aborted) return;
     // Gathered while the ranking is checked: a site's page may be fetched for it.
     const context = loadEditionContext({
       pubkey,
@@ -443,7 +454,7 @@ async function runPrint(id: number, controller: AbortController, opts: StartPrin
     }
   } catch (err) {
     if (controller.signal.aborted) return;
-    const message = err instanceof WriterError ? err.message : "Something went wrong while printing. Try again.";
+    const message = isWriterError(err) ? (err as Error).message : "Something went wrong while printing. Try again.";
     log(id, { type: "end", outcome: "error", message });
     finish("error", { state: "error", message });
   } finally {
@@ -545,7 +556,11 @@ async function publishPaper(pubkey: string, printed: Printed, displayName: strin
   publishAbort = controller;
   log(id, { type: "publish", state: "publishing" });
   update(id, (j) => ({ ...j, publish: { state: "publishing" } }));
+  let reasonOf = (_err: unknown): PublishFailure | null | undefined => undefined;
   try {
+    const { PublishError, leadHeadline, publishToObserver } = await loadEngine();
+    reasonOf = (err) => (err instanceof PublishError ? err.reason : undefined);
+    if (controller.signal.aborted) return;
     const out = await publishToObserver({
       signal: controller.signal,
       pubkey,
@@ -572,12 +587,11 @@ async function publishPaper(pubkey: string, printed: Printed, displayName: strin
   } catch (err) {
     // Stopped because the account went: nothing to say, and nobody to say it to.
     if (controller.signal.aborted) return;
-    const message = err instanceof PublishError ? err.message : "Couldn't publish to your Observer.";
+    // A PublishError says what went wrong and why; anything else is said plainly.
+    const reason = reasonOf(err);
+    const message = reason !== undefined ? (err as Error).message : "Couldn't publish to your Observer.";
     log(id, { type: "publish", state: "failed", message });
-    update(id, (j) => ({
-      ...j,
-      publish: { state: "failed", message, reason: err instanceof PublishError ? err.reason : null },
-    }));
+    update(id, (j) => ({ ...j, publish: { state: "failed", message, reason: reason ?? null } }));
   } finally {
     if (publishAbort === controller) publishAbort = null;
   }

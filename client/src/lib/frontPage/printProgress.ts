@@ -1,5 +1,8 @@
 import { relativeDay } from "@/lib/scheduledTasks";
-import { MASTHEAD, type Usage } from "@/lib/frontPage/writer";
+// The masthead from `edition`, not `writer`: this module is in the app's first chunk (the
+// header's print indicator), and `writer` carries the brief.
+import { MASTHEAD } from "@/lib/frontPage/edition";
+import type { Usage } from "@/lib/frontPage/writer";
 
 /**
  * What a print is doing, for the reader: one status line, the steps, and a log behind
@@ -136,7 +139,7 @@ export function latestHeadline(html: string): string | null {
   let found: string | null = null;
   for (let m = re.exec(html); m; m = re.exec(html)) {
     const text = headlineText(m[2]);
-    if (text && text.toLowerCase() !== MASTHEAD.name.toLowerCase()) found = text;
+    if (text && text.toLowerCase() !== MASTHEAD.toLowerCase()) found = text;
   }
   return found;
 }

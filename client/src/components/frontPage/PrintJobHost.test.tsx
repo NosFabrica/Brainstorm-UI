@@ -72,7 +72,17 @@ function renderAt(path: string) {
   return { ...view, location };
 }
 
-const start = () => act(() => startPrint({ pubkey: A, key: KEY, model: "m", readerName: "Lira", displayName: "Lira" }));
+/**
+ * Starts a print, and waits until the engine has it: the engine is loaded when a print
+ * starts (a dynamic import), not with the app.
+ */
+const start = async () => {
+  const asked = state.print.mock.calls.length;
+  act(() => startPrint({ pubkey: A, key: KEY, model: "m", readerName: "Lira", displayName: "Lira" }));
+  await act(async () => {
+    await vi.waitFor(() => expect(state.print.mock.calls.length).toBe(asked + 1));
+  });
+};
 
 describe("PrintJobHost", () => {
   beforeEach(() => {
@@ -93,23 +103,23 @@ describe("PrintJobHost", () => {
     pendingPrint();
     renderAt("/dashboard");
     expect(screen.queryByTestId("front-page-printing-indicator")).toBeNull();
-    start();
+    await start();
     const indicator = screen.getByTestId("front-page-printing-indicator");
     expect(indicator.getAttribute("href")).toBe("/front-page");
     expect(indicator).toHaveAccessibleName(/Printing your Observer: Checking your ranking/);
   });
 
-  it("hides the indicator on the Observer page, which shows the print itself", () => {
+  it("hides the indicator on the Observer page, which shows the print itself", async () => {
     pendingPrint();
     renderAt("/front-page");
-    start();
+    await start();
     expect(screen.queryByTestId("front-page-printing-indicator")).toBeNull();
   });
 
   it("toasts how it ended when the reader is elsewhere, and keeps the paper for the page", async () => {
     const print = pendingPrint();
     renderAt("/dashboard");
-    start();
+    await start();
     await act(async () => print.finish(PRINTED));
     expect(state.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Today's Observer is ready" }));
     expect(screen.queryByTestId("front-page-printing-indicator")).toBeNull();
@@ -121,7 +131,7 @@ describe("PrintJobHost", () => {
     const { WriterError } = await import("@/services/frontPage");
     const print = pendingPrint();
     renderAt("/settings");
-    start();
+    await start();
     await act(async () => print.fail(new WriterError("Your AI key is out of credit.")));
     expect(state.toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Couldn't print", description: "Your AI key is out of credit." }),
@@ -131,7 +141,7 @@ describe("PrintJobHost", () => {
   it("says nothing on the Observer page, which shows the result itself", async () => {
     const print = pendingPrint();
     renderAt("/front-page");
-    start();
+    await start();
     await act(async () => print.finish(PRINTED));
     expect(state.toast).not.toHaveBeenCalled();
   });
@@ -142,7 +152,7 @@ describe("PrintJobHost", () => {
     const print = pendingPrint();
     renderAt("/dashboard");
     expect(add.mock.calls.some(([type]) => type === "beforeunload")).toBe(false);
-    start();
+    await start();
     const registered = add.mock.calls.find(([type]) => type === "beforeunload");
     expect(registered).toBeDefined();
     const event = new Event("beforeunload", { cancelable: true });
@@ -161,7 +171,7 @@ describe("PrintJobHost", () => {
   it("cancels the print when another account signs in: its paper would publish as them", async () => {
     pendingPrint();
     const view = renderAt("/dashboard");
-    start();
+    await start();
     const signal = (state.print.mock.calls[0][0] as { signal: AbortSignal }).signal;
     state.account = { pubkey: "b".repeat(64) };
     view.rerender(
@@ -182,7 +192,7 @@ describe("PrintJobHost", () => {
     state.publish.mockReturnValue(new Promise((resolve) => (published = resolve)));
     const print = pendingPrint();
     renderAt("/dashboard");
-    start();
+    await start();
     await act(async () => print.finish(PRINTED));
     // The first publish asks first: the paper waits, paid for.
     expect(getPrintJob()?.publish.state).toBe("confirm");
@@ -208,7 +218,7 @@ describe("PrintJobHost", () => {
     state.publish.mockReturnValue(new Promise(() => undefined));
     const print = pendingPrint();
     const view = renderAt("/dashboard");
-    start();
+    await start();
     await act(async () => print.finish(PRINTED));
     expect(state.publish).toHaveBeenCalledTimes(1);
     const signal = (state.publish.mock.calls[0][0] as { signal: AbortSignal }).signal;
@@ -227,10 +237,10 @@ describe("PrintJobHost", () => {
   it("a refused print again keeps today's earlier paper (audit, 2026-11-12)", async () => {
     const first = pendingPrint();
     renderAt("/front-page");
-    start();
+    await start();
     await act(async () => first.finish(PRINTED));
     const second = pendingPrint();
-    start();
+    await start();
     await act(async () => second.finish({ status: "refused", violations: [], changes: [] }));
     expect(getPrintJob()?.run.state).toBe("refused");
     expect(getPrintJob()?.paper?.code).toBe("4F2A9C");
@@ -241,7 +251,7 @@ describe("PrintJobHost", () => {
     renderAt("/dashboard");
     expect(state.clocks).not.toContain(1_000);
     pendingPrint();
-    start();
+    await start();
     expect(state.clocks).toContain(1_000);
   });
 });

@@ -1056,6 +1056,8 @@ describe("FrontPagePage", () => {
       renderWithProviders(<FrontPagePage />);
       await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
       fireEvent.click(screen.getByTestId("front-page-print"));
+      // The engine loads when a print starts.
+      await waitFor(() => expect(state.print).toHaveBeenCalled());
       const write = (event: unknown) => act(async () => held.emit({ type: "write", round: 1, event }));
       await write({ type: "sent", streamed: true });
       await waitFor(() =>
@@ -1090,6 +1092,7 @@ describe("FrontPagePage", () => {
       renderWithProviders(<FrontPagePage />);
       await waitFor(() => expect(screen.getByTestId("front-page-print")).not.toBeDisabled());
       fireEvent.click(screen.getByTestId("front-page-print"));
+      await waitFor(() => expect(state.print).toHaveBeenCalled());
       await act(async () => held.emit({ type: "plan", event: { type: "sent", streamed: true } }));
       await waitFor(() => expect(screen.getByTestId("front-page-step-plan")).toHaveAttribute("data-state", "now"));
       expect(screen.getByTestId("front-page-step-plan")).toHaveTextContent("Planning the paper");
