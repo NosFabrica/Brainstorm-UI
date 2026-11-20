@@ -100,6 +100,7 @@ import {
   changeTaken,
   forgetPurchase,
   markPaidHere,
+  markPayAttempted,
   pollPurchase,
   startLightningPurchase,
   topUpWithCashu,
@@ -798,7 +799,9 @@ export function InvoiceStep({ id, onDone }: { id: string; onDone: () => void }) 
         {expired ? (
           <>
             <AlertTriangle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
-            <p className="text-sm text-foreground">The invoice expired. Nothing was paid.</p>
+            <p className="text-sm text-foreground">
+              The invoice expired, and a day later the node still had no payment for it.
+            </p>
           </>
         ) : (
           <>
@@ -823,8 +826,14 @@ export function InvoiceStep({ id, onDone }: { id: string; onDone: () => void }) 
   const left = record.expiresAt !== null ? Math.max(0, record.expiresAt - Math.floor(now / 1000)) : null;
   const pay = async () => {
     if (!pubkey) return;
-    setPaying(true);
     setPayError(null);
+    // Kept before the wallet is asked: a payment out (or one that settles late) must keep
+    // the invoice, whatever the wallet answers or if the tab closes first.
+    if (!markPayAttempted(pubkey, record.id)) {
+      setPayError("This browser won't keep the purchase, so nothing was paid. Pay it from another wallet.");
+      return;
+    }
+    setPaying(true);
     const result = await payWithWebLN(bolt11);
     setPaying(false);
     if (result.ok) markPaidHere(pubkey, record.id);
@@ -850,7 +859,7 @@ export function InvoiceStep({ id, onDone }: { id: string; onDone: () => void }) 
         ) : state === "reconciling" ? (
           "The node is checking this payment. Your key arrives once it has."
         ) : state === "expired" ? (
-          "Expired. Checking that nothing was paid…"
+          "Expired. Paid from another wallet near the end, it may still settle: this is checked for a day."
         ) : (
           <span className="inline-flex items-center gap-1.5">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for payment
@@ -1059,7 +1068,7 @@ function PendingRow({ record }: { record: PendingPurchase }) {
                       ? "Key saved · checking your relays have it"
                       : state === "ended"
                         ? `${where} has nothing for this invoice`
-                        : "Invoice expired"}
+                        : "Invoice expired · still checked for a late payment"}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {record.purpose === "topup" ? `Top-up of ····${record.topsUp ?? ""}` : "New key"} at {where}
@@ -1138,7 +1147,7 @@ function PendingRow({ record }: { record: PendingPurchase }) {
             <AlertDialogTitle>Forget this invoice?</AlertDialogTitle>
             <AlertDialogDescription>
               {state === "ended"
-                ? `Your wallet said it paid this invoice, but ${where} says it expired and has no key for it. Forgotten, this device keeps nothing of it: copy the invoice first if you want to ask ${where}'s operator, as proof of payment.`
+                ? `${record.paidHere ? "Your wallet said it paid this invoice" : "Your wallet was asked to pay this invoice"}, but ${where} says it expired and has no key for it. Forgotten, this device keeps nothing of it: copy the invoice first if you want to ask ${where}'s operator, as proof of payment.`
                 : "Only if you didn't pay it. Paid, the key would be lost with it."}
             </AlertDialogDescription>
           </AlertDialogHeader>

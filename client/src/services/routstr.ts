@@ -63,6 +63,14 @@ export class RoutstrUnreachable extends Error {
   }
 }
 
+/** A 2xx whose body couldn't be read: the node may have acted on it, so this is not a refusal. */
+export class RoutstrUnanswered extends Error {
+  constructor() {
+    super("The node's answer couldn't be read.");
+    this.name = "RoutstrUnanswered";
+  }
+}
+
 const TIMEOUT_MS = 15_000;
 
 async function call(
@@ -402,7 +410,10 @@ export async function createWithCashu(
   );
   if (!ok) throw new RoutstrError(readRoutstrError(status, body), `The node didn't take the token (${status}).`);
   const created = readCreated(body);
-  if (!created.apiKey) throw new RoutstrError(readRoutstrError(status, body), "The node's answer had no key.");
+  // A 2xx is the token taken. With no key to read (a body cut off, or one without
+  // `api_key`) it is silence, not a refusal: the key it made is sk- + sha256(token),
+  // which the caller already holds and can ask the node about.
+  if (!created.apiKey) throw new RoutstrUnanswered();
   return { apiKey: created.apiKey, msats: created.msats, change: created.change };
 }
 

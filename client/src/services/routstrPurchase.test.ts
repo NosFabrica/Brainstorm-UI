@@ -2,7 +2,7 @@
  * A Routstr purchase end to end against a mocked node: the record is kept before the
  * invoice is shown, a reload resumes it, a lost invoice id is recovered by the bolt11, a
  * key the node hands over is kept until kind 12000 has it (and kept on when that save
- * fails), an expired invoice is dropped, and Cashu change is handed back. No network.
+ * fails), an expired invoice is dropped a day later, and Cashu change is handed back. No network.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentKey } from "@/lib/agentKeys";
@@ -266,9 +266,33 @@ describe("a Lightning key purchase", () => {
       createdAt: Date.now(),
     });
     handle = () => respond(200, statusBody("expired", null, { expires_at: NOW - 60 }));
-    expect(await pollPurchase(ME, "inv_1")).toBe("dropped");
-    expect(readPurchases(ME)).toEqual([]);
+    // The node keeps settling it for a day past expiry: kept meanwhile.
+    expect(await pollPurchase(ME, "inv_1")).toBe("waiting");
+    expect(readPurchases(ME)).toHaveLength(1);
     expect(updateAgentKeys).not.toHaveBeenCalled();
+  });
+
+  it("drops an invoice that expired unpaid once the grace is over and recover found nothing", async () => {
+    const { putPurchase, pollPurchase, readPurchases } = await load();
+    putPurchase(ME, {
+      id: "inv_1",
+      node: NODE,
+      nodeName: null,
+      purpose: "create",
+      method: "lightning",
+      invoiceId: "inv_1",
+      bolt11: BOLT11,
+      amountSats: 5000,
+      expiresAt: NOW - 86_400 - 60,
+      createdAt: Date.now(),
+    });
+    handle = (url) =>
+      url.endsWith("/v2/lightning/recover")
+        ? respond(404, { detail: { error: { code: "invoice_not_found" } } })
+        : respond(200, statusBody("expired", null, { expires_at: NOW - 86_460 }));
+    expect(await pollPurchase(ME, "inv_1")).toBe("dropped");
+    expect(calls.filter((c) => c.url.endsWith("/v2/lightning/recover"))).toHaveLength(1);
+    expect(readPurchases(ME)).toEqual([]);
   });
 
   it("never drops on silence, even past expiry", async () => {
@@ -515,6 +539,17 @@ describe("round-2 audit (2026-11-13)", () => {
     expect(readPurchases(ME)[0]).toMatchObject({ bolt11: BOLT11, paidHere: true });
   });
 
+  it("a payment this device tried, kept before the wallet answered, is never dropped: past the grace it ends", async () => {
+    const { putPurchase, pollPurchase, readPurchases, markPayAttempted } = await load();
+    putPurchase(ME, { ...base, id: "inv", invoiceId: "inv", expiresAt: NOW - 90_000 });
+    expect(markPayAttempted(ME, "inv")).toBe(true);
+    const recover = vi.fn(async () => ({ type: "not-found" }) as const);
+    const d = deps({ status: async () => ({ type: "status", status: "expired", apiKey: null }) as const, recover });
+    expect(await pollPurchase(ME, "inv", d)).toBe("waiting");
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(readPurchases(ME)[0]).toMatchObject({ payAttempted: true, ended: true });
+  });
+
   it("a poll never brings back a record that went while it was out", async () => {
     const { putPurchase, pollPurchase, readPurchases, removePurchase } = await load();
     putPurchase(ME, { ...base, id: "inv", invoiceId: "inv", expiresAt: NOW + 600 });
@@ -578,6 +613,22 @@ describe("round-2 audit (2026-11-13)", () => {
       expect((await buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN })).outcome).toBe("saved");
       expect(readPurchases(ME)[0]).toMatchObject({ key: expected, paid: true });
       expect(readPurchases(ME)[0].unconfirmed).toBeUndefined();
+    });
+
+    it("an answer that is 2xx but holds no key is silence: the record keeping the key stays", async () => {
+      const { buyWithCashu, cashuKey, readPurchases } = await load();
+      const expected = await cashuKey(TOKEN);
+      for (const body of ["", { balance: 21_000 }]) {
+        localStorage.clear();
+        handle = () => respond(200, body);
+        const err = await buyWithCashu({ pubkey: ME, node: NODE, nodeName: null, token: TOKEN }).catch((e) => e);
+        expect(err, JSON.stringify(body)).toBeInstanceOf(Error);
+        // Not a refusal: the page tells the reader to keep the token, not that the node said no.
+        expect((err as Error).name, JSON.stringify(body)).not.toBe("RoutstrError");
+        expect(readPurchases(ME), JSON.stringify(body)).toEqual([
+          expect.objectContaining({ key: expected, unconfirmed: true }),
+        ]);
+      }
     });
 
     it("isn't sent when this browser won't keep its key", async () => {

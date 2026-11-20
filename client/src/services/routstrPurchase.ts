@@ -113,6 +113,16 @@ export async function startLightningPurchase({
   return record;
 }
 
+/**
+ * This device is about to ask its wallet to pay it: kept first, so a payment still in flight
+ * (or one that settles late) never lets the record be dropped. False when it isn't kept: the
+ * wallet must not be asked then.
+ */
+export function markPayAttempted(pubkey: string, id: string): boolean {
+  const record = readPurchases(pubkey).find((r) => r.id === id);
+  return !!record && updatePurchase(pubkey, { ...record, payAttempted: true });
+}
+
 /** This device's wallet paid it: kept whatever the node says until the node agrees. */
 export function markPaidHere(pubkey: string, id: string) {
   const record = readPurchases(pubkey).find((r) => r.id === id);
@@ -291,9 +301,12 @@ export async function buyWithCashu(
   try {
     created = await createWithCashu(apiUrl, token);
   } catch (err) {
-    // Refused (a 4xx): the token wasn't taken, and the reader still holds it. Silence or a
-    // 5xx keeps the record: the poller asks whether the key exists.
-    if (err instanceof RoutstrError && err.failure.status < 500) removePurchase(pubkey, pending.id);
+    // Refused (a 4xx): the token wasn't taken, and the reader still holds it. Silence, a
+    // 5xx, or a 2xx with no key to read keeps the record: the poller asks whether the key
+    // exists, and the record is the only copy of it.
+    if (err instanceof RoutstrError && err.failure.status >= 400 && err.failure.status < 500) {
+      removePurchase(pubkey, pending.id);
+    }
     throw err;
   } finally {
     saving.delete(busy);

@@ -65,14 +65,29 @@ describe("advance", () => {
     expect(advance(invoice(), { type: "not-found" }, NOW, "recover").next).toBe("wait");
   });
 
-  it("drops an invoice that expired unpaid", () => {
-    const expired = invoice({ expiresAt: NOW - 1 });
-    expect(advance(expired, status("expired"), NOW).next).toBe("drop");
-    // The node said expired before its own clock passed ours: still not before our expiry.
+  it("keeps an invoice the node calls expired for the day it may still settle, then recovers once and drops it", () => {
+    // Paid near expiry from another wallet: the node still moves it to paid for a day.
+    const expired = invoice({ expiresAt: NOW - 5 });
+    expect(advance(expired, status("expired"), NOW).next).toBe("wait");
+    expect(advance(expired, { type: "not-found" }, NOW, "recover").next).toBe("wait");
     expect(advance(invoice(), status("expired"), NOW).next).toBe("wait");
-    // A node that never moves a dead invoice on: dropped once it can't be settled any more.
+    // Past the grace: the bolt11 is asked once, and only then is it dropped.
+    const late = NOW + SETTLEMENT_GRACE_SECONDS;
+    const asked = advance(expired, status("expired"), late);
+    expect(asked).toMatchObject({ next: "recover", record: { recoverTried: true } });
+    expect(advance(asked.record, status("expired"), late, "recover").next).toBe("drop");
+    expect(advance(asked.record, status("expired"), late).next).toBe("drop");
+    // A node that never moves a dead invoice on: the same, once it can't be settled any more.
     expect(advance(expired, status("pending"), NOW).next).toBe("wait");
-    expect(advance(expired, status("pending"), NOW + SETTLEMENT_GRACE_SECONDS + 1).next).toBe("drop");
+    expect(advance(expired, status("pending"), late).next).toBe("recover");
+    expect(advance(asked.record, status("pending"), late, "recover").next).toBe("drop");
+  });
+
+  it("never drops an invoice this device tried to pay: it ends, and the reader decides", () => {
+    const tried = invoice({ expiresAt: NOW - 5, payAttempted: true, recoverTried: true });
+    expect(advance(tried, status("expired"), NOW).next).toBe("wait");
+    const late = advance(tried, status("expired"), NOW + SETTLEMENT_GRACE_SECONDS);
+    expect(late).toMatchObject({ next: "wait", record: { ended: true } });
   });
 
   it("keeps an expired invoice this device's wallet paid: the node settles for a day past expiry", () => {

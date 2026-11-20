@@ -14,7 +14,8 @@
  *   token, from just before the token is sent: the key is `sk-` + sha256(token)) until a
  *   read of kind 12000 after the save shows the key there (a failed save keeps it, for
  *   Retry; a save another write undid is made again);
- * - it is cleared then, or when the invoice expired unpaid.
+ * - it is cleared then, or when the invoice expired unpaid and stayed so for the day the
+ *   node keeps settling it (never when this device paid it or tried to).
  * A top-up names its key by the last four characters only: that key is already saved.
  * A Cashu change token the node handed back is kept the same way, until the reader has
  * taken it: it is their money too.
@@ -46,6 +47,11 @@ export interface PendingPurchase {
   paid?: boolean;
   /** This device's wallet said it paid: kept until the node agrees, whatever it says meanwhile. */
   paidHere?: boolean;
+  /**
+   * This device asked its wallet to pay, before the wallet answered: a payment can still be in
+   * flight (or settle late) whatever the wallet says, so a record with it is never auto-dropped.
+   */
+  payAttempted?: boolean;
   /** A `create`'s key, only until it is saved to kind 12000. Never logged, never shown unasked. */
   key?: string;
   /** Why saving the key failed, for "Retry". */
@@ -105,8 +111,10 @@ export type Step =
  * not tried again in a loop, it waits for the next poll.
  *
  * The money rules: a paid purchase is never dropped; a paid `create` with no key keeps
- * recovering, never re-buys; an invoice is dropped only when the node says `expired` and
- * nothing here says it was paid. Silence drops nothing.
+ * recovering, never re-buys; an invoice is dropped only when the node says `expired`, its
+ * settlement grace (a day past expiry, when the node still moves a paid one to `paid`) is
+ * over, recover by the bolt11 found nothing, and nothing here says it was paid or tried to
+ * pay it. Silence drops nothing.
  */
 export function advance(
   record: PendingPurchase,
@@ -133,23 +141,27 @@ export function advance(
   }
   if (status === "reconciliation_required") return { next: "wait", record: { ...record, reconciling: true } };
   if (status === "expired" || status === "cancelled" || status === "failed") {
-    if (canDrop(record, now)) return { next: "drop", record };
-    // The node settles a paid invoice for a day past its expiry: one this wallet paid waits.
-    // Past that day, the bolt11 is asked once more (`recover`); when that finds nothing too,
-    // it has ended: nothing more will come of asking, and the reader decides.
-    if (pastGrace(record, now) && !record.paid) {
-      if (from === "status" && record.bolt11 && !record.recoverTried) {
-        return { next: "recover", record: { ...record, recoverTried: true } };
-      }
-      return { next: "wait", record: { ...record, ended: true } };
+    // The node marks a pending invoice past its expiry `expired` without asking the mint, and
+    // keeps checking it for a day (`INVOICE_EXPIRY_GRACE_SECONDS`): one paid near its expiry,
+    // from another wallet or by a payment still in flight, moves to `paid` meanwhile. So
+    // nothing is dropped inside that day. Past it, the bolt11 is asked once more (`recover`);
+    // when that finds nothing too, an unpaid one goes, and one this device paid (or tried
+    // to) has ended: nothing more will come of asking, and the reader decides.
+    if (!pastGrace(record, now) || record.paid) return { next: "wait", record };
+    if (from === "status" && record.bolt11 && !record.recoverTried) {
+      return { next: "recover", record: { ...record, recoverTried: true } };
     }
-    return { next: "wait", record };
+    if (canDrop(record, now)) return { next: "drop", record };
+    return { next: "wait", record: { ...record, ended: true } };
   }
   if (WAITING.has(status)) {
     // A node that never moves a dead invoice on: once it can no longer be paid or
     // settled, and nothing says it was, it goes.
-    if (record.expiresAt !== null && now > record.expiresAt + SETTLEMENT_GRACE_SECONDS && canDrop(record, now)) {
-      return { next: "drop", record };
+    if (pastGrace(record, now) && !record.paid) {
+      if (from === "status" && record.bolt11 && !record.recoverTried) {
+        return { next: "recover", record: { ...record, recoverTried: true } };
+      }
+      if (canDrop(record, now)) return { next: "drop", record };
     }
     return { next: "wait", record };
   }
@@ -159,10 +171,13 @@ export function advance(
 const pastGrace = (record: PendingPurchase, now: number) =>
   record.expiresAt !== null && now > record.expiresAt + SETTLEMENT_GRACE_SECONDS;
 
-/** Never drop money: only an unpaid, keyless record nothing here paid, past its expiry. */
+/**
+ * Never drop money: only an unpaid, keyless record nothing here paid or tried to pay, past
+ * its expiry and the day the node keeps settling it.
+ */
 export function canDrop(record: PendingPurchase, now: number): boolean {
-  if (record.paid || record.paidHere || record.key || record.change) return false;
-  return record.expiresAt !== null && now > record.expiresAt;
+  if (record.paid || record.paidHere || record.payAttempted || record.key || record.change) return false;
+  return pastGrace(record, now);
 }
 
 /** What the reader is shown for a record. */
@@ -261,6 +276,8 @@ export function updatePurchase(pubkey: string, next: PendingPurchase): boolean {
   const merged: PendingPurchase = { ...next };
   if (now.paid || next.paid) merged.paid = true;
   if (now.paidHere || next.paidHere) merged.paidHere = true;
+  if (now.payAttempted || next.payAttempted) merged.payAttempted = true;
+  if (now.recoverTried || next.recoverTried) merged.recoverTried = true;
   const key = next.key ?? now.key;
   if (key) merged.key = key;
   const change = now.change ?? next.change;
