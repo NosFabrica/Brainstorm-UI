@@ -155,7 +155,8 @@ describe("adding yourself from a tag's page", () => {
     madeFor = "posts";
     renderWithProviders(<TagPage />);
     expect(screen.queryByTestId("tag-self-add")).toBeNull();
-    expect(screen.getByTestId("tag-header")).toHaveTextContent("Posts the network says this describes.");
+    // Not "Posts": a tag made on a post is put on articles, repos and events too.
+    expect(screen.getByTestId("tag-header")).toHaveTextContent("Content the network says this describes.");
   });
 
   it("is offered again once people carry it: how a tag is used outranks what it was made for", () => {

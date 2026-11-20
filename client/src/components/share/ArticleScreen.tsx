@@ -41,6 +41,9 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { eventShortLink, useMintShortLink } from "@/hooks/useShortLink";
 import { EventThread } from "@/components/share/EventThread";
+import { NoteTagChips } from "@/components/share/NoteTagChips";
+import { tagAddressOf } from "@/lib/tagTarget";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { ShareButton } from "@/components/share/ShareButton";
@@ -373,6 +376,8 @@ export function ArticleShell({
  * address's latest version) or a `nevent` (one exact version).
  */
 export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: string; ptr: AddressPointer }) {
+  // Holding an account is holding a signer; a session alone can't sign a tagging.
+  const canTag = !!useActiveAccountDisplay()?.pubkey;
   const tierRing = useTierRing();
   const compromisedRing = useCompromisedRing(ev.pubkey);
   const coinReplaced = useCoinReplacedByRing();
@@ -715,6 +720,18 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
           )}
           {/* A chapter's or a part's neighbours, in the book's order. */}
           {(isIndex || isSection) && <PublicationPager ev={ev} relays={ptr?.relays} />}
+
+          {/* What the network says this article is about, and the way to say so: the row a
+              post has, under the thing a reader has just finished. Tagged by its address, so
+              a tag survives the article's next edit (#334), and named as what it is: an
+              article, a recipe, a spec (lib/taggable). */}
+          <NoteTagChips
+            eventId={ev.id}
+            address={tagAddressOf(ev)}
+            relayHint={ptr?.relays?.[0]}
+            canTag={canTag}
+            item={ev}
+          />
 
           {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}
           {ev && (

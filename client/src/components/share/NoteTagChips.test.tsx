@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 const h = vi.hoisted(() => ({
   read: vi.fn((..._a: unknown[]) => ({ data: { tags: [], mine: [], unverifiable: 0, trustUnverified: false } })),
-  publish: vi.fn(async (_vars: unknown) => ({}) as { failedAt?: string }),
+  publish: vi.fn(async (_vars: unknown) => ({}) as { failedAt?: string; confirmed?: boolean }),
   toast: vi.fn(),
   apply: vi.fn((..._a: unknown[]) => ({ mutate: vi.fn(), mutateAsync: h.publish, isPending: false })),
   options: [] as unknown[],
@@ -71,13 +71,64 @@ describe("NoteTagChips", () => {
     expect(screen.getAllByTestId("note-tag-existing").map((e) => e.textContent)).toEqual(["qa-note-1784"]);
   });
 
-  it("names what it tags: a Dictionary item as its list calls it, anything else a post", async () => {
+  // The button, the picker and the toast name the thing by what it is: an issue's page said
+  // "Tag this post" (2026-11-20). The type comes off the event itself (lib/taggable).
+  const item = (kind: number, tags: string[][] = []) => ({
+    kind,
+    tags,
+    pubkey: "5".repeat(64),
+    id: ID,
+    content: "",
+    created_at: 1,
+  });
+
+  it.each([
+    [1621, "Tag this issue"],
+    [30617, "Tag this repo"],
+    [1618, "Tag this pull request"],
+    [34550, "Tag this community"],
+    [30023, "Tag this article"],
+    [1, "Tag this post"],
+  ])("names a kind-%i event as what it is: %s", (kind, label) => {
+    render(<NoteTagChips eventId={ID} canTag item={item(kind)} />);
+    expect(screen.getByTestId("note-add-tag")).toHaveTextContent(label);
+  });
+
+  it("names a Dictionary item as its list calls it, and says so in the picker too", async () => {
     Element.prototype.scrollIntoView = () => {};
-    const { unmount } = render(<NoteTagChips eventId={ID} address={LISTING} canTag noun="GitHub Account" />);
+    h.read.mockReturnValueOnce({
+      data: {
+        tags: [
+          {
+            key: "k",
+            name: "Maintainer",
+            slug: "maintainer",
+            authorPubkey: "a".repeat(64),
+            applications: 2,
+            counted: true,
+          },
+        ],
+        mine: [],
+        unverifiable: 0,
+        trustUnverified: false,
+      },
+    } as never);
+    render(
+      <NoteTagChips
+        eventId={ID}
+        address={LISTING}
+        canTag
+        item={item(39999)}
+        list={{ singular: "GitHub Account", plural: "GitHub Accounts" }}
+      />,
+    );
     expect(screen.getByTestId("note-add-tag")).toHaveTextContent("Tag this GitHub account");
     fireEvent.click(screen.getByTestId("note-add-tag"));
-    expect(await screen.findByTestId("note-tag-search")).toHaveAttribute("placeholder", "Search or create a tag");
-    unmount();
+    await screen.findByTestId("note-tag-search");
+    expect(screen.getByRole("listbox")).toHaveTextContent("Already on this GitHub account");
+  });
+
+  it("calls it a post when it isn't told what it is", () => {
     render(<NoteTagChips eventId={ID} canTag />);
     expect(screen.getByTestId("note-add-tag")).toHaveTextContent("Tag this post");
   });
@@ -243,6 +294,21 @@ describe("NoteTagChips — tagging a post asks first, as tagging a person does",
         description: "Anyone can see this on the post.",
       }),
     );
+  });
+
+  // "Did my tag save?" (services/tags readBack): the relays said OK and the tagging couldn't be
+  // read back. That is not a failure and not a success, and the page claims neither.
+  it("says a tagging it couldn't read back may not have saved, never that it was tagged", async () => {
+    h.toast.mockClear();
+    h.publish.mockResolvedValueOnce({ confirmed: false });
+    render(<NoteTagChips eventId={ID} canTag />);
+    await open();
+    fireEvent.click(screen.getByTestId("note-tag-existing"));
+    fireEvent.click(screen.getByTestId("note-tag-confirm-add"));
+    await waitFor(() =>
+      expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: '"Bitcoin" may not have saved' })),
+    );
+    expect(h.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Tagged as "Bitcoin"' }));
   });
 
   it("says a vote on a tag already on the post as a vote, not as tagging it again", async () => {

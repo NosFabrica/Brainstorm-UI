@@ -255,7 +255,7 @@ export default function TagPage() {
             detailQuery.data?.tag.description ? (
               <LinkedText text={detailQuery.data.tag.description} />
             ) : (
-              `${forPostsOnly ? "Posts" : "People"} the network says this describes.`
+              `${forPostsOnly ? "Content" : "People"} the network says this describes.`
             )
           }
           testId="tag-header"

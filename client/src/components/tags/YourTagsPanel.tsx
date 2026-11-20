@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { ChevronDown, PinOff, Tag as TagIcon } from "lucide-react";
+import { Box, ChevronDown, ChevronRight, PinOff, Tag as TagIcon, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,23 @@ import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
 import type { FaceProfile } from "@/components/tags/FacePile";
 import type { MyAssertion, ProfileTag } from "@/services/tags";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { nip19 } from "nostr-tools";
+import { useTaggedItems } from "@/hooks/useTaggedItems";
+import { coordinateOf } from "@/lib/tagTarget";
+import { eventPath } from "@/lib/shareId";
+import {
+  UNKNOWN_ITEM,
+  taggableDetail,
+  taggableImage,
+  taggableTitle,
+  taggableType,
+  type TaggableType,
+} from "@/lib/taggable";
+import { isReady, useItemView } from "@/hooks/useItemView";
+import { ContentSectionHeading, SECTION_ICON } from "@/components/tags/ContentSection";
+import type { ItemPresentation } from "@/lib/itemPresentation";
+import type { KindEvent } from "@/lib/kindLabel";
+import { proxiedSrc } from "@/lib/imageProxy";
 
 /**
  * Everything tagging-related about you — the body of `/tags/mine`, the "Yours"
@@ -63,45 +80,112 @@ export function YourTagsPanel() {
 
   const tagsOnMe = useMemo(() => onMe?.tags ?? [], [onMe]);
   const said = useMemo(() => mySaid ?? [], [mySaid]);
-  const [saidShown, setSaidShown] = useState(SAID_PREVIEW);
   const [stance, setStance] = useState<Stance>("all");
 
   const applyCount = useMemo(() => said.filter((a) => a.stance === "apply").length, [said]);
   const disputeCount = said.length - applyCount;
 
+  // What each tagging of a thing points at, read so the page can say what it is.
+  const contentTargets = useMemo(() => said.filter((a) => a.targetKind === "event").map((a) => a.target), [said]);
+  const items = useTaggedItems(contentTargets);
   /**
-   * Everything you've said, collapsed to one row per TAG.
+   * What a tagged thing is: read off the thing when we have it; off its
+   * coordinate (which carries its kind) when we don't; an item otherwise, since
+   * an id alone says nothing.
+   */
+  const typeOf = (target: string): TaggableType => {
+    const event = items.eventOf(target);
+    if (event) return taggableType(event, items.listOf(target));
+    const at = coordinateOf(target);
+    if (!at) return UNKNOWN_ITEM;
+    return taggableType({
+      kind: at.kind,
+      pubkey: at.pubkey,
+      tags: [["d", at.identifier]],
+      id: "",
+      content: "",
+      created_at: 0,
+    });
+  };
+
+  const filtered = useMemo(() => (stance === "all" ? said : said.filter((a) => a.stance === stance)), [said, stance]);
+
+  /**
+   * The people you've tagged, collapsed to one row per TAG.
    *
    * Newest group first, and newest claim first inside a group, because the
    * thing you most likely want is what you just did.
    */
-  const groups = useMemo<SaidGroupData[]>(() => {
-    const filtered = stance === "all" ? said : said.filter((a) => a.stance === stance);
-    const byTag = new Map<string, SaidGroupData>();
-    for (const a of filtered) {
-      let g = byTag.get(a.key);
-      if (!g) {
-        g = {
-          key: a.key,
-          name: a.name,
-          authorPubkey: a.authorPubkey,
-          slug: a.slug,
-          items: [],
-          applies: 0,
-          disputes: 0,
-          latestAt: 0,
-        };
-        byTag.set(a.key, g);
-      }
-      g.items.push(a);
-      if (a.stance === "apply") g.applies++;
-      else g.disputes++;
-      if (a.at > g.latestAt) g.latestAt = a.at;
+  const peopleGroups = useMemo(() => groupByTag(filtered.filter((a) => a.targetKind === "pubkey")), [filtered]);
+
+  /**
+   * The content you've tagged, one section per KIND of thing in use (Posts,
+   * Issues, Repos, a Dictionary list's Books), each collapsed to one row per
+   * tag. A section exists only while something is in it; the newest first.
+   */
+  const contentSaid = filtered.filter((a) => a.targetKind === "event");
+  const contentSections: ContentSection[] = [];
+  if (!items.loading) {
+    const byType = new Map<string, { type: TaggableType; said: MyAssertion[] }>();
+    for (const a of contentSaid) {
+      const type = typeOf(a.target);
+      const held = byType.get(type.key) ?? { type, said: [] };
+      held.said.push(a);
+      byType.set(type.key, held);
     }
-    const out = Array.from(byTag.values());
-    for (const g of out) g.items.sort((x, y) => y.at - x.at);
-    return out.sort((x, y) => y.latestAt - x.latestAt);
-  }, [said, stance]);
+    for (const { type, said: inType } of byType.values()) {
+      const groups = groupByTag(inType);
+      contentSections.push({ type, groups, latestAt: Math.max(...groups.map((g) => g.latestAt)) });
+    }
+    contentSections.sort((x, y) => y.latestAt - x.latestAt);
+  }
+
+  /**
+   * A tagged thing's row: what it is called, what it is and the most worth
+   * saying about it, its picture, and where it opens. A Dictionary list's item
+   * is read as its own page reads it (`shown`, hooks/useItemView): its title,
+   * its picture or its list's mark, the line under its title. `named` is read
+   * when the row is drawn, so a name arrives when the profile does.
+   */
+  const describeItem =
+    (type: TaggableType, named?: Map<string, FaceProfile>): Describe =>
+    (a, shown) => {
+      const event = items.eventOf(a.target);
+      const at = coordinateOf(a.target);
+      let href = `/e/${a.target}`;
+      if (event) href = eventPath(event);
+      else if (at) {
+        try {
+          href = `/e/${nip19.naddrEncode(at)}`;
+        } catch {
+          /* an unlinkable coordinate keeps the plain path */
+        }
+      }
+      // What it is, in its own word ("App handler" in a section headed Apps).
+      const itsType = event ? taggableType(event, items.listOf(a.target)) : type;
+      const name = shown?.title || (event && taggableTitle(event)) || `Untitled ${itsType.noun}`;
+      const author = event ? named?.get(event.pubkey) : undefined;
+      // Whose it is, once we know their name (a row of hex says nothing), and not when it is
+      // the thing's own name over again: an app published under its own account.
+      const by = [author?.display_name, author?.name].find((n) => n && n.trim().toLowerCase() !== name.toLowerCase());
+      // The most worth saying: what its page says under the title, or when an event is. A
+      // list's item says that or nothing: whoever listed it is not whose it is.
+      const detail = shown ? shown.summary || shown.facts[0]?.value : event ? (taggableDetail(event) ?? by) : undefined;
+      const image = shown?.image || (event ? taggableImage(event) : null) || shown?.listImage || null;
+      return {
+        name,
+        href,
+        about: [itsType.label, detail].filter(Boolean).join(" · "),
+        image,
+        // A post with no picture is known by who wrote it.
+        author: !image && event && type.key === POSTS ? { picture: author?.picture } : null,
+        icon: SECTION_ICON[type.key] ?? Box,
+      };
+    };
+
+  const authorKey = [...new Set(contentTargets.flatMap((target) => items.eventOf(target)?.pubkey ?? []))]
+    .sort()
+    .join(",");
 
   /**
    * Everyone named anywhere on this page — the people who tagged you AND the
@@ -115,8 +199,10 @@ export function YourTagsPanel() {
     const set = new Set<string>();
     for (const t of tagsOnMe) for (const pk of t.asserters) if (pk !== viewerPubkey) set.add(pk);
     for (const a of said) if (a.targetKind === "pubkey") set.add(a.target);
+    // And whoever published each thing you tagged: its row says whose it is.
+    for (const pk of authorKey ? authorKey.split(",") : []) set.add(pk);
     return Array.from(set);
-  }, [tagsOnMe, said, viewerPubkey]);
+  }, [tagsOnMe, said, viewerPubkey, authorKey]);
 
   const profileMap = useLiveProfiles(people);
   const profiles = profileMap;
@@ -179,27 +265,26 @@ export function YourTagsPanel() {
       </section>
 
       {/* ── 2. Tags I've applied ──────────────────────────────────────── */}
+      {/* People and content are two different things to have said something about: a tag on
+          a person says who they are, a tag on a post, an issue or a repo says what it is
+          about. They shared one list once, where a tagged video read "1 person" and opened to
+          "a post". Each has its own block, and each kind of content its own section. */}
       <section className="mt-8" data-testid="my-tags-said">
-        <SectionLabel
-          count={groups.length}
-          hint="Tags you've put on other people. Anyone can see them, with your name on them."
-        >
-          What you've said
-        </SectionLabel>
-
         {/* Only where it's actionable: above your own claims, and only once
               you have some. On the "About you" section above it would be
               answering a question nobody asked — those are other people's tags,
               and their reach has nothing to do with your score. */}
         {onMe?.viewerUnscored && said.length > 0 && <UnscoredReachNotice className="mb-3" />}
 
-        {/* One row per PERSON was the obvious build and the wrong one: tagging
-              is repetitive by nature, so a session of labelling a dozen
-              musicians produced a dozen identical chips down the page. Grouped
-              by tag, that's one row. Someone with a thousand claims has as many
-              rows as they have distinct tags, which is a number a human chose. */}
         {said.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-1" data-testid="my-tags-said-filters">
+          <SectionLabel hint="Tags you've put on people and on content. Anyone can see them, with your name on them.">
+            What you've said
+          </SectionLabel>
+        )}
+
+        {/* One filter for everything you've said, people and content alike. */}
+        {said.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-1" data-testid="my-tags-said-filters">
             <StanceTab active={stance === "all"} onClick={() => setStance("all")} testId="filter-all">
               All
             </StanceTab>
@@ -215,15 +300,20 @@ export function YourTagsPanel() {
         {loadingSaid ? (
           <Loading />
         ) : said.length === 0 ? (
-          <Card className="p-6">
-            <EmptyState
-              icon={TagIcon}
-              compact
-              title="You haven't tagged anyone yet"
-              description="Open someone's profile and choose “Tag this profile” to say what they're known for. It will show up here."
-            />
-          </Card>
-        ) : groups.length === 0 ? (
+          <>
+            <SectionLabel hint="Tags you've put on people and on content. Anyone can see them, with your name on them.">
+              What you've said
+            </SectionLabel>
+            <Card className="p-6">
+              <EmptyState
+                icon={TagIcon}
+                compact
+                title="You haven't tagged anything yet"
+                description="Open a profile and choose “Tag this profile”, or open a post, an article or a repo and tag it. It will show up here."
+              />
+            </Card>
+          </>
+        ) : filtered.length === 0 ? (
           <Card className="p-6">
             <EmptyState
               icon={TagIcon}
@@ -233,21 +323,55 @@ export function YourTagsPanel() {
             />
           </Card>
         ) : (
-          <Card className="divide-y divide-slate-100 overflow-hidden dark:divide-slate-800/60">
-            {groups.slice(0, saidShown).map((g) => (
-              <SaidGroup key={g.key} group={g} profiles={profiles} />
-            ))}
-            {groups.length > saidShown && (
-              <button
-                type="button"
-                onClick={() => setSaidShown(groups.length)}
-                className="w-full px-4 py-3 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                data-testid="my-tags-said-more"
-              >
-                Show all {groups.length} tags
-              </button>
+          <div className="space-y-8">
+            {/* One row per PERSON was the obvious build and the wrong one: tagging
+                  is repetitive by nature, so a session of labelling a dozen
+                  musicians produced a dozen identical chips down the page. Grouped
+                  by tag, that's one row. Someone with a thousand claims has as many
+                  rows as they have distinct tags, which is a number a human chose. */}
+            {peopleGroups.length > 0 && (
+              <div data-testid="my-tags-said-people">
+                <SectionLabel count={peopleGroups.length}>People you've tagged</SectionLabel>
+                <SaidCard
+                  groups={peopleGroups}
+                  profiles={profiles}
+                  counted={PEOPLE}
+                  describe={describePerson(profiles)}
+                />
+              </div>
             )}
-          </Card>
+
+            {contentSaid.length > 0 && (
+              <div data-testid="my-tags-said-content">
+                <SectionLabel>Content you've tagged</SectionLabel>
+                {items.loading ? (
+                  <div data-testid="my-tags-said-content-loading">
+                    <Loading />
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {contentSections.map(({ type, groups }) => (
+                      <div key={type.key} data-testid="my-tags-said-type">
+                        <ContentSectionHeading
+                          type={type}
+                          count={groups.length}
+                          event={items.eventOf(groups[0]?.items[0]?.target ?? "")}
+                          testId="my-tags-said-type"
+                        />
+                        <SaidCard
+                          groups={groups}
+                          profiles={profiles}
+                          counted={type.counted}
+                          describe={describeItem(type, profiles)}
+                          eventOf={(a) => items.eventOf(a.target)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </section>
 
@@ -430,6 +554,108 @@ interface SaidGroupData {
   latestAt: number;
 }
 
+/** One kind of content you've tagged, and the tags you put on it. */
+interface ContentSection {
+  type: TaggableType;
+  groups: SaidGroupData[];
+  latestAt: number;
+}
+
+/** How a group counts what it holds: "1 person", "2 issues". */
+interface Counted {
+  one: string;
+  many: string;
+}
+const PEOPLE: Counted = { one: "person", many: "people" };
+
+/** What one claim's row shows of its target, and where the row opens. */
+interface Described {
+  name: string;
+  href: string;
+  /** Under the name: what the thing is, and the most worth saying about it ("Article · Sam"). */
+  about?: string;
+  /** The thing's own picture, or its list's mark. */
+  image?: string | null;
+  /** Who wrote it, shown by their face where the thing has no picture of its own: a post. */
+  author?: { picture?: string } | null;
+  /** What stands for the thing when it has neither: its section's mark. */
+  icon?: LucideIcon;
+}
+/** `shown`: how a Dictionary list's item reads (hooks/useItemView); null for anything else. */
+type Describe = (said: MyAssertion, shown: ItemPresentation | null) => Described;
+/** The thing a claim is about, when it is content and has been read. */
+type EventOf = (said: MyAssertion) => KindEvent | undefined;
+
+/** Stands in for a thing that isn't a list's item, so a row asks for one view whatever it shows. */
+const NO_ITEM = { kind: 0, tags: [] as string[][] };
+const POSTS = "filter:notes";
+
+const describePerson =
+  (profiles?: Map<string, FaceProfile>): Describe =>
+  (said) => ({ name: displayName(said.target, profiles), href: profilePath(said.target) });
+
+/** Claims collapsed to one group per tag: newest group first, newest claim first inside it. */
+function groupByTag(said: MyAssertion[]): SaidGroupData[] {
+  const byTag = new Map<string, SaidGroupData>();
+  for (const a of said) {
+    let g = byTag.get(a.key);
+    if (!g) {
+      g = {
+        key: a.key,
+        name: a.name,
+        authorPubkey: a.authorPubkey,
+        slug: a.slug,
+        items: [],
+        applies: 0,
+        disputes: 0,
+        latestAt: 0,
+      };
+      byTag.set(a.key, g);
+    }
+    g.items.push(a);
+    if (a.stance === "apply") g.applies++;
+    else g.disputes++;
+    if (a.at > g.latestAt) g.latestAt = a.at;
+  }
+  const out = Array.from(byTag.values());
+  for (const g of out) g.items.sort((x, y) => y.at - x.at);
+  return out.sort((x, y) => y.latestAt - x.latestAt);
+}
+
+/** A card of tag groups, the first few shown until asked for the rest. */
+function SaidCard({
+  groups,
+  profiles,
+  counted,
+  describe,
+  eventOf,
+}: {
+  groups: SaidGroupData[];
+  profiles?: Map<string, FaceProfile>;
+  counted: Counted;
+  describe: Describe;
+  eventOf?: EventOf;
+}) {
+  const [shown, setShown] = useState(SAID_PREVIEW);
+  return (
+    <Card className="divide-y divide-slate-100 overflow-hidden dark:divide-slate-800/60">
+      {groups.slice(0, shown).map((g) => (
+        <SaidGroup key={g.key} group={g} profiles={profiles} counted={counted} describe={describe} eventOf={eventOf} />
+      ))}
+      {groups.length > shown && (
+        <button
+          type="button"
+          onClick={() => setShown(groups.length)}
+          className="w-full px-4 py-3 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          data-testid="my-tags-said-more"
+        >
+          Show all {groups.length} tags
+        </button>
+      )}
+    </Card>
+  );
+}
+
 /** Rough cap on rows revealed inside one expanded group before "Show all". */
 const GROUP_PREVIEW = 10;
 
@@ -443,7 +669,19 @@ const GROUP_PREVIEW = 10;
  * repeating "Musician" on all twelve rows is the exact noise this grouping
  * exists to remove.
  */
-function SaidGroup({ group, profiles }: { group: SaidGroupData; profiles?: Map<string, FaceProfile> }) {
+function SaidGroup({
+  group,
+  profiles,
+  counted,
+  describe,
+  eventOf,
+}: {
+  group: SaidGroupData;
+  profiles?: Map<string, FaceProfile>;
+  counted: Counted;
+  describe: Describe;
+  eventOf?: EventOf;
+}) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(GROUP_PREVIEW);
 
@@ -458,7 +696,7 @@ function SaidGroup({ group, profiles }: { group: SaidGroupData; profiles?: Map<s
   // than the pile — a face here reads as "I said this about them".
   const applied = group.items.filter((a) => a.stance === "apply" && a.targetKind === "pubkey");
   const parts = [
-    group.applies > 0 ? `${group.applies} ${group.applies === 1 ? "person" : "people"}` : "",
+    group.applies > 0 ? `${group.applies} ${group.applies === 1 ? counted.one : counted.many}` : "",
     group.disputes > 0 ? `${group.disputes} you disagreed with` : "",
   ].filter(Boolean);
 
@@ -471,7 +709,16 @@ function SaidGroup({ group, profiles }: { group: SaidGroupData; profiles?: Map<s
         className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
         data-testid="my-tag-said-group-toggle"
       >
-        <FacePile pubkeys={applied.map((a) => a.target)} profiles={profiles} size="sm" />
+        {eventOf ? (
+          // Content leads with what it is, as people lead with who they are.
+          <span className="flex shrink-0 -space-x-2" data-testid="my-tag-said-group-thumbs">
+            {group.items.slice(0, PILE).map((a, i) => (
+              <PileThumb key={`${a.key}-${a.target}`} said={a} describe={describe} eventOf={eventOf} first={i === 0} />
+            ))}
+          </span>
+        ) : (
+          <FacePile pubkeys={applied.map((a) => a.target)} profiles={profiles} size="sm" />
+        )}
 
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <Chip tone={group.applies > 0 ? "brand" : "amber"} size="sm">
@@ -489,30 +736,43 @@ function SaidGroup({ group, profiles }: { group: SaidGroupData; profiles?: Map<s
       </button>
 
       {open && (
-        <div className="border-t border-slate-100 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/40">
-          {authorNpub && (
-            <Link
-              href={`/tags/${authorNpub}/${group.slug}`}
-              className="block px-4 pt-3 text-xs font-semibold text-brand-link hover:underline"
-              data-testid="my-tag-said-link"
-            >
-              Open the {group.name} tag →
-            </Link>
-          )}
+        <div className="border-t border-slate-100 bg-slate-50/70 dark:border-slate-800/60 dark:bg-slate-900/40">
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {group.items.slice(0, shown).map((a) => (
-              <SaidRow key={`${a.key}-${a.target}`} said={a} profiles={profiles} showTag={false} />
+              <SaidRow
+                key={`${a.key}-${a.target}`}
+                said={a}
+                profiles={profiles}
+                describe={describe}
+                eventOf={eventOf}
+              />
             ))}
           </div>
-          {group.items.length > shown && (
-            <button
-              type="button"
-              onClick={() => setShown(group.items.length)}
-              className="w-full px-4 py-2.5 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60"
-              data-testid="my-tag-said-group-more"
-            >
-              Show all {group.items.length}
-            </button>
+          {/* What closes the list: the rest of it, then the way to the tag itself. */}
+          {(group.items.length > shown || authorNpub) && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2.5 text-xs font-semibold dark:border-slate-800/60">
+              {group.items.length > shown ? (
+                <button
+                  type="button"
+                  onClick={() => setShown(group.items.length)}
+                  className="text-brand-link hover:underline"
+                  data-testid="my-tag-said-group-more"
+                >
+                  Show all {group.items.length}
+                </button>
+              ) : (
+                <span />
+              )}
+              {authorNpub && (
+                <Link
+                  href={`/tags/${authorNpub}/${group.slug}`}
+                  className="text-brand-link hover:underline"
+                  data-testid="my-tag-said-link"
+                >
+                  Open the {group.name} tag →
+                </Link>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -520,82 +780,153 @@ function SaidGroup({ group, profiles }: { group: SaidGroupData; profiles?: Map<s
   );
 }
 
+/** How many of a closed group's things stand at its head. */
+const PILE = 3;
+
 /**
- * One thing you said about somebody — their face, their name, when.
+ * One of the things at the head of a closed content group: its picture, drawn
+ * as its row draws it (hooks/useItemView for a list's item). A thing with no
+ * picture shows nothing, except the first, which shows its section's mark so
+ * the group never leads with a gap.
+ */
+function PileThumb({
+  said,
+  describe,
+  eventOf,
+  first,
+}: {
+  said: MyAssertion;
+  describe: Describe;
+  eventOf: EventOf;
+  first: boolean;
+}) {
+  const view = useItemView(eventOf(said) ?? NO_ITEM);
+  const { image, icon: Icon = Box } = describe(said, isReady(view) ? view.shown : null);
+  const [broken, setBroken] = useState<string | null>(null);
+  const box = "h-7 w-7 shrink-0 rounded-md ring-2 ring-white dark:ring-slate-900";
+  if (image && broken !== image) {
+    return (
+      <img
+        src={proxiedSrc(image, "media_320")}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(image)}
+        className={`${box} bg-slate-100 object-cover dark:bg-slate-800`}
+      />
+    );
+  }
+  if (!first) return null;
+  return (
+    <span
+      className={`${box} flex items-center justify-center bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400`}
+      data-testid="my-tag-said-group-mark"
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+    </span>
+  );
+}
+
+/**
+ * One thing you tagged: its face or its picture, its name, what it is, when.
  *
- * The person links to their profile. `showTag` adds the tag chip, linked to
- * the tag's page; it's off inside a group, where the heading already said it.
+ * The whole row opens it. A person shows their face; a thing shows its own
+ * picture, or its section's mark when it has none, in a square so the two are
+ * never mistaken for each other. The tag isn't repeated: the group's heading
+ * said it.
  */
 function SaidRow({
   said,
   profiles,
-  showTag = true,
+  describe,
+  eventOf,
 }: {
   said: MyAssertion;
   profiles?: Map<string, FaceProfile>;
-  showTag?: boolean;
+  describe: Describe;
+  eventOf?: EventOf;
 }) {
   const isPerson = said.targetKind === "pubkey";
-  const name = isPerson ? displayName(said.target, profiles) : "a post";
-  const targetHref = isPerson ? profilePath(said.target) : `/e/${said.target}`;
+  // A Dictionary list's item is drawn from what its own page is drawn from; the query is
+  // batched and shared with the page, and asks nothing for a thing that is not an item.
+  const view = useItemView(eventOf?.(said) ?? NO_ITEM);
+  const { name, href, about, image, author, icon: Icon = Box } = describe(said, isReady(view) ? view.shown : null);
   const picture = isPerson ? profiles?.get(said.target)?.picture : undefined;
-
-  let authorNpub = "";
-  try {
-    authorNpub = npubFromPubkey(said.authorPubkey);
-  } catch {
-    /* unlinkable */
-  }
-
-  const chip = (
-    <Chip tone={said.stance === "apply" ? "brand" : "amber"} size="sm">
-      {said.name}
-    </Chip>
-  );
+  const [broken, setBroken] = useState<string | null>(null);
+  const title = "min-w-0 truncate text-sm font-semibold text-slate-800 dark:text-slate-100";
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3" data-testid="my-tag-said-row">
+    <div
+      className="group relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white dark:hover:bg-slate-800/50"
+      data-testid="my-tag-said-row"
+    >
       {isPerson ? (
-        <Avatar className="h-8 w-8 shrink-0">
-          {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
+        <Avatar className="h-9 w-9 shrink-0">
+          {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+      ) : image && broken !== image ? (
+        <img
+          src={proxiedSrc(image, "media_320")}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(image)}
+          className="h-9 w-9 shrink-0 rounded-lg bg-slate-100 object-cover ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700"
+          data-testid="my-tag-said-thumb"
+        />
+      ) : author ? (
+        <Avatar className="h-9 w-9 shrink-0" data-testid="my-tag-said-author-face">
+          {author.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
             <DefaultAvatarImg />
           </AvatarFallback>
         </Avatar>
       ) : (
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
-          <TagIcon className="h-3.5 w-3.5" />
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700"
+          data-testid="my-tag-said-icon"
+        >
+          <Icon className="h-4 w-4" aria-hidden />
         </span>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        {showTag &&
-          (authorNpub ? (
-            <Link href={`/tags/${authorNpub}/${said.slug}`} className="hover:opacity-80" data-testid="my-tag-said-link">
-              {chip}
-            </Link>
-          ) : (
-            chip
-          ))}
-        <span className="text-slate-400 dark:text-slate-500">
-          {said.stance === "apply" ? (showTag ? "on" : "") : "disagreed on"}
-        </span>
-        {targetHref ? (
+      <div className="min-w-0 flex-1">
+        {href ? (
+          // Stretched over the row, so the whole row is the link and the name is what it says.
           <Link
-            href={targetHref}
-            className="min-w-0 truncate font-semibold text-slate-700 hover:text-brand-primary dark:text-slate-200"
+            href={href}
+            className={`block ${title} after:absolute after:inset-0 group-hover:text-brand-primary`}
             data-testid="my-tag-said-target"
           >
             {name}
           </Link>
         ) : (
-          <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">{name}</span>
+          <span className={`block ${title}`}>{name}</span>
+        )}
+        {about && (
+          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="my-tag-said-about">
+            {about}
+          </p>
         )}
       </div>
 
+      {said.stance === "dispute" && (
+        <Chip tone="amber" size="sm" data-testid="my-tag-said-disagreed">
+          Disagreed
+        </Chip>
+      )}
       <span className="shrink-0 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
         {relativeTime(said.at)}
       </span>
+      {href && (
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400 dark:text-slate-600"
+          aria-hidden
+        />
+      )}
     </div>
   );
 }

@@ -74,6 +74,18 @@ vi.mock("@/components/share/EventThread", () => ({ EventThread: () => null }));
 vi.mock("@/components/share/MoreFromAuthor", () => ({ MoreFromAuthor: () => null }));
 vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
 vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => null }));
+// The tag row is NoteTagChips' own (its tests are its own): here, only that an article has one.
+vi.mock("@/components/share/NoteTagChips", () => ({
+  NoteTagChips: (p: { eventId: string; address?: string; item?: { kind: number }; canTag?: boolean }) => (
+    <div
+      data-testid="article-tag-row"
+      data-event={p.eventId}
+      data-address={p.address}
+      data-kind={p.item?.kind}
+      data-can-tag={String(!!p.canTag)}
+    />
+  ),
+}));
 
 import { ArticleScreen } from "./ArticleScreen";
 
@@ -174,5 +186,26 @@ describe("the article reader — links that only look like they stay", () => {
     expect(outside).not.toHaveAttribute("data-testid", "article-wikilink");
     expect(outside).toHaveAttribute("target", "_blank");
     expect(body.querySelector('a[href="/t/zaps"]')).toHaveAttribute("data-testid", "article-wikilink");
+  });
+});
+
+// Articles could be read and commented on but not tagged: the tag row was on a post's page
+// and nowhere on this one (2026-11-20).
+describe("the article reader — tags", () => {
+  it("has the tag row under the article, for the article by its address", () => {
+    open("Zaps, explained.");
+    const row = screen.getByTestId("article-tag-row");
+    // By coordinate, so a tag survives the article's next edit (#334).
+    expect(row).toHaveAttribute("data-address", `30023:${AUTHOR}:zap-week`);
+    expect(row).toHaveAttribute("data-event", "2".repeat(64));
+    // Named as what it is: NoteTagChips reads "article" off the event.
+    expect(row).toHaveAttribute("data-kind", "30023");
+    const body = screen.getByTestId("article-body");
+    expect(body.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows the tags to a signed-out reader, without the way to add one", () => {
+    open("Zaps, explained.");
+    expect(screen.getByTestId("article-tag-row")).toHaveAttribute("data-can-tag", "false");
   });
 });

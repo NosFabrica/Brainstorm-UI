@@ -323,6 +323,39 @@ async function publishTo(
   return { accepted, total };
 }
 
+/** How often a tagging is asked for before it is called unconfirmed, how long between, and how long each ask may take. */
+const CONFIRM_TRIES = 3;
+const CONFIRM_WAIT_MS = 600;
+const CONFIRM_TIMEOUT_MS = 2500;
+
+/**
+ * "Did my tag save?" A publish succeeds when ONE relay says OK, and a relay can
+ * say OK and not keep an event (a write policy, a restart, a sync that never
+ * ran). To the person tagging, that read exactly like a tagging that saved,
+ * until it was missing the next day.
+ *
+ * So the tagging — the last event of the sequence, the one that points at the
+ * target — is read back by id from the relays every tag page reads, past the
+ * local store, which holds our own publish whether a relay kept it or not. A
+ * relay can take a moment to serve what it just took, so it is asked a few
+ * times. `confirmed: false` is not a failure: the relays accepted it and we
+ * could not see it there, which the caller says in those words.
+ */
+async function readBack<T extends { published: { id: string }[]; failedAt?: unknown }>(
+  result: T,
+): Promise<T & { confirmed: boolean }> {
+  const tagging = result.failedAt ? undefined : result.published[result.published.length - 1];
+  if (!tagging) return { ...result, confirmed: false };
+  for (let attempt = 0; attempt < CONFIRM_TRIES; attempt++) {
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, CONFIRM_WAIT_MS));
+    const found = await (
+      fetchEventsByFilter({ ids: [tagging.id] }, tagRelays(), CONFIRM_TIMEOUT_MS) as Promise<NostrEvent[]>
+    ).catch(() => [] as NostrEvent[]);
+    if (found.some((e) => e.id === tagging.id)) return { ...result, confirmed: true };
+  }
+  return { ...result, confirmed: false };
+}
+
 // ─── Trust ───────────────────────────────────────────────────────────────────
 
 /**
@@ -1860,11 +1893,11 @@ export async function applyTagToProfile({
   tag,
   targetPubkey,
   polarity = 1,
-}: ApplyTagArgs): Promise<ApplyProfileTaggingResult> {
+}: ApplyTagArgs): Promise<ApplyProfileTaggingResult & { confirmed: boolean }> {
   const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to tag.");
 
-  return applyProfileTagging({
+  const result = await applyProfileTagging({
     tagInput: tag,
     targetPubkey,
     polarity,
@@ -1877,6 +1910,8 @@ export async function applyTagToProfile({
       buildTagElement,
     },
   });
+  // Read back from the relays: whether it is there, not only whether one said OK.
+  return readBack(result);
 }
 
 /**
@@ -2046,7 +2081,10 @@ export interface MyAssertion {
   authorPubkey: string;
   slug: string;
   name: string;
-  /** A person's pubkey, or a note's event id. */
+  /**
+   * A person's pubkey; or, for an event, its id (a post) or its coordinate
+   * `<kind>:<pubkey>:<d>` (an article, a repo, a list's item: lib/tagTarget).
+   */
   target: string;
   targetKind: "pubkey" | "event";
   stance: "apply" | "dispute";
@@ -2110,7 +2148,10 @@ export async function fetchMyAssertions(viewerPubkey: string): Promise<MyAsserti
     // target"; we're asking the transpose, one target at a time.
     const byTarget = new Map<string, NostrEvent[]>();
     for (const ev of dedupedEvents) {
-      const target = targetIdOf(ev);
+      // A post is named by its id; an article, a repo, a listing or a list's item by its
+      // coordinate (#334). Reading the id alone left everything tagged by coordinate off
+      // this list: on its own page, and missing from the page of what you have said.
+      const target = targetIdOf(ev) ?? targetAddressOf(ev);
       if (!target) continue;
       if (!byTarget.has(target)) byTarget.set(target, []);
       byTarget.get(target)!.push(ev);
@@ -2668,7 +2709,7 @@ export async function applyTagToEvent({
   const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to tag.");
 
-  return applyEventTagging({
+  const result = await applyEventTagging({
     tagInput: tag,
     target: { ...target, ...(relayHint ? { relays: [relayHint] } : {}) },
     polarity,
@@ -2699,6 +2740,8 @@ export async function applyTagToEvent({
       hash8,
     },
   });
+  // Read back from the relays: whether it is there, not only whether one said OK.
+  return readBack(result);
 }
 
 /**

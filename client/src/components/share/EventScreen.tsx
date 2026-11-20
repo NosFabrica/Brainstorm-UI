@@ -29,7 +29,7 @@ import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
-import { tagTargetOf } from "@/lib/tagTarget";
+import { tagAddressOf } from "@/lib/tagTarget";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
@@ -770,8 +770,10 @@ function EventView({
                 address={tagAddressOf(note)}
                 relayHint={relayHints[0]}
                 canTag={canTagNote}
-                // A Dictionary item is tagged as what its list calls it: "Tag this GitHub account".
-                noun={asDictionaryItem && isReady(itemView) ? itemView.resolved.governing.singular : undefined}
+                // Named as what it is: "Tag this issue", "Tag this repo"; a Dictionary item
+                // as its list calls it, "Tag this GitHub account" (lib/taggable).
+                item={note}
+                list={asDictionaryItem && isReady(itemView) ? itemView.resolved.governing : null}
               />
             )}
 
@@ -866,10 +868,4 @@ function EventView({
       </main>
     </div>
   );
-}
-
-/** The event's coordinate when it is addressable, as its tags are read and written (#334). */
-function tagAddressOf(event: { id: string; pubkey: string; kind: number; tags?: string[][] }): string | undefined {
-  const target = tagTargetOf(event);
-  return "address" in target ? target.address : undefined;
 }

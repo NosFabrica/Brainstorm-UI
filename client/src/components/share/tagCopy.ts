@@ -38,6 +38,17 @@ export const UNFINISHED_TAGGING = {
   variant: "destructive" as const,
 };
 
+/**
+ * The relays said OK and the tagging couldn't be read back from them
+ * (services/tags readBack). Not a failure, not a success: said as what it is,
+ * with what to do about it.
+ */
+export const unconfirmedToast = (label: string, vote = false) => ({
+  title: vote ? `Your vote on "${label}" may not have saved` : `"${label}" may not have saved`,
+  description:
+    "The relays accepted it, but we couldn't find it there afterwards. Check Your tags in a minute, and do it again if it's missing.",
+});
+
 export const UNSAVED_VOTE = {
   title: "Couldn't save your vote",
   description: "Give it another try in a moment.",
