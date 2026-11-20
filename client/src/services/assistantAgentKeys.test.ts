@@ -104,13 +104,18 @@ beforeEach(() => {
     server.posts.push({ previousId: body.previousId, previousCreatedAt: body.previousCreatedAt, tags });
     server.beforePost?.();
     if (server.postStatus) return json(server.postStatus, { message: "relays" });
-    // Every one given must match the version it holds; neither given means there must be none.
-    if (body.previousCreatedAt !== server.createdAt || body.previousId !== server.id) {
+    // Every one given must match the version its own read finds now (the same lagging read
+    // the GET answers from, as the real server's majority read is); neither given means
+    // there must be none.
+    const judged = server.stale ?? server;
+    if (body.previousCreatedAt !== judged.createdAt || body.previousId !== judged.id) {
       return json(409, { message: "moved" });
     }
     server.tags = tags;
-    server.createdAt = (server.createdAt ?? 0) + 100;
+    server.createdAt = Math.max(server.createdAt ?? 0, judged.createdAt ?? 0) + 100;
     server.id = String(server.createdAt % 10).repeat(64);
+    // Its write is on the relays it read: they are caught up.
+    server.stale = undefined;
     return json(200, { code: 200, data: { createdAt: server.createdAt, id: server.id, relays: [] } });
   });
 });
@@ -299,7 +304,10 @@ describe("editing the Assistant's list", () => {
       createdAt: first.createdAt,
     });
     expect(second.status).toBe("ok");
-    expect(server.posts[1]).toMatchObject({ previousId: first.id, previousCreatedAt: first.createdAt });
+    // It names the version the server's read finds (the lagging one), not the one this
+    // session wrote: naming that would always be a 409.
+    expect(server.posts).toHaveLength(2);
+    expect(server.posts[1]).toMatchObject({ previousId: "1".repeat(64), previousCreatedAt: 1794300000 });
     // Both keys: the first edit isn't undone by the stale read.
     expect(server.tags!.map((t) => t[1])).toEqual(expect.arrayContaining([SECRET_KEY, "sk-openai-9999"]));
   });

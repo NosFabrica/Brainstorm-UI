@@ -279,6 +279,40 @@ describe("edits run one at a time, as the account that asked (audit, 2026-11-13)
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
+  it("an edit that never settles (a signer that never answers) gives up at its deadline: the next one runs", async () => {
+    vi.useFakeTimers();
+    try {
+      requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
+      signAs.mockImplementationOnce(() => new Promise(() => {}));
+      const stuck = service.updateAgentKeys((cur) => lib.addKey(cur, bought));
+      const next = service.updateAgentKeys((cur) => lib.addKey(cur, openRouter));
+      await vi.advanceTimersByTimeAsync(service.EDIT_DEADLINE_MS + 1);
+      expect(await stuck).toMatchObject({ success: false });
+      expect((await next).success).toBe(true);
+      expect(publish).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an edit that changes nothing signs and publishes nothing", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: earlier([["key", bought.key, bought.url]]), reach: reachAll });
+    const out = await service.updateAgentKeys((cur) => lib.addKey(cur, bought));
+    expect(out.success).toBe(true);
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("needs most of the relays to answer even when it found a copy (audit, 2026-11-20)", async () => {
+    requestNewestWithReach.mockResolvedValue({
+      newest: earlier([["key", bought.key, bought.url]]),
+      reach: { ...reachAll, answered: ["wss://r0"] },
+    });
+    const out = await service.updateAgentKeys((cur) => lib.addKey(cur, openRouter));
+    expect(out.success).toBe(false);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("its own write is read back without asking the signer again", async () => {
     requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reachAll });
     await service.updateAgentKeys((cur) => lib.addKey(cur, bought));

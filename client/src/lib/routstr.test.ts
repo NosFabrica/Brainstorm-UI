@@ -38,6 +38,7 @@ import {
   satsNeeded,
   searchNodes,
   textModels,
+  endpointType,
   usableBase,
 } from "./routstr";
 
@@ -80,10 +81,11 @@ describe("kind 38421 announcements (82 live ones)", () => {
     // Against a clock before any of them, nothing is too old to list.
     const every = nodesFrom(EVENTS, 0);
     const listed = [...every.fresh, ...every.stale];
-    // 79 addresses; 24 announce no https endpoint (onion, fips, http, IP only); 52 distinct
-    // endpoints, two of them announced by two keys each: four entries, each marked contested.
-    expect(listed).toHaveLength(54);
-    expect(new Set(listed.map((n) => n.https[0])).size).toBe(52);
+    // 79 addresses; 25 announce no https endpoint Quartz would call (onion, fips, http, IP
+    // only, a port other than 443); 51 distinct endpoints, two of them announced by two keys
+    // each: four entries, each marked contested.
+    expect(listed).toHaveLength(53);
+    expect(new Set(listed.map((n) => n.https[0])).size).toBe(51);
     expect(listed.filter((n) => n.contested)).toHaveLength(4);
     const { fresh, stale } = nodesFrom(EVENTS, NOW);
     const all = [...fresh, ...stale];
@@ -133,8 +135,44 @@ describe("which endpoints a browser may call", () => {
   it("takes https only, normalized to the node's base", () => {
     expect(usableBase("https://api.routstr.com/")).toBe("https://api.routstr.com");
     expect(usableBase(" https://Routstr.Example.org/v1/ ")).toBe("https://routstr.example.org");
-    expect(usableBase("https://bartly.eth64.de:17881")).toBe("https://bartly.eth64.de:17881");
     expect(usableBase("https://node.example.com/routstr")).toBe("https://node.example.com/routstr");
+    expect(usableBase("https://node.example.com:443/")).toBe("https://node.example.com");
+  });
+
+  it("classifies an announced address as Quartz's RoutstrEndpoint.typeOf does (audit, 2026-11-20)", () => {
+    const onion = "a".repeat(56);
+    // https's own port only: an announcement can't point a client at another service on the host.
+    expect(endpointType("https://node.example.com:8443")).toBe("other");
+    expect(endpointType("https://node.example.com:0443")).toBe("https");
+    expect(endpointType("https://bartly.eth64.de:17881")).toBe("other");
+    expect(usableBase("https://node.example.com:8443")).toBeNull();
+    // Kubernetes service names and the other reserved names.
+    for (const url of [
+      "https://redis.default",
+      "https://x.alt",
+      "https://x.svc",
+      "https://a.b.cluster",
+      "https://api.kube-system",
+      "https://x.pod",
+    ]) {
+      expect(endpointType(url), url).toBe("other");
+      expect(usableBase(url), url).toBeNull();
+    }
+    // A letters-only TLD (or an IDN's xn--).
+    expect(endpointType("https://node.example.c0m")).toBe("other");
+    expect(endpointType("https://node.xn--p1ai")).toBe("https");
+    // An onion, a trailing dot or not, on any port; v2 and junk are not.
+    expect(endpointType(`https://${onion}.onion./`)).toBe("onion");
+    expect(endpointType(`http://${onion}.onion:8080`)).toBe("onion");
+    expect(endpointType("http://test.onion")).toBe("other");
+    expect(endpointType("http://node.example.com")).toBe("other");
+    expect(endpointType("https://user@node.example.com")).toBe("other");
+    expect(endpointType("https://[2001:db8::1]")).toBe("other");
+    expect(endpointType("https://140.245.192.194")).toBe("other");
+  });
+
+  it("a typed address is the reader's to call: its port too", () => {
+    expect(usableBase("https://bartly.eth64.de:17881", { typed: true })).toBe("https://bartly.eth64.de:17881");
   });
 
   it("never a reserved or private-use name, as Quartz's RoutstrEndpoint refuses them", () => {

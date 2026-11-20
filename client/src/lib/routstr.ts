@@ -61,8 +61,9 @@ export interface RoutstrNode {
 const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
 
 /**
- * Top-level names that never resolve publicly, or that name another network (FIPS): the set
- * Quartz's `RoutstrEndpoint` refuses, so every client calls the same nodes.
+ * Top-level names that never resolve publicly, that name another network (FIPS), or that a
+ * Kubernetes cluster resolves to its own services: the set Quartz's `RoutstrEndpoint` refuses,
+ * so every client calls the same nodes.
  */
 const NON_PUBLIC_TLDS = new Set([
   "local",
@@ -78,8 +79,55 @@ const NON_PUBLIC_TLDS = new Set([
   "invalid",
   "example",
   "arpa",
+  "alt",
   "fips",
+  "svc",
+  "cluster",
+  "default",
+  "kube-system",
+  "kube-public",
+  "kube-node-lease",
+  "pod",
 ]);
+
+export type EndpointType = "https" | "onion" | "other";
+
+const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const ONION_V3 = /^[a-z2-7]{56}$/;
+
+/**
+ * What kind of address one announced `u` is: Quartz's `RoutstrEndpoint.typeOf`, ported line
+ * for line, so every client calls the same nodes. `https`: a public DNS name on https's own
+ * port (none written, or 443), no credentials, no IP literal, no single label, no reserved or
+ * Kubernetes name, a letters-only (or `xn--`) top-level name. `onion`: a Tor v3 onion over
+ * http or https, any port. Anything else is `other`. A syntax filter only: it resolves nothing.
+ */
+export function endpointType(url: string): EndpointType {
+  const trimmed = url.trim();
+  const schemeEnd = trimmed.indexOf("://");
+  if (schemeEnd <= 0) return "other";
+  const scheme = trimmed.slice(0, schemeEnd).toLowerCase();
+  if (scheme !== "https" && scheme !== "http") return "other";
+  const rest = trimmed.slice(schemeEnd + 3);
+  const end = rest.search(/[/?#]/);
+  const authority = end < 0 ? rest : rest.slice(0, end);
+  // Credentials in the URL, or an IPv6 literal: never a node to call.
+  if (authority.includes("@") || authority.startsWith("[")) return "other";
+  const colon = authority.lastIndexOf(":");
+  const port = colon >= 0 ? authority.slice(colon + 1) : null;
+  if (port !== null && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535)) return "other";
+  const host = (colon >= 0 ? authority.slice(0, colon) : authority).toLowerCase().replace(/\.$/, "");
+  const labels = host.split(".");
+  if (labels.length < 2 || !labels.every((l) => DNS_LABEL.test(l))) return "other";
+  const tld = labels[labels.length - 1];
+  if (tld === "onion") return ONION_V3.test(labels[labels.length - 2]) ? "onion" : "other";
+  if (scheme !== "https") return "other";
+  if (port !== null && port.replace(/^0+/, "") !== "443") return "other";
+  if (NON_PUBLIC_TLDS.has(tld)) return "other";
+  // A public top-level name is letters (or an IDN's `xn--` form): no IPv4 literal gets here.
+  if (!(tld.length >= 2 && /^[a-z]+$/.test(tld)) && !tld.startsWith("xn--")) return "other";
+  return "https";
+}
 
 /** `localhost`, `*.localhost`, `x.local`, `node.fips`…: a name no public DNS answers for. */
 export function isNonPublicHost(hostname: string): boolean {
@@ -101,10 +149,12 @@ function parseUrl(raw: string): URL | null {
  * slash, or null. Only `https`: never plain `http` (an `.onion` needs Tor, which a page
  * doesn't have, and anything else would send the key in the clear), never a reserved or
  * private-use name (`*.localhost`, `.local`, `.internal`, the `fips` style hosts…:
- * `isNonPublicHost`), never a host with no dot (`paygate`), never credentials in the URL,
- * and an IP literal only when the reader typed it.
+ * `isNonPublicHost`), never a host with no dot (`paygate`), never credentials in the URL.
+ * An announced address must also be what Quartz calls `https` (`endpointType`: port 443
+ * only, no IP literal); one the reader typed is theirs to call, an IP literal or a port too.
  */
 export function usableBase(raw: string, { typed = false }: { typed?: boolean } = {}): string | null {
+  if (!typed && endpointType(raw) !== "https") return null;
   const u = parseUrl(raw);
   if (!u || u.protocol !== "https:") return null;
   if (u.username || u.password) return null;
@@ -116,10 +166,7 @@ export function usableBase(raw: string, { typed = false }: { typed?: boolean } =
   return `https://${u.host}${path}`;
 }
 
-const isOnion = (raw: string) => {
-  const u = parseUrl(raw);
-  return !!u && u.hostname.toLowerCase().endsWith(".onion");
-};
+const isOnion = (raw: string) => endpointType(raw) === "onion";
 
 /** The NIP-FA URL for a node: the API root under its base. */
 export const nodeApiUrl = (base: string) => `${base.replace(/\/+$/, "")}/v1`;

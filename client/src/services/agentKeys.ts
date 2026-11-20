@@ -118,8 +118,10 @@ export type AgentKeysSave = PublishOutcome & { notActive?: boolean };
 
 /**
  * Replaces the keys with `change(current)`, keeping every private tag that isn't a
- * key and the event's public tags. Fails, writing nothing, when too few relays
- * answered to be sure there is no event, or when the newest one can't be read.
+ * key and the event's public tags. Fails, writing nothing, when half or fewer of the relays
+ * answered, or when the newest copy can't be read; writes nothing, and succeeds, when the
+ * keys come out the same. An edit not done within EDIT_DEADLINE_MS fails, and publishes
+ * nothing if its signature comes later.
  *
  * Edits run one after another, never two at once, whoever asks (the AI model page, a
  * bought key's save, the Assistant's keys): two read at once would build on the same copy,
@@ -133,7 +135,7 @@ export function updateAgentKeys(
   { pubkey }: { pubkey?: string } = {},
 ): Promise<AgentKeysSave> {
   const asker = pubkey ?? activeAccount()?.pubkey ?? null;
-  const run = editQueue.then(() => updateNow(change, asker));
+  const run = editQueue.then(() => withinDeadline(change, asker));
   editQueue = run.then(
     () => undefined,
     () => undefined,
@@ -144,9 +146,35 @@ export function updateAgentKeys(
 /** The last edit asked for: the next one starts when it has settled. */
 let editQueue: Promise<void> = Promise.resolve();
 
+/**
+ * How long one edit may take before the queue moves on: the signer's own timeout (a bunker
+ * round trip, an extension prompt) with margin. Without it, an edit that never settles would
+ * hold every later one, a bought key's save among them.
+ */
+export const EDIT_DEADLINE_MS = 120_000;
+
+const TOO_LATE = "Your signer didn't answer in time, so nothing was changed. Try again.";
+
+/** `updateNow`, given up at the deadline: a late signature is then never published. */
+function withinDeadline(change: (keys: AgentKey[]) => AgentKey[], asker: string | null): Promise<AgentKeysSave> {
+  const late = { passed: false };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<AgentKeysSave>((resolve) => {
+    timer = setTimeout(() => {
+      late.passed = true;
+      resolve({ success: false, error: TOO_LATE });
+    }, EDIT_DEADLINE_MS);
+  });
+  return Promise.race([updateNow(change, asker, late), deadline]).finally(() => clearTimeout(timer));
+}
+
 const NOT_ACTIVE = "You've switched accounts since, so nothing was changed.";
 
-async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string | null): Promise<AgentKeysSave> {
+async function updateNow(
+  change: (keys: AgentKey[]) => AgentKey[],
+  asker: string | null,
+  late: { passed: boolean } = { passed: false },
+): Promise<AgentKeysSave> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in", notActive: asker !== null };
   if (asker !== null && account.pubkey !== asker) return { success: false, error: NOT_ACTIVE, notActive: true };
@@ -160,6 +188,11 @@ async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string
     // The store can hold a newer copy than the relays that answered (one this session
     // just wrote, or one another relay served earlier): rewriting from an older read
     // would drop the keys it added.
+    // Most of them, whatever they said (as the server's own edits do): a copy only a few
+    // relays answered with may not be the newest the rest hold.
+    if (reach.answered.length * 2 <= reach.asked.length) {
+      return { success: false, error: "Too few of your relays answered to be sure. Nothing was changed; try again." };
+    }
     const held = eventStore.getReplaceable(AGENT_KEYS_KIND, account.pubkey) as NostrEvent | undefined;
     const newest = held && beats(held, fetched) ? held : fetched;
     let privateTags: string[][] = [];
@@ -167,11 +200,13 @@ async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string
       const read = await decryptAgentKeyTags(account, newest);
       if (!read) return { success: false, error: "Couldn't read the keys you saved before, so nothing was changed." };
       privateTags = read;
-    } else if (reach.answered.length * 2 <= reach.asked.length) {
-      return { success: false, error: "Too few of your relays answered to be sure. Nothing was changed; try again." };
     }
 
-    const next = withAgentKeys(privateTags, change(parseAgentKeys(privateTags)));
+    const before = parseAgentKeys(privateTags);
+    const keys = change(before);
+    // The same list (a key already there): no prompt, no event.
+    if (newest && JSON.stringify(keys) === JSON.stringify(before)) return { success: true };
+    const next = withAgentKeys(privateTags, keys);
     // Always the JSON, `[]` included: NIP-44 can't encrypt an empty string.
     const ciphertext = await encryptToSelf(account, JSON.stringify(next));
     if (!ciphertext) return { success: false, error: "Could not encrypt" };
@@ -180,6 +215,7 @@ async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string
     // is dropped, anything else (NIP-70's `["-"]`) kept.
     const publicTags = newest?.tags.filter((t) => t[0] !== "alt") ?? [];
     const now = Math.floor(Date.now() / 1000);
+    if (late.passed) return { success: false, error: TOO_LATE };
     const signed = await signAs(account, {
       kind: AGENT_KEYS_KIND,
       tags: publicTags,
@@ -189,6 +225,9 @@ async function updateNow(change: (keys: AgentKey[]) => AgentKey[], asker: string
     });
     // What it says is known: the next read of it (the next edit, a purchase checking its
     // key landed) asks the signer nothing.
+    // Signed after the deadline: the queue has moved on, and a later edit may have read and
+    // written meanwhile. Publishing this one would undo it.
+    if (late.passed) return { success: false, error: TOO_LATE };
     rememberRead(signed.id, next);
     return await publishToRelays(signed);
   } catch (err) {

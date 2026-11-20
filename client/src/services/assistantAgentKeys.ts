@@ -186,8 +186,11 @@ export type AssistantKeysEdit =
  * nothing when it can't read what is there; a change that changes nothing is no write.
  *
  * `known` is the list this session last wrote (or read): when the GET answers with an
- * older version (a relay that hasn't the write yet), the edit builds on `known` and names
- * it, rather than undoing it.
+ * older version (a relay that hasn't the write yet), the edit builds on `known`'s tags,
+ * rather than undoing that write. It always names the version the GET answered with: the
+ * server judges the POST against its own read, which lags the same way, so naming `known`
+ * would always be refused. A 409 reads again and rebuilds on that answer (or on `known`, while
+ * it is still newer).
  */
 export async function editAssistantKeys(
   account: BrainstormAccount,
@@ -206,26 +209,28 @@ export async function editAssistantKeys(
         ? known
         : null;
     let current: AssistantKeysRead;
-    let version: ListVersion;
     if (newer) {
       current = { status: "ready", tags: newer.tags };
-      version = { id: newer.id, createdAt: newer.createdAt };
     } else {
       try {
         current = await decryptAssistantKeys(account, read.assistant, read.ciphertext);
       } catch {
         return { status: "cancelled" };
       }
-      // Both or neither: a version is named by its id and its time together.
-      version = read.id !== null && read.createdAt !== null ? { id: read.id, createdAt: read.createdAt } : NO_VERSION;
     }
+    // The version the server's read finds, as the GET reported it. Both or neither: a
+    // version is named by its id and its time together.
+    const version: ListVersion =
+      read.id !== null && read.createdAt !== null ? { id: read.id, createdAt: read.createdAt } : NO_VERSION;
     if (current.status === "failed") return { status: "error", message: current.error };
     if (current.status !== "ready") {
       return { status: "error", message: "Couldn't read your Assistant's keys, so nothing was changed." };
     }
     const next = change(current.tags);
     if (next === current.tags) {
-      return { status: "ok", assistant: read.assistant, tags: current.tags, ...version };
+      // Nothing written: what this session knows is still the newest it knows of.
+      const held = newer ? { id: newer.id, createdAt: newer.createdAt } : version;
+      return { status: "ok", assistant: read.assistant, tags: current.tags, ...held };
     }
     let ciphertext: string | null;
     try {
@@ -237,8 +242,8 @@ export async function editAssistantKeys(
     if (!ciphertext) return { status: "error", message: "Couldn't encrypt to your Assistant." };
     const wrote = await postAssistantKeys(ciphertext, version);
     if (wrote.status === "conflict" && attempt === 0) {
-      // Read again, from the server: what this session knew is what was refused.
-      known = undefined;
+      // It moved since the GET (another edit), or another edit holds the lock: read again,
+      // and rebuild on that answer.
       continue;
     }
     if (wrote.status !== "ok") return wrote;
