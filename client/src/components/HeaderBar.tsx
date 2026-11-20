@@ -7,8 +7,6 @@ import { openMobileSearch } from "@/components/MobileSearchOverlay";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { historyDepth, trackHistoryEntry } from "@/lib/historyState";
 import { isInstalledPhoneApp } from "@/lib/installedApp";
-import { pageWidth, type PageWidth } from "@/lib/pageWidth";
-import { cn } from "@/lib/utils";
 
 /**
  * The screens the phone tab bar opens, plus sign-in: a Back arrow there has
@@ -51,20 +49,17 @@ const SM = 640;
  * and a phone never shows it.
  */
 export function HeaderBar({
-  width = "wide",
   search = true,
   fullBleed = false,
   back,
   children,
   testId,
 }: {
-  /** The page's width (lib/pageWidth), so the bar's edges are its content's. */
-  width?: PageWidth;
   /** False on a page whose own content is a search box, or a flow a search would abandon. */
   search?: boolean;
   /**
-   * For a full-screen app view (Messages): edge to edge and a solid surface,
-   * so the bar lines up with the panes under it and reads as their frame.
+   * For a full-screen app view (Messages): a solid surface, so the bar reads as the
+   * frame of the panes under it. Its width is every page's: edge to edge.
    */
   fullBleed?: boolean;
   /** A way back up — the /p sub-pages' "Back to <name>". */
@@ -102,55 +97,67 @@ export function HeaderBar({
     >
       <div
         className={
-          // Full bleed, the search box sits in the middle of the window — as wide
-          // a gap on either side whatever the right-hand cluster holds.
-          fullBleed
-            ? "grid min-h-14 grid-cols-[1fr_minmax(0,42rem)_1fr] items-center gap-3 px-4"
-            : cn(pageWidth(width), "flex min-h-14 items-center gap-3")
+          // Pinned to the window, not to the page: edge to edge on every page, with the one
+          // gutter, so the mark, the box and the account menu sit in the same place whatever
+          // the page under them and however wide the screen (pageWidth.guard.test).
+          // Three cells: the mark, the search box, the account. From `lg` the box sits in the
+          // middle of the bar, and so over the middle of the page under it: each end keeps a
+          // floor (`lg:min-w-64`, wider than the usual buttons) so the two are the same size
+          // whatever the account end holds on this page. Narrower, there isn't the room for
+          // that, and a centred box would sit somewhere else on each page; it starts beside
+          // the mark instead, on every page.
+          "grid min-h-14 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:px-6 lg:grid-cols-[1fr_minmax(0,42rem)_1fr]"
         }
       >
-        <div className="flex shrink-0 items-center gap-3">
-          {backButton && (
-            <button
-              type="button"
-              onClick={backButton.onClick}
-              aria-label={backButton.label}
-              title={backButton.label}
-              className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-              data-testid="header-back"
+        {/* Each end's floor sits on the row INSIDE its cell, so a cell holding more than the
+            floor takes the room it needs (and the box gives way) instead of running off the
+            edge of the window. */}
+        <div className="flex">
+          <div className="flex shrink-0 items-center gap-3 lg:min-w-64">
+            {backButton && (
+              <button
+                type="button"
+                onClick={backButton.onClick}
+                aria-label={backButton.label}
+                title={backButton.label}
+                className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                data-testid="header-back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            )}
+            <Link
+              href="/"
+              className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+              aria-label="Brainstorm home"
+              data-testid="header-brand"
             >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-          )}
-          <Link
-            href="/"
-            className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-            aria-label="Brainstorm home"
-            data-testid="header-brand"
-          >
-            {/* Gradient mark on light, white on dark. */}
-            <BrainLogo size={26} className="dark:hidden" />
-            <BrainLogo size={26} mono className="hidden text-white dark:block" />
-          </Link>
+              {/* Gradient mark on light, white on dark. */}
+              <BrainLogo size={26} className="dark:hidden" />
+              <BrainLogo size={26} mono className="hidden text-white dark:block" />
+            </Link>
+          </div>
         </div>
 
-        {search && !isPhone ? <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" /> : fullBleed && <div />}
+        {search && !isPhone ? <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" /> : <div />}
 
-        <div className="ml-auto flex shrink-0 items-center gap-2 justify-self-end sm:gap-3">
-          {/* Opens search OVER the page — search is a lookup, not a destination. */}
-          {search && isPhone && (
-            <button
-              type="button"
-              onClick={openMobileSearch}
-              aria-label="Search Brainstorm"
-              title="Search Brainstorm"
-              className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep dark:text-slate-400 dark:hover:bg-slate-800"
-              data-testid="header-search-mobile"
-            >
-              <Search className="h-5 w-5" />
-            </button>
-          )}
-          {children}
+        <div className="flex justify-self-end">
+          <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3 lg:min-w-64">
+            {/* Opens search OVER the page — search is a lookup, not a destination. */}
+            {search && isPhone && (
+              <button
+                type="button"
+                onClick={openMobileSearch}
+                aria-label="Search Brainstorm"
+                title="Search Brainstorm"
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep dark:text-slate-400 dark:hover:bg-slate-800"
+                data-testid="header-search-mobile"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+            )}
+            {children}
+          </div>
         </div>
       </div>
     </header>

@@ -3,7 +3,6 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/accounts/login-flow";
-import { type PageWidth } from "@/lib/pageWidth";
 
 /**
  * Shared header for the public / shared-link pages (/p and its sub-pages, /e, /t, /tags,
@@ -13,19 +12,17 @@ import { type PageWidth } from "@/lib/pageWidth";
  */
 export function PublicPageHeader({
   actions,
-  width = "wide",
   search,
   back,
 }: {
   actions?: ReactNode;
-  width?: PageWidth;
   search?: boolean;
   back?: { label: string; onClick: () => void };
 }) {
   const user = useActiveAccountDisplay();
 
   return (
-    <HeaderBar width={width} search={search} back={back} testId="public-header">
+    <HeaderBar search={search} back={back} testId="public-header">
       {actions}
       {user && <AccountMenu user={user} onLogout={() => logout()} />}
     </HeaderBar>

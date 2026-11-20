@@ -70,4 +70,16 @@ describe("FinishSetupBanner", () => {
     render(<FinishSetupBanner />);
     expect(screen.queryByTestId("pill-lists-update")).not.toBeInTheDocument();
   });
+
+  // Beside the header's centred search box there is room for the chip and no more: the
+  // sentence, or the count, pushed the box off the middle of the page (2026-11-19).
+  it("as a chip it is the warning mark and the button, at every width", () => {
+    setupState.mockReturnValue({ remaining: 3, listsPending: false });
+    render(<FinishSetupBanner labelFrom="chip" />);
+    const chip = screen.getByTestId("banner-finish-setup");
+    expect(chip).toHaveTextContent(/^Finish setup$/);
+    expect(screen.queryByTestId("banner-finish-setup-count")).not.toBeInTheDocument();
+    // Still named in full for a screen reader.
+    expect(chip).toHaveAttribute("aria-label", "Finish setting up your account");
+  });
 });

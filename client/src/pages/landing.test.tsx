@@ -1097,6 +1097,61 @@ describe("submitting with Enter", () => {
 // ⓧ on a results page clears the words, not the page: the box empties and
 // takes the cursor, the results stay until the next search, and the page is
 // never blank. The wordmark is "home".
+// The results page is where most people start, and every page they open from it has the
+// header (HeaderBar): pinned to the window, the mark at the left, the box in the middle, the
+// account at the right. The band is laid out the same, so opening a result moves none of them.
+describe("the search band sits where every other page's header does", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/?q=austin");
+  });
+
+  it("runs edge to edge with the header's gutter, and no width of its own", async () => {
+    render(<Landing />);
+    const classes = (await screen.findByTestId("search-band")).className.split(" ");
+    expect(classes).toEqual(expect.arrayContaining(["px-4", "sm:px-6"]));
+    expect(classes.filter((c) => c.startsWith("max-w-") || c === "mx-auto")).toEqual([]);
+  });
+
+  it("centres the box from a desktop width with the header's three columns, and starts it beside the mark below that", async () => {
+    render(<Landing />);
+    const classes = (await screen.findByTestId("search-band")).className.split(" ");
+    expect(classes).toContain("sm:grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(classes).toContain("lg:grid-cols-[1fr_minmax(0,42rem)_1fr]");
+  });
+
+  it("gives the mark's end and the account's end the header's floor, so the box is in the middle", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-band");
+    const markEnd = screen.getByTestId("wordmark-home").closest("[data-band-end]")!;
+    const accountEnd = screen.getByTestId("band-actions");
+    expect(markEnd.className.split(" ")).toContain("lg:min-w-64");
+    expect(accountEnd.className.split(" ")).toContain("lg:min-w-64");
+    expect(accountEnd.className.split(" ")).toContain("justify-end");
+  });
+
+  // Below a desktop width the box starts beside the mark, so the mark's width decides where.
+  // The wordmark is four times as wide as the B every other page shows there, and pushed the
+  // box 91px further in than on the page a result opens. Between a phone and a desktop the
+  // band shows the B; the wordmark is for the phone's own row and for the desktop.
+  it("shows the B mark between a phone and a desktop width, and the wordmark either side", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-band");
+    const home = screen.getByTestId("wordmark-home");
+    const word = home.querySelector("[data-band-mark=word]")!;
+    const compact = home.querySelector("[data-band-mark=compact]")!;
+    expect(word.className.split(" ")).toEqual(expect.arrayContaining(["sm:hidden", "lg:block"]));
+    expect(compact.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "sm:block", "lg:hidden"]));
+  });
+
+  it("is the header's height from a tablet up, so the mark doesn't move up or down either", async () => {
+    render(<Landing />);
+    expect((await screen.findByTestId("search-band")).className.split(" ")).toContain("sm:min-h-14");
+  });
+});
+
 describe("clearing a search with ⓧ", () => {
   beforeEach(() => {
     cleanup();

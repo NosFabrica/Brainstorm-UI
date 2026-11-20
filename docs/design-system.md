@@ -15,18 +15,21 @@ Every page's content sits in one of three widths, centered, with one gutter
 (16px, 24px from `sm`). A page never writes its own
 `mx-auto max-w-… px-4 sm:px-6`; `pageWidth.guard.test.ts` fails when one does.
 
-| Width      | Size   | For                                                         |
-| ---------- | ------ | ----------------------------------------------------------- |
-| `wide`     | 1280px | multi-column app pages (dashboard, settings, admin), footer |
-| `standard` | 1024px | info pages, profiles, the network                           |
-| `reading`  | 672px  | feeds, a single post, a focused task (setup, the first run) |
+| Width      | Size   | For                                                                                          |
+| ---------- | ------ | -------------------------------------------------------------------------------------------- |
+| `wide`     | 1280px | the footer, pages built of panels (dashboard, settings, admin)                               |
+| `standard` | 1024px | every page someone browses: profiles, tags, lists of people, alerts, the network, info pages |
+| `reading`  | 672px  | reading one thing (a post, an article) or doing one task (setup, the first run)              |
 
 ```tsx
 <main className={cn(pageWidth("reading"), "flex-1 py-8")}>
 ```
 
-- The top bar takes the same name: `<PublicPageHeader width="reading" />`, so
-  its edges are the content's. The signed-in bar and the info pages' bar are `wide`.
+- The top bar is none of these. It runs edge to edge on every page, pinned to the
+  window: the B mark at the left, the search box in the middle, the account menu at the
+  right, in the same place whatever the page under them and however wide the screen.
+- A new page is `standard`. `reading` and `wide` are the exceptions, and
+  `pageWidth.guard.test.ts` lists the pages that are allowed them.
 - Long text in a `standard` page caps its own measure (`max-w-3xl`, left-aligned),
   so lines stay readable while the page's edges match its neighbours'.
 - A capped block inside a page (a centered paragraph, a card) is not a page
