@@ -19,9 +19,15 @@ import {
   ONLY_YOU_SEE_IT,
   onlyViewerSees,
   taggedToast,
+  unconfirmedToast,
   voteToast,
 } from "@/components/share/tagCopy";
 import type { NoteTag } from "@/services/tags";
+import type { KindEvent } from "@/lib/kindLabel";
+import { taggableType, type ListNames } from "@/lib/taggable";
+
+/** Re-exported for the callers that already import it from here. */
+export { inSentence } from "@/lib/taggable";
 
 /**
  * What the network says a NOTE is about — rung C2, and the affordance Floor D
@@ -50,7 +56,8 @@ export function NoteTagChips({
   address,
   relayHint,
   canTag = false,
-  noun,
+  item,
+  list,
 }: {
   eventId: string;
   /**
@@ -62,8 +69,14 @@ export function NoteTagChips({
   relayHint?: string;
   /** The viewer is signed in AND holds a signer. A session token can't sign. */
   canTag?: boolean;
-  /** What the event is, by its own name ("GitHub Account", a Dictionary item's): a post when not given. */
-  noun?: string;
+  /**
+   * The event being tagged, so the button, the picker and the toast name it as
+   * what it is: "Tag this issue", "Tag this repo" (lib/taggable). A post when
+   * not given.
+   */
+  item?: KindEvent;
+  /** What the item's Dictionary list calls its items, when it is one: "GitHub Account". */
+  list?: ListNames | null;
 }) {
   const { data } = useEventTags(eventId, address);
   const tags = data?.tags ?? [];
@@ -79,7 +92,7 @@ export function NoteTagChips({
           address={address}
           relayHint={relayHint}
           onNote={tags}
-          noun={noun ? inSentence(noun) : "post"}
+          noun={item ? taggableType(item, list).noun : "post"}
         />
       )}
     </NoteTagRow>
@@ -160,14 +173,6 @@ export function NoteTagRow({
   );
 }
 
-/**
- * A name as it reads mid-sentence: a word that is only capitalised goes lower
- * case, one cased on purpose stays ("GitHub Account" → "GitHub account").
- */
-export function inSentence(name: string): string {
-  return name.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase());
-}
-
 /** The picker. Same vocabulary and ordering as the profile one. */
 function TagNoteButton({
   eventId,
@@ -245,6 +250,11 @@ function TagNoteButton({
       // must not claim it did — whatever did land is reusable, not a tagging.
       if (result.failedAt) {
         toast(vote ? UNSAVED_VOTE : UNFINISHED_TAGGING);
+        return;
+      }
+      // Accepted, and not there when read back: neither tagged nor failed.
+      if (result.confirmed === false) {
+        toast(unconfirmedToast(label, vote));
         return;
       }
       toast(vote ? voteToast(label, polarity === 1) : taggedToast(label, `Anyone can see this on the ${noun}`));

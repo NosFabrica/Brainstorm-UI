@@ -11,7 +11,7 @@ import { resolveOrMintTag } from "@/services/tags";
 
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
-const applyMock = vi.fn(async (_vars: unknown) => ({}));
+const applyMock = vi.fn(async (_vars: unknown) => ({}) as { failedAt?: unknown; confirmed?: boolean });
 let tags: unknown[] = [];
 let picker: unknown[] = [];
 vi.mock("@/hooks/useTags", () => ({
@@ -353,6 +353,35 @@ describe("TagPersonButton — the words it shares with tagging a post", () => {
     tags = [];
     render(<TagPersonButton pubkey={PK} />);
     expect(await openPicker()).toHaveAttribute("placeholder", "Search or create a tag");
+  });
+
+  // The answer shows at once on a profile (above); if the tagging then can't be read back from
+  // the relays, the page says so rather than leave "Tagged as" standing.
+  it("says afterwards when a tagging couldn't be read back", async () => {
+    tags = [];
+    applyMock.mockResolvedValueOnce({ confirmed: false });
+    render(<TagPersonButton pubkey={PK} />);
+    await openPicker();
+    fireEvent.change(screen.getByTestId("share-tag-search"), { target: { value: "Ham Radio" } });
+    fireEvent.click(await screen.findByTestId("share-tag-create"));
+    fireEvent.click(screen.getByTestId("share-tag-confirm-add"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: '"Ham Radio" may not have saved' })),
+    );
+  });
+
+  it("says when a vote couldn't be read back, not that you voted", async () => {
+    tags = [tag("Verified Human")];
+    applyMock.mockResolvedValueOnce({ confirmed: false });
+    render(<TagPersonButton pubkey={PK} />);
+    await openPicker();
+    fireEvent.click(within(screen.getByTestId("share-tag-stance")).getByTestId("share-tag-stance-vote-disagree"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Your vote on "Verified Human" may not have saved' }),
+      ),
+    );
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'You disagreed with "Verified Human"' }));
   });
 
   it("says a vote on a tag already there the same way: you agree, or you disagreed", async () => {

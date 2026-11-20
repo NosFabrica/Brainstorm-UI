@@ -46,6 +46,7 @@ import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { QueryAsSent } from "@/components/search/QueryAsSent";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventPath } from "@/lib/shareId";
+import { TAB_LABEL } from "@/lib/tabLabels";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -298,12 +299,12 @@ function profilesOf(hits: SearchHit[]) {
  *  indexes, in its order. It is noisy, so it is never anyone's default: only
  *  a click on it gets there. */
 const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
-  { key: "top", label: "Top" },
-  { key: "all", label: "All" },
-  { key: "people", label: "People" },
-  { key: "notes", label: "Notes" },
-  { key: "media", label: "Media" },
-  { key: "shop", label: "Shop" },
+  { key: "top", label: TAB_LABEL.top },
+  { key: "all", label: TAB_LABEL.all },
+  { key: "people", label: TAB_LABEL.people },
+  { key: "notes", label: TAB_LABEL.notes },
+  { key: "media", label: TAB_LABEL.media },
+  { key: "shop", label: TAB_LABEL.shop },
 ];
 /** On All, how many of its categories stand in the row before More. */
 const CATEGORIES_IN_ROW = 4;
@@ -321,37 +322,37 @@ const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string
   {
     title: "Read & listen",
     tabs: [
-      { key: "articles", label: "Articles" },
-      { key: "music", label: "Music" },
-      { key: "recipes", label: "Recipes" },
+      { key: "articles", label: TAB_LABEL.articles },
+      { key: "music", label: TAB_LABEL.music },
+      { key: "recipes", label: TAB_LABEL.recipes },
     ],
   },
   {
     title: "Out & about",
     tabs: [
-      { key: "events", label: "Events" },
-      { key: "live", label: "Live" },
+      { key: "events", label: TAB_LABEL.events },
+      { key: "live", label: TAB_LABEL.live },
     ],
   },
   {
     title: "Build",
     tabs: [
-      { key: "apps", label: "Apps" },
-      { key: "repos", label: "Repos" },
-      { key: "issues", label: "Issues" },
-      { key: "prs", label: "PRs" },
-      { key: "nips", label: "NIPs" },
+      { key: "apps", label: TAB_LABEL.apps },
+      { key: "repos", label: TAB_LABEL.repos },
+      { key: "issues", label: TAB_LABEL.issues },
+      { key: "prs", label: TAB_LABEL.prs },
+      { key: "nips", label: TAB_LABEL.nips },
     ],
   },
   {
     title: "Community",
     tabs: [
-      { key: "communities", label: "Communities" },
-      { key: "fundraisers", label: "Fundraisers" },
-      { key: "reviews", label: "Reviews" },
+      { key: "communities", label: TAB_LABEL.communities },
+      { key: "fundraisers", label: TAB_LABEL.fundraisers },
+      { key: "reviews", label: TAB_LABEL.reviews },
     ],
   },
-  { title: null, tabs: [{ key: "lists", label: "Lists" }] },
+  { title: null, tabs: [{ key: "lists", label: TAB_LABEL.lists }] },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
 /** Where we're going, said under More without a door: agent suites — verifying and hiring agents — are on the roadmap (Benjamin, 2026-09-25). */
