@@ -1984,6 +1984,10 @@ const SANDBOX = "allow-popups allow-popups-to-escape-sandbox";
  */
 function PaperFrame({ page, zone, failed = false }: { page: Printed; zone: string; failed?: boolean }) {
   const [loaded, setLoaded] = useState(false);
+  // An edition printed elsewhere (another app, the runner) and read back from Blossom may
+  // lack the paper's CSP: without it a remote image or stylesheet would tell a server the
+  // reader's IP. Added once per edition (idempotent: this app's own papers already lead with it).
+  const html = useMemo(() => (page.html ? withPaperCsp(page.html) : ""), [page.html]);
   return (
     // The model writes the layout, and some pages run edge to edge: a margin of newsprint
     // (house.css --paper) keeps the window's edge from clipping a folio's first letter.
@@ -2010,7 +2014,7 @@ function PaperFrame({ page, zone, failed = false }: { page: Printed; zone: strin
               in it (no allow-scripts), and its links open in a new tab, outside the sandbox. */}
           <iframe
             title={`The Observer, ${editionFullDate(page.printedAt, zone)}`}
-            srcDoc={page.html}
+            srcDoc={html}
             sandbox={SANDBOX}
             referrerPolicy="no-referrer"
             onLoad={() => setLoaded(true)}

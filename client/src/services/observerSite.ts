@@ -85,6 +85,42 @@ function hex(bytes: ArrayBuffer): string {
 
 /** How long one Blossom server gets to serve a file before it counts as not having it. */
 const BLOB_TIMEOUT_MS = 8_000;
+/**
+ * The most a site file may be: a paper with its stylesheet is tens of kilobytes, an
+ * `editions.json` of years less than one. A server that sends more is refused before it
+ * fills this tab's memory.
+ */
+const MAX_BLOB_BYTES = 4 * 1024 * 1024;
+
+/** The body, read only while it stays within `max` bytes; null past that (the rest isn't read). */
+async function cappedBytes(response: Response, max: number): Promise<ArrayBuffer | null> {
+  const declared = Number(response.headers.get("Content-Length"));
+  if (Number.isFinite(declared) && declared > max) return null;
+  if (!response.body) {
+    const whole = await response.arrayBuffer();
+    return whole.byteLength > max ? null : whole;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      void reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return out.buffer;
+}
 
 /** The bytes as text, if they hash to `want`; null for any other bytes. */
 async function verified(bytes: ArrayBuffer, want: string): Promise<string | null> {
@@ -108,7 +144,11 @@ async function verified(bytes: ArrayBuffer, want: string): Promise<string | null
 export async function fetchBlob(
   sha256: string,
   servers: string[],
-  { signal, timeoutMs = BLOB_TIMEOUT_MS }: { signal?: AbortSignal; timeoutMs?: number } = {},
+  {
+    signal,
+    timeoutMs = BLOB_TIMEOUT_MS,
+    maxBytes = MAX_BLOB_BYTES,
+  }: { signal?: AbortSignal; timeoutMs?: number; maxBytes?: number } = {},
 ): Promise<string | null> {
   const want = sha256.toLowerCase();
   const held = await readBlob(want);
@@ -127,7 +167,9 @@ export async function fetchBlob(
     try {
       const response = await fetch(`${server}/${want}`, { signal: mine.signal });
       if (!response.ok) throw new Error(`${response.status}`);
-      const text = await verified(await response.arrayBuffer(), want);
+      const bytes = await cappedBytes(response, maxBytes);
+      if (bytes === null) throw new Error("too big");
+      const text = await verified(bytes, want);
       if (text === null) throw new Error("other bytes");
       return text;
     } finally {

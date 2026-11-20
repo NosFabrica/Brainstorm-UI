@@ -407,6 +407,32 @@ describe("what goes to disk", () => {
 
     expect(await readAll()).toHaveLength(0);
   });
+
+  it("forgets which runner each reader's schedule names on sign-out", async () => {
+    const reader = "a".repeat(64);
+    const runner = "b".repeat(64);
+    // This file runs in node: a Storage of its own.
+    const items = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return items.size;
+      },
+      key: (i: number) => [...items.keys()][i] ?? null,
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, String(v)),
+      removeItem: (k: string) => void items.delete(k),
+    });
+    cache.rememberObserverRunner(reader, runner);
+    localStorage.setItem("unrelated", "kept");
+    expect(localStorage.getItem(`brainstorm_observer_runner:${reader}`)).toBe(runner);
+
+    await cache.clearEventCache();
+
+    expect(localStorage.getItem(`brainstorm_observer_runner:${reader}`)).toBeNull();
+    expect(cache.rememberedObserverRunner(reader)).toBeNull();
+    expect(localStorage.getItem("unrelated")).toBe("kept");
+    vi.unstubAllGlobals();
+  });
 });
 
 /**

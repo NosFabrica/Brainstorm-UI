@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PAPER_CSP } from "@/lib/frontPage/validate";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { readTask } from "@/lib/scheduledTasks";
@@ -490,6 +491,8 @@ describe("FrontPagePage", () => {
     const frame = await screen.findByTestId("front-page-frame");
     expect(screen.getByTestId("front-page-today")).toContainElement(frame);
     expect(frame.getAttribute("srcdoc")).toContain("The Nostr Observer");
+    // Printed elsewhere (another app, the runner), it is shown under the paper's CSP all the same.
+    expect(frame.getAttribute("srcdoc")).toContain(PAPER_CSP);
     expect(screen.queryByTestId("front-page-facts")).toBeNull();
     fireEvent.click(screen.getByTestId("front-page-info"));
     expect(await screen.findByTestId("front-page-info-panel")).toHaveTextContent("Posts12");

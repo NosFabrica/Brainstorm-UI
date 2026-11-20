@@ -13,7 +13,7 @@
  * the same events held from other relays would change what the page is made of, and
  * the edition code is a fingerprint of exactly that set. Nothing here caches either.
  */
-import type { NostrEvent } from "nostr-tools";
+import { verifyEvent, type NostrEvent } from "nostr-tools";
 import type { Relay } from "applesauce-relay";
 import { searchRelay } from "@/lib/searchRelay";
 import { isRoutstrModels, parseModels, readRoutstrError, routstrProblem, type RoutstrModel } from "@/lib/routstr";
@@ -142,7 +142,9 @@ export function askRelay(
     sub = relay.req([filter as never]).subscribe({
       next: (msg) => {
         if (msg.type === "EVENT") {
-          if (msg.event?.id && !seen.has(msg.event.id)) {
+          // A relay can hand on anything: an event whose signature fails is someone's words
+          // put in another's mouth, and the paper quotes what it reads. Dropped.
+          if (msg.event?.id && !seen.has(msg.event.id) && verifyEvent(msg.event)) {
             seen.add(msg.event.id);
             events.push(msg.event);
           }

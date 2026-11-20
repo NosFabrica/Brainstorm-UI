@@ -131,6 +131,18 @@ const validZones = new Map<string, boolean>();
 /** Both sides, private first: NIP-FB reads a duplicated tag as the private one, then the first. */
 const merged = (tags: TaskTags) => [...tags.private, ...tags.public];
 const first = (tags: TaskTags, name: string) => merged(tags).find((t) => t[0] === name);
+/** The first tag that reads as `read` says, private first (Quartz's `fastFirstNotNullOfOrNull`). */
+function firstParsed<T>(tags: TaskTags, read: (tag: string[]) => T | null): T | null {
+  for (const tag of merged(tags)) {
+    const value = read(tag);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+/** A `cron` tag with an expression (Quartz's `CronTag.parse`): a blank one is passed over. */
+const cronTag = (tag: string[]) => (tag[0] === "cron" && typeof tag[1] === "string" && tag[1].trim() ? tag : null);
+const ranTag = (tag: string[]) => (tag[0] === "ran" ? seconds(tag[1]) : null);
 
 /** A unix-seconds tag value; null when it isn't one. */
 function seconds(value: string | undefined): number | null {
@@ -138,11 +150,13 @@ function seconds(value: string | undefined): number | null {
   return Number(value);
 }
 
-function readClaim(tag: string[] | undefined): TaskClaim | null {
-  const due = seconds(tag?.[1]);
-  if (!tag || due === null) return null;
+/** A `claim` with a due time and a non-blank id (Quartz's `ClaimTag.parse`); null otherwise. */
+function readClaim(tag: string[]): TaskClaim | null {
+  if (tag[0] !== "claim") return null;
+  const due = seconds(tag[1]);
+  if (due === null || typeof tag[2] !== "string" || !tag[2].trim()) return null;
   const by = tag[3]?.trim();
-  return { due, id: tag[2] ?? "", by: by ? by : null, at: seconds(tag[4]) };
+  return { due, id: tag[2], by: by ? by : null, at: seconds(tag[4]) };
 }
 
 /**
@@ -150,7 +164,7 @@ function readClaim(tag: string[] | undefined): TaskClaim | null {
  * is no runner (`runner`).
  */
 export function readTask(tags: TaskTags, author?: string): ScheduledTask {
-  const cron = first(tags, "cron");
+  const cron = firstParsed(tags, cronTag);
   const task = first(tags, "task")?.[1];
   const runners = runnersOf(tags.public);
   return {
@@ -160,8 +174,8 @@ export function readTask(tags: TaskTags, author?: string): ScheduledTask {
     tz: cron?.[2] && isValidTimeZone(cron[2]) ? cron[2] : null,
     writtenTz: typeof cron?.[2] === "string" && cron[2].trim() ? cron[2].trim() : null,
     setAt: seconds(cron?.[3]) ?? 0,
-    claim: readClaim(first(tags, "claim")),
-    ran: seconds(first(tags, "ran")?.[1]),
+    claim: firstParsed(tags, readClaim),
+    ran: firstParsed(tags, ranTag),
     params: merged(tags).flatMap((t) => {
       const param = readParam(t);
       return param ? [param] : [];
@@ -335,8 +349,9 @@ const FIELD_RANGES: [number, number][] = [
 ];
 
 // `*`, `n` or `a-b`, each optionally `/step` — except a bare number (`a/n` is not in the NIP).
-// Any number of digits: `06` is 6, and the range check, not the pattern, rejects `060`.
-const ELEMENT = /^(?:\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/;
+// Leading zeros: `06` is 6, and the range check, not the pattern, rejects `060`. At most
+// nine digits a number, as Quartz's `CronExpression` reads them.
+const ELEMENT = /^(?:\*|(\d{1,9})(?:-(\d{1,9}))?)(?:\/(\d{1,9}))?$/;
 
 function parseField(text: string, min: number, max: number): boolean[] | null {
   const allowed = new Array<boolean>(max + 1).fill(false);
@@ -680,7 +695,7 @@ export interface SimpleShape {
   dow: boolean[];
 }
 
-const NUMBER = /^\d+$/;
+const NUMBER = /^\d{1,9}$/;
 
 /** The expression as a time and weekdays, or null when it says more than that (NIP-FB: show it as it is). */
 export function simpleShape(expr: string | null | undefined): SimpleShape | null {

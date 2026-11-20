@@ -409,6 +409,55 @@ describe("fetchBlob", () => {
   });
 });
 
+describe("fetchBlob, capped", () => {
+  const big = "<p>" + "x".repeat(64) + "</p>";
+
+  it("refuses a file its Content-Length says is too big, before reading it", async () => {
+    const hash = await sha256Text(big);
+    const read = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const response = new Response(big, { status: 200, headers: { "Content-Length": String(big.length) } });
+        response.arrayBuffer = read;
+        return response;
+      }),
+    );
+    expect(await fetchBlob(hash, ["https://files.example"], { maxBytes: 32 })).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("stops reading a stream that runs past the cap, whatever its headers said", async () => {
+    let pulled = 0;
+    let cancelled = false;
+    // A server that never stops sending: the read ends at the cap, not at the deadline.
+    const endless = () =>
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled++;
+          controller.enqueue(new TextEncoder().encode("x".repeat(20)));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(endless(), { status: 200 })),
+    );
+    expect(await fetchBlob("e".repeat(64), ["https://files.example"], { maxBytes: 32 })).toBeNull();
+    expect(pulled).toBeLessThan(5);
+    expect(cancelled).toBe(true);
+    // Under the cap, a streamed file reads.
+    const hash = await sha256Text(big);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new TextEncoder().encode(big), { status: 200 })),
+    );
+    expect(await fetchBlob(hash, ["https://files.example"], { maxBytes: 4096 })).toBe(big);
+  });
+});
+
 describe("fetchBlob, from this device and in parallel", () => {
   it("answers from this device's copy without asking a server", async () => {
     mocks.held.set("3".repeat(64), "<p>held</p>");

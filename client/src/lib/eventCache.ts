@@ -131,6 +131,21 @@ export function rememberedObserverRunner(reader: string): string | null {
  * Remember the runner `reader`'s own signed schedule names, or (null) that it names none.
  * Only ever from that schedule: a key a site names for itself is never trusted here.
  */
+/** Every reader's remembered runner, on this device: sign-out, with the rest of the cache. */
+function forgetRememberedRunners(): void {
+  try {
+    const prefix = `${OBSERVER_RUNNER_NS}:`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    /* no storage: nothing was remembered there */
+  }
+}
+
 export function rememberObserverRunner(reader: string, runner: string | null): void {
   const next = runner && HEX_KEY.test(runner) && runner !== reader ? runner : null;
   if (rememberedObserverRunner(reader) === next) return;
@@ -666,6 +681,7 @@ export async function clearEventCache(): Promise<void> {
   hydration = null;
   hydratingFor = null;
   runners.clear();
+  forgetRememberedRunners();
   const s = device();
   if (!s) return;
   try {

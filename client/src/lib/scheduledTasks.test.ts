@@ -405,7 +405,8 @@ describe("claim and status", () => {
       by: "Desktop (Linux)",
       at: null,
     });
-    expect(claim("5")).toEqual({ due: 5, id: "", by: null, at: null });
+    // Quartz's ClaimTag.parse: a claim needs an id.
+    expect(claim("5")).toBeNull();
     expect(claim("5", "id", "  ", "later")).toEqual({ due: 5, id: "id", by: null, at: null });
     expect(claim("soon", "id", "x")).toBeNull();
     expect(claim("-5")).toBeNull();
@@ -571,6 +572,42 @@ describe("liveness", () => {
 });
 
 // --- review fixes -------------------------------------------------------------------
+
+describe("readTask reads as Quartz does (audit, 2026-11-20)", () => {
+  const tags = (...priv: string[][]) => ({ public: [], private: [["task", "observer"], ...priv] });
+
+  it("takes the first cron, claim and ran that parse, not the first by name", () => {
+    const task = readTask(
+      tags(
+        ["cron", " "],
+        ["cron", "0 6 * * *", "Europe/Lisbon", "100"],
+        ["claim", "x", "dev"],
+        ["claim", "200", ""],
+        ["claim", "300", "dev-2"],
+        ["ran", "soon"],
+        ["ran", "400"],
+      ),
+    );
+    expect(task.cron).toBe("0 6 * * *");
+    expect(task.tz).toBe("Europe/Lisbon");
+    expect(task.setAt).toBe(100);
+    // A claim needs a non-blank id.
+    expect(task.claim).toMatchObject({ due: 300, id: "dev-2" });
+    expect(task.ran).toBe(400);
+  });
+
+  it("a claim with a blank id is no claim", () => {
+    expect(readTask(tags(["claim", "200", "  "])).claim).toBeNull();
+    expect(readTask(tags(["claim", "200"])).claim).toBeNull();
+  });
+
+  it("each cron field is at most 9 digits", () => {
+    expect(parseCron("000000006 6 * * *")).not.toBeNull();
+    expect(parseCron("0000000006 6 * * *")).toBeNull();
+    expect(parseCron("0 */0000000001 * * *")).toBeNull();
+    expect(simpleShape("0000000005 6 * * *")).toBeNull();
+  });
+});
 
 describe("the cron reader is no stricter than NIP-FB", () => {
   it("reads leading zeros and any step of at least 1", () => {

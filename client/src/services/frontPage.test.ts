@@ -22,6 +22,12 @@ import { BRAINSTORM_LINKS } from "@/lib/frontPage/links";
 import { HOUSE_CSS, PLAN_INSTRUCTION, PLAN_MAX_TOKENS, WRITE_INSTRUCTION } from "@/lib/frontPage/plan";
 import { systemPrompt } from "@/lib/frontPage/writer";
 
+// The fixtures aren't signed: a signature fails only when a test says so (`sig: "forged"`).
+vi.mock("nostr-tools", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  verifyEvent: (event: { sig?: string }) => event.sig !== "forged",
+}));
+
 const toPermalink = (id: string) => BRAINSTORM_LINKS.citeBase + toNevent(id);
 
 const OBSERVER = "aa".repeat(32);
@@ -177,6 +183,13 @@ describe("askRelay", () => {
     const closed = await askRelay(relay as never, { kinds: [1], search: "sort:rank" });
     expect(closed.events).toEqual([]);
     expect(closed.note).toMatch(/^closed: auth-required/);
+  });
+
+  it("drops an event whose signature fails", async () => {
+    const forged = { ...NOTE, id: "9".repeat(64), sig: "forged" };
+    const { relay } = fakeRelay({ observedNotes: [forged, NOTE] });
+    const ranked = await askRelay(relay as never, { kinds: [1], search: `observer:${OBSERVER} sort:rank` });
+    expect(ranked.events).toEqual([NOTE]);
   });
 
   it("a relay that goes quiet is given up on after the idle window", async () => {
