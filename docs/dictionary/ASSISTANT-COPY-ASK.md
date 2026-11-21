@@ -5,7 +5,9 @@
 **Filed as:** [NosFabrica/brainstorm_server#112](https://github.com/NosFabrica/brainstorm_server/issues/112), for a PR of
 its own after [#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
 **Settled in:** brainstorm_server's ADR `engineering-team/decisions/assistant-dictionary/0001-the-assistant-signs-concept-copies.md`
-(accepted 2026-10-27, branch `feat/assistant-dictionary`). This doc follows it. Where the two differ, the ADR wins.
+(accepted 2026-10-27). This doc follows it. Where the two differ, the ADR wins.
+**Shipped in:** [NosFabrica/brainstorm_server#122](https://github.com/NosFabrica/brainstorm_server/pull/122), merged
+2026-11-14. Both routes are in staging's and production's `/openapi.json` (checked 2026-11-20).
 **Modelled on:** [ADMIN-ASKS.md](ADMIN-ASKS.md), the admin route for the same copies, which was never built (it isn't
 in staging's or production's `/openapi.json`, checked 2026-10-27), and
 [TREASURE-MAP-ASK.md](../assistant/TREASURE-MAP-ASK.md) for the `/user` router and the 404 convention
@@ -82,7 +84,8 @@ that isn't a kind-39998 coordinate.
 Each request runs in order:
 
 1. **Read** the community headers and the Assistant's headers from the dictionary relay. These reads are strict: if
-   the relay doesn't answer, the request answers 502 and nothing is published.
+   the relay doesn't answer, the request answers 502 and nothing is published. Since #122's review, only a relay that
+   doesn't answer is a 502; any other error in the read is a 500.
 2. **Decide and sign** each concept, as below.
 3. **Send** the signed events, in order. A send starts only during the first 40 seconds; a concept not sent by then is
    `failed` ("not sent: out of time").
