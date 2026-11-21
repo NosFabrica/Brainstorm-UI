@@ -2,6 +2,12 @@
 
 **For:** brainstorm_server
 **From:** the UI, branch `feat/add-to-dictionary`, 2026-10-27
+**Filed as:** [NosFabrica/brainstorm_server#112](https://github.com/NosFabrica/brainstorm_server/issues/112), for a PR of
+its own after [#110](https://github.com/NosFabrica/brainstorm_server/pull/110)
+**Settled in:** brainstorm_server's ADR `engineering-team/decisions/assistant-dictionary/0001-the-assistant-signs-concept-copies.md`
+(accepted 2026-10-27). This doc follows it. Where the two differ, the ADR wins.
+**Shipped in:** [NosFabrica/brainstorm_server#122](https://github.com/NosFabrica/brainstorm_server/pull/122), merged
+2026-11-14. Both routes are in staging's and production's `/openapi.json` (checked 2026-11-20).
 **Modelled on:** [ADMIN-ASKS.md](ADMIN-ASKS.md), the admin route for the same copies, which was never built (it isn't
 in staging's or production's `/openapi.json`, checked 2026-10-27), and
 [TREASURE-MAP-ASK.md](../assistant/TREASURE-MAP-ASK.md) for the `/user` router and the 404 convention
@@ -71,14 +77,27 @@ The body of both is the same:
 { "concepts": ["39998:<pubkey>:<d>"] }
 ```
 
-The UI sends one coordinate per call, but the routes should accept several. Refuse with a 400 anything that isn't a
-kind-39998 coordinate.
+The UI sends one coordinate per call. The routes accept 1 to 10, and a body that fails the request schema answers
+**422**, as every request schema on this server does. That covers a missing or empty list, more than 10, and anything
+that isn't a kind-39998 coordinate.
+
+Each request runs in order:
+
+1. **Read** the community headers and the Assistant's headers from the dictionary relay. These reads are strict: if
+   the relay doesn't answer, the request answers 502 and nothing is published. Since #122's review, only a relay that
+   doesn't answer is a 502; any other error in the read is a 500.
+2. **Decide and sign** each concept, as below.
+3. **Send** the signed events, in order. A send starts only during the first 40 seconds; a concept not sent by then is
+   `failed` ("not sent: out of time").
+
+A second coordinate with the same `d` as an earlier one in the same request is a `conflict`. The Assistant has only
+one header per `d`.
 
 ### 1. `POST /user/assistantDictionary`: add
 
 For each concept:
 
-1. **Fetch the community header.** If it isn't found, the status is `not_found`.
+1. **Find the community header.** If it isn't found, the status is `not_found`.
 2. **Compose the copy** as above.
 3. **Check what is already there:** the Assistant's newest `39998:<assistant>:<d>`.
    - **Nothing, or a withdrawn copy** (its `b` is `b-tag-deferred`): publish. The status is `published`.
@@ -119,7 +138,6 @@ Publish to the same relays as an add, with the same `created_at` rule.
 {
   "data": {
     "assistant": "<hex>",
-    "relays": ["wss://dcosl.brainstorm.world"],
     "concepts": [
       {
         "community": "39998:<pubkey>:<d>",
@@ -127,13 +145,14 @@ Publish to the same relays as an add, with the same `created_at` rule.
         "event": {/* the signed event, when one was published; else null */},
         "status": "published", // | "updated" | "unchanged" | "withdrawn" | "conflict" | "not_found" | "failed"
         "error": null, // a sentence for conflict, not_found and failed
+        "relays": [{ "url": "wss://dcosl.brainstorm.world", "ok": true }], // per relay, as the Duty Menu reports; [] when nothing was sent
       },
     ],
   },
 }
 ```
 
-Answer 502 when no relay took the event, as the Duty Menu does.
+When at least one event needed sending and no relay took any of them, the answer is 502, as the Duty Menu's is.
 
 ## What the UI shows
 
