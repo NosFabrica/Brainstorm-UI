@@ -161,6 +161,17 @@ describe("fetchAddressableEvents", () => {
     expect(searchReqMock).not.toHaveBeenCalled();
   });
 
+  // The pubkey check takes either case; relays and the store answer in lowercase.
+  it("finds an address given with an uppercase pubkey, keyed and asked in lowercase", async () => {
+    requestAllMock.mockResolvedValueOnce([isis()]);
+    const map = await fetchAddressableEvents([{ ...ptr, pubkey: GITCITADEL.toUpperCase() }], ptr.relays);
+    expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toContain("Isis");
+    expect((requestAllMock.mock.calls[0] as unknown[])[1]).toMatchObject({ authors: [GITCITADEL] });
+    const opts = (requestAllMock.mock.calls[0] as unknown[])[3] as { enough: (m: Map<string, NostrEvent>) => boolean };
+    expect(opts.enough(new Map([[isis().id, isis()]]))).toBe(true);
+    expect(searchReqMock).not.toHaveBeenCalled();
+  });
+
   it("a newer copy from the relays wins over the held one", async () => {
     heldMock.mockImplementation(() => isis());
     requestAllMock.mockResolvedValueOnce([{ ...isis(), id: "9".repeat(64), created_at: 2, content: "edited" }]);
