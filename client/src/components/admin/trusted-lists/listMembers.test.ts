@@ -104,3 +104,97 @@ describe("loadTrustedList", () => {
     expect(await loadTrustedList(want)).toBeNull();
   });
 });
+
+// ADR trusted-lists/0002 D3, D5: notes by id (30393), addressable things by coordinate (30394).
+describe("loadTrustedList for lists of tagged notes and items", () => {
+  const NOTE = "e".repeat(64);
+  const ITEM = `39999:${"a".repeat(64)}:the-hobbit`;
+  const NOTES_D = "tl-tag-notes-bbbbbbbb-aaaaaaaa-espresso-k1";
+  const ITEMS_D = "tl-tag-items-bbbbbbbb-aaaaaaaa-espresso-dlaaaaaaaa-books-1234abcd";
+
+  beforeEach(() => {
+    getSetupRows.mockReset();
+    requestNewest.mockReset();
+    getSetupRows.mockResolvedValue([
+      ["30392", SIGNER, TL_RELAY],
+      ["30393", SIGNER, TL_RELAY],
+      ["30394", SIGNER, TL_RELAY],
+    ]);
+  });
+
+  it("reads a list of notes at its own kind, with its notes as members and a link of that kind", async () => {
+    requestNewest.mockResolvedValue(
+      event({
+        kind: 30393,
+        tags: [
+          ["d", NOTES_D],
+          ["tagging-target", "1"],
+          ["e", NOTE, "", "64"],
+        ],
+        content: JSON.stringify({ members: [{ id: NOTE, endorsements: 2, disputes: 1, score: 64 }] }),
+      }),
+    );
+
+    const list = await loadTrustedList({ ...want, dTag: NOTES_D, kind: 30393 });
+
+    expect(requestNewest).toHaveBeenCalledWith(
+      [TL_RELAY],
+      { kinds: [30393], authors: [SIGNER], "#d": [NOTES_D] },
+      expect.any(Number),
+    );
+    expect(list?.kind).toBe(30393);
+    expect(list?.members).toEqual([{ id: NOTE, score: 64, endorsements: 2, disputes: 1 }]);
+    expect(nip19.decode(list!.naddr).data).toMatchObject({ kind: 30393, pubkey: SIGNER, identifier: NOTES_D });
+  });
+
+  it("reads a list of items with their coordinates as members", async () => {
+    requestNewest.mockResolvedValue(
+      event({
+        kind: 30394,
+        tags: [
+          ["d", ITEMS_D],
+          ["a", ITEM, "", "90"],
+        ],
+        content: JSON.stringify({ members: [{ address: ITEM, endorsements: 4, disputes: 0, score: 90 }] }),
+      }),
+    );
+
+    const list = await loadTrustedList({ ...want, dTag: ITEMS_D, kind: 30394 });
+
+    expect(list?.members).toEqual([{ address: ITEM, score: 90, endorsements: 4, disputes: 0 }]);
+    expect(nip19.decode(list!.naddr).data).toMatchObject({ kind: 30394, identifier: ITEMS_D });
+  });
+
+  // A Tapestry 30393 points back at its tag with an `a` and a `p`: neither is a member.
+  it("reads only the kind's own member tags when the content carries none", async () => {
+    requestNewest.mockResolvedValue(
+      event({
+        kind: 30393,
+        tags: [
+          ["d", NOTES_D],
+          ["a", `39999:${SIGNER}:espresso`],
+          ["p", MEMBER],
+          ["e", NOTE, "", "64"],
+          ["e", "not-an-id"],
+        ],
+        content: JSON.stringify({ notes: [] }),
+      }),
+    );
+
+    const list = await loadTrustedList({ ...want, dTag: NOTES_D, kind: 30393 });
+
+    expect(list?.members).toEqual([{ id: NOTE, score: 64 }]);
+  });
+
+  it("asks the relay /setup names for the list's own kind", async () => {
+    getSetupRows.mockResolvedValue([
+      ["30392", SIGNER, TL_RELAY],
+      ["30394", SIGNER, "wss://items.example"],
+    ]);
+    requestNewest.mockResolvedValue(undefined);
+
+    await loadTrustedList({ ...want, dTag: ITEMS_D, kind: 30394 });
+
+    expect(requestNewest.mock.calls[0][0]).toEqual(["wss://items.example"]);
+  });
+});
