@@ -12,12 +12,35 @@ import {
   FavoriteChartIcon,
   OpenSourceSection,
   DevBackLink,
+  ProtocolAppsSection,
+  type ProtocolApp,
 } from "@/components/developers/DevShared";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 
 // Per-env public search relay; no in-source fallback (see runtimeEnv).
 const RELAY_URL = env.VITE_SEARCH_RELAY_URL;
+
+const CONSUMERS: ProtocolApp[] = [
+  {
+    name: "applesauce relay search example",
+    href: "https://applesauce.build/examples/#/example/search/relay",
+    note: "searches profiles on any NIP-50 relay you pick.",
+  },
+];
+
+const PRODUCERS: ProtocolApp[] = [
+  {
+    name: "Brainstorm Search",
+    href: "https://github.com/NosFabrica/vespa-relay",
+    note: "search.brainstorm.world, full-text search ranked through the searcher's web of trust.",
+  },
+  {
+    name: "Ditto Relay",
+    href: "https://gitworkshop.dev/soapbox.pub/ditto-relay",
+    note: "relay.ditto.pub, which lists NIP-50 among the NIPs it supports.",
+  },
+];
 
 const QUICK_START_SNIPPET = `["REQ", "search-1", {
   "kinds": [0],
@@ -216,6 +239,8 @@ export default function DeveloperNip50Page() {
               <code className="font-mono text-[13px]">auth-required:</code> need nothing else.
             </p>
           </SectionCard>
+
+          <ProtocolAppsSection consumers={CONSUMERS} producers={PRODUCERS} testId="card-dev-apps" />
 
           {/* Cross-link */}
           <button

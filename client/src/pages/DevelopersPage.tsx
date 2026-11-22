@@ -1,9 +1,9 @@
 import { Link } from "wouter";
 import { AgentSetupCard } from "@/components/settings/AgentSetupCard";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { ArrowRight, BadgeCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, ExternalLink, Trophy } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
-import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection } from "@/components/developers/DevShared";
+import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection, SectionCard } from "@/components/developers/DevShared";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { tone as getTone } from "@/lib/tones";
@@ -44,6 +44,10 @@ const METHODS: {
     testId: "card-method-trusted-assertions",
   },
 ];
+
+// TODO(#53): the WoT Hackathon page's URL. It isn't in this repo or the issue,
+// so the card below stays hidden until someone who knows it fills it in.
+const WOT_HACKATHON_URL: string | null = null;
 
 export default function DevelopersPage() {
   // The AI agent setup is internal for now: admins only, as in Settings.
@@ -139,6 +143,28 @@ export default function DevelopersPage() {
               </li>
             </ul>
           </div>
+
+          {WOT_HACKATHON_URL && (
+            <SectionCard
+              icon={<Trophy className="h-5 w-5 text-brand-deep" />}
+              title="WoT Hackathon"
+              testId="card-dev-hackathon"
+            >
+              <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
+                Building with the web of trust? Join the WoT Hackathon.
+              </p>
+              <a
+                href={WOT_HACKATHON_URL}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-1.5 text-[15px] font-medium text-brand-deep hover:underline"
+                data-testid="link-wot-hackathon"
+              >
+                Go to the WoT Hackathon page
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </SectionCard>
+          )}
 
           <OpenSourceSection />
           {isAdmin && <AgentSetupCard internal />}

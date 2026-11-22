@@ -2,12 +2,44 @@ import { BadgeCheck, ExternalLink } from "lucide-react";
 import { env } from "@/lib/runtimeEnv";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { CodeBlock } from "@/components/CodeBlock";
-import { SectionCard, OpenSourceSection, DevBackLink } from "@/components/developers/DevShared";
+import {
+  SectionCard,
+  OpenSourceSection,
+  DevBackLink,
+  ProtocolAppsSection,
+  type ProtocolApp,
+} from "@/components/developers/DevShared";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 
 const NIP85_URL = "https://github.com/nostr-protocol/nips/blob/master/85.md";
 const NIP85_RELAY = (env.VITE_NIP85_RELAY_URL || "").trim().replace(/\/+$/, "");
+
+const CONSUMERS: ProtocolApp[] = [
+  {
+    name: "Nostria",
+    href: "https://nostria.app",
+    note: "reads kind 30382 rank and follower counts from the providers in your kind 10040.",
+  },
+  {
+    name: "Amethyst",
+    href: "https://github.com/vitorpamplona/amethyst",
+    note: "downloads your provider's trust cards to filter DMs, notifications and replies, and shows rank on profiles.",
+  },
+];
+
+const PRODUCERS: ProtocolApp[] = [
+  {
+    name: "Brainstorm",
+    href: "https://github.com/NosFabrica/brainstorm_server",
+    note: "publishes a GrapeRank score for every person in your web of trust, signed by a key that serves only you.",
+  },
+  {
+    name: "amy, Amethyst's command-line tool",
+    href: "https://github.com/vitorpamplona/amethyst/blob/main/cli/README.md",
+    note: "computes GrapeRank on your own machine and publishes the results as NIP-85 cards.",
+  },
+];
 
 export default function DeveloperTrustedAssertionsPage() {
   return (
@@ -80,6 +112,8 @@ export default function DeveloperTrustedAssertionsPage() {
               </>
             )}
           </SectionCard>
+
+          <ProtocolAppsSection consumers={CONSUMERS} producers={PRODUCERS} testId="card-ta-apps" />
 
           <OpenSourceSection />
         </div>
