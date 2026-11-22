@@ -14,6 +14,9 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 vi.mock("@/components/InfoPageLayout", () => ({ InfoPageLayout: ({ children }: { children: ReactNode }) => children }));
 
 import DevelopersPage from "./DevelopersPage";
+import DeveloperTrustedAssertionsPage from "./DeveloperTrustedAssertionsPage";
+import DeveloperNip50Page from "./DeveloperNip50Page";
+import DeveloperOpenRankingPage from "./DeveloperOpenRankingPage";
 
 beforeEach(() => {
   h.user = null;
@@ -38,5 +41,33 @@ describe("DevelopersPage", () => {
     render(<DevelopersPage />);
     expect(screen.getByTestId("text-dev-title")).toBeTruthy();
     expect(screen.queryByTestId("section-agent-setup")).toBeNull();
+  });
+});
+
+/** Each protocol page names who reads it and who serves it, each a link out. */
+describe("the protocol pages' app lists", () => {
+  const pages = [
+    { name: "Trusted Assertions", Page: DeveloperTrustedAssertionsPage, testId: "card-ta-apps" },
+    { name: "NIP-50", Page: DeveloperNip50Page, testId: "card-dev-apps" },
+    { name: "Open Ranking", Page: DeveloperOpenRankingPage, testId: "card-ore-apps" },
+  ];
+
+  it.each(pages)("$name lists consumers and producers, each opening in a new tab", ({ Page, testId }) => {
+    render(<Page />);
+    for (const role of ["consumers", "producers"]) {
+      const links = within(screen.getByTestId(`${testId}-${role}`)).getAllByRole("link");
+      expect(links.length).toBeGreaterThan(0);
+      for (const link of links) {
+        expect(link.getAttribute("href")).toMatch(/^https:\/\//);
+        expect(link.getAttribute("target")).toBe("_blank");
+      }
+    }
+  });
+
+  it("Trusted Assertions names Nostria and Amethyst as consumers", () => {
+    render(<DeveloperTrustedAssertionsPage />);
+    const consumers = screen.getByTestId("card-ta-apps-consumers");
+    expect(within(consumers).getByText("Nostria")).toBeTruthy();
+    expect(within(consumers).getByText("Amethyst")).toBeTruthy();
   });
 });

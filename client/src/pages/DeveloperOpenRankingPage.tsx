@@ -2,7 +2,13 @@ import { env } from "@/lib/runtimeEnv";
 import { Compass, BarChart3, Search, Settings2, BookOpen } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { CodeBlock } from "@/components/CodeBlock";
-import { SectionCard, OpenSourceSection, DevBackLink } from "@/components/developers/DevShared";
+import {
+  SectionCard,
+  OpenSourceSection,
+  DevBackLink,
+  ProtocolAppsSection,
+  type ProtocolApp,
+} from "@/components/developers/DevShared";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +63,32 @@ const STATS_FIELDS: { field: string; meaning: string }[] = [
     meaning: "Exact outbound totals — accounts this pubkey follows / mutes / has reported.",
   },
   { field: "pagerank", meaning: "Raw personalized-PageRank score under the active point of view." },
+];
+
+const CONSUMERS: ProtocolApp[] = [
+  {
+    name: "npub.world",
+    href: "https://npub.world",
+    note: "profile search, reputation and discovery through any Open Ranking provider you choose.",
+  },
+  {
+    name: "applesauce Open Ranking example",
+    href: "https://applesauce.build/examples/#/example/search/open-ranking",
+    note: "ranked profile search with applesauce's Open Ranking client, against Vertex or Brainstorm.",
+  },
+];
+
+const PRODUCERS: ProtocolApp[] = [
+  {
+    name: "Brainstorm",
+    href: "https://github.com/NosFabrica/brainstorm_server",
+    note: "this provider: GrapeRank stats, ranking and profile search.",
+  },
+  {
+    name: "Vertex",
+    href: "https://vertexlab.io",
+    note: "ranking.vertexlab.io, with PageRank-based stats, ranking, search and recommendations.",
+  },
 ];
 
 export default function DeveloperOpenRankingPage() {
@@ -201,6 +233,8 @@ export default function DeveloperOpenRankingPage() {
               <li>Brainstorm Search repo — this provider's implementation</li>
             </ul>
           </SectionCard>
+
+          <ProtocolAppsSection consumers={CONSUMERS} producers={PRODUCERS} testId="card-ore-apps" />
 
           <OpenSourceSection />
         </div>

@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Github, ExternalLink, ArrowLeft } from "lucide-react";
+import { Github, ExternalLink, ArrowLeft, Users } from "lucide-react";
 
 // Shared building blocks for the /developers pages — the editorial card, the
 // custom glyphs, the back-link, and the open-source section — so the landing
@@ -98,6 +98,55 @@ export function SectionCard({
         {children}
       </div>
     </section>
+  );
+}
+
+/** An app or service that speaks one of the protocols, with where to find it. */
+export type ProtocolApp = { name: string; href: string; note: string };
+
+function ProtocolAppList({ heading, apps, testId }: { heading: string; apps: ProtocolApp[]; testId: string }) {
+  if (apps.length === 0) return null;
+  return (
+    <div data-testid={testId}>
+      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{heading}</p>
+      <ul className="mt-2 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
+        {apps.map((app) => (
+          <li key={app.name}>
+            <a
+              href={app.href}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-1 font-medium text-brand-deep hover:underline"
+            >
+              {app.name}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>{" "}
+            — {app.note}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Who reads the protocol (consumers) and who serves it (producers). Each entry
+ * is listed on evidence from the project's own code, docs or release notes.
+ */
+export function ProtocolAppsSection({
+  consumers,
+  producers,
+  testId,
+}: {
+  consumers: ProtocolApp[];
+  producers: ProtocolApp[];
+  testId: string;
+}) {
+  return (
+    <SectionCard icon={<Users className="h-5 w-5 text-brand-deep" />} title="Who uses it" testId={testId}>
+      <ProtocolAppList heading="Consumers" apps={consumers} testId={`${testId}-consumers`} />
+      <ProtocolAppList heading="Producers" apps={producers} testId={`${testId}-producers`} />
+    </SectionCard>
   );
 }
 
