@@ -14,6 +14,7 @@ import {
   merge,
   reduce,
   scan,
+  share,
   take,
   takeUntil,
   takeWhile,
@@ -231,16 +232,26 @@ export function requestAll(
   {
     enough,
     stop,
+    linger = false,
   }: {
     enough?: (collected: Map<string, NostrEvent>) => boolean;
     /** Ends the request early, keeping what arrived: for an answer found elsewhere first. */
     stop?: Observable<unknown>;
+    /**
+     * With `enough`: answer there, but leave the request open until the pool
+     * completes it, so a newer copy a slower relay holds still reaches the
+     * store. For a replaceable read whose page reads the store.
+     */
+    linger?: boolean;
   } = {},
 ): Promise<NostrEvent[]> {
-  return lastValueFrom(
-    pool.request(relays, filter, options(timeoutMs)).pipe(
-      catchError(() => EMPTY),
-      takeUntil(stop ? merge(timer(timeoutMs), stop) : timer(timeoutMs)),
+  const read = pool.request(relays, filter, options(timeoutMs)).pipe(
+    catchError(() => EMPTY),
+    takeUntil(stop ? merge(timer(timeoutMs), stop) : timer(timeoutMs)),
+    share(),
+  );
+  const answer = lastValueFrom(
+    read.pipe(
       scan((collected, event) => collected.set(event.id, event), new Map<string, NostrEvent>()),
       // inclusive, so the event that satisfied `enough` is itself kept
       takeWhile((collected) => !enough?.(collected), true),
@@ -248,4 +259,7 @@ export function requestAll(
     ),
     { defaultValue: [] as NostrEvent[] },
   );
+  // A second listener keeps the shared request open once `enough` lets go.
+  if (linger) read.subscribe();
+  return answer;
 }

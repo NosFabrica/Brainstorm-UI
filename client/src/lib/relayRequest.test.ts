@@ -235,6 +235,20 @@ describe("asking for everything", () => {
     expect(torndown.count).toBe(1);
   });
 
+  // An address read: the first copy answers, a newer one on a slower relay
+  // still reaches the store on the way past.
+  it("answers at enough but, lingering, leaves the REQ open until the window closes", async () => {
+    const { subject, torndown } = controllable();
+
+    const pending = requestAll(RELAYS, FILTER, 60_000, { enough: (c) => c.size >= 1, linger: true });
+    subject.next(event("one"));
+
+    await expect(pending).resolves.toHaveLength(1);
+    expect(torndown.count).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(torndown.count).toBe(1);
+  });
+
   it("returns what it collected when the window closes", async () => {
     const { subject } = controllable();
 

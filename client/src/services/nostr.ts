@@ -1156,10 +1156,12 @@ export async function fetchAddressableEvents(
   // authors at four relays each is eighty sockets opened at once for one render.
   const direct = dedupeRelays([...relays, ...valid.flatMap((c) => c.relays ?? [])]);
   const asked = direct.length ? direct : PROFILE_RELAYS;
-  // Done the moment every wanted address has a copy — the page does not wait
-  // for the remaining relays to say "nothing else" (an article took 5.5s
-  // behind an author's dead relay, 2026-09-24). A newer version on a slower
-  // relay reaches the store on later reads; the reader has the article now.
+  // Answered the moment every wanted address has a copy — the caller does not
+  // wait for the remaining relays to say "nothing else" (an article took 5.5s
+  // behind an author's dead relay, 2026-09-24). That first copy may not be the
+  // newest, so the request lingers until the pool ends it: a newer version on
+  // a slower relay still reaches the store, and a page reading the store
+  // (services/refBatch's rows) shows it. The map returned holds what came first.
   const enough = {
     enough: (collected: Map<string, NostrEvent>) => {
       if (newest) return false;
@@ -1167,6 +1169,7 @@ export async function fetchAddressableEvents(
       for (const e of collected.values()) seen.add(eventKey(e));
       return [...wanted].every((k) => seen.has(k));
     },
+    linger: true,
   };
   const [events, routed] = await Promise.all([
     requestAll(asked, filter, timeoutMs, enough),
