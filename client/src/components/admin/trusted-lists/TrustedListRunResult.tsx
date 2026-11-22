@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TrustedListMembers } from "./TrustedListMembers";
+import { listKindOf } from "./listMembers";
+import { useTaggingTargetNames } from "./taggingTarget";
 import { Chip } from "@/components/ui/chip";
 import { StatTile } from "@/components/ui/stat-tile";
 import type { Tone } from "@/lib/tones";
@@ -31,9 +33,13 @@ const EMPTY: Record<NonNullable<TrustedListRunData["empty_reason"]>, { title: st
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/** A row's test id: a tag can have a people list and lists of notes and items, told apart only by `d`. */
+const rowIdOf = (t: TrustedListTagResult) => (listKindOf(t.kind) === 30392 ? t.slug : t.d_tag);
+
 /** What one run did for one observer: the counts, then every list it touched. */
 export function TrustedListRunResult({ run, observerName }: { run: TrustedListRunData; observerName: string }) {
   const [open, setOpen] = useState<string | null>(null);
+  const targetName = useTaggingTargetNames(run.tags.map((t) => t.tagging_target));
   return (
     <div className="space-y-4" data-testid="trusted-lists-result">
       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -92,10 +98,17 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
             <li
               key={t.d_tag}
               className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/60"
-              data-testid={`trusted-list-row-${t.slug}`}
+              data-testid={`trusted-list-row-${rowIdOf(t)}`}
             >
               <span className="min-w-0 truncate text-sm font-medium text-slate-900 dark:text-slate-100" title={t.d_tag}>
                 {t.slug}
+                {/* What the tag was applied to, on a list of notes or items: "espresso · Books". */}
+                {t.tagging_target && (
+                  <span className="font-normal text-slate-500 dark:text-slate-400" title={t.tagging_target}>
+                    {" "}
+                    · {targetName(t.tagging_target)}
+                  </span>
+                )}
               </span>
               <Chip tone={STATUS[t.status].tone} size="sm">
                 {STATUS[t.status].label}
@@ -103,7 +116,7 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
               {/* Its own line on a phone, beside the name on a desk. */}
               <span
                 className="basis-full text-xs text-slate-500 dark:text-slate-400 sm:basis-auto"
-                data-testid={`trusted-list-meta-${t.slug}`}
+                data-testid={`trusted-list-meta-${rowIdOf(t)}`}
               >
                 {t.status === "retracted"
                   ? "No longer qualifies"
@@ -120,7 +133,7 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
                   size="sm"
                   className="ml-auto h-7 text-xs"
                   onClick={() => setOpen((o) => (o === t.d_tag ? null : t.d_tag))}
-                  data-testid={`trusted-list-view-${t.slug}`}
+                  data-testid={`trusted-list-view-${rowIdOf(t)}`}
                 >
                   {open === t.d_tag ? "Hide list" : "View list"}
                 </Button>
@@ -130,7 +143,8 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
                   observer={run.observer}
                   signingPubkey={run.signing_pubkey}
                   dTag={t.d_tag}
-                  testId={`trusted-list-members-${t.slug}`}
+                  kind={listKindOf(t.kind)}
+                  testId={`trusted-list-members-${rowIdOf(t)}`}
                 />
               )}
             </li>

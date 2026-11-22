@@ -29,6 +29,17 @@ export interface TrustedListTagResult {
   member_count: number;
   /** Set when the list failed to publish. */
   error?: string | null;
+  /**
+   * What the list holds: 30392 people (`p`), 30393 notes and other events by id (`e`), 30394
+   * addressable events by coordinate (`a`). Absent on a server older than its tagged-content lists:
+   * read as 30392.
+   */
+  kind?: number;
+  /**
+   * What a 30393 or 30394 list's tag was applied to: an event kind ("1"), or a DList's header
+   * (`39998:<pubkey>:<d>`, or a kind-9998 header's id). Null on a people list.
+   */
+  tagging_target?: string | null;
 }
 
 /** What one run did for one observer (server PR #86, `TrustedListRunData`). */
