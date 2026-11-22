@@ -72,6 +72,25 @@ describe("apiClient.publishTrustedLists", () => {
     await expect(apiClient.publishTrustedLists("nope")).rejects.toThrow(/not a valid hex pubkey or npub/);
   });
 
+  it("reads a validation 422 as a sentence, not an object", async () => {
+    mockFetchOnce(
+      {
+        detail: [
+          { loc: ["path", "observer"], msg: "String should have at least 64 characters", type: "string_too_short" },
+        ],
+      },
+      { ok: false, status: 422 },
+    );
+
+    await expect(apiClient.publishTrustedLists("nope")).rejects.toThrow("String should have at least 64 characters");
+  });
+
+  it("falls back to its own message when a validation 422 carries no msg", async () => {
+    mockFetchOnce({ detail: [{ loc: ["path", "observer"] }] }, { ok: false, status: 422 });
+
+    await expect(apiClient.publishTrustedLists("nope")).rejects.toThrow("Failed to publish trusted lists (422)");
+  });
+
   // PR #86 may not be deployed where this UI runs. "Not on this server yet"
   // is a different thing to tell an admin than "the run failed".
   it("tells a server without trusted lists apart from a failed run", async () => {

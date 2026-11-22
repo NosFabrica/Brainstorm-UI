@@ -260,11 +260,21 @@ export async function optionalAuthFetch(url: string, options: RequestInit = {}):
 
 /**
  * Pull the backend's `detail`/`message` off a non-ok JSON response so 4xx/5xx
- * (incl. 409/422) surface a human error. Returns "" if the body isn't JSON.
+ * (incl. 409/422) surface a human error. FastAPI answers a validation 422 with
+ * `detail` as a list of `{loc, msg}`; their `msg`s are joined into one sentence.
+ * Always a string: "" if the body isn't JSON or holds no text, so the caller's
+ * own fallback shows.
  */
 export async function extractApiError(response: Response): Promise<string> {
   const data = await response.json().catch(() => null);
-  return data?.detail || data?.message || "";
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  const detail = Array.isArray(data?.detail)
+    ? data.detail
+        .map((d: { msg?: unknown }) => text(d?.msg).replace(/^Value error, /, ""))
+        .filter(Boolean)
+        .join("; ")
+    : text(data?.detail);
+  return detail || text(data?.message);
 }
 
 /**
