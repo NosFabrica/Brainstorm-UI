@@ -1092,8 +1092,8 @@ export async function fetchNotesByHashtag(
  * coordinate — what an `naddr` or `a` tag points to. For each
  * `{kind, pubkey, identifier}` queries `{kinds, authors, "#d"}` (a single
  * combined filter), keeps the NEWEST version per coordinate, and returns a
- * `Map` keyed by `kind:pubkey:identifier`. Used by the share page to resolve
- * articles referenced inside notes into rich cards.
+ * `Map` keyed by `kind:pubkey:identifier`, the pubkey in lowercase. Used by
+ * the share page to resolve articles referenced inside notes into rich cards.
  */
 export async function fetchAddressableEvents(
   coords: { kind: number; pubkey: string; identifier: string; relays?: string[] }[],
@@ -1111,15 +1111,24 @@ export async function fetchAddressableEvents(
   } = {},
 ): Promise<Map<string, NostrEvent>> {
   const result = new Map<string, NostrEvent>();
-  const valid = coords.filter((c) => c && Number.isFinite(c.kind) && /^[0-9a-f]{64}$/i.test(c.pubkey));
+  // Relays and the store spell a pubkey in lowercase hex, so the keys and
+  // filters below do too, whatever case the caller's coordinate came in.
+  const valid = coords
+    .filter((c) => c && Number.isFinite(c.kind) && /^[0-9a-f]{64}$/i.test(c.pubkey))
+    .map((c) => ({ ...c, pubkey: c.pubkey.toLowerCase() }));
   if (!valid.length) return result;
   const coordKey = (c: { kind: number; pubkey: string; identifier: string }) => `${c.kind}:${c.pubkey}:${c.identifier}`;
+  const eventKey = (event: NostrEvent) =>
+    coordKey({
+      kind: event.kind,
+      pubkey: event.pubkey,
+      identifier: event.tags.find((tag) => tag[0] === "d")?.[1] ?? "",
+    });
   const wanted = new Set(valid.map(coordKey));
   // The filter is a cross-product of the requested kinds, authors and d-tags, so
   // it matches coordinates nobody asked for; `wanted` is what narrows it back.
   const keep = (event: NostrEvent) => {
-    const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
-    const key = `${event.kind}:${event.pubkey}:${d}`;
+    const key = eventKey(event);
     if (!wanted.has(key)) return;
     const existing = result.get(key);
     if (!existing || (event.created_at || 0) > (existing.created_at || 0)) result.set(key, event);
@@ -1147,19 +1156,20 @@ export async function fetchAddressableEvents(
   // authors at four relays each is eighty sockets opened at once for one render.
   const direct = dedupeRelays([...relays, ...valid.flatMap((c) => c.relays ?? [])]);
   const asked = direct.length ? direct : PROFILE_RELAYS;
-  // Done the moment every wanted address has a copy — the page does not wait
-  // for the remaining relays to say "nothing else" (an article took 5.5s
-  // behind an author's dead relay, 2026-09-24). A newer version on a slower
-  // relay reaches the store on later reads; the reader has the article now.
-  const wantedKey = (event: NostrEvent) =>
-    `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
+  // Answered the moment every wanted address has a copy — the caller does not
+  // wait for the remaining relays to say "nothing else" (an article took 5.5s
+  // behind an author's dead relay, 2026-09-24). That first copy may not be the
+  // newest, so the request lingers until the pool ends it: a newer version on
+  // a slower relay still reaches the store, and a page reading the store
+  // (services/refBatch's rows) shows it. The map returned holds what came first.
   const enough = {
     enough: (collected: Map<string, NostrEvent>) => {
       if (newest) return false;
       const seen = new Set<string>();
-      for (const e of collected.values()) seen.add(wantedKey(e));
+      for (const e of collected.values()) seen.add(eventKey(e));
       return [...wanted].every((k) => seen.has(k));
     },
+    linger: true,
   };
   const [events, routed] = await Promise.all([
     requestAll(asked, filter, timeoutMs, enough),

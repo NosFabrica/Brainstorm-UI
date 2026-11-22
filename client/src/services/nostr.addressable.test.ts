@@ -82,13 +82,17 @@ describe("fetchAddressableEvents", () => {
 
   // An article page waited for every relay to say "nothing else" after the
   // article had already arrived (5.5s on a page whose author lists a dead
-  // relay, 2026-09-24). A read for named addresses is done the moment every
-  // one of them has a copy; the store keeps refreshing newer versions later.
-  it("asks the read to stop the moment every wanted address has a copy", async () => {
+  // relay, 2026-09-24). A read for named addresses answers the moment every
+  // one of them has a copy, and lingers so a newer version still reaches the store.
+  it("answers the moment every wanted address has a copy, leaving the read open for a newer one", async () => {
     requestAllMock.mockResolvedValueOnce([isis()]);
     await fetchAddressableEvents([ptr], ptr.relays);
-    const opts = requestAllMock.mock.calls[0][3] as { enough?: (collected: Map<string, NostrEvent>) => boolean };
+    const opts = requestAllMock.mock.calls[0][3] as {
+      enough?: (collected: Map<string, NostrEvent>) => boolean;
+      linger?: boolean;
+    };
     expect(opts?.enough).toBeTypeOf("function");
+    expect(opts.linger).toBe(true);
     const other = { ...isis(), id: "2".repeat(64), tags: [["d", "osiris"]] } as NostrEvent;
     expect(opts.enough!(new Map([[other.id, other]]))).toBe(false);
     expect(
@@ -158,6 +162,17 @@ describe("fetchAddressableEvents", () => {
     const map = await fetchAddressableEvents([ptr]);
     expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toContain("Isis");
     expect(requestAllMock).toHaveBeenCalled();
+    expect(searchReqMock).not.toHaveBeenCalled();
+  });
+
+  // The pubkey check takes either case; relays and the store answer in lowercase.
+  it("finds an address given with an uppercase pubkey, keyed and asked in lowercase", async () => {
+    requestAllMock.mockResolvedValueOnce([isis()]);
+    const map = await fetchAddressableEvents([{ ...ptr, pubkey: GITCITADEL.toUpperCase() }], ptr.relays);
+    expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toContain("Isis");
+    expect((requestAllMock.mock.calls[0] as unknown[])[1]).toMatchObject({ authors: [GITCITADEL] });
+    const opts = (requestAllMock.mock.calls[0] as unknown[])[3] as { enough: (m: Map<string, NostrEvent>) => boolean };
+    expect(opts.enough(new Map([[isis().id, isis()]]))).toBe(true);
     expect(searchReqMock).not.toHaveBeenCalled();
   });
 

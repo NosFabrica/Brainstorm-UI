@@ -14,7 +14,7 @@ import { BehaviorSubject, combineLatest, filter, firstValueFrom, from, take, toA
 import type { NostrEvent } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { createPool, relayWake$, wakeableBackoff, wakeRelays, warmRelay } from "./relayPool";
+import { createPool, relayWake$, STRAGGLER_GRACE_MS, wakeableBackoff, wakeRelays, warmRelay } from "./relayPool";
 
 /**
  * A relay on a fake socket. `answer` is what it says to any REQ: an event
@@ -142,12 +142,14 @@ const read = (pool: RelayPool, relays = [OPEN, GATED]) =>
 afterEach(() => vi.useRealTimers());
 
 describe("the app's relay pool", () => {
+  // Well under the straggler grace: a read held by the gated or dead relay
+  // still ends at the grace, so a looser bound would pass without the fix.
   it("completes a read as soon as the relays that can answer have — a relay demanding auth is skipped, not waited for", async () => {
     const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
     const started = Date.now();
     const events = await read(pool);
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
-    expect(Date.now() - started).toBeLessThan(1500);
+    expect(Date.now() - started).toBeLessThan(STRAGGLER_GRACE_MS / 2);
   }, 4000);
 
   // An author's relay list names a relay nobody can reach (`umbrel.local`).
@@ -158,7 +160,7 @@ describe("the app's relay pool", () => {
     const started = Date.now();
     const events = await read(pool, [OPEN, DEAD]);
     expect(events.map((e) => e.id)).toEqual([EVENT.id]);
-    expect(Date.now() - started).toBeLessThan(1500);
+    expect(Date.now() - started).toBeLessThan(STRAGGLER_GRACE_MS / 2);
   }, 4000);
 
   // A relay that connects and never answers used to hold a read for the
