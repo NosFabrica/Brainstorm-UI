@@ -42,6 +42,8 @@ import {
   flattenConnections,
   type ConnectionItem,
 } from "@/hooks/useSelf";
+import { grapeRankResultOptions } from "@/services/queries/graperank";
+import { overviewOptions, selectOverview, selectStats, statsOptions } from "@/services/queries/userReads";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -70,15 +72,18 @@ import { cn } from "@/lib/utils";
  * The Network row expander now uses the lightweight `/user/:pk/overview`
  * endpoint (counts + influence only, 30s timeout) instead of the heavy
  * `/user/:pk` endpoint (full follower/following/muter/reporter arrays,
- * 60s timeout). The overview cache shares its key (`["profile-overview",
- * hex]`) with the full Profile page, so hovering a row on Network and
- * then opening the profile (or vice versa) reuses the same entry.
+ * 60s timeout). The overview is the one shared entry for this person
+ * (services/queries/userReads), so hovering a row on Network and then
+ * opening the profile (or vice versa) reuses it.
  *
  * The eager trust-score pass below still calls `/user/:pk` directly,
  * because it needs the `muted_by` / `reported_by` arrays to drive the
  * muter/reporter trust-score follow-up. That pass is out of scope here.
  */
 const PROFILE_OVERVIEW_STALE_MS = 5 * 60_000;
+
+/** Whatever the rows are on, the expander reads the viewer's own overview, as the Profile page does. */
+const rowOverviewQuery = (pk: string) => overviewOptions(pk, "viewer");
 
 type UserOverview = {
   pubkey?: string;
@@ -93,35 +98,20 @@ type UserOverview = {
   };
 };
 
-function profileOverviewQueryKey(pk: string) {
-  return ["profile-overview", pk.toLowerCase()] as const;
-}
-
-async function fetchProfileOverview(pk: string): Promise<UserOverview | null> {
-  const res = await apiClient.getUserOverview(pk);
-  return res?.data ?? null;
-}
-
 /**
  * Fresh = present, non-null, and within staleTime. A cached `null` (from a
  * prior transient error) is NOT fresh, so expand/hover paths are allowed to
  * retry it instead of locking the panel into a stale empty state.
  */
 function isProfileOverviewFresh(pk: string): boolean {
-  const state = queryClient.getQueryState(profileOverviewQueryKey(pk));
+  const state = queryClient.getQueryState(rowOverviewQuery(pk).queryKey);
   if (!state || state.status === "error") return false;
-  if (state.data === undefined || state.data === null) return false;
+  if (selectOverview(state.data) === null) return false;
   return state.dataUpdatedAt > Date.now() - PROFILE_OVERVIEW_STALE_MS;
 }
 
 function prefetchProfileOverview(pk: string): void {
-  void queryClient
-    .prefetchQuery({
-      queryKey: profileOverviewQueryKey(pk),
-      queryFn: () => fetchProfileOverview(pk),
-      staleTime: PROFILE_OVERVIEW_STALE_MS,
-    })
-    .catch(() => {});
+  void queryClient.prefetchQuery(rowOverviewQuery(pk)).catch(() => {});
 }
 
 export default function NetworkPage() {
@@ -173,6 +163,27 @@ export default function NetworkPage() {
     }
   }, []);
   const [loadedCount, setLoadedCount] = useState(0);
+  // Profiles arrive one by one, often dozens a frame, and `loadedCount` busts
+  // three memos (the text filter among them): counted as they come, flushed
+  // to state once a frame.
+  const pendingLoaded = useRef(0);
+  const loadedFrame = useRef<number | null>(null);
+  const bumpLoaded = useCallback((n: number) => {
+    pendingLoaded.current += n;
+    if (loadedFrame.current !== null) return;
+    loadedFrame.current = requestAnimationFrame(() => {
+      loadedFrame.current = null;
+      const add = pendingLoaded.current;
+      pendingLoaded.current = 0;
+      setLoadedCount((prev) => prev + add);
+    });
+  }, []);
+  useEffect(
+    () => () => {
+      if (loadedFrame.current !== null) cancelAnimationFrame(loadedFrame.current);
+    },
+    [],
+  );
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const params = new URLSearchParams(window.location.search);
@@ -187,11 +198,10 @@ export default function NetworkPage() {
   const searchAbortRef = useRef(0);
   const { toast } = useToast();
   const social = useSocialActions(user?.pubkey);
+  // Polled app-wide while a run is in flight (hooks/useScoringStatus), not here.
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
+    ...grapeRankResultOptions(),
     enabled: !!user,
-    staleTime: 30_000,
   });
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   const hadPreviousCalc = useMemo(() => {
@@ -423,8 +433,20 @@ export default function NetworkPage() {
   // per-section UI, not by this top-level flag.
   const isLoading = overviewQuery.isLoading;
 
+  // Every section's rows carry their influence, the Flagged one too (the
+  // server's `kind=flagged` page has the same row shape), so none of them needs
+  // the heavy per-row `/user/{pk}` below. Leaving Flagged out sent up to 200 of
+  // those, eight at a time, for a tab that already had its answers.
   useMemo(() => {
-    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+    const allGroups: GroupKey[] = [
+      "followed_by",
+      "following",
+      "muted_by",
+      "muting",
+      "reported_by",
+      "reporting",
+      "flagged",
+    ];
     for (const groupKey of allGroups) {
       const items = networkData[groupKey];
       if (!items || items.length === 0) continue;
@@ -437,47 +459,50 @@ export default function NetworkPage() {
     }
   }, [networkData]);
 
-  const fetchProfilesCallback = useCallback(async (pubkeys: string[]) => {
-    const unfetched = pubkeys.filter((pk) => !profileCache.current.has(pk));
-    const cached: string[] = [];
-    const missing: string[] = [];
-    for (const pk of unfetched) {
-      const event = eventStore.getReplaceable(0, pk);
-      if (event) {
-        if (isValidProfile(event)) {
-          profileCache.current.set(pk, getProfileContent(event));
+  const fetchProfilesCallback = useCallback(
+    async (pubkeys: string[]) => {
+      const unfetched = pubkeys.filter((pk) => !profileCache.current.has(pk));
+      const cached: string[] = [];
+      const missing: string[] = [];
+      for (const pk of unfetched) {
+        const event = eventStore.getReplaceable(0, pk);
+        if (event) {
+          if (isValidProfile(event)) {
+            profileCache.current.set(pk, getProfileContent(event));
+          }
+          cached.push(pk);
+        } else {
+          missing.push(pk);
         }
-        cached.push(pk);
-      } else {
-        missing.push(pk);
       }
-    }
-    if (cached.length > 0) {
-      setLoadedCount((prev) => prev + cached.length);
-    }
-    const batchSize = 400;
-    for (let i = 0; i < missing.length; i += batchSize) {
-      const batch = missing.slice(i, i + batchSize);
-      await fetchProfiles(batch, (pubkey, profile) => {
-        profileCache.current.set(pubkey, profile);
-        setLoadedCount((prev) => prev + 1);
-      });
-    }
-    // Every requested pubkey has now had a fetch attempt (eventStore hit or a
-    // settled relay request). Mark them so their rows stop showing a skeleton
-    // and fall back to the npub if no profile was found. Force one re-render so
-    // the cards re-evaluate the gate.
-    let newlyAttempted = false;
-    for (const pk of pubkeys) {
-      if (!profileAttempted.current.has(pk)) {
-        profileAttempted.current.add(pk);
-        newlyAttempted = true;
+      if (cached.length > 0) {
+        bumpLoaded(cached.length);
       }
-    }
-    if (newlyAttempted || unfetched.length === 0) {
-      setLoadedCount((prev) => prev + 1);
-    }
-  }, []);
+      const batchSize = 400;
+      for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        await fetchProfiles(batch, (pubkey, profile) => {
+          profileCache.current.set(pubkey, profile);
+          bumpLoaded(1);
+        });
+      }
+      // Every requested pubkey has now had a fetch attempt (eventStore hit or a
+      // settled relay request). Mark them so their rows stop showing a skeleton
+      // and fall back to the npub if no profile was found. Force one re-render so
+      // the cards re-evaluate the gate.
+      let newlyAttempted = false;
+      for (const pk of pubkeys) {
+        if (!profileAttempted.current.has(pk)) {
+          profileAttempted.current.add(pk);
+          newlyAttempted = true;
+        }
+      }
+      if (newlyAttempted || unfetched.length === 0) {
+        bumpLoaded(1);
+      }
+    },
+    [bumpLoaded],
+  );
 
   const fetchTrustScores = useCallback(
     async (pubkeys: string[]) => {
@@ -521,17 +546,14 @@ export default function NetworkPage() {
     setExpandedPubkey((prev) => (prev === pk ? null : pk));
   }, []);
 
-  // Reactive subscription for the currently expanded row. Re-uses the same
-  // `["profile-overview", hex]` cache key as the full Profile page, and
+  // Reactive subscription for the currently expanded row. Re-uses the
+  // person's one overview entry, the full Profile page's too, and
   // emits `isFetching` / `data` updates so the panel paints stale data
   // immediately (stale-while-revalidate) and refreshes when the background
   // fetch lands.
-  const expandedDetailQuery = useQuery<UserOverview | null>({
-    queryKey: profileOverviewQueryKey(expandedPubkey ?? ""),
-    queryFn: () => fetchProfileOverview(expandedPubkey!),
-    enabled: !!expandedPubkey,
-    staleTime: PROFILE_OVERVIEW_STALE_MS,
-    retry: false,
+  const expandedDetailQuery = useQuery({
+    ...rowOverviewQuery(expandedPubkey ?? ""),
+    select: (envelope): UserOverview | null => selectOverview(envelope),
   });
   // Adapt overview shape (`{influence, counts:{...}}`) to the flat shape the
   // detail panel renders (`{followed_by, following, ..., influence}`). Counts
@@ -555,9 +577,9 @@ export default function NetworkPage() {
   }, [expandedDetailQuery.data]);
   const expandedIsLoading = !!expandedPubkey && expandedDetailQuery.isFetching && expandedDetailQuery.data == null;
 
-  // Parallel server-side stats query for the expanded row. Shares the
-  // `["profile-stats", hex, trustPreset]` cache key with the full Profile
-  // page so a click-through reuses the same entry. Gives us accurate
+  // Parallel server-side stats query for the expanded row. The person's one
+  // stats entry for this perspective, the full Profile page's on the viewer's
+  // own, so a click-through reuses it. Gives us accurate
   // Verified/Total counts for followed_by/following (and others) — the
   // lighter overview endpoint only returns total counts.
   type SectionStats = { total: number; verified: number };
@@ -569,15 +591,9 @@ export default function NetworkPage() {
     reported_by: SectionStats;
     reporting: SectionStats;
   };
-  const expandedStatsQuery = useQuery<StatsResponse | null>({
-    queryKey: ["profile-stats", (expandedPubkey ?? "").toLowerCase(), trustPreset, house],
-    queryFn: async () => {
-      const res = await apiClient.getUserStats(expandedPubkey!, { house });
-      return res?.data ?? null;
-    },
-    enabled: !!expandedPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
+  const expandedStatsQuery = useQuery({
+    ...statsOptions(expandedPubkey ?? "", house ? "house" : "viewer"),
+    select: (envelope): StatsResponse | null => selectStats(envelope),
   });
   const expandedStats = useMemo(() => {
     const s = expandedStatsQuery.data;
@@ -689,6 +705,17 @@ export default function NetworkPage() {
     [verifiedOnly, overviewQuery.data, statsQuery.data],
   );
 
+  // The active section's npubs, encoded once per list rather than once per row
+  // per keystroke and per profile landing. Only while a text filter is on:
+  // nothing else reads them.
+  const searching = !!searchFilter.trim();
+  const groupNpubs = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!searching) return out;
+    for (const pk of getGroupPubkeys(activeGroup)) out.set(pk, nip19.npubEncode(pk).toLowerCase());
+    return out;
+  }, [searching, activeGroup, getGroupPubkeys]);
+
   const filteredPubkeys = useCallback(() => {
     // tier + verified-only are applied server-side via the `tier` /
     // `verified_only` query params on /connections — see filterOpts above.
@@ -700,8 +727,8 @@ export default function NetworkPage() {
       const query = searchFilter.trim().toLowerCase();
       pubkeys = pubkeys.filter((pk) => {
         const profile = profileCache.current.get(pk);
-        const npub = nip19.npubEncode(pk);
-        if (npub.toLowerCase().includes(query)) return true;
+        const npub = groupNpubs.get(pk) ?? nip19.npubEncode(pk).toLowerCase();
+        if (npub.includes(query)) return true;
         if (pk.toLowerCase().includes(query)) return true;
         if (profile) {
           if (profile.name?.toLowerCase().includes(query)) return true;
@@ -713,7 +740,7 @@ export default function NetworkPage() {
     }
     return pubkeys;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadedCount re-runs search as profileCache fills
-  }, [activeGroup, searchFilter, getGroupPubkeys, loadedCount]);
+  }, [activeGroup, searchFilter, getGroupPubkeys, groupNpubs, loadedCount]);
 
   useEffect(() => {
     const query = searchFilter.trim();

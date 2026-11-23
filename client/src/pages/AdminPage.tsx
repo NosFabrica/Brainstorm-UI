@@ -90,6 +90,7 @@ import { useActiveAccount } from "applesauce-react/hooks";
 import { hasSession } from "@/accounts/session";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { useToast } from "@/hooks/use-toast";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
@@ -112,7 +113,12 @@ function formatTimestamp(dateStr?: string): string {
   }
 }
 
-const POLL_OVERVIEW_MS = 15_000;
+/**
+ * The whole-table reads (every user, every run in the range) are paged in
+ * full each time, so they poll once a minute and only on the tabs that draw
+ * them; elsewhere the header's figures read the last answer.
+ */
+const POLL_OVERVIEW_MS = 60_000;
 /** The backend pages lists at 100 rows; the Overview reads a list's pages this many at a time. */
 const PAGE_BATCH = 10;
 
@@ -2545,11 +2551,10 @@ export default function AdminPage() {
   // set only after the admin check passed. The redirect below merely *schedules*
   // a navigation, so gating on `user` alone fires every admin request for a
   // non-admin and collects a handful of 403s on the way out.
-  const grapeRankQuery = useQuery<GrapeRankApiResponse>({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
+  const grapeRankQuery = useQuery({
+    ...grapeRankResultOptions(),
     enabled: !!user?.isAdmin,
-    staleTime: 30_000,
+    select: (raw): GrapeRankApiResponse => raw,
   });
 
   const adminStatsQuery = useQuery({
@@ -2609,25 +2614,34 @@ export default function AdminPage() {
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
 
+  // The boost (a few seconds, for a minute after an admin triggers a run) is
+  // there to watch that run move; it applies only where the tables are drawn.
+  const wholeTablePoll = (drawnHere: boolean) =>
+    drawnHere ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS) : false;
+
+  // The range's users: the Overview's figures and the Activity tab's tier column.
   const overviewUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/overview", rangeDays],
     queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: rangeDays, page, size: 100 })),
-    enabled: !!user?.isAdmin,
+    enabled: !!user?.isAdmin && (activeTab === "overview" || activeTab === "activity"),
     staleTime: 60_000,
     retry: 1,
-    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
-    refetchOnWindowFocus: "always",
+    refetchInterval: wholeTablePoll(activeTab === "overview" || activeTab === "activity"),
+    refetchOnWindowFocus: true,
   });
 
-  // Every user, whatever the range: the header cards show the system's state now.
+  // Every user, whatever the range: the header cards show the system's state
+  // now, on every tab, so it is read wherever the admin lands — but polled only
+  // where the whole list is drawn (the Overview, a KPI filter or name search in
+  // Users, Growth's tiers).
   const allUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/all"],
     queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: ALL_USERS_DAYS, page, size: 100 })),
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
-    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
-    refetchOnWindowFocus: "always",
+    refetchInterval: wholeTablePoll(activeTab === "overview" || activeTab === "users" || activeTab === "growth"),
+    refetchOnWindowFocus: true,
   });
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
@@ -2642,11 +2656,13 @@ export default function AdminPage() {
         (sofar) => queryClient.setQueryData(["/api/admin/activity/overview", rangeDays], sofar),
       );
     },
+    // Read on every tab for the header's success rate and failures, like the
+    // users above; polled only where its charts and queue positions are drawn.
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
-    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
-    refetchOnWindowFocus: "always",
+    refetchInterval: wholeTablePoll(activeTab === "overview" || activeTab === "activity"),
+    refetchOnWindowFocus: true,
   });
 
   // The year's runs, whole, for the Growth tab: a person's first run is their

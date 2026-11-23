@@ -76,6 +76,7 @@ import {
 } from "@/accounts/backup";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
+import { GRAPERANK_RESULT_KEY, grapeRankResultOptions, noteGrapeRankTriggered } from "@/services/queries/graperank";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
@@ -369,20 +370,20 @@ export default function SettingsPage() {
   const { data: historyData, isPending: historyLoading } = useSelfHistory(user?.pubkey);
   const selfLoading = overviewLoading || historyLoading;
 
+  // Polled app-wide while a run is in flight (hooks/useScoringStatus), not here.
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
+    ...grapeRankResultOptions(),
     enabled: !!user,
-    staleTime: 30_000,
   });
 
   const triggerGrapeRankMutation = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
     onSuccess: (data) => {
+      noteGrapeRankTriggered();
       if (data?.data && typeof data.data === "object") {
-        queryClient.setQueryData(["/user/graperankResult"], data);
+        queryClient.setQueryData(GRAPERANK_RESULT_KEY, data);
       }
-      queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+      queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
       toast({
         title: "Recalculation started",
         description: "Recalculating now — redirecting to your dashboard.",

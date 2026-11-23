@@ -85,6 +85,14 @@ import {
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
+import { grapeRankResultOptions } from "@/services/queries/graperank";
+import {
+  overviewOptions,
+  selectInfluence,
+  selectOverview,
+  selectStats,
+  statsOptions,
+} from "@/services/queries/userReads";
 import {
   getProfileSeed,
   setProfileSeed,
@@ -1337,12 +1345,8 @@ export default function ProfilePage() {
   const [unreporting, setUnreporting] = useState<string | null>(null);
   const myReport = unreporting === hexPubkey ? null : storedReport;
 
-  const { data: grapeRankData } = useQuery({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
-    enabled: !!user,
-    staleTime: 30_000,
-  });
+  // Polled app-wide while a run is in flight (hooks/useScoringStatus), not here.
+  const { data: grapeRankData } = useQuery({ ...grapeRankResultOptions(), enabled: !!user });
 
   const isAdmin = user?.isAdmin === true;
 
@@ -1382,7 +1386,9 @@ export default function ProfilePage() {
     setFromAdmin(adminFrom === "admin" ? adminPubkey || "1" : null);
   }, [location, npubParam]);
 
-  const { preset: trustPreset } = useTrustPresetSync(!!user);
+  // Keeps the active preset in step with the server's; the reads below don't
+  // key on it, a change invalidates them (`invalidatePresetDrivenReads`).
+  useTrustPresetSync(!!user);
 
   // Self's own follower/following lists drive the mutual-followers/following
   // banner. `useSelfConnections` calls `/user/{pk}/connections` via
@@ -1431,7 +1437,7 @@ export default function ProfilePage() {
   // Overview drives the header (influence + counts). Lists load lazily on expand.
   // `flagged_by_observer` reflects "is this user flagged from the JWT user's
   // perspective" — used by isProfileFlagged below.
-  const profileOverviewQuery = useQuery<{
+  type ProfileOverview = {
     pubkey: string;
     influence: number | null;
     // The subject's own bucket under the viewer's saved preset — the server
@@ -1446,15 +1452,15 @@ export default function ProfilePage() {
       reported_by: number;
       reporting: number;
     };
-  } | null>({
-    queryKey: ["profile-overview", hexPubkey, trustPreset],
-    queryFn: async () => {
-      const res = await apiClient.getUserOverview(hexPubkey);
-      return res?.data ?? null;
-    },
-    enabled: !!hexPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
+  };
+  const profileOverviewQuery = useQuery({
+    // The one entry for this person's overview (services/queries/userReads):
+    // the Network row that led here, the share page and the mention confirm
+    // read it too. Nothing preset-shaped in the key — a preset change
+    // invalidates it (`invalidatePresetDrivenReads`), where a preset in the
+    // key refetched once per preset value the page passed through on load.
+    ...overviewOptions(hexPubkey, "viewer"),
+    select: (envelope): ProfileOverview | null => selectOverview(envelope),
   });
 
   // Per-section stats (total + verified + tier counts) for all 6 relationships.
@@ -1472,22 +1478,17 @@ export default function ProfilePage() {
       low_and_reported_by_2_or_more_trusted_pubkeys: number;
     };
   };
-  const profileStatsQuery = useQuery<{
+  type ProfileStats = {
     followed_by: SectionStats;
     following: SectionStats;
     muted_by: SectionStats;
     muting: SectionStats;
     reported_by: SectionStats;
     reporting: SectionStats;
-  } | null>({
-    queryKey: ["profile-stats", hexPubkey, trustPreset],
-    queryFn: async () => {
-      const res = await apiClient.getUserStats(hexPubkey);
-      return res?.data ?? null;
-    },
-    enabled: !!hexPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
+  };
+  const profileStatsQuery = useQuery({
+    ...statsOptions(hexPubkey, "viewer"),
+    select: (envelope): ProfileStats | null => selectStats(envelope),
   });
 
   // Per-section connection queries (cursor-paginated).
@@ -1546,7 +1547,8 @@ export default function ProfilePage() {
       readonly unknown[],
       string | undefined
     >({
-      queryKey: ["profile-conn", hexPubkey, kind, trustPreset, order, tier ?? null, verified_only ?? false],
+      // No preset in the key: a preset change invalidates (`invalidatePresetDrivenReads`).
+      queryKey: ["profile-conn", hexPubkey, kind, order, tier ?? null, verified_only ?? false],
       queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
         const res = await apiClient.getUserConnections(hexPubkey, kind, {
           limit: SECTION_LIMIT,
@@ -2402,15 +2404,10 @@ export default function ProfilePage() {
   // profile on mount, so the dual-meter widget renders regardless of entry point
   // (Search, Network, deep link, etc). Uses an unauthenticated overview request
   // (always house POV). Skipped when the search-click seed already supplied a value.
-  const nosfabricaRankQuery = useQuery<number | null>({
-    queryKey: ["profile-nosfabrica-rank", hexPubkey],
-    queryFn: async () => {
-      if (!hexPubkey) return null;
-      return await apiClient.getHouseInfluence(hexPubkey);
-    },
+  const nosfabricaRankQuery = useQuery({
+    ...overviewOptions(hexPubkey, "house"),
     enabled: !!hexPubkey && seed?.wotRankNosfabrica == null,
-    staleTime: 5 * 60_000,
-    retry: false,
+    select: selectInfluence,
   });
 
   // Viewing your OWN profile, the personalized score is always self-POV (you

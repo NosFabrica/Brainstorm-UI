@@ -72,6 +72,14 @@ import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
 import { apiClient } from "@/services/api";
 import {
+  overviewOptions,
+  selectInfluence,
+  selectOverview,
+  statsOptions,
+  topFollowersOptions,
+  type TopFollowers,
+} from "@/services/queries/userReads";
+import {
   parseProfilePrefs,
   loadProfilePrefsDraft,
   saveProfilePrefsDraft,
@@ -134,6 +142,9 @@ import { hasOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 
 const NO_RELAYS: string[] = [];
+
+/** Stable, so the "Followed by" row re-renders only when the list does. */
+const followerItems = (top: TopFollowers) => top.items;
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -263,29 +274,10 @@ export default function SharePage() {
   // "Followed by" — the top WoT-ranked (most-trusted) accounts that follow this
   // profile, for the social-proof avatar row under the stats. House POV so it's
   // stable for every viewer.
-  const followedByQuery = useQuery({
-    queryKey: ["share-followedby", pubkey],
-    queryFn: async () => {
-      const res = await apiClient.getUserConnections(pubkey, "followed_by", {
-        limit: 8,
-        order: "desc",
-        verified_only: true,
-        house: true,
-      });
-      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string; influence?: number | null }>;
-      // Keep the per-item influence — the cluster's tier rings ride on it free.
-      return items
-        .map((e) =>
-          typeof e === "string"
-            ? { pubkey: e, influence: null }
-            : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null },
-        )
-        .filter((e) => !!e.pubkey);
-    },
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  //
+  // The same entry the endorsements line reads (with its total), so the page
+  // asks for this list once (services/queries/userReads `topFollowersOptions`).
+  const followedByQuery = useQuery({ ...topFollowersOptions(pubkey, "house"), select: followerItems });
   // Owner can hand-pick the "Followed by" faces; otherwise auto top-trusted.
   const effectiveFollowerPubkeys = useMemo(
     () =>
@@ -334,26 +326,17 @@ export default function SharePage() {
     }));
   }, [followerCandidatesQuery.data, candidateProfiles]);
 
-  const overviewQuery = useQuery({
-    queryKey: ["share-overview", pubkey],
-    // Unwrap the { code, message, data } envelope → the inner overview object.
-    queryFn: async () => (await apiClient.getUserOverview(pubkey))?.data ?? null,
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // Every read below is a shared entry (services/queries/userReads), so a
+  // hover's prefetch (`prefetchSharePage`), the Profile page and this one all
+  // read the same answers. The viewer's overview resolves to the house's when
+  // nobody is signed in — the same URL — so an anonymous visit asks once.
+  const overviewQuery = useQuery({ ...overviewOptions(pubkey, "viewer"), select: selectOverview });
 
   // House (NosFabrica / network) influence from our backend, via an
   // unauthenticated overview request (always the house POV). It's the secondary
-  // "network view" for signed-in viewers; for logged-out viewers the primary
-  // overview query already runs from the house POV, so this is a fallback only.
-  const houseRankQuery = useQuery({
-    queryKey: ["share-house-influence", pubkey],
-    queryFn: () => apiClient.getHouseInfluence(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // "network view" for signed-in viewers; for logged-out viewers it IS the
+  // overview above, one entry.
+  const houseRankQuery = useQuery({ ...overviewOptions(pubkey, "house"), select: selectInfluence });
 
   // Per-section stats: total/verified counts per relationship — one query per
   // point of view, the same shape the coin uses (overviewQuery/houseRankQuery).
@@ -364,20 +347,8 @@ export default function SharePage() {
   // and the DISPLAYED counts select between the two at render time — this
   // used to be pinned `house: true` from the share-page era, which is why the
   // coin followed the toggle and these numbers didn't (David's report).
-  const houseStatsQuery = useQuery({
-    queryKey: ["share-stats", pubkey, "house"],
-    queryFn: () => apiClient.getUserStats(pubkey, { house: true }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const myStatsQuery = useQuery({
-    queryKey: ["share-stats", pubkey, "mine"],
-    queryFn: () => apiClient.getUserStats(pubkey),
-    enabled: !!pubkey && myPov,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const houseStatsQuery = useQuery(statsOptions(pubkey, "house"));
+  const myStatsQuery = useQuery({ ...statsOptions(pubkey, "viewer"), enabled: !!pubkey && myPov });
 
   const notesQuery = useRecentByKinds(pubkey, [1, 6], 5, relayHints);
 

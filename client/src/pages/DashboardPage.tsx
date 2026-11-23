@@ -54,6 +54,12 @@ import { hasDeclinedNip85 } from "@/lib/nip85Consent";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
+import {
+  GRAPERANK_RESULT_KEY,
+  grapeRankResultOptions,
+  invalidateOwnScoreReads,
+  noteGrapeRankTriggered,
+} from "@/services/queries/graperank";
 import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
@@ -235,8 +241,6 @@ export default function DashboardPage() {
 
   useTrustPresetSync(!!user);
 
-  const recalcTriggeredAtRef = useRef<number | null>(null);
-
   // SELF overview's `flagged_by_observer` is always false (self ≠ flags self),
   // so threshold doesn't affect any consumed field — omit to keep the queryKey
   // stable across `trustPreset` lifecycle transitions.
@@ -244,47 +248,25 @@ export default function DashboardPage() {
   const historyQuery = useSelfHistory(user?.pubkey);
   // Preset-driven server-side; a preset change invalidates this query.
 
-  const grapeRankQuery = useQuery({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
-    enabled: !!user,
-    retry: false,
-    refetchInterval: (query) => {
-      const d = query.state.data?.data;
-      if (!d || typeof d !== "object") return 60_000;
-      const done = isStatusDone((d as GrapeRankResult).ta_status);
-      if (done && recalcTriggeredAtRef.current) {
-        const elapsed = Date.now() - recalcTriggeredAtRef.current;
-        if (elapsed < 25 * 60 * 1000) return 60_000;
-        recalcTriggeredAtRef.current = null;
-      }
-      return done ? false : 60_000;
-    },
-  });
-
-  const prevStatusDoneRef = useRef<boolean | null>(null);
-  useEffect(() => {
-    const d = grapeRankQuery.data?.data as GrapeRankResult | undefined;
-    if (!d || typeof d !== "object") return;
-    const done = isStatusDone(d.ta_status) || isStatusDone(d.internal_publication_status);
-    if (prevStatusDoneRef.current === false && done) {
-      queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
-      queryClient.invalidateQueries({ queryKey: ["/user/history"] });
-      queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
-    }
-    prevStatusDoneRef.current = done;
-  }, [grapeRankQuery.data]);
+  // No timer of its own: the app-wide status pill polls this entry while a run
+  // is in flight (hooks/useScoringStatus), and the card here re-renders as each
+  // answer lands. The pill is also what refetches the reader's overview,
+  // history and stats when a run finishes — once, on the real transition, and
+  // only theirs.
+  const grapeRankQuery = useQuery({ ...grapeRankResultOptions(), enabled: !!user });
 
   const wasAutoTriggeredRef = useRef(false);
 
   const triggerGrapeRankMutation = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
     onSuccess: (data) => {
-      recalcTriggeredAtRef.current = Date.now();
+      // Keeps the pill asking until the new run shows up, in case the answer
+      // below doesn't carry it and the cached run is the previous, finished one.
+      noteGrapeRankTriggered();
       if (data?.data && typeof data.data === "object") {
-        queryClient.setQueryData(["/user/graperankResult"], data);
+        queryClient.setQueryData(GRAPERANK_RESULT_KEY, data);
       }
-      queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+      queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
       wasAutoTriggeredRef.current = false;
       // First-time calc vs a true recalculation reads very differently — don't
       // tell a never-scored user we're "refreshing" / "recalculating".
@@ -416,21 +398,16 @@ export default function DashboardPage() {
   const [justFollowed, setJustFollowed] = useState(false);
   const handleFollowDone = () => {
     setJustFollowed(true);
-    queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
-    queryClient.invalidateQueries({ queryKey: ["/user/history"] });
-    queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
-    queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+    // Their own reads only: other people's cached overviews didn't move.
+    if (user?.pubkey) invalidateOwnScoreReads(queryClient, user.pubkey);
+    queryClient.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
   };
 
-  const prevCalcDoneRef = useRef(false);
-  useEffect(() => {
-    if (calcDone && !prevCalcDoneRef.current) {
-      queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
-      queryClient.invalidateQueries({ queryKey: ["/user/history"] });
-      queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
-    }
-    prevCalcDoneRef.current = calcDone;
-  }, [calcDone]);
+  // A run finishing refetches the reader's own reads from the status pill
+  // (hooks/useScoringStatus), which sees every transition app-wide. This page
+  // used to do it too, from a ref that started at "not done" — so the first
+  // answer of every visit, an already-finished run, read as a transition and
+  // refetched the overview, history and stats it had only just asked for.
 
   const [, setRetryCount] = useState(0);
 
