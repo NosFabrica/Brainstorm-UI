@@ -5,7 +5,7 @@ import { installErrorBuffer } from "./lib/errorBuffer";
 import { startStoreHydration } from "./services/storeHydration";
 import { resolveHouseObserver } from "./services/trustSource";
 import { startRelayAuth } from "./services/relayAuth";
-import { startDirectMessages } from "./services/dm";
+import { startDirectMessagesWhenSignedIn } from "./services/dm/boot";
 import { pool } from "./lib/relayPool";
 import { SEARCH_RELAY } from "./lib/relays";
 import { warmSearchRelay } from "./lib/searchRelay";
@@ -71,7 +71,7 @@ startRelayAuth({
 // Private messages (NIP-17) follow the Active Account from sign-in, not from the
 // first visit to Messages: the live subscription warms the inbox and the unread
 // badge while the reader is elsewhere (services/dm).
-startDirectMessages();
+startDirectMessagesWhenSignedIn();
 
 // The installed app's offline shell, its updates and its notifications (lib/serviceWorker).
 registerServiceWorker();
