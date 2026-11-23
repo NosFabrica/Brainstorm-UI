@@ -863,8 +863,53 @@ export async function fetchLiveStreams(
  * Fetch events by id (referenced/quoted/reposted notes for the share page's
  * rich note rendering). De-dupes across relays; resolves once all relays
  * complete or the timeout fires.
+ *
+ * Calls made in the same turn to the same relays, with the same deadline,
+ * share one ask: a page mounting a pinned note and a quoted one sent two REQs
+ * to each relay a couple of milliseconds apart (1 id, then 3). Each caller
+ * gets the events for its own ids. The store is still read first, at once, so
+ * nothing held waits for a turn.
  */
-export async function fetchEventsByIds(
+export function fetchEventsByIds(
+  ids: string[],
+  relays: string[] = PROFILE_RELAYS,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const unique = Array.from(new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id))));
+  if (!unique.length) return Promise.resolve([]);
+  const held = unique.map((id) => eventStore.getEvent(id)).filter((e): e is NostrEvent => !!e);
+  if (held.length === unique.length) return Promise.resolve(held);
+
+  const relaysKey = [...new Set(relays.length ? relays : PROFILE_RELAYS)].sort().join(" ");
+  const key = `${timeoutMs}|${relaysKey}`;
+  let batch = idBatches.get(key);
+  if (!batch) {
+    const fresh: IdBatch = { ids: new Set(), relays, timeoutMs, answer: null };
+    fresh.answer = new Promise<NostrEvent[]>((resolve, reject) =>
+      queueMicrotask(() => {
+        idBatches.delete(key);
+        askEventsByIds([...fresh.ids], fresh.relays, fresh.timeoutMs).then(resolve, reject);
+      }),
+    );
+    idBatches.set(key, fresh);
+    batch = fresh;
+  }
+  for (const id of unique) batch.ids.add(id);
+  const mine = new Set(unique.map((id) => id.toLowerCase()));
+  return batch.answer!.then((events) => events.filter((e) => mine.has(e.id.toLowerCase())));
+}
+
+interface IdBatch {
+  ids: Set<string>;
+  relays: string[];
+  timeoutMs: number;
+  answer: Promise<NostrEvent[]> | null;
+}
+
+/** The asks gathering this turn, by deadline and relay set. */
+const idBatches = new Map<string, IdBatch>();
+
+async function askEventsByIds(
   ids: string[],
   relays: string[] = PROFILE_RELAYS,
   timeoutMs = 6000,

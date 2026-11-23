@@ -109,3 +109,29 @@ describe("fetchEventsByIds", () => {
     expect((await pending).map((e) => e.id)).toEqual([ID_B]);
   });
 });
+
+describe("fetchEventsByIds, called twice in one turn", () => {
+  const ID_C = "c".repeat(64);
+  const OTHER = ["wss://elsewhere.example/"];
+
+  it("asks once for both callers' ids, and hands each its own", async () => {
+    requestAllMock.mockResolvedValueOnce([ev(ID_A), ev(ID_B), ev(ID_C)]);
+    const [pinned, quoted] = await Promise.all([
+      fetchEventsByIds([ID_A], OTHER),
+      fetchEventsByIds([ID_B, ID_C], OTHER),
+    ]);
+    expect(requestAllMock).toHaveBeenCalledTimes(1);
+    const askedFilter = (requestAllMock.mock.calls[0] as unknown[])[1] as { ids: string[] };
+    expect([...askedFilter.ids].sort()).toEqual([ID_A, ID_B, ID_C]);
+    expect(pinned.map((e) => e.id)).toEqual([ID_A]);
+    expect(quoted.map((e) => e.id).sort()).toEqual([ID_B, ID_C]);
+  });
+
+  it("keeps asks to different relays apart", async () => {
+    // Every id asked for is found, so neither ask falls through to the search relay.
+    requestAllMock.mockImplementation(((_relays: unknown, filter: { ids: string[] }) =>
+      Promise.resolve(filter.ids.map(ev))) as unknown as () => Promise<NostrEvent[]>);
+    await Promise.all([fetchEventsByIds([ID_A], OTHER), fetchEventsByIds([ID_B], ["wss://another.example/"])]);
+    expect(requestAllMock).toHaveBeenCalledTimes(2);
+  });
+});
