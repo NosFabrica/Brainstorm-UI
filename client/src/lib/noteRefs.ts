@@ -1,5 +1,4 @@
-import { nip19 } from "nostr-tools";
-import { parseNoteContent } from "@/lib/noteContent";
+import { decodeEntity, parseNoteContent } from "@/lib/noteContent";
 
 /** An addressable (replaceable) event reference — what an `naddr` decodes to. */
 export interface AddressRef {
@@ -45,30 +44,40 @@ export interface NoteAnalysis {
   repostEvent?: MinimalEvent;
 }
 
-/** Decode a `nostr:`-stripped bech32 entity into a pubkey, event id, or address. `relays` are an `nevent`'s hints. */
-export function decodeNostrEntity(bech: string): {
-  pubkey?: string;
-  id?: string;
-  relays?: string[];
-  address?: AddressRef;
-} {
-  try {
-    const d = nip19.decode(bech);
-    if (d.type === "npub") return { pubkey: d.data as string };
-    if (d.type === "nprofile") return { pubkey: (d.data as { pubkey: string }).pubkey };
-    if (d.type === "note") return { id: d.data as string };
-    if (d.type === "nevent") {
-      const e = d.data as { id: string; relays?: string[] };
-      return { id: e.id, relays: e.relays?.length ? e.relays : undefined };
-    }
-    if (d.type === "naddr") {
-      const a = d.data as { kind: number; pubkey: string; identifier: string; relays?: string[] };
-      return { address: { kind: a.kind, pubkey: a.pubkey, identifier: a.identifier, relays: a.relays } };
-    }
-  } catch {
-    // ignore
+type DecodedEntity = { pubkey?: string; id?: string; relays?: string[]; address?: AddressRef };
+
+const NOTHING: DecodedEntity = Object.freeze({});
+/** One reading per decoded entity (lib/noteContent memoises the decode), so its `address` is the same object each time. */
+const readings = new WeakMap<object, DecodedEntity>();
+
+/**
+ * Decode a `nostr:`-stripped bech32 entity into a pubkey, event id, or address. `relays` are an `nevent`'s hints.
+ * Shared by every caller asking about the same entity: read it, don't change it.
+ */
+export function decodeNostrEntity(bech: string): DecodedEntity {
+  const d = decodeEntity(bech);
+  if (!d) return NOTHING;
+  let reading = readings.get(d);
+  if (!reading) {
+    reading = readingOf(d);
+    readings.set(d, reading);
   }
-  return {};
+  return reading;
+}
+
+function readingOf(d: NonNullable<ReturnType<typeof decodeEntity>>): DecodedEntity {
+  if (d.type === "npub") return { pubkey: d.data as string };
+  if (d.type === "nprofile") return { pubkey: (d.data as { pubkey: string }).pubkey };
+  if (d.type === "note") return { id: d.data as string };
+  if (d.type === "nevent") {
+    const e = d.data as { id: string; relays?: string[] };
+    return { id: e.id, relays: e.relays?.length ? e.relays : undefined };
+  }
+  if (d.type === "naddr") {
+    const a = d.data as { kind: number; pubkey: string; identifier: string; relays?: string[] };
+    return { address: { kind: a.kind, pubkey: a.pubkey, identifier: a.identifier, relays: a.relays } };
+  }
+  return NOTHING;
 }
 
 /** Pubkeys tagged via npub/nprofile mentions inside a note's content. */

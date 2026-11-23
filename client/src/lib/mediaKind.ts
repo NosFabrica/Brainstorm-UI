@@ -28,8 +28,23 @@ export function mediaKindOfUrl(url: string): MediaKind | null {
   return null;
 }
 
+/**
+ * Per event: a media row asks on every render, and the last step scans the
+ * words with a backtracking pattern. An event is never changed once signed.
+ */
+const urlOfEvent = new WeakMap<EventLike, string | null>();
+
 /** The file's URL: imeta first (NIP-92/94), then url/thumb/image tags, then the first picture or clip in the words. */
 export function mediaUrlOf(event: EventLike): string | null {
+  let url = urlOfEvent.get(event);
+  if (url === undefined) {
+    url = readMediaUrl(event);
+    urlOfEvent.set(event, url);
+  }
+  return url;
+}
+
+function readMediaUrl(event: EventLike): string | null {
   for (const tag of event.tags) {
     if (tag[0] === "imeta") {
       const part = tag.slice(1).find((p) => p.startsWith("url "));

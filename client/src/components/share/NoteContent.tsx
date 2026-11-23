@@ -75,6 +75,35 @@ function NoteLiveVideo({ url }: { url: string }) {
 
 const NO_TAGS: string[][] = [];
 
+/** What a link draws as, besides a chip: a song, an episode, a video, a Nostr entity on a client's site. */
+interface LinkReading {
+  wavlake: boolean;
+  fountain: boolean;
+  embed: boolean;
+  client: ReturnType<typeof clientRef>;
+}
+
+/**
+ * Each link read once per parse: drawing, the cover's "what would it hide" and
+ * the link card all ask what a link is, and each answer is a `new URL` and a
+ * few patterns.
+ */
+function readLinks(tokens: NoteToken[], primary: string | null): Map<string, LinkReading> {
+  const out = new Map<string, LinkReading>();
+  const read = (url: string) => {
+    if (out.has(url)) return;
+    out.set(url, {
+      wavlake: !!wavlakeTrackId(url),
+      fountain: !!fountainRef(url),
+      embed: !!videoEmbedFor(url),
+      client: clientRef(url),
+    });
+  };
+  for (const t of tokens) if (t.type === "url") read(t.value);
+  if (primary) read(primary);
+  return out;
+}
+
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
 /**
@@ -134,10 +163,10 @@ export function NoteContent({
   // On the event's own page, whatever markup the text came in (HTML, a
   // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
   const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
-  const tokens = useMemo(() => {
+  const { tokens, primaryUrl, links, imageUrls } = useMemo(() => {
     // A link its imeta types as a picture, a clip or a sound (an extensionless Blossom file) is that file.
     const all = withTypedFiles(parseNoteContent(text), tags);
-    return skipUrls?.size
+    const tokens = skipUrls?.size
       ? all.filter(
           (t) =>
             !(
@@ -146,6 +175,16 @@ export function NoteContent({
             ),
         )
       : all;
+    // The note's primary link gets a rich preview card below the body (not in
+    // compact/embedded contexts). Inline URLs stay as compact favicon chips.
+    const primaryUrl = primaryLink(tokens);
+    return {
+      tokens,
+      primaryUrl,
+      links: readLinks(tokens, primaryUrl),
+      // All image URLs in this note — the set the lightbox carousels through.
+      imageUrls: tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value),
+    };
   }, [text, skipUrls, tags]);
   // Of several clips shown at once, the first is where focus goes.
   const firstClip = tokens.find((t) => t.type === "video")?.value;
@@ -153,32 +192,30 @@ export function NoteContent({
   const hasClip = !!firstClip || tokens.some((t) => t.type === "live");
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
-  const audioCover = extractImageUrls(text, tags)[0];
-  const audioTitle = extractNoteTitle(text, tags);
+  const audioCover = useMemo(() => extractImageUrls(text, tags)[0], [text, tags]);
+  const audioTitle = useMemo(() => extractNoteTitle(text, tags), [text, tags]);
   const requestNav = useShareNav();
   const openLightbox = useLightbox();
   const [, navigate] = useLocation();
-  // The note's primary link gets a rich preview card below the body (not in
-  // compact/embedded contexts). Inline URLs stay as compact favicon chips.
-  const primaryUrl = primaryLink(tokens);
+  const linkOf = (url: string): LinkReading => links.get(url)!;
   // A Primal link names a Nostr entity; the card below is for links that
   // name nothing here. Asked unconditionally — the hook count must not move.
-  const primaryRef = primaryUrl ? clientRef(primaryUrl) : null;
+  const primaryRef = primaryUrl ? linkOf(primaryUrl).client : null;
   const primaryEntity = useClientLink(primaryRef);
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
-  // All image URLs in this note — the set the lightbox carousels through.
-  const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   // What a cover would hide: a link drawn as a picture of its own (a YouTube still, a song's or
   // episode's art, a Nostr entity's card), and the primary link's preview picture.
-  const degradable = (url: string) =>
-    !!(wavlakeTrackId(url) || fountainRef(url) || videoEmbedFor(url) || clientRef(url));
+  const degradable = (url: string) => {
+    const l = linkOf(url);
+    return l.wavlake || l.fountain || l.embed || !!l.client;
+  };
   const showsLinkCard =
     !!primaryUrl &&
     linkCard &&
     primaryIsPlainLink &&
-    !wavlakeTrackId(primaryUrl) &&
-    !videoEmbedFor(primaryUrl) &&
-    !fountainRef(primaryUrl);
+    !linkOf(primaryUrl).wavlake &&
+    !linkOf(primaryUrl).embed &&
+    !linkOf(primaryUrl).fountain;
   const drawsCover = imageUrls.length > 0 || hasClip;
   // A covered note whose only media are embeds or a link's picture: one "Show media" for them.
   const degradesOnly = !drawsCover && (tokens.some((t) => t.type === "url" && degradable(t.value)) || showsLinkCard);
@@ -241,13 +278,15 @@ export function NoteContent({
             <EmojiText text={token.value} tags={tags} />
           </span>
         );
-      case "url":
+      case "url": {
+        const l = linkOf(token.value);
         if (covered && degradable(token.value)) return plainLink(token.value, i);
-        if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
-        if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
-        if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
-        if (clientRef(token.value)) return <ClientLink key={i} url={token.value} />;
+        if (l.wavlake) return <WavlakeTrackCard key={i} url={token.value} />;
+        if (l.fountain) return <FountainCard key={i} url={token.value} />;
+        if (l.embed) return <VideoEmbed key={i} url={token.value} />;
+        if (l.client) return <ClientLink key={i} url={token.value} />;
         return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
+      }
       case "audio":
         return (
           <div key={i} className="mt-2">

@@ -9,6 +9,49 @@
 
 import { nip19 } from "nostr-tools";
 
+/**
+ * A bounded memo: the most recently used `max` answers, oldest dropped first.
+ * A Map keeps insertion order, so a hit is moved to the end by re-inserting it.
+ */
+function lru<V>(max: number) {
+  const entries = new Map<string, V>();
+  return (key: string, compute: () => V): V => {
+    if (entries.has(key)) {
+      const hit = entries.get(key) as V;
+      entries.delete(key);
+      entries.set(key, hit);
+      return hit;
+    }
+    const value = compute();
+    entries.set(key, value);
+    if (entries.size > max) entries.delete(entries.keys().next().value as string);
+    return value;
+  };
+}
+
+/** In development and tests a cached answer is frozen, so a caller that mutates one fails loudly. */
+const freezeInDev = <T>(value: T): T => (import.meta.env.DEV ? Object.freeze(value) : value);
+
+type Decoded = ReturnType<typeof nip19.decode>;
+const decodes = lru<Decoded | null>(2000);
+
+/**
+ * A bech32 entity (`npub…`, `nevent…`, `naddr…`) decoded, or null when it
+ * isn't one. Memoised: the same mention is decoded by the parser that finds it,
+ * by the refs a card collects (lib/noteRefs) and by the renderer that draws it,
+ * on every render of every card that shows it. The answer is shared; read it,
+ * don't change it.
+ */
+export function decodeEntity(bech32: string): Decoded | null {
+  return decodes(bech32, () => {
+    try {
+      return freezeInDev(nip19.decode(bech32));
+    } catch {
+      return null;
+    }
+  });
+}
+
 export type NoteToken =
   | { type: "text"; value: string }
   | { type: "url"; value: string }
@@ -105,12 +148,7 @@ const EMBEDDED_BECH32 = /(naddr|nevent|note|npub|nprofile)1[02-9ac-hj-np-z]+/i;
 export function extractBech32FromUrl(url: string): string | null {
   const m = EMBEDDED_BECH32.exec(url);
   if (!m) return null;
-  try {
-    nip19.decode(m[0]);
-    return m[0];
-  } catch {
-    return null;
-  }
+  return decodeEntity(m[0]) ? m[0] : null;
 }
 
 /** Compact display label for a plain web URL: `host(no www) + short path`. */
@@ -165,8 +203,28 @@ export function trimProse(url: string): string {
   return out;
 }
 
+/**
+ * The last few hundred notes' tokens, by their text: a card re-renders often,
+ * and its content, its media, its refs and its title each asked for the same
+ * parse (NoteContent, lib/noteRefs, lib/mediaKind, ShareNoteCard).
+ */
+const parses = lru<NoteToken[]>(500);
+
+/**
+ * The note's text as tokens. Memoised by the text, so the array and its tokens
+ * are shared by every caller: read them, don't change them (frozen in
+ * development, so a caller that does fails its tests).
+ */
 export function parseNoteContent(content: string): NoteToken[] {
   const text = content || "";
+  return parses(text, () => {
+    const tokens = tokenize(text);
+    if (import.meta.env.DEV) for (const t of tokens) Object.freeze(t);
+    return freezeInDev(tokens);
+  });
+}
+
+function tokenize(text: string): NoteToken[] {
   const tokens: NoteToken[] = [];
   let lastIndex = 0;
   for (const match of text.matchAll(TOKEN_REGEX)) {
@@ -189,14 +247,7 @@ export function parseNoteContent(content: string): NoteToken[] {
     } else if (mention) {
       const bech = mention.replace(/^nostr:/, "");
       // Decode-guard: a bare token like "note1…" in prose isn't a real entity.
-      let valid = false;
-      try {
-        nip19.decode(bech);
-        valid = true;
-      } catch {
-        /* not an entity */
-      }
-      tokens.push(valid ? { type: "mention", bech32: bech } : { type: "text", value: whole });
+      tokens.push(decodeEntity(bech) ? { type: "mention", bech32: bech } : { type: "text", value: whole });
     } else if (hashtag) {
       tokens.push({ type: "hashtag", value: hashtag });
     }
