@@ -69,7 +69,8 @@ const AddressRedirect = lazyWithReload(() => import("@/pages/EventPage").then((m
 const FaqPage = lazyWithReload(() => import("@/pages/FaqPage"));
 const FinishSetupPage = lazyWithReload(() => import("@/pages/FinishSetupPage"));
 const HashtagPage = lazyWithReload(() => import("@/pages/HashtagPage"));
-const HeroLab = lazyWithReload(() => import("@/pages/HeroLab"));
+// Dev only, like the playgrounds below: the hero lab and its candidate photos stay out of a production build.
+const HeroLab = import.meta.env.DEV ? lazyWithReload(() => import("@/pages/HeroLab")) : null;
 const HopsPathPage = lazyWithReload(() => import("@/pages/HopsPathPage"));
 const HowSearchWorksPage = lazyWithReload(() => import("@/pages/HowSearchWorksPage"));
 const HowTagsWorkPage = lazyWithReload(() => import("@/pages/HowTagsWorkPage"));
@@ -287,7 +288,7 @@ function Router() {
             rather than the redirect this used to be. */}
             <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
             <Route path="/tags/:author/:slug" component={TagPage} />
-            <Route path="/hero-lab" component={HeroLab} />
+            {HeroLab && <Route path="/hero-lab" component={HeroLab} />}
             <Route path="/welcome" component={WelcomePage} />
             <Route path="/start" component={FirstRunPage} />
             <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>

@@ -15,6 +15,10 @@ import { Wordmark } from "@/components/Wordmark";
  */
 // Shortlist — Benjamin's picks (2, 6, 7, 9, 10, 12). The full 13-candidate set
 // lives in git history if we ever want to revisit the others.
+//
+// The photos sit in src/assets, not public/: public/ ships whole in every image
+// and APK, and this page exists only in dev (App.tsx), so nothing imports them
+// in a production build and they are never emitted.
 const CANDIDATES = [
   { file: "cand-02.webp", src: "45815f39…" },
   { file: "cand-06.webp", src: "9772090d…" },
@@ -27,6 +31,9 @@ const CANDIDATES = [
   { file: "cand-15.webp", src: "4372d3ba… sunlit tree" },
   { file: "cand-16.webp", src: "77a79d77… light rays" },
 ];
+
+/** A candidate's URL. Vite resolves this `new URL` form at build time, one asset per file in the folder. */
+const photo = (file: string) => new URL(`../assets/hero-lab/${file}`, import.meta.url).href;
 
 /** Per-image Nodes layouts (guidelines p10): each picks a safe zone in that
  *  photo — away from faces + important detail, and off the light areas that
@@ -249,7 +256,7 @@ export default function HeroLab() {
   useEffect(() => {
     [i, (i + 1) % n, (i - 1 + n) % n].forEach((k) => {
       const img = new Image();
-      img.src = `/brand/hero-lab/${CANDIDATES[k].file}`;
+      img.src = photo(CANDIDATES[k].file);
     });
   }, [i, n]);
 
@@ -265,7 +272,7 @@ export default function HeroLab() {
         <div className="absolute inset-0">
           <img
             key={cand.file}
-            src={`/brand/hero-lab/${cand.file}`}
+            src={photo(cand.file)}
             alt=""
             className="absolute inset-0 h-full w-full object-cover object-center"
           />
