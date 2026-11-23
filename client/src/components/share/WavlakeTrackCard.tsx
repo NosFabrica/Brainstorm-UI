@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useWavlakeTrack, wavlakeTrackId, wavlakeTrackUrl } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { LinkChip } from "@/components/share/LinkPreview";
@@ -8,8 +9,11 @@ import { profileHrefOf } from "@/lib/upNext";
  * title + artist + play/seek), reusing the shared audio player so it coordinates
  * with the rest of the page. Shows a skeleton while resolving and falls back to a
  * plain link chip if the track can't be fetched.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function WavlakeTrackCard({ url }: { url: string }) {
+export const WavlakeTrackCard = memo(function WavlakeTrackCard({ url }: { url: string }) {
   const id = wavlakeTrackId(url);
   const { loading, track, error } = useWavlakeTrack(id);
 
@@ -46,4 +50,4 @@ export function WavlakeTrackCard({ url }: { url: string }) {
       />
     </div>
   );
-}
+});

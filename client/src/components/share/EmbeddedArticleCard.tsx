@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent } from "react";
+import { memo, useMemo, useState, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -98,14 +98,17 @@ function eventHref(event: MinimalEvent): string | undefined {
  * lib/embedShape), opening their own page, never as an "Untitled article"
  * with the default cover. EmbeddedNoteCard sends articles back here, so the
  * two never pass an event between them twice.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function EmbeddedArticleCard(props: EmbeddedArticleCardProps) {
+export const EmbeddedArticleCard = memo(function EmbeddedArticleCard(props: EmbeddedArticleCardProps) {
   const shape = useMemo(() => embedShapeOf(props.event), [props.event]);
   // An article, or one overwritten to nothing (the article's own deleted stub).
   if (shape === "article" || (shape === "note" && ARTICLE_EMBED_KINDS.has(props.event.kind)))
     return <ArticleCardBody {...props} />;
   return <EmbeddedNoteCard event={props.event} author={props.author} href={eventHref(props.event)} nested />;
-}
+});
 
 /** The card's way in, named for what it opens: "Read spec", "Read section", "Open bookshelf". */
 function readLabel(event: MinimalEvent, isSpec: boolean, isWiki: boolean): string {

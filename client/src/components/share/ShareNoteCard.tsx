@@ -1,7 +1,7 @@
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { useCompromisedRing } from "@/hooks/useCompromised";
-import { useState, useMemo, type MouseEvent } from "react";
+import { memo, useState, useMemo, type MouseEvent } from "react";
 import { EMBEDDED_THING_KINDS } from "@/components/share/ThingAddressRef";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
@@ -98,8 +98,13 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
  * replies show the people answered (with avatars, excluding the author),
  * mentions resolve to names, quoted notes embed, and very long posts collapse
  * behind "Show more".
+ *
+ * Memoised: feeds and results render many, and re-render them all whenever
+ * one arrives. What it reads of the note (its refs, its quotes, its cards) is
+ * memoised on the props it comes from, so a card whose props didn't change
+ * costs nothing.
  */
-export function ShareNoteCard({
+export const ShareNoteCard = memo(function ShareNoteCard({
   event,
   profiles,
   eventsById,
@@ -166,28 +171,37 @@ export function ShareNoteCard({
   const compromisedRing = useCompromisedRing(event.pubkey);
   const onCardClick = openOnCardClick(href, navigate);
   const clickable = href ? "cursor-pointer" : "";
-  const a = analyzeNote(event);
+  const a = useMemo(() => analyzeNote(event), [event]);
 
   // Addressable refs (e.g. NIP-23 articles) resolved to events, deduped by coord.
-  const articles: MinimalEvent[] = [];
-  if (addrByCoord) {
-    const seen = new Set<string>();
-    for (const ad of a.addrs) {
-      const key = addrCoord(ad);
-      // A market or ballot is drawn where it is named (NoteContent's ThingAddressRef), not again below.
-      if (EMBEDDED_THING_KINDS.has(ad.kind)) continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const ev = addrByCoord.get(key);
-      if (ev) articles.push(ev);
+  const { articles, listCoords } = useMemo(() => {
+    const articles: MinimalEvent[] = [];
+    if (addrByCoord) {
+      const seen = new Set<string>();
+      for (const ad of a.addrs) {
+        const key = addrCoord(ad);
+        // A market or ballot is drawn where it is named (NoteContent's ThingAddressRef), not again below.
+        if (EMBEDDED_THING_KINDS.has(ad.kind)) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const ev = addrByCoord.get(key);
+        if (ev) articles.push(ev);
+      }
     }
-  }
+    const listCoords = new Set(
+      articles
+        .filter((ev) => ITEM_LIST_KINDS.has(ev.kind))
+        .map((ev) => `${ev.kind}:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`),
+    );
+    return { articles, listCoords };
+  }, [a, addrByCoord]);
 
-  const listCoords = new Set(
-    articles
-      .filter((ev) => ITEM_LIST_KINDS.has(ev.kind))
-      .map((ev) => `${ev.kind}:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`),
-  );
+  // Quoted notes resolved to events; NoteContent leaves their inline stubs out, since the cards below show them.
+  const { quoted, embeddedIds } = useMemo(() => {
+    const quoted = a.quoteIds.map((id) => eventsById.get(id)).filter(Boolean) as MinimalEvent[];
+    return { quoted, embeddedIds: new Set(quoted.map((q) => q.id)) };
+  }, [a, eventsById]);
+  const contentWarning = useMemo(() => contentWarningOf(event), [event]);
 
   if (isRepost) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
@@ -236,7 +250,6 @@ export function ShareNoteCard({
   // Reply targets = people replied to, excluding the note's own author (don't
   // show the profile owner replying to themselves).
   const replyTargets = a.replyToPubkeys.filter((pk) => pk !== event.pubkey);
-  const quoted = a.quoteIds.map((id) => eventsById.get(id)).filter(Boolean) as MinimalEvent[];
 
   // Notes with media (video/image/audio) always render expanded — collapsing a
   // post behind "Show more" would cut off its video/image. Only long text-only
@@ -387,8 +400,8 @@ export function ShareNoteCard({
           linkCard
           imageOpensThread={!!href}
           tags={event.tags}
-          contentWarning={contentWarningOf(event)}
-          embeddedIds={new Set(quoted.map((q) => q.id))}
+          contentWarning={contentWarning}
+          embeddedIds={embeddedIds}
           // A linked list is drawn as its card below: the card is its link.
           embeddedCoords={listCoords}
           embedThings
@@ -441,4 +454,4 @@ export function ShareNoteCard({
       {tags && tags.length > 0 && <NoteTagRow tags={tags} />}
     </div>
   );
-}
+});

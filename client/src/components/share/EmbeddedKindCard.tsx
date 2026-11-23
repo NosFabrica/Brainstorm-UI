@@ -11,7 +11,7 @@
  * reader asks: none of these cards knows to hide its own picture. Once asked,
  * the card shows and focus moves to it. The caller keys this on the event.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import {
   AppCard,
@@ -67,7 +67,11 @@ function useCardAuthor(pubkey: string, given?: ProfileLite): SearchResult {
   }, [pubkey, p?.name, p?.display_name, p?.picture, p?.nip05]);
 }
 
-export function EmbeddedKindCard({
+/**
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
+ */
+export const EmbeddedKindCard = memo(function EmbeddedKindCard({
   event,
   author,
   shape,
@@ -147,4 +151,4 @@ export function EmbeddedKindCard({
       </CardHrefProvider>
     </div>
   );
-}
+});

@@ -8,7 +8,7 @@
  * Nothing here draws a note card (EmbeddedNoteCard draws this), so the two
  * never import each other.
  */
-import { useMemo, type MouseEvent, type ReactNode } from "react";
+import { memo, useMemo, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { Bookmark, ListChecks } from "lucide-react";
@@ -253,8 +253,11 @@ function listHref(event: MinimalEvent): string {
  * it is, then its first few items. Inside a card already shown inside a card
  * (`nested`) it stops at its name — one level, never a stack. The card opens
  * the list's page; it stops the click, so the note around it does not open.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function EmbeddedListCard({
+export const EmbeddedListCard = memo(function EmbeddedListCard({
   event,
   author,
   href,
@@ -299,7 +302,7 @@ export function EmbeddedListCard({
       {!nested && <ItemListPreview event={event} />}
     </div>
   );
-}
+});
 
 /**
  * A list a note names by address (`naddr`): the list's card once it is found;
