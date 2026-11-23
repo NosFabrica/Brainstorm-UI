@@ -14,6 +14,7 @@ import { accountManager } from "@/accounts";
 import { clearEventCache, dropLegacyProfileDb, hydrateEventStore, startEventCacheSync } from "@/lib/eventCache";
 import { clearDmCache } from "@/lib/dm/cache";
 import { forgetDmPrefs } from "@/lib/dm/prefs";
+import { startStorePruning } from "@/lib/storePruning";
 
 let hydratedFor: string | null = null;
 
@@ -22,6 +23,9 @@ export function startStoreHydration(): void {
   startEventCacheSync();
   // Profiles and routing share one database now; the profile-only one is dead.
   dropLegacyProfileDb();
+  // The other end of the store's life: a tab open for days is pruned when idle,
+  // never of the events of the accounts signed in here (lib/storePruning).
+  startStorePruning(() => accountManager.accounts.map((account) => account.pubkey));
   hydrateFor(accountManager.active?.pubkey ?? null);
 
   accountManager.active$.subscribe((account) => {
