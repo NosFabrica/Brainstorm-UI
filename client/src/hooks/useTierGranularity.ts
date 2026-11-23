@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { activePubkey } from "@/accounts/display";
+import { deviceSetting, useDeviceSetting } from "@/hooks/deviceSetting";
 import type { Granularity } from "@/lib/trustLadder";
 
 /**
@@ -57,25 +58,11 @@ export function setTierGranularity(g: Granularity): void {
   } catch {}
 }
 
+const store = deviceSetting({ read: getTierGranularity, storageKey: scopedKey, eventName: EVENT_NAME });
+
+/** One store for every reader on the page (hooks/deviceSetting): one read, one pair of listeners. */
 export function useTierGranularity(): [Granularity, (g: Granularity) => void] {
-  const [g, setG] = useState<Granularity>(() => getTierGranularity());
-
-  useEffect(() => {
-    const onCustom = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      setG(isGranularity(detail) ? detail : getTierGranularity());
-    };
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === scopedKey()) setG(getTierGranularity());
-    };
-    window.addEventListener(EVENT_NAME, onCustom);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(EVENT_NAME, onCustom);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
+  const g = useDeviceSetting(store);
   const update = useCallback((next: Granularity) => setTierGranularity(next), []);
   return [g, update];
 }
