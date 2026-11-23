@@ -69,6 +69,11 @@ export interface DmState {
 
 export interface DmCacheBackend {
   wraps(owner: string): Promise<StoredWrap[]>;
+  /**
+   * The keys (`wrapKey(owner, wrapId)`) of an owner's wraps, without the rows:
+   * which wraps are held, before any envelope is read (services/dm/engine).
+   */
+  wrapKeys?(owner: string): Promise<string[]>;
   putWraps(rows: StoredWrap[]): Promise<void>;
   deleteWraps(keys: string[]): Promise<void>;
   state(owner: string): Promise<DmState | undefined>;
@@ -130,6 +135,13 @@ export function indexedDbBackend(): DmCacheBackend | null {
         req.onsuccess = () => keep(req.result as StoredWrap[]);
       });
       return rows ?? [];
+    },
+    async wrapKeys(owner) {
+      const keys = await transact<string[]>(await db(), WRAPS, "readonly", (store, keep) => {
+        const req = store.index("owner").getAllKeys(IDBKeyRange.only(owner));
+        req.onsuccess = () => keep((req.result as IDBValidKey[]).map(String));
+      });
+      return keys ?? [];
     },
     async putWraps(rows) {
       if (!rows.length) return;
