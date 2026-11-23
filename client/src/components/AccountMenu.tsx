@@ -5,6 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { AccountDisplay } from "@/accounts/display";
 import type { AppKey } from "@/components/AppsLauncher";
+import { queryClient } from "@/lib/queryClient";
+import { SUPPORT_QUERY_KEY, fetchSupport } from "@/services/support";
 
 interface AccountMenuProps {
   user: AccountDisplay;
@@ -46,6 +48,18 @@ function warmMenu(): void {
       return null as unknown as MenuModule;
     },
   );
+}
+
+/**
+ * A hand on the trigger: the body's chunk, and the support tickets whose unread
+ * dot the menu draws, so it opens with the dot rather than gaining it a round
+ * trip later. Not on idle like the chunk: that would ask the API for tickets on
+ * every page load of every signed-in reader, most of whom never open the menu.
+ * Same entry and freshness AccountMenuBody reads it with.
+ */
+function warmMenuAndSupport(): void {
+  warmMenu();
+  void queryClient.prefetchQuery({ queryKey: SUPPORT_QUERY_KEY, queryFn: fetchSupport, staleTime: 30_000 });
 }
 
 const subscribe = (listener: () => void) => {
@@ -106,8 +120,8 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
             aria-label="Account menu"
             className="group shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
             data-testid="button-user-menu"
-            onPointerEnter={warmMenu}
-            onFocus={warmMenu}
+            onPointerEnter={warmMenuAndSupport}
+            onFocus={warmMenuAndSupport}
           >
             <span className="block rounded-full bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep p-[2px] shadow-[0_0_0_1px_rgb(var(--brand-primary)/0.15)] transition-all duration-300 group-hover:from-brand-link group-hover:via-brand-accent group-hover:to-brand-link group-hover:shadow-[0_0_16px_2px_rgb(var(--brand-accent)/0.5)]">
               <Avatar className="h-9 w-9" data-testid="img-user-avatar">
