@@ -14,7 +14,8 @@ import { BehaviorSubject, combineLatest, filter, firstValueFrom, from, take, toA
 import type { NostrEvent } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { createPool, relayWake$, wakeableBackoff, wakeRelays, warmRelay } from "./relayPool";
+import { createPool, keepRelayAlive, relayWake$, wakeableBackoff, wakeRelays, warmRelay } from "./relayPool";
+import { PROFILE_RELAYS, SEARCH_RELAY } from "./relays";
 
 /**
  * A relay on a fake socket. `answer` is what it says to any REQ: an event
@@ -219,6 +220,24 @@ describe("the app's relay pool", () => {
     await Promise.all([read(pool), read(pool, [OPEN, DEAD]), read(pool, [OPEN, SLOW])]);
     expect(Date.now() - started).toBeGreaterThan(4500);
   }, 9000);
+});
+
+describe("how long an idle socket stays open", () => {
+  it("minutes for the relays the app comes back to, the library's 30s for the rest", () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    expect(pool.relay(SEARCH_RELAY).keepAlive).toBe(5 * 60_000);
+    for (const url of PROFILE_RELAYS) expect(pool.relay(url).keepAlive).toBe(5 * 60_000);
+    expect(pool.relay("wss://someones-outbox.example/").keepAlive).toBe(30_000);
+  });
+
+  it("minutes for an inbox relay too, whether its socket is open yet or not", () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const open = pool.relay("wss://inbox-open.example/");
+    keepRelayAlive("wss://inbox-open.example", pool);
+    keepRelayAlive("wss://inbox-later.example/", pool);
+    expect(open.keepAlive).toBe(5 * 60_000);
+    expect(pool.relay("wss://inbox-later.example/").keepAlive).toBe(5 * 60_000);
+  });
 });
 
 describe("warming a relay", () => {

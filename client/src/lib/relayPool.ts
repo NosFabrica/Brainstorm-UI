@@ -50,14 +50,48 @@ import {
   type Observable,
 } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
-import { SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
+import { PROFILE_RELAYS, SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
 /**
- * How long an idle socket stays open. The library's 30s means a pause between
- * two searches costs a fresh DNS + TCP + TLS + upgrade (~0.5s desktop, more on
- * mobile); a few minutes covers a reader thinking between searches.
+ * How long an idle socket stays open, for the relays the app comes back to. The
+ * library's 30s means a pause between two searches costs a fresh DNS + TCP +
+ * TLS + upgrade (~0.5s desktop, more on mobile); a few minutes covers a reader
+ * thinking between searches.
+ *
+ * Only for those: the search relay, the profile relays every fallback read
+ * asks, and the reader's inbox relays (`keepRelayAlive`, from the DM
+ * transport). An author's outbox or a note's relay hint is usually asked once;
+ * holding each of those sockets open for five minutes kept dozens of them
+ * idling on a phone after a feed had scrolled past. They get the library's 30s.
  */
 const KEEP_ALIVE_MS = 5 * 60_000;
+
+/** The relays whose sockets get `KEEP_ALIVE_MS`, normalized as the pool keys them. */
+const kept = new Set<string>();
+/** Seeded on first use rather than at module load: the relay sets are read when a socket is made. */
+let seeded = false;
+const longLived = (): Set<string> => {
+  if (!seeded) {
+    seeded = true;
+    for (const url of [SEARCH_RELAY, ...PROFILE_RELAYS]) kept.add(normalizeURL(url));
+  }
+  return kept;
+};
+
+/** The library's own idle timeout, for everything else. */
+const DEFAULT_KEEP_ALIVE_MS = 30_000;
+
+/**
+ * Hold this relay's socket open between reads for minutes, not seconds: one
+ * the reader keeps coming back to (their inbox relay). Applies to a socket
+ * already open as well as to one opened later.
+ */
+export function keepRelayAlive(url: string, target: RelayPool = pool): void {
+  const normalized = normalizeURL(url);
+  longLived().add(normalized);
+  const relay = target.relays.get(normalized);
+  if (relay) relay.keepAlive = KEEP_ALIVE_MS;
+}
 
 /**
  * A relay whose reads never wait for authentication — and whose live
@@ -360,6 +394,10 @@ class ReadFirstPool extends RelayPool {
     const existing = this.relays.get(url);
     if (existing) return existing;
     const relay = new ReadFirstRelay(url, this.options);
+    // Read when the socket goes idle, so set it per relay (see KEEP_ALIVE_MS).
+    // A pool built with its own `keepAlive` (a test's) keeps it for all.
+    if (this.options?.keepAlive === undefined)
+      relay.keepAlive = longLived().has(url) ? KEEP_ALIVE_MS : DEFAULT_KEEP_ALIVE_MS;
     this.relays.set(url, relay);
     this.relays$.next(this.relays);
     this.add$.next(relay);
@@ -439,7 +477,6 @@ export function createPool(options: RelayOptions = {}): RelayPool {
   /** The relays this pool handed a refused socket. */
   const refused = new Set<string>();
   const pool = new ReadFirstPool({
-    keepAlive: KEEP_ALIVE_MS,
     requestReconnect: 0,
     ...options,
     WebSocket: refusingLocal(options.WebSocket ?? globalThis.WebSocket, refused),
