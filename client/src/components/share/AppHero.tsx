@@ -80,12 +80,11 @@ function releaseAge(at: number): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
+/** One formatter for every release row (what `toLocaleDateString` would build per call). */
+const releaseDateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 function releaseDate(at: number): string {
-  return new Date(at * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return releaseDateFormat.format(new Date(at * 1000));
 }
 
 // ---------------------------------------------------------------------------

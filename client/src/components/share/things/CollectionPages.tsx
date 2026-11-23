@@ -137,6 +137,14 @@ export function CalendarSections({ event }: { event: PageEvent }) {
   );
 }
 
+/** "Mon, Nov 23, 2026": one formatter for every day header, not one per header per render. */
+const dayHeading = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
 /**
  * Events under the day they fall on — the event card leaves the date to the
  * list it sits in (the Events tab's day headers), so this list says it too.
@@ -168,14 +176,7 @@ function DayList({
                   <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
                 )}
                 <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {d
-                    ? d.toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "Date to be announced"}
+                  {d ? dayHeading.format(d) : "Date to be announced"}
                 </span>
                 <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
               </div>

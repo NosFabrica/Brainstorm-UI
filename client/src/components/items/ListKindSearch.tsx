@@ -644,9 +644,7 @@ function EventCard({
         <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
       ) : (
         <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
-          <span className="text-[11px] font-semibold uppercase tracking-wide">
-            {start.toLocaleDateString(undefined, { month: "short" })}
-          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide">{shortMonth.format(start)}</span>
           <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
         </span>
       )}
@@ -983,6 +981,9 @@ function PageEmpty({ pending, label, query }: { pending: boolean; label: string;
     </p>
   );
 }
+
+/** "Nov": one formatter for every event card, not one per card per render. */
+const shortMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
 
 /** Books: a shelf, the way a bookshop shows them — covers first. */
 function BooksPage({ query }: { query: string }) {
