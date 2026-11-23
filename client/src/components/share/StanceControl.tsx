@@ -1,5 +1,5 @@
 import { Check, Loader2, Plus, ThumbsDown } from "lucide-react";
-import { CommandItem } from "@/components/ui/command";
+import { useCommandUi } from "@/components/share/lazyCommandUi";
 
 /**
  * Agree / Disagree — the one place either stance is expressed.
@@ -155,6 +155,10 @@ export function StanceRow({
   testId: string;
 }) {
   const a = actions(stance);
+  // Drawn only inside an open picker's command menu, so its primitives are here already.
+  const ui = useCommandUi();
+  if (!ui) return null;
+  const { CommandItem } = ui;
   return (
     <CommandItem
       value={name}

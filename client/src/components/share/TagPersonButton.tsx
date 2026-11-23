@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { warmCommandUi, WithCommandUi } from "@/components/share/lazyCommandUi";
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { ROLES } from "@/config/personalization";
@@ -261,6 +261,8 @@ export function TagPersonButton({
           type="button"
           className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
           data-testid="share-add-tag"
+          onPointerEnter={warmCommandUi}
+          onFocus={warmCommandUi}
         >
           <Plus className="h-3 w-3" />
           Tag {isOwner ? "your" : "this"} profile
@@ -287,147 +289,160 @@ export function TagPersonButton({
             }}
           />
         ) : (
-          <Command shouldFilter filter={pickerTagScore}>
-            <CommandInput
-              placeholder={TAG_SEARCH_PLACEHOLDER}
-              value={search}
-              onValueChange={setSearch}
-              data-testid="share-tag-search"
-            />
-            <CommandList>
-              {!isNew && <CommandEmpty>Type a name to create a new tag.</CommandEmpty>}
+          // The menu's primitives load on first opening (components/share/lazyCommandUi); the trigger warms them.
+          <WithCommandUi
+            fallback={
+              <p className="px-3 py-2 text-xs text-slate-400" data-testid="share-tag-menu-loading">
+                Loading tags…
+              </p>
+            }
+          >
+            {({ Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList }) => (
+              <Command shouldFilter filter={pickerTagScore}>
+                <CommandInput
+                  placeholder={TAG_SEARCH_PLACEHOLDER}
+                  value={search}
+                  onValueChange={setSearch}
+                  data-testid="share-tag-search"
+                  // Radix focuses the search box on opening, unless it arrived after: then it takes the focus itself.
+                  autoFocus
+                />
+                <CommandList>
+                  {!isNew && <CommandEmpty>Type a name to create a new tag.</CommandEmpty>}
 
-              {/* Already on this profile — where you say whether it fits. Listed
-                first because reacting to what's there beats scrolling a generic
-                list. One row per tag with Agree and Disagree side by side: both
-                stances reachable from neutral, the one you hold shown as state,
-                and no "Remove" — there is no delete (#41 B2). */}
-              {onProfile.length > 0 && (
-                <CommandGroup heading="Already on this profile">
-                  {onProfile.map((tag) => (
-                    <StanceRow
-                      key={tag.key}
-                      name={tag.name}
-                      stance={tag.myStance}
-                      pending={applyTag.isPending}
-                      onVote={(polarity) => void setStance(tag, polarity)}
-                      testId="share-tag-stance"
-                    />
-                  ))}
-                </CommandGroup>
-              )}
+                  {/* Already on this profile — where you say whether it fits. Listed
+                    first because reacting to what's there beats scrolling a generic
+                    list. One row per tag with Agree and Disagree side by side: both
+                    stances reachable from neutral, the one you hold shown as state,
+                    and no "Remove" — there is no delete (#41 B2). */}
+                  {onProfile.length > 0 && (
+                    <CommandGroup heading="Already on this profile">
+                      {onProfile.map((tag) => (
+                        <StanceRow
+                          key={tag.key}
+                          name={tag.name}
+                          stance={tag.myStance}
+                          pending={applyTag.isPending}
+                          onVote={(polarity) => void setStance(tag, polarity)}
+                          testId="share-tag-stance"
+                        />
+                      ))}
+                    </CommandGroup>
+                  )}
 
-              {/* Roles this person listed before tags existed. Shown to them
-                only, and only until they've added them — a nudge, not a
-                migration that happens behind their back. */}
-              {isOwner && pendingLegacy.length > 0 && (
-                <CommandGroup heading="You listed these before">
-                  {pendingLegacy.map((label) => (
-                    <CommandItem
-                      key={label}
-                      value={label}
-                      onSelect={() => confirmAdd(label, () => addByName(label))}
-                      className={SOFT_SELECTED_ROW}
-                      data-testid="share-tag-legacy"
-                    >
-                      <Plus className="mr-2 h-3.5 w-3.5" />
-                      <span className="flex-1 truncate">{label}</span>
-                      <span className="ml-2 shrink-0 text-[10px] text-slate-400">Add as tag</span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
+                  {/* Roles this person listed before tags existed. Shown to them
+                    only, and only until they've added them — a nudge, not a
+                    migration that happens behind their back. */}
+                  {isOwner && pendingLegacy.length > 0 && (
+                    <CommandGroup heading="You listed these before">
+                      {pendingLegacy.map((label) => (
+                        <CommandItem
+                          key={label}
+                          value={label}
+                          onSelect={() => confirmAdd(label, () => addByName(label))}
+                          className={SOFT_SELECTED_ROW}
+                          data-testid="share-tag-legacy"
+                        >
+                          <Plus className="mr-2 h-3.5 w-3.5" />
+                          <span className="flex-1 truncate">{label}</span>
+                          <span className="ml-2 shrink-0 text-[10px] text-slate-400">Add as tag</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
 
-              {/* Real tags people already use. Applying one of these joins an
-                existing list rather than minting a near-duplicate. */}
-              {existing.length > 0 && (
-                <CommandGroup heading="Tags people use">
-                  {existing.map((e) => (
-                    <CommandItem
-                      key={e.key}
-                      value={e.label}
-                      onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
-                      className={SOFT_SELECTED_ROW}
-                      data-testid="share-tag-existing"
-                    >
-                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate">{e.label}</span>
-                        {e.description && (
-                          <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
-                        )}
-                      </span>
-                      <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
+                  {/* Real tags people already use. Applying one of these joins an
+                    existing list rather than minting a near-duplicate. */}
+                  {existing.length > 0 && (
+                    <CommandGroup heading="Tags people use">
+                      {existing.map((e) => (
+                        <CommandItem
+                          key={e.key}
+                          value={e.label}
+                          onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                          className={SOFT_SELECTED_ROW}
+                          data-testid="share-tag-existing"
+                        >
+                          <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{e.label}</span>
+                            {e.description && (
+                              <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
+                            )}
+                          </span>
+                          <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
 
-              {/* Tags the applicability split says describe posts rather than
-                people. Still applicable — the hint is never a gate — just not
-                what someone tagging a person is usually looking for. */}
-              {forNotes.length > 0 && (
-                <CommandGroup heading="Usually used on posts">
-                  {forNotes.map((e) => (
-                    <CommandItem
-                      key={e.key}
-                      value={e.label}
-                      onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
-                      className={SOFT_SELECTED_ROW}
-                      data-testid="share-tag-content"
-                    >
-                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate">{e.label}</span>
-                        {e.description && (
-                          <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
-                        )}
-                      </span>
-                      {/* A tag made for posts may be on no one yet: no count then. */}
-                      {e.people > 0 && (
-                        <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
-                      )}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
+                  {/* Tags the applicability split says describe posts rather than
+                    people. Still applicable — the hint is never a gate — just not
+                    what someone tagging a person is usually looking for. */}
+                  {forNotes.length > 0 && (
+                    <CommandGroup heading="Usually used on posts">
+                      {forNotes.map((e) => (
+                        <CommandItem
+                          key={e.key}
+                          value={e.label}
+                          onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                          className={SOFT_SELECTED_ROW}
+                          data-testid="share-tag-content"
+                        >
+                          <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{e.label}</span>
+                            {e.description && (
+                              <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
+                            )}
+                          </span>
+                          {/* A tag made for posts may be on no one yet: no count then. */}
+                          {e.people > 0 && (
+                            <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
 
-              {starters.length > 0 && (
-                <CommandGroup heading="Common tags">
-                  {starters.map((role) => (
-                    <CommandItem
-                      key={role.key}
-                      value={role.label}
-                      onSelect={() => confirmAdd(role.label, () => addByName(role.label))}
-                      className={SOFT_SELECTED_ROW}
-                      data-testid="share-tag-option"
-                    >
-                      {role.label}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-              {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
-              {isNew && (
-                <CommandGroup heading="New tag">
-                  {/* Says what comes next: this opens the form, it publishes nothing. */}
-                  <CommandItem
-                    value={newTagValue(typed)}
-                    onSelect={() => confirmNew(typed)}
-                    className={SOFT_SELECTED_ROW}
-                    data-testid="share-tag-create"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">Create "{typed}"</span>
-                      <span className="block truncate text-[10px] text-slate-400">Add a description next</span>
-                    </span>
-                    <ChevronRight className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                  </CommandItem>
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
+                  {starters.length > 0 && (
+                    <CommandGroup heading="Common tags">
+                      {starters.map((role) => (
+                        <CommandItem
+                          key={role.key}
+                          value={role.label}
+                          onSelect={() => confirmAdd(role.label, () => addByName(role.label))}
+                          className={SOFT_SELECTED_ROW}
+                          data-testid="share-tag-option"
+                        >
+                          {role.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                  {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
+                  {isNew && (
+                    <CommandGroup heading="New tag">
+                      {/* Says what comes next: this opens the form, it publishes nothing. */}
+                      <CommandItem
+                        value={newTagValue(typed)}
+                        onSelect={() => confirmNew(typed)}
+                        className={SOFT_SELECTED_ROW}
+                        data-testid="share-tag-create"
+                      >
+                        <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">Create "{typed}"</span>
+                          <span className="block truncate text-[10px] text-slate-400">Add a description next</span>
+                        </span>
+                        <ChevronRight className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            )}
+          </WithCommandUi>
         )}
       </PopoverContent>
     </Popover>
