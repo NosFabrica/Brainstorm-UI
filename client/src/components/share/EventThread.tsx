@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { memo, useMemo, useState, useRef, useEffect, useCallback } from "react";
 import type { Filter } from "applesauce-core/helpers/filter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { Link } from "wouter";
@@ -66,6 +66,43 @@ function scopeOf(reply: MinimalEvent, scope: ReadonlyMap<string, string>, own?: 
   }
   return null;
 }
+
+/**
+ * One comment. Memoised, and handed its own score as a value: each batch of
+ * scores (setScoreVersion) re-renders the thread, and only the rows whose
+ * commenter was just scored draw again.
+ *
+ * Skipped while offscreen (`content-visibility: auto`), a thread can hold a
+ * few hundred: nothing in a row measures its layout or the scroll, and the
+ * remembered size (`auto`) keeps the scrollbar from jumping once a row has
+ * been seen.
+ */
+const CommentRow = memo(function CommentRow({
+  reply,
+  on,
+  author,
+  profiles,
+  href,
+  score,
+}: {
+  reply: MinimalEvent;
+  on: string | null;
+  author: ProfileLite | undefined;
+  profiles: Map<string, ProfileLite>;
+  href: string;
+  score: number | null | undefined;
+}) {
+  return (
+    <div className="[contain-intrinsic-size:auto_180px] [content-visibility:auto]" data-testid="thread-comment">
+      {on && (
+        <p className="mb-1 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-comment-on">
+          on <span className="font-semibold text-slate-700 dark:text-slate-200">{on}</span>
+        </p>
+      )}
+      <EmbeddedNoteCard event={reply} author={author} profiles={profiles} href={href} trustScore01={score} />
+    </div>
+  );
+});
 
 export function EventThread({
   eventId,
@@ -347,26 +384,18 @@ export function EventThread({
       )}
 
       <div className="space-y-2">
-        {shown.map((reply) => {
-          // A comment left on one of the scope's parts says which.
-          const on = scope ? scopeOf(reply, scope, addressCoord) : null;
-          return (
-            <div key={reply.id}>
-              {on && (
-                <p className="mb-1 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-comment-on">
-                  on <span className="font-semibold text-slate-700 dark:text-slate-200">{on}</span>
-                </p>
-              )}
-              <EmbeddedNoteCard
-                event={reply}
-                author={profiles.get(reply.pubkey)}
-                profiles={profiles}
-                href={eventPath(reply, relayHints)}
-                trustScore01={scoreFor(reply.pubkey)}
-              />
-            </div>
-          );
-        })}
+        {shown.map((reply) => (
+          <CommentRow
+            key={reply.id}
+            reply={reply}
+            // A comment left on one of the scope's parts says which.
+            on={scope ? scopeOf(reply, scope, addressCoord) : null}
+            author={profiles.get(reply.pubkey)}
+            profiles={profiles}
+            href={eventPath(reply, relayHints)}
+            score={scoreFor(reply.pubkey)}
+          />
+        ))}
       </div>
 
       {!loggedIn && gatedCount > 0 && (
