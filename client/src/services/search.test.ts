@@ -108,6 +108,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   NO_PERSPECTIVE,
+  FRAME_FALLBACK_MS,
   searchStream,
   narrowToMembers,
   countCategories,
@@ -367,6 +368,75 @@ describe("searchStream", () => {
     expect(last.hits.map((h) => h.event.id)).toEqual(["e1", "e2"]);
     expect(last.eose).toBe(true);
     expect(last.error).toBeNull();
+  });
+
+  // Every relay frame is its own task, so a snapshot per hit was a full results render
+  // per hit. The first hit and the page's end are what a reader waits on; the rest wait a frame.
+  it("coalesces hits after the first into one snapshot per frame, and EOSE goes out at once", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] });
+    try {
+      const { subject } = controllable();
+      const snaps: SearchSnapshot[] = [];
+      searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+
+      subject.next(frame(ev("e1", 0, "b".repeat(64))));
+      expect(snaps.map((s) => s.hits.length)).toEqual([1]);
+
+      subject.next(frame(ev("e2", 0, "c".repeat(64))));
+      subject.next(frame(ev("e3", 0, "d".repeat(64))));
+      subject.next(frame(ev("e4", 0, "e".repeat(64))));
+      expect(snaps).toHaveLength(1);
+      await vi.advanceTimersToNextFrame();
+      expect(snaps.map((s) => s.hits.length)).toEqual([1, 4]);
+
+      subject.next(frame(ev("e5", 0, "f".repeat(64))));
+      subject.next(EOSE);
+      expect(snaps.at(-1)).toMatchObject({ eose: true });
+      expect(snaps.at(-1)!.hits).toHaveLength(5);
+      // The frame that was waiting is superseded, not sent again.
+      const sent = snaps.length;
+      await vi.advanceTimersByTimeAsync(100);
+      expect(snaps).toHaveLength(sent);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lands a coalesced snapshot in a hidden tab, where no frame comes", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+    try {
+      const { subject } = controllable();
+      const snaps: SearchSnapshot[] = [];
+      searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      subject.next(frame(ev("e1", 0, "b".repeat(64))));
+      subject.next(frame(ev("e2", 0, "c".repeat(64))));
+      expect(snaps).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(FRAME_FALLBACK_MS);
+      expect(snaps.at(-1)!.hits).toHaveLength(2);
+    } finally {
+      raf.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("a cancelled stream drops the snapshot it had waiting for a frame", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] });
+    try {
+      const { subject } = controllable();
+      const snaps: SearchSnapshot[] = [];
+      const cancel = searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      subject.next(frame(ev("e1", 0, "b".repeat(64))));
+      subject.next(frame(ev("e2", 0, "c".repeat(64))));
+      cancel();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(snaps).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
