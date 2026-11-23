@@ -6,9 +6,9 @@
  * Asked of our own origin — `GET /github/users/<handle>` and so on, which
  * nginx proxies to api.github.com and caches — never of GitHub from the
  * reader's browser: the link-preview rule (services/unfurl). One upstream
- * call per account an hour, not one per reader against GitHub's limit of 60
- * an hour per address, and a reader never contacts GitHub. In development
- * Vite proxies the same path.
+ * call per account a day (nginx.conf, `/github/`), not one per reader
+ * against GitHub's limit of 60 an hour per address, and a reader never
+ * contacts GitHub. In development Vite proxies the same path.
  *
  * What GitHub gives without a token: the user, the repo list, public events.
  * Pinned repos and the contribution graph need one; they arrive once the
