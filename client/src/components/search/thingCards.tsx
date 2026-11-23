@@ -402,19 +402,21 @@ export function CommunityCard(props: CardProps<"community">) {
 
 // ——— Fundraisers ———
 
-const sats = (n: number) => new Intl.NumberFormat("en-US").format(n);
+// One formatter each for every card: building an Intl formatter is the expensive part of using one.
+const SATS = new Intl.NumberFormat("en-US");
+const ONE_DECIMAL = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+const WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const MONTH_DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
+const sats = (n: number) => SATS.format(n);
 const satsWord = (n: number) => `${sats(n)} ${n === 1 ? "sat" : "sats"}`;
 const compactSats = (n: number) =>
-  n >= 1_000_000
-    ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(n / 1_000_000)}M`
-    : n >= 10_000
-      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n / 1000)}k`
-      : sats(n);
+  n >= 1_000_000 ? `${ONE_DECIMAL.format(n / 1_000_000)}M` : n >= 10_000 ? `${WHOLE.format(n / 1000)}k` : sats(n);
 
 /** "Ends in 3 days", "Ends today", "Ended Sep 4". */
 function deadlineWords(deadline: number, now = Date.now()): string {
   const ms = deadline * 1000 - now;
-  const date = new Date(deadline * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const date = MONTH_DAY.format(new Date(deadline * 1000));
   if (ms <= 0) return `Ended ${date}`;
   const days = Math.floor(ms / 86_400_000);
   if (days === 0) return "Ends today";
@@ -715,7 +717,7 @@ export const MARKET_STATUS_CHIP: Record<MarketStatus, { word: string; tone: Tone
 
 export function marketCloseWords(closes: number, now = Date.now()): string {
   const ms = closes * 1000 - now;
-  const date = new Date(closes * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const date = MONTH_DAY.format(new Date(closes * 1000));
   if (ms <= 0) return `Closed ${date}`;
   const hours = Math.floor(ms / 3_600_000);
   if (hours < 24)

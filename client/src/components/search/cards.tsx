@@ -77,6 +77,9 @@ export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
 }
 
+/** One formatter for every row: `toLocaleDateString` with options builds a new one per call. */
+const DAY_MONTH_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 /** How real-time a card is: seconds → minutes → hours → days, then a
  *  plain date once "N days ago" stops meaning anything (~a month). */
 function fmtWhen(created_at: number): string {
@@ -86,11 +89,7 @@ function fmtWhen(created_at: number): string {
     if (s < 3600) return `${Math.floor(s / 60)}m ago`;
     if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
     if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
-    return new Date(created_at * 1000).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return DAY_MONTH_YEAR.format(new Date(created_at * 1000));
   } catch {
     return "";
   }

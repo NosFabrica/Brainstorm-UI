@@ -23,6 +23,8 @@ export const sameDay = (a: Date | null, b: Date | null): boolean => sameMonth(a,
 const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(undefined, opts);
 const DAY_FMT = fmt({ day: "numeric", month: "short", year: "numeric" });
 const MONTH_FMT = fmt({ month: "long", year: "numeric" });
+const NARROW_DOW_FMT = fmt({ weekday: "narrow" });
+const LONG_DOW_FMT = fmt({ weekday: "long" });
 
 /** A day in the reader's own spelling, for a pill and a grid cell. */
 export const dayLabel = (d: Date): string => DAY_FMT.format(d);
@@ -56,8 +58,8 @@ export const WEEK_START = weekStart();
  */
 export const dowNames = (start = WEEK_START): { narrow: string; long: string }[] =>
   Array.from({ length: 7 }, (_, i) => new Date(2026, 0, 4 + start + i)).map((d) => ({
-    narrow: fmt({ weekday: "narrow" }).format(d),
-    long: fmt({ weekday: "long" }).format(d),
+    narrow: NARROW_DOW_FMT.format(d),
+    long: LONG_DOW_FMT.format(d),
   }));
 
 export const DOW = dowNames();

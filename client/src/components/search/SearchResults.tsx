@@ -340,6 +340,9 @@ function tagChipFor(carried: Parameters<typeof matchedTagChip>[0]): ReturnType<t
   return TAG_CHIPS.get(tag);
 }
 
+/** The Events timeline's day headers, one formatter for all of them. */
+const DAY_HEADER = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
+
 /**
  * A result row skips layout and paint while it is far off screen. `auto` in the
  * intrinsic size remembers the height a row last rendered at, so the scrollbar
@@ -2577,7 +2580,7 @@ export const SearchResults = memo(function SearchResults({
       last = key;
       const rel = d ? relativeDay(cal.startSec) : "";
       const dayWord = rel === "Today" || rel === "Tomorrow" || rel === "Yesterday" ? rel : null;
-      const long = d ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
+      const long = d ? DAY_HEADER.format(d) : "";
       out.set(row.hit.event.id, {
         key,
         startSec: cal.startSec,

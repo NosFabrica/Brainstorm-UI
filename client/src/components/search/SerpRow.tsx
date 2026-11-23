@@ -65,12 +65,15 @@ import { parseHighlight } from "@/lib/nip84";
 import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
 import { WEB_BOOKMARK_KIND, webBookmarkOf, type WebBookmark } from "@/lib/webBookmark";
 
+/** One formatter for every row: `toLocaleDateString` with options builds a new one per call. */
+const MONTH_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
+
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
   if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(created_at * 1000).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  return MONTH_YEAR.format(new Date(created_at * 1000));
 }
 
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
