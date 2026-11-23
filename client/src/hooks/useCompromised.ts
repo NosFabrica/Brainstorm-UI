@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CompromisedStatus } from "@/lib/compromised";
 import {
   compromisedVersion,
@@ -15,16 +15,33 @@ function useRecords(): number {
 }
 
 /**
+ * One account's reading, re-rendering only when it changes. Every batch wakes
+ * every subscriber, and a page holds a few marks per card, so the snapshot is
+ * the reading itself (the service hands back the same object until it
+ * changes), not the store's version: a batch about other accounts re-renders
+ * nobody here.
+ */
+function useReading(
+  pubkey: string | null | undefined,
+  read: (pubkey: string) => CompromisedStatus | null,
+): CompromisedStatus | null {
+  const snapshot = useCallback(() => (pubkey ? read(pubkey) : null), [pubkey, read]);
+  const reading = useSyncExternalStore(subscribeCompromised, snapshot, snapshot);
+  useEffect(() => {
+    if (pubkey && !hasSettledCompromised(pubkey)) void lookupCompromised(pubkey);
+  }, [pubkey]);
+  return reading;
+}
+
+const statusOf = (pubkey: string) => settledCompromised(pubkey) ?? null;
+
+/**
  * Whether this account is Compromised: its status, or null while unanswered
  * and when it isn't marked. Lookups go out in the shared batch
  * (services/compromised).
  */
 export function useCompromised(pubkey: string | null | undefined): CompromisedStatus | null {
-  useRecords();
-  useEffect(() => {
-    if (pubkey && !hasSettledCompromised(pubkey)) void lookupCompromised(pubkey);
-  }, [pubkey]);
-  return pubkey ? (settledCompromised(pubkey) ?? null) : null;
+  return useReading(pubkey, statusOf);
 }
 
 /**
@@ -32,11 +49,7 @@ export function useCompromised(pubkey: string | null | undefined): CompromisedSt
  * Asks the server about this key, whose answer names the account it replaces.
  */
 export function useReplaces(pubkey: string | null | undefined): CompromisedStatus | null {
-  useRecords();
-  useEffect(() => {
-    if (pubkey && !hasSettledCompromised(pubkey)) void lookupCompromised(pubkey);
-  }, [pubkey]);
-  return pubkey ? replacedCompromised(pubkey) : null;
+  return useReading(pubkey, replacedCompromised);
 }
 
 /** Which of these accounts are Compromised, in the order given. */

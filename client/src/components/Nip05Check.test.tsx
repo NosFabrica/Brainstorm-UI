@@ -14,24 +14,29 @@ const OWNER = "1".repeat(64);
 const COPY = "2".repeat(64);
 
 // Which compromised account an account replaces (services/compromised): nobody's, unless a test says so.
-const compromised = vi.hoisted(() => ({ replaces: new Map<string, string>() }));
+// The same record each time it's read, as the service hands back: it is a render snapshot.
+const compromised = vi.hoisted(() => ({ replaces: new Map<string, string>(), records: new Map<string, object>() }));
 vi.mock("@/services/compromised", () => ({
   lookupCompromised: () => Promise.resolve(null),
   settledCompromised: () => null,
   hasSettledCompromised: () => true,
   subscribeCompromised: () => () => {},
   compromisedVersion: () => 0,
-  replacedCompromised: (pk: string) =>
-    compromised.replaces.has(pk)
-      ? {
-          pubkey: compromised.replaces.get(pk),
-          since: null,
-          proofEventId: null,
-          proofEvent: null,
-          successorPubkey: pk,
-          successorEventId: null,
-        }
-      : null,
+  replacedCompromised: (pk: string) => {
+    const replaced = compromised.replaces.get(pk);
+    if (!replaced) return null;
+    const key = `${pk}:${replaced}`;
+    if (!compromised.records.has(key))
+      compromised.records.set(key, {
+        pubkey: replaced,
+        since: null,
+        proofEventId: null,
+        proofEvent: null,
+        successorPubkey: pk,
+        successorEventId: null,
+      });
+    return compromised.records.get(key);
+  },
 }));
 
 const serverNames = (names: Record<string, string>) =>

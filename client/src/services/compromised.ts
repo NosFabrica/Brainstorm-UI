@@ -24,6 +24,12 @@ const cache = new Map<string, Promise<CompromisedStatus | null>>();
 const settled = new Map<string, CompromisedStatus | null>();
 /** An owner's new account → the Compromised account it replaces (the server's `replaces`). */
 const replacing = new Map<string, CompromisedStatus>();
+/**
+ * A successor → the first landed record naming it. `replacedCompromised` is a
+ * render-time snapshot for every mounted mark, so it reads this rather than
+ * scanning every record on each batch.
+ */
+const bySuccessor = new Map<string, CompromisedStatus>();
 let queued = new Map<string, (status: CompromisedStatus | null) => void>();
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 /** The server answered that it has no such check (an older deploy): stop asking. */
@@ -86,6 +92,8 @@ function flush(): void {
       for (const [pubkey, resolve] of chunk) {
         const status = found.get(pubkey) ?? null;
         settled.set(pubkey, status);
+        const successor = status?.successorPubkey;
+        if (successor && !bySuccessor.has(successor)) bySuccessor.set(successor, status);
         resolve(status);
       }
       announce();
@@ -105,7 +113,10 @@ export function lookupCompromised(rawPubkey: string): Promise<CompromisedStatus 
   return p;
 }
 
-/** What we know right now: a status, `null` once asked and not marked, `undefined` before that. */
+/**
+ * What we know right now: a status, `null` once asked and not marked, `undefined` before that.
+ * The same object until the key is answered again, so it serves as a useSyncExternalStore snapshot.
+ */
 export function settledCompromised(rawPubkey: string): CompromisedStatus | null | undefined {
   const pubkey = rawPubkey.toLowerCase();
   return settled.get(pubkey);
@@ -118,10 +129,7 @@ export function settledCompromised(rawPubkey: string): CompromisedStatus | null 
  */
 export function replacedCompromised(rawPubkey: string): CompromisedStatus | null {
   const pubkey = rawPubkey.toLowerCase();
-  const replaced = replacing.get(pubkey);
-  if (replaced) return replaced;
-  for (const status of settled.values()) if (status?.successorPubkey === pubkey) return status;
-  return null;
+  return replacing.get(pubkey) ?? bySuccessor.get(pubkey) ?? null;
 }
 
 export function hasSettledCompromised(pubkey: string): boolean {
@@ -137,5 +145,6 @@ export function __resetCompromised(): void {
   cache.clear();
   settled.clear();
   replacing.clear();
+  bySuccessor.clear();
   serverLacksCheck = false;
 }
