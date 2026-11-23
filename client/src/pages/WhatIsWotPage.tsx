@@ -22,7 +22,7 @@ import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 import { Card } from "@/components/ui/card";
 import { tone as getTone } from "@/lib/tones";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import heroPhoto from "@assets/generated_images/wot_hero_cafe.jpg";
+import heroPhoto from "@assets/generated_images/wot_hero_cafe.webp";
 import ctaPhoto from "@assets/generated_images/login_human_backdrop.webp";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
@@ -312,7 +312,8 @@ export default function WhatIsWotPage() {
             <motion.img
               src={heroPhoto}
               alt="A diverse group of friends laughing together at a coffee shop"
-              loading="lazy"
+              // Above the fold and the page's largest paint: fetched first, never deferred.
+              fetchPriority="high"
               className="absolute inset-0 h-full w-full origin-center object-cover object-[center_35%]"
               data-testid="wot-hero-photo"
               initial={{ scale: 1.05 }}

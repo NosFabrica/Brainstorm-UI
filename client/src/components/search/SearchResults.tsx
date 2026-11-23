@@ -14,7 +14,7 @@ import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
 import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { useLoginHref } from "@/hooks/useLoginHref";
@@ -276,8 +276,10 @@ const LIST_KINDS = new Set([...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_
 const NO_NOTES: MinimalEvent[] = [];
 const NO_HITS: SearchHit[] = [];
 
+type CardProfile = { name?: string; display_name?: string; picture?: string; nip05?: string };
+
 function profilesOf(hits: SearchHit[]) {
-  const map = new Map<string, { name?: string; display_name?: string; picture?: string; nip05?: string }>();
+  const map = new Map<string, CardProfile>();
   for (const hit of hits) {
     if (hit.author && !map.has(hit.author.pubkey)) {
       map.set(hit.author.pubkey, {
@@ -290,6 +292,63 @@ function profilesOf(hits: SearchHit[]) {
   }
   return map;
 }
+
+const sameProfile = (a: CardProfile, b: CardProfile) =>
+  a.name === b.name && a.display_name === b.display_name && a.picture === b.picture && a.nip05 === b.nip05;
+
+/**
+ * The profile map rebuilt per snapshot, holding on to what did not change: each
+ * entry the object it was last time when it says the same, and the whole map the
+ * last one when nothing differs. The cards are memoised, and a fresh map per
+ * arriving hit re-rendered every note card on the page.
+ */
+function keepSameProfiles(prev: Map<string, CardProfile> | null, next: Map<string, CardProfile>) {
+  if (!prev) return next;
+  let same = prev.size === next.size;
+  for (const [pk, p] of next) {
+    const was = prev.get(pk);
+    if (was && sameProfile(was, p)) next.set(pk, was);
+    else same = false;
+  }
+  return same ? prev : next;
+}
+
+/** The empty answers rows are handed when there is nothing: one array, so a memoised card sees no change. */
+const NO_FACES: string[] = [];
+const NO_RAISED: GoalProgress = { sats: 0, zappers: [] };
+
+/**
+ * A person card's author with the score the page fetched, made once per author and
+ * score: a copy per render was a new prop for every memoised PersonCard.
+ */
+const SCORED = new WeakMap<SearchResult, { score: number | null; result: SearchResult }>();
+function withScore(author: SearchResult, score: number | null): SearchResult {
+  if (author.wotRank != null) return author;
+  const held = SCORED.get(author);
+  if (held && held.score === score) return held.result;
+  const result = { ...author, wotRank: score };
+  SCORED.set(author, { score, result });
+  return result;
+}
+
+/** The chip for the matched tag a person carries, one object per tag (matchedTagChip makes a new one per call). */
+const TAG_CHIPS = new WeakMap<object, ReturnType<typeof matchedTagChip>>();
+function tagChipFor(carried: Parameters<typeof matchedTagChip>[0]): ReturnType<typeof matchedTagChip> {
+  const tag = carried[0];
+  if (!tag) return undefined;
+  if (!TAG_CHIPS.has(tag)) TAG_CHIPS.set(tag, matchedTagChip(carried));
+  return TAG_CHIPS.get(tag);
+}
+
+/** The Events timeline's day headers, one formatter for all of them. */
+const DAY_HEADER = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
+
+/**
+ * A result row skips layout and paint while it is far off screen. `auto` in the
+ * intrinsic size remembers the height a row last rendered at, so the scrollbar
+ * settles as the reader goes; 180px is a typical card's height before then.
+ */
+const OFFSCREEN_ROW = "[content-visibility:auto] [contain-intrinsic-size:auto_180px]";
 
 /** Google's row: the verticals in view, the long tail behind More ▾.
  *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
@@ -1109,7 +1168,7 @@ function recallSearch(key: string): { hits: SearchHit[]; scrollY: number } | nul
   return m;
 }
 
-export function SearchResults({
+export const SearchResults = memo(function SearchResults({
   query,
   pov,
   userPubkey,
@@ -1170,6 +1229,8 @@ export function SearchResults({
   // The tab's live stream, so the end of the page can ask it for more.
   const streamRef = useRef<SearchHandle | null>(null);
   const firstRun = useRef(true);
+  // Result rows skip offscreen layout (OFFSCREEN_ROW) except while a remembered scroll is restored.
+  const [rowsWhole, setRowsWhole] = useState(false);
   // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
   // 254 notes, no media-kind events, a video in most of them). The Media tab
   // asks for notes too and keeps the ones that carry something to look at.
@@ -1180,6 +1241,13 @@ export function SearchResults({
   // Set from the first render, never undefined: given undefined the panel would
   // ask the relay itself once, before the sections had a chance to answer.
   const [sections, setSections] = useState<PanelSections>({ people: null, events: null });
+  // The composed page reports its People and Happening sections after each of its renders; the
+  // same two snapshots again are no news, and are not a second render of this whole page.
+  const takeSections = useCallback(
+    (next: PanelSections) =>
+      setSections((prev) => (prev.people === next.people && prev.events === next.events ? prev : next)),
+    [],
+  );
   // The Media tab and the composed Top page both lead with it; the
   // Music tab leads with the person's own tracks the same way.
   const leadsTop = tab === "top" && !/(^|\s)sort:/i.test(query);
@@ -1386,7 +1454,12 @@ export function SearchResults({
   const composedMemory = useRef(composed ? recallComposed(composedKey) : null);
   // Coming back beats the typeahead: memory holds every section, the typeahead
   // only the people it had already found.
-  const composedSeeds = composedMemory.current?.sections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined);
+  // One object per seed, so the memoised composed page does not re-render with every keystroke's render here.
+  const recalledSections = composedMemory.current?.sections;
+  const composedSeeds = useMemo(
+    () => recalledSections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined),
+    [recalledSections, peopleSeed],
+  );
   // Memory is an answer this page already had; the typeahead is a guess.
   const peopleSeedIsGuess = !composedMemory.current && !!peopleSeed?.length;
   const rememberSections = useCallback(
@@ -1471,17 +1544,31 @@ export function SearchResults({
       },
     );
     streamRef.current = handle;
-    let pending: number | ReturnType<typeof setTimeout> | null = null;
+    // What is waiting for a frame, as its own cancel: a rAF id is not a timer id.
+    let pending: (() => void) | null = null;
+    const nextFrame = (run: () => void): (() => void) => {
+      if (typeof requestAnimationFrame === "function") {
+        const id = requestAnimationFrame(run);
+        return () => cancelAnimationFrame(id);
+      }
+      const id = setTimeout(run, 0);
+      return () => clearTimeout(id);
+    };
     if (restoreScroll != null && restoreScroll > 0) {
+      // The rows are laid out whole while the reader is put back: offscreen ones would
+      // otherwise stand at an estimated height, and the remembered position would land on
+      // another row. A frame after, their real heights are recorded and they may skip again.
+      setRowsWhole(true);
       // After paint — and after the app's own scroll-to-top on navigation.
-      pending =
-        typeof requestAnimationFrame === "function"
-          ? requestAnimationFrame(() => window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior }))
-          : setTimeout(() => window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior }), 0);
+      pending = nextFrame(() => {
+        window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior });
+        pending = nextFrame(() => setRowsWhole(false));
+      });
     }
     return () => {
       if (latest && latest.hits.length) rememberSearch(key, latest.hits, scrollAtLeave.current);
-      if (typeof pending === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(pending);
+      pending?.();
+      setRowsWhole(false);
       if (streamRef.current === handle) streamRef.current = null;
       handle();
       // Followed, the stream closed it; cancelled before its first page, nobody did.
@@ -1659,9 +1746,15 @@ export function SearchResults({
     ],
     [rawHits],
   );
-  const scoreOf = useAuthorScores(allAuthors);
-  const scoreOfRef = useRef(scoreOf);
-  scoreOfRef.current = scoreOf;
+  const liveScoreOf = useAuthorScores(allAuthors);
+  const scoreOfRef = useRef(liveScoreOf);
+  scoreOfRef.current = liveScoreOf;
+  // The scores as one key: what the filters below re-run on, and what a new `scoreOf` means.
+  // The hook hands out a new function per render; the memoised lists given it (All, Music,
+  // a tag's tab) would re-render with every keystroke and every snapshot for nothing.
+  const scoresKey = allAuthors.map((pk) => liveScoreOf(pk)).join(",");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const scoreOf = useCallback((pk: string) => scoreOfRef.current(pk), [scoresKey]);
   // Their order, taken once when they land and held for the query — a late
   // score must not reorder a list the reader is already scanning.
   const carrierRank = useMemo(
@@ -1689,8 +1782,7 @@ export function SearchResults({
         { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor },
         { scoreOf, reach },
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
+    [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, scoreOf],
   );
   // All's own rows, while it shows them: on a category's page the rows are that category's.
   const allRows = onAll && !category ? hits : NO_HITS;
@@ -2029,7 +2121,7 @@ export function SearchResults({
   const progressOf = (e: NostrEvent): GoalProgress | undefined =>
     tab !== "fundraisers" || e.kind !== 9041
       ? undefined
-      : (goalProgress.byGoal.get(e.id) ?? (goalProgress.settled.has(e.id) ? { sats: 0, zappers: [] } : undefined));
+      : (goalProgress.byGoal.get(e.id) ?? (goalProgress.settled.has(e.id) ? NO_RAISED : undefined));
   const eventAddresses = useMemo(
     () =>
       tab === "events"
@@ -2422,6 +2514,9 @@ export function SearchResults({
     bands,
     viewerFiat,
     priceSort,
+    shopFold,
+    articleType,
+    recipeTopic,
     pageKind,
     repoState,
     repoLabel,
@@ -2485,7 +2580,7 @@ export function SearchResults({
       last = key;
       const rel = d ? relativeDay(cal.startSec) : "";
       const dayWord = rel === "Today" || rel === "Tomorrow" || rel === "Yesterday" ? rel : null;
-      const long = d ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
+      const long = d ? DAY_HEADER.format(d) : "";
       out.set(row.hit.event.id, {
         key,
         startSec: cal.startSec,
@@ -2532,11 +2627,17 @@ export function SearchResults({
     [hits, snapshot?.eose],
   );
   const noteRefs = useNoteRefs(noteEvents);
+  const profilesRef = useRef<Map<string, CardProfile> | null>(null);
   const profiles = useMemo(() => {
     const map = profilesOf(hits);
     for (const [pk, p] of noteRefs.profiles) if (!map.has(pk)) map.set(pk, p);
-    return map;
+    return keepSameProfiles(profilesRef.current, map);
   }, [hits, noteRefs.profiles]);
+  profilesRef.current = profiles;
+  // What the memoised lists are handed: the rows alone, one array per change of them.
+  const shownHits = useMemo(() => displayHits.map((d) => d.hit), [displayHits]);
+  const turnPage = useCallback(() => streamRef.current?.more(), []);
+  const openTab = useCallback((next: string) => changeTab(next as SearchTab), [changeTab]);
 
   return (
     <SearchPriorityContext.Provider value={searchPriority}>
@@ -2698,7 +2799,7 @@ export function SearchResults({
               group={composed ? "search-top" : undefined}
               onOpen={onOpenProfile}
               onPerson={setPanelPerson}
-              onTab={(next) => changeTab(next as SearchTab)}
+              onTab={openTab}
               onOpenKind={openKind}
               // Not pinned: the panel is context for the query, read at the top, and
               // it scrolls away with the page the way Google's does. Pinned, it
@@ -2782,7 +2883,7 @@ export function SearchResults({
                   onOpenKind={openKind}
                   query={query}
                   personMedia={personMedia}
-                  onSections={setSections}
+                  onSections={takeSections}
                   onSectionHits={rememberSections}
                   seeds={composedSeeds}
                   peopleSeedIsGuess={peopleSeedIsGuess}
@@ -3238,14 +3339,15 @@ export function SearchResults({
                   {tab === "all" ? (
                     // Every kind, in the relay's order, one row shape: the pill says which is which.
                     <AllResults
-                      hits={displayHits.map((d) => d.hit)}
+                      hits={shownHits}
                       settled={!!snapshot?.eose && !snapshot.loadingMore}
                       scoreOf={scoreOf}
                       query={query}
+                      skipOffscreen={!rowsWhole}
                     />
                   ) : tab === "music" ? (
                     <MusicResults
-                      hits={displayHits.map((d) => d.hit)}
+                      hits={shownHits}
                       query={query}
                       wavlake={wavlake}
                       podcastIndex={podcastIndex}
@@ -3304,7 +3406,7 @@ export function SearchResults({
                           // shares one height; list tabs are unaffected by h-full.
                           const day = eventDayHeaders.get(event.id);
                           const wrap = (card: React.ReactNode) => (
-                            <div key={event.id} className="h-full">
+                            <div key={event.id} className={rowsWhole ? "h-full" : `h-full ${OFFSCREEN_ROW}`}>
                               {day && (
                                 <div
                                   className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`}
@@ -3352,12 +3454,9 @@ export function SearchResults({
                             // The one tag the words matched, if this person carries it.
                             const cardTag =
                               tagMatches.length > 0 && carriers.settled
-                                ? matchedTagChip(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
+                                ? tagChipFor(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
                                 : undefined;
-                            const scored =
-                              hit.author.wotRank == null
-                                ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
-                                : hit.author;
+                            const scored = withScore(hit.author, scoreOf(event.pubkey) ?? null);
                             return wrap(
                               <>
                                 {/* A compromised account: the owner's new one goes first, highlighted. */}
@@ -3424,7 +3523,7 @@ export function SearchResults({
                           const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
                           if (EVENT_KINDS.has(event.kind) || (tab === "events" && event.kind === EVENT_ITEM_KIND)) {
                             const r = rsvpsOf(event);
-                            return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
+                            return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? NO_FACES} />);
                           }
                           if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
                           if (SHOP_KINDS.has(event.kind))
@@ -3473,7 +3572,7 @@ export function SearchResults({
                   <MoreResults
                     show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
                     loading={!!snapshot?.loadingMore}
-                    onMore={() => streamRef.current?.more()}
+                    onMore={turnPage}
                   />
                   {floorNotice}
                 </>
@@ -3484,4 +3583,4 @@ export function SearchResults({
       </QuietTrustChrome>
     </SearchPriorityContext.Provider>
   );
-}
+});

@@ -31,7 +31,7 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { tagAddressOf } from "@/lib/tagTarget";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
-import { apiClient } from "@/services/api";
+import { lookupTrustSignals } from "@/services/trustSignals";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -277,11 +277,12 @@ function EventView({
   const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
   const compromisedRing = useCompromisedRing(authorPk || undefined);
   const trustQuery = useQuery({
-    queryKey: ["event-author-trust", authorPk],
-    queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
+    // The ring every author list draws (services/trustSignals): the house
+    // overview's own influence, batched with the page's other authors and
+    // asked once a session, instead of a whole overview for one number.
+    queryKey: ["author-trust-signals", authorPk],
+    queryFn: async () => (authorPk ? (await lookupTrustSignals(authorPk)).influence : null),
     enabled: !!authorPk,
-    staleTime: 5 * 60_000,
-    retry: false,
   });
 
   // References inside the note (quoted notes, articles, mentions) so the rich

@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from "react";
+import { memo, useState, type MouseEvent } from "react";
 import { AlertCircle, ExternalLink, Headphones, Loader2, Pause, Play } from "lucide-react";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatTime, seekTrack, toggleTrack, useTrackDuration, useTrackPlayer } from "@/lib/audioPlayer";
@@ -12,12 +12,15 @@ import { useFountainItem, type FountainItem } from "@/lib/fountain";
  * Until the page has answered, and whenever it cannot (a network that blocks
  * fountain.fm, a deleted episode), the card is the plain "Listen on Fountain"
  * link it replaced — never a blank, never a dead button.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function FountainCard({ url }: { url: string }) {
+export const FountainCard = memo(function FountainCard({ url }: { url: string }) {
   const { loading, item } = useFountainItem(url);
   if (!item) return <FountainLinkCard url={url} pending={loading} />;
   return <FountainItemCard item={item} />;
-}
+});
 
 /** Past this, three lines will not hold it and a More is worth its row. */
 const FOLD_CHARS = 200;

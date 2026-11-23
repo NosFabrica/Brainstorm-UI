@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { AllResults } from "@/components/search/AllResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
@@ -17,7 +17,7 @@ import type { TrustObserver } from "@/services/tags";
  * keep just that kind, and the other tags they carry as filters, as All's own results offer theirs.
  * Everything carrying the tag is loaded, so a filter here is over the whole of it.
  */
-export function TagTabResults({
+export const TagTabResults = memo(function TagTabResults({
   tag,
   scoreOf,
   query,
@@ -156,4 +156,4 @@ export function TagTabResults({
       )}
     </div>
   );
-}
+});

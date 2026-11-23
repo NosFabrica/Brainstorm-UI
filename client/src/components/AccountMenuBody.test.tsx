@@ -27,7 +27,9 @@ vi.mock("@/accounts/picker", async (original) => ({
 vi.mock("wouter", () => ({ useLocation: () => ["/dashboard", (to: string) => navigate(to)] }));
 vi.mock("@/components/ShareProfileModal", () => ({ ShareProfileModal: () => null }));
 vi.mock("@/components/ThemeToggle", () => ({ ThemeToggle: () => null }));
-vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => 0 } }));
+vi.mock("@/services/api", () => ({
+  apiClient: { getHouseInfluence: async () => 0, getUserOverview: async () => ({ data: { influence: 0 } }) },
+}));
 // The menu's "see plans" row reads the subscription; these tests are about
 // accounts, so pin it to "no policy" rather than standing up the session hook.
 const subState = vi.hoisted(() => ({ isFree: true, isError: false }));

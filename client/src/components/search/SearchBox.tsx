@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { warmSearchRelay } from "@/lib/searchRelay";
+import { preloadSearchResults } from "@/components/search/lazySearchResults";
 import { CATEGORY_ICON } from "@/lib/dlists";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -698,18 +699,29 @@ export function SearchBox({
     };
     raf = requestAnimationFrame(loop);
     const stop = window.setTimeout(() => cancelAnimationFrame(raf), 650);
+    // Scroll and resize fire many times a frame (the scroll listener is capture-phase, so every
+    // scroller on the page reaches it), and each read forces layout: once per frame is enough.
+    let queued = 0;
+    const soon = () => {
+      if (queued) return;
+      queued = requestAnimationFrame(() => {
+        queued = 0;
+        recompute();
+      });
+    };
     const vv = window.visualViewport;
-    window.addEventListener("resize", recompute);
-    window.addEventListener("scroll", recompute, true);
-    vv?.addEventListener("resize", recompute);
-    vv?.addEventListener("scroll", recompute);
+    window.addEventListener("resize", soon);
+    window.addEventListener("scroll", soon, true);
+    vv?.addEventListener("resize", soon);
+    vv?.addEventListener("scroll", soon);
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(queued);
       clearTimeout(stop);
-      window.removeEventListener("resize", recompute);
-      window.removeEventListener("scroll", recompute, true);
-      vv?.removeEventListener("resize", recompute);
-      vv?.removeEventListener("scroll", recompute);
+      window.removeEventListener("resize", soon);
+      window.removeEventListener("scroll", soon, true);
+      vv?.removeEventListener("resize", soon);
+      vv?.removeEventListener("scroll", soon);
     };
   }, [sheet, panelOpen]);
 
@@ -749,12 +761,15 @@ export function SearchBox({
             setEngaged(true);
             onChange(next);
             scheduleSuggest(next);
+            preloadSearchResults();
           }}
           onPickerChange={setFieldPicking}
           onRemoveToken={onRemoveToken}
           onFocus={() => {
             setFocused(true);
             warmSearchRelay();
+            // A focused box is about to search: the results' code downloads while they type.
+            preloadSearchResults();
             if (typedSinceSearchRef.current && rows.length > 0 && value.trim().length >= 2) setShowSuggestions(true);
           }}
           onBlur={() => setFocused(false)}

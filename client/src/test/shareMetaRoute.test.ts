@@ -31,7 +31,8 @@ describe("nginx share pages", () => {
     expect(body).toContain("ssi on;");
     // Served from this location, where includes run — not redirected to one where they don't.
     expect(body).toContain("try_files /index.html =404;");
-    expect(body).toContain('add_header Cache-Control "no-cache, no-store, must-revalidate";');
+    // Revalidated every load, as index.html is; `no-cache`, so it can still be a 304.
+    expect(body).toContain('add_header Cache-Control "no-cache";');
   });
 
   it("no longer decides by User-Agent", () => {

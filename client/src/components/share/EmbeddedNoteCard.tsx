@@ -1,7 +1,7 @@
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { useCompromisedRing } from "@/hooks/useCompromised";
-import { useMemo, type MouseEvent } from "react";
+import { memo, useMemo, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -83,15 +83,18 @@ export type EmbeddedNoteCardProps = {
  * (EmbeddedKindCard). A video, a picture post or a voice message keeps this
  * card's author line and shows its media; anything else its words, with its
  * kind named when it is not a note — a quoted zap or reaction is no mystery.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
+export const EmbeddedNoteCard = memo(function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
   // A quote is its own post: the quoting post's "show" (SensitiveRevealScope) does not show it.
   return (
     <SensitiveRevealBoundary>
       <EmbeddedNoteCardInner {...props} />
     </SensitiveRevealBoundary>
   );
-}
+});
 
 function EmbeddedNoteCardInner(props: EmbeddedNoteCardProps) {
   // A thing is read once here, for the shape, the inline check, the body and the card alike.

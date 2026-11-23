@@ -1,5 +1,5 @@
 import type { NostrEvent } from "nostr-tools";
-import { searchRelay } from "@/lib/searchRelay";
+import { leaseSideSearchRelay } from "@/lib/searchRelay";
 import { NO_PERSON_CONTENT, categoriesOf, personContentFilters, type PersonContent } from "@/lib/personContent";
 
 /**
@@ -7,7 +7,10 @@ import { NO_PERSON_CONTENT, categoriesOf, personContentFilters, type PersonConte
  *
  * One REQ on the search relay carrying six limit-1 filters (probed
  * 2026-09-24: ~100ms per person; the relay's corpus is the widest we have,
- * so no outbox lookup). Every caller for the same person shares the one ask;
+ * so no outbox lookup), on its shared side socket (lib/searchRelay): the
+ * typeahead asks this for every person it suggests, between keystrokes, and on
+ * the search's own socket each ask was a turn in the relay's queue in front of
+ * the next suggestion. Every caller for the same person shares the one ask;
  * the answer is kept for the session. A refusal, a broken stream or the
  * deadline rejects and is forgotten, so the next mount asks again. No relay
  * configured: nothing to say, and that is remembered too.
@@ -23,23 +26,38 @@ const STORE_KEY = "brainstorm_person_content:v1";
 export const PERSON_CONTENT_TTL_MS = 24 * 60 * 60 * 1000;
 type Stored = Record<string, { at: number; chips: PersonContent["chips"] }>;
 
+/**
+ * The store as last read, parsed once. Every row of a typeahead or a People page peeks it per
+ * render, and parsing the whole map for each of them was the cost; this copy is what they read,
+ * kept in step by `remember`, and read again when another tab writes the store.
+ */
+let parsedStore: Stored | null = null;
+
 function readStore(): Stored {
+  if (parsedStore) return parsedStore;
   try {
     const raw = localStorage.getItem(STORE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Stored) : {};
+    parsedStore = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Stored) : {};
   } catch {
-    return {};
+    parsedStore = {};
   }
+  return parsedStore;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORE_KEY || e.key === null) parsedStore = null;
+  });
 }
 
 function remember(key: string, content: PersonContent): void {
+  const store = readStore();
+  const now = Date.now();
+  // Forgotten as they age out, so the store never grows past a day of people.
+  for (const [k, v] of Object.entries(store)) if (!v || now - v.at > PERSON_CONTENT_TTL_MS) delete store[k];
+  store[key] = { at: now, chips: content.chips };
   try {
-    const store = readStore();
-    const now = Date.now();
-    // Forgotten as they age out, so the store never grows past a day of people.
-    for (const [k, v] of Object.entries(store)) if (!v || now - v.at > PERSON_CONTENT_TTL_MS) delete store[k];
-    store[key] = { at: now, chips: content.chips };
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
   } catch {
     // no storage: the session memory still serves
@@ -74,6 +92,7 @@ export function peekPersonContent(pubkey: string): PersonContent | undefined {
 export function __resetPersonContent(opts: { keepStored?: boolean } = {}): void {
   asked.clear();
   settled.clear();
+  parsedStore = null;
   if (!opts.keepStored) {
     try {
       localStorage.removeItem(STORE_KEY);
@@ -84,8 +103,9 @@ export function __resetPersonContent(opts: { keepStored?: boolean } = {}): void 
 }
 
 function ask(pubkey: string, timeoutMs: number): Promise<PersonContent> {
-  const relay = searchRelay();
-  if (!relay) return Promise.resolve(NO_PERSON_CONTENT);
+  const lease = leaseSideSearchRelay();
+  if (!lease) return Promise.resolve(NO_PERSON_CONTENT);
+  const { relay, release } = lease;
   return new Promise((resolve, reject) => {
     const events: NostrEvent[] = [];
     let done = false;
@@ -96,6 +116,7 @@ function ask(pubkey: string, timeoutMs: number): Promise<PersonContent> {
       done = true;
       clearTimeout(timer);
       sub?.unsubscribe();
+      release();
       if (ok) resolve({ chips: categoriesOf(events) });
       else reject(new Error("person content: no answer"));
     }

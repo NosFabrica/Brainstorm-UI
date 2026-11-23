@@ -303,6 +303,17 @@ export async function planOutboxReads(
 const MAX_WARM_AT_ONCE = 100;
 
 /**
+ * Whether warming is worth it now: someone who can sign is signed in. Set by
+ * the module that knows the accounts (services/nostr) — `lib/` doesn't import
+ * them, and every Account the app holds can sign. Until it is set, warm.
+ */
+let warmGate: () => boolean = () => true;
+
+export function setRelayListWarmGate(gate: () => boolean): void {
+  warmGate = gate;
+}
+
+/**
  * Pre-load these people's relay lists, in the background.
  *
  * This is what the durable cache is FOR. Routing is needed at the moment an
@@ -323,6 +334,10 @@ const MAX_WARM_AT_ONCE = 100;
  * cached when a person has no list at all.
  */
 export function warmRelayLists(pubkeys: Iterable<string>): void {
+  // Routing is for publishing, and nobody signed in publishes anything: an
+  // anonymous visitor browsing profiles sent a kind-10002 REQ to six relays
+  // for every list of people it rendered, to route events it would never sign.
+  if (!warmGate()) return;
   const wanted: string[] = [];
   for (const pubkey of pubkeys) {
     if (wanted.length >= MAX_WARM_AT_ONCE) break;

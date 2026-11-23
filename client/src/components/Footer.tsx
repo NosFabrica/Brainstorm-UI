@@ -118,7 +118,11 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
                 </button>
               </nav>
 
-              {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}
+              {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark).
+                  WebP at twice the drawn height, and lazy: the footer is below every fold,
+                  and Chrome and Safari never fetch a lazy image that is display:none, so
+                  the NosFabrica variant for the other theme isn't downloaded either.
+                  The PNGs stay in public/ for anyone who links them. */}
               <div className="flex items-center gap-5">
                 <a
                   href="https://megistus.xyz/"
@@ -128,7 +132,15 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
                   aria-label="Megistus"
                   className="opacity-90 transition-opacity hover:opacity-100"
                 >
-                  <img src="/megistus-logo.png" alt="Megistus" className="h-6 w-auto dark:invert" />
+                  <img
+                    src="/megistus-logo.webp"
+                    alt="Megistus"
+                    width={93}
+                    height={48}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-6 w-auto dark:invert"
+                  />
                 </a>
 
                 <a
@@ -139,10 +151,22 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
                   aria-label="Nosfabrica"
                   className="opacity-90 transition-opacity hover:opacity-100"
                 >
-                  <img src="/nosfabrica-logo-full.png" alt="Nosfabrica" className="h-5 w-auto dark:hidden" />
                   <img
-                    src="/nosfabrica-logo-full-white.png"
+                    src="/nosfabrica-logo-full.webp"
                     alt="Nosfabrica"
+                    width={213}
+                    height={40}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-5 w-auto dark:hidden"
+                  />
+                  <img
+                    src="/nosfabrica-logo-full-white.webp"
+                    alt="Nosfabrica"
+                    width={213}
+                    height={40}
+                    loading="lazy"
+                    decoding="async"
                     className="hidden h-5 w-auto dark:block"
                   />
                 </a>

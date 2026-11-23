@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
-import { apiClient } from "@/services/api";
+import { finePointer, prefetchSharePage } from "@/services/queries/sharePage";
 import { warmProfile } from "@/hooks/useLiveProfile";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { pushRecentProfile } from "@/lib/recentSearches";
@@ -12,7 +12,7 @@ import type { ActivePerspective } from "@/hooks/useActivePerspective";
 /**
  * Opening a person found by search — from the box's suggestions, its recents, or the results
  * list. The profile page is seeded with what the search already knows (so it paints at once)
- * and its queries prefetched; hovering a row starts that early.
+ * and its queries prefetched; hovering a row with a mouse starts that early.
  *
  * Takes the viewer and perspective from the caller's `useSearchPov`, rather than running
  * that hook stack a second time.
@@ -43,16 +43,8 @@ export function useOpenProfile(user: AccountDisplay | null | undefined, effectiv
         povFromSearch: effectivePov,
       };
       setProfileSeed(hex, seed);
-      queryClient
-        .prefetchQuery({
-          queryKey: ["profile", hex],
-          queryFn: async () => {
-            const res = await apiClient.getUserByPubkey(hex);
-            return res?.data ?? null;
-          },
-          staleTime: 5 * 60_000,
-        })
-        .catch(() => {});
+      // The reads /p/:id opens with, under the keys it reads them by.
+      prefetchSharePage(queryClient, hex);
       warmProfile(hex);
     },
     [effectivePov],
@@ -107,7 +99,7 @@ export function useOpenProfile(user: AccountDisplay | null | undefined, effectiv
   const prefetchEnter = useCallback(
     (result: SearchResult) => {
       const key = result.pubkey;
-      if (!key || prefetchTimers.current.has(key)) return;
+      if (!key || prefetchTimers.current.has(key) || !finePointer()) return;
       const timer = window.setTimeout(() => {
         prefetchTimers.current.delete(key);
         seedAndPrefetch(result);

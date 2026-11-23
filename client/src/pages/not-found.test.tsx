@@ -13,7 +13,7 @@ describe("NotFound", () => {
   it("shows the ostrich and Oops!, says the page isn't here, and offers home and tags — not Try again", () => {
     render(<NotFound />);
 
-    expect(screen.getByTestId("sorry-art")).toHaveAttribute("src", "/brand/sorry-ostrich.png");
+    expect(screen.getByTestId("sorry-art")).toHaveAttribute("src", "/brand/sorry-ostrich.webp");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Oops!");
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("This page isn't here.");
     expect(screen.getByText("The link might be out of date, or have a typo in it.")).toBeInTheDocument();

@@ -16,6 +16,36 @@ COPY . .
 # Build Vite project
 RUN npm run build
 
+# A .gz beside each hashed JS, CSS, SVG and wasm file, at the best level, for
+# nginx's gzip_static (nginx.conf, /assets/ only): compressed once here rather
+# than on every request at the level a request can afford. Only where it is
+# smaller. Not the HTML or config.js: the entrypoint rewrites those at start.
+RUN node -e " \
+  const fs = require('fs'), path = require('path'), zlib = require('zlib'); \
+  for (const name of fs.readdirSync('dist/assets', { recursive: true })) { \
+    if (!/\.(js|css|svg|wasm)$/.test(name)) continue; \
+    const file = path.join('dist/assets', name), raw = fs.readFileSync(file); \
+    const gz = zlib.gzipSync(raw, { level: 9 }); \
+    if (gz.length < raw.length) fs.writeFileSync(file + '.gz', gz); \
+  }"
+
+# Every file's mtime from its own content. nginx's ETag and Last-Modified come
+# from the mtime (and size), and a build stamps every file with the time it ran,
+# so each deploy made every unhashed file in public/ look changed: a browser
+# revalidating an icon got the whole icon again rather than a 304. A fixed
+# timestamp would cure that but would also answer 304 for an edit that kept the
+# size (an SVG's colour, say); a time drawn from the content's hash changes
+# exactly when the content does. Somewhere in 2000-2008, so never in the future.
+RUN node -e " \
+  const fs = require('fs'), path = require('path'), crypto = require('crypto'); \
+  for (const name of fs.readdirSync('dist', { recursive: true })) { \
+    const file = path.join('dist', name); \
+    if (!fs.statSync(file).isFile()) continue; \
+    const hash = crypto.createHash('sha256').update(fs.readFileSync(file)).digest(); \
+    const time = 946684800 + (hash.readUInt32BE(0) % 268435456); \
+    fs.utimesSync(file, time, time); \
+  }"
+
 FROM nginx:1.31-alpine AS runtime
 
 # A template, not the final config: the entrypoint substitutes ${OG_RESOLVER}

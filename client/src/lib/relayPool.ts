@@ -37,6 +37,8 @@ import {
   identity,
   isObservable,
   map,
+  NEVER,
+  concat,
   of,
   race,
   repeat,
@@ -50,14 +52,48 @@ import {
   type Observable,
 } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
-import { SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
+import { PROFILE_RELAYS, SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
 /**
- * How long an idle socket stays open. The library's 30s means a pause between
- * two searches costs a fresh DNS + TCP + TLS + upgrade (~0.5s desktop, more on
- * mobile); a few minutes covers a reader thinking between searches.
+ * How long an idle socket stays open, for the relays the app comes back to. The
+ * library's 30s means a pause between two searches costs a fresh DNS + TCP +
+ * TLS + upgrade (~0.5s desktop, more on mobile); a few minutes covers a reader
+ * thinking between searches.
+ *
+ * Only for those: the search relay, the profile relays every fallback read
+ * asks, and the reader's inbox relays (`keepRelayAlive`, from the DM
+ * transport). An author's outbox or a note's relay hint is usually asked once;
+ * holding each of those sockets open for five minutes kept dozens of them
+ * idling on a phone after a feed had scrolled past. They get the library's 30s.
  */
 const KEEP_ALIVE_MS = 5 * 60_000;
+
+/** The relays whose sockets get `KEEP_ALIVE_MS`, normalized as the pool keys them. */
+const kept = new Set<string>();
+/** Seeded on first use rather than at module load: the relay sets are read when a socket is made. */
+let seeded = false;
+const longLived = (): Set<string> => {
+  if (!seeded) {
+    seeded = true;
+    for (const url of [SEARCH_RELAY, ...PROFILE_RELAYS]) kept.add(normalizeURL(url));
+  }
+  return kept;
+};
+
+/** The library's own idle timeout, for everything else. */
+const DEFAULT_KEEP_ALIVE_MS = 30_000;
+
+/**
+ * Hold this relay's socket open between reads for minutes, not seconds: one
+ * the reader keeps coming back to (their inbox relay). Applies to a socket
+ * already open as well as to one opened later.
+ */
+export function keepRelayAlive(url: string, target: RelayPool = pool): void {
+  const normalized = normalizeURL(url);
+  longLived().add(normalized);
+  const relay = target.relays.get(normalized);
+  if (relay) relay.keepAlive = KEEP_ALIVE_MS;
+}
 
 /**
  * A relay whose reads never wait for authentication — and whose live
@@ -82,6 +118,32 @@ export function withSearchToken(filters: ReqFilters): ReqFilters {
       map((f) => (Array.isArray(f) ? f.map(one) : one(f))),
     ) as ReqFilters;
   return (Array.isArray(filters) ? (filters as OneFilter[]).map(one) : one(filters as OneFilter)) as ReqFilters;
+}
+
+/**
+ * purplepag.es indexes profiles and lists, nothing else: asked on 2026-11-23,
+ * it answered kinds 0, 3, 10000, 10002, 10040 and 10050, and nothing for 1, 6,
+ * 7, 20, 30000, 30002, 30023, 30078, 30311, 30402 or 39999; a filter with no
+ * kinds (an id lookup) it refuses outright. It is one of `PROFILE_RELAYS`, so
+ * every read that merges those in — an author's notes, live streams, profile
+ * prefs, an event by id — asked it questions it never answers: about one REQ
+ * in ten on a profile page.
+ */
+const PROFILE_INDEX = normalizeURL("wss://purplepag.es/");
+
+/** Whether purplepag.es can answer the filter: kinds only, and each a profile, a contact list or a replaceable list. */
+export function profileIndexAnswers(filter: OneFilter): boolean {
+  const kinds = (filter as { kinds?: number[] }).kinds;
+  return !!kinds?.length && kinds.every((k) => k === 0 || k === 3 || (k >= 10_000 && k < 20_000));
+}
+
+/** The filters purplepag.es can answer; null when none (a live list of filters is passed as it is). */
+function forProfileIndex(filters: ReqFilters): ReqFilters | null {
+  if (isObservable(filters)) return filters;
+  const all = Array.isArray(filters) ? (filters as OneFilter[]) : [filters as OneFilter];
+  const kept = all.filter(profileIndexAnswers);
+  if (!kept.length) return null;
+  return (kept.length === all.length ? filters : kept) as ReqFilters;
 }
 
 /**
@@ -116,6 +178,17 @@ class ReadFirstRelay extends Relay {
    * by [liveReq]'s rules rather than the library's.
    */
   req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+    if (normalizeURL(this.url) === PROFILE_INDEX) {
+      const answerable = forProfileIndex(filters);
+      // Nothing it can answer: done at once, as an EOSE, so a read waiting on
+      // every relay asked (everyAskedRelayDone) doesn't wait on this one — and
+      // a live one stays open, silent, as the relay itself would.
+      if (!answerable) {
+        const done = of({ type: "EOSE", from: this.url, id: "profile-index-skip" } as const);
+        return (opts?.waitForAuth ? concat(done, NEVER) : done) as ReqMessages;
+      }
+      filters = answerable;
+    }
     const asked = this.url === SEARCH_RELAY ? withSearchToken(filters) : filters;
     if (opts?.waitForAuth) return this.liveReq(asked, opts);
     return super.req(asked, { ...opts, waitForAuth: false }).pipe(
@@ -360,6 +433,10 @@ class ReadFirstPool extends RelayPool {
     const existing = this.relays.get(url);
     if (existing) return existing;
     const relay = new ReadFirstRelay(url, this.options);
+    // Read when the socket goes idle, so set it per relay (see KEEP_ALIVE_MS).
+    // A pool built with its own `keepAlive` (a test's) keeps it for all.
+    if (this.options?.keepAlive === undefined)
+      relay.keepAlive = longLived().has(url) ? KEEP_ALIVE_MS : DEFAULT_KEEP_ALIVE_MS;
     this.relays.set(url, relay);
     this.relays$.next(this.relays);
     this.add$.next(relay);
@@ -439,7 +516,6 @@ export function createPool(options: RelayOptions = {}): RelayPool {
   /** The relays this pool handed a refused socket. */
   const refused = new Set<string>();
   const pool = new ReadFirstPool({
-    keepAlive: KEEP_ALIVE_MS,
     requestReconnect: 0,
     ...options,
     WebSocket: refusingLocal(options.WebSocket ?? globalThis.WebSocket, refused),

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowRight, UserRound, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { apiClient } from "@/services/api";
+import { overviewOptions, selectInfluence } from "@/services/queries/userReads";
 import { decodeShareId } from "@/lib/shareId";
 import { TierTile } from "@/components/score/TierTile";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -57,20 +57,11 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
     }
   }, [intent]);
 
+  // The person's overview from the perspective the dialog speaks for, the same
+  // entry their profile page opens on — so confirming lands on a painted score.
   const scoreQuery = useQuery({
-    queryKey: ["nav-confirm-score", targetPubkey, usePersonal ? "mywot" : "house"],
-    queryFn: async () => {
-      if (!targetPubkey) return null;
-      if (usePersonal) {
-        const ov = (await apiClient.getUserOverview(targetPubkey)) as { data?: { influence?: unknown } };
-        const inf = ov?.data?.influence;
-        return typeof inf === "number" && Number.isFinite(inf) ? inf : null;
-      }
-      return await apiClient.getHouseInfluence(targetPubkey);
-    },
-    enabled: !!targetPubkey,
-    staleTime: 60_000,
-    retry: false,
+    ...overviewOptions(targetPubkey ?? "", usePersonal ? "viewer" : "house"),
+    select: selectInfluence,
   });
   const score01 = typeof scoreQuery.data === "number" ? scoreQuery.data : null;
   const hasTier = score01 != null;

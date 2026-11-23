@@ -24,6 +24,7 @@ import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { publishBlossomServers, uploadToBlossom } from "@/services/blossom";
 import { ENCRYPTED_BLOSSOM_SERVERS, encryptedUploadServers, loadBlossomServers } from "@/lib/blossomServers";
 import { poolTransport } from "./transport";
+import { dmEngine, setDmEngine } from "./current";
 
 function classifyFor(account: BrainstormAccount) {
   return (error: unknown): SignerFailure => {
@@ -121,35 +122,32 @@ export function dmAccountFor(account: BrainstormAccount): DmAccount {
   };
 }
 
-let current: DmEngine | null = null;
-const listeners = new Set<() => void>();
-
-function notify() {
-  for (const l of [...listeners]) l();
-}
-
 function startFor(account: BrainstormAccount | undefined) {
-  if (current?.pubkey === account?.pubkey) return;
-  current?.stop();
-  current = null;
+  const running = dmEngine();
+  if (running?.pubkey === account?.pubkey) return;
+  running?.stop();
+  let next: DmEngine | null = null;
   if (account) {
     ensureReadFloor(account.pubkey);
     // Pinned/muted/accepted chats from the account's encrypted copy. A key held here
     // can open it unasked; an extension or bunker would prompt, so it waits for Messages.
     if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
-    current = new DmEngine(dmAccountFor(account), {
+    next = new DmEngine(dmAccountFor(account), {
       ...engineOptionsFor(account),
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
     });
-    void current.start();
+    void next.start();
   }
-  notify();
+  setDmEngine(next);
 }
 
-/** Begin following the Active Account. Called once at boot (main.tsx). */
+/**
+ * Begin following the Active Account. Called once, when an Account is first
+ * active (services/dm/boot, from main.tsx): this module is not loaded before.
+ */
 export function startDirectMessages(): () => void {
   const stopPrefsSync = startDmPrefsSync();
   startFor(accountManager.active);
@@ -161,15 +159,8 @@ export function startDirectMessages(): () => void {
   };
 }
 
-/** The engine for the Active Account, or null when signed out. */
-export function dmEngine(): DmEngine | null {
-  return current;
-}
-
-export function subscribeDmEngine(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+// Kept here as well for the callers that already have this module.
+export { dmEngine, subscribeDmEngine } from "./current";
 
 /**
  * Turn private messages on: publish the inbox list. The inbox relays sign the
@@ -201,7 +192,7 @@ async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promi
   // account already published (from another client) with our suggestions.
   const existing = await loadDmRelays(account.pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
   if (existing?.relays.length) {
-    if (current?.pubkey === account.pubkey) void current.refreshInbox();
+    if (dmEngine()?.pubkey === account.pubkey) void dmEngine()?.refreshInbox();
     return { success: true };
   }
   return publishInboxRelays(relays);
@@ -224,7 +215,7 @@ export async function publishInboxRelays(relays: string[]): Promise<PublishOutco
   eventStore.add(signed);
   // One relay taking it is enough to start; a dead one shouldn't hold up setup.
   const outcome = await publishToRelays(signed, relays, { need: 1, timeoutMs: 8000 });
-  if (current?.pubkey === account.pubkey) void current.refreshInbox();
+  if (dmEngine()?.pubkey === account.pubkey) void dmEngine()?.refreshInbox();
   return outcome;
 }
 

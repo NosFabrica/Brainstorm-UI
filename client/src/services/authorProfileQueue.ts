@@ -1,7 +1,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
-import { PROFILE_FRESH_MS, claimRefresh, readProfileRows } from "@/lib/eventCache";
+import { PROFILE_FRESH_MS, claimRefresh, deviceLearnedAt, readProfileRows } from "@/lib/eventCache";
 import { loadReplaceable } from "@/lib/loaders";
 
 /**
@@ -150,6 +150,15 @@ function deliver(profile: NostrEvent): void {
   tell(profile.pubkey, profile);
 }
 
+/**
+ * A copy this session read off the device, learned long enough ago to have
+ * changed. One that came from a relay this session is fresh by definition.
+ */
+function isOldDeviceCopy(profile: NostrEvent): boolean {
+  const at = deviceLearnedAt(profile);
+  return at !== undefined && at < Date.now() - PROFILE_FRESH_MS;
+}
+
 /** Batches being looked up on the device, which are about to hold a slot. */
 let reading = 0;
 /** A blocked IndexedDB open never settles; it must not hold a slot for good. */
@@ -165,18 +174,29 @@ async function ask(authors: string[]): Promise<void> {
   // starting another: between flush() and send() they are in neither queue.
   const reservation: Lookup = { authors, close: () => {} };
   for (const a of authors) inFlight.set(a, reservation);
-  let missing = authors;
+  // Whoever the store already holds — a search's own peek at the device put
+  // them there a moment ago — is answered from it: the device is not read for
+  // them a second time.
+  const inStore = new Map<string, NostrEvent>();
+  for (const a of authors) {
+    const held = eventStore.getReplaceable(0, a);
+    if (held) inStore.set(a, held);
+  }
+  const onDisk = authors.filter((a) => !inStore.has(a));
+  let missing = onDisk;
   let refresh: string[] = [];
   try {
-    const held = await Promise.race([
-      readProfileRows(authors),
-      new Promise<Awaited<ReturnType<typeof readProfileRows>>>((resolve) =>
-        setTimeout(() => resolve(new Map()), READ_DEADLINE_MS),
-      ),
-    ]);
+    const held = onDisk.length
+      ? await Promise.race([
+          readProfileRows(onDisk),
+          new Promise<Awaited<ReturnType<typeof readProfileRows>>>((resolve) =>
+            setTimeout(() => resolve(new Map()), READ_DEADLINE_MS),
+          ),
+        ])
+      : new Map<string, never>();
     if (held.size > 0) {
       const old = Date.now() - PROFILE_FRESH_MS;
-      missing = authors.filter((a) => !held.has(a));
+      missing = onDisk.filter((a) => !held.has(a));
       // Claimed, so a copy the loader is already refreshing isn't asked twice.
       refresh = [...held.values()]
         .filter((row) => row.at < old && claimRefresh(`0:${row.event.pubkey}:`, 0))
@@ -189,6 +209,13 @@ async function ask(authors: string[]): Promise<void> {
   } finally {
     reading -= 1;
     for (const a of authors) if (inFlight.get(a) === reservation) inFlight.delete(a);
+  }
+  // The store's copies: an old one read off the device is still refreshed, as
+  // the device's own rows are just above.
+  for (const [a, held] of inStore) {
+    if (!refreshing.has(a) && isOldDeviceCopy(held) && claimRefresh(`0:${a}:`, 0)) refreshing.add(a);
+    if (refreshing.has(a)) refresh.push(a);
+    tell(a, held);
   }
   // Nobody is listening for a refresh — it is for the next visit, not this one.
   const wanted = [...missing.filter((a) => listeners.has(a)), ...refresh];
@@ -211,6 +238,20 @@ function flush(): void {
  * The returned function withdraws the ask, closing a lookup nobody waits on.
  */
 export function wantProfile(pubkey: string, onProfile: Listener): () => void {
+  // Already in the store this session: answered now, with no disk read and no
+  // REQ — and an old copy from the device is still asked after, behind it.
+  const held = eventStore.getReplaceable(0, pubkey);
+  if (held) {
+    if (isOldDeviceCopy(held) && claimRefresh(`0:${pubkey}:`, 0)) {
+      refreshing.add(pubkey);
+      if (!inFlight.has(pubkey)) {
+        queued.add(pubkey);
+        flushTimer ??= setTimeout(flush, FLUSH_MS);
+      }
+    }
+    onProfile(held);
+    return () => {};
+  }
   // Asked recently and the relay had nobody: say so now rather than wait again.
   if ((noProfileUntil.get(pubkey) ?? 0) > Date.now()) {
     onProfile(null);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -18,6 +18,8 @@ import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
 import { networkOfRun, runOf } from "@/lib/graperankRun";
+import { GRAPERANK_RESULT_KEY, grapeRankResultOptions, noteGrapeRankTriggered } from "@/services/queries/graperank";
+import { overviewOptions, selectInfluence } from "@/services/queries/userReads";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
 import { readAssistantProfile } from "@/lib/assistantStorage";
@@ -101,35 +103,21 @@ export default function InsightsPage() {
   const overviewQuery = useSelfOverview(pubkey);
   const statsQuery = useSelfStats(pubkey);
   const historyQuery = useSelfHistory(pubkey);
-  const grapeRankQuery = useQuery({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
-    enabled: !!pubkey,
-    staleTime: 60_000,
-    // The app's query defaults never refetch (staleTime Infinity, no focus
-    // refetch), which is right almost everywhere — but THIS page is the one
-    // people open to watch a run they just triggered, and without a poll the
-    // card said "In progress" forever after the server had finished. Poll only
-    // while a run is actually in flight; go quiet the moment it settles.
-    refetchInterval: (query) => {
-      const g = runOf<GrapeRankRun>(query.state.data);
-      if (!g) return false;
-      const settled =
-        isDone(g.internal_publication_status) || isFail(g.status) || isFail(g.internal_publication_status);
-      return settled ? false : 15_000;
-    },
-  });
+  // THIS page is the one people open to watch a run they just triggered, and
+  // without a poll the card said "In progress" forever after the server had
+  // finished. The poll is the app-wide status pill's (hooks/useScoringStatus),
+  // which asks every 15 s while a run is in flight and goes quiet once it
+  // settles; this card reads the same entry and moves with it.
+  const grapeRankQuery = useQuery({ ...grapeRankResultOptions(), enabled: !!pubkey });
   // Your OWN perspective always scores you 100 — meaningless here. Fetch the
   // GLOBAL (house) score instead: Brainstorm's own vantage point, which is the
   // default a viewer gets before their personal web of trust applies. It is NOT
   // "what others see" — every observer with their own graph computes a different
   // number for you.
   const houseQuery = useQuery({
-    queryKey: ["insights-house-influence", pubkey],
-    queryFn: () => apiClient.getHouseInfluence(pubkey!),
+    ...overviewOptions(pubkey ?? "", "house"),
     enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
+    select: selectInfluence,
   });
   // Active preset (from settings) — the fallback for "Settings preset" when the
   // latest run hasn't stamped graperank_preset_used yet (e.g. mid-recalculation).
@@ -176,20 +164,14 @@ export default function InsightsPage() {
   const queueAhead =
     typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
-  // When the poll above watches a run FINISH, the neighbours go stale together:
-  // "Last calculated" (history) and the standing number (house influence) both
-  // describe the run that just completed. Transition-guarded so the initial
-  // page load — where the last run is usually already complete — doesn't
-  // trigger a redundant refetch of data we just fetched.
+  // When a run FINISHES, the neighbours go stale together: "Last calculated"
+  // (history) and the standing number (house influence) both describe the run
+  // that just completed. The status pill refetches them on that transition
+  // (hooks/useScoringStatus). It used to be done here too, from a ref seeded
+  // with the first render's "not complete" — so on a cold load, where the run
+  // arrives finished a moment later, that read as a transition and refetched
+  // both just after fetching them.
   const qc = useQueryClient();
-  const wasComplete = useRef(calcComplete);
-  useEffect(() => {
-    if (calcComplete && !wasComplete.current) {
-      qc.invalidateQueries({ queryKey: ["/user/history"] });
-      qc.invalidateQueries({ queryKey: ["insights-house-influence"] });
-    }
-    wasComplete.current = calcComplete;
-  }, [calcComplete, qc]);
 
   // Recalculate from the card itself. The customer who asked "too soon" got a
   // toast elsewhere and a card that looked stuck; here the server's own answer
@@ -197,8 +179,9 @@ export default function InsightsPage() {
   const recalc = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
     onSuccess: (data) => {
-      if (runOf<GrapeRankRun>(data)) qc.setQueryData(["/user/graperankResult"], data);
-      void qc.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+      noteGrapeRankTriggered();
+      if (runOf<GrapeRankRun>(data)) qc.setQueryData(GRAPERANK_RESULT_KEY, data);
+      void qc.invalidateQueries({ queryKey: GRAPERANK_RESULT_KEY });
     },
   });
   const runInFlight = !!latestRun && !calcComplete && !calcFailed;

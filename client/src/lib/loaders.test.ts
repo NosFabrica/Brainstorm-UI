@@ -48,6 +48,7 @@ vi.mock("./relayPool", () => ({
 const { eventStore } = await import("./eventStore");
 const { addressLoader, loadReplaceable } = await import("./loaders");
 const eventCache = await import("./eventCache");
+const relaysModule = await import("./relays");
 
 /** A routing event: the cache holds these under a short age, profiles under a long one. */
 function relayList(): NostrEvent {
@@ -161,6 +162,38 @@ describe("a caller asking about specific relays", () => {
     await loadReplaceable(0, held.pubkey, { relays: ["wss://probe"] });
 
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe("an event nobody holds, asked where the profile relays already were", () => {
+  const { PROFILE_RELAYS } = relaysModule;
+  const OUTBOX = "wss://their-outbox.example/";
+  const asked = () => requests.map(([relays]) => (relays as string[]).map((r) => r.replace(/\/$/, "")).sort());
+
+  it("asks each relay once: the lookup step skips the relays the hints covered", async () => {
+    const missing = profile("nobody");
+    await loadReplaceable(30078, missing.pubkey, { identifier: "prefs", relays: [OUTBOX, ...PROFILE_RELAYS] });
+    expect(requests).toHaveLength(1);
+    expect(asked()[0]).toEqual([OUTBOX, ...PROFILE_RELAYS].map((r) => r.replace(/\/$/, "")).sort());
+  });
+
+  it("still asks the lookup relays the hints left out", async () => {
+    const missing = profile("nobody");
+    const some = PROFILE_RELAYS.slice(0, 2);
+    await loadReplaceable(30078, missing.pubkey, { identifier: "prefs", relays: [OUTBOX, ...some] });
+    expect(requests).toHaveLength(2);
+    expect(asked()[1]).toEqual(
+      PROFILE_RELAYS.slice(2)
+        .map((r) => r.replace(/\/$/, ""))
+        .sort(),
+    );
+  });
+
+  it("asks all of them for a pointer with no hints of its own", async () => {
+    const missing = profile("nobody");
+    await loadReplaceable(30078, missing.pubkey, { identifier: "prefs" });
+    expect(requests).toHaveLength(1);
+    expect(asked()[0]).toEqual(PROFILE_RELAYS.map((r) => r.replace(/\/$/, "")).sort());
   });
 });
 

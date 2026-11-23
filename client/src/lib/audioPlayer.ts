@@ -4,7 +4,7 @@
 // it" via useSyncExternalStore. Framework-free; the React layer is the hook at
 // the bottom.
 
-import { useSyncExternalStore, useState, useEffect, useRef, type RefObject } from "react";
+import { useCallback, useSyncExternalStore, useState, useEffect, useRef, type RefObject } from "react";
 import { resolveAudioSrc, wavlakeTrackId } from "@/lib/wavlake";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { playSolo, type Sounding } from "@/lib/playback";
@@ -167,8 +167,33 @@ function wireMediaSessionKeys() {
   });
 }
 
+/** One row's view of the player (useTrackPlayer). */
+export interface TrackView {
+  readonly isActive: boolean;
+  readonly isPlaying: boolean;
+  readonly isLoading: boolean;
+  readonly isError: boolean;
+  readonly currentTime: number;
+  readonly duration: number;
+}
+/**
+ * What every row but the active one sees, the same object throughout, so a
+ * tick of the playing track re-renders the active row and the bar, not the
+ * whole list (~4 ticks a second).
+ */
+const INACTIVE: TrackView = Object.freeze({
+  isActive: false,
+  isPlaying: false,
+  isLoading: false,
+  isError: false,
+  currentTime: 0,
+  duration: 0,
+});
+
 // Cached snapshot — rebuilt only on change so useSyncExternalStore stays stable.
 let snapshot = { currentId: null as string | null, status: "idle" as TrackStatus, currentTime: 0, duration: 0 };
+/** The active row's view, rebuilt with the snapshot. */
+let activeView: TrackView = INACTIVE;
 function rebuild() {
   snapshot = {
     currentId,
@@ -176,17 +201,45 @@ function rebuild() {
     currentTime: audio?.currentTime ?? 0,
     duration: audio && Number.isFinite(audio.duration) ? audio.duration : 0,
   };
+  activeView = Object.freeze({
+    isActive: true,
+    isPlaying: status === "playing",
+    isLoading: status === "loading",
+    isError: status === "error",
+    currentTime: snapshot.currentTime,
+    duration: snapshot.duration,
+  });
 }
 function emit() {
   rebuild();
   listeners.forEach((l) => l());
 }
 
+/**
+ * A tick while the tab is hidden is left for later: nothing on screen reads it,
+ * and the system's now-playing (Media Session) doesn't go through React. The
+ * first visible moment catches up once.
+ */
+let tickWhileHidden = false;
+function onTimeUpdate() {
+  if (typeof document !== "undefined" && document.hidden) {
+    tickWhileHidden = true;
+    return;
+  }
+  emit();
+}
+function onVisibilityChange() {
+  if (document.hidden || !tickWhileHidden) return;
+  tickWhileHidden = false;
+  emit();
+}
+
 function ensureAudio(): HTMLAudioElement {
   if (audio) return audio;
   audio = new Audio();
   audio.preload = "none";
-  audio.addEventListener("timeupdate", emit);
+  audio.addEventListener("timeupdate", onTimeUpdate);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibilityChange);
   audio.addEventListener("durationchange", emit);
   audio.addEventListener("loadedmetadata", emit);
   audio.addEventListener("waiting", () => {
@@ -448,18 +501,14 @@ export function playerSnapshot() {
   return snapshot;
 }
 
-/** Per-row view of the shared player: is this id active, and its progress. */
-export function useTrackPlayer(id: string) {
-  const s = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const isActive = s.currentId === id;
-  return {
-    isActive,
-    isPlaying: isActive && s.status === "playing",
-    isLoading: isActive && s.status === "loading",
-    isError: isActive && s.status === "error",
-    currentTime: isActive ? s.currentTime : 0,
-    duration: isActive ? s.duration : 0,
-  };
+/**
+ * Per-row view of the shared player: is this id active, and its progress. A
+ * row that isn't playing gets the one shared INACTIVE view, so it re-renders
+ * only when it becomes, or stops being, the active track.
+ */
+export function useTrackPlayer(id: string): TrackView {
+  const view = useCallback(() => (snapshot.currentId === id ? activeView : INACTIVE), [id]);
+  return useSyncExternalStore(subscribe, view, view);
 }
 
 // Total-duration lookup so every row can show its length before playing. Reads

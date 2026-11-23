@@ -34,11 +34,11 @@ import {
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
-import config from "@/config/dictionary.config.json";
 import { useConceptItems, useConceptMatches } from "@/hooks/useConceptItems";
 import { useSearchPriority } from "@/hooks/useSearchPriority";
 import { useDictionary } from "@/hooks/useDictionary";
 import type { ListKindSearch, PreviewSlot } from "@/hooks/useListKinds";
+import { KIND_INFO, kindOf, useWhenIdle, type KindParts } from "@/components/items/listKinds";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { coversTitle, matchListItems, wordsToFind } from "@/lib/listSearch";
 import { orderByTrust } from "@/lib/itemEngagement";
@@ -51,12 +51,14 @@ import { contactHref } from "@/lib/contactHref";
 import { coordinateOf, httpUrl } from "@/lib/dlistFields";
 import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
-import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
+import { openingLine, placeOf, type Place } from "@/components/items/place";
 import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
-import { ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
+import { handlesPointedAt, ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
+import { externalIdentitiesOf } from "@/lib/profileContent";
+import { useHeldReplaceable } from "@/hooks/useHeldEvents";
 import { useGitHubEvidence } from "@/hooks/useGitHubEvidence";
 import { useVerifiedPeople } from "@/hooks/useVerifiedPeople";
 import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
@@ -313,8 +315,16 @@ function GitHubMark({
   inRow?: boolean;
 }) {
   const { hits } = useKindHits("github-account", "", OWNED_MAX, { browse: true });
-  const handles = hits.map((h) => h.shown.title ?? "").filter(Boolean);
-  const evidence = useGitHubEvidence(handles);
+  // GitHub is asked only about the accounts this person points at (lib/githubLink
+  // handlesPointedAt); for the rest, empty evidence gives the same answer.
+  const own = useHeldReplaceable(0, pubkey);
+  const claims = useMemo(() => externalIdentitiesOf(own), [own]);
+  const handlesKey = hits.map((h) => h.shown.title ?? "").join("\n");
+  const candidates = useMemo(
+    () => handlesPointedAt(handlesKey.split("\n").filter(Boolean), { website, claims }),
+    [handlesKey, website, claims],
+  );
+  const evidence = useGitHubEvidence(candidates);
   const verified = useVerifiedPeople(useMemo(() => [{ pubkey, nip05 }], [pubkey, nip05])).verified.has(pubkey);
   const hit = hits.find((h) => {
     const handle = h.shown.title ?? "";
@@ -644,9 +654,7 @@ function EventCard({
         <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
       ) : (
         <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
-          <span className="text-[11px] font-semibold uppercase tracking-wide">
-            {start.toLocaleDateString(undefined, { month: "short" })}
-          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide">{shortMonth.format(start)}</span>
           <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
         </span>
       )}
@@ -822,26 +830,13 @@ function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
 
 /* ── Reading a kind's list ahead of a search ──────────────────────────── */
 
-/** How long the page is left to settle before a list is read, when the browser can't say it's idle. */
-const WARM_AFTER_MS = 2000;
-
 /**
  * Reads a kind's list once the search page is idle, so the first search's
  * previews come with People rather than after them. Draws nothing.
  */
 function warmFor(view: ConceptViewKey) {
   return function Warm() {
-    const [idle, setIdle] = useState(false);
-    useEffect(() => {
-      const ric = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number })
-        .requestIdleCallback;
-      if (ric) {
-        const id = ric(() => setIdle(true), { timeout: WARM_AFTER_MS * 2 });
-        return () => (window as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
-      }
-      const t = window.setTimeout(() => setIdle(true), WARM_AFTER_MS);
-      return () => window.clearTimeout(t);
-    }, []);
+    const idle = useWhenIdle();
     const dictionary = useDictionary(idle, { anonymous: true });
     const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
     useConceptItems(entry, idle && !!entry);
@@ -996,6 +991,9 @@ function PageEmpty({ pending, label, query }: { pending: boolean; label: string;
     </p>
   );
 }
+
+/** "Nov": one formatter for every event card, not one per card per render. */
+const shortMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
 
 /** Books: a shelf, the way a bookshop shows them — covers first. */
 function BooksPage({ query }: { query: string }) {
@@ -1750,40 +1748,32 @@ function GitHubPage({ query }: { query: string }) {
   );
 }
 
-const views = config.views as Record<ConceptViewKey, string>;
-
-/** The kinds, in the order the Top page shows them when the words name none of them. */
-export const LIST_KINDS: readonly ListKindSearch[] = [
-  {
-    key: "places",
-    label: "Places",
-    group: "Out & about",
-    community: views.place,
+/**
+ * Each kind's parts, by its key: what the app's root loads on demand through
+ * listKinds' stand-ins. Search draws them with the kinds' info (`LIST_KINDS`).
+ */
+export const KIND_PARTS: Record<string, KindParts> = {
+  places: {
     Preview: PlacesPreview,
     Panel: PlacesPanel,
     Page: PlacesPage,
     Warm: warmFor("place"),
     Suggestion: suggestionFor("places", "place", "Place", PinIcon, { byName: true, groups: true, mostOfTitle: true }),
   },
-  {
-    key: "books",
-    label: "Books",
-    group: "Read & listen",
-    community: views.book,
+  books: {
     Preview: BooksPreview,
     Page: BooksPage,
     Warm: warmFor("book"),
     Suggestion: suggestionFor("books", "book", "Book", BookOpen, { mostOfTitle: true, byName: true }),
   },
-  {
-    key: "github",
-    label: "GitHub accounts",
-    group: "Build",
-    community: views["github-account"],
+  github: {
     Preview: GitHubPreview,
     Page: GitHubPage,
     Warm: warmFor("github-account"),
     Suggestion: suggestionFor("github", "github-account", "GitHub", Github, { owned: true }),
     PersonMark: GitHubMark,
   },
-];
+};
+
+/** The kinds with their parts loaded: what tests and the dev playground draw directly. */
+export const LIST_KINDS: readonly ListKindSearch[] = KIND_INFO.map((info) => kindOf(info, KIND_PARTS[info.key]));

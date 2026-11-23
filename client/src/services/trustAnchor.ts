@@ -27,6 +27,8 @@ import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip
 import { declaresTrustProvider, trustProviderStatusOf, type ListDesignation } from "@/lib/nip85Declaration";
 import type { MapCategory } from "@/lib/treasureMapCards";
 import { checkUserLists, listsToName } from "./trustLists";
+import { queryClient } from "@/lib/queryClient";
+import { historyKey } from "@/services/queries/userReads";
 
 /**
  * Whether the automatic (non-user-initiated) NIP-85 publish paths may run for
@@ -326,6 +328,10 @@ async function pollAndPublishTrustAnchor(pubkey: string): Promise<void> {
     try {
       const history = await apiClient.getUserHistory();
       taPubkey = history?.data?.ta_pubkey ?? null;
+      // The same answer `useSelfHistory` holds, which never refetches on its
+      // own (services/queries/userReads): writing it in is how the pages see
+      // the Assistant arrive. Only while it's still this Account's cache.
+      if (activeAccount()?.pubkey === pubkey) queryClient.setQueryData(historyKey(pubkey), history);
     } catch {
       continue;
     }

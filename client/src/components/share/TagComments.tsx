@@ -169,5 +169,8 @@ function relativeTime(unixSeconds: number): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(unixSeconds * 1000).toLocaleDateString();
+  return olderDate.format(new Date(unixSeconds * 1000));
 }
+
+/** One formatter for every row past a month (what `toLocaleDateString()` makes each call). */
+const olderDate = new Intl.DateTimeFormat();

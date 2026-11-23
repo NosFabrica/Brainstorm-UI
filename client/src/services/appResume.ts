@@ -40,6 +40,34 @@ export function startAppResume(now: () => number = Date.now): () => void {
       checkedAt = now();
       checkForUpdate();
     }
-    if (awayMs >= REFRESH_AFTER_MS) void queryClient.invalidateQueries();
+    if (awayMs >= REFRESH_AFTER_MS)
+      void queryClient.invalidateQueries({ predicate: (query) => !keepsItsOwnTime(query) });
   });
+}
+
+/**
+ * The tag reads (hooks/useTags) that come back on their own clock. They are
+ * relay reads still kept in react-query (docs/adr/0005, "Tags (deferred)"),
+ * each with a `staleTime` of its own — 2 to 30 minutes — so they are
+ * refetched when they go stale, absence or no absence. The catalogue among
+ * them walks the whole assertion history: re-asking it on every return to the
+ * app cost the slowest read in the app for an answer its own window already
+ * covers. Listed by key root; `appResume.test` holds the list to useTags' keys.
+ */
+export const TAG_QUERY_ROOTS: ReadonlySet<string> = new Set([
+  "profile-tags",
+  "tag-index",
+  "tag-picker-options",
+  "tag-comments",
+  "tag-detail",
+  "event-tags",
+  "event-tags-batch",
+  "my-assertions",
+  "pinned-tags",
+  "tag-notes",
+]);
+
+function keepsItsOwnTime(query: { queryKey: readonly unknown[] }): boolean {
+  const root = query.queryKey[0];
+  return typeof root === "string" && TAG_QUERY_ROOTS.has(root);
 }

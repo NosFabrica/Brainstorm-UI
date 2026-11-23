@@ -1,8 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { apiClient } from "@/services/api";
 import { PovIcon, povChrome, type ScorePov } from "@/components/score/TrustScorePov";
+import { finePointer } from "@/services/queries/sharePage";
+
+/** A pointer that rests this long on the chip is heading for the path page. */
+const PREFETCH_DWELL_MS = 150;
 
 /** English ordinal: 1 → "1st", 2 → "2nd", 3 → "3rd", 11 → "11th", 22 → "22nd", … */
 export function ordinal(n: number): string {
@@ -42,6 +47,28 @@ export function DegreeChip({
     retry: false,
   });
 
+  // The path page's whole network is one slow request (hooks/usePathNetwork):
+  // start it while a mouse rests on the chip, under the key that page reads.
+  // Not on touch, where hover fires on the tap itself.
+  const queryClient = useQueryClient();
+  const dwell = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(dwell.current), []);
+  const prefetchPath = () => {
+    if (!enabled || !finePointer()) return;
+    clearTimeout(dwell.current);
+    dwell.current = setTimeout(() => {
+      void queryClient
+        .prefetchQuery({
+          queryKey: ["shortestPath", fromPubkey, toPubkey],
+          queryFn: () => apiClient.getShortestPath({ from: fromPubkey, to: toPubkey }),
+          staleTime: 5 * 60_000,
+          retry: false,
+        })
+        .catch(() => undefined);
+    }, PREFETCH_DWELL_MS);
+  };
+  const cancelPrefetch = () => clearTimeout(dwell.current);
+
   const d = query.data;
   if (!enabled || !d) return null;
 
@@ -74,6 +101,8 @@ export function DegreeChip({
           className={`inline-flex cursor-help items-center gap-1 rounded-full border px-2 py-0.5 transition-opacity hover:opacity-80 ${povChrome(pov)}`}
           data-testid="stat-hops"
           data-pov={pov}
+          onMouseEnter={prefetchPath}
+          onMouseLeave={cancelPrefetch}
         >
           <PovIcon pov={pov} className="h-2.5 w-2.5" />
           {reachable ? (

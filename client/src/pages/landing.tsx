@@ -4,7 +4,7 @@ import { useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { pushRecentQuery, pushRecentScoped } from "@/lib/recentSearches";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { nip19 } from "nostr-tools";
 import { resolveNip05 } from "@/lib/nip05";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -19,7 +19,7 @@ import { AccountCards } from "@/components/AccountCards";
 import { getDisplayLabel, isLikelyNpub, isHexPubkey, isNip05Handle } from "@/lib/profileSearch";
 import { type SearchHit } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
-import { SearchResults } from "@/components/search/SearchResults";
+import { LazySearchResults, SearchResultsFallback } from "@/components/search/lazySearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { queryWords, scopeOf, splitFilters } from "@/lib/searchSyntax";
 import { SearchBox, type SearchBoxHandle } from "@/components/search/SearchBox";
@@ -67,6 +67,58 @@ function tabInUrl(): string | null {
 /** How far (px) a finger or the page may move before a touch on → stops being a tap. */
 const TAP_SLOP = 10;
 
+/**
+ * The empty box's placeholder. For a first-time visitor (`cycling`) it gently cycles through
+ * the example prompts, a soft fade-out/in (300ms) bridging each swap; it holds still while the
+ * box has words in it (`paused`) and while the tab is hidden. A leaf of its own: the swap every
+ * 3.2s re-renders these few words, not the whole home and the results under it.
+ */
+function RotatingPlaceholder({ cycling, paused }: { cycling: boolean; paused: boolean }) {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    setVisible(true);
+    if (!cycling || paused) return;
+    let interval: number | undefined;
+    let fade: number | undefined;
+    const stop = () => {
+      window.clearInterval(interval);
+      window.clearTimeout(fade);
+      interval = undefined;
+    };
+    const start = () => {
+      if (interval !== undefined || document.hidden) return;
+      interval = window.setInterval(() => {
+        setVisible(false);
+        fade = window.setTimeout(() => {
+          setIndex((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length);
+          setVisible(true);
+        }, 300);
+      }, 3200);
+    };
+    // A hidden tab has nobody to teach: no timers, and the words fully shown on return.
+    const onVisibility = () => {
+      if (!document.hidden) return start();
+      stop();
+      setVisible(true);
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+  }, [cycling, paused]);
+  return (
+    <span
+      className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
+      data-testid="text-home-placeholder"
+    >
+      {cycling ? PLACEHOLDER_EXAMPLES[index] : PLACEHOLDER_EXAMPLES[0]}
+    </span>
+  );
+}
+
 export default function Landing() {
   const kinds = useListKinds();
   const [, setLocation] = useLocation();
@@ -91,8 +143,6 @@ export default function Landing() {
   const suggestedPeople = useRef<{ query: string; hits: SearchHit[] } | null>(null);
   // The box's suggestion dropdown — the hero lifts toward the top while it is open.
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [phIndex, setPhIndex] = useState(0);
-  const [phVisible, setPhVisible] = useState(true);
   const prefersReducedMotion = usePrefersReducedMotion();
   // First-time visitors get the rotating hints (a gentle "here's what you can
   // search" onboarding); returning visitors get the calm static placeholder.
@@ -127,7 +177,13 @@ export default function Landing() {
   const [isSearching, setIsSearching] = useState(false);
 
   const searchAbortRef = useRef(0);
-  const phFadeTimerRef = useRef<number | undefined>(undefined);
+  // The box's words and filters as of the last render, for the handlers below: read through
+  // refs, those keep one identity across keystrokes, so the memoised results (and every effect
+  // keyed on handleSearch) are not handed a new function per letter typed.
+  const queryRef = useRef(query);
+  queryRef.current = query;
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
   // The animated hero container — the wordmark refresh replays its
   // load-in through the Web Animations API (a remount would re-trigger
   // the input's autoFocus and reopen the recents dropdown).
@@ -205,30 +261,6 @@ export default function Landing() {
     } catch {}
   }, [isFirstVisit]);
 
-  // Gently cycle the empty box's placeholder through example prompts. Runs only
-  // for a first-time visitor, while the field is empty and motion is allowed; a
-  // soft fade-out/in (300ms) bridges each swap. Pauses the moment the user types
-  // (query non-empty). Returning visitors keep the static first entry.
-  useEffect(() => {
-    if (!isFirstVisit || prefersReducedMotion || query.length > 0) {
-      window.clearTimeout(phFadeTimerRef.current);
-      setPhVisible(true);
-      return;
-    }
-    setPhVisible(true);
-    const interval = window.setInterval(() => {
-      setPhVisible(false);
-      phFadeTimerRef.current = window.setTimeout(() => {
-        setPhIndex((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length);
-        setPhVisible(true);
-      }, 300);
-    }, 3200);
-    return () => {
-      window.clearInterval(interval);
-      window.clearTimeout(phFadeTimerRef.current);
-    };
-  }, [isFirstVisit, prefersReducedMotion, query]);
-
   // Abandon whatever the results area is showing (and any stream still
   // running for it) without touching the query box. A bare tab in the URL
   // keeps browsing that tab; nothing at all returns to the pristine home.
@@ -250,8 +282,8 @@ export default function Landing() {
   // reset and no popstate of its own to observe.
   const handleSearch = useCallback(
     async (overrideQuery?: string, overrideFilters?: string, trigger?: "init" | "pop") => {
-      const q = (overrideQuery ?? query).trim();
-      const f = (overrideFilters ?? filters).trim();
+      const q = (overrideQuery ?? queryRef.current).trim();
+      const f = (overrideFilters ?? filtersRef.current).trim();
       if (!q) return;
       // Only an automatic re-run stays put; typing the same identifier again is
       // the user asking for the hop.
@@ -359,7 +391,7 @@ export default function Landing() {
       // for every kind of query, so Back lands here with the box filled in.
       setSubmitted(`${q} ${f}`.trim());
     },
-    [query, filters, setLocation, resetResults],
+    [setLocation, resetResults],
   );
 
   // In-app links to /?q=… — the panel's related topics and "More events", the
@@ -506,6 +538,74 @@ export default function Landing() {
       setSubmitted(filters.trim());
     },
     [filters],
+  );
+
+  // The box's handlers, one identity each: SearchBox and the results it sits above are memoised.
+  const onBoxSearch = useCallback(
+    (q: string) => {
+      void handleSearch(q);
+    },
+    [handleSearch],
+  );
+  const onBoxClear = useCallback(
+    () => (hasSearched ? clearWords() : clearSearch()),
+    [hasSearched, clearWords, clearSearch],
+  );
+  // Dropping a filter is a decision: the page acts on it at once rather than
+  // waiting for Enter. Dropping the last pill empties the box — back to the home.
+  const onRemoveToken = useCallback(
+    (next: string) => {
+      if (!next.trim()) {
+        clearSearch();
+        return;
+      }
+      if (hasSearched) void handleSearch(next);
+    },
+    [hasSearched, clearSearch, handleSearch],
+  );
+  const onQueryRewrite = useCallback(
+    (next: string) => {
+      // A filter change: the words stay in the box, the tokens go to
+      // filter state + the URL's `f`, and the search resubmits.
+      const { text, tokens } = splitFilters(next);
+      setFilters(tokens);
+      if (text !== queryRef.current.trim()) setQuery(text);
+      if (text) {
+        void handleSearch(text, tokens);
+        return;
+      }
+      // Browse — a tab, no words. Google's tools work for everyone,
+      // signed in or not, and live in the URL: the filters are the
+      // whole query here, so re-run the browse with them and carry
+      // them in `f` for Back, reload and sharing.
+      try {
+        const url = new URL(window.location.href);
+        // The rewrite can be what emptied the box (the Media tab's All chip taking
+        // Videos off a browse): the address must not keep the words it took away.
+        url.searchParams.delete("q");
+        if (tokens) url.searchParams.set("f", tokens);
+        else url.searchParams.delete("f");
+        window.history.pushState({}, "", url.pathname + url.search);
+        trackHistoryEntry();
+      } catch {}
+      setSubmitted(tokens);
+    },
+    [handleSearch],
+  );
+  // The compact perspective control seated in the results' tab row: one element per change in
+  // what it shows, so typing in the box hands the results nothing new.
+  const perspective = useMemo(
+    () => (
+      <PerspectiveToggle
+        compact
+        pov={effectivePov}
+        user={user}
+        hasMywot={hasMywot}
+        isSearchObserver={isSearchObserver}
+        onChange={setPov}
+      />
+    ),
+    [effectivePov, user, hasMywot, isSearchObserver, setPov],
   );
 
   const onPeopleSuggested = useCallback((q: string, hits: SearchHit[]) => {
@@ -705,20 +805,10 @@ export default function Landing() {
             className={hasSearched ? "order-3 basis-full sm:order-2 sm:min-w-0 sm:max-w-2xl sm:basis-auto" : undefined}
             value={query}
             onChange={setQuery}
-            onSearch={(q) => {
-              void handleSearch(q);
-            }}
-            onClear={() => (hasSearched ? clearWords() : clearSearch())}
+            onSearch={onBoxSearch}
+            onClear={onBoxClear}
             onBrowse={browseVertical}
-            // Dropping a filter is a decision: the page acts on it at once rather than
-            // waiting for Enter. Dropping the last pill empties the box — back to the home.
-            onRemoveToken={(next) => {
-              if (!next.trim()) {
-                clearSearch();
-                return;
-              }
-              if (hasSearched) void handleSearch(next);
-            }}
+            onRemoveToken={onRemoveToken}
             // "Recent" belongs to the pristine home, never alongside a results list.
             recentsAllowed={!hasSearched}
             busy={hasSearched && isSearching}
@@ -729,12 +819,7 @@ export default function Landing() {
             // under the status bar to show the field.
             autoFocus={!hasSearched && !isTouchScreen()}
             placeholder={
-              <span
-                className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
-                data-testid="text-home-placeholder"
-              >
-                {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
-              </span>
+              <RotatingPlaceholder cycling={isFirstVisit && !prefersReducedMotion} paused={query.length > 0} />
             }
             trailing={
               <>
@@ -870,53 +955,23 @@ export default function Landing() {
         {hasSearched && (
           <>
             <BackToTop />
-            <SearchResults
-              peopleSeed={
-                suggestedPeople.current?.query === (submitted ?? "") ? suggestedPeople.current.hits : undefined
-              }
-              query={submitted ?? ""}
-              pov={effectivePov}
-              userPubkey={user?.pubkey}
-              perspective={
-                <PerspectiveToggle
-                  compact
-                  pov={effectivePov}
-                  user={user}
-                  hasMywot={hasMywot}
-                  isSearchObserver={isSearchObserver}
-                  onChange={setPov}
-                />
-              }
-              onOpenProfile={goToProfile}
-              onPrefetchEnter={handlePrefetchEnter}
-              onPrefetchLeave={handlePrefetchLeave}
-              onQueryRewrite={(next) => {
-                // A filter change: the words stay in the box, the tokens go to
-                // filter state + the URL's `f`, and the search resubmits.
-                const { text, tokens } = splitFilters(next);
-                setFilters(tokens);
-                if (text !== query.trim()) setQuery(text);
-                if (text) {
-                  void handleSearch(text, tokens);
-                  return;
+            {/* Its own chunk (components/search/lazySearchResults): the bare home never needs it.
+                While it arrives, the same pulsing rows the results show while the relay answers. */}
+            <Suspense fallback={<SearchResultsFallback />}>
+              <LazySearchResults
+                peopleSeed={
+                  suggestedPeople.current?.query === (submitted ?? "") ? suggestedPeople.current.hits : undefined
                 }
-                // Browse — a tab, no words. Google's tools work for everyone,
-                // signed in or not, and live in the URL: the filters are the
-                // whole query here, so re-run the browse with them and carry
-                // them in `f` for Back, reload and sharing.
-                try {
-                  const url = new URL(window.location.href);
-                  // The rewrite can be what emptied the box (the Media tab's All chip taking
-                  // Videos off a browse): the address must not keep the words it took away.
-                  url.searchParams.delete("q");
-                  if (tokens) url.searchParams.set("f", tokens);
-                  else url.searchParams.delete("f");
-                  window.history.pushState({}, "", url.pathname + url.search);
-                  trackHistoryEntry();
-                } catch {}
-                setSubmitted(tokens);
-              }}
-            />
+                query={submitted ?? ""}
+                pov={effectivePov}
+                userPubkey={user?.pubkey}
+                perspective={perspective}
+                onOpenProfile={goToProfile}
+                onPrefetchEnter={handlePrefetchEnter}
+                onPrefetchLeave={handlePrefetchLeave}
+                onQueryRewrite={onQueryRewrite}
+              />
+            </Suspense>
           </>
         )}
       </main>

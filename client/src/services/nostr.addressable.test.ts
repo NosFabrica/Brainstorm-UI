@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * fetchAddressableEvents, the way fetchEventsByIds already works: the content
- * relays first, the search relay — whose corpus is WIDER — as the last resort.
+ * relays, and beside them the search relay — whose corpus is WIDER.
  * Benjamin, over GitCitadel Publishing's wiki articles (kind 30818) that
  * search lists but /a/… could not open: their naddr carries no relay hints,
  * the content relays never had them, and the search relay that indexed them
@@ -47,7 +47,10 @@ vi.mock("@/lib/loaders", () => ({
 }));
 
 import { fetchAddressableEvents, fetchFromSearchRelayByFilters, querySearchRelay } from "./nostr";
-import { PROFILE_RELAYS } from "@/lib/relays";
+import { PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
+
+/** The default set as the pool is asked it: the search relay has a leg of its own. */
+const BESIDES_SEARCH = PROFILE_RELAYS.filter((r) => r !== SEARCH_RELAY);
 
 const GITCITADEL = "3e1ad0f3a5d3c12245db7788546c43ade3d97c6e046c594f6017cd6cd4164690";
 const isis = (): NostrEvent =>
@@ -72,12 +75,13 @@ beforeEach(() => {
 });
 
 describe("fetchAddressableEvents", () => {
-  it("an address with no relay hints still asks the default content relays", async () => {
+  it("an address with no relay hints still asks the default content relays — and search beside them", async () => {
     requestAllMock.mockResolvedValueOnce([isis()]);
     const map = await fetchAddressableEvents([ptr], ptr.relays);
     expect(map.get(`30818:${GITCITADEL}:isis`)?.tags).toContainEqual(["title", "Isis"]);
-    expect(requestAllMock.mock.calls[0][0]).toEqual(PROFILE_RELAYS);
-    expect(searchReqMock).not.toHaveBeenCalled();
+    expect(requestAllMock.mock.calls[0][0]).toEqual(BESIDES_SEARCH);
+    // Asked once, on its own leg, and let go once the others had the address.
+    expect(searchReqMock).toHaveBeenCalledTimes(1);
   });
 
   // An article page waited for every relay to say "nothing else" after the
@@ -121,7 +125,9 @@ describe("fetchAddressableEvents", () => {
     expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toContain("Isis");
   });
 
-  it("asks the search relay only for what is still missing, keyed as requested", async () => {
+  // It used to be asked through the pool, as one of the default set, and then
+  // again for whatever was still missing: the same socket, in series.
+  it("asks the search relay once, beside the others — never again for what is missing", async () => {
     const other = { kind: 30023, pubkey: "a".repeat(64), identifier: "post", relays: [] as string[] };
     const post = {
       ...isis(),
@@ -134,11 +140,24 @@ describe("fetchAddressableEvents", () => {
     const pending = fetchAddressableEvents([ptr, other], []);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
     const filter = searchReqMock.mock.calls[0][0] as { kinds: number[]; authors: string[]; "#d": string[] };
-    expect(filter.kinds).toEqual([30818]);
-    expect(filter["#d"]).toEqual(["isis"]);
+    expect(filter.kinds).toEqual(expect.arrayContaining([30818, 30023]));
+    expect(filter["#d"]).toEqual(expect.arrayContaining(["isis", "post"]));
     searchRelaySubject!.next({ type: "EOSE" });
     const map = await pending;
     expect([...map.keys()]).toEqual([`30023:${other.pubkey}:post`]);
+    expect(searchReqMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the search relay as the last resort for relays named without it", async () => {
+    requestAllMock.mockResolvedValue([]);
+    const pending = fetchAddressableEvents([ptr], ["wss://named.example/"]);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
+    expect(requestAllMock.mock.calls[0][0]).toEqual(["wss://named.example/"]);
+    searchRelaySubject!.next({ type: "EVENT", event: isis() });
+    searchRelaySubject!.next({ type: "EOSE" });
+    expect((await pending).has(`30818:${GITCITADEL}:isis`)).toBe(true);
+    requestAllMock.mockReset();
+    requestAllMock.mockResolvedValue([]);
   });
 
   // An naddr's relay hint is where the author said to look — but only a hint:
@@ -147,18 +166,21 @@ describe("fetchAddressableEvents", () => {
     requestAllMock.mockResolvedValueOnce([isis()]);
     await fetchAddressableEvents([{ ...ptr, relays: ["wss://hint.example/"] }]);
     const asked = requestAllMock.mock.calls[0][0] as unknown as string[];
-    expect(asked).toEqual(expect.arrayContaining([...PROFILE_RELAYS, "wss://hint.example/"]));
+    expect(asked).toEqual(expect.arrayContaining([...BESIDES_SEARCH, "wss://hint.example/"]));
   });
 
-  it("counts a copy the store holds — still asks the relays, never the search relay", async () => {
+  it("counts a copy the store holds — still asks the relays for a newer one, the search relay once", async () => {
     heldMock.mockImplementation((kind, pubkey, identifier) =>
       kind === 30818 && pubkey === GITCITADEL && identifier === "isis" ? isis() : undefined,
     );
     requestAllMock.mockResolvedValueOnce([]);
-    const map = await fetchAddressableEvents([ptr]);
+    const pending = fetchAddressableEvents([ptr]);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
+    searchRelaySubject!.next({ type: "EOSE" });
+    const map = await pending;
     expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toContain("Isis");
     expect(requestAllMock).toHaveBeenCalled();
-    expect(searchReqMock).not.toHaveBeenCalled();
+    expect(searchReqMock).toHaveBeenCalledTimes(1);
   });
 
   it("a newer copy from the relays wins over the held one", async () => {

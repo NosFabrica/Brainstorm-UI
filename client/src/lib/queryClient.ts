@@ -1,5 +1,6 @@
-import { onRecover } from "@/lib/serverStatus";
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { onRecover, type Recovery } from "@/lib/serverStatus";
+import { dropPersistedQueries, startQueryPersistence } from "@/lib/queryPersist";
+import { QueryClient, QueryFunction, type Query } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -36,13 +37,30 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
     return await res.json();
   };
 
-export const queryClient = new QueryClient({
+/**
+ * Clearing the cache is how the app forgets an Account — sign-out, a switch,
+ * another tab's switch — so it is also where the copy kept on the device goes
+ * (lib/queryPersist). One override rather than a call at each of those sites,
+ * so a new one can't forget it.
+ */
+class AppQueryClient extends QueryClient {
+  clear(): void {
+    super.clear();
+    dropPersistedQueries();
+  }
+}
+
+export const queryClient = new AppQueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
+      // Kept half an hour after the last screen reading it goes: the default
+      // five minutes meant six minutes of searching sent the dashboard back to
+      // skeletons and a refetch of answers that had not moved.
+      gcTime: 30 * 60_000,
       retry: false,
     },
     mutations: {
@@ -51,8 +69,33 @@ export const queryClient = new QueryClient({
   },
 });
 
-// The API came back after an outage: refetch everything the pages asked for
-// while it was down, so they refill without a reload (lib/serverStatus).
-onRecover(() => {
-  void queryClient.invalidateQueries();
+/**
+ * The reads an API outage may have spoiled: those that failed, and those
+ * answered after the trouble began (a read that swallows its error into an
+ * empty answer counts as a success).
+ */
+export function spoiledDuring(query: Query, since: number): boolean {
+  if (query.state.status === "error") return true;
+  return query.state.dataUpdatedAt >= since || query.state.errorUpdatedAt >= since;
+}
+
+// The API came back after an outage: refetch what the pages asked for while it
+// was down, so they refill without a reload (lib/serverStatus). Only the API's
+// return, and only those reads: the search relay reconnecting (most mobile
+// resumes) touches no HTTP read, and an answer from before the outage is as
+// good as it was.
+onRecover((recovery: Recovery) => {
+  if (recovery.scope !== "api") return;
+  void queryClient.invalidateQueries({ predicate: (query) => spoiledDuring(query, recovery.since) });
 });
+
+// The signed-in reader's own slow reads, restored from the device at boot and
+// kept as they land (lib/queryPersist). The accounts module is loaded lazily
+// so this file — imported by every test that touches the cache — doesn't
+// bootstrap accounts for them; it's in the entry already, so this resolves at
+// once in the app.
+if (import.meta.env.MODE !== "test" && typeof indexedDB !== "undefined") {
+  void import("@/accounts")
+    .then(({ accountManager }) => startQueryPersistence(queryClient, accountManager))
+    .catch(() => undefined);
+}

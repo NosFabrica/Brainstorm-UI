@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { ChevronRight, Loader2, Plus } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { warmCommandUi, WithCommandUi } from "@/components/share/lazyCommandUi";
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
@@ -286,6 +286,8 @@ function TagNoteButton({
           type="button"
           className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
           data-testid="note-add-tag"
+          onPointerEnter={warmCommandUi}
+          onFocus={warmCommandUi}
           disabled={applyTag.isPending}
         >
           {applyTag.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -314,108 +316,121 @@ function TagNoteButton({
             }}
           />
         ) : (
-          <Command shouldFilter filter={pickerTagScore}>
-            <CommandInput
-              placeholder={TAG_SEARCH_PLACEHOLDER}
-              value={search}
-              onValueChange={setSearch}
-              data-testid="note-tag-search"
-            />
-            <CommandList>
-              {loadingTags ? (
-                <div className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-loading">
-                  Loading tags…
-                </div>
-              ) : (
-                !isNew && <CommandEmpty>Type a name to create a new tag.</CommandEmpty>
-              )}
+          // The menu's primitives load on first opening (components/share/lazyCommandUi); the trigger warms them.
+          <WithCommandUi
+            fallback={
+              <p className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-menu-loading">
+                Loading tags…
+              </p>
+            }
+          >
+            {({ Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList }) => (
+              <Command shouldFilter filter={pickerTagScore}>
+                <CommandInput
+                  placeholder={TAG_SEARCH_PLACEHOLDER}
+                  value={search}
+                  onValueChange={setSearch}
+                  data-testid="note-tag-search"
+                  // Radix focuses the search box on opening, unless it arrived after: then it takes the focus itself.
+                  autoFocus
+                />
+                <CommandList>
+                  {loadingTags ? (
+                    <div className="px-3 py-2 text-xs text-slate-400" data-testid="note-tag-loading">
+                      Loading tags…
+                    </div>
+                  ) : (
+                    !isNew && <CommandEmpty>Type a name to create a new tag.</CommandEmpty>
+                  )}
 
-              {/* Already on it — where you say whether it fits. One row
-                per tag with Agree and Disagree side by side (StanceRow), for
-                the reasons in StanceControl. */}
-              {onNote.length > 0 && (
-                <CommandGroup heading={`Already on this ${noun}`}>
-                  {onNote.map((tag) => (
-                    <StanceRow
-                      key={tag.key}
-                      name={tag.name}
-                      stance={tag.myStance}
-                      pending={applyTag.isPending}
-                      onVote={(polarity) =>
-                        void run({ authorPubkey: tag.authorPubkey, slug: tag.slug }, tag.name, polarity, true)
-                      }
-                      testId="note-tag-stance"
-                    />
-                  ))}
-                </CommandGroup>
-              )}
+                  {/* Already on it — where you say whether it fits. One row
+                    per tag with Agree and Disagree side by side (StanceRow), for
+                    the reasons in StanceControl. */}
+                  {onNote.length > 0 && (
+                    <CommandGroup heading={`Already on this ${noun}`}>
+                      {onNote.map((tag) => (
+                        <StanceRow
+                          key={tag.key}
+                          name={tag.name}
+                          stance={tag.myStance}
+                          pending={applyTag.isPending}
+                          onVote={(polarity) =>
+                            void run({ authorPubkey: tag.authorPubkey, slug: tag.slug }, tag.name, polarity, true)
+                          }
+                          testId="note-tag-stance"
+                        />
+                      ))}
+                    </CommandGroup>
+                  )}
 
-              {forPosts.length > 0 && (
-                <CommandGroup heading="Tags people use">
-                  {forPosts.map((t) => (
-                    <CommandItem
-                      key={t.key}
-                      value={t.name}
-                      onSelect={() => confirmExisting(t)}
-                      className={SOFT_SELECTED_ROW}
-                      data-testid="note-tag-existing"
-                    >
-                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate">{t.name}</span>
-                        {t.description && (
-                          <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
-                        )}
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
+                  {forPosts.length > 0 && (
+                    <CommandGroup heading="Tags people use">
+                      {forPosts.map((t) => (
+                        <CommandItem
+                          key={t.key}
+                          value={t.name}
+                          onSelect={() => confirmExisting(t)}
+                          className={SOFT_SELECTED_ROW}
+                          data-testid="note-tag-existing"
+                        >
+                          <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{t.name}</span>
+                            {t.description && (
+                              <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
+                            )}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
 
-              {/* Tags mostly put on people. Still offered — the hint is never a
-                gate — just not what someone tagging a post or an item usually wants. */}
-              {forPeople.length > 0 && (
-                <CommandGroup heading="Usually used on people">
-                  {forPeople.map((t) => (
-                    <CommandItem
-                      key={t.key}
-                      value={t.name}
-                      onSelect={() => confirmExisting(t)}
-                      className={SOFT_SELECTED_ROW}
-                      data-testid="note-tag-for-people"
-                    >
-                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate">{t.name}</span>
-                        {t.description && (
-                          <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
-                        )}
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-              {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
-              {isNew && (
-                <CommandGroup heading="New tag">
-                  {/* Says what comes next: this opens the form, it publishes nothing. */}
-                  <CommandItem
-                    value={newTagValue(typed)}
-                    onSelect={() => setPending({ tag: { kind: "new", name: typed } })}
-                    className={SOFT_SELECTED_ROW}
-                    data-testid="note-tag-create"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">Create "{typed}"</span>
-                      <span className="block truncate text-[10px] text-slate-400">Add a description next</span>
-                    </span>
-                    <ChevronRight className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                  </CommandItem>
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
+                  {/* Tags mostly put on people. Still offered — the hint is never a
+                    gate — just not what someone tagging a post or an item usually wants. */}
+                  {forPeople.length > 0 && (
+                    <CommandGroup heading="Usually used on people">
+                      {forPeople.map((t) => (
+                        <CommandItem
+                          key={t.key}
+                          value={t.name}
+                          onSelect={() => confirmExisting(t)}
+                          className={SOFT_SELECTED_ROW}
+                          data-testid="note-tag-for-people"
+                        >
+                          <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{t.name}</span>
+                            {t.description && (
+                              <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
+                            )}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                  {/* Last: an existing tag above it is what Enter takes (pickerTagScore). */}
+                  {isNew && (
+                    <CommandGroup heading="New tag">
+                      {/* Says what comes next: this opens the form, it publishes nothing. */}
+                      <CommandItem
+                        value={newTagValue(typed)}
+                        onSelect={() => setPending({ tag: { kind: "new", name: typed } })}
+                        className={SOFT_SELECTED_ROW}
+                        data-testid="note-tag-create"
+                      >
+                        <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">Create "{typed}"</span>
+                          <span className="block truncate text-[10px] text-slate-400">Add a description next</span>
+                        </span>
+                        <ChevronRight className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            )}
+          </WithCommandUi>
         )}
       </PopoverContent>
     </Popover>

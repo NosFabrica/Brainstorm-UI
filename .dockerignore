@@ -19,3 +19,42 @@ client/.env
 client/.env.*
 .env
 .env.*
+
+# attached_assets/ is ~240 MB of source art, drafts and pasted files, of which
+# the build imports a few dozen (`@assets/…` in client/src). The rest stays out
+# of the build context. A new `@assets/` import needs its line here or the image
+# build can't resolve it: client/src/test/dockerignore.test.ts checks the two agree.
+attached_assets/**
+!attached_assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_800.webp
+!attached_assets/download_1774042580188.png
+!attached_assets/generated_images/about_for_everyone.webp
+!attached_assets/generated_images/about_hero_more_than_search_poster_1280.webp
+!attached_assets/generated_images/about_hero_poster.webp
+!attached_assets/generated_images/about_hero_trust_built_in_poster_1280.webp
+!attached_assets/generated_images/about_trust_signal.webp
+!attached_assets/generated_images/about_yours_identity.webp
+!attached_assets/generated_images/abstract_network_web_background.png
+!attached_assets/generated_images/distant_friend-of-friend_avatar.png
+!attached_assets/generated_images/friendly_trusted_person_avatar.png
+!attached_assets/generated_images/hsw_trusted_recommendation.webp
+!attached_assets/generated_images/login_human_backdrop.webp
+!attached_assets/generated_images/male_patient_portrait_headshot.png
+!attached_assets/generated_images/naturopath_doctor_portrait_headshot.png
+!attached_assets/generated_images/self_avatar_glowing_silhouette.png
+!attached_assets/generated_images/show_trust_behavioral_proof_hands.png
+!attached_assets/generated_images/signup_bg_abstract.webp
+!attached_assets/generated_images/tell_trust_attestation_speech_bubbles.png
+!attached_assets/generated_images/unknown_stranger_avatar_silhouette.png
+!attached_assets/generated_images/wot_hero_cafe.webp
+!attached_assets/generated_videos/about_hero_more_than_search_1280.mp4
+!attached_assets/generated_videos/about_hero_real_connection_1280.mp4
+!attached_assets/generated_videos/about_hero_trust_built_in_1280.mp4
+!attached_assets/nosfabrica_avatar_96.webp
+!attached_assets/stock_images/food_influencer_eati_33799fa5.jpg
+!attached_assets/stock_images/live_band_concert_st_a3f0f7e3.jpg
+!attached_assets/stock_images/music_fan_real_person.jpg
+!attached_assets/stock_images/professional_man_wor_ca204bd6.jpg
+!attached_assets/stock_images/red_brick_building_e_b5643b62.jpg
+!attached_assets/stock_images/upscale_fine_dining__0f9e2af1.jpg
+!attached_assets/young_creative_woman_14461b61_1770965715586.jpg
+!attached_assets/young_man_profession_46072db4_1770965705548.jpg

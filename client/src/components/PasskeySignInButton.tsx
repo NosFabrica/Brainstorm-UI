@@ -36,10 +36,14 @@ const CHALLENGE_REFRESH_MS = 90_000;
 const CHALLENGE_MAX_AGE_MS = 110_000;
 
 /**
- * A server challenge always in hand: one is fetched on mount, renewed on a timer,
- * fetched again the moment one is taken (a cancelled sheet is followed by a
- * second tap that needs its own), and again when the tab comes back — a phone
- * suspends timers, and a challenge held across that is dead.
+ * A server challenge always in hand: one is fetched on mount, renewed once it
+ * is 90 s old, fetched again the moment one is taken (a cancelled sheet is
+ * followed by a second tap that needs its own), and checked when the tab comes
+ * back — a phone suspends timers, and a challenge held across that is dead.
+ *
+ * The renewal pauses while the tab is hidden: a login page left in a
+ * background tab used to fetch a challenge every 90 s for nobody. Back in
+ * view, one that is still young is kept and renewed when it turns 90 s.
  */
 function usePrefetchedChallenge(enabled: boolean) {
   const held = useRef<{ value: string; at: number } | null>(null);
@@ -47,6 +51,18 @@ function usePrefetchedChallenge(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const hidden = () => document.visibilityState === "hidden";
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!live || hidden()) return;
+      // Without one in hand (the last ask failed), try again a renewal from now.
+      // One that is already due (a renewal that just failed left the old one in hand) counts as
+      // none: waiting zero for it would re-ask at once, again and again, while the server is down.
+      const age = held.current ? Date.now() - held.current.at : Infinity;
+      const wait = age < CHALLENGE_REFRESH_MS ? CHALLENGE_REFRESH_MS - age : CHALLENGE_REFRESH_MS;
+      timer = setTimeout(() => load.current(), wait);
+    };
     load.current = () =>
       void passkeyVaultApi
         .passkeyVaultChallenge()
@@ -55,18 +71,24 @@ function usePrefetchedChallenge(enabled: boolean) {
         })
         .catch(() => {
           /* the tap fetches one, and a passkey this device knows needs none */
-        });
+        })
+        .finally(schedule);
     load.current();
-    const timer = setInterval(() => load.current(), CHALLENGE_REFRESH_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") load.current();
+    const onVisibility = () => {
+      if (hidden()) {
+        clearTimeout(timer);
+        return;
+      }
+      const age = held.current ? Date.now() - held.current.at : Infinity;
+      if (age >= CHALLENGE_REFRESH_MS) load.current();
+      else schedule();
     };
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       live = false;
       load.current = () => {};
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [enabled]);
   // Single use: the one handed out is gone, whatever the sheet does with it.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   __resetTrustSignals,
   hasSettledTrustSignals,
@@ -15,7 +15,7 @@ import {
  * session. House POV: the request is unauthenticated, so rings work logged out.
  */
 export function useAuthorScores(pubkeys: string[]): (pk: string) => number | null | undefined {
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -29,7 +29,12 @@ export function useAuthorScores(pubkeys: string[]): (pk: string) => number | nul
       alive.current = false;
     };
   }, [pubkeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (pk) => settledTrustSignals(pk)?.influence;
+  // One identity per batch of scores landing, not per render: a reader handed
+  // to memoised rows (search cards, comment rows) would otherwise redraw every
+  // row on every parent render. A new score still yields a new function, so
+  // anything keyed on it reads the new numbers.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useCallback((pk: string) => settledTrustSignals(pk)?.influence, [version]);
 }
 
 /** Test seam: forget every author's signals. */

@@ -4,7 +4,7 @@
 
 Brainstorm Shell is a web application built with React, TypeScript, and Vite, providing a user interface for the Brainstorm platform. It integrates Nostr login via NIP-07, offering social graph visualization, GrapeRank reputation scoring, and Web of Trust (WoT) concepts. The application aims to give users insights into their social network and influence within the Nostr ecosystem, including profile metadata fetching, social graph exploration, and NIP-85 service provider activation.
 
-**Anonymous, search-first experience:** Logged-out visitors land on a Google-style search-first home at `/`, and can run searches and view full profile pages using the NosFabrica ("house") trust perspective with no login. Sign-in via NIP-07 stays optional and unlocks the personalized "My WoT" perspective plus account-only pages (Dashboard/Network/Settings/My Panel/Admin/Onboarding), which are hidden from anonymous visitors via a `RequireAuth` wrapper in `client/src/App.tsx` (redirect to `/`, no previews). Routes are code-split: every route except the search-first home, the public profile page (`/p/:id`) and the 404 loads on demand (`client/src/lib/lazyWithReload.ts`, which reloads once if a deploy removed the chunk), behind one `<Suspense>` in `client/src/App.tsx`. The admin guard lives in `client/src/pages/AdminRoute.tsx` and loads the console as its own chunk. Public routes: `/`, `/search`, `/profile/:npub`, `/faq`, `/what-is-wot`. The header on public pages shows a subtle "Sign in" button (`client/src/components/SignInButton.tsx` — NIP-07 + KeySignInModal), and locked features (e.g. follow/mute/report on a profile) show inline sign-in prompts. Anon-viewable data calls (`getUserByPubkey/getUserOverview/getUserStats/getUserConnections`) use `optionalAuthFetch` in `client/src/services/api.ts`: it routes through `authenticatedFetch` only when a session exists (`brainstorm_session_token` OR `nostr_user`), otherwise a plain fetch with NO redirect/storage-wipe side effects — so anon 401s degrade gracefully (e.g. "Profile not found") instead of bouncing to `/`. **Backend gap:** token-less serving of house-POV profile scores (`/user/{pubkey}/overview|stats|connections`) is coordinated separately; until it lands, anonymous profile data 401s and the page shows the graceful empty state.
+**Anonymous, search-first experience:** Logged-out visitors land on a Google-style search-first home at `/`, and can run searches and view full profile pages using the NosFabrica ("house") trust perspective with no login. Sign-in via NIP-07 stays optional and unlocks the personalized "My WoT" perspective plus account-only pages (Dashboard/Network/Settings/My Panel/Admin/Onboarding), which are hidden from anonymous visitors via a `RequireAuth` wrapper in `client/src/App.tsx` (redirect to `/`, no previews). Routes are code-split: every route except the search-first home, the public profile page (`/p/:id`) and the 404 loads on demand (`client/src/lib/lazyWithReload.ts`, which reloads once if a deploy removed the chunk), behind one `<Suspense>` in `client/src/App.tsx`. Within the eager routes the heavy parts still load on demand: the home's results (`components/search/lazySearchResults`, whose download `main.tsx` starts on `?q=` and every SearchBox starts on focus), tier three's views and list-kind search UI, the profile page's dialogs (customizer, zap, share), the account menu's body and the tag pickers' command menu. The admin guard lives in `client/src/pages/AdminRoute.tsx` and loads the console as its own chunk. Public routes: `/`, `/search`, `/profile/:npub`, `/faq`, `/what-is-wot`. The header on public pages shows a subtle "Sign in" button (`client/src/components/SignInButton.tsx` — NIP-07 + KeySignInModal), and locked features (e.g. follow/mute/report on a profile) show inline sign-in prompts. Anon-viewable data calls (`getUserByPubkey/getUserOverview/getUserStats/getUserConnections`) use `optionalAuthFetch` in `client/src/services/api.ts`: it routes through `authenticatedFetch` only when a session exists (`brainstorm_session_token` OR `nostr_user`), otherwise a plain fetch with NO redirect/storage-wipe side effects — so anon 401s degrade gracefully (e.g. "Profile not found") instead of bouncing to `/`. **Backend gap:** token-less serving of house-POV profile scores (`/user/{pubkey}/overview|stats|connections`) is coordinated separately; until it lands, anonymous profile data 401s and the page shows the graceful empty state.
 
 ## System Architecture
 
@@ -14,7 +14,7 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 
 - **UI/UX:** Features a dark-theme with glassmorphism, gradient texts, and CSS-only animations. Designs emphasize polished user experiences for login, dashboard, and other core pages, including animated graph backgrounds and custom SVG icons.
 - **Nostr Integration:** Utilizes `applesauce-core` for NIP-07 login and profile handling, and `nostr-tools` for `nip19` encoding. Authentication uses a challenge-response mechanism with the Brainstorm backend via kind 22242 events.
-- **Data Management:** React Query is used for data fetching, caching, and state management for user profiles, GrapeRank results, and social graph data.
+- **Data Management:** React Query serves the HTTP API. Per-person reads go through `services/queries/userReads`: one entry per person and resolved perspective (a viewer read with no Account is the house's), and consumers `select` what they draw. `/user/graperankResult` is polled only by `useScoringStatus` (App root) while a run is in flight or was just triggered, and that hook refetches the reader's own reads once when a run finishes. Defaults: staleTime Infinity, gcTime 30 min, no focus refetch. The API's recovery (not the search relay's) refetches only queries that errored or were answered during the outage. The active Account's own slow reads persist to IndexedDB (`lib/queryPersist`: a whitelist, a build-id buster, 24 h at most, dropped on every `queryClient.clear()`, i.e. sign-out and switches).
 - **Feature Specifications:**
   - **Authentication:** NIP-07 based challenge-response login with session tokens stored in `localStorage`. Silent re-authentication on 401 (expired token) via `silentReauth()` in `client/src/services/api.ts` — automatically re-authenticates using NIP-07 extension without user intervention on hard refresh. Falls back to login redirect if extension unavailable. A 429 on that re-auth (login rate limit) is an ordinary error: nobody is signed out or redirected. All protected pages guard against error flash during auth redirects via `isAuthRedirecting()`.
   - **Dashboard:** The signed-in home: search, trust status, alerts, and what the network is reading. Supported Clients carousel has 3 slides: Amethyst, Nostria, and a Developer CTA ("Get Your Client Featured") linking to `/faq?tab=developers`. **First screen (2026-10-05):** the greeting is compact (`PageHeader size="compact"`: one line, kicker from `sm` up, no slogan subtitle), the Trust Signals card is a one-line strip for every cohort (state · updated · Recalculate · View insights; the state reads "Active" once the kind-10040 names Brainstorm, "Scores ready" when published, else progress/failure — never a raw score), and the body carries at most ONE prompt as a line under the title — `lib/dashboardPrompt.ts` picks activate › consent re-ask › invite › publish-assistant; the header's Finish-setup pill lists the rest. The Activate panel, the legacy Select-Brainstorm card, the invite card and the expandable "Your network · Active" badge (with its compatible-clients chips and inline assistant nudge) are gone. Below that the page stays stacked full-width: alerts, "Reading from your network", threads (a two-column desktop was tried and turned down). `AlertsBanner` is a single row with a text link. **Search first (2026-10-12):** Brainstorm is a search app, so the signed-in home carries the shared `SearchBox` under the header row (the `AppHeader`'s own box is off on this page) and no longer a network widget: the "Your Network" card is gone, and its reach and trust-health tiles moved to the Network page as `NetworkReachStrip` (`lib/networkReach.ts` folds the run's `count_values` by hop range; the card's invented fallback numbers did not move with it).
@@ -30,7 +30,7 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
   - **Admin Dashboard (`/admin`):** NosFabrica Macro Admin Dashboard accessible only to whitelisted pubkeys (configured in `client/src/config/adminAccess.ts`). Features: KPI cards strip (Total Pubkeys, Followers, Following, Queue Depth, Reports Filed), tab-based navigation (Overview, Activity, Users, Assistants, System Health), sortable/searchable/paginated user directory from graph data, GrapeRank pipeline status, relay and API health monitoring, infrastructure overview, and activity log. The "Assistants" tab surfaces Brainstorm Assistant publish metrics (total assistants, total publishes, last 24h/7d, last publish time) and a per-user publish history table backed by `/admin/assistants/stats`, `/admin/assistants`, and `/admin/assistants/:pubkey/history`. Unsupported admin API endpoints show "Not Connected" status badges. Admin link appears in profile dropdown menus (amber-styled) and MobileMenu only for whitelisted pubkeys. Non-admin users are redirected to `/dashboard`. Expanding any user row in the Users tab renders a **Nostr Health** card (`client/src/components/admin/NostrHealthCard.tsx`) under the Identity strip with two live-from-relays panels: Trust Provider List (kind 10040) with per-tag checks (event present, `30382:rank`/`30382:followers` tags, inner pubkey matches assigned TA, relay hint matches `VITE_NIP85_RELAY_URL`) using existential ("any matching tag wins") semantics matching `isUsingBrainstorm`, and Profile Metadata (kind 0) with avatar/name/nip05/about plus a Brainstorm Assistant detection badge (green when the `website` field references a known Brainstorm host) and an "Assigned Brainstorm Assistant" sub-section that fetches the assistant's own kind 0 (resolved from admin-assigned `taPubkey`, falling back to `30382:rank`/`30382:followers` inner pubkey from kind 10040; "Self-assigned" badge when the assistant pubkey equals the user). Both panels include collapsible raw-JSON viewers with copy buttons. When a user has multiple `30382:rank` or `30382:followers` tags published in their kind 10040, an "All published tags" disclosure surfaces every tag with per-tag pubkey/relay pass-fail badges (winner = green "Active", non-matching = amber "Stale", non-matching but harmless = neutral "Duplicate"); the overall status pill bumps to amber "Issues found" when stale duplicates exist so admins can detect leftover/old tags from prior activations. Backed by `checkNip85Health()` in `client/src/services/nostr.ts` (`Nip85TagDetail` type, `rankTags`/`followersTags` arrays).
   - **My Panel Page (`/panel`):** Web of Trust management center for logged-in users. Features: Account Overview header strip (pubkey, NIP-85 status, network size, last calc timestamp), Brainstorm Assistant Profile publishing (kind 0 event with website field — calls backend endpoint with graceful "Coming soon" fallback if 404), Invite & Add Users section (shareable invite link + add-by-npub lookup), Network Score Monitor (sortable/searchable table of followed accounts with trust scores, tier badges, and trend indicators comparing to locally cached previous scores), Trust Attestation History (chronological log of TA publish events with timestamps, event kind, relays, success/failure status), and DCoSL Lists scaffold (Coming Soon placeholder). API method: `apiClient.publishBrainstormAssistantProfile()` in `client/src/services/api.ts`.
   - **Dashboard Empty State:** When users have no follows (`hasNoFollowing`), the dashboard hides the Network Health section and recalculation panel, showing only the welcome header with "Set up your trust network" subtitle and the "No follows yet" banner. Trust Signals badge shows step-specific status during calculations: "Calculating…" → "Publishing…" → "Complete".
-- **Performance Optimizations:** Includes 60-second timeouts for server proxy routes, fetches the logged-in user's profile metadata (kind 0) immediately at login (fire-and-forget in `completeLogin` in `client/src/services/nostr.ts`) so the avatar/name appear sooner instead of waiting for the dashboard to mount — `setCurrentUser` dispatches the `brainstorm-user-changed` event on profile-field changes (not just pubkey changes) so the header/menu re-render reactively, and the dashboard's `profileQuery` stays gated on missing name/picture so it skips the duplicate fetch once login populates them. **Profile fetch HTTP fast-path:** `fetchProfile()` in `client/src/services/nostr.ts` no longer waits on the websocket relay query alone — it races a CORS-enabled HTTP fast-path (`fetchProfileHttp()`, querying `https://nostrhttp.com/<npub>` and `https://api.nostr.band/v0/stats/profile/<npub>` in parallel) against the existing relay query (`fetchProfileFromRelays()`) via `firstTruthy()` (first source to yield a valid kind 0 wins; falls back to `undefined` only after all settle, so there is no regression if the HTTP gateways are unavailable). `extractKind0Content()` is a recursive JSON scanner that pulls the kind 0 event out of either gateway's envelope (nostrhttp.com returns a bare event array; api.nostr.band wraps it under `profiles[].event`). Requests use only the safelisted `Accept: application/json` header to avoid CORS preflight. Note: there is no Express backend in this project — `npm run dev` runs Vite only and production is a static file server, so all Nostr fetching happens directly from the browser (CORS matters). Uses branded loading animations. Network page search uses on-demand debounced profile fetching (500ms delay, batches of 50, max 500 uncached profiles) instead of eager bulk loading — keeps initial page load fast while enabling name-based search across the full group.
+- **Performance Optimizations:** Includes 60-second timeouts for server proxy routes, fetches the logged-in user's profile metadata (kind 0) immediately at login (fire-and-forget in `completeLogin` in `client/src/services/nostr.ts`) so the avatar/name appear sooner instead of waiting for the dashboard to mount — `setCurrentUser` dispatches the `brainstorm-user-changed` event on profile-field changes (not just pubkey changes) so the header/menu re-render reactively, and the dashboard's `profileQuery` stays gated on missing name/picture so it skips the duplicate fetch once login populates them. **Profile fetches are relay-only.** `fetchProfile()`/`fetchProfileEvent()` in `client/src/services/nostr.ts` read kind 0 from the store, the device cache, then the author's outbox relays merged with `PROFILE_RELAYS`; no HTTP gateways are asked. Bulk loads (`fetchProfiles`, `fetchProfileMap`) go through the shared author queue (`services/authorProfileQueue`: store, device, then the search relay) and ask the other profile relays only for whoever it can't place. Note: there is no Express backend in this project — `npm run dev` runs Vite only and production is a static file server, so all Nostr fetching happens directly from the browser (CORS matters). Uses branded loading animations. Network page search uses on-demand debounced profile fetching (500ms delay, batches of 50, max 500 uncached profiles) instead of eager bulk loading — keeps initial page load fast while enabling name-based search across the full group.
 
 ## Relay routing (NIP-65 / outbox model)
 
@@ -113,6 +113,17 @@ without a refresh would pin a user to a stale relay list forever); and the
 cache is **dropped on sign-out**. Rationale:
 [docs/adr/0003-nip65-outbox-routing.md](docs/adr/0003-nip65-outbox-routing.md).
 
+Every signature goes through `lib/verifier`: noble until the wasm libsecp256k1
+build (`nostr-wasm`, a lazy chunk) has loaded, then wasm, about 4× faster. The
+store skips verifying an id it already holds, and a signature verified this
+session is not checked again. The boot revalidation runs when idle, on the first
+four relays of the cached list, and asks kinds 3/10000 under the hooks' own
+`askOnce` key so the two never ask twice. Device reads use exact
+`kind:pubkey:` keys. Above 20,000 events the store is pruned when idle
+(`lib/storePruning`); replaceable kinds and the signed-in accounts' own events
+are never dropped. Sockets stay open for minutes only for the search, profile
+and inbox relays; the rest close after the library's 30 s.
+
 ## Where tags are read from
 
 Two sources, by what the surface needs:
@@ -144,6 +155,41 @@ trust-sorted Requests. UI: `pages/MessagesPage.tsx` and `components/messages/`;
 inbox relays (kind 10050) and preferences: Settings › Trust & search.
 Rationale: [docs/adr/0004-nip17-private-messages.md](docs/adr/0004-nip17-private-messages.md).
 
+`services/dm` loads only once an Account is active (`services/dm/boot`); the
+badge, title count and notifications read the running engine from
+`services/dm/current`. At start the engine fills `seen` from the cache's keys and
+connects at once; the newest 300 kept messages open immediately, the rest when
+idle, or all at once when Messages opens.
+
+## Search performance
+
+- **Snapshots.** `searchStream` coalesces arrivals to one `onSnapshot` per
+  animation frame (50 ms timeout in hidden tabs); the first hit, EOSE, errors,
+  CLOSED and page turns go out synchronously. Result cards are `memo`'d and
+  SearchResults keeps their props' identities stable, so a frame redraws only
+  the rows that changed.
+- **Side sockets.** Beside the pooled search socket there are two kinds of side
+  socket to the search relay, both outside the pool and never signed in, so
+  their filters must carry a search token. `openSideSearchRelay()` gives one-shot
+  sockets for tab and category COUNTs. `leaseSideSearchRelay()` gives one shared
+  socket for per-row questions (note engagement, repo counts, app endorsement
+  counts, typeahead person content) that closes 15 s after its last lease.
+- **Rows** use `content-visibility:auto` with `contain-intrinsic-size:auto`;
+  SearchResults turns it off for the frame in which it restores a remembered
+  scroll position.
+- **Shared, read-only parses.** `parseNoteContent` (LRU of 500 texts) and
+  `decodeEntity`/`decodeNostrEntity` (LRU of 2,000) hand every caller the same
+  objects, frozen in development. Device settings read by every coin and ring
+  (`useScoreDisplayMode`, `useTierGranularity`) go through `hooks/deviceSetting`:
+  one store per setting, one pair of listeners.
+- **On-demand parts without React.lazy.** The account menu's body and the tag
+  pickers' command menu (`components/share/lazyCommandUi`) are warmed on idle,
+  hover or focus and drawn synchronously once loaded, so the trigger keeps its
+  focus and Radix focuses the real content. Tier three's views sit behind
+  `ItemPage`'s Suspense; a list kind's search parts are stand-ins that load
+  `ListKindSearch`'s chunk the first time one is drawn. A new view or kind keeps
+  its UI out of `itemViews`/`listKinds`, which are in the entry.
+
 ## Installed app (PWA)
 
 The app installs to a home screen, dock or Start menu from `client/public/site.webmanifest`
@@ -164,7 +210,8 @@ screen size. `scripts/pwa-assets.mjs` draws all the raster art from `favicon.svg
 - **Coming back** (`lib/appResume` → `services/appResume`): relays skip their
   reconnect backoff (`wakeRelays`; the DM live subscription's retry is woken too),
   a newer build is looked for, and after 10 minutes away the API queries are
-  refetched (the app has no pull-to-refresh). The DM outbox retries on return.
+  refetched (the app has no pull-to-refresh); the relay-backed tag reads keep their
+  own staleTime. The DM outbox retries on return.
 - **In the installed app only**: Back in the header on screens reached in-app
   (`HeaderBar`; there is no browser toolbar), persistent storage asked for at
   sign-in (`lib/persistentStorage`), the main screens precached, and on iOS a note
@@ -173,9 +220,30 @@ screen size. `scripts/pwa-assets.mjs` draws all the raster art from `favicon.svg
   prompt (`lib/installPrompt`) or the Share-sheet steps on iOS (`InstallApp`).
 - **Status bar**: `theme-color` follows the page's background (`lib/themeColor`).
 - **Fonts** are bundled (`@fontsource`), not fetched from Google, so an offline
-  launch has them.
+  launch has them. Figtree's Latin face is preloaded from `index.html` (a build
+  hook in `vite.config.ts` writes the hashed name).
+- **Carried across deploys**: `/brand/` and `/icons/` entries move into the new
+  build's cache on activation. In the installed app, `/img/` thumbnails are kept
+  cache-first (500 entries, 7 days, oldest out first). Hashed images over 1.5 MB
+  are served but not cached.
 
 Real-device checks before shipping a change here: `docs/agents/pwa-checklist.md`.
+
+## Delivery (nginx)
+
+- Hashed `/assets/` are immutable for a year and served from build-time `.gz`
+  (`gzip_static`); everything else is gzipped on the fly at level 6, proxied
+  clients included. HTML is `no-cache`.
+- `public/` art (`/brand/`, `/icons/`, `/splash/`, `/screenshots/`, root images)
+  is fresh for a day and stale-while-revalidate for a week. The Dockerfile sets
+  each file's mtime from its content hash, so ETags change only when the file does.
+- **Runtime config**: `docker-entrypoint.sh` inlines the substituted `config.js`
+  into index, 200 and 404 between `<!--CONFIG-START-->` and `<!--CONFIG-END-->`,
+  so no page load waits on `/config.js`. Dev and the APK load `/config.js` from
+  the tag between the markers.
+- **Third-party JSON**: `/github/*` and `/openlibrary/*` are proxied and cached by
+  nginx (1 day, stale on error or rate limit), and in dev by Vite. The APK has no
+  such proxy.
 
 ## Passkeys
 
@@ -200,7 +268,6 @@ separate, and a local UI needs its origin in the backend's `PASSKEY_ORIGINS`.
 
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
 - **Brainstorm Backend API:** Each deployment talks to one API, named by `VITE_API_URL`: staging's UI to `brainstormserver-staging.nosfabrica.com`, production's to `api.brainstorm.world`. `docker-entrypoint.sh` writes it into `config.js` (`window.__ENV__`) when the container starts. `client/src/lib/runtimeEnv.ts` reads it from there, or from the build while `config.js` still holds the placeholder: that's how `npm run dev` gets it (`docs/agents/run-ui.md`) and how the Android build carries production's. The API calls get it from `getBrainstormApi()` in `client/src/services/api/core.ts`. There is no in-app switch: the staging/production toggle was dropped on 2026-04-21 (`c66e8e2a`), and `core.ts` only clears its old `brainstorm_api_env` key.
-- **Nostr HTTP APIs:** `api.nostr.band` and `purplepag.es` serve as HTTP fallback for profile fetching.
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
 
 ## Shared Components

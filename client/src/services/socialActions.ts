@@ -1,6 +1,7 @@
 import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
-import { verifyEvent, type NostrEvent as SignedEvent } from "nostr-tools";
+import type { NostrEvent as SignedEvent } from "nostr-tools";
+import { verifySignature } from "@/lib/verifier";
 
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
@@ -381,7 +382,7 @@ const RELAY_HAS_NO_LIST: RecoverFollowListOutcome = { found: false };
  * Search ONE user-named relay for this Account's kind-3 — the recovery path out
  * of the "we couldn't find an existing follow list" dialog, for users who know
  * where their list lives. The relay is untrusted input, so the read bypasses
- * the event store and nothing is kept unless it survives `verifyEvent` and was
+ * the event store and nothing is kept unless it survives `verifySignature` and was
  * signed by this Account.
  *
  * On success the list is recorded as the local floor and handed to the backend
@@ -438,7 +439,7 @@ export async function recoverFollowListFromRelay(
 /** Cryptographically this Account's own event of the expected kind. */
 function isVerifiedOwn(event: NostrEvent, pubkey: string, kind: number): boolean {
   try {
-    return event.kind === kind && event.pubkey === pubkey && verifyEvent(event as never);
+    return event.kind === kind && event.pubkey === pubkey && verifySignature(event as never);
   } catch {
     return false;
   }

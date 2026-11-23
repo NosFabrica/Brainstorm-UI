@@ -68,19 +68,23 @@ async function readable(isbn: string | null): Promise<BookFacts["read"]> {
   return { kind: preview, url, ocaid };
 }
 
+const askWork = (id: string) =>
+  Promise.all([
+    getJson<Json>(`/openlibrary/works/${encodeURIComponent(id)}.json`),
+    getJson<Json>(`/openlibrary/works/${encodeURIComponent(id)}/ratings.json`),
+  ]);
+
 async function ask(isbn: string | null, workId: string | null): Promise<BookFacts | null> {
+  // With the work already known (the item names it), all four go at once;
+  // only an ISBN alone has to wait for its edition to say which work it is.
+  const knownWork = workId ? askWork(workId) : null;
   const [edition, read] = await Promise.all([
     isbn ? getJson<Json>(`/openlibrary/isbn/${encodeURIComponent(isbn)}.json`) : null,
     readable(isbn),
   ]);
   const works = Array.isArray(edition?.works) ? (edition.works as Json[]) : [];
   const id = workId ?? workIdOf(works[0]?.key);
-  const [work, ratings] = id
-    ? await Promise.all([
-        getJson<Json>(`/openlibrary/works/${encodeURIComponent(id)}.json`),
-        getJson<Json>(`/openlibrary/works/${encodeURIComponent(id)}/ratings.json`),
-      ])
-    : [null, null];
+  const [work, ratings] = knownWork ? await knownWork : id ? await askWork(id) : [null, null];
   if (!edition && !work) return null;
   const summary = ratings?.summary as Json | undefined;
   const average = typeof summary?.average === "number" ? summary.average : null;

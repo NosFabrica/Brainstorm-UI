@@ -10,7 +10,7 @@ import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { type PreviewSlot, useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
 import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
-import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { isKey } from "@/lib/searchQuery";
 import { orderTopSections, type TopSection } from "@/lib/topOrder";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
@@ -246,13 +246,13 @@ const EMPTY_SEEDS: Seeds = {
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
 
 /** Search's composed page — quiet trust chrome wherever it is mounted. */
-export function ComposedResults(props: ComposedResultsProps) {
+export const ComposedResults = memo(function ComposedResults(props: ComposedResultsProps) {
   return (
     <QuietTrustChrome>
       <ComposedResultsBody {...props} />
     </QuietTrustChrome>
   );
-}
+});
 
 type ComposedResultsProps = Parameters<typeof ComposedResultsBody>[0];
 

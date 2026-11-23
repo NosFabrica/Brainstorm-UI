@@ -6,7 +6,7 @@ import { nip19 } from "nostr-tools";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import PageBackground from "@/components/PageBackground";
-import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_1775844197287.png";
+import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_800.webp";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";
@@ -73,6 +73,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
+import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { publicOrigin } from "@/lib/publicOrigin";
@@ -418,11 +419,10 @@ export default function UserPanelPage() {
   const followingConnections = useSelfConnections(user?.pubkey, "following", { enabled: !!user });
   const selfLoading = overviewLoading || historyLoading;
 
+  // Polled app-wide while a run is in flight (hooks/useScoringStatus), not here.
   const { data: grapeRankData, isLoading: grapeRankLoading } = useQuery({
-    queryKey: ["/user/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult(),
+    ...grapeRankResultOptions(),
     enabled: !!user,
-    staleTime: 30_000,
   });
 
   const taPubkey = historyData?.data?.ta_pubkey;

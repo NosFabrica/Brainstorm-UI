@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { ArrowRight, Shield, Users, Zap } from "lucide-react";
 import { Footer } from "@/components/Footer";
+import { HERO_PHOTO, HERO_PHOTO_SRCSET } from "@/lib/heroScenes";
 
 const steps = [
   {
@@ -40,7 +41,9 @@ export default function OnboardingPage() {
           people before technology, per the brand. */}
       <div className="absolute inset-0 z-0" aria-hidden="true">
         <img
-          src="/brand/hero.jpg"
+          src={HERO_PHOTO}
+          srcSet={HERO_PHOTO_SRCSET}
+          sizes="100vw"
           alt=""
           draggable={false}
           className="absolute inset-0 h-full w-full select-none object-cover"

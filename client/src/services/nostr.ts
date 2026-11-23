@@ -1,4 +1,6 @@
-import { nip19, finalizeEvent, generateSecretKey, verifyEvent, type EventTemplate } from "nostr-tools";
+import { nip19, finalizeEvent, generateSecretKey, type EventTemplate } from "nostr-tools";
+import { Subject, type Observable } from "rxjs";
+import { verifySignature } from "@/lib/verifier";
 import { env } from "@/lib/runtimeEnv";
 import {
   declaresTrustProvider,
@@ -30,6 +32,7 @@ import {
   outboxRelaysFromDb,
   parseRelayList,
   planOutboxReads,
+  setRelayListWarmGate,
   warmRelayLists,
 } from "@/lib/relayRouting";
 
@@ -115,34 +118,89 @@ export function signEventWithEphemeralKey(event: Record<string, unknown>): Recor
   } catch {}
 })();
 
+// Relay lists are warmed for whoever is on screen so a publish can be routed at
+// once (lib/relayRouting) — which is only worth it for someone who can publish.
+// Every Account the app holds signs, so "signed in" is the test.
+setRelayListWarmGate(() => !!activeAccount());
+
 /**
  * Unlike its neighbours this one streams: `onProfile` fires per profile as each
  * arrives, so a caller can paint each avatar the moment it lands rather than
  * after the slowest relay.
  *
- * Per pubkey rather than one filter over all of them, because that is what lets
- * the loader answer from the store for the ones it already holds and merge the
- * rest into whatever batch is forming. A single `authors: [...]` filter would
- * fetch every one of them again.
+ * The same path as `fetchProfileMap` (`streamProfiles`): the store, the device
+ * and the search relay first, through the shared author queue, and only the
+ * people it can't place asked of the other profile relays. Asking all six
+ * profile relays for a page of 500 people (NetworkPage) brought each profile
+ * back about six times over.
  */
 export function fetchProfiles(
   pubkeys: string[],
   onProfile?: (pubkey: string, profile: ProfileContent) => void,
+  timeoutMs = 10_000,
 ): Promise<void> {
-  const unique = Array.from(new Set(pubkeys));
+  const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   // Resolving someone's profile is the app saying "this person is on screen",
   // which is exactly when their relay list should start loading — long before
   // the reader does anything that has to be routed to them.
   warmRelayLists(unique);
+  return streamProfiles(unique, timeoutMs, (event, content) => onProfile?.(event.pubkey, content));
+}
+
+/**
+ * Each of these people's profiles, as it arrives — `onProfile` once per person
+ * found. The shared author queue answers first: the store, the device's own
+ * copy, then the search relay, whose socket is already open and whose corpus
+ * holds kind-0s for nearly everyone. Anyone it says it has nobody for (or
+ * doesn't answer for in time) is asked of the other profile relays, batched
+ * with every other such ask; the search relay already said no.
+ */
+function streamProfiles(
+  pubkeys: string[],
+  timeoutMs: number,
+  onProfile: (event: NostrEvent, content: ProfileContent) => void,
+): Promise<void> {
+  const keep = (event: NostrEvent | null | undefined) => {
+    try {
+      if (!event || !isValidProfile(event)) return false;
+      const content = getProfileContent(event);
+      if (!content) return false;
+      onProfile(event, content);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   return Promise.all(
-    unique.map(async (pubkey) => {
-      const event = await loadReplaceable(0, pubkey);
-      try {
-        if (!event || !onProfile || !isValidProfile(event)) return;
-        const content = getProfileContent(event);
-        if (content) onProfile(event.pubkey, content);
-      } catch {}
-    }),
+    pubkeys.map(
+      (pubkey) =>
+        new Promise<void>((done) => {
+          let settled = false;
+          // Declared first: a profile the store already holds arrives during the
+          // call below, before there is a timer to clear.
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const elsewhere = () =>
+            loadProfileElsewhere(pubkey, timeoutMs)
+              .then(keep, () => false)
+              .then(() => done());
+          const answer = (event: NostrEvent | null) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            // null is the queue saying the search relay has nobody by that key.
+            if (keep(event)) done();
+            else void elsewhere();
+          };
+          const withdraw = wantProfile(pubkey, answer);
+          if (settled) return;
+          timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            withdraw();
+            void elsewhere();
+          }, timeoutMs);
+        }),
+    ),
   ).then(() => undefined);
 }
 
@@ -610,7 +668,7 @@ export async function getVerifiedProfileLud16(
   const event = await fetchProfileEvent(pubkey, timeoutMs);
   if (!event) return { lud16: null, verified: false };
   try {
-    if (event.pubkey !== pubkey || !verifyEvent(event)) {
+    if (event.pubkey !== pubkey || !verifySignature(event)) {
       return { lud16: null, verified: false };
     }
   } catch {
@@ -805,8 +863,53 @@ export async function fetchLiveStreams(
  * Fetch events by id (referenced/quoted/reposted notes for the share page's
  * rich note rendering). De-dupes across relays; resolves once all relays
  * complete or the timeout fires.
+ *
+ * Calls made in the same turn to the same relays, with the same deadline,
+ * share one ask: a page mounting a pinned note and a quoted one sent two REQs
+ * to each relay a couple of milliseconds apart (1 id, then 3). Each caller
+ * gets the events for its own ids. The store is still read first, at once, so
+ * nothing held waits for a turn.
  */
-export async function fetchEventsByIds(
+export function fetchEventsByIds(
+  ids: string[],
+  relays: string[] = PROFILE_RELAYS,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const unique = Array.from(new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id))));
+  if (!unique.length) return Promise.resolve([]);
+  const held = unique.map((id) => eventStore.getEvent(id)).filter((e): e is NostrEvent => !!e);
+  if (held.length === unique.length) return Promise.resolve(held);
+
+  const relaysKey = [...new Set(relays.length ? relays : PROFILE_RELAYS)].sort().join(" ");
+  const key = `${timeoutMs}|${relaysKey}`;
+  let batch = idBatches.get(key);
+  if (!batch) {
+    const fresh: IdBatch = { ids: new Set(), relays, timeoutMs, answer: null };
+    fresh.answer = new Promise<NostrEvent[]>((resolve, reject) =>
+      queueMicrotask(() => {
+        idBatches.delete(key);
+        askEventsByIds([...fresh.ids], fresh.relays, fresh.timeoutMs).then(resolve, reject);
+      }),
+    );
+    idBatches.set(key, fresh);
+    batch = fresh;
+  }
+  for (const id of unique) batch.ids.add(id);
+  const mine = new Set(unique.map((id) => id.toLowerCase()));
+  return batch.answer!.then((events) => events.filter((e) => mine.has(e.id.toLowerCase())));
+}
+
+interface IdBatch {
+  ids: Set<string>;
+  relays: string[];
+  timeoutMs: number;
+  answer: Promise<NostrEvent[]> | null;
+}
+
+/** The asks gathering this turn, by deadline and relay set. */
+const idBatches = new Map<string, IdBatch>();
+
+async function askEventsByIds(
   ids: string[],
   relays: string[] = PROFILE_RELAYS,
   timeoutMs = 6000,
@@ -822,26 +925,67 @@ export async function fetchEventsByIds(
     if (known) found.set(id, known);
   }
   let missing = unique.filter((id) => !found.has(id));
+  if (!missing.length) return [...found.values()];
 
-  if (missing.length) {
-    const targetRelays = relays.length ? relays : PROFILE_RELAYS;
-    // Asking by id means the answer set is known up front: once every one has
-    // arrived there is nothing left to wait for.
-    const fetched = await requestAll(targetRelays, { ids: missing }, timeoutMs, {
-      enough: (collected) => collected.size >= missing.length,
-    });
-    for (const event of fetched) found.set(event.id, event);
-    missing = missing.filter((id) => !found.has(id));
-  }
-
-  if (missing.length) {
-    // Last resort: the SEARCH relay, whose corpus is wider than the content
-    // relays' — an id found by search may exist nowhere else we ask. Its
-    // reads need a lens; include:spam is the "any event, unranked" one.
-    for (const event of await fetchFromSearchRelay(missing, Math.min(timeoutMs, 5000))) {
-      eventStore.add(event);
-      found.set(event.id, event);
+  const targetRelays = relays.length ? relays : PROFILE_RELAYS;
+  // The SEARCH relay's corpus is wider than the content relays' — an id found
+  // by search may exist nowhere else we ask. Its reads need a lens;
+  // include:spam is the "any event, unranked" one. When the relays asked
+  // include it (the default set does), it is asked BESIDE them, on its own
+  // leg with its own deadline, rather than through the pool and then again
+  // after them: the same question to the same socket, in series, put up to
+  // five seconds in front of every "not found" (refBatch, for every dead
+  // reference on a page).
+  const searchBeside = targetRelays.includes(SEARCH_RELAY);
+  const asking = missing;
+  const searched = new Map<string, NostrEvent>();
+  let pooled = new Map<string, NostrEvent>();
+  const allFound = () => asking.every((id) => found.has(id) || searched.has(id) || pooled.has(id));
+  const done = new Subject<void>();
+  const fromSearch = (events: Iterable<NostrEvent>, into: Map<string, NostrEvent>) => {
+    for (const event of events) {
+      // The store verifies; a copy it refuses is no answer.
+      const stored = (eventStore.add(event) as NostrEvent | null) ?? null;
+      if (stored) into.set(event.id, stored);
     }
+  };
+  const others = searchBeside ? besidesSearchRelay(targetRelays) : targetRelays;
+  const [fetched] = await Promise.all([
+    // Asking by id means the answer set is known up front: once every one has
+    // arrived — from either leg — there is nothing left to wait for.
+    // (`enough` ends this leg itself; the search leg is ended once it has.)
+    others.length
+      ? requestAll(others, { ids: asking }, timeoutMs, {
+          enough: (collected) => {
+            pooled = collected;
+            return allFound();
+          },
+          stop: done,
+        }).then((events) => {
+          for (const event of events) pooled.set(event.id, event);
+          if (allFound()) done.next();
+          return events;
+        })
+      : Promise.resolve([] as NostrEvent[]),
+    searchBeside
+      ? fetchFromSearchRelay(asking, Math.min(timeoutMs, 5000), {
+          stop: done,
+          onEvent: (event) => {
+            fromSearch([event], searched);
+            if (allFound()) done.next();
+          },
+        })
+      : Promise.resolve([] as NostrEvent[]),
+  ]);
+  for (const event of fetched) found.set(event.id, event);
+  for (const [id, event] of searched) found.set(id, event);
+  missing = missing.filter((id) => !found.has(id));
+
+  if (missing.length && !searchBeside) {
+    // The caller named relays without it: the search relay is the last resort.
+    const last = new Map<string, NostrEvent>();
+    fromSearch(await fetchFromSearchRelay(missing, Math.min(timeoutMs, 5000)), last);
+    for (const [id, event] of last) found.set(id, event);
   }
 
   return [...found.values()];
@@ -949,6 +1093,15 @@ export function fetchFromSearchRelayByFilters(
 export function querySearchRelay(
   filters: Record<string, unknown>[],
   timeoutMs: number,
+  {
+    stop,
+    onEvent,
+  }: {
+    /** Ends the ask early, keeping what arrived: for an answer found elsewhere first. */
+    stop?: Observable<unknown>;
+    /** Each event as it arrives (and is stored), before the ask ends. */
+    onEvent?: (event: NostrEvent) => void;
+  } = {},
 ): Promise<{ events: NostrEvent[]; answered: boolean }> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
@@ -960,7 +1113,9 @@ export function querySearchRelay(
     if (!relay) return resolve({ events: [], answered: false });
     const events: NostrEvent[] = [];
     let answered = false;
+    let finished = false;
     let sub: { unsubscribe: () => void } | null = null;
+    const stopping = stop?.subscribe(() => finish());
     const timer = setTimeout(finish, timeoutMs);
     try {
       // One filter goes on the wire as one filter: only a batch needs the array.
@@ -976,29 +1131,47 @@ export function querySearchRelay(
             // The store verifies signatures and throws on a bad one; letting
             // that escape kills the subscription and leaves everyone sharing
             // this request waiting out the timeout.
+            // It answers null for one it refuses (a bad signature, expired): no answer either.
             try {
-              eventStore.add(msg.event);
+              if (!eventStore.add(msg.event)) return;
             } catch {
               return;
             }
             events.push(msg.event);
+            onEvent?.(msg.event);
           } else if (msg.type === "EOSE") {
             answered = true;
             finish();
           } else if (msg.type === "CLOSED") finish();
         });
+      if (finished) sub.unsubscribe();
     } catch {
       finish();
     }
     function finish() {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
+      stopping?.unsubscribe();
       sub?.unsubscribe();
       resolve({ events, answered });
     }
   });
 }
 
-function fetchFromSearchRelay(ids: string[], timeoutMs: number): Promise<NostrEvent[]> {
+function fetchFromSearchRelay(
+  ids: string[],
+  timeoutMs: number,
+  {
+    stop,
+    onEvent,
+  }: {
+    /** Ends the ask early, keeping what arrived: for an answer found elsewhere first. */
+    stop?: Observable<unknown>;
+    /** Each event as it arrives, before the ask ends. */
+    onEvent?: (event: NostrEvent) => void;
+  } = {},
+): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
@@ -1008,16 +1181,26 @@ function fetchFromSearchRelay(ids: string[], timeoutMs: number): Promise<NostrEv
     }
     if (!relay) return resolve([]);
     const events: NostrEvent[] = [];
-    const sub = relay
+    let finished = false;
+    // Assigned below, after `finish` may already have run: a relay can answer synchronously.
+    let sub: { unsubscribe: () => void } | null = null;
+    const stopping = stop?.subscribe(() => finish());
+    const timer = setTimeout(finish, timeoutMs);
+    sub = relay
       .req({ ids, search: "include:spam", limit: ids.length })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event) events.push(msg.event);
-        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+        if (msg.type === "EVENT" && msg.event) {
+          events.push(msg.event);
+          onEvent?.(msg.event);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
       });
-    const timer = setTimeout(finish, timeoutMs);
+    if (finished) sub.unsubscribe();
     function finish() {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
-      sub.unsubscribe();
+      stopping?.unsubscribe();
+      sub?.unsubscribe();
       resolve(events);
     }
   });
@@ -1153,28 +1336,54 @@ export async function fetchAddressableEvents(
   // relay reaches the store on later reads; the reader has the article now.
   const wantedKey = (event: NostrEvent) =>
     `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
-  const enough = {
-    enough: (collected: Map<string, NostrEvent>) => {
-      if (newest) return false;
-      const seen = new Set<string>();
-      for (const e of collected.values()) seen.add(wantedKey(e));
-      return [...wanted].every((k) => seen.has(k));
-    },
+
+  // The SEARCH relay, whose corpus is wider than the content relays'.
+  // GitCitadel's wiki articles (kind 30818) were listed by search and
+  // unopenable — their naddr names no relay, and the content relays never had
+  // them (Benjamin, 2026-09-05). When the relays asked include it (the default
+  // set does), it is asked beside them on a leg of its own, as fetchEventsByIds
+  // does: through the pool and then again after it was the same question to
+  // the same socket, in series, before an address could be called missing.
+  const searchBeside = askSearch && asked.includes(SEARCH_RELAY);
+  const searchedKeys = new Set<string>();
+  const done = new Subject<void>();
+  const coveredBy = (keys: Iterable<string>) => {
+    const seen = new Set(keys);
+    for (const k of searchedKeys) seen.add(k);
+    return [...wanted].every((k) => seen.has(k));
   };
-  const [events, routed] = await Promise.all([
-    requestAll(asked, filter, timeoutMs, enough),
+  const enough = {
+    enough: (collected: Map<string, NostrEvent>) => !newest && coveredBy([...collected.values()].map(wantedKey)),
+    stop: done,
+  };
+  const firstRelays = searchBeside ? besidesSearchRelay(asked) : asked;
+  const [events, routed, searched] = await Promise.all([
+    (firstRelays.length
+      ? requestAll(firstRelays, filter, timeoutMs, enough)
+      : Promise.resolve([] as NostrEvent[])
+    ).then((found) => {
+      // Every address has a copy: the search leg has nothing left to add.
+      if (!newest && coveredBy(found.map(wantedKey))) done.next();
+      return found;
+    }),
     planOutboxReads(authors, [])
       .then((plan) => dedupeRelays(plan.relays).filter((relay) => !asked.includes(relay)))
       .catch(() => [] as string[])
       .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs, enough) : [])),
+    searchBeside
+      ? querySearchRelay([filter], Math.min(timeoutMs, 5000), {
+          stop: done,
+          onEvent: (event) => {
+            if (wanted.has(wantedKey(event))) searchedKeys.add(wantedKey(event));
+            if (!newest && coveredBy([])) done.next();
+          },
+        }).then((r) => r.events)
+      : Promise.resolve([] as NostrEvent[]),
   ]);
-  for (const event of [...events, ...routed]) keep(event);
+  for (const event of [...events, ...routed, ...searched]) keep(event);
 
-  // Last resort, as fetchEventsByIds does: the SEARCH relay, whose corpus is
-  // wider than the content relays'. GitCitadel's wiki articles (kind 30818)
-  // were listed by search and unopenable — their naddr names no relay, and
-  // the content relays never had them (Benjamin, 2026-09-05).
-  const missing = askSearch ? valid.filter((c) => !result.has(coordKey(c))) : [];
+  // The last resort, when the caller named relays without the search relay.
+  const missing = askSearch && !searchBeside ? valid.filter((c) => !result.has(coordKey(c))) : [];
   if (missing.length) {
     const found = await fetchFromSearchRelayByFilters(
       [
@@ -1212,50 +1421,7 @@ export async function fetchProfileMap(
   // on screen now, so their routing starts loading now. Not for names alone (a
   // mention, a face pile): nothing of theirs is fetched next.
   if (warm) warmRelayLists(unique);
-
-  const keep = (event: NostrEvent | null | undefined) => {
-    try {
-      if (!event || !isValidProfile(event)) return false;
-      const content = getProfileContent(event);
-      if (!content) return false;
-      map.set(event.pubkey, content);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const asked = unique.map(
-    (pubkey) =>
-      new Promise<void>((done) => {
-        // Declared first: a profile the device already holds arrives during the
-        // call below, before there is a timer to clear.
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const withdraw = wantProfile(pubkey, (event) => {
-          // null is the queue saying the search relay has nobody by that key;
-          // the profile relays are asked for those below.
-          if (event) keep(event);
-          if (timer) clearTimeout(timer);
-          done();
-        });
-        if (map.has(pubkey)) return done();
-        timer = setTimeout(() => {
-          withdraw();
-          done();
-        }, timeoutMs);
-      }),
-  );
-  await Promise.all(asked);
-
-  // Per pubkey, so the ones already in the store cost nothing and the rest join
-  // whatever batch is forming rather than opening a request of their own.
-  // The search relay was the queue's question and answered "nobody", so these go to the
-  // other profile relays only — batched with every other such ask, the disk cache first.
-  const missing = unique.filter((pubkey) => !map.has(pubkey));
-  if (missing.length > 0) {
-    const events = await Promise.all(missing.map((pubkey) => loadProfileElsewhere(pubkey, timeoutMs)));
-    events.forEach(keep);
-  }
+  await streamProfiles(unique, timeoutMs, (event, content) => map.set(event.pubkey, content));
   return map;
 }
 

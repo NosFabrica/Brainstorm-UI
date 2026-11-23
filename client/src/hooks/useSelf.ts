@@ -1,45 +1,35 @@
 import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 import { useHasSession } from "@/hooks/useHasSession";
+import { historyOptions, overviewOptions, statsOptions } from "@/services/queries/userReads";
 
 type ConnectionKind = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
 const FIRST_PAGE_LIMIT = 200;
 const NEXT_PAGE_LIMIT = 100;
 
-/** `house`: Brainstorm's perspective (an unauthenticated read) rather than the reader's own. */
+/**
+ * `house`: Brainstorm's perspective (an unauthenticated read) rather than the reader's own.
+ * The same entry as anyone else's overview of this person (services/queries/userReads).
+ */
 export function useSelfOverview(pubkey: string | undefined, opts?: { house?: boolean }) {
-  const house = opts?.house ?? false;
-  return useQuery({
-    queryKey: ["/user/overview", pubkey, house],
-    queryFn: () => apiClient.getUserOverview(pubkey!, { house }),
-    enabled: !!pubkey,
-    staleTime: 60_000,
-  });
+  return useQuery({ ...overviewOptions(pubkey ?? "", opts?.house ? "house" : "viewer"), enabled: !!pubkey });
 }
 
 export function useSelfHistory(pubkey: string | undefined) {
   const hasSession = useHasSession();
 
   return useQuery({
-    queryKey: ["/user/history", pubkey],
-    queryFn: () => apiClient.getUserHistory(),
+    ...historyOptions(pubkey),
     // `/user/history` is auth-required; an Account can be active with no
     // Session, and firing anyway means authenticatedFetch → 401 → storage wipe
     // + hard-redirect to "/". Require a real session token.
     enabled: !!pubkey && hasSession,
-    staleTime: 60_000,
   });
 }
 
 export function useSelfStats(pubkey: string | undefined, opts?: { house?: boolean }) {
-  const house = opts?.house ?? false;
-  return useQuery({
-    queryKey: ["/user/stats", pubkey, house],
-    queryFn: () => apiClient.getUserStats(pubkey!, { house }),
-    enabled: !!pubkey,
-    staleTime: 60_000,
-  });
+  return useQuery({ ...statsOptions(pubkey ?? "", opts?.house ? "house" : "viewer"), enabled: !!pubkey });
 }
 
 // Backend tier names match the GR result writer's count_values keys.

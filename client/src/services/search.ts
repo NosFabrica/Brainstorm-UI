@@ -21,7 +21,7 @@ import type { NostrEvent } from "nostr-tools";
 import { RelayClosedError } from "applesauce-relay";
 import type { Relay, RelayReqMessage } from "applesauce-relay";
 import { reportSearchFailure } from "@/lib/serverStatus";
-import { openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
+import { leaseSideSearchRelay, openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
 import { EVENT_LISTS } from "@/config/events";
 import { EVENT_ITEM_KIND } from "@/lib/calendarEvent";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
@@ -388,6 +388,8 @@ const AUTHOR_BATCH_MS = 1000;
 const AUTHOR_BATCH_MAX_MS = 4000;
 /** The device's own copies are read for whoever arrived within this long of each other. */
 const DEVICE_PEEK_MS = 150;
+/** A coalesced snapshot's latest, when no frame comes (a hidden tab): about three frames. */
+export const FRAME_FALLBACK_MS = 50;
 /**
  * How deep best match will go. It has no cursor, so each further page is a
  * bigger ask that repeats the ranking so far — and the relay sends MORE than
@@ -845,6 +847,11 @@ function countQuestions(
  * Streaming full search. Each callback delivers the WHOLE current list —
  * one setState per emit, and a cancelled handle never calls back again,
  * which is the entire stale-results story.
+ *
+ * Arrivals are coalesced to one snapshot per frame: every relay frame is its own
+ * task, so React cannot batch them, and a 300-hit page used to re-render the
+ * results 300 times (plus once per author profile). What a reader waits on —
+ * the first hit, the page's end, an error, a page turning — still goes out at once.
  */
 export function searchStream(
   query: string,
@@ -879,9 +886,33 @@ export function searchStream(
   // A seed of three pages means the next best-match ask is the fourth.
   if (seed.length) pagesTurned = Math.max(0, Math.ceil(seed.length / pageLimit) - 1);
   const startedAt = Date.now();
+  // A snapshot scheduled for the next frame. The timeout is the hidden tab's
+  // fallback: rAF does not fire there, and a result still has to land.
+  let frame: number | undefined;
+  let fallback: ReturnType<typeof setTimeout> | undefined;
+  /** A snapshot with hits in it has gone out: arrivals after it may wait a frame. */
+  let shownHits = false;
+  const unschedule = () => {
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    clearTimeout(fallback);
+    frame = fallback = undefined;
+  };
+  // At once: it carries everything that has arrived, so a snapshot that was waiting
+  // for a frame is superseded by it.
   const emit = (partial: Partial<SearchSnapshot>) => {
+    unschedule();
     if (cancelled) return;
+    if (hits.length) shownHits = true;
     onSnapshot({ hits: [...hits], eose, timeMs: null, error: null, loadingMore, exhausted, ...partial });
+  };
+  // A hit or an author arrived: on the next frame, with whatever else arrives before it.
+  const emitSoon = () => {
+    if (cancelled) return;
+    if (!shownHits) return emit({});
+    if (fallback !== undefined) return;
+    const flush = () => emit({});
+    if (typeof requestAnimationFrame === "function") frame = requestAnimationFrame(flush);
+    fallback = setTimeout(flush, FRAME_FALLBACK_MS);
   };
 
   void (async () => {
@@ -918,7 +949,7 @@ export function searchStream(
       for (const hit of hits) {
         if (hit.event.kind !== 0 && hit.event.pubkey === profile.pubkey) hit.author = author;
       }
-      emit({});
+      emitSoon();
     };
 
     // A recent-sorted page streams; a best-match one arrives over seconds and ends.
@@ -1128,7 +1159,7 @@ export function searchStream(
               const at = hits.findIndex((h) => h.event.created_at < event.created_at);
               hits.splice(at < 0 ? hits.length : at, 0, hit);
             } else hits.push(hit);
-            emit({});
+            emitSoon();
           } else if (msg.type === "EOSE") {
             eose = true;
             loadingMore = false;
@@ -1226,6 +1257,7 @@ export function searchStream(
 
   const handle = (() => {
     cancelled = true;
+    unschedule();
     unsubscribe?.();
   }) as SearchHandle;
   handle.more = () => turnPage?.();
@@ -1566,8 +1598,10 @@ export function fetchAppsByAddress(addresses: string[], timeoutMs = 5000): Promi
 
 export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zaps: number; replies: number }> {
   return new Promise((resolve) => {
-    const relay = searchRelay();
-    if (!relay) return resolve({ zaps: 0, replies: 0 });
+    // A row's question: on the shared side socket, never in front of the search's own REQs.
+    const lease = leaseSideSearchRelay();
+    if (!lease) return resolve({ zaps: 0, replies: 0 });
+    const { relay } = lease;
     const result = { zaps: 0, replies: 0 };
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
@@ -1577,6 +1611,7 @@ export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zap
       settled = true;
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
+      lease.release();
       resolve(result);
     };
     const one = () => {
@@ -1608,8 +1643,10 @@ export function fetchAppEndorsementCounts(
   timeoutMs = 5000,
 ): Promise<{ reviews: number; zaps: number; collections: number }> {
   return new Promise((resolve) => {
-    const relay = searchRelay();
-    if (!relay) return resolve({ reviews: 0, zaps: 0, collections: 0 });
+    // Three COUNTs per app: the shared side socket's, as fetchNoteEngagement's are.
+    const lease = leaseSideSearchRelay();
+    if (!lease) return resolve({ reviews: 0, zaps: 0, collections: 0 });
+    const { relay } = lease;
     const result = { reviews: 0, zaps: 0, collections: 0 };
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
@@ -1619,6 +1656,7 @@ export function fetchAppEndorsementCounts(
       settled = true;
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
+      lease.release();
       resolve(result);
     };
     const one = () => {
@@ -1848,9 +1886,11 @@ export interface RepoCounts {
  */
 export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<RepoCounts> {
   return new Promise((resolve) => {
-    const relay = searchRelay();
+    // Two COUNTs and a REQ per repo card: the shared side socket's, as fetchNoteEngagement's are.
+    const lease = leaseSideSearchRelay();
     const result: RepoCounts = { issues: 0, patches: 0, contributors: [], lastAt: null };
-    if (!relay) return resolve(result);
+    if (!lease) return resolve(result);
+    const { relay } = lease;
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
     let settled = false;
@@ -1859,6 +1899,7 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
       settled = true;
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
+      lease.release();
       resolve(result);
     };
     const one = () => {

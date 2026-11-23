@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent } from "react";
+import { memo, useRef, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { Play, Pause, Loader2, AlertCircle, HeartHandshake } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
@@ -41,8 +41,11 @@ export function Equalizer({
  * time. Spotify touches: artist subtitle + total duration on every row, a genre
  * chip + zap action on the active/hovered row, and an animated equalizer +
  * brand-coloured title while playing. Falls back to a plain link with no audio.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function EmbeddedTrackCard({
+export const EmbeddedTrackCard = memo(function EmbeddedTrackCard({
   id,
   title,
   artist,
@@ -320,4 +323,4 @@ export function EmbeddedTrackCard({
       </div>
     </div>
   );
-}
+});

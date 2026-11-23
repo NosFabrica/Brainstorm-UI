@@ -49,6 +49,17 @@ vi.mock("@/lib/searchRelay", () => ({
   }),
   // The tab counts' own socket: a fake whose COUNTs a test answers, and which says when it closed.
   openSideSearchRelay: () => sideOpenMock(),
+  // The shared side socket for per-row questions. By default the same fake transport as the
+  // search's, so a test answers both alike; a lease taken is a lease given back (leaseReleaseMock).
+  leaseSideSearchRelay: () => leaseMock(),
+}));
+const leaseReleaseMock = vi.fn();
+const leaseMock = vi.fn(() => ({
+  relay: {
+    count: (...args: unknown[]) => countMock(...args),
+    req: (...args: unknown[]) => reqMock(...args),
+  },
+  release: () => leaseReleaseMock(),
 }));
 const sideCountMock = vi.fn();
 const sideCloseMock = vi.fn();
@@ -108,6 +119,7 @@ import {
   fetchRepoByAddress,
   fetchEventRsvps,
   NO_PERSPECTIVE,
+  FRAME_FALLBACK_MS,
   searchStream,
   narrowToMembers,
   countCategories,
@@ -367,6 +379,75 @@ describe("searchStream", () => {
     expect(last.hits.map((h) => h.event.id)).toEqual(["e1", "e2"]);
     expect(last.eose).toBe(true);
     expect(last.error).toBeNull();
+  });
+
+  // Every relay frame is its own task, so a snapshot per hit was a full results render
+  // per hit. The first hit and the page's end are what a reader waits on; the rest wait a frame.
+  it("coalesces hits after the first into one snapshot per frame, and EOSE goes out at once", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] });
+    try {
+      const { subject } = controllable();
+      const snaps: SearchSnapshot[] = [];
+      searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+
+      subject.next(frame(ev("e1", 0, "b".repeat(64))));
+      expect(snaps.map((s) => s.hits.length)).toEqual([1]);
+
+      subject.next(frame(ev("e2", 0, "c".repeat(64))));
+      subject.next(frame(ev("e3", 0, "d".repeat(64))));
+      subject.next(frame(ev("e4", 0, "e".repeat(64))));
+      expect(snaps).toHaveLength(1);
+      await vi.advanceTimersToNextFrame();
+      expect(snaps.map((s) => s.hits.length)).toEqual([1, 4]);
+
+      subject.next(frame(ev("e5", 0, "f".repeat(64))));
+      subject.next(EOSE);
+      expect(snaps.at(-1)).toMatchObject({ eose: true });
+      expect(snaps.at(-1)!.hits).toHaveLength(5);
+      // The frame that was waiting is superseded, not sent again.
+      const sent = snaps.length;
+      await vi.advanceTimersByTimeAsync(100);
+      expect(snaps).toHaveLength(sent);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lands a coalesced snapshot in a hidden tab, where no frame comes", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+    try {
+      const { subject } = controllable();
+      const snaps: SearchSnapshot[] = [];
+      searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      subject.next(frame(ev("e1", 0, "b".repeat(64))));
+      subject.next(frame(ev("e2", 0, "c".repeat(64))));
+      expect(snaps).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(FRAME_FALLBACK_MS);
+      expect(snaps.at(-1)!.hits).toHaveLength(2);
+    } finally {
+      raf.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("a cancelled stream drops the snapshot it had waiting for a frame", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] });
+    try {
+      const { subject } = controllable();
+      const snaps: SearchSnapshot[] = [];
+      const cancel = searchStream("jack", { tab: "people", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      subject.next(frame(ev("e1", 0, "b".repeat(64))));
+      subject.next(frame(ev("e2", 0, "c".repeat(64))));
+      cancel();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(snaps).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -2038,6 +2119,7 @@ describe("fetchRepoCounts", () => {
     const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => (f.kinds as number[])[0]).sort()).toEqual([1617, 1621]);
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -2475,6 +2557,8 @@ describe("fetchAppEndorsementCounts", () => {
     expect(filters).toHaveLength(3);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => f.kinds as number[])).toEqual(expect.arrayContaining([[1111, 1], [9735], [30267]]));
+    expect(leaseMock).toHaveBeenCalledTimes(1);
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -2508,6 +2592,21 @@ describe("fetchNoteEngagement", () => {
   it("a failed COUNT reads as zero, never a rejection", async () => {
     countMock.mockImplementation(() => throwError(() => new Error("relay closed")));
     await expect(fetchNoteEngagement("e".repeat(64))).resolves.toEqual({ zaps: 0, replies: 0 });
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The relay works a socket's requests as a queue: a page of notes' COUNTs on the search's own
+  // socket stood in front of the next REQ and every suggestion.
+  it("asks on the shared side socket, not the search's own, and gives it back once answered", async () => {
+    const sideCount = vi.fn(() => of({ count: 2 }));
+    leaseMock.mockReturnValueOnce({
+      relay: { count: sideCount, req: (...args: unknown[]) => reqMock(...args) },
+      release: () => leaseReleaseMock(),
+    });
+    await expect(fetchNoteEngagement("e".repeat(64))).resolves.toEqual({ zaps: 2, replies: 2 });
+    expect(sideCount).toHaveBeenCalledTimes(2);
+    expect(countMock).not.toHaveBeenCalled();
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
 

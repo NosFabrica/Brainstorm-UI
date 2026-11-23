@@ -43,6 +43,8 @@ eventStore.verifyEvent = undefined;
 describe("checkUserLists", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // /setup is a cached read now (services/queries/userReads): each case asks afresh.
+    queryClient.clear();
     getSetupRows.mockResolvedValue([
       ["30382:rank", TA, "wss://nip85.example"],
       ["30392", LIST_KEY, LIST_RELAY],

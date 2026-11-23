@@ -69,8 +69,24 @@ export interface HeroSceneRotatorProps {
   intervalMs?: number;
   /** CSS object-position for the photos (e.g. "center", "50% 30%"). */
   objectPosition?: string;
+  /**
+   * How wide the photos are drawn (`sizes` syntax), for picking among a scene's
+   * `srcSet`. The rotator fills its parent, so this is the parent's width.
+   */
+  sizes?: string;
+  /**
+   * Fetch the photography only while this media query matches. For a surface
+   * that CSS hides at some widths (the login panel is `hidden lg:flex`): an
+   * <img> under `display: none` still downloads, and lazy loading isn't a
+   * dependable way out of it, so below the query each photo is a <picture>
+   * whose fallback is an inline blank and nothing is requested at all.
+   */
+  media?: string;
   className?: string;
 }
+
+/** A transparent 1×1 GIF: what a media-gated photo shows when its query doesn't match. */
+const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 /**
  * One subtle grade applied to EVERY scene so the set reads as one art-directed
@@ -91,6 +107,8 @@ export function HeroSceneRotator({
   scenes = HERO_SCENES,
   intervalMs = 13000,
   objectPosition = "center",
+  sizes = "100vw",
+  media,
   className,
 }: HeroSceneRotatorProps) {
   const isDark = useIsDark();
@@ -106,8 +124,14 @@ export function HeroSceneRotator({
   }, [scenes, index]);
 
   // Preload the variants we'll actually show, so crossfades + theme swaps are
-  // instant (browser serves the already-decoded image from cache).
+  // instant (browser serves the already-decoded image from cache). Not for a
+  // single scene: the <img> below already asks for it, and a second request
+  // by bare `src` would ignore the srcset and fetch the widest copy beside the
+  // one the browser picked. Not under an unmatched `media` either: that is the
+  // download the gate exists to avoid.
   useEffect(() => {
+    if (scenes.length <= 1) return;
+    if (media && typeof window !== "undefined" && !window.matchMedia?.(media).matches) return;
     const preload = (src: string) => {
       const img = new Image();
       img.src = src;
@@ -120,7 +144,7 @@ export function HeroSceneRotator({
         preload(dark ? s.dark : s.light);
       }
     });
-  }, [scenes, variant, dark]);
+  }, [scenes, variant, dark, media]);
 
   // Auto-advance, respecting reduced motion + backgrounded tabs.
   useEffect(() => {
@@ -138,27 +162,40 @@ export function HeroSceneRotator({
       aria-hidden="true"
       data-testid="hero-scene-rotator"
     >
-      {scenes.map((s, i) => (
-        <img
-          key={i}
-          src={dark ? s.dark : s.light}
-          alt=""
-          draggable={false}
-          loading={i === 0 ? "eager" : "lazy"}
-          fetchPriority={i === 0 ? "high" : "low"}
-          decoding="async"
-          style={{
-            objectPosition: s.objectPosition ?? objectPosition,
-            filter: s.filter ? `${SCENE_GRADE} ${s.filter}` : SCENE_GRADE,
-          }}
-          className={cn(
-            "absolute inset-0 h-full w-full select-none object-cover transition-opacity ease-in-out",
-            // Explicit property: tailwindcss-animate also claims `duration-*`.
-            "[transition-duration:2000ms] motion-reduce:[transition-duration:0ms]",
-            i === index ? "opacity-100" : "opacity-0",
-          )}
-        />
-      ))}
+      {scenes.map((s, i) => {
+        const src = dark ? s.dark : s.light;
+        const srcSet = s.srcSet ? (dark ? s.srcSet.dark : s.srcSet.light) : undefined;
+        const img = (
+          <img
+            key={media ? undefined : i}
+            src={media ? BLANK : src}
+            srcSet={media ? undefined : srcSet}
+            sizes={media || !srcSet ? undefined : sizes}
+            alt=""
+            draggable={false}
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : "low"}
+            decoding="async"
+            style={{
+              objectPosition: s.objectPosition ?? objectPosition,
+              filter: s.filter ? `${SCENE_GRADE} ${s.filter}` : SCENE_GRADE,
+            }}
+            className={cn(
+              "absolute inset-0 h-full w-full select-none object-cover transition-opacity ease-in-out",
+              // Explicit property: tailwindcss-animate also claims `duration-*`.
+              "[transition-duration:2000ms] motion-reduce:[transition-duration:0ms]",
+              i === index ? "opacity-100" : "opacity-0",
+            )}
+          />
+        );
+        if (!media) return img;
+        return (
+          <picture key={i}>
+            <source media={media} srcSet={srcSet ?? src} sizes={srcSet ? sizes : undefined} />
+            {img}
+          </picture>
+        );
+      })}
     </div>
   );
 }

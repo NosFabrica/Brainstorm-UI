@@ -47,6 +47,7 @@ vi.mock("./nostr", () => ({
  * match on the exact strings a test wrote.
  */
 vi.mock("@/lib/relayRouting", () => ({
+  setRelayListWarmGate: () => {},
   outboxRelays: async () => [...relayList],
   outboxRelaysFromDb: () => [...relayList],
   relayHintFor: () => undefined,
@@ -475,7 +476,8 @@ describe("recovering a follow list from a named relay", () => {
   });
 
   it("rejects a forged copy and keeps nothing", async () => {
-    relayOnlyHas.set(`${MY_RELAY}|3`, [{ ...signList(3, [OTHER]), sig: "f".repeat(128) }]);
+    // Off the wire, as a relay sends it: JSON carries no mark from having been signed here.
+    relayOnlyHas.set(`${MY_RELAY}|3`, [JSON.parse(JSON.stringify({ ...signList(3, [OTHER]), sig: "f".repeat(128) }))]);
 
     const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
 

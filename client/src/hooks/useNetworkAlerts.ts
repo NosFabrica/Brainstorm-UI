@@ -16,8 +16,11 @@ export function useNetworkAlerts(observer: string | undefined, opts?: { enabled?
     queryFn: () => apiClient.getNetworkAlerts(observer!, { limit: opts?.limit }),
     enabled: !!observer && (opts?.enabled ?? false),
     // Expensive + slow-moving data — cache generously, don't refetch on focus.
-    staleTime: 5 * 60_000,
-    gcTime: 10 * 60_000,
+    // What moves it is a calculation finishing, and that invalidates it
+    // (services/queries/graperank `invalidateOwnScoreReads`); between runs an
+    // hour-old answer is the same answer, ten seconds of neo4j later.
+    staleTime: 60 * 60_000,
+    gcTime: 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,
   });

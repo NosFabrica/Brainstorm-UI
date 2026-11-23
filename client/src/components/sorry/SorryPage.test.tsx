@@ -55,7 +55,7 @@ describe("SorryPage", () => {
   it("the art slot points at the brand file and leaves the layout when the file is not there", () => {
     render(<SorryPage scope="search" variant="page" onRetry={() => {}} />);
     const art = screen.getByTestId("sorry-art");
-    expect(art).toHaveAttribute("src", "/brand/sorry-ostrich.png");
+    expect(art).toHaveAttribute("src", "/brand/sorry-ostrich.webp");
     fireEvent.error(art);
     expect(screen.queryByTestId("sorry-art")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Oops!");

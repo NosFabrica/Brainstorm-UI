@@ -156,3 +156,21 @@ describe("parseNoteContent — client links that carry the entity", () => {
     expect(tokens.map((t) => (t as { bech32: string }).bech32)).toEqual([note, npub, nprofile, naddr]);
   });
 });
+
+describe("parseNoteContent's memo", () => {
+  it("hands every caller of the same text the same tokens, frozen so none can change them", () => {
+    const text = "gm https://example.com/a.png #nostr";
+    const first = parseNoteContent(text);
+    expect(parseNoteContent(text)).toBe(first);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(Object.isFrozen(first[1])).toBe(true);
+  });
+
+  it("forgets the oldest text past its bound, and parses it again the same", () => {
+    const oldest = parseNoteContent("the oldest note");
+    for (let i = 0; i < 600; i++) parseNoteContent(`note ${i}`);
+    const again = parseNoteContent("the oldest note");
+    expect(again).not.toBe(oldest);
+    expect(again).toEqual(oldest);
+  });
+});

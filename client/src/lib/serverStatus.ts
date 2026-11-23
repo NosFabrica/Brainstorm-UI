@@ -42,15 +42,31 @@ function readForced(): void {
   const want = new URLSearchParams(window.location.search).get("sorry");
   if (want === "api" || want === "search") forced.add(want);
 }
-const recoverListeners = new Set<() => void>();
+/**
+ * One server coming back. `since` is when its trouble began, as far as this
+ * store can tell: what was fetched after it may have been answered by a
+ * server that wasn't there.
+ */
+export interface Recovery {
+  scope: "api" | "search";
+  since: number;
+}
+const recoverListeners = new Set<(recovery: Recovery) => void>();
 
-/** Called once each time a server comes back, so the app can refill what it lost. */
-export function onRecover(fn: () => void): () => void {
+/**
+ * Called once each time a server comes back, so the app can refill what it
+ * lost. Says which one: the search relay reconnects on most mobile resumes,
+ * and none of the HTTP reads went through it.
+ */
+export function onRecover(fn: (recovery: Recovery) => void): () => void {
   recoverListeners.add(fn);
   return () => {
     recoverListeners.delete(fn);
   };
 }
+
+/** When each scope was last judged down — the failures that earned the verdict came up to a window before it. */
+const downSince: Record<"api" | "search", number> = { api: 0, search: 0 };
 
 function emit() {
   listeners.forEach((l) => l());
@@ -59,11 +75,16 @@ function set(patch: Partial<ServerStatus>) {
   const next = { ...status, ...patch };
   for (const scope of forced) next[scope] = "down";
   if ((Object.keys(next) as (keyof ServerStatus)[]).every((k) => next[k] === status[k])) return;
-  const cameBack = (status.api === "down" && next.api === "ok") || (status.search === "down" && next.search === "ok");
-  if (cameBack) next.recovery = status.recovery + 1;
+  const now = Date.now();
+  if (status.api === "ok" && next.api === "down") downSince.api = now - FAILURE_WINDOW_MS;
+  if (status.search === "ok" && next.search === "down") downSince.search = now;
+  const back: Recovery[] = [];
+  if (status.api === "down" && next.api === "ok") back.push({ scope: "api", since: downSince.api });
+  if (status.search === "down" && next.search === "ok") back.push({ scope: "search", since: downSince.search });
+  if (back.length) next.recovery = status.recovery + 1;
   status = next;
   emit();
-  if (cameBack) recoverListeners.forEach((fn) => fn());
+  for (const recovery of back) recoverListeners.forEach((fn) => fn(recovery));
 }
 
 export function getServerStatus(): ServerStatus {
@@ -235,6 +256,8 @@ export function __resetServerStatus(): void {
   retries = 0;
   recentFailures.clear();
   recoverListeners.clear();
+  downSince.api = 0;
+  downSince.search = 0;
   readForced();
   status = { ...INITIAL, api: forced.has("api") ? "down" : "ok", search: forced.has("search") ? "down" : "ok" };
 }

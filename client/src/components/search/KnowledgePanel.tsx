@@ -8,7 +8,7 @@ import { SuccessorCard } from "@/components/compromised/SuccessorCard";
 import { useCompromised, useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { useListKinds } from "@/hooks/useListKinds";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fetchLiveStreams } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
@@ -169,13 +169,13 @@ function eventsRow(hits: SearchHit[], query: string): SearchHit[] {
   return filterEventsByWhen(named, "upcoming").slice(0, EVENTS_SHOWN);
 }
 
-export function KnowledgePanel(props: KnowledgePanelProps) {
+export const KnowledgePanel = memo(function KnowledgePanel(props: KnowledgePanelProps) {
   return (
     <QuietTrustChrome>
       <KnowledgePanelBody {...props} />
     </QuietTrustChrome>
   );
-}
+});
 
 type KnowledgePanelProps = Parameters<typeof KnowledgePanelBody>[0];
 

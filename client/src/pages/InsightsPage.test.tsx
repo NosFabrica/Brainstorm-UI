@@ -24,8 +24,8 @@ vi.mock("@/services/api", () => ({
           ? () => runMock()
           : prop === "triggerGrapeRank"
             ? () => triggerMock()
-            : prop === "getHouseInfluence"
-              ? async () => 0.42
+            : prop === "getUserOverview"
+              ? async () => ({ data: { influence: 0.42 } })
               : async () => null,
     },
   ),

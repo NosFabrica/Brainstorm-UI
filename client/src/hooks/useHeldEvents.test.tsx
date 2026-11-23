@@ -39,7 +39,6 @@ const profile = (pubkey: string, created_at: number, name: string) =>
 /** A device holding exactly these rows, learned at `at`. */
 const device = (rows: CachedRow[]): CacheStore => ({
   get: async (addrs) => rows.filter((row) => addrs.includes(row.addr)),
-  byAuthors: async (pubkeys) => rows.filter((row) => pubkeys.includes(row.pubkey)),
   put: async () => {},
   count: async () => rows.length,
   oldest: async () => [],
@@ -138,6 +137,35 @@ describe("the device's copies", () => {
     const second = renderHook(() => useHeldReplaceable(0, pk));
     expect(second.result.current?.content).toContain("read once"); // from memory, first render
     expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("are read in one go for every hook a render mounts", async () => {
+    const people = ["a1", "a2", "a3"].map((p) => p.padEnd(64, "0"));
+    const rows = people.map((pk) => ({ addr: `0:${pk}:`, pubkey: pk, kind: 0, event: profile(pk, 70, pk), at: 0 }));
+    const store = device(rows);
+    const get = vi.spyOn(store, "get");
+    __useCacheStore(store);
+    const { result } = renderHook(() => people.map((pk) => useHeldReplaceable(0, pk)));
+    await waitFor(() => expect(result.current.every((held) => held)).toBe(true));
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("listening", () => {
+  it("tells each hook only about its own coordinates, and lets go on unmount", async () => {
+    const one = renderHook(() => useHeldReplaceable(30023, AUTHOR, "l1"));
+    const two = renderHook(() => useHeldReplaceable(30023, AUTHOR, "l2"));
+    act(() => {
+      eventStore.add(article("l2", 500));
+    });
+    await waitFor(() => expect(two.result.current?.content).toBe("v500"));
+    expect(one.result.current).toBeUndefined();
+    one.unmount();
+    two.unmount();
+    // Nobody left listening: an insert reaches no hook, and nothing throws.
+    act(() => {
+      eventStore.add(article("l1", 600));
+    });
   });
 });
 

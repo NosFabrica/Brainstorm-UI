@@ -6,7 +6,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { apiClient } from "@/services/api";
+import { overviewOptions, selectOverview } from "@/services/queries/userReads";
 import { knownFollowCount } from "@/lib/followStore";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -51,13 +51,8 @@ export default function ActivatePage() {
   }, [user, hasMywot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { profile: prof } = useLiveProfile(pubkey || undefined);
-  const overviewQuery = useQuery({
-    queryKey: ["activate-overview", pubkey],
-    queryFn: async () => (await apiClient.getUserOverview(pubkey))?.data ?? null,
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // The reader's own overview: the same entry the Dashboard opens on next.
+  const overviewQuery = useQuery({ ...overviewOptions(pubkey, "viewer"), select: selectOverview });
 
   const counts = (overviewQuery.data as { counts?: Record<string, number> } | null)?.counts ?? {};
   const followingCount = counts.following ?? knownFollowCount(pubkey);

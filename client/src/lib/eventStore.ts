@@ -11,5 +11,28 @@
  * the cache that must be cleared on a switch; its keys are URLs.
  */
 import { EventStore } from "applesauce-core";
+import type { NostrEvent } from "nostr-tools";
+import { loadFastVerifierWhenBusy, verifySignature } from "./verifier";
+import { connectionSpeed } from "./connection";
 
 export const eventStore = new EventStore();
+
+/**
+ * Verified once per event, not once per relay that sends it.
+ *
+ * The store checks a signature BEFORE it looks for a duplicate (only a
+ * replaceable that loses to the held copy bails out first), so a note from
+ * five content relays was verified five times. An id the store already holds
+ * is answered here without a check: `add` then finds it in memory, keeps the
+ * copy it has and merges only the newcomer's seen-relays into it — the
+ * newcomer's content and signature are thrown away, so there is nothing of
+ * theirs left to trust. `hasEvent`, not `getEvent`: it doesn't touch the LRU
+ * that pruning reads (lib/storePruning).
+ */
+eventStore.verifyEvent = (event: NostrEvent) => eventStore.hasEvent(event.id) || verifySignature(event);
+
+// The wasm verifier loads once there is real verifying to do — a results
+// page's first frames — never at boot in front of the first screen
+// (lib/verifier). On a slow link it takes more to be worth its ~120 KB.
+// Not under test: each file would compile its own copy.
+if (import.meta.env.MODE !== "test") loadFastVerifierWhenBusy(connectionSpeed() === "normal" ? 30 : 150);

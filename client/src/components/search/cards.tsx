@@ -8,7 +8,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { createContext, memo, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -43,6 +43,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useNearViewport } from "@/hooks/useNearViewport";
 import { shopAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
@@ -76,6 +77,9 @@ export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
 }
 
+/** One formatter for every row: `toLocaleDateString` with options builds a new one per call. */
+const DAY_MONTH_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 /** How real-time a card is: seconds → minutes → hours → days, then a
  *  plain date once "N days ago" stops meaning anything (~a month). */
 function fmtWhen(created_at: number): string {
@@ -85,11 +89,7 @@ function fmtWhen(created_at: number): string {
     if (s < 3600) return `${Math.floor(s / 60)}m ago`;
     if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
     if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
-    return new Date(created_at * 1000).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return DAY_MONTH_YEAR.format(new Date(created_at * 1000));
   } catch {
     return "";
   }
@@ -327,7 +327,7 @@ export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf, mediaItemsOf } from "@/lib/mediaKind";
 import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
-export function MediaCard({
+export const MediaCard = memo(function MediaCard({
   event,
   author,
   score,
@@ -498,7 +498,7 @@ export function MediaCard({
       )}
     </div>
   );
-}
+});
 
 /** "android-arm64-v8a" and friends → one human word each, deduped. */
 export function platformWords(event: NostrEvent): string[] {
@@ -522,7 +522,7 @@ export function platformWords(event: NostrEvent): string[] {
  * site (falling back to its repository). Vitor's split, the
  * Apps half: listings stop masquerading as "code".
  */
-export function AppCard({
+export const AppCard = memo(function AppCard({
   event,
   author,
   score,
@@ -608,7 +608,7 @@ export function AppCard({
       </div>
     </CardShell>
   );
-}
+});
 
 /** Git hosts people recognize by name; anything else shows as its hostname. */
 const FORGE_LABELS: Record<string, string> = {
@@ -678,7 +678,10 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
 
 export type MemberProfile = { name?: string; display_name?: string; picture?: string };
 
-export function RepoCard({
+/** How close to the screen a repo card comes before it asks how busy the repo is. */
+const REPO_COUNTS_NEAR = "400px";
+
+export const RepoCard = memo(function RepoCard({
   event,
   author,
   score,
@@ -719,6 +722,10 @@ export function RepoCard({
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
   const d = tagVal(event, "d");
+  // Asked once the card comes near the screen: a Repos page of a hundred cards asked three
+  // questions each on mount, most of them for cards nobody scrolled to.
+  const nearRef = useRef<HTMLSpanElement>(null);
+  const near = useNearViewport(nearRef, REPO_COUNTS_NEAR);
   const [counts, setCounts] = useState<{
     issues: number;
     patches: number;
@@ -726,7 +733,7 @@ export function RepoCard({
     lastAt: number | null;
   }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
-    if (!askCounts || !isRepo || !d) return;
+    if (!askCounts || !isRepo || !d || !near) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
       if (alive)
@@ -740,7 +747,7 @@ export function RepoCard({
     return () => {
       alive = false;
     };
-  }, [askCounts, isRepo, d, event.pubkey]);
+  }, [askCounts, isRepo, d, event.pubkey, near]);
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);
@@ -758,6 +765,7 @@ export function RepoCard({
       openInTestId={`repo-open-${event.id}`}
       testId={`repo-card-${event.id}`}
     >
+      {askCounts && isRepo && !near && <span ref={nearRef} aria-hidden="true" className="block h-0 w-0" />}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {/* The branded link sits absolutely in the corner — the title row
@@ -900,7 +908,7 @@ export function RepoCard({
       </div>
     </CardShell>
   );
-}
+});
 
 const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
   live: "success",
@@ -908,7 +916,7 @@ const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
   planned: "info",
 };
 
-export function LiveCard({
+export const LiveCard = memo(function LiveCard({
   event,
   author,
   score,
@@ -964,7 +972,7 @@ export function LiveCard({
       </div>
     </CardShell>
   );
-}
+});
 
 /**
  * A stream the way YouTube and Twitch show one: the thumbnail IS the card. A
@@ -976,7 +984,7 @@ export function LiveCard({
  * corner keeps the way out to zap.stream.
  */
 /** `state` null: a stream that is over with nothing to replay — it says Ended, never LIVE. */
-export function LiveTile({
+export const LiveTile = memo(function LiveTile({
   event,
   author,
   score,
@@ -1138,7 +1146,7 @@ export function LiveTile({
       )}
     </div>
   );
-}
+});
 
 /**
  * A NIP-52 calendar event (kind 31922 date / 31923 time) as a card that reads
@@ -1158,7 +1166,7 @@ export function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
  * a count — with the cover as a square on the right. The date is not here:
  * the Events tab says it once, in the day header above.
  */
-export function EventCard({
+export const EventCard = memo(function EventCard({
   event,
   author,
   score,
@@ -1298,7 +1306,7 @@ export function EventCard({
       </div>
     </CardShell>
   );
-}
+});
 
 /** A fold of same-title lists, as the card carries it: the count, the union, and the lists themselves. */
 export type ListGroupView = {
@@ -1360,7 +1368,7 @@ function ListGroupPanel({ group, primaryId }: { group: ListGroupView; primaryId:
   );
 }
 
-export function ListCard({
+export const ListCard = memo(function ListCard({
   event,
   author,
   score,
@@ -1582,7 +1590,7 @@ export function ListCard({
       </div>
     </CardShell>
   );
-}
+});
 
 /**
  * A native track in the results — the same row the profile page plays, on
@@ -1590,7 +1598,7 @@ export function ListCard({
  * the title opens the event; the artist is Flash's field or, failing that,
  * the author's name, since most publishers are the artist.
  */
-export function TrackCard({
+export const TrackCard = memo(function TrackCard({
   event,
   author,
   flat,
@@ -1625,14 +1633,14 @@ export function TrackCard({
       />
     </div>
   );
-}
+});
 
 /**
  * A song Wavlake has for the words — the same row as a native track, with the
  * source named, and the title opening the song's Wavlake page (zaps, album,
  * artist live there; there is no Nostr event to open).
  */
-export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: boolean }) {
+export const WavlakeSongCard = memo(function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: boolean }) {
   // Opening a Wavlake song stays in Brainstorm — the artist's profile, or
   // their music here (Benjamin: "we want users to stay here"). Wavlake is
   // named as the source with its own mark, a badge and not a door.
@@ -1656,13 +1664,13 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
       />
     </div>
   );
-}
+});
 
 /**
  * A song from the V4V Songs list (Podcast Index) — the same row as a native
  * track, the source named, the title opening the artist's music here.
  */
-export function PodcastIndexSongCard({
+export const PodcastIndexSongCard = memo(function PodcastIndexSongCard({
   song,
   flat,
   artistHref,
@@ -1692,14 +1700,14 @@ export function PodcastIndexSongCard({
       />
     </div>
   );
-}
+});
 
 /**
  * A song or episode a person linked on Fountain — the same row as a track,
  * the show as the artist line, Fountain named as the source. Fountain's page
  * title carries its own call to action ("• Listen on Fountain"); the row does not.
  */
-export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: boolean }) {
+export const FountainSongCard = memo(function FountainSongCard({ item, flat }: { item: FountainItem; flat?: boolean }) {
   return (
     <div data-testid={`fountain-song-fountain:${item.id}`}>
       <EmbeddedTrackCard
@@ -1715,7 +1723,7 @@ export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: bo
       />
     </div>
   );
-}
+});
 
 /**
  * A marketplace listing as a buyer sees it: the photo first, the price as

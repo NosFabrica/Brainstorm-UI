@@ -11,6 +11,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure
 import type { NostrEvent } from "nostr-tools";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
+import { PROFILE_RELAYS } from "./relays";
 
 const storeAdd = vi.fn((event: NostrEvent) => event);
 const storeReplaceable = vi.fn((..._a: unknown[]): NostrEvent | undefined => undefined);
@@ -27,6 +28,9 @@ vi.mock("./eventStore", () => ({
 vi.mock("./loaders", () => ({
   loadReplaceable: (...a: unknown[]) => loadReplaceableMock(...(a as [])),
 }));
+const requestNewestMock = vi.fn(async (..._a: unknown[]): Promise<NostrEvent | undefined> => undefined);
+vi.mock("./relayRequest", () => ({ requestNewest: (...a: unknown[]) => requestNewestMock(...a) }));
+vi.mock("./relayRouting", () => ({ outboxRelays: async (_pk: string, fallback: string[]) => fallback }));
 vi.mock("./followStore", () => ({
   loadKnownFollowList: () => (snapshot.event ? { event: snapshot.event, count: 1, updated_at: 1 } : null),
 }));
@@ -71,7 +75,8 @@ describe("hydrating the store at boot", () => {
    * forged kind-10002 would steer where we PUBLISH.
    */
   it("refuses an event whose signature does not check out", async () => {
-    snapshot.event = { ...signed(3), sig: "0".repeat(128) };
+    // Through JSON, as localStorage hands it back: no mark from having been signed here.
+    snapshot.event = JSON.parse(JSON.stringify({ ...signed(3), sig: "0".repeat(128) }));
 
     expect(await cache.hydrateEventStore(ME)).toBe(0);
     expect(storeAdd).not.toHaveBeenCalled();
@@ -98,11 +103,49 @@ describe("hydrating the store at boot", () => {
    */
   it("re-asks the relays for everything it hydrated", async () => {
     snapshot.event = signed(3);
+    await cache.writeEvents([signed(10002)]);
 
     await cache.hydrateEventStore(ME);
     await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(requestNewestMock).toHaveBeenCalled());
 
-    expect(loadReplaceableMock).toHaveBeenCalledWith(3, ME, expect.objectContaining({ fromRelays: true }));
+    expect(loadReplaceableMock).toHaveBeenCalledWith(10002, ME, expect.objectContaining({ fromRelays: true }));
+    // The follow list relay-first and newest-wins, across the outbox — the read the hooks make.
+    expect(requestNewestMock).toHaveBeenCalledWith(
+      expect.arrayContaining(PROFILE_RELAYS),
+      { kinds: [3], authors: [ME], limit: 5 },
+      expect.any(Number),
+    );
+  });
+
+  /**
+   * `useMyFollows` and `useSocialActions` ask for the follow and mute lists the
+   * moment they mount. Revalidated under the same ask, the second of the two —
+   * whichever it is — joins the first instead of sending its own REQs.
+   */
+  it("asks the follow list under the hook's own key, once", async () => {
+    snapshot.event = signed(3);
+    const asks = await import("./askOnce");
+    const key = asks.replaceableAskKey(3, ME);
+    const hookAsk = vi.fn(async () => null);
+    asks.askOnce(key, asks.REPLACEABLE_ASK_WINDOW, hookAsk); // the hook mounted first
+
+    await cache.hydrateEventStore(ME);
+    await new Promise((resolve) => setTimeout(resolve, 400)); // past the idle wait
+
+    expect(hookAsk).toHaveBeenCalledTimes(1);
+    expect(requestNewestMock).not.toHaveBeenCalled();
+  });
+
+  it("asks a cached relay list's head only, not every relay it names", async () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => ["r", `wss://r${i}.example/`, "write"]);
+    await cache.writeEvents([signed(10002, thirty), signed(10040)]);
+
+    await cache.hydrateEventStore(ME);
+    await vi.waitFor(() => expect(loadReplaceableMock.mock.calls.filter((c) => c[0] === 10040)).toHaveLength(1));
+
+    const call = loadReplaceableMock.mock.calls.find((c) => c[0] === 10040);
+    expect((call?.[2] as { relays: string[] }).relays).toHaveLength(4);
   });
 
   /**

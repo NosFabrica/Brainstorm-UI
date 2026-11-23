@@ -15,7 +15,7 @@
  * and Artists after Wavlake's, each row naming its source.
  */
 import { scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { Info, Loader2, Pause, Play } from "lucide-react";
@@ -61,7 +61,7 @@ const genresOf = (t: NativeTrack) =>
     ),
   );
 
-export function MusicResults({
+export const MusicResults = memo(function MusicResults({
   hits,
   query,
   wavlake,
@@ -675,7 +675,7 @@ export function MusicResults({
       )}
     </div>
   );
-}
+});
 
 function MusicSection({
   title,

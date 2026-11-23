@@ -3,8 +3,20 @@
  * asking the relays, and buffers pointers so everything requested inside one
  * window leaves as a single REQ.
  */
-import { createAddressLoader, createEventLoader } from "applesauce-loaders/loaders";
-import { EMPTY, catchError, firstValueFrom, takeUntil, timer } from "rxjs";
+import {
+  addressPointerLoadingSequence,
+  cacheAddressPointersLoader,
+  createAddressLoader,
+  createEventLoader,
+  relayHintsAddressPointersLoader,
+  type AddressPointersLoader,
+  type LoadableAddressPointer,
+} from "applesauce-loaders/loaders";
+import { batchLoader, createFiltersFromAddressPointers, wrapUpstreamPool } from "applesauce-loaders/helpers";
+import { filterDuplicateEvents } from "applesauce-core";
+import { getReplaceableIdentifier } from "applesauce-core/helpers";
+import { normalizeURL } from "applesauce-core/helpers/url";
+import { EMPTY, bufferTime, catchError, firstValueFrom, merge, takeUntil, timer } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
 import { pool } from "./relayPool";
@@ -26,15 +38,69 @@ export const ADDRESS_LOADER_BUFFER_MS = 150;
  * for it — which is why `cachedEventsForFilters` sends every copy past its
  * freshness window to the relays behind the answer (`refreshStale`).
  */
-export const addressLoader = createAddressLoader(pool, {
-  eventStore,
-  cacheRequest: cachedEventsForFilters,
-  bufferTime: ADDRESS_LOADER_BUFFER_MS,
-  // Where to look when a pointer carries no relays of its own — the case for
-  // every fallback load the EventStore itself starts.
-  lookupRelays: PROFILE_RELAYS,
-  followRelayHints: true,
-});
+export const addressLoader = createRelayAwareAddressLoader();
+
+/** A relay URL as the pool keys it; one that can't be parsed stands for itself. */
+function relayKey(url: string): string {
+  try {
+    return normalizeURL(url);
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * The lookup step, asking each pointer only the lookup relays its own hints
+ * didn't already cover.
+ *
+ * The library's lookup step asks every pointer still missing the whole lookup
+ * set, after the hints. A read that merges `PROFILE_RELAYS` into its hints
+ * (an author's outbox plus the profile relays, the usual shape) then asked
+ * the same relays the same question twice in a row whenever the event doesn't
+ * exist: a profile with no customisation, say, cost its prefs read four REQs
+ * more, a second or two after the first four had already said "nothing". The
+ * hints step sends every pointer's filter to every hint in the batch, so a
+ * pointer's own hints were certainly asked.
+ */
+function lookupBeyondHints(request: ReturnType<typeof wrapUpstreamPool>, lookup: string[]): AddressPointersLoader {
+  return (pointers: LoadableAddressPointer[]) => {
+    const groups = new Map<string, { relays: string[]; pointers: LoadableAddressPointer[] }>();
+    for (const pointer of pointers) {
+      const asked = new Set((pointer.relays ?? []).map(relayKey));
+      const rest = lookup.filter((url) => !asked.has(relayKey(url)));
+      if (!rest.length) continue;
+      const key = rest.join(" ");
+      const group = groups.get(key) ?? { relays: rest, pointers: [] };
+      group.pointers.push(pointer);
+      groups.set(key, group);
+    }
+    if (!groups.size) return EMPTY;
+    return merge(...[...groups.values()].map((g) => request(g.relays, createFiltersFromAddressPointers(g.pointers))));
+  };
+}
+
+/**
+ * The library's address loader, step for step (cache, then the pointers'
+ * relay hints, then the lookup relays), but with `lookupBeyondHints` as its
+ * last step. Lookup relays: where to look when a pointer carries no relays of
+ * its own, the case for every fallback load the EventStore itself starts.
+ */
+function createRelayAwareAddressLoader() {
+  const request = wrapUpstreamPool(pool);
+  return batchLoader(
+    bufferTime(ADDRESS_LOADER_BUFFER_MS, undefined, 200),
+    addressPointerLoadingSequence(
+      cacheAddressPointersLoader(cachedEventsForFilters),
+      relayHintsAddressPointersLoader(request),
+      lookupBeyondHints(request, PROFILE_RELAYS),
+    ),
+    (pointer: LoadableAddressPointer, event: NostrEvent) =>
+      event.kind === pointer.kind &&
+      event.pubkey === pointer.pubkey &&
+      (pointer.identifier !== undefined ? getReplaceableIdentifier(event) === pointer.identifier : true),
+    filterDuplicateEvents(eventStore),
+  );
+}
 
 /**
  * The same, for pointers that name an event by id rather than by coordinate.

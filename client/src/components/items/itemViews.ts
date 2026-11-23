@@ -12,14 +12,19 @@
  * and a view's reading among many reaches tier two's cards, rows and tiles
  * through the override tier two leaves open (TierThreeProvider). Remove a
  * view here and its items read the tier-two way everywhere.
+ *
+ * The app's root imports this (through TierThreeProvider), so it holds only
+ * the light readings (`applies`, `present`); each page is its own chunk,
+ * fetched when an item's page draws it (ItemPage holds the Suspense).
  */
 import type { ComponentType } from "react";
 import { conceptViewOf, type ConceptViewKey } from "@/config/dictionary";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ItemEvent } from "@/components/share/DListItemParts";
-import { GitHubAccountView, githubAccountOf, githubPresentation } from "@/components/items/GitHubAccountView";
-import { PlaceView, placeOf, placePresentation } from "@/components/items/PlaceView";
-import { BookView, bookOf, bookPresentation } from "@/components/items/BookView";
+import { githubAccountOf, githubPresentation } from "@/components/items/githubAccount";
+import { placeOf, placePresentation } from "@/components/items/place";
+import { bookOf, bookPresentation } from "@/lib/books";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import type { ConceptDefinition, ResolvedConcept } from "@/lib/conceptResolution";
 import type { ItemPresentation } from "@/lib/itemPresentation";
 
@@ -39,6 +44,12 @@ interface TierThreeView {
    */
   present?: (item: { tags: string[][] }, definition: ConceptDefinition, shown: ItemPresentation) => ItemPresentation;
 }
+
+const GitHubAccountView = lazyWithReload(() =>
+  import("@/components/items/GitHubAccountView").then((m) => ({ default: m.GitHubAccountView })),
+);
+const PlaceView = lazyWithReload(() => import("@/components/items/PlaceView").then((m) => ({ default: m.PlaceView })));
+const BookView = lazyWithReload(() => import("@/components/items/BookView").then((m) => ({ default: m.BookView })));
 
 // Partial: a view taken out leaves its config key behind, and its items to tier two.
 const VIEWS: Partial<Record<ConceptViewKey, TierThreeView>> = {

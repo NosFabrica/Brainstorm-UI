@@ -32,13 +32,17 @@
  * newer `created_at` always wins, and everything the app learns is written back
  * (`startEventCacheSync`) so a held copy cannot sit here uncorrected.
  */
-import { verifyEvent } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 
 import { openDb as openIdb, transact } from "./idb";
 import { eventStore } from "./eventStore";
 import { loadKnownFollowList } from "./followStore";
 import { parseRelayList } from "./relayList";
+import { askOnce, replaceableAskKey, REPLACEABLE_ASK_WINDOW } from "./askOnce";
+import { requestNewest } from "./relayRequest";
+import { PROFILE_RELAYS } from "./relays";
+import { verifySignature } from "./verifier";
+import { whenIdle } from "./idle";
 
 const DB_NAME = "brainstorm-events";
 const STORE = "events";
@@ -97,7 +101,6 @@ export function coordinate(event: NostrEvent): string {
 /** What this module needs of the device's storage. */
 export interface CacheStore {
   get: (addrs: string[]) => Promise<CachedRow[]>;
-  byAuthors: (pubkeys: string[]) => Promise<CachedRow[]>;
   put: (rows: CachedRow[]) => Promise<void>;
   count: () => Promise<number>;
   oldest: (n: number) => Promise<string[]>;
@@ -176,6 +179,10 @@ function indexedDbStore(): CacheStore | null {
   };
 
   return {
+    // One transaction for the whole set, one lookup per coordinate inside it:
+    // the requests are pipelined, not serialized, and only the rows asked about
+    // are read — not every cached kind of every author, someone's 200 KB
+    // follow list deserialised to answer a lookup for their name.
     get: async (addrs) =>
       (await run<CachedRow[]>("readonly", (s, keep) => {
         const found: CachedRow[] = [];
@@ -183,21 +190,6 @@ function indexedDbStore(): CacheStore | null {
         for (const addr of addrs) {
           const req = s.get(addr);
           req.onsuccess = () => req.result && found.push(req.result as CachedRow);
-        }
-      })) ?? [],
-
-    // One transaction for the whole set, one index lookup per author inside
-    // it: the requests are pipelined, not serialized, and only the rows asked
-    // about are read — not all 2,000 of them, full events included, on every
-    // loader batch.
-    byAuthors: async (pubkeys) =>
-      (await run<CachedRow[]>("readonly", (s, keep) => {
-        const found: CachedRow[] = [];
-        keep(found);
-        const index = s.index("pubkey");
-        for (const pubkey of new Set(pubkeys)) {
-          const req = index.getAll(IDBKeyRange.only(pubkey));
-          req.onsuccess = () => found.push(...((req.result ?? []) as CachedRow[]));
         }
       })) ?? [],
 
@@ -250,20 +242,46 @@ function device(): CacheStore | null {
  * IndexedDB is writable by anything that can run script on this origin.
  *
  * The ROUTING kinds are verified, because a forged kind-10002 steers where we
- * PUBLISH. Kind 0 is not: it is display only, thousands of them would be
- * thousands of signature checks on the read path, and the one place a profile
- * field is acted on — `getVerifiedProfileLud16`, before paying — verifies the
- * event itself.
+ * PUBLISH. Kind 0 is not checked here: it is display only, the store verifies
+ * it on the way in anyway, and the one place a profile field is acted on —
+ * `getVerifiedProfileLud16`, before paying — verifies the event itself.
+ * Through the shared verifier (lib/verifier), so a row checked here and then
+ * added to the store is verified once, not twice, and a row read again later
+ * in the session is not verified again at all.
  */
 function trustworthy(row: CachedRow | undefined): row is CachedRow {
   const event = row?.event;
   if (!event || !CACHED.has(event.kind) || event.pubkey !== row.pubkey) return false;
   if (event.kind === 0) return true;
-  try {
-    return verifyEvent(event);
-  } catch {
-    return false;
+  return verifySignature(event);
+}
+
+/**
+ * When the device learned each copy it handed out this session, by event id,
+ * so a later reader of the store's copy can still tell an old one from a fresh
+ * one (services/authorProfileQueue). Bounded by MAX_CACHED, as the device is.
+ */
+const learnedAt = new Map<string, number>();
+
+function noteLearned(rows: CachedRow[]): void {
+  for (const row of rows) {
+    learnedAt.delete(row.event.id);
+    learnedAt.set(row.event.id, row.at);
   }
+  // A Map iterates in insertion order: the first keys are the least recently read.
+  for (const id of learnedAt.keys()) {
+    if (learnedAt.size <= MAX_CACHED) break;
+    learnedAt.delete(id);
+  }
+}
+
+/**
+ * When the device learned `event`, if this session read it off the device:
+ * undefined for a copy that came from a relay (fresh by definition), or that
+ * the device never had.
+ */
+export function deviceLearnedAt(event: NostrEvent): number | undefined {
+  return learnedAt.get(event.id);
 }
 
 /** The rows held for these coordinates, with their age — however old; eviction is the only expiry. */
@@ -271,7 +289,9 @@ async function liveRows(addrs: string[]): Promise<CachedRow[]> {
   const s = device();
   if (!s || addrs.length === 0) return [];
   try {
-    return (await s.get(addrs)).filter((row) => trustworthy(row));
+    const rows = (await s.get(addrs)).filter((row) => trustworthy(row));
+    noteLearned(rows);
+    return rows;
   } catch {
     return []; // the device has nothing to say — ask the relay
   }
@@ -296,41 +316,27 @@ export async function readProfileRows(pubkeys: string[]): Promise<Map<string, Ca
 export async function cachedEventsForFilters(
   filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
 ): Promise<NostrEvent[]> {
-  const s = device();
-  const wanted = new Set(filters.flatMap((f) => f.authors ?? []));
-  if (!s || wanted.size === 0) return [];
-
-  let rows: CachedRow[];
-  try {
-    rows = await s.byAuthors([...wanted]);
-  } catch {
-    return [];
+  // Exact coordinates, not "everything by these authors": every cached kind is
+  // replaceable, so a filter names its rows outright — `kind:pubkey:d`, the d
+  // empty unless the filter carries one.
+  const addrs = new Set<string>();
+  for (const filter of filters) {
+    const kinds = (filter.kinds ?? CACHED_KINDS).filter((kind) => CACHED.has(kind));
+    const ds = filter["#d"] ?? [""];
+    for (const pubkey of filter.authors ?? [])
+      for (const kind of kinds) for (const d of ds) addrs.add(`${kind}:${pubkey}:${d}`);
   }
+  if (!addrs.size) return [];
+  const rows = await liveRows([...addrs]);
 
   const now = Date.now();
   const stale: CachedRow[] = [];
-  const byAuthor = new Map<string, CachedRow[]>();
-  for (const row of rows) {
-    const bucket = byAuthor.get(row.pubkey);
-    if (bucket) bucket.push(row);
-    else byAuthor.set(row.pubkey, [row]);
-  }
-
   const out = new Map<string, NostrEvent>();
-  for (const filter of filters) {
-    for (const pubkey of filter.authors ?? []) {
-      for (const row of byAuthor.get(pubkey) ?? []) {
-        if (filter.kinds && !filter.kinds.includes(row.kind)) continue;
-        if (filter["#d"]) {
-          const d = row.event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
-          if (!filter["#d"].includes(d)) continue;
-        }
-        if (!trustworthy(row)) continue;
-        if (out.has(row.event.id)) continue;
-        out.set(row.event.id, row.event);
-        if (row.at < now - freshLimit(row.kind)) stale.push(row);
-      }
-    }
+  for (const row of rows) {
+    // A row keyed under one coordinate but holding another's event answers nothing.
+    if (out.has(row.event.id) || coordinate(row.event) !== row.addr) continue;
+    out.set(row.event.id, row.event);
+    if (row.at < now - freshLimit(row.kind)) stale.push(row);
   }
   if (stale.length) void refreshStale(stale);
   return [...out.values()];
@@ -415,11 +421,34 @@ export async function writeEvents(events: NostrEvent[]): Promise<void> {
       .map((event) => ({ addr: coordinate(event), pubkey: event.pubkey, kind: event.kind, event, at }));
     if (rows.length === 0) return;
     await s.put(rows);
-    const over = (await s.count()) - MAX_CACHED;
-    if (over > 0) await s.remove(await s.oldest(over));
+    const added = new Set(rows.map((row) => row.addr).filter((addr) => !held.has(addr))).size;
+    const over = (await heldCount(s, added)) - MAX_CACHED;
+    if (over > 0) {
+      await s.remove(await s.oldest(over));
+      rowCount = MAX_CACHED;
+    }
   } catch {
     /* no room, no storage, no matter */
   }
+}
+
+/**
+ * How many rows the device holds, kept here rather than counted on every
+ * flush: a count is a transaction of its own, one more per batch for a number
+ * that only moves by what this tab writes. Other tabs write too, so it is
+ * counted again every few flushes — the cap is a bound on growth, not an
+ * exact figure.
+ */
+let rowCount: number | null = null;
+let flushesSinceCount = 0;
+const RECOUNT_EVERY = 20;
+
+async function heldCount(s: CacheStore, added: number): Promise<number> {
+  if (rowCount === null || ++flushesSinceCount >= RECOUNT_EVERY) {
+    rowCount = await s.count();
+    flushesSinceCount = 0;
+  } else rowCount += added;
+  return rowCount;
 }
 
 let hydration: Promise<number> | null = null;
@@ -437,11 +466,28 @@ const HYDRATION_DEADLINE_MS = 1500;
  * must not hang the app instead of falling back to the relays.
  */
 export function whenHydrated(): Promise<void> {
-  if (!hydration) return Promise.resolve();
-  return Promise.race([
+  if (!hydration || hydrationSettled) return Promise.resolve();
+  // One deadline per hydration, shared by every caller: each routed read
+  // calls this, and a timer apiece would be hundreds of them on a busy page.
+  hydrationDeadline ??= Promise.race([
     hydration.then(() => undefined),
     new Promise<void>((resolve) => setTimeout(resolve, HYDRATION_DEADLINE_MS)),
   ]);
+  return hydrationDeadline;
+}
+
+/** Whether the current hydration has finished; after that `whenHydrated` costs nothing. */
+let hydrationSettled = false;
+let hydrationDeadline: Promise<void> | null = null;
+
+function trackHydration(running: Promise<number>): Promise<number> {
+  hydrationSettled = false;
+  hydrationDeadline = null;
+  const settle = () => {
+    if (hydration === running) hydrationSettled = true;
+  };
+  running.then(settle, settle);
+  return running;
 }
 
 /**
@@ -462,7 +508,7 @@ export function hydrateEventStore(pubkey: string | null | undefined): Promise<nu
   if (hydration && hydratingFor === pubkey) return hydration;
   hydratingFor = pubkey;
   hydration = hydrate(pubkey);
-  return hydration;
+  return trackHydration(hydration);
 }
 
 async function hydrate(pubkey: string): Promise<number> {
@@ -490,9 +536,22 @@ async function hydrate(pubkey: string): Promise<number> {
     }
   }
 
-  void revalidate(held);
+  // Once the first screen is up: the hydrated copies are already answering,
+  // and these REQs would otherwise go out alongside the ones that screen makes.
+  whenIdle(() => void revalidate(held), { timeoutMs: REVALIDATE_WITHIN_MS });
   return added;
 }
+
+/** The longest the boot revalidation waits for an idle moment. */
+const REVALIDATE_WITHIN_MS = 3000;
+
+/**
+ * The kinds the signed-in screens ask for themselves the moment they mount
+ * (`useMyFollows`, `useSocialActions`): revalidated under the very ask those
+ * hooks make — same key, same newest-across-the-outbox read — so whichever
+ * goes first, the other joins it instead of asking again.
+ */
+const ASKED_BY_HOOKS = new Set([3, 10000]);
 
 /**
  * Re-ask the relays for everything we hydrated, and let the store settle it.
@@ -505,19 +564,35 @@ async function hydrate(pubkey: string): Promise<number> {
 async function revalidate(events: NostrEvent[]): Promise<void> {
   // `loadReplaceable` imported here, not at the top: `lib/loaders` imports THIS
   // module, and a static import back would close the cycle at the one moment it
-  // matters — module init, where the loader is built. `parseRelayList` needs no
-  // such dance: it lives in `lib/relayList`, a leaf, imported statically above.
-  const { loadReplaceable } = await import("./loaders");
+  // matters — module init, where the loader is built. `lib/relayRouting` the
+  // same, for `outboxRelays`. `parseRelayList` needs no such dance: it lives
+  // in `lib/relayList`, a leaf, imported statically above.
+  const [{ loadReplaceable }, { outboxRelays }] = await Promise.all([import("./loaders"), import("./relayRouting")]);
 
   // ROUTED, not left to the lookup relays: a kind-10040 that lives only on the
   // user's own relays would otherwise be "refreshed" against a set that never
   // had it, and the stale disk copy would serve for the rest of the session.
+  // The head of the list only, as every other routed read takes it: a
+  // kind-10002 naming thirty relays is not thirty sockets at boot.
   const cachedList = events.find((event) => event.kind === RELAY_LIST_KIND);
-  const write = cachedList ? parseRelayList(cachedList).write : [];
+  const write = cachedList ? parseRelayList(cachedList).write.slice(0, REFRESH_RELAYS_PER_AUTHOR) : [];
   const relays = write.length ? write : undefined;
 
   await Promise.all(
     events.map((event) => {
+      if (ASKED_BY_HOOKS.has(event.kind)) {
+        // Relay-first, newest wins, from the outbox the hooks read: the follow
+        // list's wipe guard reads its own evidence fresh (services/socialActions),
+        // so sharing this ask can only spare it a REQ, never feed it a stale copy.
+        const key = replaceableAskKey(event.kind, event.pubkey);
+        return askOnce(key, REPLACEABLE_ASK_WINDOW, async () =>
+          requestNewest(
+            await outboxRelays(event.pubkey, PROFILE_RELAYS),
+            { kinds: [event.kind], authors: [event.pubkey], limit: 5 },
+            10_000,
+          ),
+        )?.catch(() => undefined);
+      }
       const identifier = event.tags.find((tag) => tag[0] === "d")?.[1];
       return loadReplaceable(event.kind, event.pubkey, {
         identifier,
@@ -576,6 +651,8 @@ export async function clearEventCache(): Promise<void> {
   refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
+  learnedAt.clear();
+  rowCount = 0;
   const s = device();
   if (!s) return;
   try {
@@ -602,6 +679,7 @@ export function __isWriting(): boolean {
 /** Test seam: the device's store, or null for a device without one. */
 export function __useCacheStore(fake: CacheStore | null | undefined): void {
   store = fake;
+  rowCount = null;
 }
 
 /** Test seam. */
@@ -609,6 +687,9 @@ export function __resetEventCache(): void {
   refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
+  learnedAt.clear();
+  rowCount = null;
+  flushesSinceCount = 0;
   stopWriting?.();
   stopWriting = null;
 }

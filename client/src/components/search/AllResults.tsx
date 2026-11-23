@@ -9,7 +9,7 @@
  */
 import { isReady, useItemView } from "@/hooks/useItemView";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { AllResultRow } from "@/components/search/AllResultRow";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -80,19 +80,29 @@ function usePeople(pubkeys: string[]): Map<string, Person> {
   return found;
 }
 
+/**
+ * A row skips layout and paint while it is far off screen; `auto` remembers the height it
+ * last rendered at, so the scrollbar settles as the reader goes. 120px is a row with a line
+ * of text under its byline, before then.
+ */
+const OFFSCREEN_ROW = "[content-visibility:auto] [contain-intrinsic-size:auto_120px]";
+
 const eventCoord = (e: NostrEvent) => `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
 
-export function AllResults({
+export const AllResults = memo(function AllResults({
   hits,
   settled,
   scoreOf,
   query,
+  skipOffscreen = true,
 }: {
   hits: SearchHit[];
   /** The page has ended (EOSE) and no further page is streaming: only then are references asked for. */
   settled: boolean;
   scoreOf: (pubkey: string) => number | null | undefined;
   query: string;
+  /** Off while the page puts a reader back where they were: estimated heights would move them. */
+  skipOffscreen?: boolean;
 }) {
   const refs = useMemo(() => {
     const ids = new Set<string>();
@@ -176,35 +186,37 @@ export function AllResults({
         // A list item reads as its own list draws it (ListItemAllRow).
         if ((DLIST_ITEM_KINDS as readonly number[]).includes(event.kind))
           return (
-            <ListItemAllRow
-              key={event.id}
+            <div key={event.id} className={skipOffscreen ? OFFSCREEN_ROW : undefined}>
+              <ListItemAllRow
+                event={event}
+                author={author}
+                name={person?.name}
+                picture={person?.picture}
+                score={scoreOf(from)}
+                query={query}
+                summary={summary}
+              />
+            </div>
+          );
+        return (
+          <div key={event.id} className={skipOffscreen ? OFFSCREEN_ROW : undefined}>
+            <AllResultRow
               event={event}
-              author={author}
+              author={summary.by ? null : author}
+              pubkey={from}
               name={person?.name}
               picture={person?.picture}
               score={scoreOf(from)}
               query={query}
               summary={summary}
+              target={target}
             />
-          );
-        return (
-          <AllResultRow
-            key={event.id}
-            event={event}
-            author={summary.by ? null : author}
-            pubkey={from}
-            name={person?.name}
-            picture={person?.picture}
-            score={scoreOf(from)}
-            query={query}
-            summary={summary}
-            target={target}
-          />
+          </div>
         );
       })}
     </div>
   );
-}
+});
 
 /**
  * A list item's row: read through its own definition (hooks/useItemView) —

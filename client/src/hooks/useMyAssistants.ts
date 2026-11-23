@@ -12,7 +12,7 @@ import { newestPerAddress } from "@/lib/newestPerAddress";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { dedupeRelays, readRelaysFor } from "@/lib/relayRouting";
 import { offeredDuties, treasureMapDuties, type Duty } from "@/lib/treasureMap";
-import { apiClient } from "@/services/api";
+import { setupRowsOptions } from "@/services/queries/userReads";
 import type { AssistantDefinitions } from "@/services/assistants";
 import { fetchEventsByFilter } from "@/services/nostr";
 
@@ -102,13 +102,8 @@ export function useMyAssistants(viewer: string | null | undefined): MyAssistants
   }, [taggings.events]);
 
   const map = useTrustProviderList(viewer);
-  const setup = useQuery({
-    queryKey: ["setup-rows", viewer],
-    queryFn: () => apiClient.getSetupRows(viewer!),
-    enabled: !!viewer,
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
+  // One entry with the lists check's (services/trustLists), which asks /setup too.
+  const setup = useQuery(setupRowsOptions(viewer ?? ""));
   const offered = useMemo(() => offeredDuties(setup.data), [setup.data]);
   const duties = useMemo(() => treasureMapDuties(map.event, offered), [map.event, offered]);
   const mapStatus: TreasureMapStatus = map.event ? "found" : map.settled ? "none" : "loading";

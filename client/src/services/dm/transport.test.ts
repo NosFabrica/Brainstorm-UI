@@ -16,7 +16,7 @@ class FakeRelay {
 }
 
 let relay: FakeRelay;
-vi.mock("@/lib/relayPool", () => ({ pool: { relay: () => relay } }));
+vi.mock("@/lib/relayPool", () => ({ pool: { relay: () => relay }, keepRelayAlive: () => {} }));
 
 const { poolTransport } = await import("./transport");
 const event = { id: "e".repeat(64) } as NostrEvent;

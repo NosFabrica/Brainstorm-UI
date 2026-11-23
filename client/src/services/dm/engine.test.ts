@@ -9,7 +9,14 @@ import {
   type LiveHandlers,
   type WrapFilter,
 } from "./engine";
-import { CHAT_KIND, WRAP_JITTER_SECONDS, makeRumor, wrapRumor, type SealSigner } from "@/lib/dm/giftWrap";
+import {
+  CHAT_KIND,
+  WRAP_JITTER_SECONDS,
+  makeRumor,
+  unwrapGiftWrap,
+  wrapRumor,
+  type SealSigner,
+} from "@/lib/dm/giftWrap";
 import type { PageHandlers } from "@/lib/dm/pager";
 import { wrapKey, type DmCacheBackend, type DmState, type Sealer, type StoredWrap } from "@/lib/dm/cache";
 import { roomKey } from "@/lib/dm/rooms";
@@ -86,6 +93,7 @@ function memoryCache(): DmCacheBackend & { rows: Map<string, StoredWrap>; st: Ma
     rows,
     st,
     wraps: async (owner) => [...rows.values()].filter((r) => r.owner === owner),
+    wrapKeys: async (owner) => [...rows.values()].filter((r) => r.owner === owner).map((r) => r.key),
     putWraps: async (list) => list.forEach((r) => rows.set(r.key, r)),
     deleteWraps: async (keys) => keys.forEach((k) => rows.delete(k)),
     state: async (owner) => st.get(owner),
@@ -1403,5 +1411,183 @@ describe("DmEngine", () => {
     net.live.get("wss://in.example/")!.h.onEvent(later);
     for (let i = 0; i < 5; i++) await settle();
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("second");
+  });
+});
+
+/** A message this device kept, sealed as the engine seals it (with `plainSealer`). */
+function keptRow(
+  me: string,
+  from: string,
+  content: string,
+  at: number,
+  wrapId: string,
+  relays = ["wss://in.example/"],
+) {
+  const rumor = makeRumor({ pubkey: from, kind: CHAT_KIND, tags: [["p", me]], content, created_at: at });
+  const open = { rumor, wrapId, wrapAt: at, relays };
+  return { key: wrapKey(me, wrapId), owner: me, wrapId, at, envelope: `sealed:${JSON.stringify(open)}` } as StoredWrap;
+}
+
+/** A sealer whose opens wait until `release()`; `fail` names envelopes it can't open. */
+function gatedSealer(fail: (envelope: string) => boolean = () => false) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const sealer: Sealer = {
+    supported: () => true,
+    seal: plainSealer.seal,
+    open: async (e, owner) => {
+      await gate;
+      if (fail(e)) throw new Error("OperationError");
+      return plainSealer.open(e, owner);
+    },
+  };
+  return { sealer, release };
+}
+
+describe("coming back from the device", () => {
+  it("connects without waiting for the kept messages to open", async () => {
+    const me = person();
+    const ana = person();
+    const cache = memoryCache();
+    await cache.putWraps([keptRow(me.pubkey, ana.pubkey, "kept", NOW - 600, "w-kept")]);
+    const { sealer, release } = gatedSealer();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), cache, sealer, now: () => NOW });
+    const started = engine.start();
+    await settle();
+    expect(net.live.has("wss://in.example/")).toBe(true); // connected, the open still waiting
+    expect(engine.store.size).toBe(0);
+    release();
+    await started;
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("kept");
+  });
+
+  it("does not open again a kept wrap that arrives before its row is read back — and keeps the relay it came from", async () => {
+    const me = person();
+    const ana = person();
+    const wrap = await wrapFrom(ana, me.pubkey, "both", NOW - 60);
+    const cache = memoryCache();
+    const rumor = await unwrapGiftWrap(wrap, me.account().decrypt!);
+    await cache.putWraps([
+      {
+        key: wrapKey(me.pubkey, wrap.id),
+        owner: me.pubkey,
+        wrapId: wrap.id,
+        at: wrap.created_at,
+        envelope: `sealed:${JSON.stringify({ rumor: rumor.rumor, wrapId: wrap.id, wrapAt: wrap.created_at, relays: ["wss://old.example/"] })}`,
+      },
+    ]);
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", wrap);
+    const decrypts: string[] = [];
+    const { sealer, release } = gatedSealer();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          decrypts.push(from);
+          return nip44.decrypt(text, nip44.getConversationKey(me.sk, from));
+        },
+      }),
+      { ...net, ...clock(), cache, sealer, now: () => NOW },
+    );
+    const started = engine.start();
+    await settle();
+    release();
+    await started;
+    await settle();
+    expect(decrypts).toHaveLength(0);
+    const message = engine.store.rooms()[0]?.last;
+    expect(message?.rumor.content).toBe("both");
+    expect(message?.relays).toEqual(expect.arrayContaining(["wss://old.example/", "wss://in.example/"]));
+  });
+
+  it("opens afresh a wrap whose kept copy can't be opened here, when it arrived first", async () => {
+    const me = person();
+    const ana = person();
+    const wrap = await wrapFrom(ana, me.pubkey, "reopened", NOW - 60);
+    const cache = memoryCache();
+    await cache.putWraps([
+      { ...keptRow(me.pubkey, ana.pubkey, "x", wrap.created_at, wrap.id), envelope: "sealed:lost" },
+    ]);
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", wrap);
+    const { sealer, release } = gatedSealer((e) => e === "sealed:lost");
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), cache, sealer, now: () => NOW });
+    const started = engine.start();
+    await settle();
+    release();
+    await started;
+    for (let i = 0; i < 5; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("reopened");
+  });
+
+  it("opens the newest few hundred at start, the rest when idle", async () => {
+    const me = person();
+    const ana = person();
+    const cache = memoryCache();
+    await cache.putWraps(
+      Array.from({ length: 420 }, (_, i) => keptRow(me.pubkey, ana.pubkey, `m${i}`, NOW - 10_000 + i, `w${i}`)),
+    );
+    const idle: (() => void)[] = [];
+    const engine = new DmEngine(me.account(), {
+      ...network({ [me.pubkey]: ["wss://in.example/"] }),
+      ...clock(),
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+      whenIdle: (fn) => {
+        idle.push(fn);
+        return () => idle.splice(idle.indexOf(fn), 1);
+      },
+    });
+    await engine.start();
+    await engine.hydrated();
+    expect(engine.store.size).toBe(300);
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m419"); // the newest are the ones back
+    while (idle.length) {
+      idle.shift()!();
+      for (let i = 0; i < 5; i++) await settle();
+    }
+    expect(engine.store.size).toBe(420);
+    engine.stop();
+  });
+
+  it("opens the rest at once when the reader opens Messages", async () => {
+    const me = person();
+    const ana = person();
+    const cache = memoryCache();
+    await cache.putWraps(
+      Array.from({ length: 700 }, (_, i) => keptRow(me.pubkey, ana.pubkey, `m${i}`, NOW - 10_000 + i, `w${i}`)),
+    );
+    const engine = new DmEngine(me.account(), {
+      ...network({ [me.pubkey]: ["wss://in.example/"] }),
+      ...clock(),
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+      whenIdle: () => () => {}, // never idle
+    });
+    await engine.start();
+    expect(engine.store.size).toBe(300);
+    engine.allowDecrypt();
+    for (let i = 0; i < 10 && engine.store.size < 700; i++) await settle();
+    expect(engine.store.size).toBe(700);
+    engine.stop();
+  });
+
+  it("still comes back from a cache that can only hand its rows over whole", async () => {
+    const me = person();
+    const ana = person();
+    const cache: DmCacheBackend = { ...memoryCache(), wrapKeys: undefined };
+    await cache.putWraps([keptRow(me.pubkey, ana.pubkey, "whole", NOW - 600, "w-whole")]);
+    const engine = new DmEngine(me.account(), {
+      ...network({ [me.pubkey]: ["wss://in.example/"] }),
+      ...clock(),
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+    });
+    await engine.start();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("whole");
   });
 });

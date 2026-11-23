@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { activePubkey } from "@/accounts/display";
+import { deviceSetting, useDeviceSetting } from "@/hooks/deviceSetting";
 
 /**
  * How Verification Scores are displayed to THIS viewer, everywhere at once.
@@ -81,25 +82,11 @@ export function setScoreDisplayMode(mode: ScoreDisplayMode): void {
   } catch {}
 }
 
-export function useScoreDisplayMode(): [ScoreDisplayMode, (m: ScoreDisplayMode) => void] {
-  const [mode, setMode] = useState<ScoreDisplayMode>(() => getScoreDisplayMode());
+const store = deviceSetting({ read: getScoreDisplayMode, storageKey: scopedKey, eventName: EVENT_NAME });
 
-  useEffect(() => {
-    const onCustom = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      setMode(isMode(detail) ? detail : getScoreDisplayMode());
-    };
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === scopedKey()) setMode(getScoreDisplayMode());
-    };
-    window.addEventListener(EVENT_NAME, onCustom);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(EVENT_NAME, onCustom);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
-  const update = useCallback((m: ScoreDisplayMode) => setScoreDisplayMode(m), []);
+/** One store for every reader on the page (hooks/deviceSetting): one read, one pair of listeners. */
+export function useScoreDisplayMode(): [ScoreDisplayMode, (mode: ScoreDisplayMode) => void] {
+  const mode = useDeviceSetting(store);
+  const update = useCallback((next: ScoreDisplayMode) => setScoreDisplayMode(next), []);
   return [mode, update];
 }

@@ -24,7 +24,7 @@ import {
   type Observable,
 } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
-import { isAuthRequiredReason, pool, wakeableBackoff } from "@/lib/relayPool";
+import { isAuthRequiredReason, keepRelayAlive, pool, wakeableBackoff } from "@/lib/relayPool";
 import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
@@ -42,6 +42,9 @@ const reasonOf = (error: unknown) =>
 
 export const poolTransport: DmTransport = {
   live(url, f, handlers) {
+    // An inbox relay: history pages come and go on it between live reconnects,
+    // so its socket is one worth holding open (lib/relayPool).
+    keepRelayAlive(url);
     const relay = pool.relay(url);
     // Reconnects for as long as it lives, waiting at most 30s between tries — and
     // not at all once the app comes back to the foreground (lib/relayPool).

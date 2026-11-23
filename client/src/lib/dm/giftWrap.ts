@@ -20,7 +20,8 @@
  * signed through `signAs` so the Active Account — not whatever signer is in
  * reach — is the one speaking.
  */
-import { finalizeEvent, generateSecretKey, getEventHash, nip44, verifyEvent, type NostrEvent } from "nostr-tools";
+import { finalizeEvent, generateSecretKey, getEventHash, nip44, type NostrEvent } from "nostr-tools";
+import { verifySignature } from "@/lib/verifier";
 
 export const SEAL_KIND = 13;
 export const GIFT_WRAP_KIND = 1059;
@@ -129,13 +130,9 @@ function parseEvent(json: string, what: string): Record<string, unknown> {
 
 const isHex64 = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 
-/** nostr-tools' verifyEvent throws (rather than answering false) on a malformed object. */
+/** Through the app's one verifier (lib/verifier): the wasm build once it has loaded; never throws. */
 function verified(event: unknown): boolean {
-  try {
-    return verifyEvent(event as NostrEvent);
-  } catch {
-    return false;
-  }
+  return verifySignature(event as NostrEvent);
 }
 
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect, useRef } from "react";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
@@ -72,6 +72,14 @@ import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
 import { apiClient } from "@/services/api";
 import {
+  overviewOptions,
+  selectInfluence,
+  selectOverview,
+  statsOptions,
+  topFollowersOptions,
+  type TopFollowers,
+} from "@/services/queries/userReads";
+import {
   parseProfilePrefs,
   loadProfilePrefsDraft,
   saveProfilePrefsDraft,
@@ -84,7 +92,6 @@ import {
   type SectionKey,
   type ProfilePrefs,
 } from "@/config/personalization";
-import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useStickyBarVisible } from "@/hooks/useStickyBarVisible";
 import { cn } from "@/lib/utils";
@@ -114,10 +121,10 @@ import { RetiredMark } from "@/components/retired/RetiredMark";
 import { useRetired } from "@/hooks/useRetired";
 import { inviteThrough } from "@/services/retired";
 import { CurrentAccountNote } from "@/components/retired/CurrentAccountNote";
-import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
-import { ShareProfileModal } from "@/components/ShareProfileModal";
+import type { ShareProfileModal } from "@/components/ShareProfileModal";
+import { MediaImg } from "@/components/ui/media-img";
 import { profileShortLink, useMintShortLink, useShortLink } from "@/hooks/useShortLink";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
@@ -134,6 +141,34 @@ import { hasOwnScores } from "@/lib/ownScores";
 import { pageWidth } from "@/lib/pageWidth";
 
 const NO_RELAYS: string[] = [];
+
+/**
+ * The page's dialogs load when first wanted, not with the page: closed, they
+ * are code every visitor downloads and parses for nothing, and the owner-only
+ * customizer alone brought framer-motion's Reorder into the entry chunk. Each
+ * `load*` starts its import early — on hover or focus of the control that
+ * opens it — and the `lazy` that renders it reuses the same promise.
+ */
+const loadCustomizer = () => import("@/components/share/ProfileCustomizer");
+const loadZap = () => import("@/components/ZapModal");
+const loadShareSheet = () => import("@/components/ShareProfileModal");
+const LazyProfileCustomizer = lazy(() => loadCustomizer().then((m) => ({ default: m.ProfileCustomizer })));
+const LazyZapModal = lazy(() => loadZap().then((m) => ({ default: m.ZapModal })));
+const LazyShareProfileModal = lazy(() => loadShareSheet().then((m) => ({ default: m.ShareProfileModal })));
+const preload = (load: () => Promise<unknown>) => () => void load().catch(() => undefined);
+
+/**
+ * True from the first time `open` is, and from then on: a dialog mounts when
+ * first opened and stays mounted, so its close animation still plays.
+ */
+function useOpenedOnce(open: boolean): boolean {
+  const opened = useRef(false);
+  if (open) opened.current = true;
+  return opened.current;
+}
+
+/** Stable, so the "Followed by" row re-renders only when the list does. */
+const followerItems = (top: TopFollowers) => top.items;
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -157,6 +192,8 @@ export default function SharePage() {
   const [composeRequest, setComposeRequest] = useState(0);
   const npubCopy = useCopied();
   const [scoreModalOpen, setScoreModalOpen] = useState(false);
+  const zapOpened = useOpenedOnce(zapOpen);
+  const scoreModalOpened = useOpenedOnce(scoreModalOpen);
   // One shared lens for the whole stats block: verified (trust-filtered) vs all
   // (raw). Defaults to verified — Brainstorm's bot-free view is the headline.
   const [statLens, setStatLens] = useState<StatLens>("verified");
@@ -216,6 +253,7 @@ export default function SharePage() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsError, setPrefsError] = useState<string | null>(null);
   const prefs = editing ? draft : publishedPrefs;
+  const customizerOpened = useOpenedOnce(editing);
 
   const startCustomize = () => {
     setPrefsError(null);
@@ -263,29 +301,10 @@ export default function SharePage() {
   // "Followed by" — the top WoT-ranked (most-trusted) accounts that follow this
   // profile, for the social-proof avatar row under the stats. House POV so it's
   // stable for every viewer.
-  const followedByQuery = useQuery({
-    queryKey: ["share-followedby", pubkey],
-    queryFn: async () => {
-      const res = await apiClient.getUserConnections(pubkey, "followed_by", {
-        limit: 8,
-        order: "desc",
-        verified_only: true,
-        house: true,
-      });
-      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string; influence?: number | null }>;
-      // Keep the per-item influence — the cluster's tier rings ride on it free.
-      return items
-        .map((e) =>
-          typeof e === "string"
-            ? { pubkey: e, influence: null }
-            : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null },
-        )
-        .filter((e) => !!e.pubkey);
-    },
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  //
+  // The same entry the endorsements line reads (with its total), so the page
+  // asks for this list once (services/queries/userReads `topFollowersOptions`).
+  const followedByQuery = useQuery({ ...topFollowersOptions(pubkey, "house"), select: followerItems });
   // Owner can hand-pick the "Followed by" faces; otherwise auto top-trusted.
   const effectiveFollowerPubkeys = useMemo(
     () =>
@@ -334,26 +353,17 @@ export default function SharePage() {
     }));
   }, [followerCandidatesQuery.data, candidateProfiles]);
 
-  const overviewQuery = useQuery({
-    queryKey: ["share-overview", pubkey],
-    // Unwrap the { code, message, data } envelope → the inner overview object.
-    queryFn: async () => (await apiClient.getUserOverview(pubkey))?.data ?? null,
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // Every read below is a shared entry (services/queries/userReads), so a
+  // hover's prefetch (`prefetchSharePage`), the Profile page and this one all
+  // read the same answers. The viewer's overview resolves to the house's when
+  // nobody is signed in — the same URL — so an anonymous visit asks once.
+  const overviewQuery = useQuery({ ...overviewOptions(pubkey, "viewer"), select: selectOverview });
 
   // House (NosFabrica / network) influence from our backend, via an
   // unauthenticated overview request (always the house POV). It's the secondary
-  // "network view" for signed-in viewers; for logged-out viewers the primary
-  // overview query already runs from the house POV, so this is a fallback only.
-  const houseRankQuery = useQuery({
-    queryKey: ["share-house-influence", pubkey],
-    queryFn: () => apiClient.getHouseInfluence(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // "network view" for signed-in viewers; for logged-out viewers it IS the
+  // overview above, one entry.
+  const houseRankQuery = useQuery({ ...overviewOptions(pubkey, "house"), select: selectInfluence });
 
   // Per-section stats: total/verified counts per relationship — one query per
   // point of view, the same shape the coin uses (overviewQuery/houseRankQuery).
@@ -364,20 +374,8 @@ export default function SharePage() {
   // and the DISPLAYED counts select between the two at render time — this
   // used to be pinned `house: true` from the share-page era, which is why the
   // coin followed the toggle and these numbers didn't (David's report).
-  const houseStatsQuery = useQuery({
-    queryKey: ["share-stats", pubkey, "house"],
-    queryFn: () => apiClient.getUserStats(pubkey, { house: true }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const myStatsQuery = useQuery({
-    queryKey: ["share-stats", pubkey, "mine"],
-    queryFn: () => apiClient.getUserStats(pubkey),
-    enabled: !!pubkey && myPov,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const houseStatsQuery = useQuery(statsOptions(pubkey, "house"));
+  const myStatsQuery = useQuery({ ...statsOptions(pubkey, "viewer"), enabled: !!pubkey && myPov });
 
   const notesQuery = useRecentByKinds(pubkey, [1, 6], 5, relayHints);
 
@@ -926,23 +924,27 @@ export default function SharePage() {
   return (
     <ShareShell
       actions={
-        <ShareButton
-          url={canonicalUrl}
-          title={`${displayName} on Brainstorm`}
-          mint={mintShortUrl}
-          modal={(ctl) => (
-            <ProfileShareSheet
-              {...ctl}
-              relays={relayHints}
-              npub={npub}
-              displayName={displayName}
-              picture={profile.picture}
-              nip05={profile.nip05}
-              score01={houseScore01}
-              onOwnPage
-            />
-          )}
-        />
+        // `contents`: no box of its own, so the header lays out as before, and
+        // a hover or focus on the button inside starts the sheet's import.
+        <span className="contents" onPointerOver={preload(loadShareSheet)} onFocusCapture={preload(loadShareSheet)}>
+          <ShareButton
+            url={canonicalUrl}
+            title={`${displayName} on Brainstorm`}
+            mint={mintShortUrl}
+            modal={(ctl) => (
+              <ProfileShareSheet
+                {...ctl}
+                relays={relayHints}
+                npub={npub}
+                displayName={displayName}
+                picture={profile.picture}
+                nip05={profile.nip05}
+                score01={houseScore01}
+                onOwnPage
+              />
+            )}
+          />
+        </span>
       }
     >
       <ShareNavProvider>
@@ -963,7 +965,16 @@ export default function SharePage() {
           <CompromisedWatermark pubkey={pubkey} when="view" />
           <div className="relative h-24 w-full sm:h-28">
             {profile.banner ? (
-              <img src={profile.banner} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              // Likely the page's largest paint, and often a multi-megabyte original:
+              // drawn at the width it is shown, and asked for first.
+              <MediaImg
+                src={profile.banner}
+                preset="media_1280"
+                alt=""
+                fetchPriority="high"
+                decoding="async"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             ) : (
               <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
                 <img
@@ -1126,13 +1137,15 @@ export default function SharePage() {
 
                 {/* The facts under it — website, lightning (tap copies; Zap pays),
               linked accounts — as readable rows, not glyphs. */}
-                <ProfileDetails
-                  website={profile.website}
-                  lud16={profile.lud16}
-                  lud06={profile.lud06}
-                  identities={isHidden("identities") ? [] : identities}
-                  onZap={() => setZapOpen(true)}
-                />
+                <div className="contents" onPointerOver={preload(loadZap)} onFocusCapture={preload(loadZap)}>
+                  <ProfileDetails
+                    website={profile.website}
+                    lud16={profile.lud16}
+                    lud06={profile.lud06}
+                    identities={isHidden("identities") ? [] : identities}
+                    onZap={() => setZapOpen(true)}
+                  />
+                </div>
 
                 {/* "Tagged as": what the network says about this person, counted from
               the configured trust perspective, and the "Tag this profile" button
@@ -1280,9 +1293,12 @@ export default function SharePage() {
                       {/* Personal connection + value */}
                       <div className="flex min-w-0 flex-1 items-start gap-3">
                         {invitePicture && (
-                          <img
+                          <MediaImg
                             src={invitePicture}
+                            preset="avatar_sm"
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                             className={`hidden h-12 w-12 shrink-0 rounded-full object-cover sm:block ${(invitesOther ? null : tierRing(houseScore01)) ?? "shadow ring-2 ring-white"}`}
                           />
                         )}
@@ -1472,13 +1488,18 @@ export default function SharePage() {
                     className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
                     data-testid="share-photo-tile"
                   >
-                    <img
+                    <MediaImg
                       src={photo.url}
+                      preset="media_320"
                       alt=""
                       loading="lazy"
-                      onError={() =>
-                        setBrokenPhotos((prev) => (prev.has(photo.url) ? prev : new Set(prev).add(photo.url)))
-                      }
+                      decoding="async"
+                      // A thumbnail that fails gets one try at the original (MediaImg);
+                      // only the original failing makes the photo broken.
+                      onError={(e) => {
+                        if (e.currentTarget.src.includes("/media_320/")) return;
+                        setBrokenPhotos((prev) => (prev.has(photo.url) ? prev : new Set(prev).add(photo.url)));
+                      }}
                       className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
                     />
                   </Link>
@@ -1539,13 +1560,20 @@ export default function SharePage() {
                   const isLive = s.live;
                   const body = (
                     <>
-                      <img
+                      <MediaImg
                         src={s.image || liveDefault}
+                        preset="media_320"
                         alt=""
                         loading="lazy"
-                        onError={(e) => {
-                          if (!e.currentTarget.src.includes("live-default")) e.currentTarget.src = liveDefault;
-                        }}
+                        decoding="async"
+                        // Out of tries (thumbnail, then the original): the default stands in.
+                        fallback={
+                          <img
+                            src={liveDefault}
+                            alt=""
+                            className="h-14 w-14 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
+                          />
+                        }
                         className="h-14 w-14 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
                       />
                       <div className="min-w-0 flex-1">
@@ -1634,20 +1662,26 @@ export default function SharePage() {
           </>
         )}
 
-        <TrustScoreModal
-          open={scoreModalOpen}
-          onOpenChange={setScoreModalOpen}
-          scores={{ personalized: score01, global: houseScore01 }}
-        />
-        {profile.lud16 && (
-          <ZapModal
-            open={zapOpen}
-            onOpenChange={setZapOpen}
-            recipientPubkey={pubkey}
-            lud16={profile.lud16}
-            displayName={displayName}
-            picture={profile.picture}
+        {/* Its module is the page's own (useScorePov), so there is nothing to
+            split off — but a closed dialog still costs a render each time. */}
+        {scoreModalOpened && (
+          <TrustScoreModal
+            open={scoreModalOpen}
+            onOpenChange={setScoreModalOpen}
+            scores={{ personalized: score01, global: houseScore01 }}
           />
+        )}
+        {profile.lud16 && zapOpened && (
+          <Suspense fallback={null}>
+            <LazyZapModal
+              open={zapOpen}
+              onOpenChange={setZapOpen}
+              recipientPubkey={pubkey}
+              lud16={profile.lud16}
+              displayName={displayName}
+              picture={profile.picture}
+            />
+          </Suspense>
         )}
 
         {/* Owner-only inline personalization (NIP-78). */}
@@ -1655,24 +1689,28 @@ export default function SharePage() {
           <button
             type="button"
             onClick={startCustomize}
+            onPointerEnter={preload(loadCustomizer)}
+            onFocus={preload(loadCustomizer)}
             className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
             data-testid="customize-open"
           >
             <SlidersHorizontal className="h-4 w-4" /> Customize
           </button>
         )}
-        {isOwner && (
-          <ProfileCustomizer
-            open={editing}
-            draft={draft}
-            onChange={updateDraft}
-            onSave={saveCustomize}
-            onCancel={cancelCustomize}
-            saving={savingPrefs}
-            error={prefsError}
-            followerCandidates={followerCandidates}
-            emptyKeys={emptyKeys}
-          />
+        {isOwner && customizerOpened && (
+          <Suspense fallback={null}>
+            <LazyProfileCustomizer
+              open={editing}
+              draft={draft}
+              onChange={updateDraft}
+              onSave={saveCustomize}
+              onCancel={cancelCustomize}
+              saving={savingPrefs}
+              error={prefsError}
+              followerCandidates={followerCandidates}
+              emptyKeys={emptyKeys}
+            />
+          </Suspense>
         )}
       </ShareNavProvider>
     </ShareShell>
@@ -1685,7 +1723,13 @@ function ProfileShareSheet({
   ...props
 }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
   const shareUrl = useShortLink({ ...profileShortLink(props.npub, relays), enabled: props.open });
-  return <ShareProfileModal {...props} shareUrl={shareUrl} />;
+  const opened = useOpenedOnce(props.open);
+  if (!opened) return null;
+  return (
+    <Suspense fallback={null}>
+      <LazyShareProfileModal {...props} shareUrl={shareUrl} />
+    </Suspense>
+  );
 }
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {

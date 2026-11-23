@@ -1,7 +1,12 @@
 #!/bin/sh
 set -e
 
-CONFIG_FILE="/usr/share/nginx/html/config.js"
+# Overridable only so the test (client/src/test/dockerEntrypoint.test.ts) can run
+# this against a scratch copy; the image always uses the defaults.
+UI_HTML_ROOT="${UI_HTML_ROOT:-/usr/share/nginx/html}"
+UI_NGINX_ETC="${UI_NGINX_ETC:-/etc/nginx}"
+
+CONFIG_FILE="$UI_HTML_ROOT/config.js"
 
 if [ -f "$CONFIG_FILE" ]; then
   for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_SEARCH_RELAY_URL VITE_TAG_RELAY_URLS VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN VITE_IMG_PROXY VITE_PUBLIC_ORIGIN VITE_HOUSE_OBSERVER; do
@@ -27,9 +32,46 @@ done
 if [ -n "$PRECONNECT" ]; then
   escaped=$(printf '%s' "$PRECONNECT" | sed -e 's/[\/&|]/\\&/g')
   for page in index 200 404; do
-    file="/usr/share/nginx/html/${page}.html"
+    file="$UI_HTML_ROOT/${page}.html"
     [ -f "$file" ] && sed -i "s|<!--PRECONNECT-->|${escaped}|" "$file"
   done
+fi
+
+# --- Inline config -----------------------------------------------------------
+# <script src="/config.js"> is parser-blocking: every page load paid a round trip
+# for it before anything else in <head> ran (and up to the worker's 4s slow-
+# network wait on a flaky link). So the pages carry config.js's contents inline,
+# between markers index.html keeps for it; config.js itself stays, for the APK
+# (which has no entrypoint and loads it from the tag the markers hold), the
+# service worker's install list, and anything else that reads it.
+#
+# The inline copy IS config.js as substituted above, so the two can't disagree
+# and no value is re-quoted here. Only `<` is rewritten, to `\x3C`: every value
+# sits inside a JS string, where that escape reads back as `<`, and without it a
+# value containing `</script>` or `<!--` would end the script early in HTML.
+#
+# The markers stay around the inline copy, so a container restart replaces it
+# again rather than finding nothing to replace.
+if [ -f "$CONFIG_FILE" ]; then
+  INLINE_CONFIG=$(mktemp)
+  sed -e 's/</\\x3C/g' "$CONFIG_FILE" > "$INLINE_CONFIG"
+  for page in index 200 404; do
+    file="$UI_HTML_ROOT/${page}.html"
+    [ -f "$file" ] && grep -q '<!--CONFIG-START-->' "$file" || continue
+    awk -v config="$INLINE_CONFIG" '
+      /<!--CONFIG-START-->/ {
+        print "<!--CONFIG-START--><script>"
+        while ((getline line < config) > 0) print line
+        close(config)
+        print "</script><!--CONFIG-END-->"
+        skip = 1
+      }
+      skip && /<!--CONFIG-END-->/ { skip = 0; next }
+      !skip { print }
+    ' "$file" > "$file.tmp"
+    mv "$file.tmp" "$file"
+  done
+  rm -f "$INLINE_CONFIG"
 fi
 
 # --- Site trust signals ------------------------------------------------------
@@ -40,7 +82,7 @@ fi
 # robots.txt — fails CLOSED. Only a deployment that explicitly sets
 # ALLOW_INDEXING=true is indexable; everything else disallows crawling, so a
 # staging deployment can never compete with production in search results.
-ROBOTS_FILE="/usr/share/nginx/html/robots.txt"
+ROBOTS_FILE="$UI_HTML_ROOT/robots.txt"
 if [ "${ALLOW_INDEXING}" = "true" ]; then
   printf 'User-agent: *\nAllow: /\n' > "$ROBOTS_FILE"
 else
@@ -63,7 +105,7 @@ fi
 # Each host is validated as a bare hostname. A typo that produced a malformed
 # URI would invalidate the whole document, so a bad entry is dropped with a
 # warning rather than emitted.
-SECURITY_FILE="/usr/share/nginx/html/.well-known/security.txt"
+SECURITY_FILE="$UI_HTML_ROOT/.well-known/security.txt"
 if [ -f "$SECURITY_FILE" ]; then
   # Strip first, then append. A container RESTART re-runs this entrypoint
   # against the same writable layer, so appending unconditionally would add a
@@ -98,7 +140,7 @@ fi
 
 # Trusted proxy hops for /img/'s per-IP rate limit. Always written, empty when
 # unset, because nginx cannot conditionally include a file that may not exist.
-REALIP_FILE="/etc/nginx/img-realip.conf"
+REALIP_FILE="$UI_NGINX_ETC/img-realip.conf"
 : > "$REALIP_FILE"
 if [ -n "${IMG_TRUSTED_CIDR}" ]; then
   for cidr in $(printf '%s' "${IMG_TRUSTED_CIDR}" | tr ',' ' '); do
@@ -111,9 +153,9 @@ if [ -n "${IMG_TRUSTED_CIDR}" ]; then
 fi
 export OG_RESOLVER OG_UPSTREAM IMG_UPSTREAM IMG_REFERER_HOSTS
 
-TEMPLATE="/etc/nginx/templates/default.conf.template"
+TEMPLATE="$UI_NGINX_ETC/templates/default.conf.template"
 if [ -f "$TEMPLATE" ]; then
-  envsubst '${OG_RESOLVER} ${OG_UPSTREAM} ${IMG_UPSTREAM} ${IMG_REFERER_HOSTS}' < "$TEMPLATE" > /etc/nginx/conf.d/default.conf
+  envsubst '${OG_RESOLVER} ${OG_UPSTREAM} ${IMG_UPSTREAM} ${IMG_REFERER_HOSTS}' < "$TEMPLATE" > "$UI_NGINX_ETC/conf.d/default.conf"
 fi
 
 exec "$@"

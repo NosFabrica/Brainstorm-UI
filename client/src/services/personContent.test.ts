@@ -18,8 +18,11 @@ interface ReqFrame {
 
 const reqMock = vi.fn();
 let relayOn = true;
+const releaseMock = vi.fn();
 vi.mock("@/lib/searchRelay", () => ({
-  searchRelay: () => (relayOn ? { req: (...args: unknown[]) => reqMock(...args) } : null),
+  // The shared side socket: asked on, and given back once the question is settled.
+  leaseSideSearchRelay: () =>
+    relayOn ? { relay: { req: (...args: unknown[]) => reqMock(...args) }, release: () => releaseMock() } : null,
 }));
 
 import { __resetPersonContent, fetchPersonContent, peekPersonContent } from "./personContent";
@@ -60,6 +63,7 @@ beforeEach(() => {
   localStorage.clear();
   __resetPersonContent();
   reqMock.mockReset();
+  releaseMock.mockReset();
   relayOn = true;
 });
 afterEach(() => vi.useRealTimers());
@@ -191,5 +195,42 @@ describe("fetchPersonContent — remembered across visits", () => {
     localStorage.setItem("brainstorm_person_content:v1", "{not json");
     __resetPersonContent({ keepStored: true });
     expect(peekPersonContent(STACI)).toBeUndefined();
+  });
+
+  // Every suggested row peeks per render: the whole map was parsed for each of them.
+  it("reads the store once, however many people are peeked, and keeps it in step with what it writes", async () => {
+    const { subject } = controllable();
+    const p = fetchPersonContent(STACI);
+    subject.next(frame(ev(30402)));
+    subject.next(EOSE);
+    await p;
+    __resetPersonContent({ keepStored: true });
+    const parse = vi.spyOn(JSON, "parse");
+    try {
+      for (let i = 0; i < 20; i++) peekPersonContent(String(i).padStart(64, "0"));
+      expect(peekPersonContent(STACI)?.chips.map((c) => c.key)).toEqual(["shop"]);
+      expect(parse).toHaveBeenCalledTimes(1);
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it("another tab's write is read again", () => {
+    expect(peekPersonContent(STACI)).toBeUndefined();
+    const at = Date.now();
+    localStorage.setItem("brainstorm_person_content:v1", JSON.stringify({ [STACI]: { at, chips: [] } }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "brainstorm_person_content:v1" }));
+    expect(peekPersonContent(STACI)).toEqual({ chips: [] });
+  });
+});
+
+describe("fetchPersonContent — the side socket", () => {
+  it("gives the shared side socket back once the question is settled", async () => {
+    const { subject } = controllable();
+    const p = fetchPersonContent(STACI);
+    expect(releaseMock).not.toHaveBeenCalled();
+    subject.next(EOSE);
+    await p;
+    expect(releaseMock).toHaveBeenCalledTimes(1);
   });
 });

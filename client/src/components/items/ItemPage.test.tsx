@@ -55,9 +55,11 @@ beforeEach(() => {
 });
 
 describe("ItemPage", () => {
-  it("draws a concept's own view when the item gives it what it needs", () => {
+  it("draws a concept's own view when the item gives it what it needs", async () => {
     renderWithProviders(<ItemPage event={item} />);
-    expect(screen.getByTestId("tier-three-github")).toBeInTheDocument();
+    // The view is its own chunk: tier two's spot says it's opening until it arrives.
+    expect(screen.getByTestId("item-page-loading")).toBeInTheDocument();
+    expect(await screen.findByTestId("tier-three-github")).toBeInTheDocument();
     expect(screen.queryByTestId("tier-two")).toBeNull();
   });
 

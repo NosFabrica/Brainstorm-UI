@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /** Search never walks the hub's whole tag catalogue — it took half a minute. Tag rows come from the search relay. */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import type { TagSummary } from "@/services/tags";
@@ -59,6 +59,11 @@ vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
 import Landing from "./landing";
+import { LazySearchResults } from "@/components/search/lazySearchResults";
+
+// The results are their own chunk, loaded on the first search. Loaded here first, so no test's
+// waits include a cold import of every vertical (over a second in jsdom).
+beforeAll(() => LazySearchResults.preload());
 
 const renderLanding = () => renderWithProviders(<Landing />).queryClient;
 

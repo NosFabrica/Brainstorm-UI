@@ -29,12 +29,10 @@ const isStale = (queryClient: QueryClient, key: unknown[]) => queryClient.getQue
 describe("invalidatePresetDrivenReads", () => {
   it("invalidates every read whose verified counts the preset drives", () => {
     const keys = [
-      ["/user/overview", PK],
-      ["/user/stats", PK],
-      ["/user/connections", PK, "muted_by", "desc", null, false, true],
-      ["profile-overview", PK, "default"],
-      ["profile-stats", PK, "default"],
-      ["profile-conn", PK, "reported_by", "default", "desc", null, false],
+      ["/user/overview", PK, "viewer"],
+      ["/user/stats", PK, "viewer"],
+      ["/user/connections", PK, "muted_by", "desc", null, false, true, false],
+      ["profile-conn", PK, "reported_by", "desc", null, false],
       // Personalized POV on /p/:id/:type sends the token, so this one moves too.
       ["share-conn", PK, "followed_by", "followers", true, "all", "desc"],
     ];
@@ -45,12 +43,15 @@ describe("invalidatePresetDrivenReads", () => {
     for (const key of keys) expect(isStale(queryClient, key)).toBe(true);
   });
 
-  it("leaves the share page alone — it fetches the house perspective", () => {
-    // These always fetch with `house: true`, so they read the same for every
-    // viewer and never move with the viewer's own preset.
+  it("leaves Brainstorm's perspective alone — the share page's reads among them", () => {
+    // These fetch with `house: true`, so they read the same for every viewer
+    // and never move with the viewer's own preset.
     const shareKeys = [
-      ["share-stats", PK],
-      ["share-followedby", PK],
+      ["/user/overview", PK, "house"],
+      ["/user/stats", PK, "house"],
+      ["/user/top-followers", PK, "house"],
+      ["/user/connections", PK, "followed_by", "desc", null, true, true, true],
+      ["share-conn", PK, "followed_by", "followers", false, "all", "desc"],
     ];
     const queryClient = clientWithFreshQueries(shareKeys);
 
@@ -107,6 +108,8 @@ describe("useSetTrustPreset", () => {
     expect(queryClient.getQueryData(trustPresetQueryKey(PK))).toEqual({
       data: { preset: "RESTRICTIVE" },
     });
+    // …and not asked for again: what we wrote is what the server holds.
+    expect(isStale(queryClient, [...trustPresetQueryKey(PK)])).toBe(false);
   });
 
   it("leaves the reads alone when the save fails", async () => {

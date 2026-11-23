@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { FountainCard } from "@/components/share/FountainCard";
@@ -124,8 +124,11 @@ function youtubeId(u: URL): string | null {
  * og:image would be the same picture twice. `context` is the text already on
  * screen: a title or description it already says is dropped, so a feed bot's
  * headline + link doesn't render the headline twice.
+ *
+ * Memoised: it is drawn many to a feed or a results list, and the list re-renders
+ * as hits and profiles stream in; a card whose props didn't change is skipped.
  */
-export function LinkPreviewCard({
+export const LinkPreviewCard = memo(function LinkPreviewCard({
   url,
   showImage = true,
   context,
@@ -177,7 +180,7 @@ export function LinkPreviewCard({
   // Plain links: a card when the preview service has something to show;
   // otherwise nothing, and the inline chip speaks for the link.
   return <UnfurledCard url={url} host={host} showImage={showImage} context={context} />;
-}
+});
 
 /** Start asking a little before the card is read, so it is usually filled. */
 const PREVIEW_NEAR_VIEWPORT = "400px";

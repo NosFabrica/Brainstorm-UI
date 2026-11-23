@@ -11,6 +11,8 @@ describe("DM cache (IndexedDB)", () => {
     ]);
     await db.putState({ owner: "me", lastSeen: 99, cursors: { floor: 50, relays: { "wss://r/": { reached: 40 } } } });
     expect((await db.wraps("me")).map((r) => r.wrapId)).toEqual(["w1"]);
+    // Which wraps are held, without reading a single row.
+    expect(await db.wrapKeys!("me")).toEqual([wrapKey("me", "w1")]);
     expect(await db.state("me")).toMatchObject({ lastSeen: 99 });
     await db.deleteWraps([wrapKey("me", "w1")]);
     expect(await db.wraps("me")).toEqual([]);

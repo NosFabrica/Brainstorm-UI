@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
-import { dmEngine, subscribeDmEngine } from "@/services/dm";
+import { dmEngine, subscribeDmEngine } from "@/services/dm/current";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
 import { readDmPrefs, subscribeDmPrefs, type DmPrefs } from "@/lib/dm/prefs";

@@ -16,7 +16,29 @@ export interface HeroScene {
    * the <img> in both modes.
    */
   filter?: string;
+  /**
+   * Each variant at more than one width (`srcset` syntax), so a screen that
+   * draws the photo small isn't sent the widest copy. Optional: a scene without
+   * it serves `light`/`dark` alone.
+   */
+  srcSet?: { light: string; dark: string };
 }
+
+/**
+ * The house photograph — the original homepage hero, which the homepage, the
+ * login panel and onboarding all show. Served as WebP at 1920w and 1280w: the
+ * 2880w JPEG it was cut from weighed 2.6 MB, and every surface draws it under
+ * a heavy scrim, where the extra width was never visible.
+ */
+export const HERO_PHOTO = "/brand/hero-1920.webp";
+export const HERO_PHOTO_SRCSET = "/brand/hero-1280.webp 1280w, /brand/hero-1920.webp 1920w";
+
+const HERO_PHOTO_SCENE: HeroScene = {
+  light: HERO_PHOTO,
+  dark: HERO_PHOTO,
+  srcSet: { light: HERO_PHOTO_SRCSET, dark: HERO_PHOTO_SRCSET },
+  objectPosition: "center",
+};
 
 /**
  * Human-Signal hero photography (designer drop), one light + one dark variant
@@ -64,20 +86,17 @@ export const HERO_SCENES: HeroScene[] = [
 
 /**
  * The homepage rotation: the new scenes plus the ORIGINAL homepage photograph
- * (`/brand/hero.jpg`), retained for continuity. That image predates the
+ * (`HERO_PHOTO`), retained for continuity. That image predates the
  * light/dark pairs and has no separate dark variant, so it serves in both modes
  * exactly as it did before. Homepage only — the login panel keeps HERO_SCENES
  * (the purpose-built dark/lit scenes), so a bright daytime photo never lands on
  * that dark editorial panel.
  */
-export const HOME_HERO_SCENES: HeroScene[] = [
-  ...HERO_SCENES,
-  { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
-];
+export const HOME_HERO_SCENES: HeroScene[] = [...HERO_SCENES, HERO_PHOTO_SCENE];
 
 /**
  * The homepage runs a SINGLE static hero (guidelines pp.18–19 show one static
- * photo; Apple/Google-tier = restraint + total cohesion). `hero.jpg` is the
+ * photo; Apple/Google-tier = restraint + total cohesion). `HERO_PHOTO` is the
  * strongest of the set and the only one whose Nodes motif is done per spec —
  * subtle, edge-anchored, off the faces. Same file both modes; the shaped scrim
  * adapts it (near-white/airy in light, prominent on Ink in dark). Kept as an
@@ -85,9 +104,9 @@ export const HOME_HERO_SCENES: HeroScene[] = [
  * (`scenes.length <= 1` disables the interval). `HERO_SCENES`/`HOME_HERO_SCENES`
  * stay available for a future curated rotation once clean plates land.
  */
-export const HERO_SOLO: HeroScene[] = [{ light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" }];
+export const HERO_SOLO: HeroScene[] = [HERO_PHOTO_SCENE];
 
-// The login panel now uses HERO_SOLO (single static hero.jpg) too: its Nodes are
+// The login panel now uses HERO_SOLO (the single static HERO_PHOTO) too: its Nodes are
 // baked in and edge-anchored, and the narrow login crop discards those side
 // edges — so login reads effectively node-free without clean plates. The other
 // photos have Nodes across the whole frame that no crop can hide.

@@ -8,7 +8,7 @@
  * /setup is the right source here even though trustSource.ts avoids it for
  * READING scores: this is about what to PUBLISH, which is what /setup describes.
  */
-import { apiClient } from "./api";
+import { setupRowsOptions } from "@/services/queries/userReads";
 import { fetchTrustProviderList, getNip85RelayUrl } from "./nostr";
 import { requestAll } from "@/lib/relayRequest";
 import {
@@ -40,7 +40,13 @@ export interface UserLists {
 /** /setup's "30392" row, else the user's own assistant on the NIP-85 relay (the server's own fallback). */
 export async function designationFor(pubkey: string, taPubkey: string): Promise<ListDesignation | null> {
   try {
-    const row = (await apiClient.getSetupRows(pubkey)).find((r) => r[0] === "30392");
+    // The /setup entry the Assistants page reads too (services/queries/userReads),
+    // but asked afresh: what this returns is published in the 10040, and a copy
+    // fetched before activation made the lists would lack their "30392" row.
+    // The fresh answer refills the shared entry for everyone else.
+    const row = (await queryClient.fetchQuery({ ...setupRowsOptions(pubkey), staleTime: 0 })).find(
+      (r) => r[0] === "30392",
+    );
     if (row?.[1] && row?.[2]) return { key: row[1], relay: row[2] };
   } catch {
     // An older server, or a blip: fall back below.
