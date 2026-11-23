@@ -17,17 +17,26 @@ describe("what the worker does with a request", () => {
   it("leaves what nginx answers itself to nginx, page load or not", () => {
     for (const path of [
       "/og/p/abc.png",
-      "/img/abc",
       "/link-preview?url=x",
       "/.well-known/nostr.json",
       "/bot",
       "/robots.txt",
       "/built-on/v1.css",
       "/built-on/",
+      "/github/users/octocat",
+      "/openlibrary/isbn/9780140328721.json",
     ]) {
       expect(strategyFor(at(path), page, ORIGIN)).toBeNull();
       expect(strategyFor(at(path), fetch, ORIGIN)).toBeNull();
     }
+  });
+
+  it("keeps a thumbnail an image asks for, and leaves one opened as a page to nginx", () => {
+    // Kept only once the installed app has run here; the worker decides that, not this.
+    expect(strategyFor(at("/img/rs:fill:96/plain/https://x/a.png"), { method: "GET", mode: "no-cors" }, ORIGIN)).toBe(
+      "thumbnail",
+    );
+    expect(strategyFor(at("/img/rs:fill:96/plain/https://x/a.png"), page, ORIGIN)).toBeNull();
   });
 
   it("keeps hashed assets for good, but not video (range requests)", () => {

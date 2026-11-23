@@ -15,9 +15,12 @@
  *   - a hashed asset: the cache, else the network (the name changes with the content);
  *   - config.js and the manifest: the network, else the last copy — on the same
  *     clock as a page load, since the page waits on config.js before it runs;
- *   - icons and brand art: the last copy at once, refreshed behind it;
- *   - anything else — the API, relays, link previews, thumbnails, share cards,
- *     video — passes through untouched.
+ *   - icons and brand art: the last copy at once, refreshed behind it, and
+ *     carried over to the next build's cache rather than fetched again;
+ *   - thumbnails (/img/), on a device that runs the installed app: the cache,
+ *     else the network, in a store of their own capped at THUMBNAIL_LIMIT;
+ *   - anything else — the API, relays, link previews, share cards, video —
+ *     passes through untouched.
  *
  * It never activates itself over a running page: an update waits for the page to
  * ask (lib/serviceWorker), so a page is never served assets from a build it
@@ -33,13 +36,47 @@ declare const __SW_ENTRY__: string;
 /** The main screens' chunks, cached only when the page asks — an installed app does. */
 declare const __SW_ROUTES__: string[];
 
-export type Strategy = "shell" | "cache-first" | "network-first" | "stale-while-revalidate";
+export type Strategy = "shell" | "cache-first" | "network-first" | "stale-while-revalidate" | "thumbnail";
 
 /** Paths nginx answers itself (crawler cards, proxies, files with no SPA behind them). */
-const PASSTHROUGH = ["/og/", "/img/", "/link-preview", "/.well-known/", "/bot", "/robots.txt", "/built-on/"];
+const PASSTHROUGH = [
+  "/og/",
+  "/link-preview",
+  "/.well-known/",
+  "/bot",
+  "/robots.txt",
+  "/built-on/",
+  "/github/",
+  "/openlibrary/",
+];
 
 /** Hashed asset types worth keeping; video is left to the network (range requests). */
 const CACHEABLE_ASSET = /\.(?:js|css|woff2?|webp|png|jpe?g|gif|svg|avif)$/i;
+
+/**
+ * A hashed image bigger than this is served but not kept: the cache is for
+ * opening the app offline, and one oversized photo shouldn't cost a phone's
+ * storage what a hundred screens' chunks do.
+ */
+export const LARGEST_KEPT_IMAGE = 1_500_000;
+const IMAGE = /\.(?:webp|png|jpe?g|gif|avif)$/i;
+
+/**
+ * Unhashed art a page shows (/brand/, /icons/): kept in this build's cache like
+ * the rest, and copied into the next build's when it activates, so a deploy
+ * doesn't send every icon and photo down again. A file that did change is
+ * refreshed behind the copy by stale-while-revalidate the first time it's shown.
+ */
+const CARRIED_OVER = ["/brand/", "/icons/"];
+
+/**
+ * Thumbnails kept, at most: about a screenful of results pages. Oldest first out.
+ * Kept a week at most too: a thumbnail's URL names its source image, and a source
+ * that changes in place (an avatar at a fixed URL) shouldn't show its old self
+ * for good.
+ */
+export const THUMBNAIL_LIMIT = 500;
+export const THUMBNAIL_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * How long a page load or config.js waits on the network before this device's
@@ -52,6 +89,8 @@ export function strategyFor(url: URL, request: { method: string; mode: string },
   if (request.method !== "GET" || url.origin !== origin) return null;
   const path = url.pathname;
   if (PASSTHROUGH.some((prefix) => path === prefix || path.startsWith(prefix))) return null;
+  // A thumbnail an <img> asks for. Opened as a page, it is nginx's to answer.
+  if (path.startsWith("/img/")) return request.mode === "navigate" ? null : "thumbnail";
   if (request.mode === "navigate") return "shell";
   if (path.startsWith("/assets/")) return CACHEABLE_ASSET.test(path) ? "cache-first" : null;
   if (path === "/config.js" || path === "/site.webmanifest") return "network-first";
@@ -123,6 +162,23 @@ interface WorkerScope {
 
 function startWorker(scope: WorkerScope): void {
   const CACHE = `brainstorm-${__SW_BUILD_ID__}`;
+  /** Not per build: a thumbnail doesn't change with the app. */
+  const THUMBNAILS = "brainstorm-thumbnails";
+  /**
+   * Kept in THUMBNAILS (no /img/ URL is ever this) once a page has said it is the
+   * installed app. The worker can't tell a browser tab from the installed app;
+   * the page can, and says so with WARM_ROUTES (lib/serviceWorker). Remembered,
+   * because a worker is stopped when idle and starts again knowing nothing.
+   */
+  const INSTALLED_MARK = "/img/.installed-app";
+  let keepThumbnails = false;
+  void caches
+    .open(THUMBNAILS)
+    .then((cache) => cache.match(INSTALLED_MARK))
+    .then((mark) => {
+      if (mark) keepThumbnails = true;
+    })
+    .catch(() => {});
   const asPath = (file: string) => `/${file}`;
 
   const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -204,13 +260,37 @@ function startWorker(scope: WorkerScope): void {
     );
   });
 
+  /**
+   * Copy the previous builds' /brand/ and /icons/ files into this build's cache,
+   * those it hasn't already fetched (the install's own fresh copies win). Best
+   * effort: a copy that fails is fetched again when a page next shows it.
+   */
+  async function carryOver(previous: string[]): Promise<void> {
+    try {
+      const cache = await caches.open(CACHE);
+      for (const name of previous) {
+        const old = await caches.open(name);
+        for (const request of await old.keys()) {
+          if (!CARRIED_OVER.some((prefix) => new URL(request.url).pathname.startsWith(prefix))) continue;
+          if (await cache.match(request, { ignoreVary: true })) continue;
+          const response = await old.match(request, { ignoreVary: true });
+          if (response) await cache.put(request, response);
+        }
+      }
+    } catch {
+      /* storage full or gone: the art comes from the network instead */
+    }
+  }
+
   scope.addEventListener("activate", (event: ExtendableEvent) => {
     event.waitUntil(
       (async () => {
         const names = await caches.keys();
-        await Promise.all(
-          names.filter((name) => name.startsWith("brainstorm-") && name !== CACHE).map((name) => caches.delete(name)),
+        const previous = names.filter(
+          (name) => name.startsWith("brainstorm-") && name !== CACHE && name !== THUMBNAILS,
         );
+        await carryOver(previous);
+        await Promise.all(previous.map((name) => caches.delete(name)));
         // The page load starts its fetch while the worker boots, instead of after.
         await scope.registration.navigationPreload?.enable().catch(() => {});
         await scope.clients.claim();
@@ -252,12 +332,63 @@ function startWorker(scope: WorkerScope): void {
    */
   const held = (request: Request) => caches.match(request, { ignoreVary: true });
 
+  /** A hashed image too big to be worth a place in the cache (LARGEST_KEPT_IMAGE). */
+  const oversized = (request: Request, response: Response) =>
+    IMAGE.test(new URL(request.url).pathname) &&
+    Number(response.headers.get("content-length") ?? 0) > LARGEST_KEPT_IMAGE;
+
   async function cacheFirst(event: FetchEvent): Promise<Response> {
     const cached = await held(event.request);
     if (cached) return cached;
     const response = await fetch(event.request);
-    if (keepableAsset(response)) event.waitUntil(remember(event.request, response.clone()));
+    if (keepableAsset(response) && !oversized(event.request, response))
+      event.waitUntil(remember(event.request, response.clone()));
     return response;
+  }
+
+  /** Thumbnails put in this worker's life; the store is trimmed on the first and every 20th. */
+  let thumbnailsPut = 0;
+
+  /** Down to THUMBNAIL_LIMIT, oldest first: a cache lists its keys in the order they were put. */
+  async function trimThumbnails(cache: Cache): Promise<void> {
+    const keys = (await cache.keys()).filter((request) => new URL(request.url).pathname !== INSTALLED_MARK);
+    await Promise.all(
+      keys.slice(0, Math.max(0, keys.length - THUMBNAIL_LIMIT)).map((request) => cache.delete(request)),
+    );
+  }
+
+  /** Kept less than THUMBNAIL_MAX_AGE_MS ago, by the date the server stamped on it. */
+  const recent = (response: Response) => {
+    const date = Date.parse(response.headers.get("date") ?? "");
+    return Number.isFinite(date) && Date.now() - date < THUMBNAIL_MAX_AGE_MS;
+  };
+
+  /**
+   * A thumbnail: the kept copy while it's recent, else the network, kept for next
+   * time. Only a whole same-origin image is kept: when imgproxy is down nginx
+   * redirects to the original elsewhere (opaque here), and that is left alone.
+   * An old copy still beats a broken image when the network fails.
+   */
+  async function thumbnail(event: FetchEvent): Promise<Response> {
+    const cache = await caches.open(THUMBNAILS);
+    const cached = await cache.match(event.request, { ignoreVary: true });
+    if (cached && recent(cached)) return cached;
+    try {
+      const response = await fetch(event.request);
+      if (keepableAsset(response)) {
+        const count = ++thumbnailsPut;
+        event.waitUntil(
+          cache
+            .put(event.request, response.clone())
+            .then(() => (count === 1 || count % 20 === 0 ? trimThumbnails(cache) : undefined))
+            .catch(() => {}),
+        );
+      }
+      return response;
+    } catch (error) {
+      if (cached) return cached;
+      throw error;
+    }
   }
 
   async function networkFirst(event: FetchEvent): Promise<Response> {
@@ -289,10 +420,13 @@ function startWorker(scope: WorkerScope): void {
     "cache-first": cacheFirst,
     "network-first": networkFirst,
     "stale-while-revalidate": staleWhileRevalidate,
+    thumbnail,
   };
 
   scope.addEventListener("fetch", (event: FetchEvent) => {
     const strategy = strategyFor(new URL(event.request.url), event.request, scope.location.origin);
+    // Thumbnails only for the installed app; a browser tab has the HTTP cache.
+    if (strategy === "thumbnail" && !keepThumbnails) return;
     if (strategy) event.respondWith(handlers[strategy](event));
   });
 
@@ -306,6 +440,16 @@ function startWorker(scope: WorkerScope): void {
         event.ports[0]?.postMessage(__SW_BUILD_ID__);
         break;
       case "WARM_ROUTES":
+        // Only the installed app asks this (lib/serviceWorker): this device runs it.
+        if (!keepThumbnails) {
+          keepThumbnails = true;
+          event.waitUntil(
+            caches
+              .open(THUMBNAILS)
+              .then((cache) => cache.put(INSTALLED_MARK, new Response("")))
+              .catch(() => {}),
+          );
+        }
         event.waitUntil(fill(__SW_ROUTES__.map(asPath)));
         break;
     }
