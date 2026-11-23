@@ -212,6 +212,35 @@ describe("the search relay's health", () => {
     };
   }
 
+  // The HTTP cache refills on the API's return, not the relay's: a phone's
+  // resume reconnects the socket, and none of the HTTP reads went through it.
+  it("tells the app which server came back, and since when it was in doubt", async () => {
+    const recovered = vi.fn();
+    onRecover(recovered);
+    const relay = fakeRelay();
+    const stop = watchRelay(relay);
+    relay.error$.next(new Error("Connection error"));
+    relay.ready$.next(false);
+    const downAt = Date.now();
+    relay.ready$.next(true);
+    relay.connected$.next(true);
+    expect(recovered).toHaveBeenLastCalledWith({ scope: "search", since: downAt });
+    stop();
+
+    const fetchMock = vi.fn(async (): Promise<Response> => {
+      throw new TypeError("Failed to fetch");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    reportApiFailure("/user/aaa/overview");
+    reportApiFailure("/user/aaa/stats");
+    await vi.advanceTimersByTimeAsync(0);
+    const judgedAt = Date.now();
+    fetchMock.mockImplementation(async () => new Response("{}", { status: 200 }));
+    await vi.advanceTimersByTimeAsync(10_000);
+    // The failures that earned the verdict came up to a window before it.
+    expect(recovered).toHaveBeenLastCalledWith({ scope: "api", since: judgedAt - 30_000 });
+  });
+
   it("a failed connect in backoff is down; the socket opening again is ok and counts as a recovery; an idle clean close is nothing", () => {
     const relay = fakeRelay();
     const stop = watchRelay(relay);
