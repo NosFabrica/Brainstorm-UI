@@ -37,6 +37,8 @@ import {
   identity,
   isObservable,
   map,
+  NEVER,
+  concat,
   of,
   race,
   repeat,
@@ -119,6 +121,32 @@ export function withSearchToken(filters: ReqFilters): ReqFilters {
 }
 
 /**
+ * purplepag.es indexes profiles and lists, nothing else: asked on 2026-11-23,
+ * it answered kinds 0, 3, 10000, 10002, 10040 and 10050, and nothing for 1, 6,
+ * 7, 20, 30000, 30002, 30023, 30078, 30311, 30402 or 39999; a filter with no
+ * kinds (an id lookup) it refuses outright. It is one of `PROFILE_RELAYS`, so
+ * every read that merges those in — an author's notes, live streams, profile
+ * prefs, an event by id — asked it questions it never answers: about one REQ
+ * in ten on a profile page.
+ */
+const PROFILE_INDEX = normalizeURL("wss://purplepag.es/");
+
+/** Whether purplepag.es can answer the filter: kinds only, and each a profile, a contact list or a replaceable list. */
+export function profileIndexAnswers(filter: OneFilter): boolean {
+  const kinds = (filter as { kinds?: number[] }).kinds;
+  return !!kinds?.length && kinds.every((k) => k === 0 || k === 3 || (k >= 10_000 && k < 20_000));
+}
+
+/** The filters purplepag.es can answer; null when none (a live list of filters is passed as it is). */
+function forProfileIndex(filters: ReqFilters): ReqFilters | null {
+  if (isObservable(filters)) return filters;
+  const all = Array.isArray(filters) ? (filters as OneFilter[]) : [filters as OneFilter];
+  const kept = all.filter(profileIndexAnswers);
+  if (!kept.length) return null;
+  return (kept.length === all.length ? filters : kept) as ReqFilters;
+}
+
+/**
  * An `auth-required:` refusal, wherever the relay put the prefix. NIP-01 puts it
  * first; strfry sends `ERROR: auth-required: requested filter requires
  * authentication` (relay.mwaters.net, 2026-11-08), and the library — which reads
@@ -150,6 +178,17 @@ class ReadFirstRelay extends Relay {
    * by [liveReq]'s rules rather than the library's.
    */
   req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+    if (normalizeURL(this.url) === PROFILE_INDEX) {
+      const answerable = forProfileIndex(filters);
+      // Nothing it can answer: done at once, as an EOSE, so a read waiting on
+      // every relay asked (everyAskedRelayDone) doesn't wait on this one — and
+      // a live one stays open, silent, as the relay itself would.
+      if (!answerable) {
+        const done = of({ type: "EOSE", from: this.url, id: "profile-index-skip" } as const);
+        return (opts?.waitForAuth ? concat(done, NEVER) : done) as ReqMessages;
+      }
+      filters = answerable;
+    }
     const asked = this.url === SEARCH_RELAY ? withSearchToken(filters) : filters;
     if (opts?.waitForAuth) return this.liveReq(asked, opts);
     return super.req(asked, { ...opts, waitForAuth: false }).pipe(

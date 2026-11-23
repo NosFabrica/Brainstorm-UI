@@ -14,7 +14,15 @@ import { BehaviorSubject, combineLatest, filter, firstValueFrom, from, take, toA
 import type { NostrEvent } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { createPool, keepRelayAlive, relayWake$, wakeableBackoff, wakeRelays, warmRelay } from "./relayPool";
+import {
+  createPool,
+  keepRelayAlive,
+  profileIndexAnswers,
+  relayWake$,
+  wakeableBackoff,
+  wakeRelays,
+  warmRelay,
+} from "./relayPool";
 import { PROFILE_RELAYS, SEARCH_RELAY } from "./relays";
 
 /**
@@ -220,6 +228,58 @@ describe("the app's relay pool", () => {
     await Promise.all([read(pool), read(pool, [OPEN, DEAD]), read(pool, [OPEN, SLOW])]);
     expect(Date.now() - started).toBeGreaterThan(4500);
   }, 9000);
+});
+
+describe("purplepag.es, the profile index", () => {
+  const PURPLE = "wss://purplepag.es";
+  /** The filters each REQ that reached it carried. */
+  const received: unknown[][] = [];
+  scripts.set(PURPLE, (id, send) => send(["EOSE", id]));
+  class RecordingSocket extends FakeSocket {
+    send(data: string) {
+      const frame = JSON.parse(data) as unknown[];
+      if (frame[0] === "REQ" && this.url.startsWith(PURPLE)) received.push(frame.slice(2));
+      super.send(data);
+    }
+  }
+
+  it("is asked only what it serves: profiles, contact lists and replaceable lists, by kind", () => {
+    expect(profileIndexAnswers({ kinds: [0] })).toBe(true);
+    expect(profileIndexAnswers({ kinds: [3, 10002, 10040, 10050] })).toBe(true);
+    expect(profileIndexAnswers({ kinds: [0, 1] })).toBe(false);
+    expect(profileIndexAnswers({ kinds: [30078] })).toBe(false);
+    expect(profileIndexAnswers({ ids: ["1".repeat(64)] })).toBe(false);
+  });
+
+  it("gets no REQ for a read it can't answer, and the read doesn't wait on it", async () => {
+    received.length = 0;
+    const pool = createPool({ WebSocket: RecordingSocket as unknown as typeof WebSocket });
+    const started = Date.now();
+    const events = await firstValueFrom(
+      pool.request([OPEN, PURPLE], { kinds: [1], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()),
+    );
+    expect(events.map((e) => e.id)).toEqual([EVENT.id]);
+    expect(received).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(1000);
+  }, 4000);
+
+  it("gets only the filters it can answer from a mixed read", async () => {
+    received.length = 0;
+    const pool = createPool({ WebSocket: RecordingSocket as unknown as typeof WebSocket });
+    await firstValueFrom(
+      pool
+        .request(
+          [PURPLE],
+          [
+            { kinds: [0], authors: ["a".repeat(64)] },
+            { kinds: [30078], authors: ["a".repeat(64)] },
+          ],
+          { eventStore: null },
+        )
+        .pipe(toArray()),
+    );
+    expect(received).toEqual([[{ kinds: [0], authors: ["a".repeat(64)] }]]);
+  }, 4000);
 });
 
 describe("how long an idle socket stays open", () => {
