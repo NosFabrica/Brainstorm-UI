@@ -60,9 +60,46 @@ function serviceWorkerPlugin(): Plugin {
   };
 }
 
+/**
+ * The face nearly every word on first paint is set in: Figtree's Latin subset.
+ * The CSS names it, so without a hint its download only starts once the
+ * stylesheet has arrived and been parsed; preloaded, it overlaps the stylesheet.
+ */
+const PRELOAD_FONT = /^assets\/figtree-latin-wght-normal-[^/]*\.woff2$/;
+
+/**
+ * `<link rel="preload" as="font">` for PRELOAD_FONT, with the hashed name this
+ * build gave it. Build only: the dev server serves fonts unhashed from
+ * node_modules. `crossorigin` is required even same-origin, or the browser
+ * fetches the font a second time for the @font-face that uses it.
+ */
+function fontPreloadPlugin(): Plugin {
+  return {
+    name: "font-preload",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler(_html, ctx) {
+        const font = Object.keys(ctx.bundle ?? {}).find((name) => PRELOAD_FONT.test(name));
+        if (!font) {
+          console.warn("font-preload: no figtree-latin-wght-normal woff2 in the bundle; nothing preloaded");
+          return [];
+        }
+        return [
+          {
+            tag: "link",
+            attrs: { rel: "preload", as: "font", type: "font/woff2", crossorigin: true, href: `/${font}` },
+            injectTo: "head",
+          },
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), spaFallbackPlugin(), serviceWorkerPlugin()],
+  plugins: [react(), fontPreloadPlugin(), spaFallbackPlugin(), serviceWorkerPlugin()],
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
