@@ -20,7 +20,7 @@ vi.mock("@/lib/loaders", () => ({ loadReplaceable: () => loadReplaceableMock() }
 vi.mock("@/lib/eventCache", () => ({ whenHydrated: () => Promise.resolve() }));
 vi.mock("@/lib/relays", () => ({ PROFILE_RELAYS: ["wss://d/"], CONTENT_RELAYS: ["wss://d/"] }));
 
-import { warmRelayLists, resetRelayRoutingCache } from "./relayRouting";
+import { warmRelayLists, resetRelayRoutingCache, setRelayListWarmGate } from "./relayRouting";
 
 const pk = (i: number) => i.toString(16).padStart(64, "0");
 const relayList = (pubkey: string): NostrEvent =>
@@ -93,5 +93,19 @@ describe("warming the people on screen", () => {
 
     expect(() => warmRelayLists([pk(1)])).not.toThrow();
     await settle();
+  });
+});
+
+describe("signed out", () => {
+  /** Routing is for publishing; an anonymous visitor publishes nothing. */
+  it("warms nobody while nobody who can sign is signed in", async () => {
+    setRelayListWarmGate(() => false);
+    try {
+      warmRelayLists([pk(1)]);
+      await settle();
+      expect(loadReplaceableMock).not.toHaveBeenCalled();
+    } finally {
+      setRelayListWarmGate(() => true);
+    }
   });
 });

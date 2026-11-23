@@ -17,15 +17,26 @@ vi.mock("@/lib/searchRelay", () => ({
     },
   }),
 }));
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e } }));
+/** What the memory store holds, by pubkey. */
+const inStore = new Map<string, NostrEvent>();
+vi.mock("@/lib/eventStore", () => ({
+  eventStore: { add: (e: unknown) => e, getReplaceable: (_kind: number, pk: string) => inStore.get(pk) },
+}));
 const loadReplaceableMock = vi.fn(async (..._args: unknown[]) => undefined);
 vi.mock("@/lib/loaders", () => ({ loadReplaceable: (...args: unknown[]) => loadReplaceableMock(...args) }));
 const held = new Map<string, { event: NostrEvent; at: number }>();
+const readsMock = vi.fn();
+/** When the device learned the store's copies that came off it, by event id. */
+const learned = new Map<string, number>();
 vi.mock("@/lib/eventCache", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/eventCache")>();
   return {
     ...actual,
-    readProfileRows: (pubkeys: string[]) => Promise.resolve(new Map([...held].filter(([pk]) => pubkeys.includes(pk)))),
+    readProfileRows: (pubkeys: string[]) => {
+      readsMock(pubkeys);
+      return Promise.resolve(new Map([...held].filter(([pk]) => pubkeys.includes(pk))));
+    },
+    deviceLearnedAt: (event: NostrEvent) => learned.get(event.id),
   };
 });
 
@@ -43,7 +54,10 @@ beforeEach(() => {
   vi.useFakeTimers();
   reqMock.mockClear();
   loadReplaceableMock.mockClear();
+  readsMock.mockClear();
   held.clear();
+  inStore.clear();
+  learned.clear();
   __resetAuthorProfileQueue();
 });
 afterEach(() => vi.useRealTimers());
@@ -111,5 +125,45 @@ describe("the author queue and the device's own copy", () => {
     await settle();
     expect(got).toHaveLength(1); // still shown
     expect(reqMock).not.toHaveBeenCalled(); // not asked twice
+  });
+});
+
+describe("the author queue and the store", () => {
+  it("answers someone the store holds at once, without reading the device or asking a relay", async () => {
+    const pk = "1".repeat(64);
+    inStore.set(pk, profile(pk));
+    const got: NostrEvent[] = [];
+    wantProfile(pk, (p) => got.push(p));
+    expect(got).toHaveLength(1); // no flush to wait for
+    await settle();
+    expect(readsMock).not.toHaveBeenCalled();
+    expect(reqMock).not.toHaveBeenCalled();
+  });
+
+  it("still asks after an old device copy the store holds", async () => {
+    const pk = "2".repeat(64);
+    const copy = profile(pk);
+    inStore.set(pk, copy);
+    learned.set(copy.id, Date.now() - PROFILE_FRESH_MS - 1);
+    const got: NostrEvent[] = [];
+    wantProfile(pk, (p) => got.push(p));
+    expect(got).toHaveLength(1);
+    await settle();
+    expect(readsMock).not.toHaveBeenCalled();
+    expect(reqMock).toHaveBeenCalledTimes(1);
+    expect((reqMock.mock.calls[0][0] as { authors: string[] }).authors).toEqual([pk]);
+  });
+
+  it("reads the device only for the queued people the store did not get meanwhile", async () => {
+    const a = "3".repeat(64);
+    const b = "4".repeat(64);
+    const got: string[] = [];
+    wantProfile(a, (p) => p && got.push(p.pubkey));
+    wantProfile(b, () => {});
+    inStore.set(a, profile(a)); // a search's device peek, before the queue flushes
+    await settle();
+    expect(got).toEqual([a]);
+    expect(readsMock).toHaveBeenCalledWith([b]);
+    expect((reqMock.mock.calls[0][0] as { authors: string[] }).authors).toEqual([b]);
   });
 });

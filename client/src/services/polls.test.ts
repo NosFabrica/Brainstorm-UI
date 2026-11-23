@@ -66,6 +66,7 @@ vi.mock("@/accounts/signing", () => ({
   signingFailure: (e: unknown) => ({ success: false, error: String(e) }),
 }));
 vi.mock("@/lib/relayRouting", () => ({
+  setRelayListWarmGate: () => {},
   relayHintFor: () => undefined,
   tagWithHint: (name: string, value: string) => [name, value],
 }));

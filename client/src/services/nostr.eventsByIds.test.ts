@@ -3,7 +3,7 @@
  * fetchEventsByIds, upgraded for the search era: the event store answers
  * first (search hits are stored on arrival), the content relays fill the
  * gaps, and the search relay — whose corpus is WIDER than the content
- * relays' — is the last resort for ids they never had. That last hop is
+ * relays' — answers for ids they never had, asked beside them. That hop is
  * what fixes "found it in search, couldn't open it".
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,6 +40,7 @@ vi.mock("@/lib/searchRelay", () => ({
 }));
 
 import { fetchEventsByIds } from "./nostr";
+import { PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 
 function ev(id: string): NostrEvent {
   return { id, kind: 1, pubkey: "a".repeat(64), tags: [], content: "x", created_at: 1, sig: "s" } as NostrEvent;
@@ -76,10 +77,35 @@ describe("fetchEventsByIds", () => {
     expect(events.map((e) => e.id)).toEqual([ID_B]);
   });
 
-  it("skips the fallback when the content relays deliver", async () => {
+  // The default set includes the search relay. It used to be asked through the
+  // pool AND then again on its own once the others came back empty: the same
+  // question to the same socket, in series.
+  it("asks the search relay once, beside the content relays — never again after them", async () => {
+    requestAllMock.mockResolvedValueOnce([]);
+    const pending = fetchEventsByIds([ID_B]);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
+    const asked = (requestAllMock.mock.calls[0] as unknown[])[0] as string[];
+    expect(asked).not.toContain(SEARCH_RELAY);
+    expect(asked).toEqual(PROFILE_RELAYS.filter((r) => r !== SEARCH_RELAY));
+    searchRelaySubject!.next({ type: "EOSE" });
+    expect(await pending).toEqual([]);
+    expect(searchReqMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops waiting on the search relay once the content relays deliver", async () => {
     requestAllMock.mockResolvedValueOnce([ev(ID_B)]);
+    // The search relay never answers: the call must not wait out its deadline.
     const events = await fetchEventsByIds([ID_B]);
     expect(events.map((e) => e.id)).toEqual([ID_B]);
-    expect(searchReqMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the search relay as the last resort for relays named without it", async () => {
+    requestAllMock.mockResolvedValueOnce([]);
+    const pending = fetchEventsByIds([ID_B], ["wss://named.example/"]);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
+    expect((requestAllMock.mock.calls[0] as unknown[])[0]).toEqual(["wss://named.example/"]);
+    searchRelaySubject!.next({ type: "EVENT", event: ev(ID_B) });
+    searchRelaySubject!.next({ type: "EOSE" });
+    expect((await pending).map((e) => e.id)).toEqual([ID_B]);
   });
 });
