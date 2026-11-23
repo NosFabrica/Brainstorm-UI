@@ -30,14 +30,21 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
   const pubkey = useActiveAccountDisplay()?.pubkey;
   const mywot = useHasMywot();
   const enabled = !!pubkey && !!mywot.taPubkey;
+  // The answers counted for the backoff start again from a changed 10040: the relay projects
+  // the new list from scratch, so its first "no" stands a minute again, not fifteen.
+  const answersBefore = useRef(0);
+  // Another account or assistant is another query, counting from zero.
+  useEffect(() => {
+    answersBefore.current = 0;
+  }, [pubkey, mywot.taPubkey]);
   const query = useQuery({
     // taPubkey: gaining an assistant must refetch, since without one the query is disabled.
     queryKey: ["search-observer", pubkey, mywot.taPubkey],
     // eslint-disable-next-line no-restricted-syntax -- relay probe
     queryFn: () => isSearchObserverOnRelay(pubkey!),
     enabled,
-    staleTime: (q) => (q.state.data === true ? Infinity : notYetMs(q.state.dataUpdateCount)),
-    refetchInterval: (q) => (q.state.data === true ? false : notYetMs(q.state.dataUpdateCount)),
+    staleTime: (q) => (q.state.data === true ? Infinity : notYetMs(q.state.dataUpdateCount - answersBefore.current)),
+    refetchInterval: (q) => (q.state.data === true ? false : notYetMs(q.state.dataUpdateCount - answersBefore.current)),
   });
 
   // Only a change from a known list: a first list arriving is covered by the "no" polling.
@@ -45,10 +52,13 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
   const listId = useTrustProviderList(enabled ? pubkey : null).event?.id;
   const lastListId = useRef(listId);
   useEffect(() => {
-    if (lastListId.current && lastListId.current !== listId)
+    if (lastListId.current && lastListId.current !== listId) {
+      answersBefore.current =
+        queryClient.getQueryState(["search-observer", pubkey, mywot.taPubkey])?.dataUpdateCount ?? 0;
       void queryClient.invalidateQueries({ queryKey: ["search-observer", pubkey] });
+    }
     lastListId.current = listId;
-  }, [listId, pubkey, queryClient]);
+  }, [listId, pubkey, mywot.taPubkey, queryClient]);
 
   // No check without an assistant: until `/user/history` answers, this is loading too.
   if (!enabled)

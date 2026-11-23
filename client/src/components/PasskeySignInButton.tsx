@@ -57,9 +57,10 @@ function usePrefetchedChallenge(enabled: boolean) {
       clearTimeout(timer);
       if (!live || hidden()) return;
       // Without one in hand (the last ask failed), try again a renewal from now.
-      const wait = held.current
-        ? Math.max(0, CHALLENGE_REFRESH_MS - (Date.now() - held.current.at))
-        : CHALLENGE_REFRESH_MS;
+      // One that is already due (a renewal that just failed left the old one in hand) counts as
+      // none: waiting zero for it would re-ask at once, again and again, while the server is down.
+      const age = held.current ? Date.now() - held.current.at : Infinity;
+      const wait = age < CHALLENGE_REFRESH_MS ? CHALLENGE_REFRESH_MS - age : CHALLENGE_REFRESH_MS;
       timer = setTimeout(() => load.current(), wait);
     };
     load.current = () =>

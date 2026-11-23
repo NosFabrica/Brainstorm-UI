@@ -190,7 +190,11 @@ export async function saveQueries(client: QueryClient, me: string, now: number =
     shouldDehydrateMutation: () => false,
   });
   if (!state.queries.length) return;
+  const startedAt = generation;
   await s.put({ id: ROW_ID, pubkey: me, buster: BUILD_BUSTER, savedAt: now, state });
+  // A drop (sign-out, a switch) landed while this write was on its way: its clear may have run
+  // first, so the copy this wrote would outlive the Account it belongs to.
+  if (generation !== startedAt) await s.clear();
 }
 
 /** The part of the account manager this needs: who is active, and when that changes. */

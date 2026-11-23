@@ -409,6 +409,8 @@ export class DmEngine {
     this.cancelIdle?.();
     this.cancelIdle = undefined;
     this.pendingRows = [];
+    // Let a drain waiting between slices see `stopped` and end.
+    this.wakeDrain();
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
     this.stateTimer = undefined;
@@ -738,6 +740,11 @@ export class DmEngine {
   /** The rest of the device's messages, once the browser is idle — or now, if Messages is open. */
   private scheduleRest() {
     if (this.stopped || !this.pendingRows.length || this.draining || this.cancelIdle) return;
+    // Messages opened before the boot slice was done: the rest go now, not at the next idle moment.
+    if (this.restNow) {
+      void this.drainRows();
+      return;
+    }
     const idle = this.deps.whenIdle ?? whenIdle;
     this.cancelIdle = idle(() => {
       this.cancelIdle = undefined;
@@ -750,7 +757,19 @@ export class DmEngine {
     this.restNow = true;
     this.cancelIdle?.();
     this.cancelIdle = undefined;
+    // A drain waiting between slices for an idle moment that was just cancelled: woken, or it
+    // would wait for good — and `drainRows` below would hand back that stuck drain.
+    this.wakeDrain();
     if (this.pendingRows.length) void this.drainRows();
+  }
+
+  /** Resolves the drain's wait between slices, if it is waiting (see `drainRows`). */
+  private drainWaiting?: () => void;
+
+  private wakeDrain() {
+    const wake = this.drainWaiting;
+    this.drainWaiting = undefined;
+    wake?.();
   }
 
   private drainRows(): Promise<void> {
@@ -762,8 +781,10 @@ export class DmEngine {
         if (this.restNow) await yieldToMain();
         else
           await new Promise<void>((resolve) => {
+            this.drainWaiting = resolve;
             this.cancelIdle = (this.deps.whenIdle ?? whenIdle)(() => {
               this.cancelIdle = undefined;
+              this.drainWaiting = undefined;
               resolve();
             });
           });
