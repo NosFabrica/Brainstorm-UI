@@ -76,21 +76,8 @@ export type CompromisedMetadataBody = Pick<
   "successor_pubkey" | "successor_event_id" | "compromised_since" | "reason"
 >;
 
-/**
- * FastAPI answers a validation 422 with `detail` as a list of `{loc, msg}`;
- * everything else here sends a sentence. Either way, a sentence for a toast.
- */
+/** The server's sentence (a validation 422's `msg`s included), or the fallback with the status. */
 async function readError(response: Response, fallback: string): Promise<string> {
-  const data = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  if (Array.isArray(data?.detail)) {
-    const msgs = data.detail
-      .map((d: { msg?: unknown }) => (typeof d?.msg === "string" ? d.msg.replace(/^Value error, /, "") : ""))
-      .filter(Boolean);
-    if (msgs.length) return msgs.join("; ");
-  }
   return (await extractApiError(response)) || `${fallback} (${response.status})`;
 }
 
