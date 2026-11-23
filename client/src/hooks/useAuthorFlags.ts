@@ -14,7 +14,7 @@ export function useAuthorFlags(pubkeys: string[]): (pk: string) => boolean | und
     alive.current = true;
     const todo = Array.from(new Set(pubkeys)).filter((pk) => pk && !hasSettledTrustSignals(pk));
     if (todo.length) {
-      void Promise.allSettled(todo.map(lookupTrustSignals)).then(() => {
+      void Promise.allSettled(todo.map((pk) => lookupTrustSignals(pk))).then(() => {
         if (alive.current) setVersion((v) => v + 1);
       });
     }

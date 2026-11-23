@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   __resetTrustSignals,
   hasSettledTrustSignals,
   lookupTrustSignals,
   settledTrustSignals,
 } from "@/services/trustSignals";
+
+const MAX_RETRIES = 2;
+const RETRY_MS = 5000;
 
 /**
  * House-influence scores for a list of authors, for surfaces that show faces
@@ -14,21 +17,37 @@ import {
  * shares one cache, lookups are batched, and a pubkey is fetched once per
  * session. House POV: the request is unauthenticated, so rings work logged out.
  */
-export function useAuthorScores(pubkeys: string[]): (pk: string) => number | null | undefined {
+export function useAuthorScores(
+  pubkeys: string[],
+  opts?: { now?: boolean },
+): (pk: string) => number | null | undefined {
+  const now = !!opts?.now;
   const [version, setVersion] = useState(0);
-  const alive = useRef(true);
+  // A failed request settles nobody (services/trustSignals), so their faces
+  // stay "loading", not "unrated"; ask again a few times before leaving them.
+  const [attempt, setAttempt] = useState(0);
+  const key = pubkeys.join(",");
+  useEffect(() => setAttempt(0), [key]);
   useEffect(() => {
-    alive.current = true;
+    // Per run: a superseded run neither re-renders nor leaves a retry behind
+    // (the next run awaits the same pending lookups).
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const todo = Array.from(new Set(pubkeys)).filter((pk) => pk && !hasSettledTrustSignals(pk));
     if (todo.length) {
-      void Promise.allSettled(todo.map(lookupTrustSignals)).then(() => {
-        if (alive.current) setVersion((v) => v + 1);
+      void Promise.allSettled(todo.map((pk) => lookupTrustSignals(pk, { now }))).then(() => {
+        if (cancelled) return;
+        setVersion((v) => v + 1);
+        if (attempt < MAX_RETRIES && todo.some((pk) => !hasSettledTrustSignals(pk))) {
+          retry = setTimeout(() => setAttempt((a) => a + 1), RETRY_MS);
+        }
       });
     }
     return () => {
-      alive.current = false;
+      cancelled = true;
+      clearTimeout(retry);
     };
-  }, [pubkeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, now, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
   // One identity per batch of scores landing, not per render: a reader handed
   // to memoised rows (search cards, comment rows) would otherwise redraw every
   // row on every parent render. A new score still yields a new function, so

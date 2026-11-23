@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowRight, UserRound, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { overviewOptions, selectInfluence } from "@/services/queries/userReads";
+import { influenceOptions } from "@/services/queries/userReads";
 import { decodeShareId } from "@/lib/shareId";
 import { TierTile } from "@/components/score/TierTile";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -57,12 +57,9 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
     }
   }, [intent]);
 
-  // The person's overview from the perspective the dialog speaks for, the same
+  // The person's score from the perspective the dialog speaks for, the same
   // entry their profile page opens on — so confirming lands on a painted score.
-  const scoreQuery = useQuery({
-    ...overviewOptions(targetPubkey ?? "", usePersonal ? "viewer" : "house"),
-    select: selectInfluence,
-  });
+  const scoreQuery = useQuery(influenceOptions(targetPubkey ?? "", usePersonal ? "viewer" : "house"));
   const score01 = typeof scoreQuery.data === "number" ? scoreQuery.data : null;
   const hasTier = score01 != null;
   const tierRing = useTierRing();

@@ -11,8 +11,16 @@ const getUserOverview = vi.fn(async (..._a: unknown[]) => ({ data: { influence: 
 const getUserConnections = vi.fn(async (..._a: unknown[]) => ({
   data: { items: ["a".repeat(64), { pubkey: "b".repeat(64), influence: 0.7 }], total: 12 },
 }));
+const getMyTrustSignals = vi.fn();
+const lookupTrustSignals = vi.fn();
+const hasSettledTrustSignals = vi.fn();
+vi.mock("@/services/trustSignals", () => ({
+  lookupTrustSignals: (...a: unknown[]) => lookupTrustSignals(...a),
+  hasSettledTrustSignals: (...a: unknown[]) => hasSettledTrustSignals(...a),
+}));
 vi.mock("@/services/api", () => ({
   apiClient: {
+    getMyTrustSignals: (...a: unknown[]) => getMyTrustSignals(...a),
     getUserOverview: (...a: unknown[]) => getUserOverview(...a),
     getUserConnections: (...a: unknown[]) => getUserConnections(...a),
   },
@@ -20,7 +28,7 @@ vi.mock("@/services/api", () => ({
 let account: { pubkey: string } | undefined;
 vi.mock("@/accounts/signing", () => ({ activeAccount: () => account }));
 
-import { overviewOptions, selectInfluence, topFollowersOptions } from "./userReads";
+import { influenceOptions, overviewOptions, selectInfluence, topFollowersOptions } from "./userReads";
 
 const PK = "c".repeat(64);
 
@@ -79,5 +87,39 @@ describe("topFollowersOptions", () => {
       ],
       total: 12,
     });
+  });
+});
+
+describe("influenceOptions", () => {
+  beforeEach(() => {
+    getMyTrustSignals.mockReset();
+    lookupTrustSignals.mockReset();
+    hasSettledTrustSignals.mockReset();
+  });
+
+  it("reads the house score from the Trust signals memo, never the overview", async () => {
+    lookupTrustSignals.mockResolvedValue({ influence: 0.6, flagged: false });
+    hasSettledTrustSignals.mockReturnValue(true);
+    expect(await new QueryClient().fetchQuery(influenceOptions(PK, "house"))).toBe(0.6);
+    expect(lookupTrustSignals).toHaveBeenCalledWith(PK, { now: true });
+    expect(getUserOverview).not.toHaveBeenCalled();
+  });
+
+  it("fails, rather than caching unrated, when the house lookup didn't land", async () => {
+    lookupTrustSignals.mockResolvedValue({ influence: null, flagged: false });
+    hasSettledTrustSignals.mockReturnValue(false);
+    await expect(new QueryClient().fetchQuery(influenceOptions(PK, "house"))).rejects.toThrow();
+  });
+
+  it("signed in, reads the viewer's score through the session; a failed batch is an error", async () => {
+    account = { pubkey: "d".repeat(64) };
+    getMyTrustSignals.mockResolvedValueOnce(new Map([[PK, { influence: 0.3, flagged: false }]]));
+    expect(await new QueryClient().fetchQuery(influenceOptions(PK, "viewer"))).toBe(0.3);
+    getMyTrustSignals.mockResolvedValueOnce(null);
+    await expect(new QueryClient().fetchQuery(influenceOptions(PK, "viewer"))).rejects.toThrow();
+  });
+
+  it("signed out, the viewer's read is the house's: one entry", () => {
+    expect(influenceOptions(PK, "viewer").queryKey).toEqual(influenceOptions(PK, "house").queryKey);
   });
 });

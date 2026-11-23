@@ -71,14 +71,8 @@ import { videoItemOf, type VideoItem } from "@/components/share/VideoGrid";
 import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
 import { apiClient } from "@/services/api";
-import {
-  overviewOptions,
-  selectInfluence,
-  selectOverview,
-  statsOptions,
-  topFollowersOptions,
-  type TopFollowers,
-} from "@/services/queries/userReads";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { influenceOptions, statsOptions, topFollowersOptions, type TopFollowers } from "@/services/queries/userReads";
 import {
   parseProfilePrefs,
   loadProfilePrefsDraft,
@@ -353,20 +347,27 @@ export default function SharePage() {
     }));
   }, [followerCandidatesQuery.data, candidateProfiles]);
 
-  // Every read below is a shared entry (services/queries/userReads), so a
-  // hover's prefetch (`prefetchSharePage`), the Profile page and this one all
-  // read the same answers. The viewer's overview resolves to the house's when
-  // nobody is signed in — the same URL — so an anonymous visit asks once.
-  const overviewQuery = useQuery({ ...overviewOptions(pubkey, "viewer"), select: selectOverview });
-
-  // House (NosFabrica / network) influence from our backend, via an
-  // unauthenticated overview request (always the house POV). It's the secondary
-  // "network view" for signed-in viewers; for logged-out viewers it IS the
-  // overview above, one entry.
-  const houseRankQuery = useQuery({ ...overviewOptions(pubkey, "house"), select: selectInfluence });
+  // The ring's scores come from Trust signals, never `/overview`: on production
+  // `/overview` also counts followers and took ~30s for large accounts
+  // (2026-11-17), while Trust signals answers the same influence in ~0.2s.
+  //
+  // House (network) score: the shared, batched memo the rings on every other
+  // surface read — so a person reached from a feed or search already has it.
+  // undefined = still asking, null = unrated. `now`: this ring is the page's
+  // subject, so it doesn't wait in the batch window behind the rows below.
+  const houseScoreOf = useAuthorScores(pubkey ? [pubkey] : [], { now: true });
+  // The viewer's own score — only from a usable personal POV (the `myPov`
+  // rule: without own scores it would be an empty perspective), and only once
+  // something shows it: the personalized coin or the score modal.
+  const hasPersonalPov = loggedIn && calcDone;
+  // The same entry the mention dialog and the hover prefetch fill.
+  const myTrustQuery = useQuery({
+    ...influenceOptions(pubkey, "viewer"),
+    enabled: !!pubkey && hasPersonalPov && (scorePov === "personalized" || scoreModalOpen),
+  });
 
   // Per-section stats: total/verified counts per relationship — one query per
-  // point of view, the same shape the coin uses (overviewQuery/houseRankQuery).
+  // point of view, the same split the coin uses (myTrustQuery / house Trust signals).
   //
   // House is fetched ALWAYS: it serves logged-out viewers and it is the ledger
   // the flag verdict reads (a verdict must be the same for every viewer). The
@@ -504,10 +505,15 @@ export default function SharePage() {
     musicQuery.events,
     eventsQuery.events,
   ]);
-  const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
-  // The overview score is viewer-relative: house/network POV when logged out,
-  // the viewer's own web-of-trust POV when logged in. That's the primary ring.
-  const score01 = typeof overview?.influence === "number" ? overview.influence : null;
+  // House influence (0–1), house POV; undefined while the lookup is out.
+  const houseScoreRaw = pubkey ? houseScoreOf(pubkey) : null;
+  const houseScoreLoading = houseScoreRaw === undefined;
+  const clamp01 = (v: number | null | undefined) => (v == null ? null : Math.min(1, Math.max(0, v)));
+  const houseScore01 = clamp01(houseScoreRaw);
+  // The primary ring's score is viewer-relative: the viewer's own web-of-trust
+  // POV when they have one, the house's otherwise (signed out, or no own scores
+  // yet — the same fallback the counts take).
+  const score01 = hasPersonalPov ? clamp01(myTrustQuery.data) : houseScore01;
   // Counts from the per-section stats endpoint. Followers/muters/reporters use
   // the VERIFIED (web-of-trust) count; "following" uses the raw total (per CEO:
   // total following is more meaningful than verified following).
@@ -541,16 +547,10 @@ export default function SharePage() {
   const replaces = useReplaces(pubkey);
   const retired = useRetired(pubkey);
   const isFlagged = isFlaggedByReporters(houseVerifiedReporters ?? 0, num(houseStats?.followed_by?.verified) ?? 0);
-  // House influence (0–1) from the backend, house POV.
-  const houseScore01 = useMemo(() => {
-    const r = houseRankQuery.data;
-    if (typeof r !== "number" || !Number.isFinite(r)) return null;
-    return Math.min(1, Math.max(0, r));
-  }, [houseRankQuery.data]);
   // We resolve kind-0 from relays; treat a profile the backend hasn't scored
-  // (no house influence once that query settles) as "not yet indexed by
+  // (no house influence once that lookup settles) as "not yet indexed by
   // Brainstorm" so the UI can show the live-from-relays note.
-  const foundViaRelays = !!liveProfile.profile && houseRankQuery.isFetched && houseScore01 == null;
+  const foundViaRelays = !!liveProfile.profile && !houseScoreLoading && houseScore01 == null;
 
   // Photos = images from kind-20 picture events (every imeta URL is a photo) +
   // images embedded in recent notes (MIME/extension-detected). Broken URLs that
@@ -845,8 +845,7 @@ export default function SharePage() {
   // Loading ≠ unrated. Until the score that feeds the coin has settled, the coin
   // shows its mode-aware placeholder (or nothing, in modes that never draw a
   // coin) instead of the dashed "—", which is a verdict.
-  const coinLoading =
-    scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
+  const coinLoading = scorePov === "personalized" && hasPersonalPov ? myTrustQuery.isLoading : houseScoreLoading;
   // The facts a profile states — website, lightning address, linked accounts —
   // read as text rows under the bio (ProfileDetails). They used to be icon-only
   // glyphs up here; a power user could not find the bolt, and tapping it

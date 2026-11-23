@@ -15,7 +15,7 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 import { runOf } from "@/lib/graperankRun";
-import { HISTORY_BASE, OVERVIEW_BASE, STATS_BASE } from "@/services/queries/userReads";
+import { HISTORY_BASE, INFLUENCE_BASE, OVERVIEW_BASE, STATS_BASE } from "@/services/queries/userReads";
 
 export const GRAPERANK_RESULT_KEY = ["/user/graperankResult"] as const;
 
@@ -101,13 +101,13 @@ export function grapeRankPollMs(data: unknown, storedTriggeredAt: number, now: n
 
 /**
  * A calculation just finished: what it changed is the reader's own standing —
- * their overview and stats (both perspectives), their history ("last
+ * their overview, influence and stats (both perspectives), their history ("last
  * calculated") and their network's alerts. Other people's cached reads did not
  * move, and invalidating every `/user/overview` used to refetch each one a
  * page had open.
  */
 export function invalidateOwnScoreReads(queryClient: QueryClient, pubkey: string): void {
-  for (const base of [OVERVIEW_BASE, STATS_BASE, HISTORY_BASE, "/networkAlerts"]) {
+  for (const base of [OVERVIEW_BASE, INFLUENCE_BASE, STATS_BASE, HISTORY_BASE, "/networkAlerts"]) {
     void queryClient.invalidateQueries({ queryKey: [base, pubkey] });
   }
 }

@@ -87,8 +87,8 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import {
+  influenceOptions,
   overviewOptions,
-  selectInfluence,
   selectOverview,
   selectStats,
   statsOptions,
@@ -2405,9 +2405,8 @@ export default function ProfilePage() {
   // (Search, Network, deep link, etc). Uses an unauthenticated overview request
   // (always house POV). Skipped when the search-click seed already supplied a value.
   const nosfabricaRankQuery = useQuery({
-    ...overviewOptions(hexPubkey, "house"),
+    ...influenceOptions(hexPubkey, "house"),
     enabled: !!hexPubkey && seed?.wotRankNosfabrica == null,
-    select: selectInfluence,
   });
 
   // Viewing your OWN profile, the personalized score is always self-POV (you

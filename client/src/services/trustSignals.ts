@@ -50,12 +50,26 @@ function flush(): void {
     const chunk = valid.slice(i, i + MAX_BATCH);
     void apiClient.getTrustSignals(chunk.map(([pubkey]) => pubkey.toLowerCase())).then((found) => {
       if (gen !== generation) return;
+      if (!found) {
+        // A failed request is not a verdict: answer the waiting callers as
+        // unrated, but remember nothing, so the next lookup asks again rather
+        // than wearing "unrated" for the rest of the session.
+        for (const [pubkey, resolve] of chunk) {
+          cache.delete(pubkey);
+          resolve(UNRATED);
+        }
+        return;
+      }
       for (const [pubkey, resolve] of chunk) settle(pubkey, found.get(pubkey.toLowerCase()) ?? UNRATED, resolve);
     });
   }
 }
 
-export function lookupTrustSignals(pubkey: string): Promise<TrustSignals> {
+/**
+ * `now`: the score is the page's subject (a profile's own ring), so it can't
+ * wait behind the rows below it — send what has gathered so far, at once.
+ */
+export function lookupTrustSignals(pubkey: string, opts?: { now?: boolean }): Promise<TrustSignals> {
   let p = cache.get(pubkey);
   if (!p) {
     p = new Promise((resolve) => queued.set(pubkey, resolve));
@@ -66,7 +80,8 @@ export function lookupTrustSignals(pubkey: string): Promise<TrustSignals> {
     // Extend for the next burst, but never past the ceiling.
     const wait = Math.max(0, Math.min(window, gatheringSince + MAX_GATHER_MS - now));
     if (flushTimer) clearTimeout(flushTimer);
-    flushTimer = setTimeout(flush, wait);
+    if (opts?.now) flush();
+    else flushTimer = setTimeout(flush, wait);
   }
   return p;
 }
