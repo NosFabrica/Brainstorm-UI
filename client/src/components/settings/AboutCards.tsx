@@ -4,7 +4,7 @@
  */
 import { Code2, ExternalLink, Mail } from "lucide-react";
 import { SiGithub } from "react-icons/si";
-import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
+import nosFabricaLogo from "@assets/nosfabrica_avatar_96.webp";
 import nostrLogo from "@assets/download_1774042580188.png";
 
 export function ContactCard() {

@@ -6,7 +6,7 @@ import { nip19 } from "nostr-tools";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import PageBackground from "@/components/PageBackground";
-import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_1775844197287.png";
+import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_800.webp";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { useBrainstormAssistant } from "@/hooks/useBrainstormAssistant";

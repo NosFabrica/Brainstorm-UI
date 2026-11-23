@@ -52,10 +52,10 @@ const SITE_LINKS = [
 ];
 
 /**
- * The illustration slot. The file lands at client/public/brand/sorry-ostrich.png
- * when the mockup's art is ready (Benjamin, 2026-09-09: wait for it); until
- * then the image errors and the slot leaves the layout, so the page reads
- * complete without it.
+ * The illustration slot: client/public/brand/sorry-ostrich.webp, at twice the
+ * widest it is drawn (260px). If it fails to load — this page is also what an
+ * offline reader sees, and the worker may not have kept it yet — the slot
+ * leaves the layout, so the page reads complete without it.
  */
 function SorryArt({ className = "" }: { className?: string }) {
   const [gone, setGone] = useState(false);
@@ -71,7 +71,7 @@ function SorryArt({ className = "" }: { className?: string }) {
         aria-hidden="true"
       />
       <img
-        src="/brand/sorry-ostrich.png"
+        src="/brand/sorry-ostrich.webp"
         alt=""
         className="mx-auto w-full"
         onError={() => setGone(true)}

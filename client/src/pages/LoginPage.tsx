@@ -162,8 +162,10 @@ export default function LoginPage() {
         <div className="absolute inset-0 z-0" aria-hidden="true">
           {/* The panel is always dark editorial (violet→ink), so force the DARK
               (lit-constellation) scene variant regardless of app theme. The
-              gradient base shows through until the first photo decodes. */}
-          <HeroSceneRotator variant="dark" scenes={HERO_SOLO} />
+              gradient base shows through until the first photo decodes.
+              `media` is the panel's own `lg:` breakpoint: below it the panel is
+              hidden, and a phone must not download a photo it never shows. */}
+          <HeroSceneRotator variant="dark" scenes={HERO_SOLO} media="(min-width: 1024px)" sizes="45vw" />
           {/* Ink scrim for legibility + a faint Aurora tint at the top. */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/25" />
           <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />
