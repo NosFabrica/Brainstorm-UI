@@ -4,7 +4,7 @@
  * search's — Google's tools work for everyone, signed in or not — and live
  * in the URL so Back, reload and a shared link keep them.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
@@ -132,6 +132,11 @@ vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
 import Landing from "./landing";
+import { LazySearchResults } from "@/components/search/lazySearchResults";
+
+// The results are their own chunk, loaded on the first search. Loaded here first, so no test's
+// waits include a cold import of every vertical (over a second in jsdom).
+beforeAll(() => LazySearchResults.preload());
 
 // Offline: the BTC price (mempool.space) for fiat price lines is not under test.
 vi.mock("@/lib/exchangeRate", async (orig) => ({
@@ -1179,5 +1184,44 @@ describe("clearing a search with ⓧ", () => {
     fireEvent.click(screen.getByTestId("wordmark-home"));
     expect(screen.getByTestId("search-hero")).toBeInTheDocument();
     expect(screen.queryByTestId("search-band")).toBeNull();
+  });
+});
+
+// The empty box teaches a first-time visitor what to type, one example every 3.2s — in a leaf of
+// its own, and never in a tab nobody is looking at.
+describe("the rotating placeholder", () => {
+  beforeEach(() => {
+    cleanup();
+    localStorage.removeItem("brainstorm_seen_search_hints");
+    window.history.replaceState({}, "", "/");
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+  });
+
+  it("cycles for a first-time visitor, and holds still while the tab is hidden", () => {
+    vi.useFakeTimers();
+    render(<Landing />);
+    const placeholder = () => screen.getByTestId("text-home-placeholder").textContent;
+    expect(placeholder()).toBe("Search people and topics…");
+    act(() => {
+      vi.advanceTimersByTime(3200 + 300);
+    });
+    expect(placeholder()).toBe('Search "Maria"');
+
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      vi.advanceTimersByTime(3200 * 5);
+    });
+    expect(placeholder()).toBe('Search "Maria"');
+
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      vi.advanceTimersByTime(3200 + 300);
+    });
+    expect(placeholder()).toBe('Search "Prague"');
   });
 });

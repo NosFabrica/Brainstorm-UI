@@ -9,6 +9,7 @@ import { startDirectMessagesWhenSignedIn } from "./services/dm/boot";
 import { pool } from "./lib/relayPool";
 import { SEARCH_RELAY } from "./lib/relays";
 import { warmSearchRelay } from "./lib/searchRelay";
+import { preloadSearchResults } from "./components/search/lazySearchResults";
 import { accountManager } from "./accounts";
 import { canSignSilently, canSignUnasked, signAs } from "./accounts/signing";
 import { signerSaidNo } from "./accounts/signer-errors";
@@ -48,8 +49,12 @@ void resolveHouseObserver();
 // A page opened on a search (`?q=`) opens the search socket now, not when the results
 // mount: its handshake (and, signed in, its NIP-42 login below) overlaps the app's own
 // start instead of standing in front of the first REQ. Other routes open it when a
-// search box is focused (SearchBox), as before.
-if (new URLSearchParams(window.location.search).get("q")) warmSearchRelay();
+// search box is focused (SearchBox), as before. The results' own code (a chunk of its own,
+// components/search/lazySearchResults) starts downloading here too, beside the app's, and for
+// the home's browse links (`/?t=notes`), which show results without any words.
+const opening = new URLSearchParams(window.location.search);
+if (opening.get("q")) warmSearchRelay();
+if (opening.get("q") || (window.location.pathname === "/" && opening.get("t"))) preloadSearchResults();
 
 // Relays that gate reads or writes behind a NIP-42 login: never waited on
 // (lib/relayPool), answered with the account's signer wherever they ask.
