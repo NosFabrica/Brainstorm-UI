@@ -8,7 +8,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { createContext, memo, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -43,6 +43,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useNearViewport } from "@/hooks/useNearViewport";
 import { shopAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
@@ -678,6 +679,9 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
 
 export type MemberProfile = { name?: string; display_name?: string; picture?: string };
 
+/** How close to the screen a repo card comes before it asks how busy the repo is. */
+const REPO_COUNTS_NEAR = "400px";
+
 export const RepoCard = memo(function RepoCard({
   event,
   author,
@@ -719,6 +723,10 @@ export const RepoCard = memo(function RepoCard({
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
   const d = tagVal(event, "d");
+  // Asked once the card comes near the screen: a Repos page of a hundred cards asked three
+  // questions each on mount, most of them for cards nobody scrolled to.
+  const nearRef = useRef<HTMLSpanElement>(null);
+  const near = useNearViewport(nearRef, REPO_COUNTS_NEAR);
   const [counts, setCounts] = useState<{
     issues: number;
     patches: number;
@@ -726,7 +734,7 @@ export const RepoCard = memo(function RepoCard({
     lastAt: number | null;
   }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
-    if (!askCounts || !isRepo || !d) return;
+    if (!askCounts || !isRepo || !d || !near) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
       if (alive)
@@ -740,7 +748,7 @@ export const RepoCard = memo(function RepoCard({
     return () => {
       alive = false;
     };
-  }, [askCounts, isRepo, d, event.pubkey]);
+  }, [askCounts, isRepo, d, event.pubkey, near]);
   // Who stands behind it: up to three contributors, ringed by trust, and
   // their names when a profile is at hand.
   const faces = counts.contributors.slice(0, 3);
@@ -758,6 +766,7 @@ export const RepoCard = memo(function RepoCard({
       openInTestId={`repo-open-${event.id}`}
       testId={`repo-card-${event.id}`}
     >
+      {askCounts && isRepo && !near && <span ref={nearRef} aria-hidden="true" className="block h-0 w-0" />}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {/* The branded link sits absolutely in the corner — the title row

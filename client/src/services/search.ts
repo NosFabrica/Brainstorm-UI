@@ -21,7 +21,7 @@ import type { NostrEvent } from "nostr-tools";
 import { RelayClosedError } from "applesauce-relay";
 import type { Relay, RelayReqMessage } from "applesauce-relay";
 import { reportSearchFailure } from "@/lib/serverStatus";
-import { openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
+import { leaseSideSearchRelay, openSideSearchRelay, searchRelay } from "@/lib/searchRelay";
 import { EVENT_LISTS } from "@/config/events";
 import { EVENT_ITEM_KIND } from "@/lib/calendarEvent";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
@@ -1598,8 +1598,10 @@ export function fetchAppsByAddress(addresses: string[], timeoutMs = 5000): Promi
 
 export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zaps: number; replies: number }> {
   return new Promise((resolve) => {
-    const relay = searchRelay();
-    if (!relay) return resolve({ zaps: 0, replies: 0 });
+    // A row's question: on the shared side socket, never in front of the search's own REQs.
+    const lease = leaseSideSearchRelay();
+    if (!lease) return resolve({ zaps: 0, replies: 0 });
+    const { relay } = lease;
     const result = { zaps: 0, replies: 0 };
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
@@ -1609,6 +1611,7 @@ export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zap
       settled = true;
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
+      lease.release();
       resolve(result);
     };
     const one = () => {
@@ -1640,8 +1643,10 @@ export function fetchAppEndorsementCounts(
   timeoutMs = 5000,
 ): Promise<{ reviews: number; zaps: number; collections: number }> {
   return new Promise((resolve) => {
-    const relay = searchRelay();
-    if (!relay) return resolve({ reviews: 0, zaps: 0, collections: 0 });
+    // Three COUNTs per app: the shared side socket's, as fetchNoteEngagement's are.
+    const lease = leaseSideSearchRelay();
+    if (!lease) return resolve({ reviews: 0, zaps: 0, collections: 0 });
+    const { relay } = lease;
     const result = { reviews: 0, zaps: 0, collections: 0 };
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
@@ -1651,6 +1656,7 @@ export function fetchAppEndorsementCounts(
       settled = true;
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
+      lease.release();
       resolve(result);
     };
     const one = () => {
@@ -1880,9 +1886,11 @@ export interface RepoCounts {
  */
 export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<RepoCounts> {
   return new Promise((resolve) => {
-    const relay = searchRelay();
+    // Two COUNTs and a REQ per repo card: the shared side socket's, as fetchNoteEngagement's are.
+    const lease = leaseSideSearchRelay();
     const result: RepoCounts = { issues: 0, patches: 0, contributors: [], lastAt: null };
-    if (!relay) return resolve(result);
+    if (!lease) return resolve(result);
+    const { relay } = lease;
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
     let settled = false;
@@ -1891,6 +1899,7 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
       settled = true;
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
+      lease.release();
       resolve(result);
     };
     const one = () => {

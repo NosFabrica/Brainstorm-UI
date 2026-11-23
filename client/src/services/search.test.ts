@@ -49,6 +49,17 @@ vi.mock("@/lib/searchRelay", () => ({
   }),
   // The tab counts' own socket: a fake whose COUNTs a test answers, and which says when it closed.
   openSideSearchRelay: () => sideOpenMock(),
+  // The shared side socket for per-row questions. By default the same fake transport as the
+  // search's, so a test answers both alike; a lease taken is a lease given back (leaseReleaseMock).
+  leaseSideSearchRelay: () => leaseMock(),
+}));
+const leaseReleaseMock = vi.fn();
+const leaseMock = vi.fn(() => ({
+  relay: {
+    count: (...args: unknown[]) => countMock(...args),
+    req: (...args: unknown[]) => reqMock(...args),
+  },
+  release: () => leaseReleaseMock(),
 }));
 const sideCountMock = vi.fn();
 const sideCloseMock = vi.fn();
@@ -2108,6 +2119,7 @@ describe("fetchRepoCounts", () => {
     const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => (f.kinds as number[])[0]).sort()).toEqual([1617, 1621]);
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -2545,6 +2557,8 @@ describe("fetchAppEndorsementCounts", () => {
     expect(filters).toHaveLength(3);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => f.kinds as number[])).toEqual(expect.arrayContaining([[1111, 1], [9735], [30267]]));
+    expect(leaseMock).toHaveBeenCalledTimes(1);
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -2578,6 +2592,21 @@ describe("fetchNoteEngagement", () => {
   it("a failed COUNT reads as zero, never a rejection", async () => {
     countMock.mockImplementation(() => throwError(() => new Error("relay closed")));
     await expect(fetchNoteEngagement("e".repeat(64))).resolves.toEqual({ zaps: 0, replies: 0 });
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The relay works a socket's requests as a queue: a page of notes' COUNTs on the search's own
+  // socket stood in front of the next REQ and every suggestion.
+  it("asks on the shared side socket, not the search's own, and gives it back once answered", async () => {
+    const sideCount = vi.fn(() => of({ count: 2 }));
+    leaseMock.mockReturnValueOnce({
+      relay: { count: sideCount, req: (...args: unknown[]) => reqMock(...args) },
+      release: () => leaseReleaseMock(),
+    });
+    await expect(fetchNoteEngagement("e".repeat(64))).resolves.toEqual({ zaps: 2, replies: 2 });
+    expect(sideCount).toHaveBeenCalledTimes(2);
+    expect(countMock).not.toHaveBeenCalled();
+    expect(leaseReleaseMock).toHaveBeenCalledTimes(1);
   });
 });
 

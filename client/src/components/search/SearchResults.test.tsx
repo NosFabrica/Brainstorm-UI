@@ -280,6 +280,8 @@ import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { __forgetAllCategories } from "@/hooks/useAllCategories";
 import { __forgetResultTags } from "@/hooks/useResultTags";
 import { NowPlayingBar } from "./NowPlayingBar";
+import { stubControllableIntersectionObserver } from "@/test/controllableIntersectionObserver";
+import { __resetNearViewport } from "@/hooks/useNearViewport";
 
 // Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
 // Offline by default: no domain confirms a handle unless a test says it does.
@@ -3124,13 +3126,24 @@ describe("SearchResults", () => {
       contributors: ["1".repeat(64), "2".repeat(64), "3".repeat(64), "4".repeat(64)],
       lastAt: now - 3 * 3600,
     });
-    render(<SearchResults query="relay" pov="nosfabrica" />);
-    const repo = ev("rc1", 30617, "f".repeat(64), "", [
-      ["d", "ngit"],
-      ["name", "ngit"],
-    ]);
-    emit({ hits: [{ event: repo, author: author(repo.pubkey, "dan"), rank: null }], eose: true, timeMs: 200 });
-    const card = await screen.findByTestId("repo-card-rc1");
+    __resetNearViewport();
+    const io = stubControllableIntersectionObserver();
+    try {
+      render(<SearchResults query="relay" pov="nosfabrica" />);
+      const repo = ev("rc1", 30617, "f".repeat(64), "", [
+        ["d", "ngit"],
+        ["name", "ngit"],
+      ]);
+      emit({ hits: [{ event: repo, author: author(repo.pubkey, "dan"), rank: null }], eose: true, timeMs: 200 });
+      await screen.findByTestId("repo-card-rc1");
+      // Asked once the card comes near the screen, not for every card on mount.
+      expect(repoCountsMock).not.toHaveBeenCalled();
+      io.bringAllIntoView();
+    } finally {
+      vi.unstubAllGlobals();
+      __resetNearViewport();
+    }
+    const card = screen.getByTestId("repo-card-rc1");
     expect(repoCountsMock).toHaveBeenCalledWith("30617:" + "f".repeat(64) + ":ngit");
     expect(await within(card).findByText(/12 issues/)).toBeInTheDocument();
     expect(within(card).getByText(/3 patches/)).toBeInTheDocument();

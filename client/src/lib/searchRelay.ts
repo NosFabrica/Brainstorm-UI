@@ -45,6 +45,58 @@ export function openSideSearchRelay(): Relay | null {
   return url ? new Relay(url) : null;
 }
 
+/** How long the shared side socket stays open with nothing asked of it. */
+export const SIDE_IDLE_MS = 15_000;
+
+let side: Relay | null = null;
+let sideLeases = 0;
+let sideIdle: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * The shared side socket, for the small questions rows ask beside a search: a note's zaps and
+ * replies, a repo's issues and patches, an app's reviews, the typeahead's "what does this person
+ * publish". On the search's own socket each of them is a turn in the relay's queue in front of
+ * the next REQ or suggestion (openSideSearchRelay says by how much); here they queue only behind
+ * each other. One socket, not one per row: opened on the first lease, closed once nothing has
+ * held one for SIDE_IDLE_MS. Release a lease when its question is answered or abandoned.
+ *
+ * Every question asked here carries a search token (`include:spam`, `observer:`), which is what
+ * lets the relay answer an unauthenticated socket: this one never signs in.
+ */
+export function leaseSideSearchRelay(): { relay: Relay; release: () => void } | null {
+  const url = env.VITE_SEARCH_RELAY_URL.trim();
+  if (!url) return null;
+  clearTimeout(sideIdle);
+  sideIdle = undefined;
+  side ??= new Relay(url);
+  const relay = side;
+  sideLeases++;
+  let released = false;
+  return {
+    relay,
+    release: () => {
+      if (released) return;
+      released = true;
+      if (--sideLeases > 0) return;
+      sideIdle = setTimeout(() => {
+        sideIdle = undefined;
+        if (sideLeases > 0 || side !== relay) return;
+        side = null;
+        relay.close();
+      }, SIDE_IDLE_MS);
+    },
+  };
+}
+
+/** Test seam: drop the shared side socket and its leases. */
+export function __resetSideSearchRelay(): void {
+  clearTimeout(sideIdle);
+  sideIdle = undefined;
+  side?.close();
+  side = null;
+  sideLeases = 0;
+}
+
 /**
  * Open the search socket before the first keystroke — a reader who focuses
  * the box is about to search, and the handshake then overlaps their typing
