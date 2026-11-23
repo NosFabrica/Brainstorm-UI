@@ -83,6 +83,25 @@ describe("useIsSearchObserver", () => {
     expect(onRelay).toHaveBeenCalledTimes(2);
   });
 
+  it("backs off a 'no' that keeps coming: one minute, then five, then fifteen", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onRelay.mockResolvedValue(false);
+    renderHook(() => useIsSearchObserver(), { wrapper: queryWrapper() });
+    await waitFor(() => expect(onRelay).toHaveBeenCalledTimes(1));
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(onRelay).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(4 * 60_000));
+    expect(onRelay).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(onRelay).toHaveBeenCalledTimes(3);
+    await act(() => vi.advanceTimersByTimeAsync(14 * 60_000));
+    expect(onRelay).toHaveBeenCalledTimes(3);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(onRelay).toHaveBeenCalledTimes(4);
+    await act(() => vi.advanceTimersByTimeAsync(15 * 60_000));
+    expect(onRelay).toHaveBeenCalledTimes(5);
+  });
+
   it("keeps a 'yes' without re-asking", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     onRelay.mockResolvedValue(true);

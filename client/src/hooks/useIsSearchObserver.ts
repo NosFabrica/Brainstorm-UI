@@ -13,11 +13,18 @@ import { isSearchObserverOnRelay } from "@/services/searchObserver";
  * doesn't search through the house first; a first visit still waits for the
  * relay to confirm.
  *
- * A "yes" holds for the session (ranks don't vanish on their own); a "no" is re-asked every
- * minute, so My-WoT turns on as the relay finishes projecting. A changed or removed 10040
- * re-asks at once.
+ * A "yes" holds for the session (ranks don't vanish on their own); a "no" is re-asked, so
+ * My-WoT turns on as the relay finishes projecting — after a minute, then five, then every
+ * fifteen. A projection that hasn't landed in the first few minutes is not landing in the
+ * next one, and asking every minute forever was a relay probe per minute per signed-in tab
+ * for anyone whose assistant the relay never ranks. A changed or removed 10040 re-asks at once.
  */
-const NOT_YET_MS = 60_000;
+const NOT_YET_MS = [60_000, 5 * 60_000, 15 * 60_000];
+
+/** How long a "no" stands, by how many answers this query has had. */
+function notYetMs(answers: number): number {
+  return NOT_YET_MS[Math.min(Math.max(answers, 1), NOT_YET_MS.length) - 1];
+}
 
 export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: boolean; known: boolean } {
   const pubkey = useActiveAccountDisplay()?.pubkey;
@@ -29,8 +36,8 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
     // eslint-disable-next-line no-restricted-syntax -- relay probe
     queryFn: () => isSearchObserverOnRelay(pubkey!),
     enabled,
-    staleTime: (q) => (q.state.data === true ? Infinity : NOT_YET_MS),
-    refetchInterval: (q) => (q.state.data === true ? false : NOT_YET_MS),
+    staleTime: (q) => (q.state.data === true ? Infinity : notYetMs(q.state.dataUpdateCount)),
+    refetchInterval: (q) => (q.state.data === true ? false : notYetMs(q.state.dataUpdateCount)),
   });
 
   // Only a change from a known list: a first list arriving is covered by the "no" polling.

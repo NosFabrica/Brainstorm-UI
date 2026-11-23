@@ -64,7 +64,13 @@ export function useSubscription(): {
     queryKey: ["/user/subscription"],
     queryFn: fetchSubscription,
     enabled: signedIn,
-    staleTime: 60_000,
+    // What someone holds changes when they buy or cancel, and both paths
+    // write or invalidate this query (lib/checkoutPoll, /billing/return, the
+    // checkout's mark-stale) — so a minute's staleTime only meant the Footer
+    // and the account menu refetched it on most focus events and navigations.
+    // The focus refetch stays: it is the backstop for a tab left open on
+    // Flash, and it fires once the checkout has marked this stale.
+    staleTime: 30 * 60_000,
     refetchOnWindowFocus: true,
     // The app's default is one attempt, and it's final (lib/queryClient.ts).
     // This read decides whether someone appears to be a customer, and pods
