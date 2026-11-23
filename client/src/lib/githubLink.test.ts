@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { gistProves, ownsGitHub, pubkeysNamedIn } from "./githubLink";
+import { gistProves, handlesPointedAt, ownsGitHub, pubkeysNamedIn, type GitHubEvidence } from "./githubLink";
 
 const OWNER = "a1".repeat(32);
 const OTHER = "b2".repeat(32);
@@ -72,5 +72,42 @@ describe("ownsGitHub", () => {
   it("never on a name alike, nor on a claim alone", () => {
     expect(ownsGitHub(none, "riverdev", { pubkey: OWNER, nip05: "riverdev@nostr.example" }, true)).toBe(false);
     expect(ownsGitHub({ ...none, claimants: [OWNER] }, "riverdev", { pubkey: OWNER }, false)).toBe(false);
+  });
+});
+
+describe("handlesPointedAt", () => {
+  const HANDLES = ["alice", "Bob", "carol", "dave"];
+
+  it("keeps the accounts the person claims in their kind 0 or links as their website", () => {
+    expect(
+      handlesPointedAt(HANDLES, {
+        claims: ["github:BOB", "twitter:alice", " github:carol "],
+        website: "https://github.com/dave/",
+      }),
+    ).toEqual(["Bob", "carol", "dave"]);
+  });
+
+  it("keeps none for someone who points at no account", () => {
+    expect(handlesPointedAt(HANDLES, { claims: [], website: "https://example.com" })).toEqual([]);
+    expect(handlesPointedAt(HANDLES, { claims: ["github:zed"], website: "https://github.com/alice/repo" })).toEqual([]);
+  });
+
+  it("drops only accounts whose evidence could not change ownsGitHub's answer", () => {
+    // Everything GitHub could say about an account the person doesn't point at, short of
+    // listing them as a claimant (which only their own kind 0 can make them).
+    const loud: GitHubEvidence = {
+      checked: true,
+      named: [OWNER],
+      blogHost: "example.com",
+      claimants: [OTHER],
+      provenClaimants: [OTHER],
+    };
+    const none: GitHubEvidence = { checked: false, named: [], blogHost: null, claimants: [], provenClaimants: [] };
+    for (const verified of [true, false])
+      for (const nip05 of [undefined, "_@example.com", "me@example.com", "alice@github.com"]) {
+        const person = { pubkey: OWNER, nip05, website: "https://example.com" };
+        expect(handlesPointedAt(["alice"], { claims: [], website: person.website })).toEqual([]);
+        expect(ownsGitHub(loud, "alice", person, verified)).toBe(ownsGitHub(none, "alice", person, verified));
+      }
   });
 });

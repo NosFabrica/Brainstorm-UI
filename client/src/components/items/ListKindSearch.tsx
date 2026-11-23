@@ -56,7 +56,9 @@ import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
 import { eventPins } from "@/lib/eventPins";
-import { ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
+import { handlesPointedAt, ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
+import { externalIdentitiesOf } from "@/lib/profileContent";
+import { useHeldReplaceable } from "@/hooks/useHeldEvents";
 import { useGitHubEvidence } from "@/hooks/useGitHubEvidence";
 import { useVerifiedPeople } from "@/hooks/useVerifiedPeople";
 import { formatEventDate, parseCalendarEvent } from "@/lib/calendarEvent";
@@ -313,8 +315,16 @@ function GitHubMark({
   inRow?: boolean;
 }) {
   const { hits } = useKindHits("github-account", "", OWNED_MAX, { browse: true });
-  const handles = hits.map((h) => h.shown.title ?? "").filter(Boolean);
-  const evidence = useGitHubEvidence(handles);
+  // GitHub is asked only about the accounts this person points at (lib/githubLink
+  // handlesPointedAt); for the rest, empty evidence gives the same answer.
+  const own = useHeldReplaceable(0, pubkey);
+  const claims = useMemo(() => externalIdentitiesOf(own), [own]);
+  const handlesKey = hits.map((h) => h.shown.title ?? "").join("\n");
+  const candidates = useMemo(
+    () => handlesPointedAt(handlesKey.split("\n").filter(Boolean), { website, claims }),
+    [handlesKey, website, claims],
+  );
+  const evidence = useGitHubEvidence(candidates);
   const verified = useVerifiedPeople(useMemo(() => [{ pubkey, nip05 }], [pubkey, nip05])).verified.has(pubkey);
   const hit = hits.find((h) => {
     const handle = h.shown.title ?? "";

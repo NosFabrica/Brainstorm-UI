@@ -66,6 +66,31 @@ function websiteIs(website: string | undefined, handle: string): boolean {
 }
 
 /**
+ * The accounts among `handles` worth asking GitHub about for this person: the
+ * ones they point at themselves, with a `github:<handle>` identity in their own
+ * kind 0 (`claims`, its `i` tag values) or a website that is the account.
+ *
+ * Every proof `ownsGitHub` accepts needs one of those, bar the domain one,
+ * which needs no evidence at all: proven claimants are claimants, and a
+ * claimant of a handle is someone whose kind 0 names it. So for any other
+ * handle the evidence can't change the answer, and fetching it (two GitHub
+ * calls and a relay ask each, for every account a list holds) only spent
+ * GitHub's rate limit: a profile page asked 443 of them to draw one mark.
+ */
+export function handlesPointedAt(
+  handles: readonly string[],
+  person: { website?: string; claims: readonly string[] },
+): string[] {
+  const claimed = new Set(
+    person.claims
+      .map((c) => c.trim().toLowerCase())
+      .filter((c) => c.startsWith("github:"))
+      .map((c) => c.slice("github:".length)),
+  );
+  return handles.filter((h) => claimed.has(h.trim().toLowerCase()) || websiteIs(person.website, h));
+}
+
+/**
  * Whether the person owns the account, on the evidence. `verified`: their
  * NIP-05 handle is confirmed by its domain — the proofs that rest on a domain
  * need it.
