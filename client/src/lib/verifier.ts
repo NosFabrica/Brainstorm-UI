@@ -29,6 +29,25 @@ let fast: Verify | null = null;
 let loading: Promise<boolean> | null = null;
 
 /**
+ * The wasm build is fetched on demand, not at boot: it is ~120 KB gzipped, and
+ * at boot it would share the link with the app's own first screen, for a visit
+ * that may never verify more than a handful of events (an anonymous home page
+ * verifies none). So the noble checks are counted, and the load starts once
+ * they reach `demandAt` — a results page's first frames — after which the rest
+ * of that page is verified at wasm speed.
+ */
+let demandAt = Infinity;
+let slowChecks = 0;
+let loadOnDemand: (() => void) | null = null;
+
+/** Start the wasm load once `threshold` events have been verified the slow way (lib/eventStore). */
+export function loadFastVerifierWhenBusy(threshold: number, load: () => Promise<Verify> = loadWasmVerifier): void {
+  demandAt = threshold;
+  slowChecks = 0;
+  loadOnDemand = () => void startFastVerifier(load);
+}
+
+/**
  * Signatures verified this session, as `id:sig`. Bounded, oldest first out: it
  * is a shortcut, never the record of what is trusted, so forgetting one only
  * costs that event a full check next time.
@@ -61,6 +80,11 @@ export function verifySignature(event: NostrEvent): boolean {
     // ours is not checked again. Nothing read off a relay or out of storage
     // carries it — JSON and structured clones drop symbols.
     if ((event as { [verifiedSymbol]?: boolean })[verifiedSymbol] === true) return true;
+    if (!fast && loadOnDemand && ++slowChecks >= demandAt) {
+      const start = loadOnDemand;
+      loadOnDemand = null;
+      start();
+    }
     const ok = (fast ?? nobleVerify)(event);
     if (ok) remember(key);
     return ok;
@@ -76,7 +100,7 @@ export function verifiedThisSession(event: NostrEvent): boolean {
 
 /**
  * Fetch and compile the wasm verifier, once; resolves whether it is now in use.
- * Fire-and-forget at boot (lib/eventStore): nothing awaits it.
+ * Fire-and-forget (`loadFastVerifierWhenBusy`): nothing awaits it.
  */
 export function startFastVerifier(load: () => Promise<Verify> = loadWasmVerifier): Promise<boolean> {
   loading ??= load().then(
@@ -125,4 +149,7 @@ export function __resetVerifier(): void {
   fast = null;
   loading = null;
   verified.clear();
+  demandAt = Infinity;
+  slowChecks = 0;
+  loadOnDemand = null;
 }

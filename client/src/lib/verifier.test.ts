@@ -9,7 +9,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
-import { __resetVerifier, startFastVerifier, verifiedThisSession, verifySignature } from "./verifier";
+import {
+  __resetVerifier,
+  loadFastVerifierWhenBusy,
+  startFastVerifier,
+  verifiedThisSession,
+  verifySignature,
+} from "./verifier";
 import { eventStore } from "./eventStore";
 
 const SECRET = generateSecretKey();
@@ -57,6 +63,27 @@ describe("before and after the wasm build loads", () => {
     expect(await startFastVerifier(() => Promise.reject(new Error("CompileError")))).toBe(false);
     expect(verifySignature(signed())).toBe(true);
     expect(verifySignature({ ...signed(), content: "forged" })).toBe(false);
+  });
+
+  it("is fetched only once there is real verifying to do, not at boot", async () => {
+    const load = vi.fn(async () => () => true);
+    loadFastVerifierWhenBusy(3, load);
+    verifySignature(signed());
+    verifySignature(signed());
+    expect(load).not.toHaveBeenCalled(); // a page that verifies two events never downloads it
+    verifySignature(signed());
+    expect(load).toHaveBeenCalledTimes(1);
+    for (let i = 0; i < 5; i++) verifySignature(signed());
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not count a signature it already verified this session", () => {
+    const load = vi.fn(async () => () => true);
+    loadFastVerifierWhenBusy(2, load);
+    const event = signed();
+    verifySignature(event);
+    verifySignature(copyOf(event));
+    expect(load).not.toHaveBeenCalled();
   });
 
   it("loads once, however often it is started", async () => {

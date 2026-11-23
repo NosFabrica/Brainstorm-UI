@@ -12,7 +12,8 @@
  */
 import { EventStore } from "applesauce-core";
 import type { NostrEvent } from "nostr-tools";
-import { startFastVerifier, verifySignature } from "./verifier";
+import { loadFastVerifierWhenBusy, verifySignature } from "./verifier";
+import { connectionSpeed } from "./connection";
 
 export const eventStore = new EventStore();
 
@@ -30,6 +31,8 @@ export const eventStore = new EventStore();
  */
 eventStore.verifyEvent = (event: NostrEvent) => eventStore.hasEvent(event.id) || verifySignature(event);
 
-// The wasm verifier loads behind the first events, never in front of them
-// (lib/verifier). Not under test: each file would compile its own copy.
-if (import.meta.env.MODE !== "test") void startFastVerifier();
+// The wasm verifier loads once there is real verifying to do — a results
+// page's first frames — never at boot in front of the first screen
+// (lib/verifier). On a slow link it takes more to be worth its ~120 KB.
+// Not under test: each file would compile its own copy.
+if (import.meta.env.MODE !== "test") loadFastVerifierWhenBusy(connectionSpeed() === "normal" ? 30 : 150);
