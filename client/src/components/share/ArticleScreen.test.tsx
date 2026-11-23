@@ -64,7 +64,9 @@ vi.mock("@/services/nostr", async () => ({
   fetchAddressableEvents: async (refs: { kind: number; pubkey: string; identifier: string }[]) =>
     new Map(refs.filter((r) => r.identifier === "zaps").map((r) => [`${r.kind}:${r.pubkey}:${r.identifier}`, LINKED])),
 }));
-vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
+vi.mock("@/services/api", () => ({
+  apiClient: { getHouseInfluence: async () => null, getTrustSignals: async () => new Map() },
+}));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
 vi.mock("@/hooks/useShareMeta", () => ({ useShareMeta: () => {} }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));

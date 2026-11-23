@@ -26,7 +26,7 @@ import {
   useCoinReplacedByRing,
 } from "@/components/score/VerificationCoin";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
-import { apiClient } from "@/services/api";
+import { lookupTrustSignals } from "@/services/trustSignals";
 import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { articleSummary, wikiToMarkdown } from "@/lib/wiki";
@@ -386,11 +386,12 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
 
   const authorPk = ptr?.pubkey;
   const trustQuery = useQuery({
-    queryKey: ["article-author-trust", authorPk],
-    queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
+    // The ring every author list draws (services/trustSignals): the house
+    // overview's own influence, batched with the page's other authors and
+    // asked once a session, instead of a whole overview for one number.
+    queryKey: ["author-trust-signals", authorPk],
+    queryFn: async () => (authorPk ? (await lookupTrustSignals(authorPk)).influence : null),
     enabled: !!authorPk,
-    staleTime: 5 * 60_000,
-    retry: false,
   });
 
   // Where this piece lives, when an app we know published it (a zap.cooking recipe).

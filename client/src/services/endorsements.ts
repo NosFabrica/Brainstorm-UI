@@ -12,7 +12,8 @@
  * labeled honestly.
  */
 import { compactCount } from "@/lib/compactCount";
-import { apiClient } from "@/services/api";
+import { queryClient } from "@/lib/queryClient";
+import { topFollowersOptions } from "@/services/queries/userReads";
 import {
   fetchAppEndorsementCounts,
   fetchAppReviews,
@@ -69,28 +70,15 @@ export async function fetchPersonEndorsements(
   pubkey: string,
   opts: { personal: boolean },
 ): Promise<PersonEndorsements> {
+  // The share page's "Followed by" row is this same list: one cached read
+  // with the total serves both (services/queries/userReads).
   const [followersRes, vouchesRes] = await Promise.allSettled([
-    apiClient.getUserConnections(pubkey, "followed_by", {
-      limit: 8,
-      order: "desc",
-      verified_only: true,
-      with_total: true,
-      house: !opts.personal,
-    }) as Promise<{
-      data?: { items?: Array<string | { pubkey?: string; influence?: number | null }>; total?: unknown };
-    } | null>,
+    queryClient.fetchQuery(topFollowersOptions(pubkey, opts.personal ? "viewer" : "house")),
     fetchPersonVouches(pubkey),
   ]);
-  const res = followersRes.status === "fulfilled" ? followersRes.value : null;
-  const items = res?.data?.items ?? [];
-  const followedBy = items
-    .map((e) =>
-      typeof e === "string"
-        ? { pubkey: e, score01: null }
-        : { pubkey: e?.pubkey ?? "", score01: typeof e?.influence === "number" ? e.influence : null },
-    )
-    .filter((e) => !!e.pubkey);
-  const total = typeof res?.data?.total === "number" ? res.data.total : null;
+  const top = followersRes.status === "fulfilled" ? followersRes.value : null;
+  const followedBy = (top?.items ?? []).map((e) => ({ pubkey: e.pubkey, score01: e.influence }));
+  const total = top?.total ?? null;
   const vouches = vouchesRes.status === "fulfilled" ? vouchesRes.value : [];
   return { followedBy, total, vouches };
 }

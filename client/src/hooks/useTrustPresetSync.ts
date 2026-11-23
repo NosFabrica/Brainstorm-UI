@@ -14,22 +14,40 @@ export function trustPresetQueryKey(pubkey?: string | null) {
 // saved preset. The preset lives on the server, not in these query keys, so a
 // preset write must invalidate them by hand (nothing auto-refetches here).
 // `share-conn` qualifies: ConnectionListPage drops `house` on personalized POV.
-// `share-stats` / `share-followedby` don't — always `house: true`, so a shared
-// link never moves with the viewer's preset.
-const PRESET_DRIVEN_QUERY_BASES = [
+const PRESET_DRIVEN_QUERY_BASES = new Set([
   "/user/overview",
   "/user/stats",
   "/user/connections",
-  "profile-overview",
-  "profile-stats",
   "profile-conn",
   "share-conn",
-];
+]);
+
+/**
+ * A read made from Brainstorm's perspective, which answers under the house's
+ * preset whatever the viewer saved — so their preset changing can't move it.
+ * Shared-link pages ask these for every viewer, and refetching them on a
+ * preset change was pure cost. Each base says it its own way:
+ * services/queries/userReads puts the resolved perspective third, useSelf's
+ * connections a `house` flag last, ConnectionListPage `myPov` fifth.
+ */
+function isHouseRead(key: readonly unknown[]): boolean {
+  switch (key[0]) {
+    case "/user/overview":
+    case "/user/stats":
+      return key[2] === "house";
+    case "/user/connections":
+      return key[7] === true;
+    case "share-conn":
+      return key[4] === false;
+    default:
+      return false;
+  }
+}
 
 export function invalidatePresetDrivenReads(queryClient: QueryClient): void {
-  for (const base of PRESET_DRIVEN_QUERY_BASES) {
-    queryClient.invalidateQueries({ queryKey: [base] });
-  }
+  void queryClient.invalidateQueries({
+    predicate: (query) => PRESET_DRIVEN_QUERY_BASES.has(query.queryKey[0] as string) && !isHouseRead(query.queryKey),
+  });
 }
 
 /**
@@ -49,8 +67,8 @@ export function useSetTrustPreset(opts?: {
     onSuccess: (_data, preset) => {
       setActivePreset(preset);
       const key = trustPresetQueryKey(opts?.pubkey);
+      // The server's answer is what we just wrote; no need to ask it again.
       queryClient.setQueryData(key, { data: { preset: presetToBackend(preset) } });
-      queryClient.invalidateQueries({ queryKey: key });
       invalidatePresetDrivenReads(queryClient);
       opts?.onSettledOk?.(preset);
     },

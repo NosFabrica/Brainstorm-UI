@@ -24,7 +24,10 @@ const connectionsMock = vi.fn();
 vi.mock("@/services/api", () => ({
   apiClient: { getUserConnections: (...a: unknown[]) => connectionsMock(...a) },
 }));
+// Signed in: "my perspective" is only a different read with an Account to make it.
+vi.mock("@/accounts/signing", () => ({ activeAccount: () => ({ pubkey: "e".repeat(64) }) }));
 
+import { queryClient } from "@/lib/queryClient";
 import {
   endorsementLabel,
   fetchAppEndorsements,
@@ -157,6 +160,21 @@ describe("fetchAppEndorsements", () => {
 // connections endpoint: house Perspective for a stable public line, the
 // viewer's own when they look through My perspective.
 describe("fetchPersonEndorsements", () => {
+  // The list is a cached read the share page shares; each case starts from none.
+  beforeEach(() => {
+    queryClient.clear();
+    connectionsMock.mockReset();
+  });
+
+  it("asks once for a person the share page already asked about — the same list, total included", async () => {
+    connectionsMock.mockResolvedValue({ data: { items: [{ pubkey: B, influence: 0.5 }], total: 9 } });
+    vouchesMock.mockResolvedValue([]);
+    await fetchPersonEndorsements(C, { personal: false });
+    const again = await fetchPersonEndorsements(C, { personal: false });
+    expect(connectionsMock).toHaveBeenCalledTimes(1);
+    expect(again.total).toBe(9);
+  });
+
   it("reads the top verified followers, keeping each one's score for its ring — and the person's vouches", async () => {
     connectionsMock.mockResolvedValue({
       data: { items: [A, { pubkey: B, influence: 0.42 }, { pubkey: "" }], total: 1234 },

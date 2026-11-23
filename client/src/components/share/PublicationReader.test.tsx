@@ -133,7 +133,9 @@ vi.mock("@/services/nostr", async () => ({
   fetchIndexesListing: async (coordinate: string) =>
     ALL.filter((e) => e.kind === 30040 && e.tags.some((t) => t[0] === "a" && t[1] === coordinate)),
 }));
-vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
+vi.mock("@/services/api", () => ({
+  apiClient: { getHouseInfluence: async () => null, getTrustSignals: async () => new Map() },
+}));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
 vi.mock("@/hooks/useShareMeta", () => ({ useShareMeta: () => {} }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));

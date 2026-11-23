@@ -36,7 +36,7 @@ import { removeAccountFromDevice } from "@/accounts/login-flow";
 import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
-import { apiClient } from "@/services/api";
+import { overviewOptions, selectInfluence } from "@/services/queries/userReads";
 import { SUPPORT_QUERY_KEY, fetchSupport } from "@/services/support";
 import { unreadCount } from "@/lib/supportSeen";
 import {
@@ -92,11 +92,9 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
   // Own house Web-of-Trust score for the invite card — fetched lazily when the
   // invite sheet opens (cached). Sharing your standing is a credible flex.
   const houseScoreQuery = useQuery({
-    queryKey: ["self-house-influence", user?.pubkey],
-    queryFn: () => (user?.pubkey ? apiClient.getHouseInfluence(user.pubkey) : null),
+    ...overviewOptions(user?.pubkey ?? "", "house"),
     enabled: !!user?.pubkey && inviteOpen,
-    staleTime: 5 * 60_000,
-    retry: false,
+    select: selectInfluence,
   });
 
   const inviteUrl = useShortLink({ ...profileShortLink(user?.npub ?? ""), enabled: inviteOpen });
