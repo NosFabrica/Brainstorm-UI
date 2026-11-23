@@ -250,7 +250,15 @@
       media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
       href="/splash/2048x1536.png"
     />
+    <!-- Runtime config (window.__ENV__). At container start docker-entrypoint.sh
+         replaces everything from CONFIG-START to CONFIG-END with config.js's own
+         contents, inline, so no page load waits on a parser-blocking round trip
+         for it. Where nothing replaces it (npm run dev, the APK) the tag between
+         them loads config.js as it always did. Above the head start below, which
+         reads window.__ENV__. -->
+    <!--CONFIG-START-->
     <script src="/config.js"></script>
+    <!--CONFIG-END-->
     <!-- Filled in at container start from the same env config.js gets: the API
          and relay origins, so their DNS + TCP + TLS happen while the app boots
          instead of in front of the first search. Empty in dev. -->
