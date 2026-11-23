@@ -34,11 +34,11 @@ import {
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conceptViewOf, dictionaryRelays, type ConceptViewKey } from "@/config/dictionary";
-import config from "@/config/dictionary.config.json";
 import { useConceptItems, useConceptMatches } from "@/hooks/useConceptItems";
 import { useSearchPriority } from "@/hooks/useSearchPriority";
 import { useDictionary } from "@/hooks/useDictionary";
 import type { ListKindSearch, PreviewSlot } from "@/hooks/useListKinds";
+import { KIND_INFO, kindOf, useWhenIdle, type KindParts } from "@/components/items/listKinds";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { coversTitle, matchListItems, wordsToFind } from "@/lib/listSearch";
 import { orderByTrust } from "@/lib/itemEngagement";
@@ -51,7 +51,7 @@ import { contactHref } from "@/lib/contactHref";
 import { coordinateOf, httpUrl } from "@/lib/dlistFields";
 import { eventPath } from "@/lib/shareId";
 import { tierThreePresentation } from "@/components/items/itemViews";
-import { openingLine, placeOf, type Place } from "@/components/items/PlaceView";
+import { openingLine, placeOf, type Place } from "@/components/items/place";
 import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
 import { useQuery } from "@tanstack/react-query";
@@ -822,26 +822,13 @@ function GitHubPreview({ query, slot, named, onSeeAll }: PreviewProps) {
 
 /* ── Reading a kind's list ahead of a search ──────────────────────────── */
 
-/** How long the page is left to settle before a list is read, when the browser can't say it's idle. */
-const WARM_AFTER_MS = 2000;
-
 /**
  * Reads a kind's list once the search page is idle, so the first search's
  * previews come with People rather than after them. Draws nothing.
  */
 function warmFor(view: ConceptViewKey) {
   return function Warm() {
-    const [idle, setIdle] = useState(false);
-    useEffect(() => {
-      const ric = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number })
-        .requestIdleCallback;
-      if (ric) {
-        const id = ric(() => setIdle(true), { timeout: WARM_AFTER_MS * 2 });
-        return () => (window as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
-      }
-      const t = window.setTimeout(() => setIdle(true), WARM_AFTER_MS);
-      return () => window.clearTimeout(t);
-    }, []);
+    const idle = useWhenIdle();
     const dictionary = useDictionary(idle, { anonymous: true });
     const entry = (dictionary.data ?? []).find((e) => e.resolved && conceptViewOf(e.communityCoordinate) === view);
     useConceptItems(entry, idle && !!entry);
@@ -1750,40 +1737,32 @@ function GitHubPage({ query }: { query: string }) {
   );
 }
 
-const views = config.views as Record<ConceptViewKey, string>;
-
-/** The kinds, in the order the Top page shows them when the words name none of them. */
-export const LIST_KINDS: readonly ListKindSearch[] = [
-  {
-    key: "places",
-    label: "Places",
-    group: "Out & about",
-    community: views.place,
+/**
+ * Each kind's parts, by its key: what the app's root loads on demand through
+ * listKinds' stand-ins. Search draws them with the kinds' info (`LIST_KINDS`).
+ */
+export const KIND_PARTS: Record<string, KindParts> = {
+  places: {
     Preview: PlacesPreview,
     Panel: PlacesPanel,
     Page: PlacesPage,
     Warm: warmFor("place"),
     Suggestion: suggestionFor("places", "place", "Place", PinIcon, { byName: true, groups: true, mostOfTitle: true }),
   },
-  {
-    key: "books",
-    label: "Books",
-    group: "Read & listen",
-    community: views.book,
+  books: {
     Preview: BooksPreview,
     Page: BooksPage,
     Warm: warmFor("book"),
     Suggestion: suggestionFor("books", "book", "Book", BookOpen, { mostOfTitle: true, byName: true }),
   },
-  {
-    key: "github",
-    label: "GitHub accounts",
-    group: "Build",
-    community: views["github-account"],
+  github: {
     Preview: GitHubPreview,
     Page: GitHubPage,
     Warm: warmFor("github-account"),
     Suggestion: suggestionFor("github", "github-account", "GitHub", Github, { owned: true }),
     PersonMark: GitHubMark,
   },
-];
+};
+
+/** The kinds with their parts loaded: what tests and the dev playground draw directly. */
+export const LIST_KINDS: readonly ListKindSearch[] = KIND_INFO.map((info) => kindOf(info, KIND_PARTS[info.key]));

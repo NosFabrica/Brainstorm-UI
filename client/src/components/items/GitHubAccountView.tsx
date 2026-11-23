@@ -50,59 +50,11 @@ import { relativeTime } from "@/lib/relativeTime";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import { useAvatarSrc } from "@/lib/avatarSrc";
 import { useConnectionSpeed } from "@/lib/connection";
-import type { ConceptDefinition } from "@/lib/conceptResolution";
-import type { ItemPresentation } from "@/lib/itemPresentation";
 import { fieldCell, undeclaredFields } from "@/lib/dlistFields";
+import { avatarUrl, BYLINE_FIELD, githubAccountOf, HANDLE_FIELD } from "@/components/items/githubAccount";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
-const HANDLE_FIELD = "github-username";
-const BYLINE_FIELD = "description";
-
-export interface GitHubAccount {
-  handle: string;
-  byline: string | null;
-}
-
-/**
- * The account the item names, read through the definition: null when the
- * definition doesn't declare the handle field or the item doesn't fill it.
- */
-export function githubAccountOf(item: { tags: string[][] }, definition: ConceptDefinition): GitHubAccount | null {
-  const handleDecl = definition.fields.find((f) => f.name === HANDLE_FIELD);
-  if (!handleDecl) return null;
-  const handle = fieldCell(item, handleDecl).value?.trim();
-  if (!handle) return null;
-  const bylineDecl = definition.fields.find((f) => f.name === BYLINE_FIELD);
-  const byline = bylineDecl ? fieldCell(item, bylineDecl).value?.trim() || null : null;
-  return { handle, byline };
-}
-
-/** GitHub serves an account's avatar at its handle; the proxy keeps the page from contacting github.com itself. */
-const avatarUrl = (handle: string) => `https://github.com/${encodeURIComponent(handle)}.png?size=160`;
-
-/**
- * How a GitHub account reads wherever it is one among many (ADR 0007): the
- * handle first, the account's own avatar, the description as the line —
- * whatever the copy's display hints say the title is. The handle is read
- * through the definition (githubAccountOf); nothing is asked of GitHub.
- */
-export function githubPresentation(
-  item: { tags: string[][] },
-  definition: ConceptDefinition,
-  shown: ItemPresentation,
-): ItemPresentation {
-  const account = githubAccountOf(item, definition);
-  if (!account) return shown;
-  const summary = account.byline ?? (shown.summary !== account.handle ? shown.summary : null);
-  return {
-    ...shown,
-    title: account.handle,
-    titleField: HANDLE_FIELD,
-    summary: summary === account.handle ? null : summary,
-    summaryField: account.byline ? BYLINE_FIELD : shown.summaryField,
-    image: avatarUrl(account.handle),
-  };
-}
+export { githubAccountOf, githubPresentation, type GitHubAccount } from "@/components/items/githubAccount";
 
 export function GitHubAccountView({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   const { resolved: r, shown, links, usedFields } = view;
