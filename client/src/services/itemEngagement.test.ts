@@ -75,6 +75,50 @@ describe("fetchGitHubClaimants", () => {
   });
 });
 
+describe("fetchGitHubClaimants, many at once", () => {
+  const claim = (pubkey: string, handle: string) => ({
+    id: pubkey.slice(0, 4) + handle,
+    kind: 0,
+    pubkey,
+    created_at: 1,
+    content: "{}",
+    tags: [["i", `github:${handle}`, ""]],
+  });
+
+  it("asks for every handle of a list in one REQ, and hands each its own claimants", async () => {
+    const B = "b".repeat(64);
+    reads.fetchFromSearchRelayByFilters.mockResolvedValue([claim(A, "alice"), claim(B, "bob")]);
+    const [alice, bob, carol] = await Promise.all(["alice", "bob", "carol"].map(fetchGitHubClaimants));
+    expect(reads.fetchFromSearchRelayByFilters).toHaveBeenCalledTimes(1);
+    expect(reads.fetchFromSearchRelayByFilters).toHaveBeenCalledWith(
+      [{ kinds: [0], "#i": ["github:alice", "github:bob", "github:carol"], limit: 300 }],
+      expect.any(Number),
+    );
+    expect(alice).toEqual([{ pubkey: A, proof: null }]);
+    expect(bob).toEqual([{ pubkey: B, proof: null }]);
+    expect(carol).toEqual([]);
+  });
+
+  it("stays under the relay's subscription cap: fifty handles a REQ", async () => {
+    reads.fetchFromSearchRelayByFilters.mockResolvedValue([]);
+    await Promise.all(Array.from({ length: 120 }, (_, i) => fetchGitHubClaimants(`user${i}`)));
+    const sizes = reads.fetchFromSearchRelayByFilters.mock.calls.map((c) => (c[0][0]["#i"] as string[]).length);
+    expect(sizes).toEqual([50, 50, 20]);
+  });
+
+  it("asks once for a handle two rows share, and answers both", async () => {
+    reads.fetchFromSearchRelayByFilters.mockResolvedValue([claim(A, "alice")]);
+    const [one, two] = await Promise.all([fetchGitHubClaimants("alice"), fetchGitHubClaimants("alice")]);
+    expect(reads.fetchFromSearchRelayByFilters.mock.calls[0][0][0]["#i"]).toEqual(["github:alice"]);
+    expect(one).toEqual(two);
+  });
+
+  it("answers no claimants, rather than failing, when the relay can't be read", async () => {
+    reads.fetchFromSearchRelayByFilters.mockRejectedValue(new Error("down"));
+    expect(await fetchGitHubClaimants("alice")).toEqual([]);
+  });
+});
+
 describe("publishEndorsement", () => {
   it("signs a '+' on the item as the active account and publishes it where list events go", async () => {
     const signed = { id: "s", kind: 7, pubkey: "f".repeat(64), created_at: 5, content: "+", tags: [], sig: "" };

@@ -36,12 +36,57 @@ export async function fetchItemReactions(item: {
   return endorsersOf(events);
 }
 
-export async function fetchGitHubClaimants(handle: string): Promise<GitHubClaimant[]> {
-  const profiles = await fetchFromSearchRelayByFilters(
-    [{ kinds: [0], "#i": [`github:${handle.trim()}`], limit: 100 }],
+/**
+ * Claimants are asked for in batches: a list of GitHub accounts asks for every
+ * row's at once, and one REQ per handle (a profile's list ran to 209 in 50 ms)
+ * sailed past the search relay's 50 concurrent subscriptions, so most were
+ * refused and the rows showed no claimants. Handles asked within one short
+ * window share a filter (`#i` takes many values), up to `CLAIMANT_BATCH` per
+ * REQ, and each caller gets the claims for its own handle out of the answer
+ * (githubClaimantsOf keeps only profiles naming it).
+ */
+const CLAIMANT_WINDOW_MS = 25;
+const CLAIMANT_BATCH = 50;
+/** Up to this many claimants a handle, as one handle's ask always allowed. */
+const CLAIMANTS_PER_HANDLE = 100;
+
+interface ClaimantAsk {
+  handle: string;
+  resolve: (claimants: GitHubClaimant[]) => void;
+}
+
+let waiting = new Map<string, ClaimantAsk[]>();
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function askClaimants(batch: Map<string, ClaimantAsk[]>): void {
+  const tags = [...batch.keys()];
+  void fetchFromSearchRelayByFilters(
+    [{ kinds: [0], "#i": tags, limit: CLAIMANTS_PER_HANDLE * tags.length }],
     TIMEOUT_MS,
-  ).catch(() => []);
-  return githubClaimantsOf(profiles, handle);
+  )
+    .catch(() => [])
+    .then((profiles) => {
+      for (const asks of batch.values()) for (const ask of asks) ask.resolve(githubClaimantsOf(profiles, ask.handle));
+    });
+}
+
+function flushClaimants(): void {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
+  const all = [...waiting];
+  waiting = new Map();
+  for (let i = 0; i < all.length; i += CLAIMANT_BATCH) askClaimants(new Map(all.slice(i, i + CLAIMANT_BATCH)));
+}
+
+export function fetchGitHubClaimants(handle: string): Promise<GitHubClaimant[]> {
+  const tag = `github:${handle.trim()}`;
+  return new Promise((resolve) => {
+    const asks = waiting.get(tag);
+    if (asks) asks.push({ handle, resolve });
+    else waiting.set(tag, [{ handle, resolve }]);
+    if (waiting.size >= CLAIMANT_BATCH) flushClaimants();
+    else flushTimer ??= setTimeout(flushClaimants, CLAIMANT_WINDOW_MS);
+  });
 }
 
 export async function publishEndorsement(item: {
