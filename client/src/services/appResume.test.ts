@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const wakeRelays = vi.fn();
@@ -52,5 +54,29 @@ describe("coming back to the app", () => {
   it("asks the API again only after a long absence", () => {
     back(REFRESH_AFTER_MS, "visible");
     expect(invalidateQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the tag reads to their own staleTime — the API's answers are refetched", () => {
+    back(REFRESH_AFTER_MS, "visible");
+    const [{ predicate }] = invalidateQueries.mock.calls[0] as unknown as [
+      { predicate: (q: { queryKey: unknown[] }) => boolean },
+    ];
+    expect(predicate({ queryKey: ["/user/self"] })).toBe(true);
+    expect(predicate({ queryKey: ["share-overview", "a"] })).toBe(true);
+    expect(predicate({ queryKey: ["tag-index", "anon", "house"] })).toBe(false);
+    expect(predicate({ queryKey: ["profile-tags", "a", "anon", "house"] })).toBe(false);
+  });
+});
+
+describe("the tag reads it leaves alone", () => {
+  /** A tag query added to useTags without joining the list would be re-asked on every return. */
+  it("are every query key root hooks/useTags makes", async () => {
+    const { TAG_QUERY_ROOTS } = await import("./appResume");
+    const source = readFileSync(resolve(__dirname, "../hooks/useTags.ts"), "utf8");
+    const roots = [...source.matchAll(/(?:Key\s*=\s*(?:\([^)]*\)\s*=>\s*)?|queryKey:\s*)\[\s*"([a-z][a-z-]*)"/g)].map(
+      (m) => m[1],
+    );
+    expect(roots.length).toBeGreaterThan(5);
+    for (const root of roots) expect(TAG_QUERY_ROOTS).toContain(root);
   });
 });

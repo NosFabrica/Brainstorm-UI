@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
+import type { Subscription } from "rxjs";
 import { eventStore } from "@/lib/eventStore";
 import { readProfileRows } from "@/lib/eventCache";
 
@@ -83,14 +84,14 @@ export function useHeldReplaceables(coords: Coordinate[]): Map<string, NostrEven
     };
 
     setState((current) => (current.id === keysId ? current : { id: keysId, held: readStore(keys) }));
-    const sub = eventStore.insert$.subscribe((event) => take([event]));
+    const stopWatching = watchCoordinates(keys, (event) => take([event]));
 
     // Profiles the memory store doesn't have may still be on the device; they
     // arrive through the store, like any other copy.
     loadFromDevice(keys.filter((k) => k.startsWith("0:")).map((k) => k.split(":")[1]));
     return () => {
       alive = false;
-      sub.unsubscribe();
+      stopWatching();
     };
     // keysId is `keys`, as a value: a new array with the same coordinates is not a new subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,8 +110,46 @@ export function useHeldReplaceable(
   return useHeldReplaceables(coords).get(coordKey({ kind, pubkey: pubkey ?? "", identifier }));
 }
 
+/** Who listens for which coordinate, and the one store subscription that tells them. */
+const watchers = new Map<string, Set<(event: NostrEvent) => void>>();
+let inserts: Subscription | null = null;
+
+/**
+ * Hear every version of these coordinates the store receives.
+ *
+ * One `insert$` subscription for every hook instance, dispatching by
+ * coordinate, rather than one per instance: a page of fifty cards each
+ * following one profile ran fifty callbacks for every event a feed inserted —
+ * hundreds a second while it loads — to find the one card it was for.
+ */
+function watchCoordinates(keys: string[], listener: (event: NostrEvent) => void): () => void {
+  for (const key of keys) {
+    let set = watchers.get(key);
+    if (!set) watchers.set(key, (set = new Set()));
+    set.add(listener);
+  }
+  inserts ??= eventStore.insert$.subscribe((event: NostrEvent) => {
+    const listening = watchers.get(coordOf(event));
+    if (listening) for (const heard of [...listening]) heard(event);
+  });
+  return () => {
+    for (const key of keys) {
+      const set = watchers.get(key);
+      set?.delete(listener);
+      if (set && !set.size) watchers.delete(key);
+    }
+    if (!watchers.size) {
+      inserts?.unsubscribe();
+      inserts = null;
+    }
+  };
+}
+
 /** Pubkeys whose device copy has been looked for this session. */
 const deviceChecked = new Set<string>();
+
+/** Pubkeys gathered for the next device read, or null when none is pending. */
+let deviceBatch: Set<string> | null = null;
 
 /**
  * Put the device's copy of these profiles into the memory store, however old.
@@ -122,12 +161,27 @@ const deviceChecked = new Set<string>();
  * through the store, and the store is where the device's copies are written
  * from. The store verifies the signature on the way in, as the author queue's
  * copies are.
+ *
+ * Gathered for a microtask first: the hooks a render mounts run their effects
+ * one after another in the same tick, and one IndexedDB transaction for all
+ * of their people costs what one of them alone used to.
  */
 function loadFromDevice(pubkeys: string[]): void {
   const todo = pubkeys.filter((pk) => !deviceChecked.has(pk) && !eventStore.getReplaceable(0, pk));
   if (!todo.length) return;
   todo.forEach((pk) => deviceChecked.add(pk));
-  readProfileRows(todo)
+  if (!deviceBatch) {
+    deviceBatch = new Set();
+    queueMicrotask(readDeviceBatch);
+  }
+  for (const pk of todo) deviceBatch.add(pk);
+}
+
+function readDeviceBatch(): void {
+  const batch = [...(deviceBatch ?? [])];
+  deviceBatch = null;
+  if (!batch.length) return;
+  readProfileRows(batch)
     .then((rows) => {
       for (const row of rows.values()) {
         try {
@@ -143,6 +197,7 @@ function loadFromDevice(pubkeys: string[]): void {
 /** Test seam. */
 export function __resetDeviceChecks(): void {
   deviceChecked.clear();
+  deviceBatch = null;
 }
 
 function readStore(keys: string[]): Map<string, NostrEvent> {

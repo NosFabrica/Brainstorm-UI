@@ -99,11 +99,13 @@ export async function fetchPillProfiles(pubkeys: string[], timeoutMs = TIMEOUT_M
   // A face for everybody already: nothing to ask, and nothing to wait for. Without this a
   // pill whose profile is already in hand still sat on its skeleton until the slower of two
   // network reads gave up, which for somebody with no kind-0 on their own relays is the whole
-  // timeout.
-  if (newest.size < want.length) {
+  // timeout. And only the faces still missing are asked for: a query with three pills, one of
+  // them new, asked again about the two already drawn — a REQ to their relays each.
+  const missing = want.filter((pk) => !newest.has(pk));
+  if (missing.length) {
     const asked = [
-      fromSearchRelay(want, timeoutMs).then((events) => events.forEach(take)),
-      ...want.map((pk) => fromTheirRelays(pk, timeoutMs).then(take)),
+      fromSearchRelay(missing, timeoutMs).then((events) => events.forEach(take)),
+      ...missing.map((pk) => fromTheirRelays(pk, timeoutMs).then(take)),
     ];
     // Whichever source answers first wins the race when it completes the set; the rest are
     // left running, and what they bring lands in the store for the next pill to find.

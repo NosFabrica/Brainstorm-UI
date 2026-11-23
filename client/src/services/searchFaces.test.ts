@@ -10,10 +10,13 @@ import { Observable } from "rxjs";
 const reqMock = vi.fn();
 vi.mock("@/lib/searchRelay", () => ({ searchRelay: () => ({ req: (...a: unknown[]) => reqMock(...a) }) }));
 
-const storeGet = vi.fn<() => NostrEvent | undefined>(() => undefined);
+const storeGet = vi.fn<(pubkey?: string) => NostrEvent | undefined>(() => undefined);
 const storeAdd = vi.fn();
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: () => storeGet(), add: (e: NostrEvent) => storeAdd(e) },
+  eventStore: {
+    getReplaceable: (_kind: number, pubkey: string) => storeGet(pubkey),
+    add: (e: NostrEvent) => storeAdd(e),
+  },
 }));
 
 const loadReplaceableMock = vi.fn<() => Promise<NostrEvent | undefined>>(() => Promise.resolve(undefined));
@@ -21,6 +24,7 @@ vi.mock("@/lib/loaders", () => ({ loadReplaceable: (...a: unknown[]) => loadRepl
 
 const outboxMock = vi.fn<(pk: string, fallback: string[]) => string[]>((_pk, fallback) => fallback);
 vi.mock("@/lib/relayRouting", () => ({
+  setRelayListWarmGate: () => {},
   outboxRelays: async (pk: string, fallback: string[]) => outboxMock(pk, fallback),
 }));
 vi.mock("@/lib/relays", () => ({ PROFILE_RELAYS: ["wss://default.example/"] }));
@@ -107,6 +111,18 @@ describe("fetchPillProfiles", () => {
     expect(found.get(JOE)?.displayName).toBe("Held Already");
     expect(reqMock).not.toHaveBeenCalled();
     expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
+
+  it("asks only for the faces it is missing", async () => {
+    const ana = "a".repeat(64);
+    storeGet.mockImplementation((pubkey) => (pubkey === JOE ? profile("Held Already", 300) : undefined));
+    reqMock.mockImplementation(() => answers([profile("Ana", 100, ana)]));
+    const found = await fetchPillProfiles([JOE, ana]);
+    expect(found.get(ana)?.displayName).toBe("Ana");
+    expect((reqMock.mock.calls[0][0] as { authors: string[] }).authors).toEqual([ana]);
+    expect(loadReplaceableMock).toHaveBeenCalledTimes(1);
+    storeGet.mockReset();
+    storeGet.mockReturnValue(undefined);
   });
 
   it("does not wait on the slower source once it has a face for everybody", async () => {
