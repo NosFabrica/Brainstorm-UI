@@ -12,7 +12,7 @@ import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { ListCard } from "@/components/search/cards";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, memo, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -503,13 +503,13 @@ function rowPropsFor(event: NostrEvent, open: () => void) {
   };
 }
 
-export function SerpRow(props: SerpRowProps) {
+export const SerpRow = memo(function SerpRow(props: SerpRowProps) {
   return (
     <ContentFirstContext.Provider value={!!props.contentFirst}>
       <SerpRowBody {...props} />
     </ContentFirstContext.Provider>
   );
-}
+});
 
 function SerpRowBody(props: SerpRowProps) {
   // A Trusted List's content is its members again, as JSON: the row would say

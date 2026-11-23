@@ -4827,7 +4827,9 @@ describe("when the search relay is down", () => {
     const { rerender } = render(<SearchResults query="nostr" pov="nosfabrica" />);
     const before = allStreams.filter((c) => !isPanelProbe(c.query, c.params)).length;
     serverStatusMock.mockReturnValue({ api: "ok", search: "ok", recovery: 1, checking: false, nextProbeAt: null });
-    rerender(<SearchResults query="nostr" pov="nosfabrica" />);
+    // SearchResults is memoised, and this mock has no subscription to re-render it the way
+    // lib/serverStatus does: a new prop stands in for that.
+    rerender(<SearchResults query="nostr" pov="nosfabrica" onTabChange={() => {}} />);
     expect(allStreams.filter((c) => !isPanelProbe(c.query, c.params)).length).toBe(before + 1);
   });
 });
@@ -5019,7 +5021,8 @@ describe("a People search whose words match a tag", () => {
     expect(screen.queryByTestId("result-profile-0")).toBeNull();
     expect(screen.queryByText(/Nothing found/i)).toBeNull();
     carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
-    rerender(<SearchResults query="verified human" pov="nosfabrica" />);
+    // Memoised: the mocked hook cannot re-render it the way the real one does, so a new prop does.
+    rerender(<SearchResults query="verified human" pov="nosfabrica" onTabChange={() => {}} />);
     await screen.findByTestId("result-profile-1");
     expect([0, 1].map(nameOf)).toEqual(["Avi", "Human Verifier"]);
   });
@@ -5033,7 +5036,8 @@ describe("a People search whose words match a tag", () => {
     expect([0, 1].map(nameOf)).toEqual(["Avi", "Bill"]);
     // Bill's score arrives higher a moment later — the block does not jump.
     scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.95 : 0.7));
-    rerender(<SearchResults query="verified human" pov="nosfabrica" />);
+    // Memoised: the mocked scores cannot re-render it the way the real hook does, so a new prop does.
+    rerender(<SearchResults query="verified human" pov="nosfabrica" onTabChange={() => {}} />);
     await act(async () => {});
     expect([0, 1].map(nameOf)).toEqual(["Avi", "Bill"]);
   });
@@ -5659,7 +5663,8 @@ describe("All's categories", () => {
     expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
     ribbonSettled = true;
     ribbonMock.mockImplementation((_q, { enabled }) => (enabled ? [places] : []));
-    rerender(<SearchResults query="fork & coin" pov="nosfabrica" />);
+    // Memoised: the mocked hook cannot re-render it the way the real one does, so a new prop does.
+    rerender(<SearchResults query="fork & coin" pov="nosfabrica" onTabChange={() => {}} />);
     await waitFor(() => expect(lastMain()).toMatchObject({ kinds: [39999, 9999], tags: { "#z": [PLACES] } }));
   });
 

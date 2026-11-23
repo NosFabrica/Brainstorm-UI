@@ -55,7 +55,7 @@ import {
   Vote,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -102,7 +102,7 @@ interface CardProps<T extends ThingDetail["type"]> {
  * nothing for one it cannot — the tabs gate on the same read, so a tab never
  * asks it to.
  */
-export function ThingCard({
+export const ThingCard = memo(function ThingCard({
   event,
   author,
   score,
@@ -160,7 +160,7 @@ export function ThingCard({
     case "torrent":
       return <TorrentCard {...base} detail={d} />;
   }
-}
+});
 
 // ——— Shared pieces ———
 

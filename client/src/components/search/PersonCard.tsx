@@ -4,6 +4,7 @@
  * follower pill, npub copy), extracted from landing.tsx so every vertical
  * shares it.
  */
+import { memo } from "react";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { HandleOwnerWarning } from "@/components/Nip05Check";
@@ -39,7 +40,7 @@ function formatFollowers(n: number): string {
       : String(n);
 }
 
-export function PersonCard({
+export const PersonCard = memo(function PersonCard({
   result,
   idx,
   pov,
@@ -231,4 +232,4 @@ export function PersonCard({
       </div>
     </div>
   );
-}
+});
