@@ -19,7 +19,7 @@ import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
 import { networkOfRun, runOf } from "@/lib/graperankRun";
 import { GRAPERANK_RESULT_KEY, grapeRankResultOptions, noteGrapeRankTriggered } from "@/services/queries/graperank";
-import { overviewOptions, selectInfluence } from "@/services/queries/userReads";
+import { influenceOptions } from "@/services/queries/userReads";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
 import { readAssistantProfile } from "@/lib/assistantStorage";
@@ -115,9 +115,8 @@ export default function InsightsPage() {
   // "what others see" — every observer with their own graph computes a different
   // number for you.
   const houseQuery = useQuery({
-    ...overviewOptions(pubkey ?? "", "house"),
+    ...influenceOptions(pubkey ?? "", "house"),
     enabled: !!pubkey,
-    select: selectInfluence,
   });
   // Active preset (from settings) — the fallback for "Settings preset" when the
   // latest run hasn't stamped graperank_preset_used yet (e.g. mid-recalculation).
@@ -455,7 +454,7 @@ export default function InsightsPage() {
                     ? "Loading…"
                     : "Not yet scored"}
               </p>
-              {/* This number is getHouseInfluence — BRAINSTORM's vantage point, not
+              {/* This number is the house influence (influenceOptions) — BRAINSTORM's vantage point, not
                   a universal verdict. It used to claim "the number others see on
                   your profile", which is exactly wrong: anyone with their own web
                   of trust computes a different number for you. Saying so is also

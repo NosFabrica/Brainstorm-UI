@@ -23,6 +23,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { activeAccount } from "@/accounts/signing";
 import { apiClient } from "@/services/api";
+import { hasSettledTrustSignals, lookupTrustSignals } from "@/services/trustSignals";
 
 /**
  * Whose perspective a read asks through. "viewer" is the signed-in reader's
@@ -40,6 +41,7 @@ export function resolvePov(pov: Pov): Pov {
 const PERSON_READ_STALE_MS = 5 * 60_000;
 
 export const OVERVIEW_BASE = "/user/overview";
+export const INFLUENCE_BASE = "/user/trustSignals";
 export const STATS_BASE = "/user/stats";
 export const HISTORY_BASE = "/user/history";
 export const TOP_FOLLOWERS_BASE = "/user/top-followers";
@@ -73,6 +75,40 @@ export function statsOptions(pubkey: string, pov: Pov) {
   return queryOptions({
     queryKey: statsKey(pubkey, pov),
     queryFn: ({ queryKey }): Promise<Envelope> => apiClient.getUserStats(pubkey, { house: queryKey[2] === "house" }),
+    enabled: !!pubkey,
+    staleTime: PERSON_READ_STALE_MS,
+    retry: false,
+  });
+}
+
+export function influenceKey(pubkey: string, pov: Pov) {
+  return [INFLUENCE_BASE, pubkey.toLowerCase(), resolvePov(pov)] as const;
+}
+
+/**
+ * One person's influence (0..1, null when unrated) — for a ring or a score
+ * that needs nothing else. Asks Trust signals, never `/overview`: on
+ * production `/overview` also counts followers and took 22–37s for large
+ * accounts (2026-11-17), where Trust signals answers in ~0.2s.
+ *
+ * The house read goes through the session memo the rings on every list read
+ * (services/trustSignals), so a face already ringed in a feed answers at once.
+ * A failed request is an error, not a cached "unrated".
+ */
+export function influenceOptions(pubkey: string, pov: Pov) {
+  return queryOptions({
+    queryKey: influenceKey(pubkey, pov),
+    queryFn: async ({ queryKey }): Promise<number | null> => {
+      const pk = queryKey[1];
+      if (queryKey[2] === "house") {
+        const signals = await lookupTrustSignals(pk, { now: true });
+        if (!hasSettledTrustSignals(pk)) throw new Error("Couldn't load the trust score.");
+        return signals.influence;
+      }
+      const found = await apiClient.getMyTrustSignals([pk]);
+      if (!found) throw new Error("Couldn't load the trust score.");
+      return found.get(pk)?.influence ?? null;
+    },
     enabled: !!pubkey,
     staleTime: PERSON_READ_STALE_MS,
     retry: false,

@@ -72,11 +72,7 @@ import { VideosBlock } from "@/components/share/VideosBlock";
 import { EventRow } from "@/components/share/EventRow";
 import { apiClient } from "@/services/api";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import {
-  statsOptions,
-  topFollowersOptions,
-  type TopFollowers,
-} from "@/services/queries/userReads";
+import { influenceOptions, statsOptions, topFollowersOptions, type TopFollowers } from "@/services/queries/userReads";
 import {
   parseProfilePrefs,
   loadProfilePrefsDraft,
@@ -364,12 +360,10 @@ export default function SharePage() {
   // rule: without own scores it would be an empty perspective), and only once
   // something shows it: the personalized coin or the score modal.
   const hasPersonalPov = loggedIn && calcDone;
+  // The same entry the mention dialog and the hover prefetch fill.
   const myTrustQuery = useQuery({
-    queryKey: ["share-my-trust-signals", pubkey, currentUser?.pubkey],
-    queryFn: async () => (await apiClient.getMyTrustSignals([pubkey])).get(pubkey.toLowerCase()) ?? null,
+    ...influenceOptions(pubkey, "viewer"),
     enabled: !!pubkey && hasPersonalPov && (scorePov === "personalized" || scoreModalOpen),
-    staleTime: 5 * 60_000,
-    retry: false,
   });
 
   // Per-section stats: total/verified counts per relationship — one query per
@@ -519,7 +513,7 @@ export default function SharePage() {
   // The primary ring's score is viewer-relative: the viewer's own web-of-trust
   // POV when they have one, the house's otherwise (signed out, or no own scores
   // yet — the same fallback the counts take).
-  const score01 = hasPersonalPov ? clamp01(myTrustQuery.data?.influence) : houseScore01;
+  const score01 = hasPersonalPov ? clamp01(myTrustQuery.data) : houseScore01;
   // Counts from the per-section stats endpoint. Followers/muters/reporters use
   // the VERIFIED (web-of-trust) count; "following" uses the raw total (per CEO:
   // total following is more meaningful than verified following).

@@ -120,9 +120,9 @@ export const grapeRankApi = {
     return postTrustSignals(fetch, pubkeys, timeoutMs);
   },
 
-  /** The same batch from the signed-in viewer's Perspective (house when signed out). */
-  async getMyTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals>> {
-    return (await postTrustSignals(optionalAuthFetch, pubkeys, timeoutMs)) ?? new Map();
+  /** The same batch from the signed-in viewer's Perspective (house when signed out); null when it failed. */
+  async getMyTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals> | null> {
+    return postTrustSignals(optionalAuthFetch, pubkeys, timeoutMs);
   },
 
   async getGrapeRankPreset(): Promise<{
