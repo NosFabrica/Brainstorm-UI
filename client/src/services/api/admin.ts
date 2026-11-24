@@ -44,6 +44,16 @@ export interface TrustedListRunData {
   failed: number;
   retracted: number;
   empty_reason?: "no_taggings_ingested" | "no_qualifying_asserters" | "no_tags_met_use_threshold" | null;
+  /**
+   * Taggings of notes and list items the server holds (global). None means it builds people lists
+   * only (kind 30392), and no list of tagged notes or items (30393, 30394). Absent on a server
+   * older than its tagged-content lists.
+   */
+  event_taggings_in_store?: number;
+  /** Tagged notes and items the server couldn't find to learn their kind or list. */
+  unresolved_targets?: number;
+  /** Why this run built no lists of tagged notes or items: a lookup relay didn't answer. */
+  content_skipped_reason?: string | null;
   /** Published and failed lists first (most-used tag first), retracted ones after. */
   tags: TrustedListTagResult[];
 }
