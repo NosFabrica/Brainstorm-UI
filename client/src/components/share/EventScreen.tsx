@@ -4,7 +4,7 @@ import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAut
 import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { LISTING_EMBED_KINDS } from "@/lib/embedShape";
 import { parseListing } from "@/lib/listing";
@@ -83,7 +83,7 @@ import { EntityMenu } from "@/components/share/EntityMenu";
 import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS, shareUrlFor } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent, profilePath, READER_KINDS, shareUrlFor } from "@/lib/shareId";
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -186,6 +186,9 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   // Video kinds only for now; every other kind still shows an expired event.
   if (note && VIDEO_KINDS.has(note.kind) && isExpired(note, Math.floor(Date.now() / 1000)))
     return <DeletedEvent expired />;
+  // A profile event (kind 0) is a person: their page, never its JSON as a structural card.
+  if (note?.kind === 0 && profilePath(note.pubkey, relayHints))
+    return <Redirect to={profilePath(note.pubkey, relayHints)} replace />;
   // The kind decides, before any of the event layout's own queries run.
   if (note && READER_KINDS.has(note.kind)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
