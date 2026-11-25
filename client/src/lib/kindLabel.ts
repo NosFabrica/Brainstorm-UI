@@ -54,8 +54,10 @@ export function kindTypeLabel(kind: number): string {
     case 31555:
       return "Product review";
     case 1:
-    case 11:
       return "Note";
+    // NIP-7D: a forum thread, its `title` its heading.
+    case 11:
+      return "Thread";
     case 1111:
       return "Comment";
     case 9802:
@@ -90,8 +92,9 @@ export function kindTypeLabel(kind: number): string {
       return "Video";
     case 1063:
       return "File";
+    // NIP-A0 voice messages: the word their own page uses (lib/audioEvent).
     case 1222:
-      return "Audio";
+      return "Voice message";
     case 2003:
       return "Torrent";
     // "Stream", not "Live": a pill saying Live beside a tile's Replay or
