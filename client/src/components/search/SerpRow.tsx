@@ -986,8 +986,13 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   // Marked sensitive (NIP-36): no picture a link brings — the page's own, a preview's — shows in the row.
   const warned = !!contentWarningOf(event);
   // A voice message's content is its file, not a link it shares.
-  const shared =
-    !title && event.content && !VOICE_KINDS.has(event.kind) ? linkResultOf(event.content, { feedAccount: feed }) : null;
+  const shared = useMemo(
+    () =>
+      !title && event.content && !VOICE_KINDS.has(event.kind)
+        ? linkResultOf(event.content, { feedAccount: feed })
+        : null,
+    [event, title, feed],
+  );
   const news = shared && !clientRef(shared.url) ? shared : null;
   // The page's own title, description and picture — asked once the row is near.
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -1046,7 +1051,13 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
         ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}`
         : null;
   // Same link a feed would card for this note, so the two never disagree.
-  const cardLink = body ? primaryLink(parseNoteContent(body)) : null;
+  // What the text holds, read once per text: a row re-renders on every streamed author score.
+  const cardLink = useMemo(() => (body ? primaryLink(parseNoteContent(body)) : null), [body]);
+  const quoted = useMemo(() => quotedIn(body).slice(0, 1), [body]);
+  const address = useMemo(() => (quoted.length ? [] : addressesIn(body).slice(0, 1)), [body, quoted]);
+  // What the row actually shows — text past the clip isn't on screen.
+  const shown = useMemo(() => clipAtToken(body, 300), [body]);
+  const thumb = useMemo(() => rowThumbMedia(event), [event]);
   // A Primal link names a Nostr thing: an article is its card, the way the
   // note card on a profile shows it (Benjamin, 2026-09-25: megistus's row
   // said "primal.net" where the profile showed White Noise's "We're back").
@@ -1185,10 +1196,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
 
   // The picture on the right is this URL; a chip for it in the text is the
   // same picture's address, said again.
-  const thumb = rowThumbMedia(event);
   const thumbUrl = !thumbFailed && (thumb.poster === thumb.url || thumb.isVideo) ? thumb.url : null;
-  // What the row actually shows — text past the clip isn't on screen.
-  const shown = clipAtToken(body, 300);
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
@@ -1280,28 +1288,23 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
             />
           </div>
         )}
-        {quotedIn(body)
-          .slice(0, 1)
-          .map((q) => (
-            <div key={q.id} onClick={(e) => e.stopPropagation()}>
-              <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
-            </div>
-          ))}
+        {quoted.map((q) => (
+          <div key={q.id} onClick={(e) => e.stopPropagation()}>
+            <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
+          </div>
+        ))}
         {/* A linked article, list or video by address: a way to it, in place of the key the text held. */}
-        {quotedIn(body).length === 0 &&
-          addressesIn(body)
-            .slice(0, 1)
-            .map((a) => (
-              <Link
-                key={a.uri}
-                href={`/e/${a.uri.slice("nostr:".length)}`}
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
-                data-testid="serp-address-link"
-              >
-                ↳ {kindTypeLabel(a.kind).toLowerCase()}
-              </Link>
-            ))}
+        {address.map((a) => (
+          <Link
+            key={a.uri}
+            href={`/e/${a.uri.slice("nostr:".length)}`}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
+            data-testid="serp-address-link"
+          >
+            ↳ {kindTypeLabel(a.kind).toLowerCase()}
+          </Link>
+        ))}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
       <RowThumb event={event} author={author} score={score} onFail={() => setThumbFailed(true)} />
