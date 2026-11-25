@@ -15,8 +15,15 @@ const PUBKEY = "a".repeat(64);
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
 vi.mock("@/hooks/useHasAccount", () => ({ useHasAccount: () => true }));
+const me = vi.hoisted(() => ({ signedIn: true }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
-  useActiveAccountDisplay: () => ({ pubkey: PUBKEY, name: "Test", npub: "npub1test", picture: null, nip05: null }),
+  useActiveAccountDisplay: () =>
+    me.signedIn ? { pubkey: "a".repeat(64), name: "Test", npub: "npub1test", picture: null, nip05: null } : null,
+}));
+const poll = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/checkoutPoll", async (orig) => ({
+  ...(await orig<typeof import("@/lib/checkoutPoll")>()),
+  startCheckoutPoll: (...args: unknown[]) => poll(...args),
 }));
 
 const PLAN: BillingPlan = {
@@ -36,7 +43,32 @@ const PLAN: BillingPlan = {
 };
 
 describe("CheckoutDialog", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    me.signedIn = true;
+    poll.mockClear();
+    window.history.replaceState({}, "", "/");
+  });
+
+  // A signed-out visitor on /pricing has nobody to bind the payment to. They
+  // were told payments aren't set up, and a click started a ten-minute poll with
+  // nothing open.
+  it("asks a signed-out visitor to sign in, and opens and polls nothing", () => {
+    me.signedIn = false;
+    window.history.replaceState({}, "", "/pricing");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderWithProviders(<CheckoutDialog open onOpenChange={() => {}} plan={PLAN} />);
+
+    expect(screen.queryByTestId("checkout-unconfigured")).toBeNull();
+    const signIn = screen.getByTestId("checkout-sign-in");
+    expect(within(signIn).getByRole("link")).toHaveAttribute("href", "/login?next=%2Fpricing");
+
+    fireEvent.click(screen.getByTestId("plan-cta-0"));
+    expect(open).not.toHaveBeenCalled();
+    expect(poll).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("button-check-again")).toBeNull();
+    open.mockRestore();
+  });
 
   // Payments are live: the last screen before Flash is where agreeing to the
   // Terms means something. The documents open beside the dialog, not over it,

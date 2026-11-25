@@ -8,6 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useLoginHref } from "@/hooks/useLoginHref";
+import { Link, useLocation } from "wouter";
 import { resolveCheckout } from "@/lib/checkout";
 import { startCheckoutPoll } from "@/lib/checkoutPoll";
 import { PlanPicker } from "@/components/billing/PlanPicker";
@@ -70,17 +72,26 @@ export function CheckoutDialog({
 
   const offered = plan ? [plan] : (plans ?? []).filter((p) => p.checkoutUrl);
   const sentTarget = sent ? resolveCheckout(sent, me?.pubkey) : null;
-  // Nothing to open: no signed-in pubkey to bind the payment to, or no row
-  // carrying a checkout_url. Say so rather than navigating — a fake checkout
-  // page is a worse lie than an empty state.
-  const canBuy = !!me?.pubkey && offered.some((p) => p.checkoutUrl);
+  // Nothing to open: no row carrying a checkout_url (payments aren't set up
+  // here), or nobody signed in to bind the payment to (sign in first). Say
+  // which rather than navigating — a fake checkout page is a worse lie than an
+  // empty state.
+  const configured = offered.some((p) => p.checkoutUrl);
+  const needsSignIn = configured && !me?.pubkey;
+  const loginHref = useLoginHref();
+  const [, navigate] = useLocation();
 
   const go = (chosen: BillingPlan) => {
     const target = resolveCheckout(chosen, me?.pubkey);
+    // Nothing opens, so there is nothing to wait for: no "finishing up" screen
+    // and no ten-minute poll. Signed out, the click is the way to sign in.
+    if (!target.external) {
+      if (!me?.pubkey) navigate(loginHref);
+      return;
+    }
     setSent(chosen);
     // Directly in the handler — see the note above about popup blockers.
-    let w: Window | null = null;
-    if (target.external) w = window.open(target.url, "_blank", "noopener,noreferrer");
+    const w = window.open(target.url, "_blank", "noopener,noreferrer");
     // Mark stale WITHOUT refetching. A plain invalidate refetches immediately
     // — this query is active, the dialog itself reads it — which answers "free"
     // before they have paid and, worse, resets dataUpdatedAt so the query is
@@ -110,7 +121,17 @@ export function CheckoutDialog({
               className="mt-3"
             />
 
-            {!canBuy && (
+            {needsSignIn && (
+              <Alert className="mt-4" data-testid="checkout-sign-in">
+                <AlertDescription className="text-sm">
+                  <Link href={loginHref} className="font-medium text-brand-link hover:underline">
+                    Sign in
+                  </Link>{" "}
+                  first, so the payment is tied to your account.
+                </AlertDescription>
+              </Alert>
+            )}
+            {!configured && (
               <Alert variant="warning" className="mt-4" data-testid="checkout-unconfigured">
                 <AlertDescription className="text-sm">
                   Payments aren't set up in this environment, so there's nothing to open. The rest of the flow still
