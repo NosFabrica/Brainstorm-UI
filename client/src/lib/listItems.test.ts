@@ -64,3 +64,38 @@ describe("listTitle", () => {
     expect(listTitle({ kind: 30003, tags: [] })).toBe("Untitled list");
   });
 });
+
+describe("readListItems — Trusted Lists of things", () => {
+  it("a 30393 holds its e members, best first, never its discovery a or p", () => {
+    const items = readListItems({
+      kind: 30393,
+      content: '{"members":[]}',
+      tags: [
+        ["a", `39999:${"e".repeat(64)}:stoicism`],
+        ["p", "4".repeat(64)],
+        ["e", "b".repeat(64), "", "40"],
+        ["e", "a".repeat(64), "", "90"],
+      ],
+    });
+    expect(items.notes.map((n) => n.id)).toEqual(["a".repeat(64), "b".repeat(64)]);
+    expect(items.addresses).toEqual([]);
+    expect(items.people).toEqual([]);
+    expect(items.total).toBe(2);
+  });
+
+  it("a 30395 holds its NIP-73 ids: links, hashtags and the rest as identifiers", () => {
+    const items = readListItems({
+      kind: 30395,
+      content: "",
+      tags: [
+        ["i", "https://example.com/a"],
+        ["i", "#bitcoin"],
+        ["i", "isbn:9780141439518"],
+      ],
+    });
+    expect(items.links).toEqual(["https://example.com/a"]);
+    expect(items.hashtags).toEqual(["bitcoin"]);
+    expect(items.identifiers).toEqual(["isbn:9780141439518"]);
+    expect(listItemCounts(items)).toContain("1 identifier");
+  });
+});

@@ -10,15 +10,33 @@
 import { contentShape } from "@/lib/contentShape";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { addrCoord, type AddressRef } from "@/lib/noteRefs";
+import {
+  TRUSTED_IDENTIFIERS_KIND,
+  TRUSTED_ITEM_LIST_KINDS,
+  TRUSTED_MEMBER_TAG,
+  readTrustedList,
+} from "@/lib/trustedList";
 
 /**
  * The lists whose items are things to open: pins (10001), bookmarks (10003),
  * communities (10004), interests (10015), generic lists (30001), bookmark
  * sets (30003), curation sets of articles, videos and pictures
- * (30004–30006), interest sets (30015).
+ * (30004–30006), interest sets (30015) — and the Trusted Lists of things
+ * (30393 events, 30394 addresses, 30395 external ids: lib/trustedList), which
+ * are read by their member tag alone, never as a NIP-51 list.
  */
 export const ITEM_LIST_KINDS: ReadonlySet<number> = new Set([
-  10001, 10003, 10004, 10015, 30001, 30003, 30004, 30005, 30006, 30015,
+  10001,
+  10003,
+  10004,
+  10015,
+  30001,
+  30003,
+  30004,
+  30005,
+  30006,
+  30015,
+  ...TRUSTED_ITEM_LIST_KINDS,
 ]);
 
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -34,6 +52,8 @@ export interface ListItems {
   people: string[];
   hashtags: string[];
   links: string[];
+  /** NIP-73 external ids that are neither a link nor a hashtag (a Trusted List of identifiers, 30395). */
+  identifiers: string[];
   /** Everything public, counted once. */
   total: number;
   /** The list also holds items sealed in its content, for its owner alone. */
@@ -58,7 +78,42 @@ function addressOf(t: string[]): AddressRef | null {
   };
 }
 
-export function readListItems(ev: { tags: string[][]; content: string }): ListItems {
+/**
+ * A Trusted List of things holds only its kind's member tag; its other
+ * single-letter tags (a 30393's `a` to its tag, `p` to its observer) are
+ * discovery metadata, not items. Members keep the list's order, best first.
+ */
+function trustedListItems(ev: { kind: number; tags: string[][] }): ListItems {
+  const list = readTrustedList(ev);
+  const tag = TRUSTED_MEMBER_TAG[ev.kind];
+  // The members as tags again, best first, through the NIP-51 reading of that one tag.
+  const rows = list.retracted ? [] : list.entries.map((m) => [tag, m.value, m.hint ?? ""]);
+  if (ev.kind !== TRUSTED_IDENTIFIERS_KIND) {
+    return readListItems({ tags: rows, content: "" });
+  }
+  const links: string[] = [];
+  const hashtags: string[] = [];
+  const identifiers: string[] = [];
+  for (const [, v] of rows) {
+    if (/^https?:\/\//i.test(v)) links.push(v);
+    else if (v.startsWith("#") && v.length > 1) hashtags.push(v.slice(1).toLowerCase());
+    else identifiers.push(v);
+  }
+  return {
+    notes: [],
+    addresses: [],
+    people: [],
+    hashtags,
+    links,
+    identifiers,
+    sealed: false,
+    total: links.length + hashtags.length + identifiers.length,
+  };
+}
+
+export function readListItems(ev: { kind?: number; tags: string[][]; content: string }): ListItems {
+  if (ev.kind !== undefined && TRUSTED_ITEM_LIST_KINDS.has(ev.kind))
+    return trustedListItems(ev as { kind: number; tags: string[][] });
   const notes = new Map<string, ListNote>();
   const addresses = new Map<string, AddressRef>();
   const people = new Set<string>();
@@ -83,6 +138,7 @@ export function readListItems(ev: { tags: string[][]; content: string }): ListIt
     people: [...people],
     hashtags: [...hashtags],
     links: [...links],
+    identifiers: [] as string[],
     sealed: contentShape(ev.content).kind === "encrypted",
   };
   return {
@@ -118,6 +174,7 @@ export function listItemCounts(items: ListItems): string[] {
     { n: items.people.length, label: plural(items.people.length, "person", "people") },
     { n: items.hashtags.length, label: plural(items.hashtags.length, "hashtag") },
     { n: items.links.length, label: plural(items.links.length, "link") },
+    { n: items.identifiers.length, label: plural(items.identifiers.length, "identifier") },
   ]
     .filter((c) => c.n > 0)
     .sort((a, b) => b.n - a.n)
