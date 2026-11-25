@@ -7,6 +7,10 @@
  * can be neither the author nor the only participant; callers fetch by both
  * shapes and this only reads the event.
  */
+import { schnorr } from "@noble/curves/secp256k1.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
+
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; tags: string[][]; content: string };
 
 export interface LiveStream {
@@ -194,10 +198,53 @@ export function onAirLabel(startsSec: number, nowSec = Math.floor(Date.now() / 1
 /**
  * The streamer: the `p` tag marked host (platforms publish for their streamers).
  * NIP-53's role is a displayable marker — `Host` in its examples, `host` from
- * zap.stream and Nostrich — so any case is the host.
+ * zap.stream and Nostrich — so any case is the host. Only a key: a value that is
+ * not 64 hex characters names nobody (and would throw in npub encoding).
  */
 export function liveHostOf(ev: EventLike): string | null {
-  return ev.tags.find((t) => t[0] === "p" && t[3]?.trim().toLowerCase() === "host" && t[1])?.[1] ?? null;
+  const t = ev.tags.find((t) => t[0] === "p" && t[3]?.trim().toLowerCase() === "host" && HEX64.test(t[1] ?? ""));
+  return t ? t[1].toLowerCase() : null;
+}
+
+/** Who an event names as its host, and whether they agreed to it. */
+export interface LiveHostClaim {
+  pubkey: string;
+  /**
+   * The host is the event's signer, or signed NIP-53's proof for this event's
+   * address. Otherwise the signer only says so: anyone can name anyone a host
+   * "to lure their followers" (NIP-53), so it reads as unconfirmed.
+   */
+  confirmed: boolean;
+}
+
+/**
+ * NIP-53's proof: the participant's Schnorr signature, in hex, over the SHA-256
+ * of the event's complete `a` tag (`kind:pubkey:d`). Never throws.
+ */
+export function verifyLiveProof(
+  ev: Pick<EventLike, "kind" | "pubkey" | "tags">,
+  participant: string,
+  proof: string,
+): boolean {
+  if (!/^[0-9a-f]{128}$/i.test(proof) || !HEX64.test(participant)) return false;
+  const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  try {
+    const message = sha256(utf8ToBytes(`${ev.kind}:${ev.pubkey}:${d}`));
+    return schnorr.verify(hexToBytes(proof.toLowerCase()), message, hexToBytes(participant.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
+/** The host a live event, a space or a meeting names (liveHostOf), and whether it is confirmed. Null when none. */
+export function liveHostClaim(ev: EventLike): LiveHostClaim | null {
+  const pubkey = liveHostOf(ev);
+  if (!pubkey) return null;
+  if (pubkey === ev.pubkey.toLowerCase()) return { pubkey, confirmed: true };
+  const proof = ev.tags.find(
+    (t) => t[0] === "p" && t[1]?.toLowerCase() === pubkey && t[3]?.trim().toLowerCase() === "host",
+  )?.[4];
+  return { pubkey, confirmed: !!proof && verifyLiveProof(ev, pubkey, proof.trim()) };
 }
 
 type TitledEvent = Pick<EventLike, "kind" | "tags">;

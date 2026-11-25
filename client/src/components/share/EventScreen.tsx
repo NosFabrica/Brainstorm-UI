@@ -86,7 +86,8 @@ import { UserStatusHero } from "@/components/share/UserStatusHero";
 import { WebBookmarkHero } from "@/components/share/WebBookmarkHero";
 import { ChatContextLine } from "@/components/share/ChatContext";
 import { CHAT_KINDS } from "@/lib/chatMessage";
-import { liveHostOf, readMeeting } from "@/lib/liveStream";
+import { liveHostClaim, readMeeting } from "@/lib/liveStream";
+import { LiveHostLine } from "@/components/share/LiveHostLine";
 import { RELAY_LIST_KIND } from "@/lib/relayList";
 import { USER_STATUS_KIND } from "@/lib/userStatus";
 import { webBookmarkOf } from "@/lib/webBookmark";
@@ -262,18 +263,17 @@ function EventView({
   // signer; this includes them.
   const canTagNote = !!useActiveAccountDisplay()?.pubkey;
 
-  // Live events (kind 30311) are authored by the streaming platform — the WoT
-  // row should be the streamer (the `p`-tagged host), not the platform. A
-  // meeting space or meeting (30312, 30313) is its Host's too, when one is named.
-  const liveHost =
-    note?.kind === 30311
-      ? liveHostOf(note) || note.tags.find((t) => t[0] === "p")?.[1]
-      : note?.kind === 30312 || note?.kind === 30313
-        ? liveHostOf(note) || undefined
-        : undefined;
-  // A zap receipt stays its signer's page: the payer it names is a claim anyone
+  // A live event (30311), a space or a meeting (30312, 30313) is often published by a
+  // platform for its host, named in a `p` marked Host. That name is the signer's word
+  // (anyone can name anyone): the page stays the signer's, and the host is a line under
+  // the byline, unconfirmed unless the host's NIP-53 proof says they agreed.
+  const liveHost = useMemo(
+    () => (note && (note.kind === 30311 || note.kind === 30312 || note.kind === 30313) ? liveHostClaim(note) : null),
+    [note],
+  );
+  // Likewise a zap receipt stays its signer's page: the payer it names is a claim anyone
   // could write (lib/zapRequest), so only its hero names them, and says how sure.
-  const authorPk = liveHost || note?.pubkey || ptr?.author || "";
+  const authorPk = note?.pubkey || ptr?.author || "";
   // Who signed it, for the links that name the event: never a host or a payer it only names.
   const eventAuthor = note?.pubkey ?? ptr?.author;
   // The files a kind with no hero of its own carries (a kind-20 picture post, a
@@ -363,8 +363,6 @@ function EventView({
   }, [refProfiles, authorPk, authorProfile]);
 
   const profile = (authorProfile ?? {}) as ProfileLite;
-  const authorName =
-    profile.display_name || profile.name || (authorPk ? npubFromPubkey(authorPk).slice(0, 12) + "…" : "Someone");
   const authorNpub = authorPk
     ? (() => {
         try {
@@ -374,6 +372,7 @@ function EventView({
         }
       })()
     : "";
+  const authorName = profile.display_name || profile.name || (authorNpub ? authorNpub.slice(0, 12) + "…" : "Someone");
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
   const firstName = authorName.split(" ")[0];
 
@@ -638,6 +637,9 @@ function EventView({
             <CompromisedAuthorNotice pubkey={authorPk} postedAt={note.created_at} eventId={note.id} className="mb-4" />
             {/* A retired author: one calm line, and where its owner is now. */}
             <RetiredAuthorNotice pubkey={authorPk} className="mb-4" />
+
+            {/* The host a stream or meeting names, when someone else signed it. */}
+            {liveHost && liveHost.pubkey !== note.pubkey && <LiveHostLine host={liveHost} className="-mt-2 mb-4" />}
 
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (

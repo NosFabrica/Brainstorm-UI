@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   liveCategoryOf,
+  liveHostClaim,
   liveHostOf,
   liveStateLabel,
   liveNeedsCheck,
@@ -10,6 +11,10 @@ import {
   verifyRecording,
   __resetRecordingChecks,
 } from "./liveStream";
+import { schnorr } from "@noble/curves/secp256k1.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
+import { getPublicKey } from "nostr-tools";
 
 // Odell's year-old replay: the recording host (data.zap.stream) no longer
 // answers at all, and the panel advertised a black player. A recording is
@@ -393,5 +398,55 @@ describe("liveStateLabel — one word per shelf", () => {
     expect(liveStateLabel("upcoming")).toBe("Upcoming");
     expect(liveStateLabel("replay")).toBe("Replay");
     expect(liveStateLabel(null)).toBe("Ended");
+  });
+});
+
+describe("liveHostOf — only a key is a host", () => {
+  const withHost = (value: string) => ({
+    id: "s",
+    pubkey: "a".repeat(64),
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [["p", value, "", "Host"]],
+  });
+
+  it("is nothing for a value that is not 64 hex characters (it threw in npub encoding)", () => {
+    expect(liveHostOf(withHost("not-a-key"))).toBeNull();
+    expect(liveHostOf(withHost("c".repeat(63)))).toBeNull();
+    expect(liveHostOf(withHost("C".repeat(64)))).toBe("c".repeat(64));
+  });
+});
+
+describe("liveHostClaim — a named host agreed only with NIP-53's proof", () => {
+  const signer = "a".repeat(64);
+  const hostKey = new Uint8Array(32).fill(9);
+  const host = getPublicKey(hostKey);
+  const stream = (proof?: string, hostPk = host) => ({
+    id: "s",
+    pubkey: signer,
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["d", "show"],
+      ["p", hostPk, "", "Host", ...(proof ? [proof] : [])],
+    ],
+  });
+  const proofFor = (address: string) => bytesToHex(schnorr.sign(sha256(utf8ToBytes(address)), hostKey));
+
+  it("is unconfirmed when the signer only names them", () => {
+    expect(liveHostClaim(stream())).toEqual({ pubkey: host, confirmed: false });
+    expect(liveHostClaim(stream("0".repeat(128)))).toEqual({ pubkey: host, confirmed: false });
+  });
+
+  it("is confirmed by their signature over the event's address", () => {
+    expect(liveHostClaim(stream(proofFor(`30311:${signer}:show`)))).toEqual({ pubkey: host, confirmed: true });
+    // A proof for another event is not agreement to this one.
+    expect(liveHostClaim(stream(proofFor(`30311:${signer}:other`)))?.confirmed).toBe(false);
+  });
+
+  it("is confirmed when the host is the signer", () => {
+    expect(liveHostClaim(stream(undefined, signer))).toEqual({ pubkey: signer, confirmed: true });
   });
 });
