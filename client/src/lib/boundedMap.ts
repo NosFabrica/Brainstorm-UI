@@ -17,3 +17,27 @@ export function sweepMap<K, V>(map: Map<K, V>, until: (value: V) => number, max:
   for (const [key, value] of map) if (until(value) <= now) map.delete(key);
   capMap(map, max);
 }
+
+/** `capMap` for a Set: the oldest-added first. */
+export function capSet<K>(set: Set<K>, max: number): void {
+  if (set.size <= max) return;
+  for (const key of set) {
+    if (set.size <= max) break;
+    set.delete(key);
+  }
+}
+
+/**
+ * A session memo held as two maps — the promise per key, and the answer once
+ * it lands — kept to `max` answers, oldest answered first, out of both. A key
+ * still waiting is never dropped: its promise may have a resolver queued
+ * behind it, and a second promise for it would leave the first unresolved.
+ */
+export function capSettledMemo<K>(pending: Map<K, unknown>, settled: Map<K, unknown>, max: number): void {
+  if (settled.size <= max && pending.size <= max) return;
+  for (const key of settled.keys()) {
+    if (settled.size <= max && pending.size <= max) break;
+    settled.delete(key);
+    pending.delete(key);
+  }
+}

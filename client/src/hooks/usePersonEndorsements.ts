@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchPersonEndorsements, type PersonEndorsements } from "@/services/endorsements";
 import { onAccountChange } from "@/lib/accountScoped";
-import { capMap } from "@/lib/boundedMap";
+import { capSettledMemo } from "@/lib/boundedMap";
 
 /**
  * A person's "Followed by …" line for a component — one server call per
@@ -26,12 +26,11 @@ function lookup(pubkey: string, personal: boolean): Promise<PersonEndorsements> 
     p = fetchPersonEndorsements(pubkey, { personal }).then((e) => {
       if (asked === generation) {
         settled.set(key, e);
-        capMap(settled, MAX_PEOPLE);
+        capSettledMemo(cache, settled, MAX_PEOPLE);
       }
       return e;
     });
     cache.set(key, p);
-    capMap(cache, MAX_PEOPLE);
   }
   return p;
 }

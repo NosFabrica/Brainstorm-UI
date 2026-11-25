@@ -1,5 +1,6 @@
 import { apiClient, type TrustSignals } from "@/services/api";
 import { connectionSpeed, type ConnectionSpeed } from "@/lib/connection";
+import { capSettledMemo } from "@/lib/boundedMap";
 
 /**
  * Session-level memo of each author's Trust signals — the score the tier rings
@@ -27,6 +28,8 @@ const UNRATED: TrustSignals = { influence: null, flagged: false };
 
 const cache = new Map<string, Promise<TrustSignals>>();
 const settled = new Map<string, TrustSignals>();
+/** Authors remembered at most, oldest answered first (one still waiting is never dropped). */
+const MAX_SETTLED = 10_000;
 let queued = new Map<string, (signals: TrustSignals) => void>();
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let gatheringSince = 0;
@@ -34,6 +37,7 @@ let generation = 0;
 
 function settle(pubkey: string, signals: TrustSignals, resolve: (s: TrustSignals) => void): void {
   settled.set(pubkey, signals);
+  capSettledMemo(cache, settled, MAX_SETTLED);
   resolve(signals);
 }
 

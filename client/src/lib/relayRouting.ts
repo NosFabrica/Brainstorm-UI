@@ -27,6 +27,7 @@ import { whenHydrated } from "./eventCache";
 import { loadReplaceable } from "./loaders";
 import { PROFILE_RELAYS } from "./relays";
 import { RELAY_LIST_KIND, dedupeRelays, parseRelayList, type RelayList } from "./relayList";
+import { sweepMap } from "./boundedMap";
 
 /**
  * Reading a relay list lives in `lib/relayList`, a LEAF module. This one
@@ -99,6 +100,8 @@ export function relayListFromDb(pubkey: string): RelayList | null {
 
 const inFlight = new Map<string, Promise<RelayList | null>>();
 const missedAt = new Map<string, number>();
+/** Misses remembered at most; the expired go first, then the oldest. */
+const MAX_MISSES = 5000;
 
 /**
  * One author's relay list: from the store if it is there, else fetched from the
@@ -139,6 +142,8 @@ export async function loadRelayList(
   const rememberMiss = () => {
     const ranOut = Date.now() - startedAt >= timeoutMs;
     missedAt.set(pubkey, Date.now() + (ranOut ? __ttls.inconclusive : __ttls.miss));
+    // Bounded: a long session meets thousands of authors without a list.
+    sweepMap(missedAt, (until) => until, MAX_MISSES);
   };
 
   const request = loadReplaceable(RELAY_LIST_KIND, pubkey, { relays: PROFILE_RELAYS, timeoutMs })

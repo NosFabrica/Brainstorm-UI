@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchNoteEngagement } from "@/services/search";
+import { capSettledMemo } from "@/lib/boundedMap";
 
 /**
  * Zap / reply counts for a list of notes — the home feed's quiet engagement
@@ -12,6 +13,8 @@ export type NoteEngagement = { zaps: number; replies: number };
 
 const MAX_INFLIGHT = 4;
 const cache = new Map<string, Promise<NoteEngagement>>();
+/** Answers kept at most, oldest first (a key still waiting is never dropped). */
+const MAX_SETTLED = 2000;
 const settled = new Map<string, NoteEngagement>();
 const queue: (() => void)[] = [];
 let inflight = 0;
@@ -33,6 +36,7 @@ function lookup(id: string): Promise<NoteEngagement> {
           .then((e) => {
             inflight--;
             settled.set(id, e);
+            capSettledMemo(cache, settled, MAX_SETTLED);
             resolve(e);
             pump();
           });

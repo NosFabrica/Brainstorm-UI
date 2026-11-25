@@ -3,6 +3,7 @@ import type { NostrEvent } from "nostr-tools";
 import type { Subscription } from "rxjs";
 import { eventStore } from "@/lib/eventStore";
 import { readProfileRows } from "@/lib/eventCache";
+import { capSet } from "@/lib/boundedMap";
 
 /** A replaceable event's coordinate. `identifier` is the d-tag; none for kind 0. */
 export interface Coordinate {
@@ -147,6 +148,7 @@ function watchCoordinates(keys: string[], listener: (event: NostrEvent) => void)
 
 /** Pubkeys whose device copy has been looked for this session. */
 const deviceChecked = new Set<string>();
+const MAX_DEVICE_CHECKED = 5000;
 
 /** Pubkeys gathered for the next device read, or null when none is pending. */
 let deviceBatch: Set<string> | null = null;
@@ -170,6 +172,8 @@ function loadFromDevice(pubkeys: string[]): void {
   const todo = pubkeys.filter((pk) => !deviceChecked.has(pk) && !eventStore.getReplaceable(0, pk));
   if (!todo.length) return;
   todo.forEach((pk) => deviceChecked.add(pk));
+  // Bounded: forgetting one costs, at worst, one more device read for them.
+  capSet(deviceChecked, MAX_DEVICE_CHECKED);
   if (!deviceBatch) {
     deviceBatch = new Set();
     queueMicrotask(readDeviceBatch);

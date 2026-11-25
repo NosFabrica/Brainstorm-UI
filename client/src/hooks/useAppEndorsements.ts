@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchAppEndorsements, type AppEndorsements } from "@/services/endorsements";
+import { capSettledMemo } from "@/lib/boundedMap";
 
 /**
  * An app's endorsements for a component, with the results-page discipline
@@ -11,6 +12,8 @@ import { fetchAppEndorsements, type AppEndorsements } from "@/services/endorseme
  */
 const MAX_INFLIGHT = 4;
 const cache = new Map<string, Promise<AppEndorsements>>();
+/** Answers kept at most, oldest first (a key still waiting is never dropped). */
+const MAX_SETTLED = 2000;
 const settled = new Map<string, AppEndorsements>();
 const queue: (() => void)[] = [];
 let inflight = 0;
@@ -46,6 +49,7 @@ function lookup(address: string, opts: Opts): Promise<AppEndorsements> {
           .then((e) => {
             inflight--;
             settled.set(key, e);
+            capSettledMemo(cache, settled, MAX_SETTLED);
             resolve(e);
             pump();
           });

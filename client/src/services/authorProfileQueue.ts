@@ -5,6 +5,7 @@ import { PROFILE_FRESH_MS, claimRefresh, deviceLearnedAt, readProfileRows } from
 import { loadReplaceable } from "@/lib/loaders";
 import { searchOnce } from "@/lib/searchOnce";
 import { Subject } from "rxjs";
+import { sweepMap } from "@/lib/boundedMap";
 
 /**
  * One queue of author kind-0 lookups on the search relay, shared by every
@@ -32,6 +33,8 @@ const inFlight = new Map<string, Lookup>();
 const open = new Set<Lookup>();
 /** Relay answered without a profile: don't ask again until then. */
 const noProfileUntil = new Map<string, number>();
+/** "Nobody there" answers remembered at most; the expired go first. */
+const MAX_NO_PROFILE = 5000;
 /** Authors already given their one retry after an unfinished lookup. */
 const retried = new Set<string>();
 /** Authors shown from an old device copy and being asked after it. */
@@ -71,6 +74,7 @@ function settle(lookup: Lookup, answered: Set<string>): void {
       continue;
     }
     noProfileUntil.set(a, Date.now() + NO_PROFILE_TTL_MS);
+    sweepMap(noProfileUntil, (until) => until, MAX_NO_PROFILE);
     tell(a, null);
   }
   flush();

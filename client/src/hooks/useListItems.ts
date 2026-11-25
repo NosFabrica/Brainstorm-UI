@@ -6,6 +6,7 @@ import { forget } from "@/lib/askOnce";
 import { headerReference } from "@/lib/dlistFields";
 import { INSPECT_LIMIT, INSPECT_TIMEOUT_MS, filedItems, itemFilters } from "@/services/dictionary";
 import { readListEvents } from "@/services/listReads";
+import { capMap } from "@/lib/boundedMap";
 
 /** Asked again at most every minute: List Management is where lists change. */
 const WINDOW = { minMs: 60_000, stream: false };
@@ -35,6 +36,9 @@ interface ReadFlags {
 const lastRead = new Map<string, ReadFlags>();
 
 const ask = (ref: string, n: number) => `list-items:${ref}:${n}`;
+
+/** Lists remembered at most, in both maps above; the oldest go first. */
+const MAX_LISTS = 500;
 
 /**
  * Every item filed under a list — the newest version of each, newest first —
@@ -78,6 +82,7 @@ export function useListItems(header: NostrEvent, also: readonly string[] = []) {
           // Index and hub answers arrive merged, so this errs toward saying more may exist (loadListItems).
           truncated: events.length >= INSPECT_LIMIT,
         });
+        capMap(lastRead, MAX_LISTS);
       }
       return events;
     },
@@ -93,6 +98,7 @@ export function useListItems(header: NostrEvent, also: readonly string[] = []) {
     // That key is never asked again, so its answer is let go rather than kept for the page's life.
     forget(ask(ref, n));
     generation.set(ref, n + 1);
+    capMap(generation, MAX_LISTS);
     rerender();
   }, [ref]);
   return {

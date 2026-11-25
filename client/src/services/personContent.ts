@@ -1,6 +1,7 @@
 import { leaseSideSearchRelay } from "@/lib/searchRelay";
 import { searchOnce } from "@/lib/searchOnce";
 import { NO_PERSON_CONTENT, categoriesOf, personContentFilters, type PersonContent } from "@/lib/personContent";
+import { capSettledMemo } from "@/lib/boundedMap";
 
 /**
  * What a person publishes, asked once per session.
@@ -75,6 +76,8 @@ function recall(key: string): PersonContent | undefined {
 const asked = new Map<string, Promise<PersonContent>>();
 /** Settled answers, for a synchronous first paint. */
 const settled = new Map<string, PersonContent>();
+/** People remembered at most, oldest answered first (one still being asked is never dropped). */
+const MAX_PEOPLE = 2000;
 
 const keyOf = (pubkey: string) => pubkey.toLowerCase();
 
@@ -133,6 +136,7 @@ export function fetchPersonContent(pubkey: string, timeoutMs = PERSON_CONTENT_TI
   const p: Promise<PersonContent> = ask(pubkey, timeoutMs).then(
     (content) => {
       settled.set(key, content);
+      capSettledMemo(asked, settled, MAX_PEOPLE);
       remember(key, content);
       return content;
     },

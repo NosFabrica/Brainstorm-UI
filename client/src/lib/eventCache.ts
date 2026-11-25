@@ -43,6 +43,7 @@ import { requestNewest } from "./relayRequest";
 import { PROFILE_RELAYS } from "./relays";
 import { verifySignature } from "./verifier";
 import { whenIdle } from "./idle";
+import { capMap } from "./boundedMap";
 
 const DB_NAME = "brainstorm-events";
 const STORE = "events";
@@ -344,6 +345,8 @@ export async function cachedEventsForFilters(
 
 /** When each coordinate was last sent to the relays for a refresh. */
 const refreshedAt = new Map<string, number>();
+/** Claims remembered at most: forgetting one costs, at worst, a refresh asked twice. */
+const MAX_REFRESH_CLAIMS = 5000;
 
 /** NIP-85 trust-provider declaration: the one cached kind refreshed on its author's relays. */
 const TRUST_PROVIDER_KIND = 10040;
@@ -359,7 +362,10 @@ const REFRESH_RELAYS_PER_AUTHOR = 4;
 export function claimRefresh(addr: string, kind: number): boolean {
   const now = Date.now();
   if ((refreshedAt.get(addr) ?? 0) >= now - freshLimit(kind)) return false;
+  // Re-inserted, so the oldest claims are the first forgotten past the cap.
+  refreshedAt.delete(addr);
   refreshedAt.set(addr, now);
+  capMap(refreshedAt, MAX_REFRESH_CLAIMS);
   return true;
 }
 
