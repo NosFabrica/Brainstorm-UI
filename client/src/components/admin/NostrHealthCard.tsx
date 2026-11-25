@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { safeHref } from "@/lib/safeHref";
 import {
   checkNip85Health,
   fetchProfileEvent,
@@ -742,6 +743,25 @@ function useKind0Query(pubkey: string | null, extraRelays: string[] = []) {
   });
 }
 
+/**
+ * A profile's `website`, as anyone wrote it into their kind 0: a link only
+ * when it is a web address (lib/safeHref), else the same words as text. An
+ * admin opens this card for any account, so a `javascript:` website would run
+ * with their session.
+ */
+function ProfileWebsite({ website, isAssistant, testId }: { website: string; isAssistant: boolean; testId: string }) {
+  const href = safeHref(website);
+  const className = `truncate text-[10px] ${
+    isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
+  }`;
+  if (!href) return <span className={className}>{String(website)}</span>;
+  return (
+    <a href={href} target="_blank" rel="noopener" className={`${className} hover:underline`} data-testid={testId}>
+      {website}
+    </a>
+  );
+}
+
 function AssignedAssistantSection({
   assistantPubkey,
   selfAssigned,
@@ -848,17 +868,7 @@ function AssignedAssistantSection({
               {profile.website && (
                 <div className="mt-0.5 flex items-center gap-1">
                   {isAssistant && <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
-                  <a
-                    href={profile.website}
-                    target="_blank"
-                    rel="noopener"
-                    className={`truncate text-[10px] hover:underline ${
-                      isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
-                    }`}
-                    data-testid="link-assistant-website"
-                  >
-                    {profile.website}
-                  </a>
+                  <ProfileWebsite website={profile.website} isAssistant={isAssistant} testId="link-assistant-website" />
                 </div>
               )}
             </div>
@@ -978,17 +988,7 @@ function Kind0Panel({
               {profile.website && (
                 <div className="mt-0.5 flex items-center gap-1">
                   {isAssistant && <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
-                  <a
-                    href={profile.website}
-                    target="_blank"
-                    rel="noopener"
-                    className={`truncate text-[10px] hover:underline ${
-                      isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
-                    }`}
-                    data-testid="link-kind0-website"
-                  >
-                    {profile.website}
-                  </a>
+                  <ProfileWebsite website={profile.website} isAssistant={isAssistant} testId="link-kind0-website" />
                 </div>
               )}
             </div>

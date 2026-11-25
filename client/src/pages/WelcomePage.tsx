@@ -14,6 +14,7 @@ import { accountKey } from "@/lib/accountStorage";
 import { knownFollowCount } from "@/lib/followStore";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { sameOriginPath } from "@/lib/safeHref";
 
 /**
  * Post-signup "Build your network" — the primary activation step. New users pick
@@ -36,8 +37,11 @@ export default function WelcomePage() {
   // and whatever's left (usually activation) is the natural next beat.
   const returnPath = (() => {
     try {
-      const n = new URLSearchParams(window.location.search).get("next");
-      if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/welcome") return n;
+      const n = sameOriginPath(new URLSearchParams(window.location.search).get("next"), window.location.origin, [
+        "/login",
+        "/welcome",
+      ]);
+      if (n) return n;
     } catch {
       /* ignore */
     }

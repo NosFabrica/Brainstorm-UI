@@ -99,6 +99,13 @@ describe("fetchBookFacts", () => {
     });
   });
 
+  it("offers no scan whose address isn't a web address: the page links it", async () => {
+    readable = viewapi("full", "javascript:alert(document.domain)");
+    fetchMock.mockImplementation((url) => route(url));
+    const facts = await fetchBookFacts({ isbn: "9781610397216", workId: "OL19722168W" });
+    expect(facts?.read).toBeNull();
+  });
+
   it("says when a scan can only be borrowed there", async () => {
     readable = viewapi("restricted", "https://archive.org/details/stormbeforestorm00dunc");
     fetchMock.mockImplementation((url) => route(url));

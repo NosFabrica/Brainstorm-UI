@@ -241,6 +241,16 @@ Real-device checks before shipping a change here: `docs/agents/pwa-checklist.md`
   into index, 200 and 404 between `<!--CONFIG-START-->` and `<!--CONFIG-END-->`,
   so no page load waits on `/config.js`. Dev and the APK load `/config.js` from
   the tag between the markers.
+- **Security headers**: every response carries a Content-Security-Policy,
+  `X-Frame-Options: DENY` (and `frame-ancestors 'none'`), nosniff,
+  `Referrer-Policy`, `Permissions-Policy` and HSTS. `docker-entrypoint.sh` writes
+  them to `/etc/nginx/security-headers.conf` after inlining the config, because
+  `script-src` names each inline script by its SHA-256 and the config's is only
+  known then; a new inline script in `index.html` is hashed with no change here.
+  `CSP_MODE=report-only` (or `off`) steps the policy back without a rebuild. A
+  location with its own `add_header` inherits none of the server's, so each one
+  includes the file again (`test/securityHeaders.test.ts`). Dev and the APK send
+  no CSP.
 - **Third-party JSON**: `/github/*` and `/openlibrary/*` are proxied and cached by
   nginx (1 day, stale on error or rate limit), and in dev by Vite. The APK has no
   such proxy.

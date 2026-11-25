@@ -45,6 +45,7 @@ vi.mock("@/lib/eventStore", async () => ({
 }));
 
 import { RepoHero } from "./RepoHero";
+import { HOSTILE_URL, HOSTILE_URL_WITH_HOST, expectNoScriptHrefs } from "@/test/hrefs";
 
 const MAINTAINER = "b".repeat(64);
 
@@ -75,6 +76,26 @@ beforeEach(() => {
 });
 
 describe("RepoHero", () => {
+  it("links web, source and forkedFrom only when they are web addresses", () => {
+    render(
+      <RepoHero
+        event={{
+          ...NGIT,
+          tags: [
+            ["d", "ngit"],
+            ["name", "ngit"],
+            ["web", HOSTILE_URL],
+            ["source", HOSTILE_URL_WITH_HOST],
+            ["forkedFrom", HOSTILE_URL],
+          ],
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("repo-hero-web")).toBeNull();
+    expect(screen.queryByTestId("repo-hero-source")).toBeNull();
+    expectNoScriptHrefs();
+  });
+
   it("presents the repo: name, description, web + clone, publisher", () => {
     knownProfiles.set(MAINTAINER, {
       id: "p".repeat(64),

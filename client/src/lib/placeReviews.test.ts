@@ -60,6 +60,21 @@ const full = (e: Partial<Ev> = {}) =>
     ...e,
   });
 
+describe("a review's photos", () => {
+  it("are web addresses only: an imeta url someone wrote as javascript: or data: is no photo", () => {
+    const hostile = full({
+      tags: [
+        ...regulars().tags,
+        ["imeta", "url javascript:alert(document.domain)"],
+        ["imeta", "url data:text/html,<script>alert(1)</script>"],
+        ["imeta", `url ${PHOTO}`],
+      ],
+    });
+    const [r] = standingReviews([hostile], PLACE, NOW);
+    expect(r.photos).toEqual([PHOTO]);
+  });
+});
+
 describe("the checks both apps hold (section 11)", () => {
   it("A: the record as Regulars writes it is one review, 4 stars, the words", () => {
     const out = standingReviews([regulars()], PLACE, NOW);

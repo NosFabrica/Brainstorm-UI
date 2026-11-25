@@ -15,7 +15,8 @@ describe("nginx /built-on/", () => {
     const body = locationBody("^~ /built-on/");
     expect(body).toContain('add_header Cache-Control "public, max-age=3600" always;');
     expect(body).toContain('add_header Access-Control-Allow-Origin "*" always;');
-    expect(body).toContain('add_header X-Content-Type-Options "nosniff" always;');
+    // nosniff with the other security headers, which a location with its own add_header must repeat.
+    expect(body).toContain("include /etc/nginx/security-headers.conf;");
   });
 
   it("answers a missing file with a 404, never the app", () => {

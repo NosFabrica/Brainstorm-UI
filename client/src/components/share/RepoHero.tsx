@@ -33,6 +33,7 @@ import { kindTypeLabel } from "@/lib/kindLabel";
 import { MessageSquare } from "lucide-react";
 import { ReadingText } from "@/components/share/ReadingText";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { safeHref } from "@/lib/safeHref";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type RepoEvent = {
@@ -67,9 +68,10 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   const description = tagVal(event, "description");
   const longDescription = !!description && (description.length > 200 || description.includes("\n"));
   const clone = tagVal(event, "clone");
-  const web = tagVal(event, "web");
-  const source = tagVal(event, "source");
-  const forkedFrom = tagVal(event, "forkedFrom");
+  // Links the maintainer wrote: web addresses only (lib/safeHref).
+  const web = safeHref(tagVal(event, "web"));
+  const source = safeHref(tagVal(event, "source"));
+  const forkedFrom = safeHref(tagVal(event, "forkedFrom"));
   const lineage = repoLineageOf(event);
   const hostOf = (url: string) => {
     try {

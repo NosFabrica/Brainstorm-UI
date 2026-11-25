@@ -20,12 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PasskeySignInButton } from "@/components/PasskeySignInButton";
 import { usePasskeySupport } from "@/hooks/usePasskeySupport";
+import { sameOriginPath } from "@/lib/safeHref";
 
 function getNextPath(): string {
   try {
     const params = new URLSearchParams(window.location.search);
-    const next = params.get("next");
-    if (next && next.startsWith("/") && !next.startsWith("//") && next !== "/login") return next;
+    const next = sameOriginPath(params.get("next"), window.location.origin, ["/login"]);
+    if (next) return next;
   } catch {}
   return "/";
 }

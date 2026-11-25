@@ -12,6 +12,7 @@ import type { NostrEvent } from "nostr-tools";
 import { Code2, Download, ExternalLink, Globe, Package, Zap } from "lucide-react";
 import { useLightbox } from "@/components/share/Lightbox";
 import { Favicon } from "@/components/share/LinkPreview";
+import { safeHref } from "@/lib/safeHref";
 import { NotesInline } from "@/components/share/NotesInline";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -187,8 +188,9 @@ export function AppHero({ event }: { event: AppEvent }) {
   const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
   const summary = tagVal(event, "summary");
   const icon = tagVal(event, "icon");
-  const url = tagVal(event, "url");
-  const repository = tagVal(event, "repository");
+  // Links the publisher wrote: web addresses only (lib/safeHref).
+  const url = safeHref(tagVal(event, "url"));
+  const repository = safeHref(tagVal(event, "repository"));
   const license = tagVal(event, "license");
   const shots = tagVals(event, "image");
   const platforms = platformWords(event);

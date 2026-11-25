@@ -161,6 +161,18 @@ describe("Wavlake as a second music source", () => {
 });
 
 describe("Wavlake's trending — top tracks by sats, a week at a time", () => {
+  it("links a track only to a web address, whatever Wavlake answered", async () => {
+    const week = catalogue["content/rankings?sort=sats&days=7&limit=12"] as { url: string }[];
+    const saved = week[0].url;
+    week[0].url = "javascript:alert(document.domain)";
+    try {
+      const songs = await fetchWavlakeTrending();
+      expect(songs[0].url).toBe("https://wavlake.com/track/wk0");
+    } finally {
+      week[0].url = saved;
+    }
+  });
+
   it("reads the week's ranking into playable songs with their sats", async () => {
     const songs = await fetchWavlakeTrending();
     expect(songs).toHaveLength(8);

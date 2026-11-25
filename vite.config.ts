@@ -117,7 +117,10 @@ export default defineConfig({
   server: {
     port: 5000,
     host: "0.0.0.0",
-    allowedHosts: true,
+    // No `allowedHosts: true`: that turns off the dev server's Host check, and
+    // any site could then read it through DNS rebinding. Vite always allows
+    // localhost, *.localhost and IP addresses, which is everything
+    // docs/agents/run-ui.md and the e2e stack open (a phone on the LAN by IP).
     // Same-origin in development too: the service reads Sec-Fetch-Site to pick
     // a rate-limit tier, and a cross-origin dev setup lands the SPA in the
     // tight one.

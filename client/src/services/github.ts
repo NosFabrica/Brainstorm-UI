@@ -47,6 +47,7 @@ export interface GitHubAccountFacts {
 
 import { gistProves, pubkeysNamedIn, type GitHubEvidence } from "@/lib/githubLink";
 import { fetchGitHubClaimants } from "@/services/itemEngagement";
+import { safeHref } from "@/lib/safeHref";
 
 const TIMEOUT_MS = 8000;
 const cache = new Map<string, Promise<GitHubAccountFacts | null>>();
@@ -66,7 +67,8 @@ async function getJson<T>(path: string): Promise<T | null> {
 
 function repoOf(r: Record<string, unknown>): GitHubRepo | null {
   const name = str(r.name);
-  const url = str(r.html_url);
+  // The page links it: a web address only, whatever the upstream answered.
+  const url = safeHref(str(r.html_url));
   if (!name || !url) return null;
   return {
     name,
