@@ -576,7 +576,7 @@ function ActivityRow({ event, author, score, query, engagement, showType = true 
             <Headline text={s.facts.join(" · ")} query="" />
           </p>
         )}
-        {s.ref && <RefQuote target={s.ref} query={query} quote={quotesItsTarget(event)} />}
+        {s.ref && <RefQuote target={s.ref} query={query} quote={quotesItsTarget(event)} kind={event.kind} />}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
     </div>
@@ -584,7 +584,18 @@ function ActivityRow({ event, author, score, query, engagement, showType = true 
 }
 
 /** The event an activity is about, as two quoted lines once in hand; a link while it is not, or may not be shown. */
-function RefQuote({ target, query, quote }: { target: ResultRef; query: string; quote: boolean }) {
+function RefQuote({
+  target,
+  query,
+  quote,
+  kind,
+}: {
+  target: ResultRef;
+  query: string;
+  quote: boolean;
+  /** The activity's own kind: a deletion's link says what it deleted. */
+  kind: number;
+}) {
   const [, navigate] = useLocation();
   const { event: quoted, settled } = useRefEvent(quote ? target : null);
   if (!quoted) {
@@ -596,7 +607,7 @@ function RefQuote({ target, query, quote }: { target: ResultRef; query: string; 
         className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
         data-testid="serp-activity-ref-link"
       >
-        ↳ {quote ? "not found on the relays we asked" : "what it is about"}
+        ↳ {quote ? "not found on the relays we asked" : kind === 5 ? "what it deleted" : "what it is about"}
       </Link>
     );
   }

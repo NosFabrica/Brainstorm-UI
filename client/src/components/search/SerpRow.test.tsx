@@ -1181,7 +1181,7 @@ describe("SerpRow — what someone did", () => {
       />,
     );
     expect(screen.getByTestId("serp-activity-title")).toHaveTextContent("Deleted 1 event");
-    expect(screen.getByTestId("serp-activity-ref-link")).toBeInTheDocument();
+    expect(screen.getByTestId("serp-activity-ref-link")).toHaveTextContent("what it deleted");
     expect(screen.queryByTestId("serp-activity-ref")).toBeNull();
     expect(screen.getByTestId(`serp-row-${"7".repeat(64)}`)).not.toHaveTextContent("deleted words");
   });
