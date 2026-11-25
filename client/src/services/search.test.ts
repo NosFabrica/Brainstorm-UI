@@ -2904,6 +2904,27 @@ describe("fetchGitStatuses", () => {
     expect(statuses.has(quiet)).toBe(false);
   });
 
+  it("reads the item from the e marked root, and a 1631's reply-marked revision, never another e (NIP-34)", async () => {
+    const { subject } = controllable();
+    const issue = "1".repeat(64),
+      revision = "2".repeat(64),
+      mentioned = "3".repeat(64);
+    const pending = fetchGitStatuses([issue, revision, mentioned]);
+    await tick();
+    const merged = status("s1", 1631, issue, 100);
+    merged.tags.push(["e", revision, "", "reply"], ["e", mentioned]);
+    const closed = status("s2", 1632, issue, 90);
+    closed.tags.push(["e", mentioned, "", "reply"]);
+    subject.next(frame(merged));
+    subject.next(frame(closed));
+    subject.next(EOSE);
+    const statuses = await pending;
+    expect(statuses.get(issue)).toEqual({ kind: 1631, at: 100 });
+    expect(statuses.get(revision)).toEqual({ kind: 1631, at: 100 });
+    // Unmarked, or a revision of a status that is not 1631: names nothing.
+    expect(statuses.has(mentioned)).toBe(false);
+  });
+
   it("asks nothing for an empty page", async () => {
     controllable();
     expect((await fetchGitStatuses([])).size).toBe(0);

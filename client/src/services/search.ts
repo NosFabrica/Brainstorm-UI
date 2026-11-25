@@ -49,6 +49,7 @@ import { readProfileRows } from "@/lib/eventCache";
 import type { FirstPage } from "@/lib/headStart";
 import { zapDescription } from "@/lib/zapRequest";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
+import { readGitStatus } from "@/lib/gitEvents";
 
 export type SearchTab =
   | "top"
@@ -2130,8 +2131,11 @@ export function fetchCommentsByAddress(
 
 /**
  * What became of a page of issues and patches: one request for all of them.
- * NIP-34 status events (1630–1633) name their item by a root e-tag; the
- * newest per item wins. Under include:spam like every relay request here.
+ * NIP-34 status events (1630–1633) name their item by the e-tag marked
+ * `root`; the newest per item wins. Under include:spam like every relay
+ * request here. NIP-34 counts only a status from the item's author or a
+ * maintainer; this page-wide ask does not know either yet, so a stranger's
+ * status still counts here (the status page itself says whose it is).
  */
 export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<string, { kind: number; at: number }>> {
   return new Promise((resolve) => {
@@ -2144,10 +2148,14 @@ export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<s
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const ev = msg.event;
-          for (const t of ev.tags) {
-            if (t[0] !== "e" || !wanted.has(t[1])) continue;
-            const known = out.get(t[1]);
-            if (!known || ev.created_at > known.at) out.set(t[1], { kind: ev.kind, at: ev.created_at });
+          // NIP-34: the item is the `e` marked root; a 1631's `reply`-marked `e` is a revision it
+          // accepted. Any other `e` names neither.
+          const status = readGitStatus(ev);
+          const named = [status.target, ...(ev.kind === 1631 ? status.revisions : [])];
+          for (const ref of named) {
+            if (!ref || !wanted.has(ref.id)) continue;
+            const known = out.get(ref.id);
+            if (!known || ev.created_at > known.at) out.set(ref.id, { kind: ev.kind, at: ev.created_at });
           }
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
