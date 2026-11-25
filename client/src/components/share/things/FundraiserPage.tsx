@@ -4,7 +4,7 @@
  * the one thing to do (zap it, or pay the campaign's address), the story, and
  * the people who have given, with what they said.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Bitcoin, CalendarClock, HandHeart, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { MediaImg } from "@/components/ui/media-img";
@@ -14,7 +14,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { ReadingText } from "@/components/share/ReadingText";
 import { ZapModal } from "@/components/ZapModal";
 import { useFaceProfiles } from "@/components/search/cards";
-import { fetchFromSearch, parseZapReceipt } from "@/services/search";
+import { parseZapReceipt } from "@/services/search";
 import { ago } from "@/lib/ago";
 import type { Thing } from "@/lib/thing";
 import type { Detail } from "./types";
@@ -30,7 +30,7 @@ import {
   SectionNote,
   nameOf,
   refetch,
-  useFetched,
+  useSearchEvents,
   useProfileContent,
   type PageEvent,
 } from "./shared";
@@ -54,12 +54,13 @@ const giftsKey = (event: PageEvent) => `fund-gifts:${event.id}`;
  * it don't count, so they are left out.
  */
 function useGifts(event: PageEvent, closesAt: number | null): { gifts: Gift[]; capped: boolean } | undefined {
-  return useFetched(giftsKey(event), async () => {
-    const d = event.tags.find((t) => t[0] === "d")?.[1];
-    const filters: Record<string, unknown>[] = [{ kinds: [9735], "#e": [event.id] }];
-    if (d !== undefined && event.kind >= 30000)
-      filters.push({ kinds: [9735], "#a": [`${event.kind}:${event.pubkey}:${d}`] });
-    const receipts = await fetchFromSearch(filters, { limit: RECEIPTS_ASKED });
+  const d = event.tags.find((t) => t[0] === "d")?.[1];
+  const filters: Record<string, unknown>[] = [{ kinds: [9735], "#e": [event.id] }];
+  if (d !== undefined && event.kind >= 30000)
+    filters.push({ kinds: [9735], "#a": [`${event.kind}:${event.pubkey}:${d}`] });
+  const receipts = useSearchEvents(giftsKey(event), filters, { limit: RECEIPTS_ASKED });
+  return useMemo(() => {
+    if (!receipts) return undefined;
     const counted = closesAt === null ? receipts : receipts.filter((e) => e.created_at <= closesAt);
     const gifts = counted.map((e: NostrEvent) => {
       const r = parseZapReceipt(e);
@@ -72,7 +73,7 @@ function useGifts(event: PageEvent, closesAt: number | null): { gifts: Gift[]; c
       };
     });
     return { gifts, capped: receipts.length >= RECEIPTS_ASKED };
-  });
+  }, [receipts, closesAt]);
 }
 
 const sats = (n: number) => new Intl.NumberFormat("en-US").format(n);

@@ -5,7 +5,7 @@
  * playable). Each hero says what the collection is; the section below is the
  * collection itself, looked up on the network.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Award, CalendarDays, Check, Disc3, MapPin, Smile } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Chip } from "@/components/ui/chip";
@@ -14,7 +14,6 @@ import { EventCard, TrackCard } from "@/components/search/cards";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ThingCard } from "@/components/search/thingCards";
-import { fetchByAddress, fetchFromSearch } from "@/services/search";
 import { isOver, parseCalendarEvent } from "@/lib/calendarEvent";
 import { parseTrack } from "@/lib/trackEvent";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -26,7 +25,9 @@ import {
   PeopleRoster,
   Section,
   SectionNote,
-  useFetched,
+  taggedPeople,
+  useAddressedEvents,
+  useSearchEvents,
   type PageEvent,
   SafeImg,
   useAuthors,
@@ -35,7 +36,7 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 
 const dOf = (e: PageEvent) => e.tags.find((t) => t[0] === "d")?.[1] ?? "";
 const addressOf = (e: PageEvent) => `${e.kind}:${e.pubkey}:${dOf(e)}`;
-/** `kind:pubkey:d` with the pubkey lower-cased — how fetchByAddress keys what it found. */
+/** `kind:pubkey:d` with the pubkey lower-cased — how useAddressedEvents keys what it found. */
 const normalCoord = (c: string) => {
   const [k, pk, ...d] = c.split(":");
   return [k, pk?.toLowerCase(), ...d].join(":");
@@ -94,7 +95,7 @@ export function CalendarHero({ thing, detail }: { thing: Thing; detail: Detail<"
 
 export function CalendarSections({ event }: { event: PageEvent }) {
   const coords = coordsOf(event, [31922, 31923]);
-  const found = useFetched(coords.length ? `calendar-events:${event.id}` : null, () => fetchByAddress(coords));
+  const found = useAddressedEvents(coords.length ? `calendar-events:${event.id}` : null, coords);
   const events = found ? [...found.values()] : [];
   const withTime = events.map((e) => ({ e, cal: parseCalendarEvent(e) }));
   const upcoming = withTime
@@ -221,13 +222,12 @@ export function BadgeSections({ event }: { event: PageEvent }) {
   // NIP-58 awards (kind 8) name the badge by address; their `p` tags are who
   // got it. Only the badge's issuer can award it — an award signed by anyone
   // else is a forgery, so the filter asks for the issuer's alone.
-  const awardees = useFetched(`badge-awards:${event.id}`, () =>
-    fetchFromSearch([{ kinds: [8], authors: [event.pubkey], "#a": [addressOf(event)] }], { limit: 300 }).then((evs) => [
-      ...new Set(
-        evs.flatMap((e) => e.tags.filter((t) => t[0] === "p" && /^[0-9a-f]{64}$/i.test(t[1] ?? "")).map((t) => t[1])),
-      ),
-    ]),
+  const awards = useSearchEvents(
+    `badge-awards:${event.id}`,
+    [{ kinds: [8], authors: [event.pubkey], "#a": [addressOf(event)] }],
+    { limit: 300 },
   );
+  const awardees = useMemo(() => taggedPeople(awards), [awards]);
   return (
     <Section title="Awarded to" count={awardees?.length} testId="thing-page-awardees">
       {awardees === undefined ? (
@@ -310,9 +310,9 @@ export function EmojiPackHero({ thing, detail }: { thing: Thing; detail: Detail<
 }
 
 export function EmojiPackSections({ event }: { event: PageEvent }) {
-  const more = useFetched(`emoji-more:${event.pubkey}`, () =>
-    fetchFromSearch([{ kinds: [30030], authors: [event.pubkey] }], { limit: 12 }),
-  );
+  const more = useSearchEvents(`emoji-more:${event.pubkey}`, [{ kinds: [30030], authors: [event.pubkey] }], {
+    limit: 12,
+  });
   const others = (more ?? []).filter((e) => e.id !== event.id && dOf(e) !== dOf(event));
   const moreAuthors = useAuthors([event.pubkey]);
   if (others.length === 0) return null;
@@ -361,9 +361,9 @@ export function PlaylistHero({ thing, detail }: { thing: Thing; detail: Detail<"
 
 export function PlaylistSections({ event, detail }: { event: PageEvent; detail: Detail<"playlist"> }) {
   const coords = event.tags.filter((t) => t[0] === "a" && t[1]).map((t) => t[1]);
-  const found = useFetched(coords.length ? `playlist-tracks:${event.id}` : null, () => fetchByAddress(coords));
+  const found = useAddressedEvents(coords.length ? `playlist-tracks:${event.id}` : null, coords);
   // In the playlist's own order; a track the network does not have is skipped,
-  // and counted. fetchByAddress keys by lower-case pubkey; a track listed twice
+  // and counted. useAddressedEvents keys by lower-case pubkey; a track listed twice
   // plays twice.
   const tracks = found
     ? coords.map((c) => found.get(normalCoord(c))).filter((e): e is NostrEvent => !!e && parseTrack(e) !== null)

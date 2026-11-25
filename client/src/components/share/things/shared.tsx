@@ -4,9 +4,10 @@
  * title, a row of actions, bordered fact boxes, and titled sections below the
  * event for what the network holds around it.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { nip19 } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
+import type { Filter } from "applesauce-core/helpers/filter";
 import { Check, Copy, ExternalLink, type LucideIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -19,6 +20,10 @@ import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ago } from "@/lib/ago";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { __resetAsks } from "@/lib/askOnce";
+import { eventStore } from "@/lib/eventStore";
+import { fetchByAddress, fetchFromSearch } from "@/services/search";
 
 /** The structural minimum an event page hands its heroes (MinimalEvent — no sig). */
 export type PageEvent = {
@@ -375,71 +380,143 @@ export function ActivityList({
 
 // ——— Fetching ———
 
-/**
- * One answer per key, shared: the hero and the sections below it ask the same
- * questions (a fundraiser's zaps feed both its bar and its zap list), and each
- * is asked once. An answer is kept for a couple of minutes — long enough for
- * back-and-forth navigation, short enough that a page opened later shows what
- * has happened since. A failed ask is forgotten, so the next visit asks again.
- * Bounded, oldest out.
+/*
+ * What surrounds a thing (a community's posts, a calendar's events, a badge's
+ * awards…) is asked of the search relay (services/search `fetchFromSearch`,
+ * under include:spam) and read through the EventStore like every Nostr read
+ * (ADR 0005): the answers are added to the store, a section renders from a
+ * store timeline over the same filters, and `askOnce` asks each key once a
+ * window — the hero and the sections below it ask the same questions (a
+ * fundraiser's zaps feed both its bar and its zap list) and share the ask.
  */
-const answers = new Map<string, { p: Promise<unknown>; at: number }>();
-const ANSWERS_KEPT = 64;
-const ANSWER_TTL_MS = 2 * 60_000;
-/** Who is showing each key, so `refetch` can tell them to ask again. */
+const THING_ASK_WINDOW = { minMs: 2 * 60_000 };
+/** How many times each key was asked to ask again (`refetch`), and who is showing it. */
+const rounds = new Map<string, number>();
 const watchers = new Map<string, Set<() => void>>();
 
-export function fetchOnce<T>(key: string, load: () => Promise<T>): Promise<T> {
-  const held = answers.get(key);
-  if (held && Date.now() - held.at < ANSWER_TTL_MS) return held.p as Promise<T>;
-  const p = load();
-  answers.delete(key); // re-inserted last: the map's order is its age
-  answers.set(key, { p, at: Date.now() });
-  p.catch(() => {
-    if (answers.get(key)?.p === p) answers.delete(key);
-  });
-  if (answers.size > ANSWERS_KEPT) answers.delete(answers.keys().next().value as string);
-  return p;
-}
-
-/** Forget `key`'s answer and have every component showing it ask again (after a zap, say). */
+/** Forget `key`'s answer and have every section showing it ask again (after a zap, say). */
 export function refetch(key: string) {
-  answers.delete(key);
+  rounds.set(key, (rounds.get(key) ?? 0) + 1);
   watchers.get(key)?.forEach((ask) => ask());
 }
 
-/** Test seam: forget every cached answer. */
+/** Test seam: forget every ask. */
 export function __resetThingPageCache() {
-  answers.clear();
+  rounds.clear();
+  __resetAsks();
 }
 
-/** What `load` answered for `key` — undefined while it asks; `null` key asks nothing. */
-export function useFetched<T>(key: string | null, load: () => Promise<T>): T | undefined {
-  const [state, setState] = useState<{ key: string | null; value: T | undefined }>({ key: null, value: undefined });
-  const [round, setRound] = useState(0);
+function useRound(key: string | null): number {
+  const [, setTick] = useState(0);
   useEffect(() => {
     if (!key) return;
-    let alive = true;
-    const ask = () => setRound((r) => r + 1);
+    const ask = () => setTick((t) => t + 1);
     const set = watchers.get(key) ?? new Set();
     set.add(ask);
     watchers.set(key, set);
-    fetchOnce(key, load).then(
-      (value) => {
-        if (alive) setState({ key, value });
-      },
-      () => {
-        /* forgotten by fetchOnce; the section keeps its quiet "looking…" line */
-      },
-    );
     return () => {
-      alive = false;
       set.delete(ask);
       if (set.size === 0) watchers.delete(key);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key names the question
-  }, [key, round]);
-  return state.key === key ? state.value : undefined;
+  }, [key]);
+  return key ? (rounds.get(key) ?? 0) : 0;
+}
+
+type SearchFilter = Record<string, unknown>;
+
+/** The store's half of a search filter: what the relay alone reads (`limit`, `search`) left out. */
+const storeFilterOf = ({ limit: _limit, search: _search, ...f }: SearchFilter) => f as Filter;
+
+/** Hand the answers to the store; whatever it keeps renders from it, the rest from the answer. */
+function intoStore(events: NostrEvent[]): NostrEvent[] {
+  for (const e of events) {
+    try {
+      eventStore.add(e);
+    } catch {
+      /* a copy the store refuses still shows from the answer */
+    }
+  }
+  return events;
+}
+
+/**
+ * The events the search relay holds for `filters`, live from the store; undefined
+ * while nothing is known and the first ask is out. A `null` key asks nothing.
+ */
+export function useSearchEvents(
+  key: string | null,
+  filters: SearchFilter[] | null,
+  { limit = 60, ask }: { limit?: number; ask?: () => Promise<NostrEvent[]> } = {},
+): NostrEvent[] | undefined {
+  const round = useRound(key);
+  const filtersKey = filters ? JSON.stringify(filters) : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey is `filters`, as a value
+  const storeFilters = useMemo(() => (key && filters?.length ? filters.map(storeFilterOf) : null), [key, filtersKey]);
+  const askKey = key && storeFilters ? `thing:${key}#${round}` : null;
+  const { events, settled } = useStoreEvents(
+    askKey,
+    storeFilters,
+    async () => intoStore(await (ask ? ask() : fetchFromSearch(filters ?? [], { limit }))),
+    THING_ASK_WINDOW,
+  );
+  if (!askKey) return undefined;
+  return settled || events.length ? events : undefined;
+}
+
+/** A search filter for addressable events by coordinate: the cross-product services/search `fetchByAddress` asks. */
+function parseCoords(coords: string[]) {
+  return [...new Set(coords)]
+    .map((c) => c.split(":"))
+    .filter((p) => p.length >= 3 && /^\d+$/.test(p[0]) && /^[0-9a-f]{64}$/i.test(p[1]))
+    .map((p) => ({ kind: Number(p[0]), pubkey: p[1].toLowerCase(), d: p.slice(2).join(":") }));
+}
+
+/**
+ * Addressable events by coordinate (`kind:pubkey:d`), newest version of each,
+ * keyed by coordinate with a lower-case pubkey; undefined while asking.
+ */
+export function useAddressedEvents(key: string | null, coords: string[]): Map<string, NostrEvent> | undefined {
+  const coordsKey = coords.join(",");
+  const parsed = useMemo(() => parseCoords(coords), [coordsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filters = useMemo(
+    () =>
+      parsed.length
+        ? [
+            {
+              kinds: [...new Set(parsed.map((p) => p.kind))],
+              authors: [...new Set(parsed.map((p) => p.pubkey))],
+              "#d": [...new Set(parsed.map((p) => p.d))],
+            },
+          ]
+        : null,
+    [parsed],
+  );
+  // services/search `fetchByAddress` asks the same cross-product, and keeps only the coordinates asked.
+  const events = useSearchEvents(key && filters ? key : null, filters, {
+    ask: async () => [...(await fetchByAddress(coords)).values()],
+  });
+  return useMemo(() => {
+    if (!events) return undefined;
+    const wanted = new Set(parsed.map((p) => `${p.kind}:${p.pubkey}:${p.d}`));
+    const out = new Map<string, NostrEvent>();
+    for (const e of events) {
+      const at = `${e.kind}:${e.pubkey.toLowerCase()}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+      if (!wanted.has(at)) continue;
+      const held = out.get(at);
+      if (!held || e.created_at > held.created_at) out.set(at, e);
+    }
+    return out;
+  }, [events, parsed]);
+}
+
+/** The pubkeys an event set's `p` tags name, once each (a badge's awards, a group's roster). */
+export function taggedPeople(events: NostrEvent[] | undefined): string[] | undefined {
+  if (!events) return undefined;
+  return [
+    ...new Set(
+      events.flatMap((e) => e.tags.filter((t) => t[0] === "p" && /^[0-9a-f]{64}$/i.test(t[1] ?? "")).map((t) => t[1])),
+    ),
+  ];
 }
 
 /** A person's whole kind-0 content (lud16, nip05, website…), live; undefined while loading, `{}` for none. */

@@ -19,7 +19,6 @@ import {
   baoMarketLinkLabel,
   marketCloseWords,
 } from "@/components/search/thingCards";
-import { fetchFromSearch } from "@/services/search";
 import { describeThing, marketStatusNow, type Thing } from "@/lib/thing";
 import { eventPath } from "@/lib/shareId";
 import type { Detail } from "./types";
@@ -32,7 +31,7 @@ import {
   PageTitle,
   Section,
   SectionNote,
-  useFetched,
+  useSearchEvents,
   type PageEvent,
 } from "./shared";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -132,8 +131,10 @@ export function MarketHero({ event, thing, detail }: { event: PageEvent; thing: 
 /** The same creator's other markets in this one's category — BAO tags its category `c`, which the relay filters on. */
 export function MarketSections({ event, detail }: { event: PageEvent; detail: Detail<"market"> }) {
   const c = tagOf(event, "c");
-  const more = useFetched(c ? `markets:${event.pubkey}:${c}` : null, () =>
-    fetchFromSearch([{ kinds: [38000], authors: [event.pubkey], "#c": [c] }], { limit: 30 }),
+  const more = useSearchEvents(
+    c ? `markets:${event.pubkey}:${c}` : null,
+    [{ kinds: [38000], authors: [event.pubkey], "#c": [c] }],
+    { limit: 30 },
   );
   if (!c) return null;
   const others = (more ?? [])
