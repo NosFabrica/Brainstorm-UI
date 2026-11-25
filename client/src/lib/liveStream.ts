@@ -7,6 +7,7 @@
  * can be neither the author nor the only participant; callers fetch by both
  * shapes and this only reads the event.
  */
+import { safeHref } from "@/lib/safeHref";
 import { schnorr } from "@noble/curves/secp256k1.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
@@ -87,8 +88,7 @@ export function pickStreams(events: EventLike[], nowSec = Math.floor(Date.now() 
  * Local until cluster C's lib/safeHref lands; then this is `safeHref`.
  */
 export function isWebUrl(url: string | undefined | null): url is string {
-  const u = url?.trim().toLowerCase() ?? "";
-  return u.startsWith("https://") || u.startsWith("http://");
+  return safeHref(url) !== undefined;
 }
 
 /** Test seam: kept for callers' tests; there is nothing cached any more. */
