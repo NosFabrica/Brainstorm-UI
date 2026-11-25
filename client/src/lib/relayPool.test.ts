@@ -19,6 +19,7 @@ import {
   keepRelayAlive,
   profileIndexAnswers,
   relayWake$,
+  standaloneRelay,
   wakeableBackoff,
   wakeRelays,
   warmRelay,
@@ -285,6 +286,13 @@ describe("events a relay sends that the filter didn't ask for", () => {
       );
       expect(frames.map((m) => (m.type === "EVENT" ? m.event.id : m.type))).toEqual([mine.id, "EOSE"]);
     }
+  }, 4000);
+
+  it("are dropped on a socket of its own, outside the pool (the search page's side socket)", async () => {
+    const relay = standaloneRelay(LIAR, { WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(relay.request(asked).pipe(toArray()));
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+    relay.close();
   }, 4000);
 
   it("a NIP-50 search term is the relay's to judge: an event that matches the rest of the filter is kept", async () => {

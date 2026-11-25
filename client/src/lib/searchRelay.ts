@@ -7,8 +7,8 @@
  * Lives in lib/ (not services/) for the same layering reason as relayPool:
  * nothing here may import upward.
  */
-import { Relay } from "applesauce-relay";
-import { pool, warmRelay } from "./relayPool";
+import type { Relay } from "applesauce-relay";
+import { pool, standaloneRelay, warmRelay } from "./relayPool";
 import { env } from "./runtimeEnv";
 import { watchRelay } from "@/lib/serverStatus";
 
@@ -42,7 +42,7 @@ export function searchRelay(): Relay | null {
  */
 export function openSideSearchRelay(): Relay | null {
   const url = env.VITE_SEARCH_RELAY_URL.trim();
-  return url ? new Relay(url) : null;
+  return url ? standaloneRelay(url) : null;
 }
 
 /** How long the shared side socket stays open with nothing asked of it. */
@@ -68,7 +68,7 @@ export function leaseSideSearchRelay(): { relay: Relay; release: () => void } | 
   if (!url) return null;
   clearTimeout(sideIdle);
   sideIdle = undefined;
-  side ??= new Relay(url);
+  side ??= standaloneRelay(url);
   const relay = side;
   sideLeases++;
   let released = false;

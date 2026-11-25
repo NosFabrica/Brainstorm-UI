@@ -345,6 +345,22 @@ class ReadFirstRelay extends Relay {
 }
 
 /**
+ * A relay outside the pool (lib/searchRelay's side sockets) that still drops
+ * what its REQs didn't ask for — the one rule here that holds for every read,
+ * whichever socket it rides.
+ */
+class AskedOnlyRelay extends Relay {
+  req(filters: ReqFilters, opts?: ReqOptions): ReqMessages {
+    return onlyWhatWasAsked(super.req(filters, opts));
+  }
+}
+
+/** A socket of its own, outside the pool, under the pool's rule on answers. */
+export function standaloneRelay(url: string, options?: RelayOptions): Relay {
+  return new AskedOnlyRelay(url, options);
+}
+
+/**
  * Wakes whatever is waiting to retry a relay (a live subscription's backoff,
  * services/dm/transport) the moment the app comes back.
  */
