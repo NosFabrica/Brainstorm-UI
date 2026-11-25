@@ -166,7 +166,7 @@ export const KIND_NAMES: Readonly<Record<number, string>> = {
   30005: "Collection",
   30006: "Collection",
   30007: "Mute set",
-  30008: "Profile badges",
+  30008: "Badge set",
   30009: "Badge",
   30015: "List",
   30017: "Stall",

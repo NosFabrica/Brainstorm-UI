@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listItemCounts, listTitle, readListItems } from "./listItems";
+import { ITEM_LIST_KINDS, isProfileBadges, listItemCounts, listTitle, readListItems } from "./listItems";
 
 const PK = "2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331";
 const N1 = "8b27ce0176d923e44ca50063d934be916f75e93d2cf4c0df98e797cd1aa67190";
@@ -62,5 +62,69 @@ describe("listTitle", () => {
     expect(listTitle({ kind: 10003, tags: [] })).toBe("Bookmarks");
     expect(listTitle({ kind: 30003, tags: [["d", "reading"]] })).toBe("reading");
     expect(listTitle({ kind: 30003, tags: [] })).toBe("Untitled list");
+  });
+});
+
+// NIP-58: a badge list holds pairs — an `a` for the kind-30009 badge and an `e`
+// for the kind-8 award that proves it. The awards were counted as notes ("2 notes,
+// 2 badges") and the list itself fell to the structural fallback.
+describe("NIP-58 badge lists (10008, 30008)", () => {
+  const badges = (d: string, kind = 30008) => ({
+    kind,
+    content: "",
+    tags: [
+      ["d", d],
+      ["a", `30009:${PK}:bravery`],
+      ["e", N1, "wss://relay.example"],
+      ["a", `30009:${PK}:honor`],
+      ["e", N2, "wss://relay.example"],
+    ],
+  });
+
+  it("is a list of its badges; the awards behind them are not items", () => {
+    const items = readListItems(badges("conferences"));
+    expect(items.notes).toEqual([]);
+    expect(items.addresses.map((a) => a.identifier)).toEqual(["bravery", "honor"]);
+    expect(listItemCounts(items)).toEqual(["2 badges"]);
+  });
+
+  it("a 30008 badge set is named by its title or d; the deprecated profile_badges form is Profile badges", () => {
+    expect(
+      listTitle({
+        kind: 30008,
+        tags: [
+          ["d", "conferences"],
+          ["title", "Conference badges"],
+        ],
+      }),
+    ).toBe("Conference badges");
+    expect(listTitle(badges("profile_badges"))).toBe("Profile badges");
+    expect(listTitle(badges("", 10008))).toBe("Profile badges");
+    expect(isProfileBadges(badges("profile_badges"))).toBe(true);
+    expect(isProfileBadges(badges("conferences"))).toBe(false);
+  });
+
+  it("is a list of things everywhere a list of things is drawn", () => {
+    expect(ITEM_LIST_KINDS.has(30008)).toBe(true);
+    expect(ITEM_LIST_KINDS.has(10008)).toBe(true);
+  });
+});
+
+// NIP-51: a 30005 curation set holds kind-21 videos and a 30006 kind-20 pictures, both as `e`.
+describe("curation sets of videos and pictures say what they hold", () => {
+  const set = (kind: number) => ({
+    kind,
+    content: "",
+    tags: [
+      ["d", "x"],
+      ["e", N1],
+      ["e", N2],
+    ],
+  });
+
+  it("counts videos and pictures, not notes", () => {
+    expect(listItemCounts(readListItems(set(30005)))).toEqual(["2 videos"]);
+    expect(listItemCounts(readListItems(set(30006)))).toEqual(["2 pictures"]);
+    expect(listItemCounts(readListItems(set(30004)))).toEqual(["2 notes"]);
   });
 });

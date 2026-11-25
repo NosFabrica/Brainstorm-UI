@@ -32,7 +32,7 @@ import {
   type EventRef,
 } from "@/lib/activity";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
-import { ITEM_LIST_KINDS } from "@/lib/listItems";
+import { BADGE_LIST_KINDS, ITEM_LIST_KINDS, listNoteNoun, listTitle } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
 import { tagValue } from "@/lib/tagValue";
@@ -192,7 +192,10 @@ function readList(ev: ReaderEvent): ReaderResult {
     if (Number.isFinite(k)) byKind.set(k, (byKind.get(k) ?? 0) + 1);
   }
   const counts = [
-    ...LIST_NOUNS.filter(([tag]) => tag !== "a").map(([tag, one, many]) => ({ n: tagsOf(ev, tag).length, one, many })),
+    ...LIST_NOUNS.filter(([tag]) => tag !== "a")
+      // NIP-51: a badge list's `e` is the award behind its badge; a curation set's are videos or pictures.
+      .filter(([tag]) => tag !== "e" || !BADGE_LIST_KINDS.has(ev.kind))
+      .map(([tag, one, many]) => ({ n: tagsOf(ev, tag).length, one: tag === "e" ? listNoteNoun(ev.kind) : one, many })),
     ...[...byKind].map(([k, n]) => {
       const one = kindTypeLabel(k).toLowerCase();
       return { n, one, many: one.endsWith("y") ? `${one.slice(0, -1)}ies` : `${one}s` };
@@ -224,7 +227,13 @@ function readList(ev: ReaderEvent): ReaderResult {
   return {
     // Nothing in the open and nothing sealed: say so. Sealed only: the row says it is private.
     // A named list keeps its name (the row's title), however empty.
-    title: total || encrypted || tagOf(ev, "title") || tagOf(ev, "name") || tagOf(ev, "d") ? null : "An empty list",
+    // A list of things says its name as its card and page do (lib/listItems' listTitle): pins,
+    // bookmarks and profile badges have no title of their own, and no `d`, or a slug.
+    title: ITEM_LIST_KINDS.has(ev.kind)
+      ? listTitle(ev)
+      : total || encrypted || tagOf(ev, "title") || tagOf(ev, "name") || tagOf(ev, "d")
+        ? null
+        : "An empty list",
     body: preview || null,
     facts: total ? facts : [],
     encrypted,

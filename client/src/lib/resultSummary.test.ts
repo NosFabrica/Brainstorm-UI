@@ -426,3 +426,34 @@ describe("summarizeResult — NIP-34 patches, pull requests and issues", () => {
     expect(s.facts).toEqual(["bug"]);
   });
 });
+
+describe("summarizeResult — lists of things say their name and what they hold, as their cards do", () => {
+  it("a pin list or bookmarks with no title is named as its card names it", () => {
+    expect(summarizeResult(ev(10001, [["e", "1".repeat(64)]])).title).toBe("Pinned notes");
+    expect(summarizeResult(ev(10003, [["e", "1".repeat(64)]])).title).toBe("Bookmarks");
+  });
+
+  it("a badge set counts its badges, never the awards beside them as notes", () => {
+    const s = summarizeResult(
+      ev(30008, [
+        ["d", "profile_badges"],
+        ["a", `30009:${PK}:bravery`],
+        ["e", "1".repeat(64)],
+      ]),
+    );
+    expect(s.title).toBe("Profile badges");
+    expect(s.facts).toEqual(["1 badge"]);
+  });
+
+  it("a video curation set counts videos", () => {
+    expect(
+      summarizeResult(
+        ev(30005, [
+          ["d", "talks"],
+          ["title", "Talks"],
+          ["e", "1".repeat(64)],
+        ]),
+      ).facts,
+    ).toEqual(["1 video"]);
+  });
+});
