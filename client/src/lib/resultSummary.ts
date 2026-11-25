@@ -20,6 +20,7 @@ import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { kindLabel } from "@/lib/kindLabel";
+import { liveStateLabel, liveStateOf, parseLiveStream } from "@/lib/liveStream";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
 import {
@@ -447,11 +448,16 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       });
   }
 
+  // A stream's state as the Live tab reads it — a "live" untouched for a week is over — and who is watching.
   if (ev.kind === 30311) {
-    const status = tagOf(ev, "status");
+    const state = liveStateOf(ev);
+    const viewers = parseLiveStream(ev)?.viewers;
     return fillFromContent({
       ...base,
-      facts: status ? [status.charAt(0).toUpperCase() + status.slice(1)] : [],
+      facts: [
+        liveStateLabel(state),
+        state === "live" && viewers ? `${viewers.toLocaleString("en-US")} watching` : null,
+      ].filter((f): f is string => !!f),
     });
   }
 

@@ -328,3 +328,57 @@ describe("NKBIP-01 publications as rows", () => {
     expect(s.body).toBe("2 books · 1 shelf");
   });
 });
+
+// The All row said a stream's raw `status`: "Live" on a stream nobody had
+// updated for two years, where the Live tab, the tile and the page say it is over.
+describe("summarizeResult — a NIP-53 stream says the state the Live tab reads", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const stream = (tags: string[][], created_at: number) => ({
+    ...ev(30311, [["d", "s"], ["title", "Building a relay"], ...tags]),
+    created_at,
+  });
+
+  it("a fresh live stream is Live, with who is watching", () => {
+    const s = summarizeResult(
+      stream(
+        [
+          ["status", "live"],
+          ["current_participants", "42"],
+          ["streaming", "https://stream.example/live.m3u8"],
+        ],
+        now - 60,
+      ),
+    );
+    expect(s.facts).toEqual(["Live", "42 watching"]);
+  });
+
+  it('a "live" untouched for a week is over: a replay with a recording, else Ended', () => {
+    const stale = now - 30 * 86_400;
+    expect(summarizeResult(stream([["status", "live"]], stale)).facts).toEqual(["Ended"]);
+    expect(
+      summarizeResult(
+        stream(
+          [
+            ["status", "live"],
+            ["recording", "https://cdn.example/r.mp4"],
+          ],
+          stale,
+        ),
+      ).facts,
+    ).toEqual(["Replay"]);
+  });
+
+  it("a planned stream still ahead is Upcoming", () => {
+    expect(
+      summarizeResult(
+        stream(
+          [
+            ["status", "planned"],
+            ["starts", String(now + 3600)],
+          ],
+          now - 60,
+        ),
+      ).facts,
+    ).toEqual(["Upcoming"]);
+  });
+});

@@ -199,6 +199,32 @@ describe("EmbeddedNoteCard — things, lists and the rest", () => {
     expect(screen.getByTestId(`live-card-${live.id}`)).toHaveTextContent("Friday night show");
   });
 
+  // The quote said the raw tag: "live" on a stream nobody had updated for weeks.
+  it("a quoted stream says the state the Live tab reads, not its raw status tag", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const stale = {
+      ...ev(30311, [
+        ["d", "old"],
+        ["title", "Old show"],
+        ["status", "live"],
+      ]),
+      created_at: now - 30 * 86_400,
+    };
+    const fresh = {
+      ...ev(30311, [
+        ["d", "new"],
+        ["title", "New show"],
+        ["status", "live"],
+      ]),
+      created_at: now - 60,
+    };
+    const first = quote(stale);
+    expect(screen.getByTestId(`live-status-${stale.id}`)).toHaveTextContent("Ended");
+    first.unmount();
+    quote(fresh);
+    expect(screen.getByTestId(`live-status-${fresh.id}`)).toHaveTextContent("Live");
+  });
+
   it("a quoted calendar event leads with its date tile, then its title and place", () => {
     const meetup = ev(31923, [
       ["d", "meetup"],

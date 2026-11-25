@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   liveCategoryOf,
+  liveHostOf,
+  liveStateLabel,
   liveNeedsCheck,
   liveStateOf,
   onAirLabel,
@@ -340,5 +342,34 @@ describe("pickStreams — the person panel's live, upcoming and replay, by the s
     expect(picked.live?.id).toBe("l");
     expect(picked.upcoming?.id).toBe("p");
     expect(picked.replay?.id).toBe("e");
+  });
+});
+
+describe("liveHostOf — NIP-53's role is a displayable word, in any case", () => {
+  const stream = (role: string) => ({
+    id: "s",
+    pubkey: "a".repeat(64),
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["p", "b".repeat(64), "", "Speaker"],
+      ["p", "c".repeat(64), "wss://relay.example", role],
+    ],
+  });
+
+  it('reads NIP-53\'s own "Host" as well as zap.stream\'s "host"', () => {
+    expect(liveHostOf(stream("Host"))).toBe("c".repeat(64));
+    expect(liveHostOf(stream("host"))).toBe("c".repeat(64));
+    expect(liveHostOf(stream("Participant"))).toBeNull();
+  });
+});
+
+describe("liveStateLabel — one word per shelf", () => {
+  it("says what the Live tab's shelf says, and Ended for a stream with none", () => {
+    expect(liveStateLabel("live")).toBe("Live");
+    expect(liveStateLabel("upcoming")).toBe("Upcoming");
+    expect(liveStateLabel("replay")).toBe("Replay");
+    expect(liveStateLabel(null)).toBe("Ended");
   });
 });

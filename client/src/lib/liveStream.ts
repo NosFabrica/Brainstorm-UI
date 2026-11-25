@@ -191,9 +191,18 @@ export function onAirLabel(startsSec: number, nowSec = Math.floor(Date.now() / 1
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-/** The streamer: the `p` tag marked host (platforms publish for their streamers). */
+/**
+ * The streamer: the `p` tag marked host (platforms publish for their streamers).
+ * NIP-53's role is a displayable word — its example writes "Host", zap.stream
+ * "host" — so it is matched in any case, as the event page and the search do.
+ */
 export function liveHostOf(ev: EventLike): string | null {
-  return ev.tags.find((t) => t[0] === "p" && t[3] === "host")?.[1] ?? null;
+  return ev.tags.find((t) => t[0] === "p" && t[1] && (t[3] ?? "").trim().toLowerCase() === "host")?.[1] ?? null;
+}
+
+/** A stream's state in one word, as every surface says it: the Live tab's shelf (liveStateOf), or Ended. */
+export function liveStateLabel(state: LiveState | null): "Live" | "Upcoming" | "Replay" | "Ended" {
+  return state === "live" ? "Live" : state === "upcoming" ? "Upcoming" : state === "replay" ? "Replay" : "Ended";
 }
 
 const GENERIC_LIVE_TAGS = new Set([

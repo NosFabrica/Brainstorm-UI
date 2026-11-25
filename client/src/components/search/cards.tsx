@@ -69,7 +69,15 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
-import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
+import {
+  liveCategoryOf,
+  liveHostOf,
+  liveStateLabel,
+  liveStateOf,
+  onAirLabel,
+  parseLiveStream,
+  type LiveState,
+} from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
 
@@ -910,10 +918,10 @@ export const RepoCard = memo(function RepoCard({
   );
 });
 
-const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
+const LIVE_TONES: Record<LiveState, "success" | "neutral" | "info"> = {
   live: "success",
-  ended: "neutral",
-  planned: "info",
+  replay: "neutral",
+  upcoming: "info",
 };
 
 export const LiveCard = memo(function LiveCard({
@@ -926,7 +934,10 @@ export const LiveCard = memo(function LiveCard({
   score?: number | null;
 }) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? "Live event";
-  const status = (tagVal(event, "status") ?? "").toLowerCase();
+  // The Live tab's reading of it, not the raw tag: a "live" nobody updated in a week is over.
+  const state = liveStateOf(event);
+  // A space (30312/30313) keeps its own word.
+  const rawStatus = (tagVal(event, "status") ?? "").toLowerCase();
   const summary = tagVal(event, "summary") ?? "";
   const image = tagVal(event, "image");
   const naddr = naddrOf(event);
@@ -949,15 +960,26 @@ export const LiveCard = memo(function LiveCard({
               <EmojiText text={title} tags={event} />
             </p>
             <KindPill event={event} mixed={false} />
-            {status && (
+            {event.kind === 30311 ? (
               <Chip
                 size="sm"
-                tone={LIVE_TONES[status] ?? "neutral"}
-                dot={status === "live"}
+                tone={state ? LIVE_TONES[state] : "neutral"}
+                dot={state === "live"}
                 data-testid={`live-status-${event.id}`}
               >
-                {status}
+                {liveStateLabel(state)}
               </Chip>
+            ) : (
+              rawStatus && (
+                <Chip
+                  size="sm"
+                  tone={rawStatus === "live" ? "success" : rawStatus === "planned" ? "info" : "neutral"}
+                  dot={rawStatus === "live"}
+                  data-testid={`live-status-${event.id}`}
+                >
+                  {rawStatus}
+                </Chip>
+              )
             )}
           </div>
           {summary && (
