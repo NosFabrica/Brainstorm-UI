@@ -11,6 +11,7 @@ export function useGitHubEvidence(handles: readonly string[]): Map<string, GitHu
   const results = useQueries({
     queries: handles.map((handle) => ({
       queryKey: ["github-evidence", handle.toLowerCase()],
+      // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): GitHub evidence mixes the HTTP API with relay reads; not yet split
       queryFn: () => fetchGitHubEvidence(handle),
       staleTime: Infinity,
       retry: false,

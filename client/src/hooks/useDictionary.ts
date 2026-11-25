@@ -77,6 +77,7 @@ export function useDictionary(
     queryKey,
     // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
     queryFn: async ({ queryKey: asked }) => {
+      // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): the Dictionary is an aggregate resolved through concept batches, with a device placeholder; not yet on the store
       const entries = await loadDictionary({ pubkey, taPubkey }, concepts.shown, undefined, {
         items: false,
         managers: managers ?? [],

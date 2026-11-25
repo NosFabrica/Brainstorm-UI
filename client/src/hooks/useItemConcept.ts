@@ -18,6 +18,7 @@ export function useItemConcept(item: { kind: number; tags: string[][] }) {
   return useQuery({
     queryKey: ["item-concept", community, pubkey, taPubkey],
     // Batched with every other concept this render asks for (services/conceptBatch).
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a concept resolved through the page's concept batch (services/conceptBatch); not yet on the store
     queryFn: (): Promise<ResolvedConcept | null> => resolveConceptBatched({ pubkey, taPubkey }, community!),
     enabled: !!community && settled,
     staleTime: 5 * 60_000,

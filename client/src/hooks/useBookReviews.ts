@@ -15,6 +15,7 @@ const keyOf = (item: Item) => ["book-reviews", coordinateOf(item) ?? item.id];
 export function useBookReviews(item: Item) {
   const query = useQuery<BookReview[]>({
     queryKey: keyOf(item),
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): reviews derive from records and their kind-5 removals together (lib/bookReviews standingBookReviews); not yet on the store
     queryFn: () => fetchBookReviews(item),
     staleTime: 60_000,
   });

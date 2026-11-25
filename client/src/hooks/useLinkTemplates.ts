@@ -18,6 +18,7 @@ export function useLinkTemplates(refs: LinkRef[]) {
   const ids = wanted.filter((id) => !drafts.has(id));
   const query = useQuery({
     queryKey: ["link-templates", ids.join(",")],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): templates are frozen events by id, joined with drafts; not yet on the store
     queryFn: () => fetchTemplates(refs.filter((r) => !drafts.has(r.templateId))),
     enabled: ids.length > 0,
     // An id names one frozen event: nothing to refresh.
@@ -42,6 +43,7 @@ export function useAvailableTemplates(enabled = true) {
   const { pubkey, taPubkey, settled } = useDictionaryReader();
   return useQuery({
     queryKey: ["link-templates", "available", pubkey, taPubkey],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): the governing URL Templates list is a Dictionary aggregate; not yet on the store
     queryFn: () => fetchAvailableTemplates({ pubkey, taPubkey }),
     enabled: enabled && settled,
     staleTime: 5 * 60_000,

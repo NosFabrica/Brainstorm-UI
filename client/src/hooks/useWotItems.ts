@@ -26,6 +26,7 @@ export function useWotItems<T extends { pubkey: string }>(items: T[]) {
   const authors = useMemo(() => [...new Set(items.map((i) => i.pubkey))].sort(), [items]);
   const ranks = useQuery({
     queryKey: ["author-ranks", observer, authors.join(",")],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): ranks resolve the observer's 10040 first (services/trustSource); not yet on the store
     queryFn: (): Promise<AuthorRanks> => fetchAuthorRanks(authors, observer),
     enabled: authors.length > 0,
     staleTime: 10 * 60_000,

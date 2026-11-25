@@ -53,8 +53,12 @@ invalidates, rollbacks).
 ## Guardrail
 
 `eslint.config.js` rejects a relay fetcher called inside a react-query `queryFn`
-(`no-restricted-syntax`, pinned by `lib/relayReadLint.test.ts`). A new fetcher
-joins `RELAY_FETCHERS` there.
+(`no-restricted-syntax`, pinned by `lib/relayReadLint.test.ts`). The fetchers it
+knows are grown from the primitives in `RELAY_READS`: every function in
+`services/` and `lib/` that calls one, however many hops down, is a relay read
+too, so a wrapper (an item's reactions, a concept's items, a lens's ranks)
+needs nothing. A new primitive joins `RELAY_READS`. Reads not yet moved say so
+with `eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): …`.
 
 ## Considered
 

@@ -25,6 +25,7 @@ export function useConceptItems(entry: DictionaryEntry | undefined, enabled = tr
   return useQuery({
     queryKey: ["concept-items", ...headers],
     queryFn: () =>
+      // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a list's items are an aggregate over many headers, with a first-relay preview; not yet on the store
       loadConceptItems(headers, undefined, (first) =>
         queryClient.setQueryData<DictionaryItem[]>(["concept-items", ...headers], (held) => held ?? first),
       ),
@@ -41,6 +42,7 @@ export function useConceptMatches(entry: DictionaryEntry | undefined, words: rea
   const headers = entry ? listHeaders(entry.communityCoordinate, entry.resolved) : [];
   return useQuery({
     queryKey: ["concept-matches", words.join(" "), ...headers],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a whole-list search, not a store timeline; not yet on the store
     queryFn: () => searchListItems(headers, words),
     enabled: enabled && headers.length > 0 && words.length > 0,
     staleTime: STALE_MS,
@@ -51,6 +53,7 @@ export function useConceptMatches(entry: DictionaryEntry | undefined, words: rea
 export function useListItems(headers: string[]) {
   return useQuery({
     queryKey: ["list-items", ...headers],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a list's items are an aggregate over many headers; not yet on the store
     queryFn: () => loadListItems(headers),
     enabled: headers.length > 0,
     staleTime: STALE_MS,

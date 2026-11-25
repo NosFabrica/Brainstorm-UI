@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useSearchPriority } from "@/hooks/useSearchPriority";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { rankEndorsers } from "@/services/endorsements";
-import { fetchItemsReactions } from "@/services/itemEngagement";
-import type { Endorser } from "@/lib/itemEngagement";
+import { itemsReactionFilters, readItemsReactions } from "@/services/itemEngagement";
+import { endorsersByItem, type Endorser } from "@/lib/itemEngagement";
 
 const NONE = new Map<string, Endorser[]>();
 
@@ -20,15 +21,20 @@ export function useTrustedRecommenders(items: readonly { id: string; address: st
   const ids = items.map((i) => i.id);
   // On the Top page, after the search's own results: this only orders rows (hooks/useSearchPriority).
   const ready = useSearchPriority();
-  // The ids name the items; the addresses are what the ids are of.
-  // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  const reactions = useQuery({
-    queryKey: ["items-reactions", ...ids],
-    queryFn: () => fetchItemsReactions([...items]),
-    enabled: ready && items.length > 0,
-    staleTime: 60_000,
-  });
-  const byItem = reactions.data ?? NONE;
+  // The ids name the items; the addresses are what the ids are of. From the
+  // store while the relays are asked (docs/adr/0005).
+  const idsKey = ids.join(",");
+  const filters = useMemo(() => (items.length ? itemsReactionFilters([...items]) : null), [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reactions = useStoreEvents(
+    ready && items.length > 0 ? `items-reactions:${idsKey}` : null,
+    filters,
+    () => readItemsReactions([...items]),
+    { minMs: 60_000 },
+  );
+  const byItem = useMemo(
+    () => (reactions.events.length ? endorsersByItem(reactions.events, [...items]) : NONE),
+    [reactions.events, idsKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const { follows, signedIn } = useMyFollows();
   const scoreOf = useAuthorScores([...new Set([...byItem.values()].flat().map((e) => e.pubkey))]);
   // An item and its copies (the same thing filed twice) count as one: everyone who endorsed any of them, once.

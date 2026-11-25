@@ -4,15 +4,127 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import pluginQuery from "@tanstack/eslint-plugin-query";
+import ts from "typescript";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { URL, fileURLToPath } from "node:url";
 
 /**
  * Relay reads render from the EventStore, not from react-query (docs/adr). A
  * `queryFn` calling one of these is a relay read in the wrong cache. A relay
  * PROBE — "is it on that relay?" — may opt out with an
  * `eslint-disable-next-line no-restricted-syntax -- relay probe` comment.
+ *
+ * `RELAY_READS` are the primitives: the fetchers and the raw `relay.req`. A
+ * wrapper around one is a relay read too (fetchItemReactions, loadConceptItems,
+ * fetchAuthorRanks, …), and a name list kept by hand let every new one slip
+ * past, so the list the rule uses is grown from these: every function in
+ * client/src/services and client/src/lib that calls one, however many hops
+ * down (`relayFetchers` below, pinned by lib/relayReadLint.test.ts). A new
+ * primitive joins `RELAY_READS`; a wrapper needs nothing.
  */
-const RELAY_FETCHERS =
-  "^(fetchEventsByIds|fetchEventsByFilter|fetchCollectionProducts|fetchEventsByAuthors|fetchAddressableEvents|fetchAddressableBatched|fetchRecentByKinds|fetchLiveStreams|fetchNotesByHashtag|fetchContactList|fetchMuteList|fetchProfile|fetchProfileEvent|fetchProfileMap|refreshProfileEvent|fetchProfilePrefs|fetchOutboxRelayList|fetchTrustProviderList|fetchReportsForPubkey|fetchMyReport|loadDmRelays|loadDmRelaysFor|loadBlossomServers|requestAll|requestNewest|requestNewestWithReach|requestOne|fetchPollResponses|fetchZapPollReceipts|isSearchObserverOnRelay)$";
+export const RELAY_READS = [
+  "fetchEventsByIds",
+  "fetchEventsByFilter",
+  "fetchCollectionProducts",
+  "fetchEventsByAuthors",
+  "fetchAddressableEvents",
+  "fetchAddressableBatched",
+  "fetchRecentByKinds",
+  "fetchLiveStreams",
+  "fetchNotesByHashtag",
+  "fetchContactList",
+  "fetchMuteList",
+  "fetchProfile",
+  "fetchProfileEvent",
+  "fetchProfileMap",
+  "refreshProfileEvent",
+  "fetchProfilePrefs",
+  "fetchOutboxRelayList",
+  "fetchTrustProviderList",
+  "fetchReportsForPubkey",
+  "fetchMyReport",
+  "loadDmRelays",
+  "loadDmRelaysFor",
+  "loadBlossomServers",
+  "requestAll",
+  "requestAllByRelay",
+  "requestNewest",
+  "requestNewestWithReach",
+  "requestOne",
+  "fetchPollResponses",
+  "fetchZapPollReceipts",
+  "isSearchObserverOnRelay",
+  "querySearchRelay",
+  "fetchFromSearchRelayByFilters",
+  "searchOnce",
+  "loadReplaceable",
+  // A socket's own REQ (lib/searchRelay's relays, `pool.relay(url)`).
+  "req",
+];
+
+const SOURCE_ROOT = fileURLToPath(new URL("./client/src/", import.meta.url));
+
+/**
+ * Every function name in services/ and lib/ that reads relays: the primitives,
+ * and each function that calls one, transitively. A file's private helpers
+ * count within that file only, so two files' `ask` don't stand for each other.
+ */
+export function relayFetchers(root = SOURCE_ROOT, reads = RELAY_READS) {
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) files.push(path);
+    }
+  };
+  for (const dir of ["services", "lib"]) walk(join(root, dir));
+  const fns = [];
+  for (const file of files) {
+    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, false);
+    const add = (name, body, exported) => {
+      const calls = new Set();
+      const visit = (node) => {
+        if (ts.isCallExpression(node)) {
+          const callee = node.expression;
+          if (ts.isIdentifier(callee)) calls.add(callee.text);
+          else if (ts.isPropertyAccessExpression(callee)) calls.add(callee.name.text);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(body);
+      fns.push({ key: exported ? name : `${file}#${name}`, name, exported, file, calls });
+    };
+    for (const statement of source.statements) {
+      const exported = !!statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (ts.isFunctionDeclaration(statement) && statement.name && statement.body)
+        add(statement.name.text, statement.body, exported);
+      else if (ts.isVariableStatement(statement))
+        for (const d of statement.declarationList.declarations)
+          if (
+            ts.isIdentifier(d.name) &&
+            d.initializer &&
+            (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer))
+          )
+            add(d.name.text, d.initializer, exported);
+    }
+  }
+  const found = new Set(reads);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const fn of fns) {
+      if (found.has(fn.key)) continue;
+      if ([...fn.calls].some((c) => found.has(c) || found.has(`${fn.file}#${c}`))) {
+        found.add(fn.key);
+        grew = true;
+      }
+    }
+  }
+  return [...found].filter((key) => !key.includes("#")).sort();
+}
+
+const RELAY_FETCHERS = `^(${relayFetchers().join("|")})$`;
 const QUERY_HOOKS =
   "^(useQuery|useQueries|useInfiniteQuery|useSuspenseQuery|prefetchQuery|fetchQuery|ensureQueryData)$";
 const relayReadInQuery = (callee) => ({
@@ -73,6 +185,23 @@ export default tseslint.config(
       "no-empty": ["error", { allowEmptyCatch: true }],
       // `let x; ...; x = subscribe(...)` is deliberate where a sync callback reads x.
       "prefer-const": ["error", { ignoreReadBeforeAssign: true }],
+    },
+  },
+  // Tags (deferred): docs/adr/0005 keeps hooks/useTags' relay reads in react-query for now.
+  { files: ["client/src/hooks/useTags.ts"], rules: { "no-restricted-syntax": "off" } },
+  // Relay reads in a queryFn that the wrapper-aware list above found in code
+  // other fixes own (2026-11-25): warned, not failed, until each moves onto
+  // the store — or, for a relay probe, says so with a disable comment.
+  {
+    files: [
+      "client/src/components/admin/NostrHealthCard.tsx",
+      "client/src/components/admin/growth/GrowthCard.tsx",
+      "client/src/components/admin/dictionary/useUserDictionary.ts",
+      "client/src/components/items/ListKindSearch.tsx",
+      "client/src/pages/dev/RendererPlayground.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": ["warn", relayReadInQuery("callee.name"), relayReadInQuery("callee.property.name")],
     },
   },
   {

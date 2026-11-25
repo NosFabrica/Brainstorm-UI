@@ -22,6 +22,7 @@ const keyOf = (item: Item) => ["place-reviews", coordinateOf(item) ?? item.id];
 export function usePlaceReviews(item: Item) {
   const query = useQuery<PlaceReview[]>({
     queryKey: keyOf(item),
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): reviews derive from records and their kind-5 removals together (lib/placeReviews standingReviews); not yet on the store
     queryFn: () => fetchPlaceReviews(item),
     staleTime: 60_000,
   });
@@ -87,12 +88,14 @@ export function usePlaceRating(item: Item, reviews: PlaceReview[]) {
   const people = [...new Set(reviews.filter((r) => r.rating != null).map((r) => r.pubkey))].sort();
   const you = useQuery({
     queryKey: ["lens-ranks", me, people],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a lens's ranks resolve the observer's 10040 first (services/trustSource); not yet on the store
     queryFn: () => fetchLensRanks(me!, people),
     enabled: !!me && people.length > 0,
     staleTime: RANKS_STALE_MS,
   });
   const curator = useQuery({
     queryKey: ["lens-ranks", item.pubkey, people],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a lens's ranks resolve the curator's 10040 first (services/trustSource); not yet on the store
     queryFn: () => fetchLensRanks(item.pubkey, people),
     enabled: people.length > 0,
     staleTime: RANKS_STALE_MS,
@@ -116,6 +119,7 @@ export function usePlacesRatings(addresses: readonly string[], curator: string |
   const ready = useSearchPriority();
   const reviews = useQuery({
     queryKey: ["places-reviews", ...addresses],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): reviews derive from records and their kind-5 removals together; not yet on the store
     queryFn: () => fetchReviewsForPlaces([...addresses]),
     enabled: ready && addresses.length > 0,
     staleTime: 60_000,
@@ -132,6 +136,7 @@ export function usePlacesRatings(addresses: readonly string[], curator: string |
   const lensOwner = me ?? curator;
   const lens = useQuery({
     queryKey: ["lens-ranks", lensOwner, people],
+    // eslint-disable-next-line no-restricted-syntax -- deferred (docs/adr/0005): a lens's ranks resolve the lens owner's 10040 first; not yet on the store
     queryFn: () => fetchLensRanks(lensOwner!, people),
     enabled: !!lensOwner && people.length > 0,
     staleTime: RANKS_STALE_MS,

@@ -6,6 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { ESLint } from "eslint";
+// @ts-expect-error -- the root config is plain JavaScript, with no types
+import { relayFetchers } from "../../../eslint.config.js";
 
 const eslint = new ESLint();
 
@@ -43,5 +45,44 @@ describe("relay reads in react-query", () => {
         return useQuery({ queryKey: ["o", pk], queryFn: () => apiClient.getUserOverview(pk) });
       }`;
     expect(await restricted(code)).toBe(0);
+  });
+});
+
+/**
+ * A wrapper around a relay fetcher is a relay read too. The rule's list was a
+ * hand-kept allowlist, and every wrapper slipped past it (an item's reactions,
+ * a concept's items, a lens's ranks); it is now grown from the primitives.
+ */
+describe("wrappers around relay reads", () => {
+  it("are found however many hops down, in services and lib", () => {
+    const found = new Set<string>(relayFetchers());
+    for (const name of [
+      "fetchTownEvents",
+      "fetchAreaEvents",
+      "fetchAppsByAddress",
+      "fetchItemReactions",
+      "fetchItemsReactions",
+      "fetchPlaceReviews",
+      "fetchBookReviews",
+      "loadConceptItems",
+      "loadDictionary",
+      "fetchAuthorRanks",
+      "fetchLensRanks",
+      "fetchTemplates",
+    ])
+      expect(found, name).toContain(name);
+    // Pure derivations and the HTTP API are not.
+    for (const name of ["endorsersOf", "githubClaimantsOf", "standingReviews", "getUserOverview"])
+      expect(found, name).not.toContain(name);
+  });
+
+  it("are flagged inside a queryFn", async () => {
+    const code = `
+      import { useQuery } from "@tanstack/react-query";
+      import { fetchItemReactions } from "@/services/itemEngagement";
+      export function useReactions(item: { id: string; kind: number; pubkey: string; tags: string[][] }) {
+        return useQuery({ queryKey: ["r", item.id], queryFn: () => fetchItemReactions(item) });
+      }`;
+    expect(await restricted(code)).toBe(1);
   });
 });
