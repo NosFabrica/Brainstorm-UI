@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { notifiable, notificationText, type NotifyContext } from "./notify";
+import { notifiable, notificationAccount, notificationText, notificationUrl, type NotifyContext } from "./notify";
 import type { DmMessage } from "./store";
 import { CHAT_KIND, FILE_KIND, REACTION_KIND } from "./giftWrap";
 
@@ -59,5 +59,19 @@ describe("message notifications", () => {
     expect(notificationText(msg({ kind: FILE_KIND }), { sender: "Ana", request: false, preview: true }).body).toBe(
       "File",
     );
+  });
+});
+
+describe("which account a notification is for", () => {
+  // Tapped after a switch, it opened /messages/<slug> as the new identity.
+  it("is carried in the path it opens, and read back from it", () => {
+    const url = notificationUrl("npub1ana", ME);
+    expect(url.startsWith("/messages/npub1ana?")).toBe(true);
+    expect(notificationAccount(url)).toBe(ME);
+  });
+
+  it("is unknown for any other path, or one without it", () => {
+    expect(notificationAccount("/messages/npub1ana")).toBeUndefined();
+    expect(notificationAccount("/settings?as=" + ME)).toBeUndefined();
   });
 });

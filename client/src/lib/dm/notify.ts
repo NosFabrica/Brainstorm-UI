@@ -49,3 +49,23 @@ export function notificationText(
   const body = m.kind === FILE_KIND ? fileLabel(m.rumor) : m.rumor.content.replace(/\s+/g, " ").trim();
   return { title, body: body.length > 140 ? `${body.slice(0, 139)}…` : body };
 }
+
+/** The query parameter naming the account a message notification was shown for. */
+const AS = "as";
+
+/**
+ * Where a message notification opens: the chat, for the account it was shown
+ * to. A tap can land after a switch, and the chat's slug would open as whoever
+ * is signed in by then.
+ */
+export function notificationUrl(slug: string, me: string): string {
+  return `/messages/${slug}?${AS}=${me}`;
+}
+
+/** The account a message notification's path was shown for, or undefined. */
+export function notificationAccount(url: string): string | undefined {
+  if (!url.startsWith("/messages/")) return undefined;
+  const query = url.indexOf("?");
+  if (query < 0) return undefined;
+  return new URLSearchParams(url.slice(query + 1)).get(AS) ?? undefined;
+}
