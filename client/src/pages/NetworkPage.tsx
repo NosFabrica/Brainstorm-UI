@@ -114,6 +114,18 @@ function prefetchProfileOverview(pk: string): void {
   void queryClient.prefetchQuery(rowOverviewQuery(pk)).catch(() => {});
 }
 
+type RowGraphData = { muted_by?: string[]; reported_by?: string[] };
+
+/** The cache for one perspective, made the first time it is asked for. */
+function cacheFor<V>(caches: Map<boolean, Map<string, V>>, house: boolean): Map<string, V> {
+  let cache = caches.get(house);
+  if (!cache) {
+    cache = new Map();
+    caches.set(house, cache);
+  }
+  return cache;
+}
+
 export default function NetworkPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
@@ -220,8 +232,9 @@ export default function NetworkPage() {
   // one came back). Lets a row fall back to its npub instead of an endless
   // skeleton when no profile exists. See the gate in NetworkProfileCard.
   const profileAttempted = useRef<Set<string>>(new Set());
-  const trustCache = useRef<Map<string, number | null>>(new Map());
-  const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
+  // Scores and graph data are the perspective's: held per `house` below.
+  const trustCaches = useRef(new Map<boolean, Map<string, number | null>>());
+  const graphDataCaches = useRef(new Map<boolean, Map<string, RowGraphData>>());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
   const supportsHoverRef = useRef<boolean>(true);
@@ -271,6 +284,11 @@ export default function NetworkPage() {
   const { pov: scorePov } = useScorePov();
   const perspective = networkPerspective({ signedIn, calcDone, scorePov });
   const house = perspective.house;
+  // One cache per perspective, keyed [house, pubkey]: a row's score is whose
+  // perspective it was asked in, so switching it must not keep showing the
+  // other one's numbers. Coming back finds the first one's still held.
+  const trustCache = useMemo(() => ({ current: cacheFor(trustCaches.current, house) }), [house]);
+  const graphDataCache = useMemo(() => ({ current: cacheFor(graphDataCaches.current, house) }), [house]);
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
 
   const overviewQuery = useSelfOverview(user?.pubkey, { house });
@@ -437,7 +455,9 @@ export default function NetworkPage() {
   // server's `kind=flagged` page has the same row shape), so none of them needs
   // the heavy per-row `/user/{pk}` below. Leaving Flagged out sent up to 200 of
   // those, eight at a time, for a tab that already had its answers.
-  useMemo(() => {
+  // An effect, not a memo: it writes the cache, then re-renders the rows that read it.
+  useEffect(() => {
+    let added = 0;
     const allGroups: GroupKey[] = [
       "followed_by",
       "following",
@@ -454,10 +474,12 @@ export default function NetworkPage() {
       influenceMap.forEach((influence, pk) => {
         if (!trustCache.current.has(pk)) {
           trustCache.current.set(pk, influence);
+          added += 1;
         }
       });
     }
-  }, [networkData]);
+    if (added) setTrustLoadedCount((prev) => prev + added);
+  }, [networkData, trustCache]);
 
   const fetchProfilesCallback = useCallback(
     async (pubkeys: string[]) => {
@@ -536,7 +558,7 @@ export default function NetworkPage() {
         setTrustLoadedCount((prev) => prev + batch.length);
       }
     },
-    [house],
+    [house, trustCache, graphDataCache],
   );
 
   const toggleExpanded = useCallback((pk: string) => {
@@ -882,6 +904,7 @@ export default function NetworkPage() {
       onPrefetchLeave: handleRowPrefetchLeave,
     }),
     [
+      trustCache,
       getPubkeyGroups,
       toggleExpanded,
       handleCopyNpub,
