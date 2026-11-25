@@ -77,6 +77,19 @@ vi.mock("@/lib/wavlake", async (importOriginal) => {
   };
 });
 
+// The note's text is read for its card link once per event, not once per render.
+const parsedTexts = vi.hoisted(() => [] as string[]);
+vi.mock("@/lib/noteContent", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/noteContent")>();
+  return {
+    ...real,
+    parseNoteContent: (text: string, ...rest: unknown[]) => {
+      parsedTexts.push(text);
+      return (real.parseNoteContent as (...a: unknown[]) => ReturnType<typeof real.parseNoteContent>)(text, ...rest);
+    },
+  };
+});
+
 function note(content: string, tags: string[][] = []): NostrEvent {
   return {
     id: "e".repeat(64),
@@ -397,6 +410,8 @@ describe("SerpRow — link metadata", () => {
     expect(source).toHaveTextContent("Wikipedia");
     expect(source).toHaveTextContent("en.wikipedia.org");
     expect(source.closest("a")?.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    // Its classes are words apart: "mt-1.5flex" was neither the spacing nor the flex row.
+    expect(source.className.split(/\s+/)).toEqual(expect.arrayContaining(["mt-1.5", "flex"]));
     // The sharer's own words describe it — they add something the title doesn't.
     expect(screen.getByText(/Worth a read/)).toBeInTheDocument();
     expect(screen.queryByText(/Professional football club/)).toBeNull();
@@ -1184,5 +1199,19 @@ describe("SerpRow — what someone did", () => {
     expect(screen.getByTestId("serp-activity-ref-link")).toHaveTextContent("what it deleted");
     expect(screen.queryByTestId("serp-activity-ref")).toBeNull();
     expect(screen.getByTestId(`serp-row-${"7".repeat(64)}`)).not.toHaveTextContent("deleted words");
+  });
+});
+
+describe("SerpRow — reads a note once", () => {
+  it("a re-render of the same note does not read its text again", () => {
+    const text = `${"words ".repeat(80)}https://example.com/page`;
+    const event = note(text);
+    const view = render(<SerpRow event={event} author={author} score={0.7} query="words" />);
+    const reads = () => parsedTexts.filter((t) => t === text).length;
+    const first = reads();
+    expect(first).toBeGreaterThan(0);
+    view.rerender(<SerpRow event={event} author={{ ...author }} score={0.7} query="words" />);
+    view.rerender(<SerpRow event={event} author={{ ...author }} score={0.8} query="words" />);
+    expect(reads()).toBe(first);
   });
 });

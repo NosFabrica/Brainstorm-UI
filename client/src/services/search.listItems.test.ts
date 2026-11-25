@@ -13,6 +13,10 @@ const reqMock = vi.fn();
 vi.mock("@/lib/searchRelay", () => ({ searchRelay: () => ({ req: (...args: unknown[]) => reqMock(...args) }) }));
 const houseMock = vi.fn(() => Promise.resolve<string | null>(HOUSE));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: () => houseMock() }));
+// Every event goes through the store, which verifies; these carry no signature.
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: { ...(await import("@/test/fakeEventStore")).eventStoreDefaults },
+}));
 
 import { searchListItems } from "./search";
 

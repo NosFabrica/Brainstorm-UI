@@ -18,6 +18,7 @@ import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
 import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { eventStore } from "@/lib/eventStore";
+import { AddressCache } from "@/lib/addressCache";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
   applyProfileTagging,
@@ -2245,13 +2246,18 @@ export interface NoteTagsResult {
 }
 
 /**
- * Tagging headers, cached per session alongside the tag-elements. Same reasoning
- * as `elementMetaByCoord`: every note carrying a given tag points at the same
+ * Tagging headers, held alongside the tag-elements. Same reasoning as
+ * `elementMetaByCoord`: every note carrying a given tag points at the same
  * header, so resolving it once per note is a wasted round-trip per note.
  * Positive-only, for the same reason — a header minted seconds ago must not be
- * cached as absent.
+ * cached as absent. A header is addressable (39999): the newest version wins
+ * whatever order relays answer in (NIP-01), and after a while a read asks again,
+ * so an edited header reaches the page (lib/addressCache).
  */
-const headersByCoord = new Map<string, NostrEvent>();
+const HEADER_TTL_MS = 10 * 60 * 1000;
+const headersByCoord = new AddressCache<NostrEvent>({ ttlMs: HEADER_TTL_MS, cap: 2000 });
+/** A header a relay sent: held if it is the newest version of its coordinate. */
+const holdHeader = (ev: NostrEvent): NostrEvent => headersByCoord.hold(headerCoordOf(ev), ev);
 
 /** `39999:<author>:tagging:<slug>-tagging` → its `d` tag. */
 function headerDTagFromCoord(coord: string): string | null {
@@ -2269,7 +2275,7 @@ async function resolveTaggingHeaders(coords: string[]): Promise<NostrEvent[]> {
   const out: NostrEvent[] = [];
   const missing: string[] = [];
   for (const c of wanted) {
-    const hit = headersByCoord.get(c);
+    const hit = headersByCoord.fresh(c);
     if (hit) out.push(hit);
     else missing.push(c);
   }
@@ -2285,7 +2291,17 @@ async function resolveTaggingHeaders(coords: string[]): Promise<NostrEvent[]> {
       dTags.add(d);
     }
   }
-  if (!authors.size) return out;
+  // What a stale entry held still answers when the relays don't.
+  const fallBack = () => {
+    for (const c of missing) {
+      const held = headersByCoord.held(c);
+      if (held && !out.includes(held)) out.push(held);
+    }
+  };
+  if (!authors.size) {
+    fallBack();
+    return out;
+  }
 
   try {
     const found = await fetchTagEvents({
@@ -2295,17 +2311,12 @@ async function resolveTaggingHeaders(coords: string[]): Promise<NostrEvent[]> {
     });
     // The filter is a cross-product, so it can return headers we didn't ask for.
     // Cache them all — they're the ones the next note will want.
-    for (const ev of found) {
-      headersByCoord.set(headerCoordOf(ev), ev);
-    }
-    for (const c of missing) {
-      const hit = headersByCoord.get(c);
-      if (hit) out.push(hit);
-    }
+    for (const ev of found) holdHeader(ev);
   } catch {
     // Unresolved headers become `unverifiable` downstream, which is the honest
     // outcome — better than dropping the assertions or failing the read.
   }
+  fallBack();
   return out;
 }
 
@@ -2613,7 +2624,8 @@ export async function fetchTagNotes(
   // is nothing to find. Not an error — most tags are people-only today.
   if (!headers.length) return [];
 
-  for (const h of headers) headersByCoord.set(headerCoordOf(h), h);
+  // One per coordinate, the newest: a relay can send a header beside the version it replaced.
+  headers = [...new Set(headers.map(holdHeader))];
 
   let candidates: NostrEvent[] = [];
   try {
@@ -2729,7 +2741,7 @@ export async function applyTagToEvent({
         );
         const byAuthor = new Map<string, { author: string }>();
         for (const ev of found.flat()) {
-          headersByCoord.set(headerCoordOf(ev), ev);
+          holdHeader(ev);
           byAuthor.set(ev.pubkey, { author: ev.pubkey });
         }
         return Array.from(byAuthor.values());

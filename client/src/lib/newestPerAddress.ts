@@ -23,7 +23,8 @@ export function addressOf(ev: Ev): string {
 }
 
 /** NIP-01: newer wins; on a tie, the lower id. */
-const beats = (a: Ev, b: Ev) => a.created_at > b.created_at || (a.created_at === b.created_at && a.id < b.id);
+export const beats = (a: Ev, b: Ev): boolean =>
+  a.created_at > b.created_at || (a.created_at === b.created_at && a.id < b.id);
 
 /** Whether `candidate` replaces `held` as the version at its address (NIP-01); anything beats nothing. */
 export function isNewerVersion(candidate: Ev, held: Ev | undefined): boolean {

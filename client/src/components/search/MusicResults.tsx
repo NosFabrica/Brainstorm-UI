@@ -241,7 +241,10 @@ export const MusicResults = memo(function MusicResults({
   const wavlakeMusicHref = (a: Pick<WavlakeArtist, "name" | "artistNpub">) => {
     if (a.artistNpub) {
       try {
-        return scopedSearchHref(nip19.decode(a.artistNpub).data as string, "music");
+        // An npub or an nprofile names a key; anything else Wavlake says is no artist here.
+        const d = nip19.decode(a.artistNpub);
+        const pubkey = d.type === "npub" ? d.data : d.type === "nprofile" ? d.data.pubkey : null;
+        if (pubkey) return scopedSearchHref(pubkey, "music");
       } catch {
         /* fall through */
       }

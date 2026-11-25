@@ -221,7 +221,22 @@ export function shippingOf(tags: string[][]): { inline: InlineShipping[]; refs: 
 export const PRODUCT_KIND = 30018;
 export const AUCTION_KIND = 30020;
 
+/**
+ * One read per event object, as describeThing keeps (lib/thing): the Shop tab reads each hit
+ * several times a frame, and a NIP-15 product parses JSON content to answer. Events are not
+ * mutated once received, so the object is the key.
+ */
+const listingRead = new WeakMap<EventLike, Listing | null>();
+
 export function parseListing(ev: EventLike): Listing | null {
+  const known = listingRead.get(ev);
+  if (known !== undefined) return known;
+  const listing = readListing(ev);
+  listingRead.set(ev, listing);
+  return listing;
+}
+
+function readListing(ev: EventLike): Listing | null {
   if (ev.kind === PRODUCT_KIND) return parseProduct(ev);
   if (ev.kind === AUCTION_KIND) return parseAuction(ev);
   if (ev.kind !== LISTING_KIND && ev.kind !== DRAFT_LISTING_KIND) return null;

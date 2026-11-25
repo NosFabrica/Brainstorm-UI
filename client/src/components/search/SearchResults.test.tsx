@@ -71,7 +71,11 @@ vi.mock("@/services/search", async (importOriginal) => {
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
     fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
-    fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
+    // Handed the items themselves (whose status counts is their author's), recorded by id.
+    fetchGitStatuses: (items: (string | { id: string })[]) => {
+      gitItemsAsked.push(...items);
+      return gitStatusesMock(items.map((i) => (typeof i === "string" ? i : i.id)));
+    },
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
     fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
@@ -119,6 +123,7 @@ const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { goin
 );
 const gitCommentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 // Issue / patch states for the Repos tab — none unless a test says otherwise.
+const gitItemsAsked: (string | { id: string })[] = [];
 const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() =>
   Promise.resolve(new Map()),
 );
@@ -1160,6 +1165,25 @@ describe("SearchResults", () => {
     // card's corner was squeezing titles to "Kansas City Sovereign…" on a
     // phone, where the event page has the real button: it hides below sm and
     // the title takes the width.
+    // A date-only event (31922) today starts at local midnight, before now: it is today's, not ongoing.
+    it("a date-only event today is filed under Today, not Ongoing", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="raystown" pov="nosfabrica" />);
+      const pk = "c".repeat(64);
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const fair = ev("e-fair", 31922, pk, "", [
+        ["d", "fair"],
+        ["title", "County Fair"],
+        ["start", today],
+      ]);
+      emit({ hits: [{ event: fair, author: author(pk, "Raystown Events"), rank: null }], eose: true, timeMs: 120 });
+      await screen.findByTestId("event-card-e-fair");
+      const [day] = screen.getAllByTestId(/^event-day-/);
+      expect(day.getAttribute("data-testid")).toBe(`event-day-${today}`);
+      expect(day).toHaveTextContent("Today");
+    });
+
     it('an event already running leads Upcoming under "Ongoing", and phones give the title its width', async () => {
       setUrlTab("events");
       render(<SearchResults query="raystown" pov="nosfabrica" />);
@@ -2962,6 +2986,7 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("Pull request");
     expect(within(card).getByTestId("git-state-pr1")).toHaveTextContent("Merged");
     expect(gitStatusesMock).toHaveBeenCalledWith([pr.id]);
+    expect(gitItemsAsked.at(-1)).toMatchObject({ id: pr.id, pubkey: pr.pubkey });
   });
 
   // NIP-34 marks a codebase by its earliest unique commit; two announcements

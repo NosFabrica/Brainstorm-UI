@@ -340,6 +340,25 @@ describe("the topic panel", () => {
     expect(within(panel).queryByText("Upcoming events")).toBeNull();
   });
 
+  // The reset and the lookup run in one commit: the lookup used to read the last query's
+  // person, take it for this query's answer, and never ask — the panel went and stayed gone.
+  it("a new query asks for its own person, off the composed page too", async () => {
+    const who = (name: string, pk: string) => ({
+      pubkey: pk.repeat(64),
+      npub: `npub1${name}`,
+      name,
+      wotRank: 0.8,
+      wotFollowers: 300,
+    });
+    suggestMock.mockResolvedValueOnce([who("jack", "1")]);
+    const view = render(<KnowledgePanel query="jack" pov="nosfabrica" />);
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("jack");
+    suggestMock.mockResolvedValueOnce([who("odell", "2")]);
+    view.rerender(<KnowledgePanel query="odell" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(suggestMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("odell");
+  });
+
   it("does not ask again when the reader moves to another tab", async () => {
     const person = {
       pubkey: "9".repeat(64),

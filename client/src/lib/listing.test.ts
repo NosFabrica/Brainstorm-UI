@@ -719,3 +719,22 @@ describe("parseListing — a NIP-15 auction in its own JSON form", () => {
     expect(l?.specs).toEqual([{ key: "origin", value: "Ethiopia" }]);
   });
 });
+
+// The Shop tab reads each hit several times a frame, and a NIP-15 product is JSON in its content.
+describe("parseListing — one read per event", () => {
+  it("answers the same event object with the same reading", () => {
+    const product = {
+      id: "p".repeat(64),
+      pubkey: "a".repeat(64),
+      kind: 30018,
+      created_at: 1,
+      content: JSON.stringify({ id: "x", name: "Honey", currency: "USD", price: 12 }),
+      tags: [["d", "x"]],
+    };
+    const first = parseListing(product);
+    expect(first).not.toBeNull();
+    expect(parseListing(product)).toBe(first);
+    // A different object is read afresh.
+    expect(parseListing({ ...product })).not.toBe(first);
+  });
+});

@@ -2147,6 +2147,12 @@ export const SearchResults = memo(function SearchResults({
     [hits, tab],
   );
   const gitIdsKey = gitItemIds.join(",");
+  // Read through a ref so the asks below stay keyed on the ids alone.
+  const gitItems = useRef(new Map<string, NostrEvent>());
+  gitItems.current = useMemo(
+    () => new Map(hits.filter((h) => isGitItem(h.event.kind)).map((h) => [h.event.id, h.event])),
+    [hits],
+  );
   // Each streamed snapshot or "more" page asks only after the ids it adds —
   // not the whole growing list again. A generation drops answers that land
   // after the page emptied (a new tab), so they can't refill it.
@@ -2164,7 +2170,9 @@ export const SearchResults = memo(function SearchResults({
     if (ids.length === 0) return;
     for (const id of ids) seen.ids.add(id);
     const gen = seen.gen;
-    void fetchGitStatuses(ids).then((m) => {
+    // The items themselves: whose status counts is their author's and their repo's (NIP-34).
+    const items = ids.map((id) => gitItems.current.get(id) ?? id);
+    void fetchGitStatuses(items).then((m) => {
       if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
     });
     void fetchGitCommentCounts(ids).then((m) => {
@@ -2564,6 +2572,8 @@ export const SearchResults = memo(function SearchResults({
     if (tab !== "events") return out;
     let last: string | null = null;
     const nowSec = Math.floor(Date.now() / 1000);
+    // A date-only event starts at local midnight: begun before today, not before now, is running.
+    const todaySec = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
     for (const row of displayHits) {
       if (row.hit.event.kind === CALENDAR_KIND) {
         if (last === "calendars") continue;
@@ -2575,7 +2585,7 @@ export const SearchResults = memo(function SearchResults({
       const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
       // Already running — a conference on its second day, a walk series that
       // started last week — is not a date to lead Upcoming with; it is "Ongoing".
-      if (d && cal.startSec < nowSec && !isOver(cal) && effectiveWhen !== "past") {
+      if (d && cal.startSec < (cal.isDateOnly ? todaySec : nowSec) && !isOver(cal) && effectiveWhen !== "past") {
         if (last === "ongoing") continue;
         last = "ongoing";
         out.set(row.hit.event.id, { key: "ongoing", startSec: 0, label: "Ongoing" });

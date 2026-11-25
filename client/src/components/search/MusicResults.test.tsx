@@ -351,6 +351,20 @@ describe("MusicResults — the musicians the network tagged", () => {
     );
   });
 
+  // Wavlake's artistNpub is sometimes an nprofile: it names the same key, and the face opens their music.
+  it("a Wavlake artist's nprofile opens their music like an npub; anything else opens Wavlake", () => {
+    const pk = "3".repeat(64);
+    const byProfile = { id: "wl-2", name: "Ainsley Costello", artistNpub: nip19.nprofileEncode({ pubkey: pk }) };
+    const byNote = { id: "wl-3", name: "Other Artist", artistNpub: nip19.noteEncode("4".repeat(64)) };
+    open({ query: "ainsley", hits: [], wavlake: { ...noWavlake, artists: [byProfile as never, byNote as never] } });
+    const artists = screen.getByTestId("music-artists");
+    expect(within(artists).getByTestId("music-artist-wavlake-wl-2")).toHaveAttribute(
+      "href",
+      `/?q=from%3A${nip19.npubEncode(pk)}&t=music`,
+    );
+    expect(within(artists).getByTestId("music-artist-wavlake-wl-3").getAttribute("href")).not.toContain("from%3A");
+  });
+
   it("with words, the tagged musicians whose name answers join Artists — once, even when they also have tracks here", () => {
     const hit: SearchHit = {
       event: {

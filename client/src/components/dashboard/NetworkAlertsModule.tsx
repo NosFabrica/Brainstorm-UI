@@ -640,7 +640,7 @@ export function AlertRow({
           onClick={onDeepDive}
           title="View profile"
           aria-label={`View ${name}'s profile`}
-          className={`${actionBtn} ${details ? "" : "ml-auto"}border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep hover:border-brand-accent/50 dark:text-brand-accent`}
+          className={`${actionBtn} ${details ? "" : "ml-auto"} border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep hover:border-brand-accent/50 dark:text-brand-accent`}
           data-testid="network-alert-deepdive"
         >
           View <ArrowRight className="h-3 w-3" />
