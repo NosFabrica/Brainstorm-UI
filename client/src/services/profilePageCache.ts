@@ -54,7 +54,8 @@ type CacheBucket = {
   // one came back). Lets a row fall back to its npub instead of an endless
   // skeleton when no profile exists.
   expandProfileAttempted: LRUMap<string, true>;
-  expandTrustCache: LRUMap<string, number | null>;
+  /** Per viewer and preset (`trustScopeKey`): a score is one viewer's, under one preset. */
+  expandTrustCaches: LRUMap<string, LRUMap<string, number | null>>;
   reportMetadataCache: LRUMap<string, ReportMetadata[]>;
   muteMetadataCache: LRUMap<string, MuteMetadata>;
 };
@@ -66,13 +67,37 @@ const bucket: CacheBucket =
   (g[GLOBAL_KEY] = {
     expandProfileCache: new LRUMap<string, ProfileContent>(5000),
     expandProfileAttempted: new LRUMap<string, true>(5000),
-    expandTrustCache: new LRUMap<string, number | null>(10000),
+    expandTrustCaches: new LRUMap<string, LRUMap<string, number | null>>(4),
     reportMetadataCache: new LRUMap<string, ReportMetadata[]>(1000),
     muteMetadataCache: new LRUMap<string, MuteMetadata>(5000),
   });
 
 export const expandProfileCache = bucket.expandProfileCache;
 export const expandProfileAttempted = bucket.expandProfileAttempted;
-export const expandTrustCache = bucket.expandTrustCache;
+
+/** Whose scores, under which preset — "-" for nobody signed in, or no preset yet. */
+export function trustScopeKey(viewer: string | null | undefined, preset: string | null | undefined): string {
+  return `${viewer || "-"}|${preset || "-"}`;
+}
+
+/**
+ * The connection rows' trust scores for one viewer under one preset. It was one
+ * map keyed by pubkey alone, so it outlived an account switch and a preset
+ * change and kept showing the old scores. The last few scopes are kept, so
+ * switching back is instant. (Cluster A's account-change reset can clear this
+ * bucket too, once it lands.)
+ */
+export function expandTrustCacheFor(
+  viewer: string | null | undefined,
+  preset: string | null | undefined,
+): LRUMap<string, number | null> {
+  const key = trustScopeKey(viewer, preset);
+  let cache = bucket.expandTrustCaches.get(key);
+  if (!cache) {
+    cache = new LRUMap<string, number | null>(10000);
+    bucket.expandTrustCaches.set(key, cache);
+  }
+  return cache;
+}
 export const reportMetadataCache = bucket.reportMetadataCache;
 export const muteMetadataCache = bucket.muteMetadataCache;

@@ -62,7 +62,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   fetchProfiles,
   eventStore,
@@ -101,10 +101,11 @@ import {
   type ProfileSeed,
 } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
+import { useProfileConnections } from "./profileConnections";
 import {
   expandProfileCache,
   expandProfileAttempted,
-  expandTrustCache,
+  expandTrustCacheFor,
   reportMetadataCache,
   muteMetadataCache,
 } from "@/services/profilePageCache";
@@ -702,8 +703,14 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return v;
 }
 
-function getTrustForPkFromMaps(pk: string, sectionInfluenceMaps: Record<string, Map<string, number | null>>): number {
-  const cached = expandTrustCache.get(pk);
+type TrustCache = { get(pk: string): number | null | undefined; has(pk: string): boolean };
+
+function getTrustForPkFromMaps(
+  pk: string,
+  sectionInfluenceMaps: Record<string, Map<string, number | null>>,
+  trustCache: TrustCache,
+): number {
+  const cached = trustCache.get(pk);
   if (cached !== undefined && cached !== null) return cached;
   for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"] as const) {
     const val = sectionInfluenceMaps[groupKey]?.get(pk);
@@ -721,6 +728,7 @@ function computeProcessedPubkeys(
   reportTypeFilter: ReportTypeFilter,
   sectionInfluenceMaps: Record<string, Map<string, number | null>>,
   getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined,
+  trustCache: TrustCache,
 ): string[] {
   // tier / verified filtering is applied server-side via /connections query
   // params, so the items reaching us already match `filter`.
@@ -753,8 +761,8 @@ function computeProcessedPubkeys(
   const sorted = [...filtered];
   if (sort === "trust-desc" || sort === "trust-asc") {
     sorted.sort((a, b) => {
-      const sa = getTrustForPkFromMaps(a, sectionInfluenceMaps);
-      const sb = getTrustForPkFromMaps(b, sectionInfluenceMaps);
+      const sa = getTrustForPkFromMaps(a, sectionInfluenceMaps, trustCache);
+      const sb = getTrustForPkFromMaps(b, sectionInfluenceMaps, trustCache);
       return sort === "trust-desc" ? sb - sa : sa - sb;
     });
   } else {
@@ -785,6 +793,8 @@ interface ExpandedPanelProps {
   reportTypeDropdownOpen: boolean;
   reportMetaLoading: boolean;
   sectionInfluenceMaps: Record<string, Map<string, number | null>>;
+  /** The viewer's scores under their preset (expandTrustCacheFor). */
+  trustCache: TrustCache;
   groupsByPubkey: Map<string, GroupDef[]>;
   getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined;
   formatRelativeTime: (timestamp: number) => string;
@@ -825,6 +835,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
     reportTypeDropdownOpen,
     reportMetaLoading,
     sectionInfluenceMaps,
+    trustCache,
     groupsByPubkey,
     getReportForPubkey,
     formatRelativeTime,
@@ -853,6 +864,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
         reportTypeFilter,
         sectionInfluenceMaps,
         getReportForPubkey,
+        trustCache,
       ),
     // renderToken in deps so name-sort updates as profiles stream in
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -865,6 +877,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
       reportTypeFilter,
       sectionInfluenceMaps,
       getReportForPubkey,
+      trustCache,
       renderToken,
     ],
   );
@@ -876,9 +889,9 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 
   useEffect(() => {
     if (visiblePubkeys.length === 0) return;
-    const needsFetch = visiblePubkeys.some((pk) => !expandProfileCache.has(pk) || !expandTrustCache.has(pk));
+    const needsFetch = visiblePubkeys.some((pk) => !expandProfileCache.has(pk) || !trustCache.has(pk));
     if (needsFetch) onEnsureVisibleFetched(key, visiblePubkeys);
-  }, [key, visiblePubkeys, onEnsureVisibleFetched]);
+  }, [key, visiblePubkeys, onEnsureVisibleFetched, trustCache]);
 
   return (
     <div className="border-t border-slate-100 bg-slate-50/50 dark:border-slate-800/60 dark:bg-slate-900/50">
@@ -1043,7 +1056,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
       <div className={`border-l-2 ${borderColor} ml-4`}>
         {visiblePubkeys.map((pk) => {
           const profile = expandProfileCache.get(pk);
-          const trustScore = expandTrustCache.get(pk);
+          const trustScore = trustCache.get(pk);
           const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
           const overlappingGroups = (groupsByPubkey.get(pk) ?? []).filter((g) => g.key !== key);
 
@@ -1273,9 +1286,6 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   );
 });
 
-/** Per-section connection page size. */
-const SECTION_LIMIT = 200;
-
 export default function ProfilePage() {
   const tierRing = useTierRing();
   const [location, navigate] = useLocation();
@@ -1388,7 +1398,10 @@ export default function ProfilePage() {
 
   // Keeps the active preset in step with the server's; the reads below don't
   // key on it, a change invalidates them (`invalidatePresetDrivenReads`).
-  useTrustPresetSync(!!user);
+  const { preset: trustPreset } = useTrustPresetSync(!!user);
+  // The rows' scores are the viewer's, under their preset: one cache per pair,
+  // so an account switch or a preset change doesn't keep showing the old ones.
+  const trustCache = useMemo(() => expandTrustCacheFor(user?.pubkey, trustPreset), [user?.pubkey, trustPreset]);
 
   // Self's own follower/following lists drive the mutual-followers/following
   // banner. `useSelfConnections` calls `/user/{pk}/connections` via
@@ -1491,27 +1504,6 @@ export default function ProfilePage() {
     select: (envelope): ProfileStats | null => selectStats(envelope),
   });
 
-  // Per-section connection queries (cursor-paginated).
-  //  - followed_by + following: eager (drive mutual/shared computations).
-  //  - the other four: lazy, only fire when their section is expanded.
-  // Map per-section SortMode → backend `order`. Name sorts stay client-side
-  // (no backend name index), and fall back to DESC for fetch purposes.
-  const orderFor = (kind: string): "asc" | "desc" => (sectionSort[kind] === "trust-asc" ? "asc" : "desc");
-
-  // Map per-section FilterMode → backend `tier` + `verified_only`. "verified"
-  // is the union of every banded tier, so it goes through `verified_only`;
-  // specific tiers go through `tier`.
-  // Map UI FilterMode keys → backend GR-style tier names.
-  const UI_TO_GR_TIER: Record<
-    string,
-    "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"
-  > = {
-    high: "high",
-    trusted: "medium_high",
-    neutral: "medium",
-    low: "medium_low",
-    unverified: "low",
-  };
   // Collapse backend tier_counts onto the FE display keys via the same
   // GR_TIER_TO_UI map that names a single row's tier, so a bucket count and a
   // row badge can't land in different slices. Slices still sum to `total`.
@@ -1522,71 +1514,28 @@ export default function ProfilePage() {
     }
     return counts;
   };
-  const filterFor = (
-    kind: string,
-  ): {
-    tier?: "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
-    verified_only?: boolean;
-  } => {
-    const f = sectionFilter[kind] || "all";
-    if (f === "all") return {};
-    if (f === "verified") return { verified_only: true };
-    return { tier: UI_TO_GR_TIER[f] };
-  };
-
-  const useConnectionsQuery = (
-    kind: "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting",
-    eager: boolean = false,
-  ) => {
-    const order = orderFor(kind);
-    const { tier, verified_only } = filterFor(kind);
-    return useInfiniteQuery<
-      { items: GraphEntry[]; next_cursor: string | null },
-      Error,
-      { pages: { items: GraphEntry[]; next_cursor: string | null }[]; pageParams: (string | undefined)[] },
-      readonly unknown[],
-      string | undefined
-    >({
-      // No preset in the key: a preset change invalidates (`invalidatePresetDrivenReads`).
-      queryKey: ["profile-conn", hexPubkey, kind, order, tier ?? null, verified_only ?? false],
-      queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
-        const res = await apiClient.getUserConnections(hexPubkey, kind, {
-          limit: SECTION_LIMIT,
-          cursor: pageParam || undefined,
-          order,
-          tier,
-          verified_only,
-        });
-        return {
-          items: (res?.data?.items ?? []) as GraphEntry[],
-          next_cursor: (res?.data?.next_cursor ?? null) as string | null,
-        };
-      },
-      initialPageParam: undefined,
-      getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage?.next_cursor ?? undefined,
-      enabled: !!hexPubkey && (eager || !!expandedSections[kind]),
-      staleTime: 5 * 60_000,
-      retry: false,
-    });
-  };
-
-  const followedByQuery = useConnectionsQuery("followed_by", true);
-  const followingQuery = useConnectionsQuery("following", true);
-  const mutedByQuery = useConnectionsQuery("muted_by");
-  const mutingQuery = useConnectionsQuery("muting");
-  const reportedByQuery = useConnectionsQuery("reported_by");
-  const reportingQuery = useConnectionsQuery("reporting");
-
-  // Flatten paginated items per section.
-  const flattenItems = (q: { data?: { pages?: { items: GraphEntry[] }[] } }) =>
-    q.data?.pages?.flatMap((p) => p.items) ?? null;
-
-  const followedByItems = flattenItems(followedByQuery);
-  const followingItems = flattenItems(followingQuery);
-  const mutedByItems = flattenItems(mutedByQuery);
-  const mutingItems = flattenItems(mutingQuery);
-  const reportedByItems = flattenItems(reportedByQuery);
-  const reportingItems = flattenItems(reportingQuery);
+  // Per-section connection queries (cursor-paginated): followed_by and following
+  // at once (they drive the mutual and shared sets), the rest when opened. The
+  // flattened rows keep their identity until a page lands, so what is derived
+  // from them below doesn't recompute on every render.
+  const { queries: connQueries, items: connItems } = useProfileConnections(
+    hexPubkey,
+    sectionSort,
+    sectionFilter,
+    expandedSections,
+  );
+  const followedByQuery = connQueries.followed_by;
+  const followingQuery = connQueries.following;
+  const mutedByQuery = connQueries.muted_by;
+  const mutingQuery = connQueries.muting;
+  const reportedByQuery = connQueries.reported_by;
+  const reportingQuery = connQueries.reporting;
+  const followedByItems = connItems.followed_by;
+  const followingItems = connItems.following;
+  const mutedByItems = connItems.muted_by;
+  const mutingItems = connItems.muting;
+  const reportedByItems = connItems.reported_by;
+  const reportingItems = connItems.reporting;
 
   const sectionStats = useMemo<Record<string, SectionStats | null>>(
     () => ({
@@ -1600,16 +1549,15 @@ export default function ProfilePage() {
     [profileStatsQuery.data],
   );
 
-  // Seed expandTrustCache from any loaded section items so subsequent
-  // ExpandedPanel renders don't fire a per-pubkey getUserOverview() each.
+  // Seed the trust cache from the loaded section rows so ExpandedPanel renders
+  // don't fire a per-pubkey getUserOverview() each. The rows are the newest
+  // answer (a preset change refetches them), so they overwrite what was held.
   useEffect(() => {
     const seedFrom = (items: GraphEntry[] | null) => {
       if (!items) return;
       for (const it of items) {
         if (typeof it === "string") continue;
-        if (!expandTrustCache.has(it.pubkey)) {
-          expandTrustCache.set(it.pubkey, it.influence ?? null);
-        }
+        trustCache.set(it.pubkey, it.influence ?? null);
       }
     };
     seedFrom(followedByItems);
@@ -1618,7 +1566,7 @@ export default function ProfilePage() {
     seedFrom(mutingItems);
     seedFrom(reportedByItems);
     seedFrom(reportingItems);
-  }, [followedByItems, followingItems, mutedByItems, mutingItems, reportedByItems, reportingItems]);
+  }, [trustCache, followedByItems, followingItems, mutedByItems, mutingItems, reportedByItems, reportingItems]);
 
   // Composed ProfileResultData: counts as numbers (from overview) until each
   // section's lazy query lands its array. UI already handles the number-or-array
@@ -2169,11 +2117,11 @@ export default function ProfilePage() {
 
   const seedTrustForSection = useCallback(
     (key: string, pubkeys: string[]) => {
-      // Seed expandTrustCache from already-known influence values so we never
+      // Seed the trust cache from already-known influence values so we never
       // need a per-pubkey apiClient.getUserByPubkey() call for these.
       const seed = (pk: string, val: number | null | undefined) => {
         if (val === undefined) return;
-        if (!expandTrustCache.has(pk)) expandTrustCache.set(pk, val);
+        if (!trustCache.has(pk)) trustCache.set(pk, val);
       };
       if (key === "mutual" || key === "shared_followers" || key === "shared_following") {
         for (const pk of pubkeys) {
@@ -2195,7 +2143,7 @@ export default function ProfilePage() {
       if (!map) return;
       map.forEach((inf, pk) => seed(pk, inf));
     },
-    [sectionInfluenceMaps],
+    [sectionInfluenceMaps, trustCache],
   );
 
   const toggleSection = (key: string) => {
@@ -2364,6 +2312,7 @@ export default function ProfilePage() {
         reportTypeDropdownOpen={reportTypeDropdownOpen[key] || false}
         reportMetaLoading={!!reportMetadataLoading[key]}
         sectionInfluenceMaps={sectionInfluenceMaps}
+        trustCache={trustCache}
         groupsByPubkey={groupsByPubkey}
         getReportForPubkey={getReportForPubkey}
         formatRelativeTime={formatRelativeTime}
