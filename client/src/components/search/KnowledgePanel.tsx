@@ -257,6 +257,9 @@ function KnowledgePanelBody({
   const topicAnswered = useRef<string | null>(null);
   const appsAnswered = useRef<string | null>(null);
   const eventsAnswered = useRef<string | null>(null);
+  // Not `person` itself: the reset below and the lookup run in one commit, and the lookup
+  // would read the last query's person as this one's answer.
+  const personAnswered = useRef<string | null>(null);
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
   useEffect(() => {
@@ -371,6 +374,10 @@ function KnowledgePanelBody({
     setTopicEvents(null);
   }, [query, pov, userPubkey]);
 
+  const foundPerson = (who: SearchResult) => {
+    personAnswered.current = askedKey;
+    setPerson(who);
+  };
   useEffect(() => {
     if (!active) return;
     // A search scoped to one person (from:npub…, the public profile's "View
@@ -384,7 +391,7 @@ function KnowledgePanelBody({
       void suggestProfiles(scope.token, { pov, userPubkey }, { limit: 1 }).then((people) => {
         if (!scopedAlive) return;
         const who = people.find((p) => p.pubkey === scoped);
-        if (who) setPerson(who);
+        if (who) foundPerson(who);
       });
       return () => {
         scopedAlive = false;
@@ -394,13 +401,12 @@ function KnowledgePanelBody({
     // A NIP-shaped query is a spec lookup: the wiki page takes the slot and
     // nobody is hunted for.
     if (nipCandidates(query).length > 0) return;
-    // Already answered for this query (the reset above is what clears it), so a
-    // tab switch does not ask again.
-    if (person) return;
+    // Already answered for this query, so a tab switch does not ask again.
+    if (personAnswered.current === askedKey) return;
     // The People section asks this very question, deeper — where it has, the
     // panel reads its answer instead of asking again.
     if (hasSections) {
-      if (sectionPerson && isStrongMatch(query, sectionPerson)) setPerson(sectionPerson);
+      if (sectionPerson && isStrongMatch(query, sectionPerson)) foundPerson(sectionPerson);
       return;
     }
     let alive = true;
@@ -409,7 +415,7 @@ function KnowledgePanelBody({
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
-      if (top && isStrongMatch(query, top)) setPerson(top);
+      if (top && isStrongMatch(query, top)) foundPerson(top);
     });
     return () => {
       alive = false;
