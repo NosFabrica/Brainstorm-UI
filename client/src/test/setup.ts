@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, vi } from "vitest";
 import { __resetAsks } from "@/lib/askOnce";
 import { __resetListEdits } from "@/lib/listEdits";
+import { eventStore } from "@/lib/eventStore";
 import { cleanup } from "@testing-library/react";
 
 // Suites that need no DOM opt into the node environment — jsdom's TextEncoder
@@ -176,10 +177,28 @@ class OfflineWebSocket extends EventTarget {
 }
 globalThis.WebSocket = OfflineWebSocket as unknown as typeof WebSocket;
 
+/**
+ * The app's EventStore is a module singleton: without this, what one test added
+ * (a fetcher's answer, a publish) was still there for the next, which could pass
+ * only because of it. Its deletions go too: they live in the store's delete
+ * manager, not as events. A test that mocks `@/lib/eventStore` empties the real
+ * one here, harmlessly.
+ */
+function resetEventStore(): void {
+  for (const event of eventStore.getByFilters({})) eventStore.remove(event);
+  // Its delete manager is private and has no reset: what it remembers is two maps.
+  const { deletes } = eventStore as unknown as {
+    deletes: { deletedIds: Map<unknown, unknown>; deletedIdentifiers: Map<unknown, unknown> };
+  };
+  deletes.deletedIds.clear();
+  deletes.deletedIdentifiers.clear();
+}
+
 beforeEach(() => {
   if (hasDom) localStorage.clear();
   __resetAsks();
   __resetListEdits();
+  resetEventStore();
 });
 
 afterEach(() => {
