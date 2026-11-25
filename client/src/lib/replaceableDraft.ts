@@ -19,7 +19,7 @@ import type { NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { beats, requestNewestWithReach } from "@/lib/relayRequest";
-import { outboxRelays } from "@/lib/relayRouting";
+import { dedupeRelays, outboxRelays } from "@/lib/relayRouting";
 
 /** Where a list stands before anyone may edit it. */
 export type ListReadStatus =
@@ -81,11 +81,20 @@ export async function probeReplaceable(
   kind: number,
   pubkey: string,
   d?: string,
-  { relays, timeoutMs = 6000 }: { relays?: string[]; timeoutMs?: number } = {},
+  {
+    relays,
+    also = [],
+    timeoutMs = 6000,
+  }: {
+    relays?: string[];
+    /** Asked besides the author's write relays: where else this kind is published (the tag hub, for lists). */
+    also?: string[];
+    timeoutMs?: number;
+  } = {},
 ): Promise<ReplaceableProbe> {
   const held = () => (eventStore.getReplaceable(kind, pubkey, d) as NostrEvent | undefined) ?? undefined;
   try {
-    const where = relays ?? (await outboxRelays(pubkey, PROFILE_RELAYS));
+    const where = relays ?? dedupeRelays([...(await outboxRelays(pubkey, PROFILE_RELAYS)), ...also]);
     const filter = { kinds: [kind], authors: [pubkey], ...(d !== undefined ? { "#d": [d] } : {}), limit: 5 };
     const { newest, reach } = await requestNewestWithReach(where, filter, timeoutMs);
     const event = newestVersion([newest, held()], kind, pubkey, d) ?? undefined;

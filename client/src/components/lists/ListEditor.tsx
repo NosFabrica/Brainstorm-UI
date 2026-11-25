@@ -13,8 +13,15 @@
  * (hooks/draftTemplates) and published just before the header that pins them
  * (lib/listPublish). A failed attempt keeps what it signed, so trying again
  * resends rather than asks the signer again.
+ *
+ * One's own list is edited as a draft on its newest version
+ * (hooks/useReplaceableListDraft): the header streams in, so a newer version
+ * can arrive while the form is open. Untouched, the form moves onto it;
+ * touched, publishing is refused until the newer version is loaded, rather
+ * than reverting it. A new list publishes only once its identifier is known
+ * to be free: read at that `d`, not guessed from the lists loaded so far.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -48,6 +55,23 @@ import { asTemplate, resolveDraftTemplates } from "@/lib/templateDrafts";
 import { DraftTemplatesContext } from "@/hooks/draftTemplates";
 import { useDraftTemplateProblems } from "@/hooks/useLinkTemplates";
 import { listPublishSteps } from "@/services/lists";
+import { useReplaceableListDraft } from "@/hooks/useReplaceableListDraft";
+import { NEWER_VERSION_ARRIVED } from "@/lib/replaceableDraft";
+import { ListDraftNotice } from "@/components/settings/ListDraftNotice";
+import { tagRelays } from "@/config/tagging";
+import { dictionaryRelays } from "@/config/dictionary";
+
+/** What the form edits: the definition, and whether the list points at itself. */
+interface ListForm {
+  draft: CopyDraft;
+  selfPointer: boolean;
+}
+
+// Put forward as a community concept: a new list is (the team, 2026-10-11); a published one as it was.
+const formOf = (header: NostrEvent | null): ListForm =>
+  header
+    ? { draft: listDraftOf(definitionOf(header as HeaderEvent)), selfPointer: pointsAtItself(header) }
+    : { draft: newListDraft(), selfPointer: true };
 
 export function ListEditor({
   header,
@@ -65,28 +89,45 @@ export function ListEditor({
 }) {
   const own = !header || header.pubkey === me;
   const author = header?.pubkey ?? me;
-  const [draft, setDraft] = useState<CopyDraft>(() =>
-    header ? listDraftOf(definitionOf(header as HeaderEvent)) : newListDraft(),
-  );
   const publishedD = header?.tags.find((t) => t[0] === "d")?.[1] ?? null;
+  // One's own list at its address is edited in place, on its newest version; a new
+  // list (or one with no d to keep) is a form of its own until it's published.
+  const inPlace = own && !!header && publishedD !== null;
+  const [fresh, setFresh] = useState<ListForm>(() => formOf(header));
   // A new list's d follows its name until it's typed.
   const [typedD, setTypedD] = useState<string | null>(null);
-  const d = publishedD ?? typedD ?? slugOf(draft.plural);
+  const freshD = typedD ?? slugOf(fresh.draft.plural);
+  const listRelays = useMemo(() => [...new Set([...tagRelays(), ...dictionaryRelays()])], []);
+  const list = useReplaceableListDraft(39998, own ? author : null, inPlace ? publishedD! : freshD, {
+    // A 9998 opened to edit has no 39998 version yet: the form starts from it.
+    read: (ev) => formOf(ev ?? header),
+    held: inPlace ? header : null,
+    also: listRelays,
+    // A new list's d is typed: read it once the typing stops.
+    probeDelayMs: inPlace ? 0 : 500,
+  });
+  const form = inPlace ? list.value : fresh;
+  const setForm = (next: SetStateAction<ListForm>) => (inPlace ? list.edit(next) : setFresh(next));
+  const { draft, selfPointer } = form;
+  const setDraft = (next: SetStateAction<CopyDraft>) =>
+    setForm((f) => ({ ...f, draft: typeof next === "function" ? next(f.draft) : next }));
+  const setSelfPointer = (on: boolean) => setForm((f) => ({ ...f, selfPointer: on }));
+  const d = publishedD ?? freshD;
+  // The version the form was made from: what its untouched tags carry over.
+  const base = inPlace ? list.base : header;
 
   // An import's tags the form can't set ride along, as an edited list's own do: in place of those of the same name.
   const [imported, setImported] = useState<ImportResult | null>(null);
   const previous = useMemo(
-    () => (header || imported ? { tags: withImported(header?.tags ?? [], imported?.kept ?? []) } : null),
-    [header, imported],
+    () => (base || imported ? { tags: withImported(base?.tags ?? [], imported?.kept ?? []) } : null),
+    [base, imported],
   );
-  // Put forward as a community concept: a new list is (the team, 2026-10-11); a published one as it was.
-  const [selfPointer, setSelfPointer] = useState(() => (header ? pointsAtItself(header) : true));
   const template = useMemo(
     () => listHeaderTemplate(draft, { d, author, previous, selfPointer }),
     [draft, d, author, previous, selfPointer],
   );
   // A b pointing at another list: this one is someone's version of it.
-  const versionOf = (header?.tags ?? [])
+  const versionOf = (base?.tags ?? [])
     .filter((t) => t[0] === "b" && t[1] && t[1] !== listCoordinate(author, d))
     .map((t) => t[1]);
   const resolved = useMemo(() => previewDefinition(template, author), [template, author]);
@@ -94,9 +135,8 @@ export function ListEditor({
   const [values, setValues] = useState<FieldValues>({});
   const [importing, setImporting] = useState(false);
   const applyImport = (result: ImportResult) => {
-    setDraft(result.draft);
+    setForm((f) => ({ draft: result.draft, selfPointer: result.selfPointer ? true : f.selfPointer }));
     if (publishedD === null && result.d) setTypedD(result.d);
-    if (result.selfPointer) setSelfPointer(true);
     setValues(result.example);
     setImported(result);
   };
@@ -109,40 +149,65 @@ export function ListEditor({
   const item = useMemo(() => exampleItem(resolved.governing, values, me), [resolved, values, me]);
 
   const templateProblems = useDraftTemplateProblems(draft, own);
+  // Whether a new list's d is free is read at that d, not guessed from the lists loaded so far.
+  const taken = !inPlace && d.trim() !== "" && (takenDs.has(d) || (list.status === "ready" && !!list.latest));
+  const checking = !inPlace && d.trim() !== "" && !taken && list.status === "loading";
   const problems = own
     ? [
         ...draftProblems(draft),
         ...templateProblems,
         ...listProblems(d),
-        ...(!header && takenDs.has(d) ? [`You already have a list at "${d}": give this one another identifier.`] : []),
+        ...(taken ? [`You already have a list at "${d}": give this one another identifier.`] : []),
+        ...(!inPlace && !taken && list.status === "unreadable"
+          ? [`Couldn't check whether you already have a list at "${d}": your relays didn't answer.`]
+          : []),
       ]
     : [];
+  // Nothing to publish onto until the list's newest version is read, or while a newer one waits.
+  const blocked = checking || (inPlace && (list.status !== "ready" || list.stale));
   const [publishing, setPublishing] = useState(false);
   const [progress, setProgress] = useState<PublishProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [published, setPublished] = useState(false);
   const session = useRef(newPublishSession());
   const publish = async () => {
-    if (publishing || problems.length || !own) return;
+    if (publishing || problems.length || blocked || !own) return;
     setPublishing(true);
     setError(null);
     setProgress(null);
     try {
-      const done = await publishDefinition({
-        draft,
-        headerOf: (resolved) => listHeaderTemplate(resolved, { d, author, previous, selfPointer }),
-        steps: listPublishSteps,
-        session: session.current,
-        onProgress: setProgress,
-        // Published, a template is an existing one: the form links it by its real id from now on.
-        onTemplatePublished: (t, ev) => setDraft((cur) => resolveDraftTemplates(cur, new Map([[t.id, ev.id]]))),
+      // On top of the newest version: read once more, refused if one arrived; a new list, if its d was taken.
+      const res = await list.publish(async (_value, { createdAt }) => {
+        try {
+          const done = await publishDefinition({
+            draft,
+            headerOf: (resolved) =>
+              Object.assign(listHeaderTemplate(resolved, { d, author, previous, selfPointer }), {
+                created_at: createdAt,
+              }),
+            steps: listPublishSteps,
+            session: session.current,
+            onProgress: setProgress,
+            // Published, a template is an existing one: the form links it by its real id from now on.
+            onTemplatePublished: (t, ev) => setDraft((cur) => resolveDraftTemplates(cur, new Map([[t.id, ev.id]]))),
+          });
+          session.current = newPublishSession();
+          if (!inPlace) setFresh((f) => ({ ...f, draft: done.draft }));
+          return { success: true, event: done.header };
+        } catch (e) {
+          return { success: false, error: e instanceof Error ? e.message : String(e) };
+        }
       });
-      session.current = newPublishSession();
-      setDraft(done.draft);
+      if (!res.success) {
+        setError(
+          !inPlace && res.error === NEWER_VERSION_ARRIVED
+            ? `You already have a list at "${d}": give this one another identifier.`
+            : (res.error ?? "Couldn't publish the list."),
+        );
+        return;
+      }
       setPublished(true);
       onPublished(`39998:${author}:${d}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPublishing(false);
       setProgress(null);
@@ -234,7 +299,7 @@ export function ListEditor({
 
         {own ? (
           // Nothing changes under a publish in flight: what was signed is what goes out.
-          <fieldset disabled={publishing} className="min-w-0 space-y-5">
+          <fieldset disabled={publishing || (inPlace && !list.canEdit)} className="min-w-0 space-y-5">
             <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={0} testId="list-editor" idPrefix="list" />
           </fieldset>
         ) : (
@@ -253,6 +318,13 @@ export function ListEditor({
           </div>
         )}
 
+        {inPlace && <ListDraftNotice draft={list} testId="list-editor-version" />}
+        {checking && (
+          <p className="flex items-center gap-2 text-xs text-slate-500" data-testid="list-editor-checking-d">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking whether you already have a list at &ldquo;{d}
+            &rdquo;…
+          </p>
+        )}
         {problems.length > 0 && (
           <Alert data-testid="list-editor-problems">
             <AlertDescription>
@@ -273,7 +345,7 @@ export function ListEditor({
           <div className="flex items-center gap-3">
             <Button
               onClick={() => void publish()}
-              disabled={publishing || problems.length > 0}
+              disabled={publishing || problems.length > 0 || blocked}
               data-testid="list-editor-publish"
             >
               {publishing ? (

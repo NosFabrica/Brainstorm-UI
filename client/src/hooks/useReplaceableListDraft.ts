@@ -37,6 +37,8 @@ export interface ListDraftOptions<T> {
   held?: NostrEvent | null;
   /** Where to read it from; the author's write relays by default. */
   relays?: string[];
+  /** Read from these as well as the author's write relays. */
+  also?: string[];
   /** Wait this long after `d` changes before reading it. */
   probeDelayMs?: number;
 }
@@ -89,40 +91,46 @@ export function useReplaceableListDraft<T>(
   kind: number,
   pubkey: string | null | undefined,
   d: string | undefined,
-  { read, held, relays, probeDelayMs = 0 }: ListDraftOptions<T>,
+  { read, held, relays, also, probeDelayMs = 0 }: ListDraftOptions<T>,
 ): ReplaceableListDraft<T> {
-  const readKey = pubkey ? `${kind}:${pubkey}:${d ?? ""}` : "";
+  // A typed d is read once the typing stops: until then the list at it is "loading".
+  const [quietD, setQuietD] = useState(d);
+  useEffect(() => {
+    if (quietD === d) return;
+    const t = setTimeout(() => setQuietD(d), probeDelayMs);
+    return () => clearTimeout(t);
+  }, [d, quietD, probeDelayMs]);
+  const at = probeDelayMs ? quietD : d;
+
+  const readKey = pubkey ? `${kind}:${pubkey}:${at ?? ""}` : "";
   const filters = useMemo(
-    () => (pubkey ? [{ kinds: [kind], authors: [pubkey], ...(d !== undefined ? { "#d": [d] } : {}) }] : null),
-    [kind, pubkey, d],
+    () => (pubkey ? [{ kinds: [kind], authors: [pubkey], ...(at !== undefined ? { "#d": [at] } : {}) }] : null),
+    [kind, pubkey, at],
   );
   // The store, live: our own publishes and anything another read brings in. Nothing asked here.
   const stored = useStoreEvents(null, filters, noAsk).events;
 
   const [reading, setReading] = useState<Read>({ key: "", probe: null });
   const [attempt, setAttempt] = useState(0);
-  const relaysKey = relays?.join(",") ?? "";
+  const relaysKey = `${relays?.join(",") ?? ""}|${also?.join(",") ?? ""}`;
   useEffect(() => {
     if (!pubkey) return;
     let alive = true;
     setReading({ key: readKey, probe: null });
-    const t = setTimeout(() => {
-      void probeReplaceable(kind, pubkey, d, { relays }).then((probe) => {
-        if (alive) setReading({ key: readKey, probe });
-      });
-    }, probeDelayMs);
+    void probeReplaceable(kind, pubkey, at, { relays, also }).then((probe) => {
+      if (alive) setReading({ key: readKey, probe });
+    });
     return () => {
       alive = false;
-      clearTimeout(t);
     };
     // `readKey` is kind, pubkey and d; `relaysKey` is `relays`, as a value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readKey, relaysKey, attempt, probeDelayMs]);
+  }, [readKey, relaysKey, attempt]);
 
-  const probe = reading.key === readKey ? reading.probe : null;
+  const probe = reading.key === readKey && at === d ? reading.probe : null;
   const latest = useMemo(
-    () => (pubkey ? newestVersion([...stored, held, probe?.event], kind, pubkey, d) : null),
-    [stored, held, probe, kind, pubkey, d],
+    () => (pubkey ? newestVersion([...stored, held, probe?.event], kind, pubkey, at) : null),
+    [stored, held, probe, kind, pubkey, at],
   );
   const status: ListReadStatus = !pubkey || !probe ? "loading" : latest || probe.provenAbsent ? "ready" : "unreadable";
 
@@ -171,7 +179,7 @@ export function useReplaceableListDraft<T>(
       setPublishing(true);
       try {
         // Once more from the relays: a version published elsewhere since the read.
-        const now = await probeReplaceable(kind, pubkey, d, { relays });
+        const now = await probeReplaceable(kind, pubkey, d, { relays, also });
         const newest = newestVersion([latestRef.current, now.event], kind, pubkey, d);
         if (!replacing && newest && newest.id !== base?.id && beats(newest, base ?? undefined)) {
           // Into the store: an untouched draft moves onto it, a touched one shows as stale.
@@ -199,7 +207,7 @@ export function useReplaceableListDraft<T>(
         setPublishing(false);
       }
     },
-    [pubkey, stale, kind, d, relays, base, value, owner],
+    [pubkey, stale, kind, d, relays, also, base, value, owner],
   );
 
   return {
