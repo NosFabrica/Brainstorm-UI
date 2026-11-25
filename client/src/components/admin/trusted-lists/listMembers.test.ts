@@ -53,7 +53,7 @@ describe("loadTrustedList", () => {
       { kinds: [30392], authors: [SIGNER], "#d": [D_TAG] },
       expect.any(Number),
     );
-    expect(list?.members).toEqual([{ pubkey: MEMBER, score: 87, endorsements: 3, disputes: 0 }]);
+    expect(list?.members).toEqual([{ value: MEMBER, score: 87, endorsements: 3, disputes: 0 }]);
     expect(list?.retracted).toBe(false);
     const decoded = nip19.decode(list!.naddr);
     expect(decoded.type).toBe("naddr");
@@ -76,7 +76,7 @@ describe("loadTrustedList", () => {
 
     const list = await loadTrustedList(want);
 
-    expect(list?.members).toEqual([{ pubkey: MEMBER, score: 87 }]);
+    expect(list?.members).toEqual([{ value: MEMBER, score: 87 }]);
   });
 
   it("reads a retracted list as having no members", async () => {
@@ -95,6 +95,40 @@ describe("loadTrustedList", () => {
 
     expect(list?.retracted).toBe(true);
     expect(list?.members).toEqual([]);
+  });
+
+  // Issue #335: the run publishes notes (30393) and addressed events (30394) beside people.
+  it("reads a list of notes at its own kind: its e members, never its discovery p, and links that kind", async () => {
+    getSetupRows.mockResolvedValue([["30392", SIGNER, TL_RELAY]]);
+    const NOTE = "e".repeat(64);
+    requestNewest.mockResolvedValue(
+      event({
+        kind: 30393,
+        tags: [
+          ["d", D_TAG],
+          ["p", OBSERVER],
+          ["a", `39999:${SIGNER}:podcaster`],
+          ["e", NOTE, "", "64"],
+          ["tagging-target", "1"],
+        ],
+        content: JSON.stringify({ members: [{ id: NOTE, endorsements: 2, disputes: 1, score: 64 }] }),
+      }),
+    );
+
+    const list = await loadTrustedList({ ...want, kind: 30393 });
+
+    expect(requestNewest.mock.calls[0][1]).toEqual({ kinds: [30393], authors: [SIGNER], "#d": [D_TAG] });
+    expect(list?.members).toEqual([{ value: NOTE, score: 64, endorsements: 2, disputes: 1 }]);
+    expect(list?.taggingTarget).toBe("1");
+    expect(nip19.decode(list!.naddr).data).toMatchObject({ kind: 30393 });
+  });
+
+  it("a member the content echoes but the tags don't carry is not on the list", async () => {
+    getSetupRows.mockResolvedValue([["30392", SIGNER, TL_RELAY]]);
+    requestNewest.mockResolvedValue(
+      event({ tags: [["d", D_TAG]], content: JSON.stringify({ members: [{ pubkey: MEMBER, score: 87 }] }) }),
+    );
+    expect((await loadTrustedList(want))?.members).toEqual([]);
   });
 
   it("says when the relay doesn't have it", async () => {
