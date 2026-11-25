@@ -203,6 +203,7 @@ describe("ListEditor — a published list", () => {
   it("shows someone else's list without a form to change it", () => {
     editor(header("9".repeat(64)));
     expect(screen.getByTestId("list-editor-theirs")).toBeInTheDocument();
+    expect(screen.queryByTestId("list-editor-checking-d")).toBeNull();
     expect(screen.queryByTestId("list-editor-publish")).toBeNull();
     expect(screen.getByTestId("list-example-name")).toBeInTheDocument();
   });

@@ -150,8 +150,8 @@ export function ListEditor({
 
   const templateProblems = useDraftTemplateProblems(draft, own);
   // Whether a new list's d is free is read at that d, not guessed from the lists loaded so far.
-  const taken = !inPlace && d.trim() !== "" && (takenDs.has(d) || (list.status === "ready" && !!list.latest));
-  const checking = !inPlace && d.trim() !== "" && !taken && list.status === "loading";
+  const taken = own && !inPlace && d.trim() !== "" && (takenDs.has(d) || (list.status === "ready" && !!list.latest));
+  const checking = own && !inPlace && d.trim() !== "" && !taken && list.status === "loading";
   const problems = own
     ? [
         ...draftProblems(draft),
