@@ -9,7 +9,14 @@
  */
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
-import { ListCard } from "@/components/search/cards";
+import { ListCard, LiveCard } from "@/components/search/cards";
+import { RelayListCard, UserStatusCard } from "@/components/search/relayStatusCards";
+import { ChatContextLine } from "@/components/share/ChatContext";
+import { CHAT_KINDS } from "@/lib/chatMessage";
+import { embedShapeOf, PEOPLE_LIST_KINDS } from "@/lib/embedShape";
+import { RELAY_LIST_KIND } from "@/lib/relayList";
+import { USER_STATUS_KIND } from "@/lib/userStatus";
+
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { createContext, memo, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
@@ -64,6 +71,15 @@ import { splitCustomEmoji } from "@/lib/customEmoji";
 import { parseHighlight } from "@/lib/nip84";
 import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
 import { WEB_BOOKMARK_KIND, webBookmarkOf, type WebBookmark } from "@/lib/webBookmark";
+
+/** The kinds a row draws as their card: people lists, NIP-53 spaces and meetings, relay lists, statuses. */
+const OWN_CARD_KINDS: ReadonlySet<number> = new Set([
+  ...PEOPLE_LIST_KINDS,
+  30312,
+  30313,
+  RELAY_LIST_KIND,
+  USER_STATUS_KIND,
+]);
 
 /** One formatter for every row: `toLocaleDateString` with options builds a new one per call. */
 const MONTH_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
@@ -521,6 +537,13 @@ function SerpRowBody(props: SerpRowProps) {
   // says what it holds and shows the first few.
   if (props.event.kind === TRUSTED_PEOPLE_KIND || ITEM_LIST_KINDS.has(props.event.kind))
     return <ListCard event={props.event} author={props.author} score={props.score} />;
+  // Kinds with a card of their own that a row of words would leave empty (lib/embedShape):
+  // a people list's faces, a meeting space or meeting, a relay list, a user status.
+  const shape = OWN_CARD_KINDS.has(props.event.kind) ? embedShapeOf(props.event) : null;
+  if (shape === "people-list") return <ListCard event={props.event} author={props.author} score={props.score} />;
+  if (shape === "live") return <LiveCard event={props.event} author={props.author} score={props.score} />;
+  if (shape === "relay-list") return <RelayListCard event={props.event} author={props.author} score={props.score} />;
+  if (shape === "status") return <UserStatusCard event={props.event} author={props.author} score={props.score} />;
   // A web bookmark is one link with its saver's words: the page's row, not a list of nothing.
   const bookmark = props.event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(props.event) : null;
   if (bookmark) return <WebBookmarkRow {...props} bookmark={bookmark} />;
@@ -889,6 +912,8 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
           typeOf={event}
           feed={isFeedAccount(author)}
         />
+        {/* A chat message says where it was said (its channel, its stream, its group). */}
+        {CHAT_KINDS.has(event.kind) && <ChatContextLine event={event} className="mt-1" />}
         {title && (
           <div className="mt-1.5 text-lg font-semibold leading-[1.3] text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 sm:text-xl [&>p]:text-lg [&>p]:font-semibold [&>p]:leading-[1.3] sm:[&>p]:text-xl">
             <Snippet text={title} query={query} lines={2} tags={event.tags} />

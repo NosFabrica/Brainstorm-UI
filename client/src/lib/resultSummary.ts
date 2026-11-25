@@ -22,6 +22,7 @@ import { describeThing, THING_KINDS } from "@/lib/thing";
 import { kindLabel } from "@/lib/kindLabel";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
+import { readMeeting } from "@/lib/liveStream";
 import {
   articleTitle,
   BOOKSHELF_KIND,
@@ -453,6 +454,25 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       ...base,
       facts: status ? [status.charAt(0).toUpperCase() + status.slice(1)] : [],
     });
+  }
+
+  // A NIP-53 meeting space (named by `room`) or a meeting in one (by `title`): its status,
+  // a meeting's start, and the space a meeting is in as what the row is about.
+  if (ev.kind === 30312 || ev.kind === 30313) {
+    const meeting = readMeeting(ev);
+    if (meeting) {
+      const space = meeting.space;
+      return fillFromContent({
+        ...base,
+        title: meeting.title,
+        body: meeting.summary ? markdownExcerpt(meeting.summary) : null,
+        facts: [
+          meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : null,
+          meeting.startsSec ? formatEventDate(meeting.startsSec, false) : null,
+        ].filter((f): f is string => !!f),
+        ref: space ? { addr: `30312:${space.pubkey}:${space.identifier}`, relay: space.relays?.[0] } : null,
+      });
+    }
   }
 
   // A D-list item is its fields: a place's name, then what it is and where.

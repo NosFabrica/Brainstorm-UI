@@ -36,6 +36,9 @@ import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
 import { tagValue } from "@/lib/tagValue";
+import { RELAY_LIST_KIND, relayListEntries } from "@/lib/relayList";
+import { USER_STATUS_KIND, readUserStatus } from "@/lib/userStatus";
+import { CHANNEL_MESSAGE_KIND, CHAT_MESSAGE_KIND, LIVE_CHAT_KIND, chatContextOf } from "@/lib/chatMessage";
 
 export type ReaderEvent = {
   id: string;
@@ -509,7 +512,63 @@ read([30054, 30055], (ev) => {
   };
 });
 
-read([30312], (ev) => ({ ref: refOf(ev, "first") }));
+// NIP-65: each `r` is a relay, read, write or (with no marker) both.
+read([RELAY_LIST_KIND], (ev) => {
+  const entries = relayListEntries(ev);
+  if (!entries.length) return { title: "An empty relay list", body: null };
+  const reads = entries.filter((e) => e.read).length;
+  const writes = entries.filter((e) => e.write).length;
+  const only = (e: { read: boolean; write: boolean }) => (e.read && e.write ? "" : e.read ? " (read)" : " (write)");
+  return {
+    title: null,
+    body: firstOf(
+      entries.map((e) => `${hostOf(e.url)}${only(e)}`),
+      4,
+    ),
+    facts: [plural(entries.length, "relay"), `${reads} read · ${writes} write`],
+  };
+});
+
+// NIP-38: the status is the content; an empty one clears it; the `d` says which kind of status.
+read([USER_STATUS_KIND], (ev) => {
+  const status = readUserStatus(ev)!;
+  const expired = status.expiresAt !== undefined && status.expiresAt <= Math.floor(Date.now() / 1000);
+  return {
+    title: status.text ? clip(status.text, 120) : status.cleared ? "Cleared their status" : null,
+    body: null,
+    facts: unique([status.label, expired ? "Expired" : null]),
+    encrypted: !status.text && !status.cleared && contentShape(ev.content).kind === "encrypted",
+    ref: status.link?.type === "event" ? { id: status.link.id, relay: status.link.relay } : null,
+  };
+});
+
+// A chat message's words are the generic reading's; where it was said is a fact, and the
+// channel or stream is the event the row is about (lib/chatMessage, as each spec reads it).
+read([CHANNEL_MESSAGE_KIND, LIVE_CHAT_KIND, CHAT_MESSAGE_KIND], (ev) => {
+  const context = chatContextOf(ev);
+  const place = context?.place;
+  return {
+    facts:
+      place?.type === "channel"
+        ? ["In a channel"]
+        : place?.type === "stream"
+          ? ["Live chat"]
+          : place?.type === "group"
+            ? [`In group ${clip(place.id, 24)}`]
+            : [],
+    ref:
+      place?.type === "channel"
+        ? { id: place.id, relay: place.relay }
+        : place?.type === "stream"
+          ? {
+              addr: `${place.address.kind}:${place.address.pubkey}:${place.address.identifier}`,
+              relay: place.address.relays?.[0],
+            }
+          : context?.replyTo
+            ? { id: context.replyTo.id, relay: context.replyTo.relay }
+            : null,
+  };
+});
 
 read([1163], (ev) => ({ facts: unique([tagOf(ev, "dim")]), ref: refOf(ev, "first") }));
 
