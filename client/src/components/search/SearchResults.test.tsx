@@ -71,7 +71,11 @@ vi.mock("@/services/search", async (importOriginal) => {
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
     fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
-    fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
+    // Handed the items themselves (whose status counts is their author's), recorded by id.
+    fetchGitStatuses: (items: (string | { id: string })[]) => {
+      gitItemsAsked.push(...items);
+      return gitStatusesMock(items.map((i) => (typeof i === "string" ? i : i.id)));
+    },
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
     fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
@@ -119,6 +123,7 @@ const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { goin
 );
 const gitCommentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 // Issue / patch states for the Repos tab — none unless a test says otherwise.
+const gitItemsAsked: (string | { id: string })[] = [];
 const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() =>
   Promise.resolve(new Map()),
 );
@@ -2962,6 +2967,7 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("Pull request");
     expect(within(card).getByTestId("git-state-pr1")).toHaveTextContent("Merged");
     expect(gitStatusesMock).toHaveBeenCalledWith([pr.id]);
+    expect(gitItemsAsked.at(-1)).toMatchObject({ id: pr.id, pubkey: pr.pubkey });
   });
 
   // NIP-34 marks a codebase by its earliest unique commit; two announcements

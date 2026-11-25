@@ -50,7 +50,7 @@ import { readProfileRows } from "@/lib/eventCache";
 import type { FirstPage } from "@/lib/headStart";
 import { zapDescription } from "@/lib/zapRequest";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
-import { readGitStatus } from "@/lib/gitEvents";
+import { readGitStatus, statusFromAuthority } from "@/lib/gitEvents";
 import { readRelease, readReleaseAsset } from "@/lib/release";
 import { addressOf, beats } from "@/lib/newestPerAddress";
 
@@ -2087,32 +2087,97 @@ export function fetchCommentsByAddress(
 /**
  * What became of a page of issues and patches: one request for all of them.
  * NIP-34 status events (1630–1633) name their item by the e-tag marked
- * `root`; the newest per item wins. Under include:spam like every relay
- * request here. NIP-34 counts only a status from the item's author or a
- * maintainer; this page-wide ask does not know either yet, so a stranger's
- * status still counts here (the status page itself says whose it is).
+ * `root`; the newest that counts wins. Under include:spam like every relay
+ * request here.
+ *
+ * NIP-34 counts only a status from the item's author or a maintainer: the
+ * announcement's author (named by the item's `a`, 30617:<owner>:<d>) and its
+ * `maintainers` tag. The announcement is read from the store, else asked
+ * beside the statuses. An item given by id alone is looked up in the store;
+ * one it doesn't hold has no author to check, and any status counts for it.
  */
-export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<string, { kind: number; at: number }>> {
+export function fetchGitStatuses(
+  items: readonly (string | NostrEvent)[],
+  timeoutMs = 5000,
+): Promise<Map<string, { kind: number; at: number }>> {
   const out = new Map<string, { kind: number; at: number }>();
   const relay = searchRelay();
-  if (!relay || ids.length === 0) return Promise.resolve(out);
-  const wanted = new Set(ids);
-  return collectFromSearch(
+  if (!relay || items.length === 0) return Promise.resolve(out);
+  const known = new Map<string, NostrEvent | undefined>();
+  for (const item of items) {
+    if (typeof item !== "string") known.set(item.id, item);
+    else if (!known.get(item)) known.set(item, eventStore.getEvent(item));
+  }
+  const ids = [...known.keys()];
+  // The repos the items name, and their announcements where the store holds them.
+  const repos = new Map<string, NostrEvent | undefined>();
+  for (const item of known.values()) {
+    for (const coord of gitRepoCoords(item)) {
+      if (repos.has(coord)) continue;
+      const [, owner, ...d] = coord.split(":");
+      repos.set(coord, eventStore.getReplaceable(30617, owner, d.join(":")));
+    }
+  }
+  const missing = [...repos.keys()].filter((c) => !repos.get(c)).map((c) => c.split(":"));
+  const statuses: NostrEvent[] = [];
+  const statusAsk = collectFromSearch(
     relay,
     { kinds: [1630, 1631, 1632, 1633], "#e": ids, search: "include:spam", limit: Math.max(200, ids.length * 4) },
     (ev) => {
+      if (ev.kind >= 1630 && ev.kind <= 1633) statuses.push(ev);
+    },
+    { timeoutMs },
+  );
+  const repoAsk = missing.length
+    ? collectFromSearch(
+        relay,
+        {
+          kinds: [30617],
+          authors: [...new Set(missing.map((p) => p[1]))],
+          "#d": [...new Set(missing.map((p) => p.slice(2).join(":")))],
+          search: "include:spam",
+          limit: missing.length * 2,
+        },
+        (ev) => {
+          if (ev.kind !== 30617) return;
+          const coord = `30617:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+          if (!repos.has(coord)) return;
+          const held = repos.get(coord);
+          if (!held || beats(ev, held)) repos.set(coord, ev);
+        },
+        { timeoutMs },
+      )
+    : Promise.resolve();
+  // Whether a status counts for an item (lib/gitEvents statusFromAuthority). A repo with no
+  // announcement found still names its owner, who announced it.
+  const counts = (statusAuthor: string, item: NostrEvent | undefined): boolean => {
+    if (!item) return true;
+    if (statusAuthor === item.pubkey) return true;
+    return gitRepoCoords(item).some((coord) => {
+      const repo = repos.get(coord) ?? { pubkey: coord.split(":")[1], tags: [] };
+      return statusFromAuthority(statusAuthor, item.pubkey, repo) === true;
+    });
+  };
+  return Promise.all([statusAsk, repoAsk]).then(() => {
+    for (const ev of statuses) {
       // NIP-34: the item is the `e` marked root; a 1631's `reply`-marked `e` is a revision it
       // accepted. Any other `e` names neither.
       const status = readGitStatus(ev);
       const named = [status.target, ...(ev.kind === 1631 ? status.revisions : [])];
       for (const ref of named) {
-        if (!ref || !wanted.has(ref.id)) continue;
-        const known = out.get(ref.id);
-        if (!known || ev.created_at > known.at) out.set(ref.id, { kind: ev.kind, at: ev.created_at });
+        if (!ref || !known.has(ref.id) || !counts(ev.pubkey, known.get(ref.id))) continue;
+        const held = out.get(ref.id);
+        if (!held || ev.created_at > held.at) out.set(ref.id, { kind: ev.kind, at: ev.created_at });
       }
-    },
-    { timeoutMs },
-  ).then(() => out);
+    }
+    return out;
+  });
+}
+
+/** The repos a NIP-34 item names: its `a` tags at a repo announcement (30617:<owner>:<d>). */
+function gitRepoCoords(item: NostrEvent | undefined): string[] {
+  if (!item) return [];
+  return item.tags.filter((t) => t[0] === "a" && /^30617:[0-9a-f]{64}:/.test(t[1] ?? "")).map((t) => t[1]);
 }
 
 /**

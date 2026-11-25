@@ -85,6 +85,7 @@ vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => getReplaceableMock(kind, pubkey),
     add: (event: unknown) => storeAddMock(event),
+    getEvent: () => undefined,
   },
 }));
 
@@ -3024,6 +3025,50 @@ describe("fetchGitStatuses", () => {
     expect(statuses.get(revision)).toEqual({ kind: 1631, at: 100 });
     // Unmarked, or a revision of a status that is not 1631: names nothing.
     expect(statuses.has(mentioned)).toBe(false);
+  });
+
+  // NIP-34: "the most recent Status event from either the issue/patch author or a maintainer is
+  // considered valid". The maintainers are the repo announcement's author and its `maintainers`.
+  describe("whose status counts", () => {
+    const AUTHOR = "1".repeat(64);
+    const OWNER = "a".repeat(64);
+    const MAINTAINER = "b".repeat(64);
+    const STRANGER = "c".repeat(64);
+    const REPO = `30617:${OWNER}:repo`;
+    const issue = { ...ev("9".repeat(64), 1621, AUTHOR), tags: [["a", REPO]] } as NostrEvent;
+    const by = (id: string, kind: number, pubkey: string, at: number) =>
+      ({ ...status(id, kind, issue.id, at), pubkey }) as NostrEvent;
+
+    it("a stranger's newer status does not count; the author's and the repo owner's do", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue]);
+      await tick();
+      subject.next(frame(by("s1", 1632, AUTHOR, 100)));
+      subject.next(frame(by("s2", 1631, OWNER, 200)));
+      subject.next(frame(by("s3", 1630, STRANGER, 300)));
+      subject.next(EOSE);
+      expect((await pending).get(issue.id)).toEqual({ kind: 1631, at: 200 });
+    });
+
+    it("a maintainer the announcement names counts, read from the relay when the store has no announcement", async () => {
+      const { subject } = controllable();
+      const pending = fetchGitStatuses([issue]);
+      await tick();
+      expect(askedFilters(1)[0]).toMatchObject({ kinds: [30617], authors: [OWNER], "#d": ["repo"] });
+      subject.next(frame(by("s1", 1630, AUTHOR, 100)));
+      subject.next(frame(by("s2", 1632, MAINTAINER, 200)));
+      subject.next(
+        frame({
+          ...ev("r".repeat(64), 30617, OWNER),
+          tags: [
+            ["d", "repo"],
+            ["maintainers", MAINTAINER],
+          ],
+        } as NostrEvent),
+      );
+      subject.next(EOSE);
+      expect((await pending).get(issue.id)).toEqual({ kind: 1632, at: 200 });
+    });
   });
 
   it("asks nothing for an empty page", async () => {
