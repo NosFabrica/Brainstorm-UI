@@ -26,6 +26,10 @@ vi.mock("@/lib/searchRelay", () => ({
 }));
 
 import { __resetPersonContent, fetchPersonContent, peekPersonContent } from "./personContent";
+import { eventStore } from "@/lib/eventStore";
+
+/** What the store answers an add with: the event, kept, unless a case says otherwise. */
+const storeAdd = vi.fn((e: NostrEvent): NostrEvent | null => e);
 
 const STACI = "5".repeat(64);
 const NOW = Math.floor(Date.now() / 1000);
@@ -65,6 +69,8 @@ beforeEach(() => {
   reqMock.mockReset();
   releaseMock.mockReset();
   relayOn = true;
+  storeAdd.mockImplementation((e) => e);
+  vi.spyOn(eventStore, "add").mockImplementation((e) => storeAdd(e as NostrEvent));
 });
 afterEach(() => vi.useRealTimers());
 
@@ -98,6 +104,18 @@ describe("fetchPersonContent", () => {
       ],
     });
     expect(torndown.count).toBe(1);
+  });
+
+  // A chip says what this person publishes: never from an event the store
+  // refused, or one someone else signed.
+  it("reads chips only from the person's own events the store kept", async () => {
+    const { subject } = controllable();
+    storeAdd.mockImplementation((e) => (e.kind === 30402 ? null : e));
+    const p = fetchPersonContent(STACI);
+    subject.next(frame(ev(30402)));
+    subject.next(frame({ ...ev(30311, [["status", "live"]]), pubkey: "6".repeat(64) }));
+    subject.next(EOSE);
+    expect(await p).toEqual({ chips: [] });
   });
 
   it("one ask per person: a second caller shares the first, and the answer is remembered", async () => {

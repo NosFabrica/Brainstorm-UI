@@ -1,5 +1,5 @@
-import type { NostrEvent } from "nostr-tools";
 import { leaseSideSearchRelay } from "@/lib/searchRelay";
+import { searchOnce } from "@/lib/searchOnce";
 import { NO_PERSON_CONTENT, categoriesOf, personContentFilters, type PersonContent } from "@/lib/personContent";
 
 /**
@@ -102,36 +102,22 @@ export function __resetPersonContent(opts: { keepStored?: boolean } = {}): void 
   }
 }
 
-function ask(pubkey: string, timeoutMs: number): Promise<PersonContent> {
+/**
+ * One question on the side socket, through the store (lib/searchOnce): a chip
+ * comes only from the person's own events that the store kept. Rejects unless
+ * the relay finished (EOSE), so the next mount asks again.
+ */
+async function ask(pubkey: string, timeoutMs: number): Promise<PersonContent> {
   const lease = leaseSideSearchRelay();
-  if (!lease) return Promise.resolve(NO_PERSON_CONTENT);
+  if (!lease) return NO_PERSON_CONTENT;
   const { relay, release } = lease;
-  return new Promise((resolve, reject) => {
-    const events: NostrEvent[] = [];
-    let done = false;
-    let sub: { unsubscribe: () => void } | undefined;
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    function finish(ok: boolean) {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      sub?.unsubscribe();
-      release();
-      if (ok) resolve({ chips: categoriesOf(events) });
-      else reject(new Error("person content: no answer"));
-    }
-    sub = relay.req(personContentFilters(pubkey)).subscribe({
-      next: (msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event) events.push(msg.event);
-        else if (msg.type === "EOSE") finish(true);
-        else if (msg.type === "CLOSED") finish(false);
-      },
-      error: () => finish(false),
-    });
-    // A stream that answered synchronously has already finished; the
-    // subscription it left behind is closed here.
-    if (done) sub.unsubscribe();
-  });
+  try {
+    const { events, answered } = await searchOnce(personContentFilters(pubkey), { relay, timeoutMs });
+    if (!answered) throw new Error("person content: no answer");
+    return { chips: categoriesOf(events.filter((e) => e.pubkey === pubkey)) };
+  } finally {
+    release();
+  }
 }
 
 export function fetchPersonContent(pubkey: string, timeoutMs = PERSON_CONTENT_TIMEOUT_MS): Promise<PersonContent> {
