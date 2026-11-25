@@ -26,6 +26,9 @@ export const nostrReadDefaults = {
   refreshProfileEvent: async () => null,
   fetchProfilePrefs: async () => null,
   fetchAlertPrefs: async () => null,
+  // Nothing read, so nothing private is published over it.
+  fetchPrivateAppData: async () => ({ status: "unknown" }),
+  ALERT_PREFS_D_TAG: "brainstorm.world/alert-prefs",
   fetchOutboxRelayList: async () => undefined,
   fetchTrustProviderList: async () => undefined,
   // The relays answered and hold no 10040: a first one may be written.
