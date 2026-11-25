@@ -19,6 +19,10 @@ vi.mock("@/lib/relayPool", () => ({
 }));
 
 import { fetchAssertionFootprint, FOOTPRINT_CAP } from "./assertionFootprint";
+import { eventStore } from "@/lib/eventStore";
+
+/** What the store answers an add with: the event, kept, unless a case says otherwise. */
+const storeAdd = vi.fn((e: NostrEvent): NostrEvent | null => e);
 
 const PROVIDER = "7".repeat(64);
 const assertion = (n: number, created_at: number): NostrEvent =>
@@ -40,7 +44,11 @@ async function tick() {
   await Promise.resolve();
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  storeAdd.mockImplementation((e) => e);
+  vi.spyOn(eventStore, "add").mockImplementation((e) => storeAdd(e as NostrEvent));
+});
 
 describe("fetchAssertionFootprint", () => {
   it("asks the provider's relay for its assertions, and reports how many and how fresh", async () => {
@@ -68,5 +76,20 @@ describe("fetchAssertionFootprint", () => {
     await tick();
     subject.next({ type: "EOSE" });
     expect(await pending).toBeNull();
+  });
+
+  // Counted only what the provider signed and the store kept: a relay padding
+  // the count with someone else's assertions, or forged ones, made a dead
+  // provider look busy.
+  it("counts only the provider's own assertions the store kept, one per person", async () => {
+    storeAdd.mockImplementation((e) => (e.id === assertion(9, 0).id ? null : e));
+    const pending = fetchAssertionFootprint(PROVIDER, "wss://scores.brainstorm.world");
+    await tick();
+    subject.next({ type: "EVENT", event: assertion(1, 1_700_000_000) });
+    subject.next({ type: "EVENT", event: { ...assertion(1, 1_700_000_100), id: "e".repeat(64) } });
+    subject.next({ type: "EVENT", event: { ...assertion(2, 1_800_000_000), pubkey: "8".repeat(64) } });
+    subject.next({ type: "EVENT", event: assertion(9, 1_900_000_000) });
+    subject.next({ type: "EOSE" });
+    expect(await pending).toEqual({ people: 1, capped: false, updatedAt: 1_700_000_100 });
   });
 });
