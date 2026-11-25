@@ -134,3 +134,24 @@ describe("hostile pages", () => {
     }
   });
 });
+
+describe("NIP-54 wikilinks (Djot reference links with no reference)", () => {
+  it("a reference-style link the page never defines names the article on that topic", () => {
+    const md = wikiToMarkdown(
+      "Bitcoin is a [cryptocurrency][] invented by [Satoshi Nakamoto][].\n\n" +
+        "See [lightning network][Lightning Network].\n\n[Satoshi Nakamoto]: nostr:npub1satoshi",
+    );
+    expect(md).toContain("[cryptocurrency](/?q=cryptocurrency&t=articles)");
+    expect(md).toContain("[lightning network](/?q=Lightning%20Network&t=articles)");
+    // Defined, it is an ordinary link and stays one.
+    expect(md).toContain("[Satoshi Nakamoto][]");
+  });
+
+  it("a card's words read a wikilink as its label", () => {
+    expect(wikiPlainText("See [proof of work][] for more.")).toBe("See proof of work for more.");
+  });
+
+  it("an image reference stays an image", () => {
+    expect(wikiToMarkdown("![a map][map]")).toBe("![a map][map]");
+  });
+});

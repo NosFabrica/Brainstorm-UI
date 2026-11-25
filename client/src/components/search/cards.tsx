@@ -50,7 +50,7 @@ import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
-import { kindTypeLabel } from "@/lib/kindLabel";
+import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
@@ -447,7 +447,8 @@ export const MediaCard = memo(function MediaCard({
         <div className="mt-2" data-noopen>
           <EmbeddedTrackCard
             id={`search:${event.id}`}
-            title={caption || "Audio"}
+            // A voice message is said as one (NIP-A0), as its row and page say it.
+            title={caption || kindLabel(event)}
             artist={author ? getDisplayLabel(author) : undefined}
             cover={poster ?? undefined}
             audio={url}

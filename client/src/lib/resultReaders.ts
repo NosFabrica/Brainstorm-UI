@@ -34,6 +34,8 @@ import {
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
+import { mediaItemsOf } from "@/lib/mediaKind";
+import { formatBytes } from "@/lib/formatBytes";
 import { identifierName } from "@/lib/nip73";
 import { tagValue } from "@/lib/tagValue";
 import { closingWords, parsePoll, parseZapPoll, zapRangeWords } from "@/lib/polls";
@@ -580,6 +582,29 @@ read([21, 22, 34235, 34236], (ev) => {
       video.vine?.loops ? plural(video.vine.loops, "loop") : null,
     ]),
   };
+});
+
+// A NIP-94 file: its content is its caption, `summary` an excerpt under it (the generic
+// reading's `summary`), and its size in pixels and bytes said as facts.
+read([1063], (ev) => {
+  const dim = /^(\d+)x(\d+)$/.exec(tagOf(ev, "dim") ?? "");
+  const bytes = Number(tagOf(ev, "size"));
+  return {
+    title: ev.content.trim() ? clip(ev.content.trim(), 160) : null,
+    body: null,
+    facts: unique([dim ? `${dim[1]}×${dim[2]}` : null, bytes > 0 ? formatBytes(bytes) : null]),
+  };
+});
+
+// A NIP-A0 voice message or reply: its content is the file's URL, never words to read — what
+// is said beside it is a caption. How long it runs is its imeta's `duration`.
+read([1222, 1244], (ev) => {
+  const caption = ev.content
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const seconds = mediaItemsOf(ev).find((i) => i.kind === "audio")?.durationSec;
+  return { title: null, body: caption || null, facts: seconds ? [videoLength(seconds)] : [] };
 });
 
 /** DVM job requests (5000–5999), results (6000–6999) and feedback (7000). */

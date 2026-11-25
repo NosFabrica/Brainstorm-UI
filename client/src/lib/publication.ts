@@ -85,6 +85,9 @@ export function publicationTitle(ev: { kind?: number; tags: string[][] }): strin
   return ev.kind === BOOKSHELF_KIND && d === "root" ? "Bookshelf" : humanizeIdentifier(d);
 }
 
+/** NIP-54 wiki page. */
+const WIKI_KIND = 30818;
+
 /**
  * A long-form event's title, or "" without one. A publication, section or
  * shelf often has none, and its slug reads well enough to name it.
@@ -92,6 +95,9 @@ export function publicationTitle(ev: { kind?: number; tags: string[][] }): strin
 export function articleTitle(event: { kind: number; tags: string[][] }): string {
   const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();
   if (title) return title;
+  // A wiki page (NIP-54) is named by its `d`: `title` is only "for when the display
+  // title should be different from the d tag", which is lowercased and hyphenated.
+  if (event.kind === WIKI_KIND) return humanizeIdentifier(identifierOf(event).trim());
   return PUBLICATION_KINDS.has(event.kind) ? publicationTitle(event) : "";
 }
 

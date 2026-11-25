@@ -968,13 +968,30 @@ const IMAGE_EXT = /\.(jpe?g|png|gif|webp|tiff?|raw)$/i;
 const SOFTWARE_EXT = /\.(exe|dmg|iso|apk|deb|rpm|appimage|msi|pkg)$/i;
 const ARCHIVE_EXT = /\.(zip|rar|7z|tar|gz|bz2|xz)$/i;
 
-/** What a torrent holds, for its icon: its `t` topics first, else its files' extensions. */
+/** A torrent's category from words its publisher gave it: a `tcat` path, or `t` topics. */
+function categoryOfWords(words: Set<string>): TorrentCategory | null {
+  if (["audio", "music", "flac", "mp3", "album", "podcast"].some((t) => words.has(t))) return "audio";
+  if (["video", "movie", "movies", "film", "tv", "series", "anime"].some((t) => words.has(t))) return "video";
+  if (["software", "game", "games", "app", "apps"].some((t) => words.has(t))) return "software";
+  if (["image", "images", "photo", "photos"].some((t) => words.has(t))) return "image";
+  return null;
+}
+
+/**
+ * What a torrent holds, for its icon: its NIP-35 category path first
+ * (`["i", "tcat:video,movie,4k"]`), then its `t` topics, else its files' extensions.
+ */
 function torrentCategory(ev: EventLike, files: { name: string }[]): TorrentCategory {
-  const topics = new Set(topicsOf(ev));
-  if (["audio", "music", "flac", "mp3", "album", "podcast"].some((t) => topics.has(t))) return "audio";
-  if (["video", "movie", "movies", "film", "tv", "series", "anime"].some((t) => topics.has(t))) return "video";
-  if (["software", "game", "games", "app", "apps"].some((t) => topics.has(t))) return "software";
-  if (["image", "images", "photo", "photos"].some((t) => topics.has(t))) return "image";
+  const tcat = ev.tags.find((t) => t[0] === "i" && /^tcat:/i.test(t[1] ?? ""))?.[1];
+  const path = tcat
+    ? tcat
+        .slice(5)
+        .split(",")
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+  const named = categoryOfWords(new Set(path)) ?? categoryOfWords(new Set(topicsOf(ev)));
+  if (named) return named;
   const names = [ev.tags.find((t) => t[0] === "title")?.[1] ?? "", ...files.map((f) => f.name)];
   if (names.some((n) => VIDEO_EXT.test(n))) return "video";
   if (names.some((n) => AUDIO_EXT.test(n))) return "audio";

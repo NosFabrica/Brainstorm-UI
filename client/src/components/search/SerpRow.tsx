@@ -39,10 +39,18 @@ import { useLinkMetadata } from "@/hooks/useLinkMetadata";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
-import { wikiPlainText } from "@/lib/wiki";
+import { articleBrief, wikiPlainText } from "@/lib/wiki";
+import { summaryOf } from "@/lib/resultSummary";
+import { VOICE_KINDS, embedAudioUrl } from "@/lib/embedShape";
+import { mediaItemsOf } from "@/lib/mediaKind";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
+import { analyzeNote } from "@/lib/noteRefs";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import type { ProfileLite } from "@/hooks/useNoteRefs";
 import { articleTitle, BOOKSHELF_KIND, PUBLICATION_SECTION_KIND, sectionPlainText, shelfLine } from "@/lib/publication";
 import { describeDesignation } from "@/lib/nip85Declaration";
-import { kindLabel } from "@/lib/kindLabel";
+import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { contentShape } from "@/lib/contentShape";
@@ -64,7 +72,6 @@ import { splitCustomEmoji } from "@/lib/customEmoji";
 import { parseHighlight } from "@/lib/nip84";
 import { ACTIVITY_KINDS, quotesItsTarget } from "@/lib/activity";
 import { readKind, who, type ResultRef } from "@/lib/resultReaders";
-import { summaryOf } from "@/lib/resultSummary";
 import { refPath } from "@/lib/refPath";
 import { useRefEvent } from "@/hooks/useRefEvent";
 import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
@@ -82,10 +89,13 @@ function ago(created_at: number): string {
 }
 
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
+/** Long-form kinds whose row line is the article's brief (lib/wiki `articleBrief`): article, draft, publication, spec. */
+const BRIEF_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30817]);
 // Splits out both web links and nostr mention URIs so each renders as its
 // clickable self — a domain chip, or the mentioned PERSON.
-const TOKEN_SPLIT_RE = /(https?:\/\/\S+|nostr:n(?:pub|profile|event|ote)1[02-9ac-hj-np-z]+)/gi;
-const EVENT_REF_RE = /^nostr:n(?:event|ote)1/i;
+// An `naddr` (NIP-27) is an event too: said under the row, never as its key.
+const TOKEN_SPLIT_RE = /(https?:\/\/\S+|nostr:n(?:pub|profile|event|ote|addr)1[02-9ac-hj-np-z]+)/gi;
+const EVENT_REF_RE = /^nostr:n(?:event|ote|addr)1/i;
 
 /**
  * The first `max` characters of a note, never cutting through a link or a
@@ -95,7 +105,7 @@ const EVENT_REF_RE = /^nostr:n(?:event|ote)1/i;
 function clipAtToken(text: string, max: number): string {
   if (text.length <= max) return text;
   let cut = max;
-  for (const m of text.matchAll(/https?:\/\/\S+|nostr:n(?:pub|profile|event|ote)1[02-9ac-hj-np-z]+/gi)) {
+  for (const m of text.matchAll(/https?:\/\/\S+|nostr:n(?:pub|profile|event|ote|addr)1[02-9ac-hj-np-z]+/gi)) {
     const start = m.index ?? 0;
     if (start >= max) break;
     if (start + m[0].length > max) {
@@ -116,6 +126,20 @@ function quotedIn(text: string): { id: string; uri: string }[] {
       if (id && !out.some((q) => q.id === id)) out.push({ id, uri });
     } catch {
       /* not decodable — stays as typed */
+    }
+  }
+  return out;
+}
+
+/** The events a text links by address — `nostr:naddr1…` (NIP-27) — each with its kind. */
+function addressesIn(text: string): { kind: number; uri: string }[] {
+  const out: { kind: number; uri: string }[] = [];
+  for (const uri of text.match(/nostr:naddr1[02-9ac-hj-np-z]+/gi) ?? []) {
+    try {
+      const d = nip19.decode(uri.slice("nostr:".length).toLowerCase());
+      if (d.type === "naddr" && !out.some((a) => a.uri === uri)) out.push({ kind: d.data.kind, uri });
+    } catch {
+      /* not decodable — dropped with the other keys */
     }
   }
   return out;
@@ -529,6 +553,8 @@ function SerpRowBody(props: SerpRowProps) {
   // A web bookmark is one link with its saver's words: the page's row, not a list of nothing.
   const bookmark = props.event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(props.event) : null;
   if (bookmark) return <WebBookmarkRow {...props} bookmark={bookmark} />;
+  // A repost (NIP-18) is the post it reposts, under who reposted it — never its JSON.
+  if (props.event.kind === 6 || props.event.kind === 16) return <RepostRow {...props} />;
   if (props.event.kind === 9802 && parseHighlight(props.event)) return <HighlightRow {...props} />;
   // A reaction, a zap, a report, a score…: its meaning is in its tags, said as the All tab says it.
   if (ACTIVITY_KINDS.has(props.event.kind) && readKind(props.event)?.title) return <ActivityRow {...props} />;
@@ -632,6 +658,87 @@ function RefQuote({
       </div>
       <div className="mt-0.5 text-[13px] [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
         <Snippet text={words.slice(0, 240)} query={query} lines={2} tags={quoted.tags} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A NIP-18 repost: who reposted, then the reposted post as its own card. Its
+ * content carries the post as JSON, or is empty and names it: by `e`, or — a
+ * generic repost (16) of a replaceable event — by its `a` address, which names
+ * the latest version rather than the one reposted. Its `k` says what kind it
+ * is before the post arrives.
+ */
+function RepostRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
+  const [, setLocation] = useLocation();
+  const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  const refs = useMemo(() => analyzeNote(event), [event]);
+  const inner = refs.repostEvent ?? null;
+  const innerAuthor = useLiveProfiles(inner ? [inner.pubkey] : []).get(inner?.pubkey ?? "");
+  const addr = !inner && event.kind === 16 ? refs.addrs[0] : undefined;
+  const k = tagVal(event, "k");
+  const what = event.kind === 16 && k && /^\d+$/.test(k) ? kindTypeLabel(Number(k)).toLowerCase() : "note";
+  const naddr = (() => {
+    if (!addr) return null;
+    try {
+      return nip19.naddrEncode({
+        kind: addr.kind,
+        pubkey: addr.pubkey,
+        identifier: addr.identifier,
+        relays: addr.relays,
+      });
+    } catch {
+      return null;
+    }
+  })();
+  const nevent = (() => {
+    if (inner || naddr || !refs.repostId || !/^[0-9a-f]{64}$/i.test(refs.repostId)) return null;
+    try {
+      return nip19.neventEncode({ id: refs.repostId.toLowerCase(), relays: refs.quoteRelays.slice(0, 2) });
+    } catch {
+      return null;
+    }
+  })();
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  return (
+    <div {...rowPropsFor(event, open)}>
+      <div className="min-w-0 flex-1" data-testid={`serp-repost-${event.id}`}>
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeOf={event}
+        />
+        {inner ? (
+          <div onClick={stop}>
+            <EmbeddedNoteCard
+              event={inner}
+              author={innerAuthor as ProfileLite | undefined}
+              href={eventPath(inner)}
+              nested
+            />
+          </div>
+        ) : naddr ? (
+          <Link
+            href={`/e/${naddr}`}
+            onClick={stop}
+            className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
+            data-testid="serp-repost-link"
+          >
+            ↳ reposted {what}
+          </Link>
+        ) : nevent ? (
+          <div onClick={stop}>
+            <QuotedNoteCard id={refs.repostId!.toLowerCase()} uri={`nostr:${nevent}`} query={query} />
+          </div>
+        ) : (
+          <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+            Reposted {/^[aeiou]/.test(what) ? "an" : "a"} {what}
+          </p>
+        )}
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
     </div>
   );
@@ -790,7 +897,10 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   // Communities, stalls, handlers, reviews and the rest read through lib/thing:
   // several keep their name in JSON content, where the row would say "Structured data".
   const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
+  // A profile's content is its fields as JSON (NIP-01/24): read as the person, never as "Structured data".
+  const profile = event.kind === 0 ? summaryOf(event) : null;
   const title =
+    profile?.title ??
     thing?.title ??
     tagVal(event, "title") ??
     tagVal(event, "name") ??
@@ -802,7 +912,9 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   const feed = isFeedAccount(author);
   // Marked sensitive (NIP-36): no picture a link brings — the page's own, a preview's — shows in the row.
   const warned = !!contentWarningOf(event);
-  const shared = !title && event.content ? linkResultOf(event.content, { feedAccount: feed }) : null;
+  // A voice message's content is its file, not a link it shares.
+  const shared =
+    !title && event.content && !VOICE_KINDS.has(event.kind) ? linkResultOf(event.content, { feedAccount: feed }) : null;
   const news = shared && !clientRef(shared.url) ? shared : null;
   // The page's own title, description and picture — asked once the row is near.
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -815,9 +927,20 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   // content gets the author's own NIP-31 `alt` line, when they wrote one.
   // Ciphertext and JSON are not for reading: the row says what they are.
   // A news or song row returns before any of this is shown, so it reads nothing.
-  const shape = news || thing || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
+  const shape =
+    news || thing || profile || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
   const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
-  const body = news
+  // A profile, a long-form piece and a voice message each have a line of their own; the rest read below.
+  const ownLine = profile
+    ? (profile.body ?? "")
+    : // An article's line is its NIP-23 `summary`, else its opening words — never its markdown.
+      BRIEF_KINDS.has(event.kind)
+      ? articleBrief(event)
+      : // A voice message's content is its file (NIP-A0): the player below plays it, the words are a caption.
+        VOICE_KINDS.has(event.kind)
+        ? event.content.replace(/https?:\/\/\S+/g, " ").trim()
+        : null;
+  const genericBody = news
     ? ""
     : thing
       ? thing.detail.type === "ballot"
@@ -838,6 +961,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
             tagVal(event, "description") ||
             tagVal(event, "alt") ||
             "";
+  const body = ownLine ?? genericBody;
   const shapeLine =
     shape?.kind === "encrypted"
       ? "Encrypted — only its owner can read it"
@@ -865,6 +989,11 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
         : null;
 
   const rowProps = rowPropsFor(event, open);
+  // The file a voice message plays (NIP-A0), with its imeta's running time.
+  const voiceUrl = VOICE_KINDS.has(event.kind) ? embedAudioUrl(event) : null;
+  const voice = voiceUrl
+    ? { url: voiceUrl, durationSec: mediaItemsOf(event).find((i) => i.url === voiceUrl)?.durationSec }
+    : null;
 
   if (news && wavlakeTrackId(news.url)) {
     // The link IS a song (Wavlake, or a StableKraft storefront on its
@@ -1021,6 +1150,18 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
             <TranslateLine text={body.slice(0, 1000)} />
           </div>
         )}
+        {/* A voice message plays in its row, as on the Media tab's card. */}
+        {voice && (
+          <div className="mt-2 max-w-md" data-noopen onClick={(e) => e.stopPropagation()}>
+            <EmbeddedTrackCard
+              id={`serp:${event.id}`}
+              title={kindLabel(event)}
+              artist={author ? getDisplayLabel(author) : undefined}
+              audio={voice.url}
+              durationSec={voice.durationSec}
+            />
+          </div>
+        )}
         {thing?.detail.type === "market" && (
           <div className="mt-2.5 max-w-md">
             <MarketSummary detail={thing.detail} link={thing.link} testId={`serp-market-${event.id}`} />
@@ -1059,6 +1200,21 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
               <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
             </div>
           ))}
+        {/* A linked article, list or video by address: a way to it, in place of the key the text held. */}
+        {quotedIn(body).length === 0 &&
+          addressesIn(body)
+            .slice(0, 1)
+            .map((a) => (
+              <Link
+                key={a.uri}
+                href={`/e/${a.uri.slice("nostr:".length)}`}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
+                data-testid="serp-address-link"
+              >
+                ↳ {kindTypeLabel(a.kind).toLowerCase()}
+              </Link>
+            ))}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
       <RowThumb event={event} author={author} score={score} onFail={() => setThumbFailed(true)} />

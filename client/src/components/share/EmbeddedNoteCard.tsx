@@ -14,7 +14,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
 import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
+import { analyzeNote, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useArticlesByRefs, useLinkedArticles } from "@/hooks/useLinkedArticles";
 import { EmbeddedListCard } from "@/components/share/ListPreview";
@@ -26,7 +26,7 @@ import { isExpired } from "@/lib/nip40";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { describeThing, THING_KINDS, type Thing } from "@/lib/thing";
-import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { Chip } from "@/components/ui/chip";
 import { embedShapeOf, namesItsKind, type EmbedShape } from "@/lib/embedShape";
 import { kindLabel } from "@/lib/kindLabel";
@@ -402,6 +402,15 @@ function NoteCardBody({
                 {bookmark.title ?? bookmark.url.replace(/^https?:\/\//i, "")}
               </span>
             </a>
+          )}
+          {/* A NIP-7D thread's `title` (a note's NIP-14 subject) heads it, as on its own page. */}
+          {noteHeadingOf(event) && (
+            <p
+              className="mb-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100"
+              data-testid="embedded-heading"
+            >
+              <EmojiText text={noteHeadingOf(event)!} tags={event} />
+            </p>
           )}
           <NoteContent
             key={revealKeyOf(event)}

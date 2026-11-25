@@ -16,8 +16,14 @@ describe("postedAtOf — the date a row or a card shows", () => {
     expect(postedAtOf({ kind: 34236, created_at: NOW, tags: [["published_at", "12"]] })).toBe(NOW);
   });
 
+  it("an article or draft is dated by its NIP-23 published_at, as its own page dates it", () => {
+    for (const kind of [30023, 30024])
+      expect(postedAtOf({ kind, created_at: NOW, tags: [["published_at", String(VINE_DAY)]] })).toBe(VINE_DAY);
+    expect(postedAtOf({ kind: 30023, created_at: NOW, tags: [["published_at", "12"]] })).toBe(NOW);
+  });
+
   it("every other kind keeps created_at, whatever it says about publishing", () => {
-    expect(postedAtOf({ kind: 30023, created_at: NOW, tags: [["published_at", String(VINE_DAY)]] })).toBe(NOW);
     expect(postedAtOf({ kind: 1, created_at: NOW, tags: [["published_at", String(VINE_DAY)]] })).toBe(NOW);
+    expect(postedAtOf({ kind: 30818, created_at: NOW, tags: [["published_at", String(VINE_DAY)]] })).toBe(NOW);
   });
 });

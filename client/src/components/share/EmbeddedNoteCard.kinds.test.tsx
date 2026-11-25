@@ -131,7 +131,7 @@ describe("EmbeddedNoteCard — media", () => {
   it("a quoted voice message is a player, named as what it is", () => {
     quote(ev(1222, [], "https://blossom.example/voice.m4a"));
     expect(screen.getByTestId("embedded-audio")).toBeInTheDocument();
-    expect(screen.getByTestId("embedded-kind")).toHaveTextContent("Audio");
+    expect(screen.getByTestId("embedded-kind")).toHaveTextContent("Voice message");
     expect(screen.getByTestId("embedded-note")).not.toHaveTextContent("blossom.example");
   });
 
