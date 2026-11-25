@@ -1653,7 +1653,8 @@ const PROFILE_PUBLISH_BACKOFF_MS = [800, 2000];
 export async function publishProfile(content: Record<string, unknown>, tags: string[][] = []): Promise<PublishOutcome> {
   // Pinned. The backoff below runs for seconds, which is long enough for an
   // account switch, and re-reading the Active Account per attempt would sign and
-  // cache A's profile as B — the same reason `runInitialSetup` pins.
+  // cache A's profile as B. `runInitialSetup` leans on this: it announces no relay
+  // list of its own, since this one is pinned.
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
 
