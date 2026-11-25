@@ -116,6 +116,31 @@ describe("useNoteRefs", () => {
   });
 });
 
+// A stream of notes changes the set of references with every note that lands;
+// each change asked again for every reference still missing — the earlier
+// notes' too, whose ask was still out.
+describe("notes arriving one by one", () => {
+  const ref = (id: string, n: number): MinimalEvent => ({
+    ...note,
+    id: String(n).repeat(64),
+    content: `nostr:${nip19.neventEncode({ id })}`,
+    tags: [],
+  });
+  it("asks only for the references the new note brings", async () => {
+    const first = "7".repeat(64);
+    const second = "8".repeat(64);
+    const { rerender } = renderHook(({ notes }) => useNoteRefs(notes), {
+      wrapper,
+      initialProps: { notes: [ref(first, 3)] },
+    });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalledTimes(1));
+    rerender({ notes: [ref(first, 3), ref(second, 4)] });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalledTimes(2));
+    expect(eventsByIdsMock.mock.calls[0][0]).toEqual([first]);
+    expect(eventsByIdsMock.mock.calls[1][0]).toEqual([second]);
+  });
+});
+
 describe("capHints", () => {
   it("keeps one budget of relay hints across every reference, not one each", async () => {
     const { capHints, MAX_REF_HINTS } = await import("./useNoteRefs");

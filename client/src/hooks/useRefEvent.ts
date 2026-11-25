@@ -5,6 +5,7 @@
  * by id and one by address, not a REQ per card (ADR 0005).
  */
 import { useMemo } from "react";
+import { isNewerVersion } from "@/lib/newestPerAddress";
 import type { NostrEvent } from "nostr-tools";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { eventStore } from "@/lib/eventStore";
@@ -32,6 +33,7 @@ export function useRefEvent(ref: ResultRef | null): RefEvent {
   const found = useStoreEvents(key, filters, () => fetchRefBatched(ref!));
   const events = found.events as NostrEvent[];
   // An address can answer with several versions: the newest is the one.
-  const event = events.length ? events.reduce((a, b) => (b.created_at > a.created_at ? b : a)) : null;
+  // NIP-01: the newest, and on a tie the lower id.
+  const event = events.length ? events.reduce((a, b) => (isNewerVersion(b, a) ? b : a)) : null;
   return { event, settled: !!event || !key || found.settled };
 }

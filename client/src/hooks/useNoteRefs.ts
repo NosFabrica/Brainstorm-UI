@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { addrCoord, collectRefs, mentionPubkeysFromContent, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
 import { MAX_REF_HINTS, PROFILE_RELAYS } from "@/lib/relays";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
@@ -46,9 +46,16 @@ export function useNoteRefs(
   const idsKey = [...refs.ids].sort().join(",");
   const idHintsKey = refs.idRelays.slice(0, MAX_REF_HINTS).join(",");
   const idFilters = useMemo(() => (idsKey ? [{ ids: idsKey.split(",") }] : null), [idsKey]);
-  const quoted = useStoreEvents(idsKey ? `note-refs:${idsKey}:${idHintsKey}` : null, idFilters, () =>
-    fetchEventsByIds(idsKey.split(","), Array.from(new Set([...relays, ...(idHintsKey ? idHintsKey.split(",") : [])]))),
-  );
+  // Notes stream in, and each one changes the set: every reference is shown
+  // from the store (the filter), but only the ones this mount hasn't asked
+  // for yet are asked — the earlier notes' ask is still out, or done.
+  const askedIds = useRef(new Set<string>());
+  const quoted = useStoreEvents(idsKey ? `note-refs:${idsKey}:${idHintsKey}` : null, idFilters, () => {
+    const fresh = notYetAsked(askedIds.current, idsKey.split(","));
+    return fresh.length
+      ? fetchEventsByIds(fresh, Array.from(new Set([...relays, ...(idHintsKey ? idHintsKey.split(",") : [])])))
+      : Promise.resolve(undefined);
+  });
   const eventsById = useMemo(() => {
     if (!quoted.events.length) return NO_EVENTS;
     return new Map(quoted.events.map((ev) => [ev.id, ev as MinimalEvent]));
@@ -64,9 +71,13 @@ export function useNoteRefs(
   );
   const heldAddrs = useHeldReplaceables(addrs);
   // Held copies render through `heldAddrs`; this asks the relays for newer ones.
-  const askedAddrs = useStoreEvents(addrs.length ? `note-addrs:${addrsKey}` : null, null, async () =>
-    Array.from((await fetchAddressableEvents(addrs, relays).catch(() => new Map())).values()),
-  );
+  const askedCoords = useRef(new Set<string>());
+  const askedAddrs = useStoreEvents(addrs.length ? `note-addrs:${addrsKey}` : null, null, async () => {
+    const fresh = new Set(notYetAsked(askedCoords.current, addrs.map(addrCoord)));
+    if (!fresh.size) return undefined;
+    const asking = addrs.filter((a) => fresh.has(addrCoord(a)));
+    return Array.from((await fetchAddressableEvents(asking, relays).catch(() => new Map())).values());
+  });
   const fetchedAddrs = useMemo(() => {
     if (!askedAddrs.events.length) return NO_EVENTS;
     return new Map(
@@ -93,6 +104,13 @@ export function useNoteRefs(
   const profiles = useLiveProfiles(pubkeys) as Map<string, ProfileLite>;
 
   return { profiles, eventsById, addrByCoord };
+}
+
+/** The keys not in `asked`, which are now marked asked. */
+function notYetAsked(asked: Set<string>, keys: string[]): string[] {
+  const fresh = keys.filter((k) => !asked.has(k));
+  fresh.forEach((k) => asked.add(k));
+  return fresh;
 }
 
 /**

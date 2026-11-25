@@ -37,12 +37,24 @@ const item = (list: string, d: string): NostrEvent => ({
   ],
 });
 
-const h = vi.hoisted(() => ({ headers: [] as unknown[] }));
-vi.mock("@/hooks/useStoreEvents", () => ({
-  useStoreEvents: (key: string | null) => ({ events: key ? h.headers : [], loading: false }),
+const h = vi.hoisted(() => ({
+  headers: [] as unknown[],
+  /** What the tagged items' own asks hold, and whether they have settled. */
+  items: [] as unknown[],
+  settled: true,
+  keys: [] as (string | null)[],
 }));
+vi.mock("@/hooks/useStoreEvents", () => ({
+  useStoreEvents: (key: string | null) => {
+    h.keys.push(key);
+    if (key?.startsWith("tagged-items:coords") || key?.startsWith("tagged-items:ids"))
+      return { events: h.items, loading: false, settled: h.settled };
+    return { events: key ? h.headers : [], loading: false, settled: !!key };
+  },
+}));
+vi.mock("@/services/nostr", () => ({ fetchAddressableEvents: vi.fn(), fetchEventsByIds: vi.fn() }));
 
-import { useListNames } from "./useTaggedItems";
+import { useListNames, useTaggedItems } from "./useTaggedItems";
 
 const kinds = [
   { key: "places", label: "Places", community: COMMUNITY },
@@ -78,5 +90,22 @@ describe("useListNames", () => {
     const robin = item(`39998:${CURATOR}:birds`, "robin");
     const { result } = renderHook(() => useListNames([robin]), { wrapper });
     expect(result.current.listOf(robin)).toEqual({ singular: "Bird", plural: "Birds" });
+  });
+});
+
+describe("useTaggedItems", () => {
+  // Keyed on items still streaming in, the list headers' ask re-keyed — a REQ
+  // — for every item that arrived. It waits for the items' asks to settle.
+  it("asks for the items' list headers once the items have settled, not per arriving item", () => {
+    h.headers = [];
+    h.items = [item(COMMUNITY, "cafe")];
+    h.settled = false;
+    h.keys = [];
+    const target = `39999:${COPIER}:cafe`;
+    const { rerender } = renderHook(() => useTaggedItems([target]), { wrapper });
+    expect(h.keys.filter((k) => k?.startsWith("tagged-items:lists"))).toEqual([]);
+    h.settled = true;
+    rerender();
+    expect(h.keys.some((k) => k?.startsWith("tagged-items:lists"))).toBe(true);
   });
 });
