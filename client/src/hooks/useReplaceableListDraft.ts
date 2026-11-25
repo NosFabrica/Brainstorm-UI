@@ -178,17 +178,28 @@ export function useReplaceableListDraft<T>(
           if (now.event) eventStore.add(now.event);
           return { success: false, error: NEWER_VERSION_ARRIVED };
         }
-        const res = await send(replacing ? replaceWith : value, { base: newest, createdAt: createdAtPast(newest) });
+        const createdAt = createdAtPast(newest);
+        const res = await send(replacing ? replaceWith : value, { base: newest, createdAt });
         if (res.success) {
           if (res.event) eventStore.add(res.event);
           setDraft(null);
+        } else {
+          // A sender that put its signed copy in the store before the relays
+          // refused it: that copy is the draft's own, not a newer version.
+          const own = eventStore.getReplaceable(kind, pubkey, d) as NostrEvent | undefined;
+          if (own && own.created_at === createdAt) {
+            const value = replacing ? replaceWith : undefined;
+            setDraft((cur) =>
+              cur?.owner === owner ? { ...cur, base: own } : { owner, base: own, value: value ?? readRef.current(own) },
+            );
+          }
         }
         return res;
       } finally {
         setPublishing(false);
       }
     },
-    [pubkey, stale, kind, d, relays, base, value],
+    [pubkey, stale, kind, d, relays, base, value, owner],
   );
 
   return {

@@ -168,6 +168,25 @@ describe("useReplaceableListDraft", () => {
     expect(result.current.value).toEqual(["wss://a", "wss://mine"]);
   });
 
+  it("a publish the relays refused leaves the draft on its own copy, not stale", async () => {
+    const first = version(["wss://a"], 100);
+    eventStore.add(first);
+    probes.next = [answered(first)];
+    const { result } = draftOf();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    act(() => result.current.edit((v) => [...v, "wss://mine"]));
+
+    // As the inbox-relay publish does: the signed copy goes to the store, then the relays say no.
+    const send = vi.fn(async (value: string[], ctx: { createdAt: number }) => {
+      eventStore.add(version(value, ctx.createdAt));
+      return { success: false, error: "All relays failed" };
+    });
+    await act(() => result.current.publish(send));
+    expect(result.current.stale).toBe(false);
+    expect(result.current.dirty).toBe(true);
+    expect(result.current.value).toEqual(["wss://a", "wss://mine"]);
+  });
+
   it("never takes another author's list for this one", async () => {
     const theirs = version(["wss://theirs"], 300, "f".repeat(64));
     probes.next = [answered(theirs)];
