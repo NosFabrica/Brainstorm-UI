@@ -50,6 +50,7 @@ import type { FirstPage } from "@/lib/headStart";
 import { zapDescription } from "@/lib/zapRequest";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
 import { readGitStatus } from "@/lib/gitEvents";
+import { readRelease, readReleaseAsset } from "@/lib/release";
 
 export type SearchTab =
   | "top"
@@ -1327,17 +1328,10 @@ export function fetchReleaseAsset(ids: string[], timeoutMs = 5000): Promise<Rele
     const timer = setTimeout(finish, timeoutMs);
     const sub = relay.req({ ids }).subscribe((msg: { type: string; event?: NostrEvent }) => {
       if (msg.type === "EVENT" && msg.event && (msg.event.kind === 3063 || msg.event.kind === 1063)) {
-        const tag = (n: string) => msg.event!.tags.find((t) => t[0] === n)?.[1];
-        const url = tag("url");
-        if (url && !asset) {
-          const size = Number(tag("size"));
-          asset = {
-            url,
-            mime: tag("m") ?? "",
-            size: Number.isFinite(size) && size > 0 ? size : null,
-            version: tag("version") ?? null,
-            hash: tag("x") ?? null,
-          };
+        // Each kind by its own tags (lib/release): a 1063 (NIP-94) has no version.
+        const file = readReleaseAsset(msg.event);
+        if (file.url && !asset) {
+          asset = { url: file.url, mime: file.mime ?? "", size: file.size, version: file.version, hash: file.hash };
         }
       } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
         finish();
@@ -1363,12 +1357,16 @@ export function fetchReleases(appD: string, publisher: string, timeoutMs = 5000)
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const d = msg.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
-          if (!d.startsWith(`${appD}@`)) return;
+          // Whose release it is, as each shape says (lib/release): NIP-82's `i` is the app's `d`,
+          // NIP-51's `a` its address; a `d` of "<app>@<version>" (NIP-82's rule) for either.
+          const release = readRelease(msg.event);
+          const ofApp = release.app?.address === `32267:${publisher}:${appD}` || d.startsWith(`${appD}@`);
+          if (!ofApp) return;
           releases.push({
-            version: d.slice(appD.length + 1),
+            version: release.version ?? (d.startsWith(`${appD}@`) ? d.slice(appD.length + 1) : d),
             at: msg.event.created_at,
             notes: msg.event.content ?? "",
-            assetIds: msg.event.tags.filter((t) => t[0] === "e" && t[1]).map((t) => t[1]),
+            assetIds: release.assets.map((a) => a.id),
           });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();

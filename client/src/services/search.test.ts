@@ -3120,6 +3120,9 @@ describe("fetchReleases", () => {
   it("returns the app's releases newest-first, ignoring other apps", async () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
+    // An `e` names an event: a hex id (the asset's), one per release here.
+    const assetOf = (d: string) =>
+      d.endsWith("2133") ? "3".repeat(64) : d.endsWith("2132") ? "2".repeat(64) : "9".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
       ({
         id: d,
@@ -3127,7 +3130,7 @@ describe("fetchReleases", () => {
         pubkey: publisher,
         tags: [
           ["d", d],
-          ["e", `asset-${d}`],
+          ["e", assetOf(d)],
         ],
         content: `notes for ${d}`,
         created_at: at,
@@ -3154,15 +3157,51 @@ describe("fetchReleases", () => {
         version: "1.0.2133",
         at: 200,
         notes: "notes for place.poster.app@1.0.2133",
-        assetIds: ["asset-place.poster.app@1.0.2133"],
+        assetIds: ["3".repeat(64)],
       },
       {
         version: "1.0.2132",
         at: 100,
         notes: "notes for place.poster.app@1.0.2132",
-        assetIds: ["asset-place.poster.app@1.0.2132"],
+        assetIds: ["2".repeat(64)],
       },
     ]);
+  });
+
+  it("reads a NIP-82 release's version from its version tag, and a NIP-51 one by its app's a", async () => {
+    const { subject } = controllable();
+    const publisher = "b".repeat(64);
+    const pending = fetchReleases("com.example.app", publisher);
+    await tick();
+    const ev = (id: string, tags: string[][], at: number) =>
+      ({ id, kind: 30063, pubkey: publisher, tags, content: "", created_at: at, sig: "s" }) as NostrEvent;
+    subject.next(
+      frame(
+        ev(
+          "n82",
+          [
+            ["i", "com.example.app"],
+            ["version", "2.0.0-rc1"],
+            ["d", "com.example.app@2.0.0-rc1"],
+          ],
+          300,
+        ),
+      ),
+    );
+    subject.next(
+      frame(
+        ev(
+          "n51",
+          [
+            ["d", "set-1"],
+            ["a", `32267:${publisher}:com.example.app`],
+          ],
+          200,
+        ),
+      ),
+    );
+    subject.next(EOSE);
+    expect((await pending).map((r) => r.version)).toEqual(["2.0.0-rc1", "set-1"]);
   });
 
   it("resolves empty when the app has no releases", async () => {
