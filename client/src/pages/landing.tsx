@@ -950,8 +950,9 @@ export default function Landing() {
 
         {/* The home feed ("What's happening now") is unmounted for now
             (Benjamin, 2026-09-09: "let's remove this for now"); the pristine
-            home is the centered hero and nothing below it. components/feed/
-            HomeFeed keeps the bands for when it comes back. */}
+            home is the centered hero and nothing below it. Its component,
+            components/feed/HomeFeed, was deleted while unmounted; git history
+            keeps it for when it comes back. */}
         {hasSearched && (
           <>
             <BackToTop />

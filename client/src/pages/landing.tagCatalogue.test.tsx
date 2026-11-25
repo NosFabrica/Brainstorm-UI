@@ -53,7 +53,6 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   searchWavlake: async () => ({ artists: [], albums: [], songs: [] }),
   fetchWavlakeTrending: async () => [],
 }));
-vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
 vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
