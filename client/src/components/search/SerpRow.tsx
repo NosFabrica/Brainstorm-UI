@@ -678,11 +678,12 @@ function HighlightRow({ event, author, score, query, engagement, showType = true
 /** NIP-34 patches, pull requests and issues: titled by `subject` or their text (lib/gitPatch), never a `title` tag. */
 const GIT_ITEM_KINDS = new Set([1617, 1618, 1621]);
 
-/** The kinds whose row reads through lib/resultSummary's reader: listings, streams and git items. */
+/** The kinds whose row reads through lib/resultSummary's reader: listings, streams, apps and git items. */
 function readsAsSummary(event: NostrEvent): boolean {
   return (
     (LISTING_EMBED_KINDS.has(event.kind) && parseListing(event) !== null) ||
     event.kind === 30311 ||
+    event.kind === 32267 ||
     GIT_ITEM_KINDS.has(event.kind)
   );
 }

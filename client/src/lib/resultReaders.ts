@@ -37,6 +37,7 @@ import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
 import { OPAQUE_D, tagValue } from "@/lib/tagValue";
 import { gitItemSummaryOf, gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
+import { platformWords } from "@/lib/appPlatforms";
 
 export type ReaderEvent = {
   id: string;
@@ -532,6 +533,9 @@ read([1617, 1618, 1621], (ev) => {
     ]),
   };
 });
+
+// A Zap Store app: what it runs on, as its card says (its name, summary and icon are the generic reading's).
+read([32267], (ev) => ({ facts: platformWords(ev) }));
 
 read([1163], (ev) => ({ facts: unique([tagOf(ev, "dim")]), ref: refOf(ev, "first") }));
 

@@ -239,7 +239,7 @@ export const THING_KIND_FIXTURES: KindFixture[] = [
       ["url", "https://notes.example"],
       ["repository", "https://github.com/example/notes"],
     ]),
-    shows: ["Example Notes"],
+    shows: ["Example Notes", "Android"],
   },
   {
     name: "NIP-89 handler (31990)",

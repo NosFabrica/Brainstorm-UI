@@ -40,6 +40,7 @@ import {
 import { formatBytes } from "@/lib/formatBytes";
 import { ReadingText } from "@/components/share/ReadingText";
 import { EmojiText } from "@/components/ui/custom-emoji";
+import { platformWords } from "@/lib/appPlatforms";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
@@ -55,20 +56,6 @@ function tagVal(event: AppEvent, name: string): string | undefined {
 
 function tagVals(event: AppEvent, name: string): string[] {
   return event.tags.filter((t) => t[0] === name && t[1]).map((t) => t[1]);
-}
-
-function platformWords(event: AppEvent): string[] {
-  const words = new Set<string>();
-  for (const f of tagVals(event, "f")) {
-    const v = f.toLowerCase();
-    if (v.startsWith("android")) words.add("Android");
-    else if (v.startsWith("ios")) words.add("iOS");
-    else if (v.includes("darwin") || v.includes("mac")) words.add("macOS");
-    else if (v.includes("windows")) words.add("Windows");
-    else if (v.includes("linux")) words.add("Linux");
-    else if (v.includes("web")) words.add("Web");
-  }
-  return [...words];
 }
 
 function releaseAge(at: number): string {

@@ -80,6 +80,7 @@ import {
 } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
+import { platformWords } from "@/lib/appPlatforms";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -508,21 +509,8 @@ export const MediaCard = memo(function MediaCard({
   );
 });
 
-/** "android-arm64-v8a" and friends → one human word each, deduped. */
-export function platformWords(event: NostrEvent): string[] {
-  const words = new Set<string>();
-  for (const tag of event.tags) {
-    if (tag[0] !== "f" || !tag[1]) continue;
-    const f = tag[1].toLowerCase();
-    if (f.startsWith("android")) words.add("Android");
-    else if (f.startsWith("ios")) words.add("iOS");
-    else if (f.includes("darwin") || f.includes("mac")) words.add("macOS");
-    else if (f.includes("windows")) words.add("Windows");
-    else if (f.includes("linux")) words.add("Linux");
-    else if (f.includes("web")) words.add("Web");
-  }
-  return [...words];
-}
+// One reading of an app's platforms for its card, its page and its row (lib/appPlatforms).
+export { platformWords };
 
 /**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
