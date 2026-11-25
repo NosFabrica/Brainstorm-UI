@@ -35,6 +35,7 @@ import { signalLabel } from "@/lib/nip85Declaration";
 import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
 import { pageWidth } from "@/lib/pageWidth";
 import { cn } from "@/lib/utils";
+import { sameOriginPath } from "@/lib/safeHref";
 
 /**
  * /setup, in two moods (2026-11-09):
@@ -442,8 +443,11 @@ export default function FinishSetupPage() {
   // A value gate can thread its destination through login → here; honour it once everything's done.
   const nextPath = (() => {
     try {
-      const n = new URLSearchParams(window.location.search).get("next");
-      if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/setup") return n;
+      const n = sameOriginPath(new URLSearchParams(window.location.search).get("next"), window.location.origin, [
+        "/login",
+        "/setup",
+      ]);
+      if (n) return n;
     } catch {
       /* ignore */
     }

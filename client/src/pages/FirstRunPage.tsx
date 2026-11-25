@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { followPubkeys, type FollowOutcome } from "@/services/socialActions";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { pageWidth } from "@/lib/pageWidth";
+import { sameOriginPath } from "@/lib/safeHref";
 
 const TOPIC_ICONS: Record<OnboardingTopicKey, ComponentType<{ className?: string }>> = {
   news: Newspaper,
@@ -57,8 +58,11 @@ type Step = "topics" | "people" | "found" | "done";
 /** Where finishing lands: a threaded ?next=, else search. */
 function nextPath(): string {
   try {
-    const n = new URLSearchParams(window.location.search).get("next");
-    if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/start") return n;
+    const n = sameOriginPath(new URLSearchParams(window.location.search).get("next"), window.location.origin, [
+      "/login",
+      "/start",
+    ]);
+    if (n) return n;
   } catch {
     /* ignore */
   }

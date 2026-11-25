@@ -343,6 +343,13 @@ describe("FirstRunPage", () => {
       await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login?next=%2Fp%2Fabc", { replace: true }));
     });
 
+    it("drops a next that would leave the site, however it is spelled", async () => {
+      // `/\evil.example` passes startsWith("/") && !startsWith("//"); the URL parser reads it as //evil.example.
+      window.history.replaceState({}, "", "/start?next=%2F%5Cevil.example");
+      render(<FirstRunPage />);
+      await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login", { replace: true }));
+    });
+
     it("goes to plain sign in when they were headed nowhere in particular", async () => {
       render(<FirstRunPage />);
       await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/login", { replace: true }));
