@@ -35,10 +35,24 @@ export interface CheckoutTarget {
   url: string;
 }
 
-/** The URL Subscribe opens: the server's checkout_url plus our one parameter. */
+/**
+ * The URL Subscribe opens: the server's checkout_url plus our one parameter.
+ * https only: the page takes a payment. `ref` goes into the query, before any
+ * #fragment, and the query the server wrote is kept as it wrote it (appended
+ * to, never re-serialised by URLSearchParams, which would re-encode the
+ * redirect_uri Flash matches to the character).
+ */
 export function resolveCheckout(plan: BillingPlan | undefined, pubkey: string | null | undefined): CheckoutTarget {
   const base = plan?.checkoutUrl;
   if (!base || !pubkey) return { external: false, url: "" };
-  const sep = base.includes("?") ? "&" : "?";
-  return { external: true, url: `${base}${sep}ref=${encodeURIComponent(pubkey)}` };
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return { external: false, url: "" };
+  }
+  if (url.protocol !== "https:") return { external: false, url: "" };
+  const ref = `ref=${encodeURIComponent(pubkey)}`;
+  url.search = url.search.length > 1 ? `${url.search}&${ref}` : `?${ref}`;
+  return { external: true, url: url.href };
 }

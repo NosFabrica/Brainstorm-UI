@@ -45,4 +45,21 @@ describe("resolveCheckout", () => {
     const t = resolveCheckout(PLAN, "npub with spaces");
     expect(t.url.endsWith("ref=npub%20with%20spaces")).toBe(true);
   });
+
+  it("puts ref in the query, not after a #fragment the server URL carries", () => {
+    const t = resolveCheckout({ ...PLAN, checkoutUrl: "https://vault.example/signup?plan=1#pay" }, PUBKEY);
+    expect(t.url).toBe(`https://vault.example/signup?plan=1&ref=${PUBKEY}#pay`);
+    const bare = resolveCheckout({ ...PLAN, checkoutUrl: "https://vault.example/signup#pay" }, PUBKEY);
+    expect(bare.url).toBe(`https://vault.example/signup?ref=${PUBKEY}#pay`);
+  });
+
+  it("keeps the server's query exactly as it wrote it (redirect_uri matches to the character)", () => {
+    const t = resolveCheckout(PLAN, PUBKEY);
+    expect(t.url.startsWith(PLAN.checkoutUrl!)).toBe(true);
+  });
+
+  it("opens nothing but an https checkout", () => {
+    for (const checkoutUrl of ["javascript:alert(1)", "http://vault.example/signup", "/billing", "not a url"])
+      expect(resolveCheckout({ ...PLAN, checkoutUrl }, PUBKEY), checkoutUrl).toEqual({ external: false, url: "" });
+  });
 });
