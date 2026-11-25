@@ -118,6 +118,20 @@ describe("authenticate", () => {
     expect(verifyEvent(event)).toBe(true);
   });
 
+  // A NIP-42 relay login is kind 22242 with a challenge too: the sign-in is told apart
+  // by its `t` tag and the `relay` tag it never has — nor the client tag, an auth proof.
+  it("signs a login no relay login can pass for: its t tag, its challenge, nothing else", async () => {
+    const transport = createFakeTransport();
+    const sessions = createSessions(transport);
+
+    await sessions.authenticate(signableAccount());
+
+    expect(transport.verified[0].event.tags).toEqual([
+      ["t", "brainstorm_login"],
+      ["challenge", transport.challenges[0]],
+    ]);
+  });
+
   it("writes isAdmin onto the session at the moment the token is minted", async () => {
     const transport = createFakeTransport();
     transport.admin = true;
