@@ -11,9 +11,9 @@ import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } 
 
 import { extractAdminFlag } from "@/lib/jwt";
 import { withTabLock } from "./cross-tab";
-import { withTimeout } from "./remote-signer";
+import { withTimeout } from "./signer-timeout";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
-import { activeAccount, canSignSilently } from "./signing";
+import { activeAccount, canSignSilently, signAs } from "./signing";
 
 export const LOGIN_KIND = 22242;
 
@@ -27,7 +27,16 @@ export const LOGIN_KIND = 22242;
  */
 export const SESSION_SIGN_TIMEOUT_MS = 90_000;
 
-/** The one kind-22242 builder. Every login and re-auth signs exactly this. */
+/**
+ * The one kind-22242 builder. Every login and re-auth signs exactly this.
+ *
+ * A NIP-42 relay login is kind 22242 with a `challenge` tag too, so this one
+ * must stay told apart from it: it carries `["t", "brainstorm_login"]` and never
+ * a `relay` tag, which every NIP-42 login carries. The backend should accept
+ * only that shape (services/relayAuth has the attack it closes). Signed through
+ * signAs, which leaves 22242 without the client tag: an auth proof is never
+ * published.
+ */
 export function loginTemplate(challenge: string): EventTemplate {
   return {
     kind: LOGIN_KIND,
@@ -154,7 +163,7 @@ export function createSessions(
     // A deadline, so a signer that never answers releases the lock instead of holding it for good.
     // Signers with their own, shorter deadline (NIP-46, Amber) still fail first, in their own words.
     const signed = await withTimeout(
-      account.signEvent(loginTemplate(challenge)),
+      signAs(account, loginTemplate(challenge)),
       signTimeoutMs,
       "Your signer didn't answer the sign-in request. Open it, approve the request, and try again.",
     );

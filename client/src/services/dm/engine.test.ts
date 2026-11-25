@@ -94,6 +94,14 @@ function memoryCache(): DmCacheBackend & { rows: Map<string, StoredWrap>; st: Ma
     st,
     wraps: async (owner) => [...rows.values()].filter((r) => r.owner === owner),
     wrapKeys: async (owner) => [...rows.values()].filter((r) => r.owner === owner).map((r) => r.key),
+    wrapsPage: async (owner, { before, limit, oldestFirst }) => {
+      const mine = [...rows.values()]
+        .filter((r) => r.owner === owner)
+        .sort((a, b) => b.at - a.at || (b.key < a.key ? -1 : b.key > a.key ? 1 : 0));
+      if (oldestFirst) mine.reverse();
+      const from = before ? mine.filter((r) => r.at < before.at || (r.at === before.at && r.key < before.key)) : mine;
+      return from.slice(0, limit);
+    },
     putWraps: async (list) => list.forEach((r) => rows.set(r.key, r)),
     deleteWraps: async (keys) => keys.forEach((k) => rows.delete(k)),
     state: async (owner) => st.get(owner),
@@ -1521,34 +1529,51 @@ describe("coming back from the device", () => {
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("reopened");
   });
 
-  it("opens the newest few hundred at start, the rest when idle", async () => {
+  // Every load read all the rows whole (up to 30,000) and opened every one at idle,
+  // Messages opened or not: seconds of AES-GCM and JSON parsing per visit.
+  it("reads and opens the newest few hundred at start, and no more until Messages opens", async () => {
     const me = person();
     const ana = person();
     const cache = memoryCache();
     await cache.putWraps(
-      Array.from({ length: 420 }, (_, i) => keptRow(me.pubkey, ana.pubkey, `m${i}`, NOW - 10_000 + i, `w${i}`)),
+      Array.from({ length: 1420 }, (_, i) => keptRow(me.pubkey, ana.pubkey, `m${i}`, NOW - 10_000 + i, `w${i}`)),
     );
-    const idle: (() => void)[] = [];
+    const read = { whole: 0, rows: 0 };
+    const wraps = cache.wraps;
+    const wrapsPage = cache.wrapsPage!;
+    const opens: string[] = [];
+    const counting: DmCacheBackend = {
+      ...cache,
+      wraps: async (owner) => {
+        read.whole++;
+        return wraps(owner);
+      },
+      wrapsPage: async (owner, page) => {
+        const rows = await wrapsPage(owner, page);
+        read.rows += rows.length;
+        return rows;
+      },
+    };
+    const sealer: Sealer = { ...plainSealer, open: async (e, o) => (opens.push(e), plainSealer.open(e, o)) };
     const engine = new DmEngine(me.account(), {
       ...network({ [me.pubkey]: ["wss://in.example/"] }),
       ...clock(),
-      cache,
-      sealer: plainSealer,
+      cache: counting,
+      sealer,
       now: () => NOW,
-      whenIdle: (fn) => {
-        idle.push(fn);
-        return () => idle.splice(idle.indexOf(fn), 1);
-      },
     });
     await engine.start();
     await engine.hydrated();
+    for (let i = 0; i < 5; i++) await settle();
+    expect(read).toEqual({ whole: 0, rows: 300 });
+    expect(opens).toHaveLength(300);
     expect(engine.store.size).toBe(300);
-    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m419"); // the newest are the ones back
-    while (idle.length) {
-      idle.shift()!();
-      for (let i = 0; i < 5; i++) await settle();
-    }
-    expect(engine.store.size).toBe(420);
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m1419"); // the newest are the ones back
+
+    engine.allowDecrypt();
+    for (let i = 0; i < 20 && engine.store.size < 1420; i++) await settle();
+    expect(engine.store.size).toBe(1420);
+    expect(read.rows).toBe(1420);
     engine.stop();
   });
 
@@ -1565,7 +1590,6 @@ describe("coming back from the device", () => {
       cache,
       sealer: plainSealer,
       now: () => NOW,
-      whenIdle: () => () => {}, // never idle
     });
     await engine.start();
     expect(engine.store.size).toBe(300);
@@ -1589,5 +1613,83 @@ describe("coming back from the device", () => {
     });
     await engine.start();
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("whole");
+  });
+});
+
+describe("DmEngine after sign-out", () => {
+  /** A cache with the real backend's guard: a clear invalidates every guard taken before it. */
+  function clearableCache() {
+    const cache = memoryCache();
+    let epoch = 0;
+    const clear = cache.clear;
+    return Object.assign(cache, {
+      guard: () => {
+        const asked = epoch;
+        return () => asked === epoch;
+      },
+      clear: async () => {
+        epoch++;
+        await clear();
+      },
+    });
+  }
+
+  // Sign-out stops the engine, then clears the cache. A send still publishing then
+  // settled afterwards, scheduled a state write and took a fresh guard when its timer
+  // fired: the sealed outbox (the message's plaintext rumor) came back after the clear,
+  // and was resent at the next sign-in.
+  it("writes nothing back once stopped and cleared, not even a send that settles late", async () => {
+    const me = person();
+    const ana = person();
+    const cache = clearableCache();
+    const c = clock();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    let answer: (r: { ok: boolean; message?: string }) => void = () => {};
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: (relay) =>
+        relay === "wss://ana.example/" ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true }),
+    };
+    const engine = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      ...c,
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    const sending = engine.send(roomKey([me.pubkey, ana.pubkey]), "a secret");
+    await settle();
+
+    engine.stop();
+    await settle();
+    await cache.clear();
+    answer({ ok: false, message: "error: down" });
+    await sending;
+    await settle();
+    c.flush();
+    await settle();
+
+    expect(cache.st.size).toBe(0);
+    expect(cache.rows.size).toBe(0);
+  });
+
+  it("drops its own stop-time flush when the clear came first", async () => {
+    const me = person();
+    const ana = person();
+    const cache = clearableCache();
+    const c = clock();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hello", NOW - 60));
+    const engine = new DmEngine(me.account(), { ...net, ...c, cache, sealer: plainSealer, now: () => NOW });
+    await engine.start();
+    await settle();
+    await cache.clear();
+    engine.stop();
+    await settle();
+    expect(cache.st.size).toBe(0);
+    expect(cache.rows.size).toBe(0);
   });
 });

@@ -22,6 +22,7 @@
  * signing in never sets off a burst of approval prompts.
  */
 import type { NostrEvent } from "nostr-tools";
+import type { SignerFailure as AnySignerFailure } from "@/accounts/signing";
 import { RelayCursors } from "@/lib/dm/cursors";
 import { BackwardPager, type PageHandlers, type PagerSnapshot } from "@/lib/dm/pager";
 import {
@@ -41,7 +42,6 @@ import { Heap } from "@/lib/dm/heap";
 import { DmStore, messageFromRumor, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
 import { chatTags } from "@/lib/dm/rooms";
 import { onAppResume } from "@/lib/appResume";
-import { whenIdle } from "@/lib/idle";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
 import type { CustomEmoji } from "@/lib/customEmoji";
 import {
@@ -82,19 +82,13 @@ export interface DmTransport {
 }
 
 /**
- * `refused`: the signer said no. `failed`: it threw something that isn't a no,
- * a timeout or a broken payload — Alby locked since this page enabled it
- * ("Password is not set") — so it may never have asked the reader at all.
+ * accounts/signing's reading of a signer failure, where a missing extension is
+ * one more "unreachable". `refused`: the signer said no. `failed`: it threw
+ * something that isn't a no, a timeout or a broken payload — Alby locked since
+ * this page enabled it ("Password is not set") — so it may never have asked the
+ * reader at all.
  */
-export type SignerFailure =
-  | "cancelled"
-  | "unreachable"
-  | "refused"
-  | "failed"
-  | "wrong-account"
-  | "broken"
-  /** The signer asked us to slow down: not a failure, a pace. */
-  | "rate-limited";
+export type SignerFailure = Exclude<AnySignerFailure, "missing">;
 
 export interface DmAccount {
   pubkey: string;
@@ -131,8 +125,6 @@ export interface DmEngineDeps {
   onResume?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
-  /** Runs `fn` at the browser's next quiet moment; returns a cancel (lib/idle). */
-  whenIdle?: (fn: () => void) => () => void;
   /**
    * Give up early on a request the signer seems to have dropped (it answered a later
    * one, or has been answering fast and this one sat a whole check). For NIP-46, where
@@ -274,8 +266,12 @@ export class DmEngine {
   private rowsRead?: StoredWrap[];
   private restored = false;
   private draining?: Promise<void>;
-  private cancelIdle?: () => void;
-  /** Messages is open: the rest of the device's messages are opened without waiting for idle. */
+  /**
+   * Where the next page of kept rows starts (newest first), for a cache that reads
+   * them by page (`wrapsPage`); null once every row has been read.
+   */
+  private nextPage: { at: number; key: string } | null | undefined;
+  /** Messages is open: the rest of the device's messages are read and opened. */
   private restNow = false;
   /** wrap id → message id, to merge relays when the same wrap arrives again. */
   private readonly wrapToMessage = new Map<string, string>();
@@ -334,6 +330,12 @@ export class DmEngine {
   private readonly listeners = new Set<() => void>();
   private snap: DmEngineState | null = null;
   private stopped = false;
+  /**
+   * Whether the device cache is still this engine's to write: taken once, when the
+   * engine starts, so a clear (sign-out) after that ends every write it would make —
+   * its stop-time flush, and a send settling after it stopped.
+   */
+  private readonly cacheLive: () => boolean;
 
   constructor(
     private readonly account: DmAccount,
@@ -343,6 +345,7 @@ export class DmEngine {
     this.store = new DmStore(this.me);
     this.now = deps.now ?? (() => Math.floor(Date.now() / 1000));
     this.cache = deps.cache ?? null;
+    this.cacheLive = this.cache?.guard?.() ?? (() => true);
     this.maxConcurrency = deps.concurrency ?? 2;
   }
 
@@ -359,8 +362,8 @@ export class DmEngine {
 
   /**
    * Resolves once the newest messages kept on this device are back in the store
-   * — the inbox's top and anything recent. Older ones follow when idle (or when
-   * Messages opens); they predate this visit, so nothing counts them as news.
+   * — the inbox's top and anything recent. Older ones follow when Messages
+   * opens; they predate this visit, so nothing counts them as news.
    */
   hydrated(): Promise<void> {
     return this.hydrating ?? Promise.resolve();
@@ -406,11 +409,7 @@ export class DmEngine {
       (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
     this.clearPace();
     this.sealOf.clear();
-    this.cancelIdle?.();
-    this.cancelIdle = undefined;
     this.pendingRows = [];
-    // Let a drain waiting between slices see `stopped` and end.
-    this.wakeDrain();
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
     this.stateTimer = undefined;
@@ -419,7 +418,7 @@ export class DmEngine {
     const clearRepeat = this.deps.clearRepeating ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     if (this.ticker !== undefined) clearRepeat(this.ticker);
     this.flushWrites();
-    this.persistState();
+    this.persistState({ final: true });
     this.changed();
     this.listeners.clear();
   }
@@ -624,11 +623,12 @@ export class DmEngine {
    *    That is all connecting needs: `seen` keeps the live tail and the pager
    *    from opening again what the device already has. The engine connects
    *    the moment it is done.
-   * 2. `hydrateRows`, beside the connect: the rows themselves, newest first.
-   *    The newest few hundred are opened at once (the inbox's top, and every
-   *    recent unread); the rest when the browser is idle, or as soon as the
-   *    reader opens Messages (`allowDecrypt`). Each is an AES-GCM open and a
-   *    JSON parse — for 30,000 wraps, seconds of main thread on every load.
+   * 2. `hydrateRows`, beside the connect: the rows themselves, newest first,
+   *    by page where the cache reads by page (`wrapsPage`). The newest few
+   *    hundred are read and opened at once (the inbox's top, and every recent
+   *    unread); the rest only when the reader opens Messages (`allowDecrypt`).
+   *    Each is an AES-GCM open and a JSON parse — for 30,000 wraps, seconds of
+   *    main thread, which a load that never opens Messages no longer pays.
    *
    * Between the two, a wrap the device holds may arrive from a relay before
    * its row is read back: it is set aside with its relays (`arrivedEarly`) and
@@ -693,101 +693,123 @@ export class DmEngine {
 
   private async hydrateRows() {
     if (!this.cache || !this.restored || this.stopped) return;
+    const cache = this.cache;
     const rowsRead = this.rowsRead;
     this.rowsRead = undefined;
+    // By page, newest first, where the cache can: the boot needs the newest few
+    // hundred, and reading 30,000 rows whole (and opening them all at idle) cost
+    // every load seconds of main thread for a Messages screen most never open.
+    const paged = !rowsRead && !!cache.wrapsPage;
     let rows: StoredWrap[];
     try {
-      rows = rowsRead ?? (await this.cache.wraps(this.me));
+      if (paged) {
+        await this.evictOldest();
+        rows = await this.readPage(BOOT_HYDRATE);
+      } else rows = rowsRead ?? (await cache.wraps(this.me));
     } catch {
       for (const id of [...this.unhydrated]) this.releaseRow(id);
       return;
     }
     if (this.stopped) return;
-    // Newest first, so the inbox fills from the top.
-    rows.sort((a, b) => b.at - a.at);
-    if (rows.length > MAX_CACHED_WRAPS) {
-      const evicted = rows.splice(MAX_CACHED_WRAPS);
-      void this.cache.deleteWraps(evicted.map((r) => r.key)).catch(() => {});
-      for (const r of evicted) this.releaseRow(r.wrapId);
+    if (!paged) {
+      // Newest first, so the inbox fills from the top.
+      rows.sort((a, b) => b.at - a.at);
+      if (rows.length > MAX_CACHED_WRAPS) {
+        const evicted = rows.splice(MAX_CACHED_WRAPS);
+        void cache.deleteWraps(evicted.map((r) => r.key)).catch(() => {});
+        for (const r of evicted) this.releaseRow(r.wrapId);
+      }
     }
-    // Open once more: "failed" rows from before failures carried a reason (maybe a
-    // signer's hiccup, not a broken message), and failures judged by older, stricter
-    // unwrap rules (FAILED_RULES) — a seal with tags used to count as broken.
+    this.pendingRows = this.takeRows(rows);
+    // Every row is read (whole, or the one page was all there was): any listed a moment
+    // ago and gone now (another tab evicted it) is not held after all.
+    if (!paged || this.nextPage === null) this.releaseMissing(rows);
+    await this.openRows(BOOT_HYDRATE);
+    if (this.restNow) void this.drainRows();
+  }
+
+  /** Ids of the rows read so far, for `releaseMissing` once the last page is in. */
+  private readonly rowsHeld = new Set<string>();
+
+  /**
+   * One page of kept rows, newest first, from where the last one ended. Sets
+   * `nextPage` to null when nothing older is left.
+   */
+  private async readPage(limit: number): Promise<StoredWrap[]> {
+    if (this.nextPage === null || !this.cache?.wrapsPage) return [];
+    const rows = await this.cache.wrapsPage(this.me, { before: this.nextPage, limit });
+    const last = rows.at(-1);
+    this.nextPage = rows.length < limit || !last ? null : { at: last.at, key: last.key };
+    return rows;
+  }
+
+  /** Past MAX_CACHED_WRAPS, the oldest rows go — read from the old end, only as many as are over. */
+  private async evictOldest() {
+    const over = this.unhydrated.size - MAX_CACHED_WRAPS;
+    if (over <= 0 || !this.cache?.wrapsPage) return;
+    const evicted = await this.cache.wrapsPage(this.me, { limit: over, oldestFirst: true });
+    void this.cache.deleteWraps(evicted.map((r) => r.key)).catch(() => {});
+    for (const r of evicted) this.releaseRow(r.wrapId);
+  }
+
+  /**
+   * Rows read back: held for good, given up on, or waiting to be opened (returned).
+   * Failures judged by older rules are opened once more: "failed" rows from before
+   * failures carried a reason (maybe a signer's hiccup, not a broken message), and
+   * failures judged by older, stricter unwrap rules (FAILED_RULES) — a seal with tags
+   * used to count as broken.
+   */
+  private takeRows(rows: StoredWrap[]): StoredWrap[] {
     const retry = (r: StoredWrap) => !!r.failed && (!r.reason || r.rules !== FAILED_RULES);
     const legacy = rows.filter(retry);
     if (legacy.length) {
-      rows = rows.filter((r) => !retry(r));
-      void this.cache.deleteWraps(legacy.map((r) => r.key)).catch(() => {});
+      void this.cache?.deleteWraps(legacy.map((r) => r.key)).catch(() => {});
       for (const r of legacy) this.releaseRow(r.wrapId);
     }
     const sealer = this.deps.sealer;
     const toOpen: StoredWrap[] = [];
-    const held = new Set<string>();
     for (const row of rows) {
-      held.add(row.wrapId);
+      this.rowsHeld.add(row.wrapId);
+      if (retry(row)) continue;
       this.seen.add(row.wrapId);
       // Seen and nothing more: a failure kept on purpose, or a device that can't seal.
       if (!row.envelope || !sealer?.supported()) this.settleRow(row.wrapId);
       else toOpen.push(row);
     }
-    // Listed a moment ago, gone now (another tab evicted it): not held after all.
-    for (const id of [...this.unhydrated]) if (!held.has(id)) this.releaseRow(id);
-    this.pendingRows = toOpen;
-    await this.openRows(BOOT_HYDRATE);
-    this.scheduleRest();
+    return toOpen;
   }
 
-  /** The rest of the device's messages, once the browser is idle — or now, if Messages is open. */
-  private scheduleRest() {
-    if (this.stopped || !this.pendingRows.length || this.draining || this.cancelIdle) return;
-    // Messages opened before the boot slice was done: the rest go now, not at the next idle moment.
-    if (this.restNow) {
-      void this.drainRows();
-      return;
-    }
-    const idle = this.deps.whenIdle ?? whenIdle;
-    this.cancelIdle = idle(() => {
-      this.cancelIdle = undefined;
-      void this.drainRows();
-    });
+  /** Listed at restore, gone by the time every row was read (another tab evicted it): not held after all. */
+  private releaseMissing(rows: StoredWrap[]) {
+    for (const r of rows) this.rowsHeld.add(r.wrapId);
+    for (const id of [...this.unhydrated]) if (!this.rowsHeld.has(id)) this.releaseRow(id);
+    this.rowsHeld.clear();
   }
 
-  /** The reader is in Messages: everything this device holds, at once (still yielding between slices). */
+  /** The reader is in Messages: everything this device holds, read and opened (yielding between slices). */
   private hydrateRest() {
     this.restNow = true;
-    this.cancelIdle?.();
-    this.cancelIdle = undefined;
-    // A drain waiting between slices for an idle moment that was just cancelled: woken, or it
-    // would wait for good — and `drainRows` below would hand back that stuck drain.
-    this.wakeDrain();
-    if (this.pendingRows.length) void this.drainRows();
-  }
-
-  /** Resolves the drain's wait between slices, if it is waiting (see `drainRows`). */
-  private drainWaiting?: () => void;
-
-  private wakeDrain() {
-    const wake = this.drainWaiting;
-    this.drainWaiting = undefined;
-    wake?.();
+    if (this.restored && (this.pendingRows.length || this.nextPage)) void this.drainRows();
   }
 
   private drainRows(): Promise<void> {
     this.draining ??= (async () => {
-      while (!this.stopped && this.pendingRows.length) {
+      while (!this.stopped) {
+        if (!this.pendingRows.length) {
+          if (!this.nextPage) break;
+          let rows: StoredWrap[];
+          try {
+            rows = await this.readPage(HYDRATE_PAGE);
+          } catch {
+            break;
+          }
+          if (this.stopped) break;
+          this.pendingRows = this.takeRows(rows);
+          if (this.nextPage === null) this.releaseMissing([]);
+          if (!this.pendingRows.length) continue;
+        }
         await this.openRows(HYDRATE_SLICE);
-        if (!this.pendingRows.length || this.stopped) break;
-        // One slice per idle moment, unless the reader is waiting for them.
-        if (this.restNow) await yieldToMain();
-        else
-          await new Promise<void>((resolve) => {
-            this.drainWaiting = resolve;
-            this.cancelIdle = (this.deps.whenIdle ?? whenIdle)(() => {
-              this.cancelIdle = undefined;
-              this.drainWaiting = undefined;
-              resolve();
-            });
-          });
+        if (this.pendingRows.length || this.nextPage) await yieldToMain();
       }
     })().finally(() => {
       this.draining = undefined;
@@ -859,7 +881,7 @@ export class DmEngine {
     }
     const rows = this.writes;
     this.writes = [];
-    if (rows.length && this.cache) void this.cache.putWraps(rows).catch(() => {});
+    if (rows.length && this.cache && this.cacheLive()) void this.cache.putWraps(rows).catch(() => {});
   }
 
   private async keepOpened(message: DmMessage) {
@@ -885,7 +907,7 @@ export class DmEngine {
   }
 
   private scheduleState() {
-    if (!this.cache || this.stateTimer !== undefined) return;
+    if (!this.cache || this.stopped || this.stateTimer !== undefined) return;
     const set = this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.stateTimer = set(() => {
       this.stateTimer = undefined;
@@ -895,13 +917,13 @@ export class DmEngine {
 
   /**
    * Writes go one after another, so a slow seal can't land an older state over
-   * a newer one; and a write asked for before sign-out cleared the cache is
-   * dropped, not replayed into the next account's session.
+   * a newer one; and nothing is written once sign-out has cleared the cache
+   * (`cacheLive`), not replayed into the next account's session. Once stopped,
+   * only stop's own flush writes.
    */
-  private persistState() {
-    if (!this.cache) return;
+  private persistState({ final = false }: { final?: boolean } = {}) {
+    if (!this.cache || (this.stopped && !final) || !this.cacheLive()) return;
     const cache = this.cache;
-    const stillValid = cache.guard?.();
     const base = {
       owner: this.me,
       lastSeen: this.lastSeen,
@@ -911,7 +933,7 @@ export class DmEngine {
     this.persistChain = this.persistChain
       .then(async () => {
         const outbox = await this.sealOutbox().catch(() => undefined);
-        if (stillValid && !stillValid()) return;
+        if (!this.cacheLive()) return;
         await cache.putState({ ...base, ...(outbox ? { outbox } : {}) });
       })
       .catch(() => {});
@@ -1058,7 +1080,7 @@ export class DmEngine {
 
   /** The reader opened Messages: open everything waiting, prompting the signer if it must. */
   allowDecrypt(): void {
-    // …and everything this device kept, without waiting for an idle moment.
+    // …and everything this device kept, read and opened now.
     this.hydrateRest();
     this.permitDecrypt();
   }
@@ -1769,7 +1791,9 @@ const NO_INBOX_RETRY_MS = [20_000, 120_000];
 
 /** Opened from the cache this many at a time, yielding between. */
 const HYDRATE_SLICE = 250;
-/** Opened from the cache at start, newest first; the rest wait for an idle moment or for Messages. */
+/** Rows read from the device at a time once Messages is open. */
+const HYDRATE_PAGE = 1000;
+/** Opened from the cache at start, newest first; the rest wait for Messages. */
 const BOOT_HYDRATE = 300;
 /** How far ahead of our clock a message may claim to be written. */
 const FUTURE_SLACK_SECONDS = 600;

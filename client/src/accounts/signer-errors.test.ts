@@ -4,7 +4,7 @@ import { SignerMismatchError } from "applesauce-accounts";
 import { ExtensionMissingError } from "applesauce-signers";
 
 import { UnlockCancelled } from "./local-signer";
-import { RemoteSignerTimeoutError } from "./remote-signer";
+import { RemoteSignerTimeoutError } from "./signer-timeout";
 import { classifySignerError, SignerDeclinedError, signerSaidNo, type SignerErrorKind } from "./signer-errors";
 import { NoSignerError } from "./signing";
 

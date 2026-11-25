@@ -5,7 +5,7 @@ import type { EventTemplate } from "nostr-tools";
 import { SignerMismatchError } from "applesauce-accounts";
 
 import { BrainstormExtensionAccount, EXTENSION_TIMEOUT_MS, TimedExtensionSigner } from "./extension";
-import { isRemoteSignerTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout } from "./signer-timeout";
 import { classifySignerError, SignerDeclinedError, signerSaidNo } from "./signer-errors";
 
 const sk = generateSecretKey();

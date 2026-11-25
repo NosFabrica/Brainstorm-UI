@@ -40,6 +40,7 @@ import { env } from "@/lib/runtimeEnv";
 import { publicOrigin } from "@/lib/publicOrigin";
 import type { AccountMetadata } from "./metadata";
 import { requestSignerApproval } from "./signer-approval";
+import { withTimeout } from "./signer-timeout";
 
 /**
  * nsec.app parses our `relay=` parameters away and answers only here, whatever we
@@ -79,6 +80,20 @@ export const FALLBACK_NIP46_RELAY = "wss://relay.primal.net";
  *
  * A `bunker://` pairing never reaches here — those relays come from the URI the
  * signer generated, and we are not the ones choosing.
+ *
+ * It is also where we listen for a signer, and nothing else is.
+ *
+ * `NSEC_APP_RELAY` was in here so nsec.app could be paired by QR at all — it
+ * ignores our `relay=` and answers only on its own. Removed 2026-08-12: it is
+ * unreachable from at least one real deployment's network, where it produced a
+ * permanent background reconnect loop and, before the transport was fixed, took
+ * every signer down with it. Carrying a relay that fails for everyone to serve
+ * one signer is the wrong trade.
+ *
+ * What it costs: nsec.app can no longer be paired by `nostrconnect://`. It can
+ * still be paired by pasting a `bunker://` link, which brings its own relays —
+ * and `followSignerRelays` now moves us onto whatever a signer names, so that
+ * route needs nothing from this list.
  */
 export function advertisedRelays(): string[] {
   const configured = env.VITE_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
@@ -97,25 +112,6 @@ function safeRelayURL(configured: string): string | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Where we listen for a signer: the relay we advertise, and nothing else.
- *
- * `NSEC_APP_RELAY` was in here so nsec.app could be paired by QR at all — it
- * ignores our `relay=` and answers only on its own. Removed 2026-08-12: it is
- * unreachable from at least one real deployment's network, where it produced a
- * permanent background reconnect loop and, before the transport was fixed, took
- * every signer down with it. Carrying a relay that fails for everyone to serve
- * one signer is the wrong trade.
- *
- * What it costs: nsec.app can no longer be paired by `nostrconnect://`. It can
- * still be paired by pasting a `bunker://` link, which brings its own relays —
- * and `followSignerRelays` now moves us onto whatever a signer names, so that
- * route needs nothing from this list.
- */
-export function subscribeRelays(): string[] {
-  return advertisedRelays();
 }
 
 /**
@@ -177,31 +173,6 @@ export function appMetadata(): NostrConnectAppMetadata {
     url: origin,
     image: `${origin}/favicon-192.png`,
   };
-}
-
-/** A request the signer never answered. Distinct from one it declined. */
-export class RemoteSignerTimeoutError extends Error {
-  constructor(message = "Your signer didn't respond.") {
-    super(message);
-    this.name = "RemoteSignerTimeoutError";
-  }
-}
-
-export function isRemoteSignerTimeout(error: unknown): boolean {
-  return error instanceof RemoteSignerTimeoutError || (error as { name?: string })?.name === "RemoteSignerTimeoutError";
-}
-
-/**
- * Give a promise a deadline. The loser keeps its handler — `Promise.race`
- * attaches one to both — so a signer answering after we gave up is dropped
- * rather than surfacing as an unhandled rejection.
- */
-export function withTimeout<T>(work: Promise<T>, ms: number, message?: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new RemoteSignerTimeoutError(message)), ms);
-  });
-  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
 export type RemoteSignerOptions = NostrConnectSignerOptions & {
@@ -358,16 +329,6 @@ export class RemoteSigner extends NostrConnectSigner {
 
   signEvent(template: Parameters<NostrConnectSigner["signEvent"]>[0]) {
     return withTimeout(super.signEvent(template), REQUEST_TIMEOUT_MS);
-  }
-
-  /**
-   * Nothing calls this today — the liveness probe that did was removed. Kept
-   * because the deadline is a property of the class, not of that one caller: any
-   * future `ping()` gets it without having to remember, which is the rule the
-   * rest of these overrides exist to hold.
-   */
-  ping(): Promise<"pong"> {
-    return withTimeout(super.ping(), REQUEST_TIMEOUT_MS);
   }
 
   /**

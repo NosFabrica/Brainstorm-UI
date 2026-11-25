@@ -53,6 +53,7 @@ export function bootstrapAccounts({
 
   if (migration) {
     accounts.manager.addAccount(migration.account);
+    for (const other of migration.others) accounts.manager.addAccount(other);
     accounts.manager.setActive(migration.account);
   }
 

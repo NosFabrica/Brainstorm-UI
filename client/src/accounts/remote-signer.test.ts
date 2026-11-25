@@ -8,16 +8,14 @@ import {
   advertisedRelays,
   appMetadata,
   FALLBACK_NIP46_RELAY,
-  isRemoteSignerTimeout,
   NIP46_PERMISSIONS,
   NSEC_APP_RELAY,
   REQUEST_TIMEOUT_MS,
   RemoteAccount,
   RemoteSigner,
   SIGNED_KINDS,
-  subscribeRelays,
-  withTimeout,
 } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./signer-timeout";
 import { installRemoteTransport } from "./remote-transport";
 import { signerApproval$ } from "./signer-approval";
 
@@ -67,7 +65,7 @@ describe("relays", () => {
   // became a permanent background reconnect loop. nsec.app can still be paired by
   // pasting its `bunker://` link, which carries its own relays.
   it("does not carry a relay only one signer needs", () => {
-    expect(subscribeRelays()).not.toContain(NSEC_APP_RELAY);
+    expect(advertisedRelays()).not.toContain(NSEC_APP_RELAY);
   });
 
   it("advertises only ours, so no other signer's traffic routes through it", () => {
@@ -106,7 +104,7 @@ describe("relays", () => {
 
   it("puts the narrow set in the URI even though the signer listens broadly", () => {
     installRemoteTransport(createFakeRemoteSigner().pool);
-    const signer = new RemoteSigner({ relays: subscribeRelays(), requireConnectSecret: true });
+    const signer = new RemoteSigner({ relays: advertisedRelays(), requireConnectSecret: true });
     const uri = parseNostrConnectURI(signer.nostrConnectURI());
 
     expect(uri.relays).toEqual(advertisedRelays());

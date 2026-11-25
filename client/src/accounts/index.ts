@@ -9,6 +9,8 @@
  */
 import { bootstrapAccounts } from "./bootstrap";
 import { createMirror } from "./cross-tab";
+import { holdDeviceKey } from "./device-key";
+import { retireAccount } from "./retire";
 import { setReadersOwnPubkeys } from "@/lib/localNetwork";
 
 export const accounts = bootstrapAccounts();
@@ -30,4 +32,11 @@ accountManager.accounts$.subscribe((list) => setReadersOwnPubkeys(list.map((acco
 export const accountMirror = createMirror({
   manager: accountManager,
   persistence: accounts.persistence,
+  retire: (account) => retireAccount(account, { manager: accountManager, persistence: accounts.persistence }),
 });
+
+/**
+ * While this tab holds an account, the device key stays (accounts/device-key): an
+ * account kept for one tab only is in that tab's storage, which no other can read.
+ */
+accountManager.accounts$.subscribe((list) => holdDeviceKey(list.length > 0));

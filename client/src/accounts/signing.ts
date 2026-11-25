@@ -69,19 +69,58 @@ const SIGNER_DECLINED = "Your signer declined the request.";
 const SIGNER_OTHER_PROFILE =
   "Your signer is on a different profile than this account. Switch back to it in your signer, then try again.";
 
-export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
+/**
+ * What a failed signer request means for whoever asked — a publish here, an open
+ * in the DM engine (services/dm) — decided once, from `classifySignerError`.
+ */
+export type SignerFailure =
+  /** The reader dismissed our own unlock prompt. */
+  | "cancelled"
+  /** No answer in time: worth asking again, once someone opens the signer. */
+  | "unreachable"
+  /** No signer to ask: the extension isn't in this browser (yet). */
+  | "missing"
+  /** The signer said no. */
+  | "refused"
+  /** It failed without asking anyone (Alby locked since the page enabled it). */
+  | "failed"
+  /** The signer answered as another profile. */
+  | "wrong-account"
+  /** The payload, not the signer: it will never open. */
+  | "broken"
+  /** The signer asked us to slow down: a pace, never a fault. */
+  | "rate-limited";
+
+/**
+ * `heldHere`: a key held on this device, which can't say no — once unlocked,
+ * any failure that isn't a pace or a profile mix-up is the payload's.
+ */
+export function signerFailure(error: unknown, { heldHere = false }: { heldHere?: boolean } = {}): SignerFailure {
   const kind = classifySignerError(error);
-  if (kind === "cancelled") return { success: false, cancelled: true };
+  if (kind === "cancelled") return "cancelled";
+  if (kind === "timeout") return "unreachable";
+  if (kind === "missing") return "missing";
+  if (kind === "rate-limited") return "rate-limited";
+  if (kind === "wrong-account") return "wrong-account";
+  if (heldHere || kind === "bad-payload") return "broken";
+  // Only a "no" is a no: anything else failed without asking anyone, and calling it
+  // a decline told the reader they had refused a prompt they never saw.
+  return kind === "declined" ? "refused" : "failed";
+}
+
+export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
+  const failure = signerFailure(error);
+  if (failure === "cancelled") return { success: false, cancelled: true };
   // Flagged, not just worded: a signer that has gone quiet is waiting on a person
   // to open or re-pair it, so a caller with a retry timer must stop rather than
   // re-ask every few seconds — each attempt burning another 30s deadline.
-  if (kind === "timeout") {
+  if (failure === "unreachable") {
     return { success: false, error: SIGNER_SILENT, signerUnreachable: true };
   }
-  if (kind === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE, declined: true };
+  if (failure === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE, declined: true };
   // Amber's clipboard flow rejects with a bare string, not an Error.
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
-  if (kind === "declined") return { success: false, error: message || SIGNER_DECLINED, declined: true };
+  if (failure === "refused") return { success: false, error: message || SIGNER_DECLINED, declined: true };
   return { success: false, error: message };
 }
 

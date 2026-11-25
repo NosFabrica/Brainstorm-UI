@@ -21,6 +21,7 @@ import type { ISigner } from "applesauce-signers";
 import { EMPTY, map, merge, Subject, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
+import { retireInMemory } from "./retire";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import type { StoredPasskey } from "./passkey";
 import type { Persistence } from "./persist";
@@ -115,6 +116,12 @@ export type MirrorOptions = {
    * the Account itself on the channel, so the blob answers for it.
    */
   persistence?: Pick<Persistence, "adopt">;
+  /**
+   * How an Account another tab removed leaves this one: out of the manager, and
+   * everything it held with it (accounts/retire retireAccount, in the app). Left
+   * out, it is removed and its signer let go of in memory only.
+   */
+  retire?: (account: BrainstormAccount) => void;
 };
 
 export type Mirror = {
@@ -127,7 +134,15 @@ function metadataOf(account: BrainstormAccount): Observable<unknown> {
   return (account as unknown as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
 }
 
-export function createMirror({ manager, channel = browserChannel(), persistence }: MirrorOptions): Mirror {
+export function createMirror({
+  manager,
+  channel = browserChannel(),
+  persistence,
+  retire = (account) => {
+    manager.removeAccount(account);
+    retireInMemory(account);
+  },
+}: MirrorOptions): Mirror {
   const changes = new Subject<MirroredChange>();
 
   /** True while an inbound message is being applied, so applying it says nothing back. */
@@ -270,9 +285,9 @@ export function createMirror({ manager, channel = browserChannel(), persistence 
     const previous = (manager.active ?? null) as BrainstormAccount | null;
     const wasActive = previous?.id === account.id;
 
-    manager.removeAccount(account);
-    // The security-relevant half: an in-memory key must not outlive its Account.
-    if (account instanceof LocalAccount) account.signer.lock();
+    // The security-relevant half: an in-memory key must not outlive its Account, and
+    // its signer's open connections (a bunker's relay subscription) mustn't either.
+    retire(account);
 
     if (wasActive) changes.next({ account: null, previous });
   }

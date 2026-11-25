@@ -8,9 +8,10 @@
  * didn't go through) until the reader asks again.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BehaviorSubject, Subject } from "rxjs";
+import { BehaviorSubject, Subject, of } from "rxjs";
 import {
   askRelayAuthAgain,
+  chosenRelays$,
   relayAuthProblems,
   setRelayAuthInteractive,
   startRelayAuth as realStartRelayAuth,
@@ -18,8 +19,10 @@ import {
 
 // Every watcher is stopped after its test: refusals are kept per account across the module.
 const stops: (() => void)[] = [];
+/** The relays these tests' reader chose (their 10002 and 10050, in the app). */
+const CHOSEN = new Set(["wss://anyone.example/", "wss://gated.example/", "wss://polite.example/"]);
 const startRelayAuth = ((opts) => {
-  const stop = realStartRelayAuth(opts);
+  const stop = realStartRelayAuth({ chosenRelays: () => of(CHOSEN), ...opts });
   stops.push(stop);
   return stop;
 }) as typeof realStartRelayAuth;
@@ -106,7 +109,7 @@ describe("startRelayAuth", () => {
     expect(account.signEvent).toHaveBeenCalledTimes(1);
   });
 
-  it("answers a relay that refused a write — a recipient's inbox relay, say", async () => {
+  it("answers a relay of theirs that refused a write — their own outbox, say", async () => {
     const { gated } = setup();
     gated.authRequiredForRead$.next(false);
     gated.challenge$.next("c1");
@@ -177,6 +180,51 @@ describe("startRelayAuth", () => {
       await tick();
       expect(ours.authenticate).toHaveBeenCalledTimes(1);
     }
+  });
+
+  // A relay the reader never chose — reached through someone else's outbox list, by
+  // viewing their profile — gets no login: it could be asking for a signed 22242
+  // to replay elsewhere, and it learns nothing of who is reading.
+  it("never logs in to a relay the reader didn't choose, refused read or write", async () => {
+    const chosen$ = new BehaviorSubject<ReadonlySet<string>>(new Set());
+    const { gated } = setup({ chosenRelays: () => chosen$ });
+    gated.challenge$.next("c1");
+    gated.authRequiredForPublish$.next(true);
+    await tick();
+    expect(gated.authenticate).not.toHaveBeenCalled();
+    expect(account.signEvent).not.toHaveBeenCalled();
+    // Their own relay list arriving (or naming it later) is when it becomes theirs.
+    chosen$.next(new Set([GATED]));
+    await tick();
+    expect(gated.authenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("never answers for a new account from the relays the previous one chose", async () => {
+    const pool = fakePool();
+    const theirs = fakeRelay("wss://theirs.example/");
+    pool.relays.set(theirs.url, theirs);
+    const active$ = new BehaviorSubject<typeof account | undefined>(account);
+    startRelayAuth({
+      pool: pool as never,
+      active$,
+      // A's list names it; B's list hasn't arrived yet.
+      chosenRelays: (pk) => (pk === PK ? of(new Set(["wss://theirs.example/"])) : new Subject<ReadonlySet<string>>()),
+      canSignQuietly: async () => false,
+    });
+    theirs.challenge$.next("c1");
+    active$.next(other);
+    await tick();
+    setRelayAuthInteractive(true);
+    await tick();
+    expect(theirs.authenticate).not.toHaveBeenCalled();
+  });
+
+  it("asks for the active reader's own relays, by pubkey", async () => {
+    const chosenRelays = vi.fn(() => of(new Set<string>()));
+    const { active$ } = setup({ chosenRelays });
+    active$.next(other);
+    await tick();
+    expect(chosenRelays.mock.calls.map((c) => (c as unknown[])[0])).toEqual([PK, PK2]);
   });
 
   it("signs the login through the given signer (signAs, in the app)", async () => {
@@ -353,6 +401,30 @@ describe("startRelayAuth", () => {
     gated.challenge$.next("c1");
     await tick();
     expect(gated.authenticate).not.toHaveBeenCalled();
+  });
+});
+
+describe("chosenRelays$", () => {
+  it("is the reader's 10002 and 10050 relays, with the app's own, as the store holds them", async () => {
+    const { eventStore } = await import("@/lib/eventStore");
+    const { finalizeEvent, generateSecretKey, getPublicKey } = await import("nostr-tools");
+    const sk = generateSecretKey();
+    const pk = getPublicKey(sk);
+    const seen: ReadonlySet<string>[] = [];
+    const sub = chosenRelays$(pk).subscribe((set) => seen.push(set));
+    expect(seen.at(-1)?.has("wss://mine.example/")).toBe(false);
+    expect(seen.at(-1)?.has("wss://search.brainstorm.world/")).toBe(true);
+    const at = Math.floor(Date.now() / 1000);
+    eventStore.add(
+      finalizeEvent({ kind: 10002, created_at: at, content: "", tags: [["r", "wss://mine.example"]] }, sk),
+    );
+    eventStore.add(
+      finalizeEvent({ kind: 10050, created_at: at, content: "", tags: [["relay", "wss://inbox.example"]] }, sk),
+    );
+    expect(seen.at(-1)?.has("wss://mine.example/")).toBe(true);
+    expect(seen.at(-1)?.has("wss://inbox.example/")).toBe(true);
+    expect(seen.at(-1)?.has("wss://stranger.example/")).toBe(false);
+    sub.unsubscribe();
   });
 });
 
