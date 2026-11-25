@@ -15,6 +15,7 @@
  * services/placeReviews.
  */
 import { starsOf } from "@/lib/thing";
+import { safeHref } from "@/lib/safeHref";
 
 export type Paid = "lightning" | "onchain" | "card" | "cash";
 export const PAID_LABELS: Record<Paid, string> = {
@@ -73,16 +74,21 @@ const tagOf = (tags: string[][], name: string) => tags.find((t) => t[0] === name
 
 const PAID = new Set<string>(Object.keys(PAID_LABELS));
 
-/** Each photo's address: the `url` of an `imeta` tag (NIP-92). */
+/**
+ * Each photo's address: the `url` of an `imeta` tag (NIP-92), web addresses
+ * only. The photos are links (PlaceReviews, BookReviews), so a `javascript:`
+ * url someone wrote is no photo at all.
+ */
 function photosOf(tags: string[][]): string[] {
   const urls = tags
     .filter((t) => t[0] === "imeta")
     .map((t) =>
-      t
-        .slice(1)
-        .find((part) => part.startsWith("url "))
-        ?.slice(4)
-        .trim(),
+      safeHref(
+        t
+          .slice(1)
+          .find((part) => part.startsWith("url "))
+          ?.slice(4),
+      ),
     )
     .filter((url): url is string => !!url);
   return [...new Set(urls)];
