@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { INSTALL_EXTRAS, strategyFor } from "./sw";
+import { INSTALL_EXTRAS, notificationPath, strategyFor } from "./sw";
 
 const ORIGIN = "https://brainstorm.world";
 const page = { method: "GET", mode: "navigate" };
@@ -75,5 +75,28 @@ describe("what the worker keeps when it installs", () => {
       expect(existsSync(resolve(__dirname, "../../public", file.slice(1))), file).toBe(true);
       expect(strategyFor(at(file), fetch, ORIGIN), file).not.toBeNull();
     }
+  });
+});
+
+describe("where a tapped notification opens", () => {
+  it("on the path it names, here", () => {
+    expect(notificationPath("/messages/abc", ORIGIN)).toBe("/messages/abc");
+    expect(notificationPath("/e/nevent1abc?x=1#reply", ORIGIN)).toBe("/e/nevent1abc?x=1#reply");
+  });
+
+  it("never on another site, however the url is spelled", () => {
+    for (const url of [
+      "//evil.example/",
+      "/\\evil.example",
+      "/\t/evil.example",
+      "/.//evil.example",
+      "https://evil.example/",
+      "javascript:alert(1)",
+      "messages",
+      42,
+      null,
+      undefined,
+    ])
+      expect(notificationPath(url, ORIGIN), String(url)).toBe("/");
   });
 });
