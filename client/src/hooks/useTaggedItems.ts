@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { dlistCoordinateOf } from "@/lib/dlists";
@@ -65,14 +65,20 @@ export function useTaggedItems(targets: string[]): {
 
   const lists = useListNames(events);
 
-  return {
-    eventOf: (target) => events.get(target),
-    listOf: (target) => {
-      const item = events.get(target);
-      return item ? lists.listOf(item) : null;
-    },
-    loading: byId.loading || byCoord.loading || lists.loading,
-  };
+  const { listOf: listOfItem } = lists;
+  const loading = byId.loading || byCoord.loading || lists.loading;
+  // One object while nothing it reads changes, so a caller can memoize on it.
+  return useMemo(
+    () => ({
+      eventOf: (target: string) => events.get(target),
+      listOf: (target: string) => {
+        const item = events.get(target);
+        return item ? listOfItem(item) : null;
+      },
+      loading,
+    }),
+    [events, listOfItem, loading],
+  );
 }
 
 /**
@@ -144,11 +150,12 @@ export function useListNames(events: ReadonlyMap<string, NostrEvent> | readonly 
     return out;
   }, [lists.events, kinds]);
 
-  return {
-    listOf: (event) => {
+  const listOf = useCallback(
+    (event: { kind: number; tags: string[][] }) => {
       const list = isDListItem(event) ? dlistCoordinateOf(event) : null;
       return (list && namesByList.get(list)) || null;
     },
-    loading: lists.loading,
-  };
+    [namesByList],
+  );
+  return { listOf, loading: lists.loading };
 }
