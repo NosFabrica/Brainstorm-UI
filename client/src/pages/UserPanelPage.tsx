@@ -70,6 +70,16 @@ import { fetchProfiles, getNip85RelayUrl } from "@/services/nostr";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { accountManager } from "@/accounts";
+import {
+  publishFailure,
+  readAgentState,
+  readPreviousScores,
+  saveAgentState,
+  savePreviousScores,
+  type AgentState,
+  type AgentStatus,
+} from "./userPanelState";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
@@ -83,7 +93,6 @@ import { cn } from "@/lib/utils";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
-type AgentStatus = "dormant" | "activating" | "active" | "established" | "networked" | "trusted";
 
 interface FollowedUser {
   pubkey: string;
@@ -107,19 +116,6 @@ interface TaHistoryEntry {
   eventKind: number;
   relays: string[];
   status: "success" | "failure" | "pending";
-}
-
-interface AgentState {
-  name: string;
-  description: string;
-  picture: string;
-  banner: string;
-  lud16: string;
-  nip05: string;
-  website: string;
-  status: AgentStatus;
-  activatedAt: number | null;
-  publishedAt: number | null;
 }
 
 const AGENT_STATUS_CONFIG: Record<
@@ -242,45 +238,6 @@ const ACHIEVEMENTS = [
   },
 ];
 
-function getDefaultAgentState(): AgentState {
-  try {
-    const stored = localStorage.getItem("brainstorm_agent_state");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        name: parsed.name || "",
-        description: parsed.description || "",
-        picture: parsed.picture || "",
-        banner: parsed.banner || "",
-        lud16: parsed.lud16 || "",
-        nip05: parsed.nip05 || "",
-        website: parsed.website || "",
-        status: parsed.status || "dormant",
-        activatedAt: parsed.activatedAt || null,
-        publishedAt: parsed.publishedAt || null,
-      };
-    }
-  } catch {}
-  return {
-    name: "",
-    description: "",
-    picture: "",
-    banner: "",
-    lud16: "",
-    nip05: "",
-    website: "",
-    status: "dormant",
-    activatedAt: null,
-    publishedAt: null,
-  };
-}
-
-function saveAgentState(state: AgentState) {
-  try {
-    localStorage.setItem("brainstorm_agent_state", JSON.stringify(state));
-  } catch {}
-}
-
 function getTier(influence: number): { name: string; color: string; badgeClass: string } {
   if (influence >= 0.8)
     return {
@@ -342,19 +299,33 @@ function StatusLevelBar({ currentLevel }: { currentLevel: number }) {
   );
 }
 
+/** One identity's panel: remounted on an Account switch, so nothing typed or stored carries over. */
 export default function UserPanelPage() {
+  const user = useActiveAccountDisplay();
+  return <UserPanel key={user?.pubkey ?? "signed-out"} />;
+}
+
+/** Whether this device holds only one identity, so an unkeyed row from before can only be theirs. */
+function soleIdentityOnDevice(): boolean {
+  return new Set(accountManager.accounts.map((a) => a.pubkey)).size <= 1;
+}
+
+function UserPanel() {
   const tierRing = useTierRing();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
-  const [agentState, setAgentState] = useState<AgentState>(getDefaultAgentState);
-  const [agentNameInput, setAgentNameInput] = useState(() => getDefaultAgentState().name);
-  const [agentDescInput, setAgentDescInput] = useState(() => getDefaultAgentState().description);
-  const [agentPictureInput, setAgentPictureInput] = useState(() => getDefaultAgentState().picture);
-  const [agentBannerInput, setAgentBannerInput] = useState(() => getDefaultAgentState().banner);
-  const [agentLud16Input, setAgentLud16Input] = useState(() => getDefaultAgentState().lud16);
-  const [agentNip05Input, setAgentNip05Input] = useState(() => getDefaultAgentState().nip05);
-  const [agentWebsiteInput, setAgentWebsiteInput] = useState(() => getDefaultAgentState().website);
+  const pubkey = user?.pubkey;
+  // Read once per mount; the wrapper remounts this on a switch.
+  const [stored] = useState(() => readAgentState(pubkey, { soleIdentity: soleIdentityOnDevice() }));
+  const [agentState, setAgentState] = useState<AgentState>(stored);
+  const [agentNameInput, setAgentNameInput] = useState(stored.name);
+  const [agentDescInput, setAgentDescInput] = useState(stored.description);
+  const [agentPictureInput, setAgentPictureInput] = useState(stored.picture);
+  const [agentBannerInput, setAgentBannerInput] = useState(stored.banner);
+  const [agentLud16Input, setAgentLud16Input] = useState(stored.lud16);
+  const [agentNip05Input, setAgentNip05Input] = useState(stored.nip05);
+  const [agentWebsiteInput, setAgentWebsiteInput] = useState(stored.website);
   const [agentCardExpanded, setAgentCardExpanded] = useState(false);
   const [activateConfirmOpen, setActivateConfirmOpen] = useState(false);
   const [npubInput, setNpubInput] = useState("");
@@ -364,25 +335,22 @@ export default function UserPanelPage() {
   const [scoreSortField, setScoreSortField] = useState<SortField>("score");
   const [scoreSortDir, setScoreSortDir] = useState<SortDir>("desc");
   const [followedProfiles, setFollowedProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
-  const [previousScores] = useState<Map<string, number>>(() => {
-    try {
-      const stored = localStorage.getItem("brainstorm_previous_scores");
-      if (stored) return new Map(JSON.parse(stored));
-    } catch {}
-    return new Map();
-  });
+  const [previousScores] = useState<Map<string, number>>(() => readPreviousScores(pubkey));
 
   useEffect(() => {
     if (!user) navigate("/", { replace: true });
   }, [user, navigate]);
 
-  const updateAgentState = useCallback((updates: Partial<AgentState>) => {
-    setAgentState((prev) => {
-      const next = { ...prev, ...updates };
-      saveAgentState(next);
-      return next;
-    });
-  }, []);
+  const updateAgentState = useCallback(
+    (updates: Partial<AgentState>) => {
+      setAgentState((prev) => {
+        const next = { ...prev, ...updates };
+        saveAgentState(pubkey, next);
+        return next;
+      });
+    },
+    [pubkey],
+  );
 
   // Hydrate agent state from lightweight one-click publish (BrainstormAssistantCard)
   // so users who published via Dashboard/Settings see "active" status here without re-publishing.
@@ -409,10 +377,10 @@ export default function UserPanelPage() {
         publishedAt: lwTs,
         activatedAt: prev.activatedAt || lwTs,
       };
-      saveAgentState(next);
+      saveAgentState(pubkey, next);
       return next;
     });
-  }, [lwTs]);
+  }, [lwTs, pubkey]);
 
   const { data: overviewData, isLoading: overviewLoading } = useSelfOverview(user?.pubkey);
   const { data: historyData, isLoading: historyLoading } = useSelfHistory(user?.pubkey);
@@ -501,11 +469,9 @@ export default function UserPanelPage() {
     if (followedUsers.length > 0) {
       const currentScores = new Map<string, number>();
       followedUsers.forEach((u) => currentScores.set(u.pubkey, u.influence));
-      try {
-        localStorage.setItem("brainstorm_previous_scores", JSON.stringify(Array.from(currentScores.entries())));
-      } catch {}
+      savePreviousScores(pubkey, currentScores);
     }
-  }, [followedUsers]);
+  }, [followedUsers, pubkey]);
 
   useEffect(() => {
     if (followingList.length === 0) return;
@@ -647,32 +613,10 @@ export default function UserPanelPage() {
         description: `${agentNameInput.trim() || "Your assistant"} is now live on the Nostr network.`,
       });
     },
+    // Nothing reached the network, whatever the reason: the assistant stays dormant.
     onError: (error: Error) => {
-      const isNoBackend =
-        error.message.includes("404") ||
-        error.message.includes("405") ||
-        error.message.includes("Failed to fetch") ||
-        error.message.includes("NetworkError") ||
-        error.message.includes("Method Not Allowed");
-      if (isNoBackend) {
-        updateAgentState({
-          ...getAgentStateUpdates(),
-          status: "active",
-          activatedAt: Date.now(),
-          publishedAt: Date.now(),
-        });
-        toast({
-          title: "Assistant activated!",
-          description: `${agentNameInput.trim() || "Your assistant"} is now active. Network publishing coming soon.`,
-        });
-      } else {
-        updateAgentState({ status: "dormant" });
-        toast({
-          variant: "destructive",
-          title: "Activation failed",
-          description: error.message || "Something went wrong.",
-        });
-      }
+      updateAgentState({ status: "dormant" });
+      toast({ variant: "destructive", ...publishFailure(error, "activate") });
     },
   });
 
@@ -682,21 +626,7 @@ export default function UserPanelPage() {
       toast({ title: "Assistant updated", description: "Profile published to the network." });
     },
     onError: (error: Error) => {
-      const isNoBackend =
-        error.message.includes("404") ||
-        error.message.includes("405") ||
-        error.message.includes("Failed to fetch") ||
-        error.message.includes("NetworkError") ||
-        error.message.includes("Method Not Allowed");
-      if (isNoBackend) {
-        toast({ title: "Changes saved!", description: "Profile updated locally. Network sync coming soon." });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Update failed",
-          description: error.message || "Could not publish changes.",
-        });
-      }
+      toast({ variant: "destructive", ...publishFailure(error, "update") });
     },
   });
 

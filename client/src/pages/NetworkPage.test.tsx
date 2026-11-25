@@ -6,7 +6,7 @@
  * and the toggle on it changes which perspective the connections are asked for.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -72,14 +72,27 @@ vi.mock("@/components/score/TrustScorePov", async (orig) => ({
 
 // What the page asks the connections for, call by call.
 const connectionsAsked = vi.fn();
+// The rows a section answers with; by default none. Each perspective scores them its own way.
+const PEER = "e".repeat(64);
+const rows = vi.hoisted(() => ({ on: false }));
+// What each row was drawn with.
+const cardTrust = vi.hoisted(() => new Map<string, unknown>());
+vi.mock("@/components/network/NetworkProfileCard", () => ({
+  NetworkProfileCard: ({ pk, trustScore }: { pk: string; trustScore?: number | null }) => {
+    cardTrust.set(pk, trustScore);
+    return <span data-testid={`card-${pk.slice(0, 8)}`}>{String(trustScore)}</span>;
+  },
+}));
 vi.mock("@/hooks/useSelf", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   useSelfOverview: () => ({ data: { data: { counts: { followed_by: 2, following: 1 } } }, isLoading: false }),
   useSelfStats: () => ({ data: undefined, isLoading: false }),
   useSelfConnections: (_pk: string, kind: string, opts: { enabled?: boolean; house?: boolean }) => {
     if (opts?.enabled) connectionsAsked(kind, opts.house);
+    const items =
+      rows.on && kind === "followed_by" && opts?.enabled ? [{ pubkey: PEER, influence: opts.house ? 0.1 : 0.9 }] : [];
     return {
-      data: { pages: [{ data: { items: [], total: 0 } }] },
+      data: { pages: [{ data: { items, total: items.length } }] },
       isFetching: false,
       isLoading: false,
       hasNextPage: false,
@@ -91,7 +104,7 @@ import NetworkPage from "./NetworkPage";
 import { accountKey } from "@/lib/accountStorage";
 
 function show() {
-  renderWithProviders(
+  return renderWithProviders(
     <TooltipProvider>
       <Router hook={memoryLocation({ path: "/network" }).hook}>
         <NetworkPage />
@@ -102,6 +115,8 @@ function show() {
 
 beforeEach(() => {
   perspective = "mywot";
+  rows.on = false;
+  cardTrust.clear();
   connectionsAsked.mockClear();
   localStorage.setItem(accountKey("brainstorm_calc_completed", ME), "true");
 });
@@ -173,5 +188,25 @@ describe("NetworkPage controls", () => {
     const line = await screen.findByTestId("network-perspective");
     expect(line).toHaveTextContent("Scores from Brainstorm's perspective");
     expect(connectionsAsked).toHaveBeenCalledWith("followed_by", true);
+  });
+});
+
+describe("NetworkPage scores", () => {
+  it("shows each row the perspective's own score, and the other's after a switch", async () => {
+    rows.on = true;
+    const view = show();
+    await screen.findByTestId(`card-${PEER.slice(0, 8)}`);
+    expect(cardTrust.get(PEER)).toBe(0.9);
+
+    perspective = "nosfabrica";
+    view.rerender(
+      <TooltipProvider>
+        <Router hook={memoryLocation({ path: "/network" }).hook}>
+          <NetworkPage />
+        </Router>
+      </TooltipProvider>,
+    );
+    await waitFor(() => expect(connectionsAsked).toHaveBeenCalledWith("followed_by", true));
+    await waitFor(() => expect(cardTrust.get(PEER)).toBe(0.1));
   });
 });

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
@@ -410,20 +410,37 @@ export function SchedulingCard({ active }: { active: boolean }) {
     });
   }
 
+  // One PATCH per policy at a time. A quick double toggle sent two with opposite
+  // `enabled`, and whichever landed last won; now the switch flips at once and
+  // the requests go in order, the last one carrying the last intent.
+  const sendingEnabled = useRef(new Set<number>());
+  const wantedEnabled = useRef(new Map<number, boolean>());
+
   async function handleToggleEnabled(p: SchedulingItem) {
-    const next = !(pendingEnabled[p.id] ?? p.enabled);
+    const next = !(wantedEnabled.current.get(p.id) ?? pendingEnabled[p.id] ?? p.enabled);
+    wantedEnabled.current.set(p.id, next);
     setPendingEnabled((m) => ({ ...m, [p.id]: next }));
+    if (sendingEnabled.current.has(p.id)) return; // the request in flight sends it next
+    sendingEnabled.current.add(p.id);
     try {
-      await apiClient.updateSchedulingPolicy(p.id, { enabled: next });
+      let sent: boolean | undefined;
+      while (wantedEnabled.current.get(p.id) !== sent) {
+        sent = wantedEnabled.current.get(p.id)!;
+        await apiClient.updateSchedulingPolicy(p.id, { enabled: sent });
+      }
       await queryClient.invalidateQueries({ queryKey: POLICIES_KEY });
       clearPending(p.id);
     } catch (e) {
       clearPending(p.id); // revert to server truth
+      await queryClient.invalidateQueries({ queryKey: POLICIES_KEY });
       toast({
         title: "Couldn't update policy",
         description: e instanceof Error ? e.message : "Unknown error",
         variant: "destructive",
       });
+    } finally {
+      sendingEnabled.current.delete(p.id);
+      wantedEnabled.current.delete(p.id);
     }
   }
 

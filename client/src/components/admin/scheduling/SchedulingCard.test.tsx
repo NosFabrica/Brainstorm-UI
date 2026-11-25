@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { act, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { apiClient, type SchedulingItem } from "@/services/api";
 import { SchedulingCard } from "./SchedulingCard";
@@ -199,6 +199,31 @@ describe("SchedulingCard", () => {
     fireEvent.click(within(row).getByRole("switch"));
 
     await waitFor(() => expect(updateSpy).toHaveBeenCalledWith(2, { enabled: false }));
+  });
+
+  it("sends a quick double toggle one PATCH at a time, ending on the last intent", async () => {
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([DAILY]);
+    const answers: Array<() => void> = [];
+    const updateSpy = vi
+      .spyOn(apiClient, "updateSchedulingPolicy")
+      .mockImplementation((_id, body) => new Promise((r) => answers.push(() => r({ ...DAILY, ...body }))));
+
+    renderWithProviders(<SchedulingCard active />);
+    await screen.findByText("Daily");
+    const row = screen.getByText("Daily").closest("tr")!;
+
+    fireEvent.click(within(row).getByRole("switch"));
+    fireEvent.click(within(row).getByRole("switch"));
+
+    // The second waits for the first: two in flight could land in either order.
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+    expect(updateSpy).toHaveBeenLastCalledWith(2, { enabled: false });
+    expect(within(row).getByRole("switch")).toHaveAttribute("aria-checked", "true");
+    await act(async () => answers[0]());
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(2));
+    expect(updateSpy).toHaveBeenLastCalledWith(2, { enabled: true });
+    await act(async () => answers[1]());
+    expect(updateSpy).toHaveBeenCalledTimes(2);
   });
 
   it("reverts the enabled toggle when the update fails", async () => {

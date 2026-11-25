@@ -22,7 +22,7 @@ import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
 import Landing from "@/pages/landing";
 import SharePage from "@/pages/SharePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
-import { AdminRoute } from "@/pages/AdminRoute";
+import { AdminProfileRoute, AdminRoute } from "@/pages/AdminRoute";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { RouteFallback } from "@/components/RouteFallback";
 import { warmRoutes } from "@/lib/warmRoutes";
@@ -42,11 +42,9 @@ import { UnlockModal } from "@/components/UnlockModal";
 import { PasskeyOffer } from "@/components/PasskeyOffer";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
 import { SignerApprovalModal } from "@/components/SignerApprovalModal";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { RequireAuth } from "@/components/RequireAuth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TierThreeProvider } from "@/components/items/TierThreeProvider";
-import { isAdminPubkey } from "@/config/adminAccess";
 
 // Every route but the search home, a shared profile, the 404 and the admin
 // guard is its own download.
@@ -86,7 +84,6 @@ const OnboardingPage = lazyWithReload(() => import("@/pages/OnboardingPage"));
 const PersonalizationPage = lazyWithReload(() => import("@/pages/PersonalizationPage"));
 const PricingPage = lazyWithReload(() => import("@/pages/PricingPage"));
 const PrivacyPage = lazyWithReload(() => import("@/pages/PrivacyPage"));
-const ProfilePage = lazyWithReload(() => import("@/pages/ProfilePage"));
 const ReadingPage = lazyWithReload(() => import("@/pages/ReadingPage"));
 const RoadmapPage = lazyWithReload(() => import("@/pages/RoadmapPage"));
 const SellingPage = lazyWithReload(() => import("@/pages/SellingPage"));
@@ -212,39 +209,6 @@ function SearchRedirect() {
   return <Redirect to={`/${search}`} replace />;
 }
 
-/**
- * `/profile/:npub` — the old analytics view, now admin-only.
- *
- * `/p/:id` is the profile page. This one survives as operator telemetry
- * (audience quality, network position, GrapeRank parameters, reports in both
- * directions) that no normal user asked for, and it is deliberately NOT the
- * place a user lands when they click someone's name.
- *
- * ## Why the guard is here and not just on the links
- *
- * Eight call sites pointed at this route and four of them were user-facing;
- * the Deep dive on the dashboard's Network Alerts was the one that surfaced
- * it. Repointing links alone fixes today and nothing else — it can't catch a
- * bookmark, a shared URL, or the ninth link someone adds next month. A rule at
- * the route is one thing to keep true instead of an audit to repeat.
- *
- * The links were repointed as well, so a user never eats a redirect on the way
- * to a page they wanted; this is the backstop, not the mechanism.
- *
- * `replace` for the same reason RequireAuth uses it: pushing would leave the
- * deprecated URL in history, and Back would bounce you forward again.
- */
-function ProfileRoute() {
-  const params = useParams<{ npub: string }>();
-  // `getCurrentUser()` went with the v1 auth layer; the Active Account answers the
-  // same question, and `isAdminPubkey` reads the Session's own admin claim.
-  const user = useActiveAccountDisplay();
-  if (!isAdminPubkey(user?.pubkey)) {
-    return <Redirect to={`/p/${params.npub}`} replace />;
-  }
-  return <ProfilePage />;
-}
-
 function Router() {
   const [location] = useLocation();
   return (
@@ -269,7 +233,7 @@ function Router() {
             <Route path="/search" component={SearchRedirect} />
             <Route path="/open" component={OpenRedirect} />
             {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
-            <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
+            <Route path="/profile/:npub" component={AdminProfileRoute} />
             {/* Short share links resolve here, then continue to /p/. */}
             <Route path={SHORT_LINK_ROUTE} component={ShortLinkPage} />
             <Route path="/p/:id/hops" component={HopsPathPage} />

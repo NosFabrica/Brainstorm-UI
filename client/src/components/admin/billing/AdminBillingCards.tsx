@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -66,6 +66,8 @@ import {
   firstSentence,
 } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
+import { useNearViewport } from "@/hooks/useNearViewport";
+import { readEveryPage } from "@/components/admin/useAdminHeaderMetrics";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { failureLabel, sourceLabel, statusLabel } from "./billingEventCopy";
 import { flashRecordKey, recordFromBody, useFlashSubscriptionRecord } from "./FlashFactsStrip";
@@ -80,6 +82,7 @@ import type {
 import { DIVERGENCE_KEY, FLASH_SERVICES_KEY, POLICIES_KEY, SUBS_KEY, USERS_KEY } from "./queryKeys";
 
 const PAGE_SIZE = 100;
+const NO_SUBS: AdminBillingSubscription[] = [];
 import {
   AbandonedCheckoutRowView,
   FailingSyncRowView,
@@ -207,18 +210,32 @@ function BillingSortHeader({
  * Kind-0 enrichment for the roster, same seam the scheduling admin uses
  * (usePolicyMembers): render immediately with npubs, fill names/avatars in
  * as profiles arrive. Best-effort — a relay miss just leaves the npub.
+ *
+ * Each person is asked for once: the list grows as the report, a page or the
+ * attribute picker brings people in, and re-asking everyone already shown on
+ * every such change fetched the whole roster again.
  */
 function useRosterProfiles(pubkeys: string[]): Map<string, ProfileBits> {
   const [profiles, setProfiles] = useState<Map<string, ProfileBits>>(new Map());
-  const key = pubkeys.join(",");
+  const asked = useRef(new Set<string>());
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+  const key = Array.from(new Set(pubkeys)).sort().join(",");
   useEffect(() => {
-    const targets = key ? key.split(",") : [];
+    const targets = (key ? key.split(",") : []).filter((pk) => !asked.current.has(pk));
     if (!targets.length) return;
-    let cancelled = false;
+    for (const pk of targets) asked.current.add(pk);
     (async () => {
       try {
         const map = await fetchProfileMap(targets);
-        if (cancelled) return;
+        // Not dropped when the list changes meanwhile: these people were asked
+        // for once and only once, so their answer is the one there will be.
+        if (!alive.current) return;
         setProfiles((prev) => {
           const next = new Map(prev);
           for (const pk of targets) {
@@ -231,9 +248,6 @@ function useRosterProfiles(pubkeys: string[]): Map<string, ProfileBits> {
         /* best-effort — npubs stay */
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [key]);
   return profiles;
 }
@@ -450,16 +464,22 @@ function SubscriberRow({
 }) {
   const who = shortNpub(s.pubkey);
   const paused = s.flash_status === "paused";
+  // One Flash read per row, and only once the row comes near the screen: a
+  // page is 100 rows and there is no batch read.
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  const near = useNearViewport(rowRef, "300px");
   const flash = useFlashSubscriptionRecord(
     s.pubkey,
     (pk) => apiClient.getAdminBillingFlashRecordForSubscriber(pk),
     s.flash_subscription_id,
+    near,
   );
   // What the subscription grants vs what the user is actually in — the
   // payments→scheduler connection this tab exists to make visible.
   const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
   return (
     <tr
+      ref={rowRef}
       className="border-b border-slate-200 transition-colors hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-900/60"
       data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}
     >
@@ -761,44 +781,6 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     () => new Map((servicesQuery.data ?? []).map((svc) => [svc.id, svc.name])),
     [servicesQuery.data],
   );
-  const pageItems = subsQuery.data?.items ?? [];
-  // The same query the rows run (same key, one fetch), so the filter can read
-  // every row's service without a second round of requests.
-  const recordQueries = useQueries({
-    queries: pageItems.map((s) => ({
-      queryKey: flashRecordKey(s.pubkey),
-      queryFn: async () => (await apiClient.getAdminBillingFlashRecordForSubscriber(s.pubkey)) ?? null,
-      staleTime: 5 * 60_000,
-      retry: false,
-    })),
-  });
-  const serviceOf = useMemo(
-    () =>
-      new Map<string, string | null | undefined>(
-        pageItems.map((s, i) => {
-          const q = recordQueries[i];
-          return [
-            s.pubkey,
-            q?.isPending ? undefined : (recordFromBody(q?.data, s.flash_subscription_id)?.serviceId ?? null),
-          ];
-        }),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pageItems, recordQueries.map((q) => `${q.isPending}:${q.dataUpdatedAt}`).join("|")],
-  );
-  const serviceLabelOf = (id: string | null | undefined): string =>
-    id ? (serviceNames.get(id) ?? `${id.slice(0, 8)}…`) : "";
-  // The switch lists the account's services (one per environment) plus any
-  // service a row names that the list does not — and only when there is a
-  // choice to make.
-  const serviceOptions = useMemo(() => {
-    const ids = new Set<string>((servicesQuery.data ?? []).map((svc) => svc.id));
-    for (const id of serviceOf.values()) if (id) ids.add(id);
-    return Array.from(ids)
-      .map((id) => ({ id, label: serviceLabelOf(id) }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicesQuery.data, serviceOf, serviceNames]);
   const policyName = (id: number | null | undefined): string => {
     if (id == null) return "—";
     return policiesQuery.data?.find((p) => p.id === id)?.name ?? `policy #${id}`;
@@ -822,11 +804,6 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       .map((r) => (r as { pubkey?: unknown }).pubkey)
       .filter((pk): pk is string => typeof pk === "string" && pk.length === 64),
   );
-  const profiles = useRosterProfiles([
-    ...(subsQuery.data?.items ?? []).map((s) => s.pubkey),
-    ...reportPubkeys,
-    ...(attributePubkey ? [attributePubkey] : []),
-  ]);
   const [dismissFor, setDismissFor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -842,13 +819,79 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [flashRecordFor, setFlashRecordFor] = useState<FlashRecordTarget | null>(null);
   // Keyed by whatever handle the row has: a pubkey for a subscriber, a Flash
-  // subscription id for a signup that named nobody.
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  // subscription id for a signup that named nobody. A set: two rows' actions
+  // can run at once, and one finishing must not clear the other's spinner.
+  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(() => new Set());
+  // A search, a filter or a sort reads every page: over the page on screen it
+  // missed everyone else while the count claimed the whole roster. There is no
+  // server-side search on this list.
+  const viewingAll =
+    search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all" || serviceFilter !== "all" || !!sort;
+  const allSubsQuery = useQuery({
+    queryKey: [...SUBS_KEY, "every-page"],
+    queryFn: () => readEveryPage((p) => apiClient.getAdminBillingSubscriptions(p, PAGE_SIZE)),
+    enabled: active && viewingAll,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  // Until every page is in, the page on screen stands in (and says so).
+  const allLoaded = viewingAll && !!allSubsQuery.data;
+  const rosterItems = (allLoaded ? allSubsQuery.data?.items : subsQuery.data?.items) ?? NO_SUBS;
+  // A new search starts from the first page of its results.
+  useEffect(() => {
+    setPage(1);
+  }, [viewingAll, search, statusFilter, sourceFilter, serviceFilter, sort]);
+  // The same query the rows run (same key, one fetch). The rows ask for their
+  // own as they near the screen; every row's is asked for here only when the
+  // service switch or sort needs them all. Otherwise this reads what is cached.
+  const needsEveryRecord = serviceFilter !== "all" || sort?.key === "service";
+  const recordQueries = useQueries({
+    queries: rosterItems.map((s) => ({
+      queryKey: flashRecordKey(s.pubkey),
+      queryFn: async () => (await apiClient.getAdminBillingFlashRecordForSubscriber(s.pubkey)) ?? null,
+      staleTime: 5 * 60_000,
+      retry: false,
+      enabled: needsEveryRecord,
+    })),
+  });
+  const serviceOf = useMemo(
+    () =>
+      new Map<string, string | null | undefined>(
+        rosterItems.map((s, i) => {
+          const q = recordQueries[i];
+          return [
+            s.pubkey,
+            q?.isPending ? undefined : (recordFromBody(q?.data, s.flash_subscription_id)?.serviceId ?? null),
+          ];
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rosterItems, recordQueries.map((q) => `${q.isPending}:${q.dataUpdatedAt}`).join("|")],
+  );
+  const serviceLabelOf = (id: string | null | undefined): string =>
+    id ? (serviceNames.get(id) ?? `${id.slice(0, 8)}…`) : "";
+  // The switch lists the account's services (one per environment) plus any
+  // service a row names that the list does not — and only when there is a
+  // choice to make.
+  const serviceOptions = useMemo(() => {
+    const ids = new Set<string>((servicesQuery.data ?? []).map((svc) => svc.id));
+    for (const id of serviceOf.values()) if (id) ids.add(id);
+    return Array.from(ids)
+      .map((id) => ({ id, label: serviceLabelOf(id) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicesQuery.data, serviceOf, serviceNames]);
+  const profiles = useRosterProfiles([
+    ...rosterItems.map((s) => s.pubkey),
+    ...reportPubkeys,
+    ...(attributePubkey ? [attributePubkey] : []),
+  ]);
+
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   async function runAction(handle: string, fn: () => Promise<void>, failureTitle = "Action failed") {
-    setBusyKey(handle);
+    setBusyKeys((prev) => new Set(prev).add(handle));
     try {
       await fn();
       await queryClient.invalidateQueries({ queryKey: SUBS_KEY });
@@ -860,7 +903,11 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         variant: "destructive",
       });
     } finally {
-      setBusyKey(null);
+      setBusyKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(handle);
+        return next;
+      });
     }
   }
 
@@ -1041,11 +1088,12 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   }
 
   const { items, total } = subsQuery.data;
-  const pages = subsQuery.data.pages ?? 1;
   const divergence = divergenceQuery.data ?? {};
 
-  const filtered = filterAndSort(
-    items,
+  // Viewing all (a search, a filter, a sort): every page's subscribers, matched
+  // and sorted here, then paged here. Otherwise the server's page as it is.
+  const matched = filterAndSort(
+    rosterItems,
     profiles,
     search,
     statusFilter,
@@ -1055,8 +1103,13 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     serviceLabelOf,
     sort,
   );
-  const statuses = Array.from(new Set(items.map((s) => s.flash_status))).sort();
-  const sources = Array.from(new Set(items.map((s) => s.scheduling_source))).sort();
+  const pages = viewingAll ? Math.max(1, Math.ceil(matched.length / PAGE_SIZE)) : (subsQuery.data.pages ?? 1);
+  const filtered = viewingAll ? matched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : matched;
+  // What the count is out of: everyone once every page is in, else the page on screen.
+  const outOf = allLoaded ? rosterItems.length : items.length;
+  const partial = viewingAll && !allLoaded;
+  const statuses = Array.from(new Set(rosterItems.map((s) => s.flash_status))).sort();
+  const sources = Array.from(new Set(rosterItems.map((s) => s.scheduling_source))).sort();
   const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all" || serviceFilter !== "all";
   // Faults first, the record below, anything this build doesn't know last.
   const sections = orderedSections(divergence);
@@ -1111,7 +1164,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         meta={x.meta}
         section={x.section}
         exhaustedRows={divergence.exhausted_events?.rows ?? []}
-        busyId={busyKey}
+        busyIds={busyKeys}
         {...signupActions}
       />
     ) : (
@@ -1123,7 +1176,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         section={x.section}
         profiles={profiles}
         policyName={policyName}
-        busyKey={busyKey}
+        busyKeys={busyKeys}
         onResync={handleResyncPubkey}
         onReset={setConfirmReset}
         handlesByEventId={handlesByEventId}
@@ -1150,9 +1203,9 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              {(filtering ? filtered.length : total).toLocaleString()}{" "}
-              {(filtering ? filtered.length : total) === 1 ? "subscriber" : "subscribers"}
-              {filtering ? " (filtered)" : ""}
+              {(filtering ? matched.length : total).toLocaleString()}{" "}
+              {(filtering ? matched.length : total) === 1 ? "subscriber" : "subscribers"}
+              {filtering ? (partial ? " on this page (reading every page…)" : " match") : ""}
             </span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">
@@ -1240,7 +1293,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             </Select>
             {filtering && (
               <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="billing-filter-count">
-                {filtered.length} of {items.length}
+                {matched.length} of {outOf}
+                {partial ? " on this page" : ""}
               </span>
             )}
           </div>
@@ -1337,7 +1391,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                         s={s}
                         profile={profiles.get(s.pubkey)}
                         serviceNames={serviceNames}
-                        busy={busyKey === s.pubkey}
+                        busy={busyKeys.has(s.pubkey)}
                         onBlock={setConfirmBlock}
                         onUnblock={(sub) => handleSetBlock(sub, false)}
                         onResync={handleResync}
@@ -1374,7 +1428,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                     <ChevronLeft className="h-3 w-3" /> Prev
                   </button>
                   <span className="tabular-nums">
-                    Page {page} of {pages} · {total} subscribers
+                    Page {page} of {pages} · {filtering ? `${matched.length} of ${outOf}` : total} subscribers
                   </span>
                   <button
                     type="button"
@@ -1751,7 +1805,7 @@ function DivergenceBlock({
   section,
   profiles,
   policyName,
-  busyKey,
+  busyKeys,
   onResync,
   onReset,
   handlesByEventId,
@@ -1764,7 +1818,7 @@ function DivergenceBlock({
   section: AdminBillingDivergenceSection;
   profiles: Map<string, DivergenceProfileBits>;
   policyName: (id: number | null | undefined) => string;
-  busyKey: string | null;
+  busyKeys: ReadonlySet<string>;
   onResync: (pubkey: string) => void;
   onReset: (pubkey: string) => void;
   handlesByEventId: Map<number, SignupHandle>;
@@ -1773,7 +1827,7 @@ function DivergenceBlock({
 }) {
   const person = (row: Record<string, unknown>) =>
     typeof row.pubkey === "string" ? profiles.get(row.pubkey) : undefined;
-  const busy = (row: Record<string, unknown>) => typeof row.pubkey === "string" && busyKey === row.pubkey;
+  const busy = (row: Record<string, unknown>) => typeof row.pubkey === "string" && busyKeys.has(row.pubkey);
   const typed = (row: Record<string, unknown>, i: number) => {
     switch (kind) {
       case "policy_mismatch":
@@ -1838,7 +1892,7 @@ function DivergenceBlock({
               // "Dismiss as nobody's" can only be refused (404) — so it is not offered.
               <SignupActionsMenu
                 id={handle.subscriptionId}
-                busy={busyKey === handle.subscriptionId}
+                busy={busyKeys.has(handle.subscriptionId)}
                 canDismiss={handle.from !== "unmapped_plans"}
                 testIdPrefix={`billing-exhausted-actions-${eventId}`}
                 itemPrefix="billing-exhausted-action"
@@ -1895,7 +1949,7 @@ function UnresolvedSignupsBlock({
   meta,
   section,
   exhaustedRows,
-  busyId,
+  busyIds,
   onViewFlashRecord,
   onAttribute,
   onDismiss,
@@ -1904,7 +1958,7 @@ function UnresolvedSignupsBlock({
   section: AdminBillingDivergenceSection;
   /** The exhausted section's rows: the attempts a delivery gave up after ride its line. */
   exhaustedRows: ReadonlyArray<unknown>;
-  busyId: string | null;
+  busyIds: ReadonlySet<string>;
   onViewFlashRecord: (subscriptionId: string) => void;
   onAttribute: (subscriptionId: string) => void;
   onDismiss: (subscriptionId: string) => void;
@@ -1933,7 +1987,7 @@ function UnresolvedSignupsBlock({
               {id && (
                 <SignupActionsMenu
                   id={id}
-                  busy={busyId === id}
+                  busy={busyIds.has(id)}
                   testIdPrefix={`billing-unresolved-actions-${id}`}
                   itemPrefix="billing-unresolved-action"
                   onViewFlashRecord={onViewFlashRecord}
