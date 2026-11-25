@@ -86,8 +86,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   // search (Benjamin, 2026-09-23). They stay in Articles too, labelled.
   nips: [30817],
   // Pictures, NIP-71 clips, files (by mime), voice. Kind 1986 was here once — a NIP-32 label, not media.
-  // 2003 = NIP-35 torrents.
-  media: [20, 21, 22, 1063, 1222, 34235, 34236, 2003],
+  // 2003 = NIP-35 torrents. 1808 = audio headers (Stemstr, Nosis' audio notes), read like voice.
+  media: [20, 21, 22, 1063, 1222, 1808, 34235, 34236, 2003],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
   // probing showed it ~90% JSON junk; it still surfaces via All.
@@ -119,7 +119,9 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
   // Also starter packs, curation sets (articles, videos, pictures), music
   // playlists, emoji packs, and NIP-58 badges.
-  lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701, 39089, 30004, 30005, 30006, 34139, 30030, 30009],
+  lists: [
+    30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701, 39089, 39092, 30004, 30005, 30006, 34139, 30030, 30009,
+  ],
   // Recipes are long-form articles wearing zap.cooking's tag — the same kind as
   // Articles, narrowed by tag (TAB_TAGS). They stay in Articles too, labelled.
   recipes: [30023],

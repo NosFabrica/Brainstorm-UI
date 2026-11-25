@@ -25,6 +25,7 @@ import { BOOKMARK_KINDS, HashtagChips, hostAndPath, useListNotes } from "@/compo
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
 import { avatarSrc } from "@/lib/avatarSrc";
+import { APP_EMBED_KINDS } from "@/lib/embedShape";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { addressNoun, listItemCounts, listTitle, readListItems, type ListNote } from "@/lib/listItems";
 import { addrCoord, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
@@ -196,8 +197,11 @@ function AddressRow({ address }: { address: AddressRef }) {
   );
 }
 
+/** Addresses drawn as their own card once found: articles, and apps (an app curation set's `a`s, NIP-51). */
+const CARD_ADDRESS_KINDS: ReadonlySet<number> = new Set([...READER_KINDS, ...APP_EMBED_KINDS]);
+
 function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
-  const readable = useMemo(() => addresses.filter((a) => READER_KINDS.has(a.kind)), [addresses]);
+  const readable = useMemo(() => addresses.filter((a) => CARD_ADDRESS_KINDS.has(a.kind)), [addresses]);
   const { articles } = useArticlesByRefs(readable);
   const byCoord = useMemo(
     () =>
@@ -214,7 +218,16 @@ function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
       {addresses.map((a) => {
         const article = byCoord.get(addrCoord(a));
         return (
-          <li key={addrCoord(a)}>{article ? <EmbeddedArticleCard event={article} /> : <AddressRow address={a} />}</li>
+          <li key={addrCoord(a)}>
+            {!article ? (
+              <AddressRow address={a} />
+            ) : APP_EMBED_KINDS.has(article.kind) ? (
+              // An app is its app card (EmbeddedNoteCard draws it, or its words when it names nothing).
+              <EmbeddedNoteCard event={article} href={eventPath(article)} nested />
+            ) : (
+              <EmbeddedArticleCard event={article} />
+            )}
+          </li>
         );
       })}
     </>

@@ -15,10 +15,11 @@ import { addrCoord, type AddressRef } from "@/lib/noteRefs";
  * The lists whose items are things to open: pins (10001), bookmarks (10003),
  * communities (10004), interests (10015), generic lists (30001), bookmark
  * sets (30003), curation sets of articles, videos and pictures
- * (30004–30006), interest sets (30015).
+ * (30004–30006), interest sets (30015), and app curation sets (30267: `a`
+ * tags to NIP-82 software applications, kind 32267).
  */
 export const ITEM_LIST_KINDS: ReadonlySet<number> = new Set([
-  10001, 10003, 10004, 10015, 30001, 30003, 30004, 30005, 30006, 30015,
+  10001, 10003, 10004, 10015, 30001, 30003, 30004, 30005, 30006, 30015, 30267,
 ]);
 
 const HEX64 = /^[0-9a-f]{64}$/i;
