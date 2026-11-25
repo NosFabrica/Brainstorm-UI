@@ -12,6 +12,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { signed } from "@/test/signedEvent";
 
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
@@ -80,7 +81,8 @@ describe("a quoted event with no words to read", () => {
   });
 
   it("a repost is the note it reposts, one level down", () => {
-    const inner = { ...ev(1, [], "reposted words"), sig: "s" };
+    // Signed: unsigned JSON naming an author is never drawn as theirs (lib/embeddedEvent).
+    const inner = signed({ kind: 1, content: "reposted words" });
     quote(
       ev(
         6,
@@ -97,8 +99,15 @@ describe("a quoted event with no words to read", () => {
     expect(cards[0]).not.toHaveTextContent('"content"');
   });
 
+  it("a repost whose JSON is not its author's signed note never draws it as theirs, nor crashes", () => {
+    const forged = { ...signed({ kind: 1, content: "words they never wrote" }), pubkey: "7".repeat(64) };
+    quote(ev(6, [["e", forged.id]], JSON.stringify(forged)));
+    expect(screen.queryByText("words they never wrote")).toBeNull();
+    expect(() => quote(ev(6, [], '{"id":"x","pubkey":"y"}'))).not.toThrow();
+  });
+
   it("a repost inside a quote is one line, never a card inside a card inside a card", () => {
-    const inner = { ...ev(1, [], "reposted words"), sig: "s" };
+    const inner = signed({ kind: 1, content: "reposted words" });
     quote(ev(6, [["e", inner.id]], JSON.stringify(inner)), { nested: true });
     expect(screen.getAllByTestId("embedded-note")).toHaveLength(1);
     expect(screen.getByTestId("embedded-structural")).toHaveTextContent("Repost");

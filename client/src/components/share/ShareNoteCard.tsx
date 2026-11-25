@@ -208,10 +208,11 @@ export const ShareNoteCard = memo(function ShareNoteCard({
     // NIP-18: the post itself in the content, else a generic repost's `a` (a replaceable
     // event, its latest version), else its `e`; its `k` names the kind before either arrives.
     const reposted = event.kind === 16 ? a.addrs[0] : undefined;
+    // The store's copy of the `e` first; the JSON only when it is signed and is that note (lib/embeddedEvent).
     const inner =
+      (a.repostId ? eventsById.get(a.repostId) : undefined) ??
       a.repostEvent ??
-      (reposted ? addrByCoord?.get(addrCoord(reposted)) : undefined) ??
-      (a.repostId ? eventsById.get(a.repostId) : undefined);
+      (reposted ? addrByCoord?.get(addrCoord(reposted)) : undefined);
     const k = event.kind === 16 ? event.tags.find((t) => t[0] === "k")?.[1] : undefined;
     const what = k && /^\d+$/.test(k) ? kindTypeLabel(Number(k)).toLowerCase() : "note";
     return (

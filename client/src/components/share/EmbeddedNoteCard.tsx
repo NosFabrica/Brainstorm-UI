@@ -43,6 +43,7 @@ import { POLL_KINDS } from "@/lib/pollKinds";
 import { WebBookmarkLink } from "@/components/share/WebBookmarkHero";
 import { ChatContextLine } from "@/components/share/ChatContext";
 import { CHAT_KINDS } from "@/lib/chatMessage";
+import { eventStore } from "@/lib/eventStore";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -143,29 +144,20 @@ function EmbeddedNoteCardShaped(props: EmbeddedNoteCardProps) {
 /** Reposts (NIP-18): their content is the reposted event, as JSON. */
 const REPOST_KINDS: ReadonlySet<number> = new Set([6, 16]);
 
-/** The event a repost carries in its content, when it is one. */
+/**
+ * The event a repost carries in its content, when it is one: whole, signed by
+ * its author, and the one its `e` names. Anyone can write JSON that names
+ * someone as its author; it is drawn as theirs only under their signature.
+ * The store's copy of the `e`, when it holds one, is the note itself.
+ */
 function repostedEvent(event: MinimalEvent): MinimalEvent | null {
   if (!REPOST_KINDS.has(event.kind)) return null;
-  try {
-    const raw: unknown = JSON.parse(event.content);
-    if (!raw || typeof raw !== "object") return null;
-    const e = raw as Partial<MinimalEvent>;
-    const ok =
-      typeof e.id === "string" &&
-      /^[0-9a-f]{64}$/i.test(e.id) &&
-      typeof e.pubkey === "string" &&
-      /^[0-9a-f]{64}$/i.test(e.pubkey) &&
-      typeof e.kind === "number" &&
-      typeof e.content === "string" &&
-      typeof e.created_at === "number" &&
-      Array.isArray(e.tags) &&
-      e.tags.every((t) => Array.isArray(t) && t.every((v) => typeof v === "string"));
-    return ok
-      ? { id: e.id!, pubkey: e.pubkey!, kind: e.kind!, content: e.content!, created_at: e.created_at!, tags: e.tags! }
-      : null;
-  } catch {
-    return null;
-  }
+  const refs = analyzeNote(event);
+  return (
+    (refs.repostId ? (eventStore.getEvent(refs.repostId) as MinimalEvent | undefined) : undefined) ??
+    refs.repostEvent ??
+    null
+  );
 }
 
 /** A kind-38000 prediction market or ballot: drawn in the note card itself, its question and where it stands. */
