@@ -5,28 +5,15 @@
  * this is the same reading as a page: who, to whom, how much, and the event
  * it is about, quoted. Parsing is lib/activity's, shared with the row.
  */
-import { ASSERTION_KINDS, ZAP_KINDS, type ActivityEvent } from "@/lib/activity";
+import { ACTIVITY_KINDS, ASSERTION_KINDS, ZAP_KINDS, type ActivityEvent } from "@/lib/activity";
 import { AssertionHero } from "./AssertionHero";
 import { ApprovalHero, DeletionHero, LabelHero, ReportHero } from "./ModerationHeroes";
 import { ReactionHero } from "./ReactionHero";
 import { BadgeAwardHero, FollowsHero, PollVoteHero, RsvpHero } from "./SocialHeroes";
 import { ZapHero } from "./ZapHero";
 
-/** The kinds drawn here. */
-export const ACTIVITY_KINDS: ReadonlySet<number> = new Set([
-  3,
-  5,
-  7,
-  8,
-  17,
-  1018,
-  1984,
-  1985,
-  4550,
-  31925,
-  ...ZAP_KINDS,
-  ...ASSERTION_KINDS,
-]);
+/** The kinds drawn here (lib/activity). */
+export { ACTIVITY_KINDS };
 
 export const hasActivityHero = (event: { kind: number }): boolean => ACTIVITY_KINDS.has(event.kind);
 

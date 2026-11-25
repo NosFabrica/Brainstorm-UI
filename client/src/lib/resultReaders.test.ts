@@ -184,7 +184,8 @@ describe("the kinds whose meaning is in their tags", () => {
         ["e", NOTE],
       ]),
     );
-    expect(badges.facts).toEqual(["2 notes", "2 badges"]);
+    // NIP-58: each `e` is the award behind the badge beside it, not a note.
+    expect(badges.facts).toEqual(["2 badges"]);
   });
 
   it("a sealed list says it is private, not empty", () => {

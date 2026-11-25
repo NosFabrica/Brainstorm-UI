@@ -25,6 +25,7 @@ import {
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
 import { RelayListCard, UserStatusCard } from "@/components/search/relayStatusCards";
+import { GitStatusCard, ReleaseCard, RepoStateCard } from "@/components/search/kindCards";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { ProfileLite } from "@/hooks/useNoteRefs";
@@ -39,7 +40,19 @@ import { SensitiveCover } from "@/components/share/SensitiveMedia";
 /** The shapes this component draws; the rest are the note card's. */
 export type KindCardShape = Extract<
   EmbedShape,
-  "thing" | "people-list" | "live" | "calendar-event" | "listing" | "app" | "repo" | "track" | "relay-list" | "status"
+  | "thing"
+  | "people-list"
+  | "live"
+  | "calendar-event"
+  | "listing"
+  | "app"
+  | "repo"
+  | "track"
+  | "git-status"
+  | "repo-state"
+  | "release"
+  | "relay-list"
+  | "status"
 >;
 
 export const KIND_CARD_SHAPES: ReadonlySet<EmbedShape> = new Set<KindCardShape>([
@@ -51,6 +64,9 @@ export const KIND_CARD_SHAPES: ReadonlySet<EmbedShape> = new Set<KindCardShape>(
   "app",
   "repo",
   "track",
+  "git-status",
+  "repo-state",
+  "release",
   "relay-list",
   "status",
 ]);
@@ -139,6 +155,12 @@ export const EmbeddedKindCard = memo(function EmbeddedKindCard({
         return <RepoCard {...typed} counts={false} />;
       case "track":
         return <TrackCard {...typed} href={href} />;
+      case "git-status":
+        return <GitStatusCard {...typed} />;
+      case "repo-state":
+        return <RepoStateCard {...typed} />;
+      case "release":
+        return <ReleaseCard {...typed} />;
       case "relay-list":
         return <RelayListCard {...typed} />;
       case "status":

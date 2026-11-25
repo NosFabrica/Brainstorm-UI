@@ -45,10 +45,13 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { readProfileRows } from "@/lib/eventCache";
 import type { FirstPage } from "@/lib/headStart";
 import { zapDescription } from "@/lib/zapRequest";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
+import { readGitStatus } from "@/lib/gitEvents";
+import { readRelease, readReleaseAsset } from "@/lib/release";
 
 export type SearchTab =
   | "top"
@@ -1145,6 +1148,8 @@ export function searchStream(
             if (!hostedByThem(event)) return;
             // A husk deleted by overwriting is not a result (lib/blankEvent).
             if (isBlankEvent(event)) return;
+            // Nor is one past its NIP-40 expiration: "clients SHOULD ignore events that have expired".
+            if (isExpired(event, Math.floor(Date.now() / 1000))) return;
             confirmed.add(event.id);
             if (seen.has(event.id)) return;
             seen.add(event.id);
@@ -1328,17 +1333,10 @@ export function fetchReleaseAsset(ids: string[], timeoutMs = 5000): Promise<Rele
     const timer = setTimeout(finish, timeoutMs);
     const sub = relay.req({ ids }).subscribe((msg: { type: string; event?: NostrEvent }) => {
       if (msg.type === "EVENT" && msg.event && (msg.event.kind === 3063 || msg.event.kind === 1063)) {
-        const tag = (n: string) => msg.event!.tags.find((t) => t[0] === n)?.[1];
-        const url = tag("url");
-        if (url && !asset) {
-          const size = Number(tag("size"));
-          asset = {
-            url,
-            mime: tag("m") ?? "",
-            size: Number.isFinite(size) && size > 0 ? size : null,
-            version: tag("version") ?? null,
-            hash: tag("x") ?? null,
-          };
+        // Each kind by its own tags (lib/release): a 1063 (NIP-94) has no version.
+        const file = readReleaseAsset(msg.event);
+        if (file.url && !asset) {
+          asset = { url: file.url, mime: file.mime ?? "", size: file.size, version: file.version, hash: file.hash };
         }
       } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
         finish();
@@ -1364,12 +1362,16 @@ export function fetchReleases(appD: string, publisher: string, timeoutMs = 5000)
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const d = msg.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
-          if (!d.startsWith(`${appD}@`)) return;
+          // Whose release it is, as each shape says (lib/release): NIP-82's `i` is the app's `d`,
+          // NIP-51's `a` its address; a `d` of "<app>@<version>" (NIP-82's rule) for either.
+          const release = readRelease(msg.event);
+          const ofApp = release.app?.address === `32267:${publisher}:${appD}` || d.startsWith(`${appD}@`);
+          if (!ofApp) return;
           releases.push({
-            version: d.slice(appD.length + 1),
+            version: release.version ?? (d.startsWith(`${appD}@`) ? d.slice(appD.length + 1) : d),
             at: msg.event.created_at,
             notes: msg.event.content ?? "",
-            assetIds: msg.event.tags.filter((t) => t[0] === "e" && t[1]).map((t) => t[1]),
+            assetIds: release.assets.map((a) => a.id),
           });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
@@ -2132,8 +2134,11 @@ export function fetchCommentsByAddress(
 
 /**
  * What became of a page of issues and patches: one request for all of them.
- * NIP-34 status events (1630–1633) name their item by a root e-tag; the
- * newest per item wins. Under include:spam like every relay request here.
+ * NIP-34 status events (1630–1633) name their item by the e-tag marked
+ * `root`; the newest per item wins. Under include:spam like every relay
+ * request here. NIP-34 counts only a status from the item's author or a
+ * maintainer; this page-wide ask does not know either yet, so a stranger's
+ * status still counts here (the status page itself says whose it is).
  */
 export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<string, { kind: number; at: number }>> {
   return new Promise((resolve) => {
@@ -2146,10 +2151,14 @@ export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<s
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const ev = msg.event;
-          for (const t of ev.tags) {
-            if (t[0] !== "e" || !wanted.has(t[1])) continue;
-            const known = out.get(t[1]);
-            if (!known || ev.created_at > known.at) out.set(t[1], { kind: ev.kind, at: ev.created_at });
+          // NIP-34: the item is the `e` marked root; a 1631's `reply`-marked `e` is a revision it
+          // accepted. Any other `e` names neither.
+          const status = readGitStatus(ev);
+          const named = [status.target, ...(ev.kind === 1631 ? status.revisions : [])];
+          for (const ref of named) {
+            if (!ref || !wanted.has(ref.id)) continue;
+            const known = out.get(ref.id);
+            if (!known || ev.created_at > known.at) out.set(ref.id, { kind: ev.kind, at: ev.created_at });
           }
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
@@ -2277,7 +2286,12 @@ export interface EventRsvps {
   going: number;
   /** Their pubkeys, newest answer first — the faces on the card. */
   faces: string[];
+  /** Everyone going, newest answer first: what a lens counts ("K you trust"). */
+  people: string[];
 }
+
+/** An RSVP dated further ahead than this is not counted: a future date would pin its answer. */
+const RSVP_FUTURE_SLACK_S = 86_400;
 
 /**
  * Who is going, for a page of calendar events: NIP-52 RSVPs (kind 31925)
@@ -2297,7 +2311,7 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
         if (msg.type === "EVENT" && msg.event) {
           const ev = msg.event;
           const addr = ev.tags.find((t) => t[0] === "a" && wanted.has(t[1]))?.[1];
-          if (!addr) return;
+          if (!addr || ev.created_at > Date.now() / 1000 + RSVP_FUTURE_SLACK_S) return;
           const status = (ev.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase();
           const people = latest.get(addr) ?? new Map();
           const known = people.get(ev.pubkey);
@@ -2318,7 +2332,12 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
         const going = [...people.entries()]
           .filter(([, v]) => v.status === "accepted")
           .sort((a, b) => b[1].at - a[1].at);
-        if (going.length) out.set(addr, { going: going.length, faces: going.slice(0, 6).map(([pk]) => pk) });
+        if (going.length)
+          out.set(addr, {
+            going: going.length,
+            faces: going.slice(0, 6).map(([pk]) => pk),
+            people: going.map(([pk]) => pk),
+          });
       }
       resolve(out);
     }

@@ -22,6 +22,7 @@ import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
 import { videoShapeOf } from "@/lib/videoFrame";
 import { postedAtOf } from "@/lib/eventDate";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
+import { mediaKindOf } from "@/lib/mediaKind";
 import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
@@ -421,9 +422,13 @@ export function MediaTiles({
   );
 }
 
-/** Events that have anything visual to tile — the rest stay rows. */
+/**
+ * Events that have anything visual to tile — the rest stay rows. A sound with
+ * no picture (a voice message, a trailer's file) has nothing to show in a tile.
+ */
 export function hasVisual(e: NostrEvent): boolean {
-  return !!(mediaUrlOf(e) || mediaPosterOf(e));
+  if (mediaPosterOf(e)) return true;
+  return !!mediaUrlOf(e) && mediaKindOf(e) !== "audio";
 }
 
 /* ------------------------------------------------------------------ */
@@ -459,7 +464,7 @@ function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: 
         </AvatarFallback>
       </Avatar>
       <span className="truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"}</span>
-      <span className="shrink-0 opacity-80">· {ago(hit.event.created_at)}</span>
+      <span className="shrink-0 opacity-80">· {ago(postedAtOf(hit.event))}</span>
       <KindPill event={hit.event} />
       <ViaRelay event={hit.event} />
     </span>

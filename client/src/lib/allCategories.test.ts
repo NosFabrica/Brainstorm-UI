@@ -54,7 +54,7 @@ describe("kindCategories", () => {
   it("is a category per label, asking every kind of that name: the video kinds are one Videos", () => {
     const found = kindCategories([hit(1), hit(21), hit(30023), hit(22)]);
     expect(found.map((c) => [c.key, c.name, c.kinds])).toEqual([
-      ["kind:Note", "Notes", [1, 11]],
+      ["kind:Note", "Notes", [1]],
       ["kind:Video", "Videos", [21, 22, 34235, 34236]],
       ["kind:Article", "Articles", [30023]],
     ]);
@@ -115,7 +115,9 @@ describe("byResults", () => {
 });
 
 it("kindsLabelled names every kind lib/kindLabel calls by a label", () => {
-  expect(kindsLabelled("Event")).toEqual([31922, 31923, 31924]);
+  expect(kindsLabelled("Event")).toEqual([31922, 31923]);
+  // NIP-52: a calendar is a set of events, named as one.
+  expect(kindsLabelled("Calendar")).toEqual([31924]);
   expect(kindsLabelled("Nothing of the sort")).toEqual([]);
 });
 

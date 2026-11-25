@@ -1135,3 +1135,54 @@ describe("SerpRow — a sensitive clip's placeholder", () => {
     expect(tile).toHaveAccessibleName(/^Sensitive video/);
   });
 });
+
+// A reaction's row read its content: "+". It says what happened, as the All tab's row
+// does (lib/resultReaders), and quotes what it was about once that is in hand.
+describe("SerpRow — what someone did", () => {
+  const TARGET = "f".repeat(64);
+  const act7 = (kind: number, tags: string[][], content = "") =>
+    ({ ...note(content, tags), id: "7".repeat(64), kind }) as NostrEvent;
+
+  it("a reaction says the reaction, never its '+', and quotes the note it reacted to", async () => {
+    quotedEvents.set(TARGET, { ...note("the note it is about"), id: TARGET, pubkey: "b".repeat(64) });
+    render(
+      <SerpRow
+        event={act7(
+          7,
+          [
+            ["e", TARGET],
+            ["p", "b".repeat(64)],
+          ],
+          "+",
+        )}
+        author={author}
+        query=""
+      />,
+    );
+    expect(screen.getByTestId("serp-activity-title")).toHaveTextContent("Reacted ❤");
+    expect(await screen.findByTestId("serp-activity-ref")).toHaveTextContent("the note it is about");
+  });
+
+  // NIP-09: clients SHOULD hide what a deletion names.
+  it("a deletion links what it deleted and never quotes it", async () => {
+    quotedEvents.set(TARGET, { ...note("deleted words"), id: TARGET });
+    render(
+      <SerpRow
+        event={act7(
+          5,
+          [
+            ["e", TARGET],
+            ["k", "1"],
+          ],
+          "oops",
+        )}
+        author={author}
+        query=""
+      />,
+    );
+    expect(screen.getByTestId("serp-activity-title")).toHaveTextContent("Deleted 1 event");
+    expect(screen.getByTestId("serp-activity-ref-link")).toHaveTextContent("what it deleted");
+    expect(screen.queryByTestId("serp-activity-ref")).toBeNull();
+    expect(screen.getByTestId(`serp-row-${"7".repeat(64)}`)).not.toHaveTextContent("deleted words");
+  });
+});

@@ -54,8 +54,10 @@ export function kindTypeLabel(kind: number): string {
     case 31555:
       return "Product review";
     case 1:
-    case 11:
       return "Note";
+    // NIP-7D: a forum thread, its `title` its heading.
+    case 11:
+      return "Thread";
     case 1111:
       return "Comment";
     case 9802:
@@ -90,8 +92,9 @@ export function kindTypeLabel(kind: number): string {
       return "Video";
     case 1063:
       return "File";
+    // NIP-A0 voice messages: the word their own page uses (lib/audioEvent).
     case 1222:
-      return "Audio";
+      return "Voice message";
     case 2003:
       return "Torrent";
     // "Stream", not "Live": a pill saying Live beside a tile's Replay or
@@ -105,8 +108,10 @@ export function kindTypeLabel(kind: number): string {
       return "Meeting";
     case 31922:
     case 31923:
-    case 31924:
       return "Event";
+    // NIP-52's calendar is a collection of events, not one: its page and card say "Calendar".
+    case 31924:
+      return "Calendar";
     case 30617:
       return "Repo";
     case 32267:
@@ -202,8 +207,9 @@ export function kindTypeLabel(kind: number): string {
       return "DM relays";
     case 13194:
       return "Wallet info";
+    // NIP-51/58: a badge set. Its deprecated `profile_badges` form is named by kindLabel.
     case 30008:
-      return "Profile badges";
+      return "Badge set";
     case 30009:
       return "Badge";
     case 30078:
@@ -235,6 +241,9 @@ export function kindLabel(event: KindEvent): string {
   if (noun) return noun;
   // 38000 is shared by mint reviews, prediction markets and ballots: the event says which.
   if (event.kind === 38000) return KIND_38000_LABEL[kind38000Format(event) ?? "none"];
+  // NIP-58's deprecated profile badges, which clients treat as a kind 10008.
+  if (event.kind === 30008 && event.tags.find((t) => t[0] === "d")?.[1]?.trim() === "profile_badges")
+    return "Profile badges";
   // Shopstr keeps encrypted carts on 30405 and escrow records on 30406, and a
   // review is only one when it names a product and a thumb. What the readers
   // reject is not called what they would have drawn.

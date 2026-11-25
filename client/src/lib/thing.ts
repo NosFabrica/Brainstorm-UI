@@ -12,6 +12,7 @@
  * show; anything else returns null, and the tabs leave it out.
  */
 import { formatBytes } from "@/lib/formatBytes";
+import { OPAQUE_D } from "@/lib/tagValue";
 import { formatListingPrice } from "@/lib/listing";
 import {
   countriesLabel,
@@ -412,7 +413,15 @@ function readThing(ev: EventLike): Thing | null {
     // NIP-89 handler: an app's profile (kind-0 shaped JSON) and the kinds it opens.
     case 31990: {
       const json = jsonContent(ev);
-      const title = str(json?.display_name) ?? str(json?.name) ?? tag(ev, "name") ?? tag(ev, "d");
+      // NIP-89: with no metadata in content the app is its author's profile, which this
+      // read cannot see; its `d` is a random id. A web handler's host names the app
+      // better than that id does; the id only when nothing else does.
+      const title =
+        str(json?.display_name) ??
+        str(json?.name) ??
+        tag(ev, "name") ??
+        (OPAQUE_D.test(tag(ev, "d") ?? "") ? webHandlerHost(ev) : undefined) ??
+        tag(ev, "d");
       if (!title) return null;
       const picture = str(json?.picture) ?? str(json?.image);
       const website = str(json?.website);
@@ -520,7 +529,8 @@ function readThing(ev: EventLike): Thing | null {
         title,
         description: tag(ev, "summary") ?? null,
         image: isHttp(image) ? image : null,
-        link: isHttp(tag(ev, "link")) ? tag(ev, "link")! : null,
+        // NIP-75: "The goal MAY include an `r` or `a` tag linking to a URL or addressable event."
+        link: [tag(ev, "r"), tag(ev, "link")].find(isHttp) ?? null,
         facts: goalSats ? [`Goal ${plural(goalSats, "sat")}`] : [],
         detail: {
           type: "fundraiser",
@@ -592,17 +602,33 @@ function readThing(ev: EventLike): Thing | null {
       if (format === "market") return readMarket(ev);
       if (format === "ballot") return readBallot(ev);
       if (format !== "mint-review") return null;
-      // NIP-87 mint recommendation: `u` is the mint.
+      // NIP-87 mint recommendation: `k` says which kind of mint (38172 Cashu, 38173
+      // Fedimint), `u` how to reach it — a Cashu mint's URL, or a federation's invite
+      // code — and `d` its id (the mint's pubkey, the federation id).
       const mint = tag(ev, "u") ?? tag(ev, "d");
       if (!mint) return null;
-      const host = hostOfUrl(mint);
+      const url = ev.tags.find((t) => t[0] === "u" && isHttp(t[1]?.trim()))?.[1].trim();
+      const k = tag(ev, "k");
+      const fedimint = k === "38173" || (!k && !url && /^fed1/i.test(mint));
+      const label = fedimint ? "Fedimint" : k === "38172" ? "Cashu mint" : "Ecash mint";
+      // An invite code is hundreds of characters, and a mint's pubkey or a federation id 64:
+      // either is named by its kind and the id's first characters, never written out.
+      const id = tag(ev, "d");
+      const opaque = (v: string) => /^fed1/i.test(v) || OPAQUE_D.test(v);
+      const title = url
+        ? hostOfUrl(url)
+        : !opaque(mint)
+          ? hostOfUrl(mint)
+          : id && !/^fed1/i.test(id)
+            ? `${fedimint ? "Fedimint" : label} ${id.slice(0, 8)}…`
+            : label;
       return thing({
-        title: host,
+        title,
         description: ev.content.trim() || tag(ev, "comment") || null,
         stars: starsOf(ev, "stars"),
-        link: isHttp(mint) ? mint : null,
-        facts: ["Ecash mint"],
-        detail: { type: "review", subject: "mint", subjectLabel: "Ecash mint", aspects: [] },
+        link: url ?? null,
+        facts: [label],
+        detail: { type: "review", subject: "mint", subjectLabel: label, aspects: [] },
       });
     }
     // An Open Markets product review (31555): a thumb up or down on a
@@ -947,6 +973,17 @@ function readBallot(ev: EventLike): Thing | null {
   });
 }
 
+/** The host of a NIP-89 handler's first `web` URL template: "reader.example" from "https://reader.example/a/<bech32>". */
+function webHandlerHost(ev: EventLike): string | undefined {
+  const url = ev.tags.find((t) => t[0] === "web" && isHttp(t[1]))?.[1];
+  if (!url) return undefined;
+  try {
+    return new URL(url.replace(/<bech32>/g, "x")).host.replace(/^www\./, "") || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** An event's `t` topics, lower-cased and de-duplicated. */
 function topicsOf(ev: EventLike): string[] {
   return [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))];
@@ -968,13 +1005,30 @@ const IMAGE_EXT = /\.(jpe?g|png|gif|webp|tiff?|raw)$/i;
 const SOFTWARE_EXT = /\.(exe|dmg|iso|apk|deb|rpm|appimage|msi|pkg)$/i;
 const ARCHIVE_EXT = /\.(zip|rar|7z|tar|gz|bz2|xz)$/i;
 
-/** What a torrent holds, for its icon: its `t` topics first, else its files' extensions. */
+/** A torrent's category from words its publisher gave it: a `tcat` path, or `t` topics. */
+function categoryOfWords(words: Set<string>): TorrentCategory | null {
+  if (["audio", "music", "flac", "mp3", "album", "podcast"].some((t) => words.has(t))) return "audio";
+  if (["video", "movie", "movies", "film", "tv", "series", "anime"].some((t) => words.has(t))) return "video";
+  if (["software", "game", "games", "app", "apps"].some((t) => words.has(t))) return "software";
+  if (["image", "images", "photo", "photos"].some((t) => words.has(t))) return "image";
+  return null;
+}
+
+/**
+ * What a torrent holds, for its icon: its NIP-35 category path first
+ * (`["i", "tcat:video,movie,4k"]`), then its `t` topics, else its files' extensions.
+ */
 function torrentCategory(ev: EventLike, files: { name: string }[]): TorrentCategory {
-  const topics = new Set(topicsOf(ev));
-  if (["audio", "music", "flac", "mp3", "album", "podcast"].some((t) => topics.has(t))) return "audio";
-  if (["video", "movie", "movies", "film", "tv", "series", "anime"].some((t) => topics.has(t))) return "video";
-  if (["software", "game", "games", "app", "apps"].some((t) => topics.has(t))) return "software";
-  if (["image", "images", "photo", "photos"].some((t) => topics.has(t))) return "image";
+  const tcat = ev.tags.find((t) => t[0] === "i" && /^tcat:/i.test(t[1] ?? ""))?.[1];
+  const path = tcat
+    ? tcat
+        .slice(5)
+        .split(",")
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+  const named = categoryOfWords(new Set(path)) ?? categoryOfWords(new Set(topicsOf(ev)));
+  if (named) return named;
   const names = [ev.tags.find((t) => t[0] === "title")?.[1] ?? "", ...files.map((f) => f.name)];
   if (names.some((n) => VIDEO_EXT.test(n))) return "video";
   if (names.some((n) => AUDIO_EXT.test(n))) return "audio";

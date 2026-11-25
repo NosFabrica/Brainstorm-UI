@@ -11,6 +11,7 @@
  * quote highlight's own words (Amethyst, Highlighter).
  */
 import { HEX64, hostOf, tagValue, type ResultRef } from "@/lib/resultReaders";
+import { externalRef, identifierName, type ExternalRef } from "@/lib/nip73";
 
 type HighlightEvent = { kind: number; tags: string[][]; content: string };
 
@@ -24,6 +25,15 @@ export interface HighlightSource {
   /** A work with no link — a book — by its own name and author. */
   title: string | null;
   author: string | null;
+  /** A NIP-73 id the source is (an `i` that is not a web address): a book's ISBN, a podcast episode. */
+  identifier: ExternalRef | null;
+}
+
+/** Someone a highlight tags as the material's own: an author or an editor (NIP-84 "Attribution"). */
+export interface Attribution {
+  pubkey: string;
+  /** The tag's last value when it is a role ("author", "editor"); null when it names none. */
+  role: string | null;
 }
 
 export interface Highlight {
@@ -35,6 +45,8 @@ export interface Highlight {
   source: HighlightSource;
   /** Who wrote the passage (`p` tags as author, or with no role). */
   authors: string[];
+  /** Everyone the highlight attributes the material to, with their role — never a comment's `mention`. */
+  attributions: Attribution[];
 }
 
 const isHttp = (u: string | null | undefined): u is string => !!u && /^https?:\/\//i.test(u);
@@ -58,18 +70,37 @@ function sourceOf(ev: HighlightEvent): HighlightSource {
     : e
       ? { id: e[1].toLowerCase(), relay: e[2] || undefined }
       : null;
-  const rs = ev.tags.filter((t) => t[0] === "r" && isHttp(t[1]) && t[2] !== "mention");
+  // NIP-84: `r` is "anything else (may contain a URL or text)"; one marked `mention` is a
+  // link in the comment, and the source, when several are given, is the one marked `source`.
+  const rAll = ev.tags.filter((t) => t[0] === "r" && !!t[1]?.trim() && t[2] !== "mention");
+  const rs = rAll.filter((t) => isHttp(t[1]));
   const r = rs.find((t) => t[2] === "source") ?? rs[0];
-  const i = ev.tags.find((t) => t[0] === "i" && isHttp(t[1]));
+  // A source that is a text, not a link: a book named in words.
+  const rText = rAll.find((t) => !isHttp(t[1]) && !/^wss?:\/\//i.test(t[1]))?.[1].trim() ?? null;
+  // `i` (NIP-73): a web page is its link; any other id (an ISBN, an episode) is said as what it is.
+  const iTag = ev.tags.find((t) => t[0] === "i" && !!t[1]?.trim());
+  const i = iTag && isHttp(iTag[1]) ? iTag : undefined;
+  const identifier = iTag && !i ? externalRef(iTag[1]) : null;
   const url = r?.[1] ?? i?.[1] ?? null;
+  const offNostr = !url && !ref;
   return {
     ref,
     url,
     host: url ? hostOf(url).replace(/^www\./, "") : null,
     // A web page's `title` tag is often its first words, not its name: the page names itself.
-    title: url || ref ? null : tagValue(ev, "title"),
-    author: url || ref ? null : tagValue(ev, "author"),
+    // `title`/`author` are no NIP-84 tags — books from Highlighter carry them — so they come
+    // after what the spec defines: a text `r`, then the work's own NIP-73 id.
+    title: offNostr ? (rText ?? tagValue(ev, "title") ?? identifierName(iTag?.[1]) ?? null) : null,
+    author: offNostr ? tagValue(ev, "author") : null,
+    identifier,
   };
+}
+
+/** A `p`'s role: its last value when that is a word, not a relay or nothing (`["p", pk, relay, role]`). */
+function roleOf(t: string[]): string | null {
+  if (t.length < 3) return null;
+  const last = t[t.length - 1]?.trim().toLowerCase();
+  return last && !/^wss?:\/\//.test(last) ? last : null;
 }
 
 export function parseHighlight(ev: HighlightEvent): Highlight | null {
@@ -80,13 +111,16 @@ export function parseHighlight(ev: HighlightEvent): Highlight | null {
   const at = raw ? locate(raw, passage) : null;
   const before = at ? raw.slice(0, at.start).trim() : "";
   const after = at ? raw.slice(at.end).trim() : "";
-  const authors = [
-    ...new Set(
-      ev.tags
-        .filter((t) => t[0] === "p" && HEX64.test(t[1] ?? "") && (!t[3] || t[3] === "author"))
-        .map((t) => t[1].toLowerCase()),
-    ),
-  ];
+  // NIP-84: "a role MAY be included as the last value of the tag"; `mention` is a comment's, not the material's.
+  const attributions: Attribution[] = [];
+  for (const t of ev.tags) {
+    if (t[0] !== "p" || !HEX64.test(t[1] ?? "")) continue;
+    const role = roleOf(t);
+    const pubkey = t[1].toLowerCase();
+    if (role === "mention" || attributions.some((a) => a.pubkey === pubkey && a.role === role)) continue;
+    attributions.push({ pubkey, role });
+  }
+  const authors = [...new Set(attributions.filter((a) => !a.role || a.role === "author").map((a) => a.pubkey))];
   return {
     passage,
     comment: tagValue(ev, "comment"),
@@ -94,6 +128,7 @@ export function parseHighlight(ev: HighlightEvent): Highlight | null {
     context: before || after ? { before, after } : null,
     source: sourceOf(ev),
     authors,
+    attributions,
   };
 }
 

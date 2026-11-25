@@ -516,13 +516,14 @@ describe("a trust score's page", () => {
       ev(30385, [
         ["d", "https://mint.example"],
         ["mint_audit_at", "1791913269"],
-        ["expiration", "1792086507"],
+        // Ahead of now: one in the past is an expired event, and the page says only that (NIP-40).
+        ["expiration", "2000050000"],
         ["mint_test", "0"],
       ]),
     );
     expect(screen.getByTestId("assertion-metric-mint_audit_at")).toHaveTextContent("Oct 13, 2026");
     expect(screen.getByTestId("assertion-metric-mint_audit_at")).not.toHaveTextContent("1,791,913,269");
-    expect(screen.getByTestId("assertion-metric-expiration")).toHaveTextContent("Oct 15, 2026");
+    expect(screen.getByTestId("assertion-metric-expiration")).toHaveTextContent("May 18, 2033");
     expect(screen.getByTestId("assertion-metric-expiration")).toHaveTextContent("Expires");
     expect(screen.getByTestId("assertion-metric-mint_test")).toHaveTextContent("0");
   });

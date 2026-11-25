@@ -15,8 +15,8 @@ import { tagRelays } from "@/config/tagging";
 import {
   CURATOR_PUBKEYS,
   DLIST_HEADER_KIND,
-  DLIST_ITEM_KIND,
   DLIST_REGISTRY,
+  MUSIC_ITEM_KIND,
   dlistCoordinateOf,
   dlistFor,
   dlistsFromHeaders,
@@ -59,7 +59,7 @@ async function lookup(): Promise<PodcastIndexMusic> {
   const relays = tagRelays();
   const lists = await musicLists(relays);
   const events = await fetchEventsByFilter(
-    { kinds: [DLIST_ITEM_KIND], "#z": lists.map((l) => l.coordinate), limit: 500 },
+    { kinds: [MUSIC_ITEM_KIND], "#z": lists.map((l) => l.coordinate), limit: 500 },
     relays,
   );
   const songs: { item: PodcastSong; key: string; at: number }[] = [];

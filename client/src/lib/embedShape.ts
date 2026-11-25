@@ -26,6 +26,9 @@ import { gitItemTitleOf } from "@/lib/gitPatch";
 import { liveTitleOf } from "@/lib/liveStream";
 import { RELAY_LIST_KIND, relayListEntries } from "@/lib/relayList";
 import { USER_STATUS_KIND } from "@/lib/userStatus";
+import { ACTIVITY_KINDS } from "@/lib/activity";
+import { parseHighlight } from "@/lib/nip84";
+import { readKind } from "@/lib/resultReaders";
 
 type EventLike = Pick<MinimalEvent, "kind" | "tags" | "content">;
 
@@ -61,7 +64,21 @@ export type EmbedShape =
   /** A NIP-65 relay list: its relays, each read, write or both (RelayListCard). */
   | "relay-list"
   /** A NIP-38 user status (UserStatusCard). */
-  | "status";
+  | "status"
+  /**
+   * What someone did — a reaction, zap, deletion, report, label, vote, award,
+   * approval, RSVP, follow list, trust score or designation: said as its
+   * result row says it, with what it is about one level down (EmbeddedActivity).
+   */
+  | "activity"
+  /** A NIP-84 highlight: its passage marked, where it is from, whose it is (HighlightQuote). */
+  | "highlight"
+  /** A NIP-34 status (1630–1633): the state it set and the item (GitStatusCard). */
+  | "git-status"
+  /** A NIP-34 repository state (30618): HEAD, branches, tags (RepoStateCard). */
+  | "repo-state"
+  /** A software release (30063, NIP-51 / NIP-82): app, version, files (ReleaseCard). */
+  | "release";
 
 /** Long-form kinds drawn as the article teaser: article, draft, publication, section, bookshelf, spec, wiki. */
 export const ARTICLE_EMBED_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30041, 30045, 30817, 30818]);
@@ -70,11 +87,18 @@ export const PEOPLE_LIST_KINDS: ReadonlySet<number> = new Set([30000, 39089, 390
 /** NIP-53: a stream (30311), a meeting space (30312), a meeting in one (30313). */
 export const LIVE_EMBED_KINDS: ReadonlySet<number> = new Set([30311, 30312, 30313]);
 export const CALENDAR_EVENT_KINDS: ReadonlySet<number> = new Set([31922, 31923]);
-export const LISTING_EMBED_KINDS: ReadonlySet<number> = new Set([30402, 30018, 30020]);
+/** NIP-99 listings and drafts (30402, 30403), NIP-15 products and auctions (30018, 30020). */
+export const LISTING_EMBED_KINDS: ReadonlySet<number> = new Set([30402, 30403, 30018, 30020]);
 export const APP_EMBED_KINDS: ReadonlySet<number> = new Set([32267]);
 export const REPO_EMBED_KINDS: ReadonlySet<number> = new Set([30617, 1617, 1618, 1621]);
+export const GIT_STATUS_EMBED_KINDS: ReadonlySet<number> = new Set([1630, 1631, 1632, 1633]);
+export const REPO_STATE_KIND = 30618;
+export const RELEASE_KIND = 30063;
 export const PICTURE_KIND = 20;
 export const FILE_KIND = 1063;
+/** Kinds said as what someone did (lib/activity), and a NIP-85 designation, which is its rows. */
+export const ACTIVITY_EMBED_KINDS: ReadonlySet<number> = new Set([...ACTIVITY_KINDS, 10040]);
+export const HIGHLIGHT_KIND = 9802;
 /** NIP-A0 voice messages: a root and a reply. */
 export const VOICE_KINDS: ReadonlySet<number> = new Set([1222, 1244]);
 /** An audio header (Stemstr's kind, read as lib/audioEvent reads it): one player row, like a voice message. */
@@ -95,6 +119,8 @@ export const ADDRESS_CARD_KINDS: ReadonlySet<number> = new Set(
     ...LISTING_EMBED_KINDS,
     ...APP_EMBED_KINDS,
     ...REPO_EMBED_KINDS,
+    REPO_STATE_KIND,
+    RELEASE_KIND,
     ...TRACK_KINDS,
     ...VIDEO_KINDS,
     RELAY_LIST_KIND,
@@ -146,6 +172,9 @@ export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape
   // Deleted by overwriting: the note card's quiet stub says so.
   if (isBlankEvent(ev)) return "note";
   const { kind } = ev;
+  // Its reader has something to say — a title — or it stays its words, its kind named.
+  if (ACTIVITY_EMBED_KINDS.has(kind)) return readKind(ev)?.title ? "activity" : "note";
+  if (kind === HIGHLIGHT_KIND) return parseHighlight(ev) ? "highlight" : "note";
   if (ITEM_LIST_KINDS.has(kind)) return "item-list";
   if (ARTICLE_EMBED_KINDS.has(kind)) return "article";
   if (THING_KINDS.has(kind)) return (thing !== undefined ? thing : describeThing(ev)) ? "thing" : "note";
@@ -159,6 +188,10 @@ export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape
   if (LISTING_EMBED_KINDS.has(kind)) return parseListing(ev) ? "listing" : "note";
   if (APP_EMBED_KINDS.has(kind)) return hasTag(ev, "name") ? "app" : "note";
   if (REPO_EMBED_KINDS.has(kind)) return namedGitItem(ev) ? "repo" : "note";
+  // A status always says what it set; a state needs its repo's `d`; a release, a file or an app to name.
+  if (GIT_STATUS_EMBED_KINDS.has(kind)) return "git-status";
+  if (kind === REPO_STATE_KIND) return hasTag(ev, "d") ? "repo-state" : "note";
+  if (kind === RELEASE_KIND) return hasTag(ev, "e", "a", "i") ? "release" : "note";
   if (TRACK_KINDS.has(kind)) return parseTrack(ev) ? "track" : "note";
   // A video that names its file in its words plays from there already (NoteContent).
   if (VIDEO_KINDS.has(kind)) return taggedVideoUrl(ev) ? "video" : "note";

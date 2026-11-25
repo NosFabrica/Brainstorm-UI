@@ -297,6 +297,11 @@ export function readMeeting(ev: TitledEvent): Meeting | null {
   };
 }
 
+/** A stream's state in one word, as every surface says it: the Live tab's shelf (liveStateOf), or Ended. */
+export function liveStateLabel(state: LiveState | null): "Live" | "Upcoming" | "Replay" | "Ended" {
+  return state === "live" ? "Live" : state === "upcoming" ? "Upcoming" : state === "replay" ? "Replay" : "Ended";
+}
+
 const GENERIC_LIVE_TAGS = new Set([
   "streaming",
   "stream",

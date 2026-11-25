@@ -1,6 +1,12 @@
 /**
  * Polls, read from their events: NIP-88 polls (kind 1068, answered by kind-1018
- * responses) and zap polls (kind 6969, NIP-69, answered by zapping an option).
+ * responses) and zap polls (kind 6969, answered by zapping an option).
+ *
+ * A zap poll is in no merged NIP: it is the draft once proposed as "NIP-69 Zap
+ * Polls" and never merged — NIP-69 is now P2P orders (kind 38383). Amethyst
+ * implements it (quartz `experimental/zapPolls`), and its tags are read the way
+ * that draft and Amethyst define them: `poll_option` `<index>` `<label>`,
+ * `value_minimum` / `value_maximum`, `consensus_threshold`, `closed_at`.
  *
  * Pure: the tag layouts, who counts and how much. Fetching and drawing live in
  * `components/share/PollCard.tsx`; publishing a response in `services/polls.ts`.
@@ -278,7 +284,7 @@ export function tallyZapPoll(poll: ZapPoll, receipts: EventLike[]): ZapPollTally
     if (!receipt.msats) continue;
     const amount = Math.floor(receipt.msats / 1000);
     if (amount <= 0 || amount > MAX_SATS) continue;
-    // NIP-69: outside `value_minimum`–`value_maximum` is no vote at all, so no one zap's size carries consensus past the cap.
+    // The zap-poll draft: outside `value_minimum`–`value_maximum` is no vote at all, so no one zap's size carries consensus past the cap.
     if ((poll.min !== null && amount < poll.min) || (poll.max !== null && amount > poll.max)) continue;
     paid.add(request.id);
     sats.set(option, (sats.get(option) ?? 0) + amount);

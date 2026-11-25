@@ -275,6 +275,7 @@ vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null
 
 import { ListKindsContext } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
+import { KIND_FIXTURES } from "@/test/kindFixtures";
 import { FEATURES } from "@/config/featureFlags";
 import { __forgetTabCounts } from "@/hooks/useTabCounts";
 import { __forgetAllCategories } from "@/hooks/useAllCategories";
@@ -667,6 +668,23 @@ describe("SearchResults", () => {
       expect(results).toHaveTextContent("La Tarantella - Recoleta");
       expect(screen.queryByTestId("media-card-place1")).toBeNull();
     });
+  });
+
+  // NIP-84: the Notes tab drew a highlight as a note of its passage, with no source. It is the
+  // highlight row the Top page and the All tab draw: the passage marked, and where it is from.
+  it("draws a highlight on the Notes tab as its passage and its source, not as a note", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="essay" pov="nosfabrica" />);
+    const highlight = ev("hl1", 9802, "4".repeat(64), "the words they marked", [
+      ["r", "https://source.example/essay", "source"],
+      ["r", "https://other.example", "mention"],
+    ]);
+    emit({ hits: [{ event: highlight, author: null, rank: null }], eose: true, timeMs: 100 });
+    const passage = await screen.findByTestId("serp-highlight-passage");
+    expect(passage).toHaveTextContent("the words they marked");
+    expect(screen.getByTestId("serp-highlight-source")).toHaveTextContent("source.example");
+    expect(screen.getByTestId("serp-highlight-source")).not.toHaveTextContent("other.example");
+    expect(screen.queryByTestId("note-card")).toBeNull();
   });
 
   // Content tabs land on what's fresh by default; a typed sort: always wins,
@@ -2629,6 +2647,20 @@ describe("SearchResults", () => {
     emit({ hits: [], eose: true, timeMs: 412 });
     await screen.findByText(/Nothing found|No specs|nothing/i).catch(() => undefined);
     expect(screen.queryByTestId("query-as-sent")).toBeNull();
+  });
+
+  // The kinds the kind-surfaces work covers (test/kindFixtures), on the grid: each its own card,
+  // never the generic row or a blank media tile. The other surfaces: share/kindSurfaces.test.tsx.
+  it.each(KIND_FIXTURES)("draws $name on the grid as its own card", async (fx) => {
+    setUrlTab("code");
+    render(<SearchResults query="relay" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: fx.event, author: author(fx.event.pubkey, "maker"), rank: null }],
+      eose: true,
+      timeMs: 200,
+    });
+    const card = await screen.findByTestId(fx.grid === "embedded-note" ? fx.grid : `${fx.grid}${fx.event.id}`);
+    expect((card.textContent ?? "").replace(/\s+/g, " ")).toMatch(fx.cardText);
   });
 
   it("renders a git repo with name and description", async () => {

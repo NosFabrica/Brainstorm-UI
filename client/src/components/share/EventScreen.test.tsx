@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The event page, for the two things it decides before the video hero draws:
- * a video whose NIP-40 `expiration` has passed is gone, said the way a deleted
- * post is; and a video is dated by when it was published, since a restored
+ * an event of any kind whose NIP-40 `expiration` has passed is gone, said the
+ * way a deleted post is; and a video is dated by when it was published, since a restored
  * Vine's `created_at` is the day it was imported.
  */
 import { describe, expect, it, vi } from "vitest";
@@ -68,7 +68,7 @@ const open = (event: MinimalEvent) =>
     </QueryClientProvider>,
   );
 
-describe("the event page — an expired video", () => {
+describe("the event page — an expired event", () => {
   it("says the post has expired, in place of the event", () => {
     open(vine([["expiration", String(NOW - 60)]]));
     expect(screen.getByTestId("event-expired")).toHaveTextContent("This post has expired.");
@@ -77,9 +77,23 @@ describe("the event page — an expired video", () => {
     expect(document.querySelector("video")).toBeNull();
   });
 
-  // Only video kinds for now: expiration on every other kind is its own change.
-  it("leaves a note with a past expiration as it was", () => {
-    open({ ...vine(), kind: 1, content: "Flash sale until noon", tags: [["expiration", String(NOW - 60)]] });
+  // NIP-40 is about every kind: "clients SHOULD ignore events that have expired".
+  it("says a note, a reaction or a score with a past expiration has expired too", () => {
+    const expiration = ["expiration", String(NOW - 60)];
+    for (const [kind, content, tags] of [
+      [1, "Flash sale until noon", [expiration]],
+      [7, "+", [["e", "2".repeat(64)], expiration]],
+      [30382, "", [["d", "3".repeat(64)], ["rank", "40"], expiration]],
+    ] as const) {
+      const { unmount } = open({ ...vine(), kind, content, tags: tags.map((t) => [...t]) });
+      expect(screen.getByTestId("event-expired")).toHaveTextContent("This post has expired.");
+      expect(screen.queryByTestId("event-note")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("leaves a note whose expiration is still ahead as it was", () => {
+    open({ ...vine(), kind: 1, content: "Flash sale until noon", tags: [["expiration", String(NOW + 3600)]] });
     expect(screen.queryByTestId("event-expired")).toBeNull();
     expect(screen.getByTestId("event-note")).toHaveTextContent("Flash sale until noon");
   });

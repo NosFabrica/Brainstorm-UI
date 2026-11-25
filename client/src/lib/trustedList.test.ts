@@ -62,3 +62,51 @@ describe("readTrustedList", () => {
     ]);
   });
 });
+
+describe("readTrustedList — the family (30393–30395)", () => {
+  const NOTE_A = "a".repeat(64);
+  const NOTE_B = "b".repeat(64);
+  const notes = {
+    kind: 30393,
+    tags: [
+      ["d", "tl-pin-notes-x"],
+      ["title", "stoicism Notes"],
+      // Discovery metadata, not members (the draft's pinned-tag note list).
+      ["a", `39999:${TAG_AUTHOR}:stoicism`],
+      ["p", OBSERVER],
+      ["e", NOTE_B, "wss://relay.example", "40"],
+      ["e", NOTE_A, "petname", "95"],
+      ["e", "c".repeat(64), "", "950"],
+      ["tagging-target", "1"],
+      ["truncated", "1200"],
+    ],
+  };
+
+  it("reads only the kind's member tag; index 2 a relay only when it is one; a score off 0–100 dropped", () => {
+    const list = readTrustedList(notes);
+    expect(list.kind).toBe(30393);
+    expect(list.entries).toEqual([
+      { value: NOTE_A, score: 95 },
+      { value: NOTE_B, hint: "wss://relay.example", score: 40 },
+      { value: "c".repeat(64), score: null },
+    ]);
+    expect(list.members).toEqual([]);
+    expect(list.taggingTarget).toBe("1");
+    expect(list.truncated).toEqual({ total: 1200 });
+    expect(list.retracted).toBe(false);
+  });
+
+  it("reads a retraction, and addresses and identifiers as their kinds say", () => {
+    expect(readTrustedList({ kind: 30394, tags: [["status", "retracted"]] }).retracted).toBe(true);
+    const addrs = readTrustedList({
+      kind: 30394,
+      tags: [
+        ["a", `39999:${TAG_AUTHOR}:verified`, "", "80"],
+        ["a", "not-an-address"],
+      ],
+    });
+    expect(addrs.entries).toEqual([{ value: `39999:${TAG_AUTHOR}:verified`, score: 80 }]);
+    const ids = readTrustedList({ kind: 30395, tags: [["i", "isbn:9780141439518", "https://example.com/book", "70"]] });
+    expect(ids.entries).toEqual([{ value: "isbn:9780141439518", hint: "https://example.com/book", score: 70 }]);
+  });
+});

@@ -11,3 +11,9 @@ export const tagValue = (ev: { tags: string[][] }, ...names: string[]): string |
   }
   return null;
 };
+
+/** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
+// An app's own record key is a key, not a name: Shopstr writes its escrow
+// records under `shopstr:p2pk-escrow:<uuid>`.
+export const OPAQUE_D =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,}|shopstr:[\s\S]*)$/i;

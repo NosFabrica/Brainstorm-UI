@@ -50,13 +50,13 @@ import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
-import { kindTypeLabel } from "@/lib/kindLabel";
+import { kindLabel, kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
-import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import { TRUSTED_LIST_KINDS, TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
 import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -69,9 +69,19 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
-import { liveCategoryOf, liveHostOf, liveTitleOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
+import {
+  liveCategoryOf,
+  liveHostOf,
+  liveStateLabel,
+  liveStateOf,
+  liveTitleOf,
+  onAirLabel,
+  parseLiveStream,
+  type LiveState,
+} from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
+import { platformWords } from "@/lib/appPlatforms";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -447,7 +457,8 @@ export const MediaCard = memo(function MediaCard({
         <div className="mt-2" data-noopen>
           <EmbeddedTrackCard
             id={`search:${event.id}`}
-            title={caption || "Audio"}
+            // A voice message is said as one (NIP-A0), as its row and page say it.
+            title={caption || kindLabel(event)}
             artist={author ? getDisplayLabel(author) : undefined}
             cover={poster ?? undefined}
             audio={url}
@@ -500,21 +511,8 @@ export const MediaCard = memo(function MediaCard({
   );
 });
 
-/** "android-arm64-v8a" and friends → one human word each, deduped. */
-export function platformWords(event: NostrEvent): string[] {
-  const words = new Set<string>();
-  for (const tag of event.tags) {
-    if (tag[0] !== "f" || !tag[1]) continue;
-    const f = tag[1].toLowerCase();
-    if (f.startsWith("android")) words.add("Android");
-    else if (f.startsWith("ios")) words.add("iOS");
-    else if (f.includes("darwin") || f.includes("mac")) words.add("macOS");
-    else if (f.includes("windows")) words.add("Windows");
-    else if (f.includes("linux")) words.add("Linux");
-    else if (f.includes("web")) words.add("Web");
-  }
-  return [...words];
-}
+// One reading of an app's platforms for its card, its page and its row (lib/appPlatforms).
+export { platformWords };
 
 /**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
@@ -910,14 +908,10 @@ export const RepoCard = memo(function RepoCard({
   );
 });
 
-const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
+const LIVE_TONES: Record<LiveState, "success" | "neutral" | "info"> = {
   live: "success",
-  ended: "neutral",
-  planned: "info",
-  // A NIP-53 meeting space (30312): open, private (in operation, behind its door) or closed.
-  open: "success",
-  private: "info",
-  closed: "neutral",
+  replay: "neutral",
+  upcoming: "info",
 };
 
 export const LiveCard = memo(function LiveCard({
@@ -931,12 +925,15 @@ export const LiveCard = memo(function LiveCard({
 }) {
   // A space by its `room`, a meeting by its `title` (NIP-53); a stream as the Live tab reads it.
   const title = liveTitleOf(event) ?? "Live event";
-  const status = (tagVal(event, "status") ?? "").toLowerCase();
+  // The Live tab's reading of it, not the raw tag: a "live" nobody updated in a week is over.
+  const state = liveStateOf(event);
+  // A space (30312/30313) keeps its own word.
+  const rawStatus = (tagVal(event, "status") ?? "").toLowerCase();
   const summary = tagVal(event, "summary") ?? "";
   const image = tagVal(event, "image");
   const naddr = naddrOf(event);
   // A space's way in is its `service` URL ("URL to access the room"), while it is open.
-  const service = event.kind === 30312 && status !== "closed" ? tagVal(event, "service") : undefined;
+  const service = event.kind === 30312 && rawStatus !== "closed" ? tagVal(event, "service") : undefined;
   const openIn =
     event.kind === 30311 && naddr
       ? `https://zap.stream/${naddr}`
@@ -968,15 +965,33 @@ export const LiveCard = memo(function LiveCard({
               <EmojiText text={title} tags={event} />
             </p>
             <KindPill event={event} mixed={false} />
-            {status && (
+            {event.kind === 30311 ? (
               <Chip
                 size="sm"
-                tone={LIVE_TONES[status] ?? "neutral"}
-                dot={status === "live"}
+                tone={state ? LIVE_TONES[state] : "neutral"}
+                dot={state === "live"}
                 data-testid={`live-status-${event.id}`}
               >
-                {status}
+                {liveStateLabel(state)}
               </Chip>
+            ) : (
+              rawStatus && (
+                <Chip
+                  size="sm"
+                  // A space (30312) is open, private (in operation, behind its door) or closed.
+                  tone={
+                    rawStatus === "live" || rawStatus === "open"
+                      ? "success"
+                      : rawStatus === "planned" || rawStatus === "private"
+                        ? "info"
+                        : "neutral"
+                  }
+                  dot={rawStatus === "live" || rawStatus === "open"}
+                  data-testid={`live-status-${event.id}`}
+                >
+                  {rawStatus}
+                </Chip>
+              )
             )}
           </div>
           {starts > 0 && (
@@ -1226,7 +1241,7 @@ export const EventCard = memo(function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    rsvp && !item && !past && cal.startSec > 0 ? (
+    rsvp && !item && !past && !cal.cancelled && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1261,6 +1276,12 @@ export const EventCard = memo(function EventCard({
                   </span>
                 )}
               </p>
+            )}
+            {/* Called off, in the host's words (lib/calendarEvent): the title alone would hide it. */}
+            {cal.cancelled && (
+              <Chip size="sm" tone="danger" data-testid={`event-cancelled-${event.id}`}>
+                Cancelled
+              </Chip>
             )}
             <KindPill event={event} mixed={false} />
           </div>
@@ -1413,7 +1434,8 @@ export const ListCard = memo(function ListCard({
   // A Trusted List (kind 30392) is a people list that says more: each member's
   // score on the tag, best first, the tag it was built from and whose web of
   // trust ranked it — all in its tags.
-  const trusted = useMemo(() => (event.kind === TRUSTED_PEOPLE_KIND ? readTrustedList(event) : null), [event]);
+  // The family's lists of things (30393–30395) say the same provenance; their members are things.
+  const trusted = useMemo(() => (TRUSTED_LIST_KINDS.has(event.kind) ? readTrustedList(event) : null), [event]);
   const ownMembers = useMemo(
     () =>
       trusted ? trusted.members.map((m) => m.pubkey) : event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]),
@@ -1423,7 +1445,11 @@ export const ListCard = memo(function ListCard({
   const folded = !!group && group.lists > 1;
   // A folded row shows the faces most lists agree on, and counts everyone once.
   const members = folded ? group.consensus : ownMembers;
-  const otherItems = event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
+  // A Trusted List counts its member tag alone: a 30393's discovery `a` and `p` are not items.
+  const otherItems =
+    trusted && trusted.kind !== TRUSTED_PEOPLE_KIND
+      ? trusted.entries.length
+      : event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
   // A people-list (Brainstorm's pinned-tag follow sets are kind 30000) counts
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
   const isPeopleList = members.length > 0 && otherItems === 0;

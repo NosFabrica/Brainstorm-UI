@@ -79,7 +79,10 @@ import {
 } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { groupPeoplePacks } from "@/lib/listGroups";
-import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { TRUSTED_ITEM_LIST_KINDS, TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { GIT_STATUS_KIND_SET, REPO_STATE_KIND } from "@/lib/gitEvents";
+import { RELEASE_KIND } from "@/lib/release";
+import { GitStatusCard, ReleaseCard, RepoStateCard } from "@/components/search/kindCards";
 import { WEB_BOOKMARK_KIND } from "@/lib/webBookmark";
 import {
   AppCard,
@@ -95,6 +98,7 @@ import {
   type ListGroupView,
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
+import { parseHighlight } from "@/lib/nip84";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
@@ -137,7 +141,7 @@ import {
 } from "@/lib/calendarEvent";
 import { dedupeEvents } from "@/lib/eventDedupe";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { isListed, parseListing } from "@/lib/listing";
+import { DRAFT_LISTING_KIND, isListed, parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
@@ -270,7 +274,11 @@ function recipeTopics(e: NostrEvent): string[] {
 // Lists tab (the relay holds a copy per perspective), but a `kind:` or a
 // mixed answer that meets one shows it as the people list it is. A web
 // bookmark sits on the Lists tab but is one link: its row is the page's.
-const LIST_KINDS = new Set([...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_KIND), TRUSTED_PEOPLE_KIND]);
+const LIST_KINDS = new Set([
+  ...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_KIND),
+  TRUSTED_PEOPLE_KIND,
+  ...TRUSTED_ITEM_LIST_KINDS,
+]);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
@@ -3507,6 +3515,12 @@ export const SearchResults = memo(function SearchResults({
                               />,
                             );
                           }
+                          // A NIP-84 highlight is its passage marked and where it is from (SerpRow's
+                          // HighlightRow), as on the Top page and the All tab — never its passage as a bare note.
+                          if (event.kind === 9802 && parseHighlight(event))
+                            return wrap(
+                              <SerpRow event={event} author={hit.author} score={scoreOf(event.pubkey)} query={query} />,
+                            );
                           if (NOTE_KINDS.has(event.kind) && tab !== "media") {
                             return wrap(
                               <ShareNoteCard
@@ -3526,7 +3540,8 @@ export const SearchResults = memo(function SearchResults({
                             return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? NO_FACES} />);
                           }
                           if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-                          if (SHOP_KINDS.has(event.kind))
+                          // A NIP-99 draft is not in the Shop, but drawn where it turns up as the listing it is.
+                          if (SHOP_KINDS.has(event.kind) || event.kind === DRAFT_LISTING_KIND)
                             return wrap(
                               <ListingCard
                                 {...typed}
@@ -3555,6 +3570,10 @@ export const SearchResults = memo(function SearchResults({
                                 forkOf={forkOf}
                               />,
                             );
+                          // NIP-34 statuses and repo state, and releases: their own cards (components/search/kindCards).
+                          if (GIT_STATUS_KIND_SET.has(event.kind)) return wrap(<GitStatusCard {...typed} />);
+                          if (event.kind === REPO_STATE_KIND) return wrap(<RepoStateCard {...typed} />);
+                          if (event.kind === RELEASE_KIND) return wrap(<ReleaseCard {...typed} />);
                           if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
                           if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
                           if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);

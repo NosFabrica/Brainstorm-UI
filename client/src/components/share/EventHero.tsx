@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { nip19 } from "nostr-tools";
-import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
+import { Calendar, CalendarPlus, CalendarX, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
+import { Link } from "wouter";
+import { decodeGeohash, osmEmbedUrl, osmPageUrl } from "@/lib/geohash";
+import { useEventCalendars } from "@/hooks/useEventCalendars";
+import { useWotItems } from "@/hooks/useWotItems";
 import {
   parseCalendarEvent,
   formatEventDate,
   formatEventTime,
+  eventDateTile,
   isUpcoming,
   relativeEventTime,
 } from "@/lib/calendarEvent";
@@ -38,6 +43,77 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 type Profile = { name?: string; display_name?: string; picture?: string };
 
 /**
+ * The event's own iCalendar record, when one of its `r` links (NIP-52: links to
+ * web pages, documents…) is a `.ics` on the web — Event Index links each event's
+ * record so. It carries the organizer's time zone, description and UID, so a
+ * reader who follows the calendar elsewhere doesn't get the event twice.
+ */
+export function icsRecordOf(event: { tags: string[][] }): string | null {
+  for (const t of event.tags) {
+    if (t[0] !== "r" || !t[1]) continue;
+    try {
+      const u = new URL(t[1].trim());
+      if (u.protocol === "https:" && /\.ics$/i.test(u.pathname)) return u.toString();
+    } catch {
+      /* not a link */
+    }
+  }
+  return null;
+}
+
+/** A poster drawn from the event itself when it has no picture: its date and its title. */
+function DrawnPoster({ startSec, title }: { startSec: number; title: string }) {
+  const tile = startSec ? eventDateTile(startSec) : null;
+  return (
+    <div
+      className="relative flex h-full w-full flex-col justify-between bg-gradient-to-br from-brand-primary to-[#0A0E18] p-4 text-left text-white"
+      data-testid="event-hero-drawn-poster"
+    >
+      {tile ? (
+        <div className="leading-none">
+          <div className="text-xs font-bold uppercase tracking-widest text-white/70">{tile.month}</div>
+          <div className="mt-1 text-4xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
+            {tile.day}
+          </div>
+        </div>
+      ) : (
+        <Calendar className="h-6 w-6 text-white/70" />
+      )}
+      <div className="line-clamp-4 text-base font-bold leading-snug" style={{ fontFamily: "var(--font-display)" }}>
+        {title}
+      </div>
+    </div>
+  );
+}
+
+/** Where a geohash is, on OpenStreetMap's embedded map — only once the reader asks. */
+function EventMap({ cell, title }: { cell: NonNullable<ReturnType<typeof decodeGeohash>>; title: string }) {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="ml-10 text-xs font-medium text-brand-primary hover:underline dark:text-brand-link"
+        data-testid="event-hero-map-show"
+      >
+        Show on map · openstreetmap.org
+      </button>
+    );
+  return (
+    <iframe
+      src={osmEmbedUrl(cell)}
+      title={`Map: ${title}`}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      className="mt-1 h-56 w-full rounded-xl border border-slate-200 dark:border-slate-800"
+      data-testid="event-hero-map"
+    />
+  );
+}
+
+/**
  * An event page the way Luma lays one out: the cover beside the facts; the
  * host named and ringed; the date tile with start, end and zone; where, with
  * a map; who said they are going, as faces; "I'm going" and "Add to
@@ -49,18 +125,29 @@ export function EventHero({ event }: { event: MinimalEvent }) {
   const [imgBroken, setImgBroken] = useState(false);
   const openLightbox = useLightbox();
   const heroImage = !e.image || imgBroken ? eventDefault : e.image;
-  const upcoming = isUpcoming(e.startSec);
+  // No picture of its own: a poster drawn from its date and title, not the stock one.
+  const drawn = !e.image || imgBroken;
+  // Called off, in the host's words (lib/calendarEvent): not upcoming, nothing to go to.
+  const upcoming = isUpcoming(e.startSec) && !e.cancelled;
   const rel = relativeEventTime(e.startSec);
   const tz = event.tags.find((t) => t[0] === "start_tzid")?.[1];
   const d = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
   const address = `${event.kind}:${event.pubkey}:${d}`;
-  const mapUrl = e.location
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`
-    : null;
+  // NIP-52's `g` is the place's geohash: the map is there. Without one, a search on the words.
+  const cell = useMemo(() => {
+    const g = event.tags.find((t) => t[0] === "g")?.[1];
+    return g ? decodeGeohash(g) : null;
+  }, [event]);
+  const mapUrl = cell
+    ? osmPageUrl(cell)
+    : e.location
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`
+      : null;
+  const icsRecord = useMemo(() => icsRecordOf(event), [event]);
+  const calendars = useEventCalendars(d ? address : null);
 
   // The host and the guests' faces.
   const [rsvps, setRsvps] = useState<EventRsvps | null>(null);
-  const faces = rsvps?.faces.slice(0, 5) ?? [];
   useEffect(() => {
     let alive = true;
     void fetchEventRsvps([address]).then((m) => {
@@ -70,6 +157,16 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       alive = false;
     };
   }, [address]);
+  // "K you trust": who is going, through the reader's lens — the rule list items use (useWotItems).
+  const going = useMemo(() => rsvps?.people ?? rsvps?.faces ?? [], [rsvps]);
+  const goingPeople = useMemo(() => going.map((pubkey) => ({ pubkey })), [going]);
+  const goingTrust = useWotItems(goingPeople);
+  // Trusted faces first.
+  const trustedSet = useMemo(() => new Set(goingTrust.trusted.map((p) => p.pubkey)), [goingTrust.trusted]);
+  const faces = useMemo(
+    () => [...going].sort((a, b) => Number(trustedSet.has(b)) - Number(trustedSet.has(a))).slice(0, 5),
+    [going, trustedSet],
+  );
   // The `p` tags that name a host or an organizer, else the signer (lib/eventHosts).
   const hosts = useMemo(() => hostsOf(event), [event]);
   const profiles = useLiveProfiles([...hosts, ...faces]) as Map<string, Profile>;
@@ -118,7 +215,11 @@ export function EventHero({ event }: { event: MinimalEvent }) {
     }),
     [address, e.title, e.startSec, e.endSec, e.isDateOnly, e.location, e.summary, event],
   );
-  const addToCalendar = () => downloadIcs(icsFileName(e.title), buildIcs(icsInput));
+  // The event's own record when it links one; else a file built here.
+  const addToCalendar = () => {
+    if (icsRecord) window.open(icsRecord, "_blank", "noopener");
+    else downloadIcs(icsFileName(e.title), buildIcs(icsInput));
+  };
 
   return (
     <div data-testid="event-hero">
@@ -146,6 +247,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           className="relative block aspect-square w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800 dark:bg-slate-900 sm:w-48 sm:shrink-0"
           data-testid="event-hero-poster"
         >
+          {drawn ? <DrawnPoster startSec={e.startSec} title={e.title} /> : null}
           {!imgBroken && e.image && (
             <img
               src={heroImage}
@@ -155,24 +257,35 @@ export function EventHero({ event }: { event: MinimalEvent }) {
               data-testid="event-hero-image-blur"
             />
           )}
-          <img
-            src={heroImage}
-            alt=""
-            loading="lazy"
-            onError={() => setImgBroken(true)}
-            className="relative h-full w-full object-contain"
-            data-testid="event-hero-image"
-          />
+          {!drawn && (
+            <img
+              src={heroImage}
+              alt=""
+              loading="lazy"
+              onError={() => setImgBroken(true)}
+              className="relative h-full w-full object-contain"
+              data-testid="event-hero-image"
+            />
+          )}
         </button>
         <div className="mt-3 min-w-0 flex-1 sm:mt-0">
           {/* One line for the state of the event: the chip and the countdown together. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="event-hero-status">
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}
-            >
-              <Calendar className="h-3 w-3" /> {upcoming ? "Upcoming event" : "Past event"}
-            </span>
-            {timing && (
+            {e.cancelled ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                data-testid="event-hero-cancelled"
+              >
+                <CalendarX className="h-3 w-3" /> Cancelled
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}
+              >
+                <Calendar className="h-3 w-3" /> {upcoming ? "Upcoming event" : "Past event"}
+              </span>
+            )}
+            {timing && !e.cancelled && (
               <span
                 className={`text-xs font-semibold ${upcoming ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`}
                 data-testid="event-hero-timing"
@@ -194,6 +307,23 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             profiles={profiles}
             ringOf={(pk) => tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}
           />
+          {/* The calendars that list it (NIP-52: a 31924's own a tags). */}
+          {calendars.length > 0 && (
+            <div className="mt-1 text-sm text-slate-600 dark:text-slate-300" data-testid="event-hero-calendars">
+              On{" "}
+              {calendars.slice(0, 3).map((c, i) => (
+                <span key={c.id}>
+                  {i > 0 && ", "}
+                  <Link href={eventPath(c)} className="font-medium text-brand-link hover:underline">
+                    {c.tags.find((t) => t[0] === "title")?.[1]?.trim() ||
+                      c.tags.find((t) => t[0] === "name")?.[1]?.trim() ||
+                      "a calendar"}
+                  </Link>
+                </span>
+              ))}
+              {calendars.length > 3 && ` and ${calendars.length - 3} more`}
+            </div>
+          )}
           <div className="mt-3 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
             {e.startSec > 0 && (
               <div className="flex items-center gap-2.5" data-testid="event-hero-date">
@@ -223,6 +353,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
                 )}
               </div>
             )}
+            {cell && <EventMap cell={cell} title={e.title} />}
           </div>
           {/* Who is going — faces with the count. */}
           {rsvps && rsvps.going > 0 && (
@@ -247,6 +378,16 @@ export function EventHero({ event }: { event: MinimalEvent }) {
               </span>
               <span className="text-sm text-slate-600 dark:text-slate-300">
                 <span className="font-medium text-slate-900 dark:text-slate-100">{rsvps.going}</span> going
+                {goingTrust.trusted.length > 0 && (
+                  <span data-testid="event-hero-guests-trusted">
+                    {" "}
+                    ·{" "}
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {goingTrust.trusted.length}
+                    </span>{" "}
+                    you trust
+                  </span>
+                )}
               </span>
             </div>
           )}

@@ -24,9 +24,11 @@ export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network sp
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
+import { postedAtOf } from "@/lib/eventDate";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -135,6 +137,9 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const [, navigate] = useLocation();
   if (blank)
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  // Past its NIP-40 expiration: the same whisper, saying so.
+  if (isExpired(event, Math.floor(Date.now() / 1000)))
+    return <DeletedStub expired className="mt-2" testId="embedded-expired" />;
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   // A publication's or a section's title is often missing; its `d` is a readable slug.
@@ -256,8 +261,9 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
               <ProfileEmojiText pubkey={event.pubkey} text={name} />
             </span>
             {nip05Verified && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
+            {/* When it was first published (NIP-23 `published_at`), as its own page dates it — not its last edit. */}
             {event.created_at ? (
-              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
+              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(postedAtOf(event))}</span>
             ) : null}
             <ViaRelay event={event} />
           </div>

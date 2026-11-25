@@ -44,7 +44,15 @@ export function mediaUrlOf(event: EventLike): string | null {
   return url;
 }
 
+/**
+ * Kinds whose tags and words name other things' files, not files of their own: a
+ * profile's picture and banner (its `imeta` describes those, NIP-92), a repost's
+ * reposted note (NIP-18, its JSON in the content).
+ */
+const NOT_MEDIA_KINDS = new Set([0, 6, 16]);
+
 function readMediaUrl(event: EventLike): string | null {
+  if (NOT_MEDIA_KINDS.has(event.kind)) return null;
   for (const tag of event.tags) {
     if (tag[0] === "imeta") {
       const part = tag.slice(1).find((p) => p.startsWith("url "));
@@ -61,6 +69,7 @@ function readMediaUrl(event: EventLike): string | null {
  *  publishes video previews there) or plain thumb/image tags. Null means
  *  "no still exists"; the card then pulls a first frame from the video. */
 export function mediaPosterOf(event: EventLike): string | null {
+  if (NOT_MEDIA_KINDS.has(event.kind)) return null;
   for (const tag of event.tags) {
     if (tag[0] === "imeta") {
       for (const key of ["image ", "thumb "]) {
@@ -83,10 +92,15 @@ export function mediaMimeOf(event: EventLike): string {
   return (tagVal(event, "m") ?? "").trim().toLowerCase();
 }
 
-/** Video by declared mime first (imeta "m video/…"), extension second. */
+/**
+ * Video by declared mime first (imeta "m video/…"), extension second. A voice
+ * message's file is a sound whatever it is called (NIP-A0 recommends `.m4a`, and
+ * its own example is an `.mp4`): only a declared video mime makes it a clip.
+ */
 export function isVideoUrl(event: EventLike, url: string): boolean {
   const mime = mediaMimeOf(event);
   if (mime) return mime.startsWith("video/");
+  if (VOICE_EVENT_KINDS.has(event.kind)) return false;
   return VIDEO_RE.test(url);
 }
 
@@ -104,6 +118,7 @@ const SOUND_KINDS = new Set([1222, 1244, 1808, 31337, 36787, 54, 30054, 30055]);
  * a picture post's or a still's `thumb`/`image` tag is a photo.
  */
 export function mediaKindOf(event: EventLike): MediaKind | null {
+  if (NOT_MEDIA_KINDS.has(event.kind)) return null;
   const first = mediaItemsOf(event)[0];
   if (first) return first.kind;
   const still = tagVal(event, "thumb") ?? tagVal(event, "image");
@@ -172,6 +187,7 @@ export function mediaItemsOf(event: EventLike): MediaItem[] {
       return "audio";
     return (mime && kindOfMime(mime)) || (AUDIO_EVENT_KINDS.has(event.kind) ? "audio" : mediaKindOfUrl(url));
   };
+  if (NOT_MEDIA_KINDS.has(event.kind)) return [];
   const items: MediaItem[] = [];
   const seen = new Set<string>();
   const add = (item: MediaItem) => {
@@ -207,14 +223,21 @@ export function mediaItemsOf(event: EventLike): MediaItem[] {
       const dim = parseDim(tagVal(event, "dim"));
       const durationSec = parseDuration(tagVal(event, "duration"));
       const kind = kindOf(tag[1], mime, !!dim, !!durationSec);
-      if (kind) add({ url: tag[1], kind, mime, dim, durationSec });
+      // A NIP-94 file's `alt` is its description for a reader who cannot see it.
+      const alt = event.kind === 1063 ? tagVal(event, "alt")?.trim() || undefined : undefined;
+      if (kind) add({ url: tag[1], kind, mime, alt, dim, durationSec });
     }
   }
   if (items.length > 0) return items;
+  // A voice message's content is its file and nothing else (NIP-A0), named however its server names it.
+  const content = event.content.trim();
+  if (VOICE_EVENT_KINDS.has(event.kind) && /^https?:\/\/\S+$/i.test(content) && !IMAGE_RE.test(content))
+    return [{ url: content, kind: "audio" }];
   for (const token of parseNoteContent(event.content)) {
     if (token.type !== "image" && token.type !== "video" && token.type !== "audio" && token.type !== "live") continue;
     if (!/^https?:\/\//i.test(token.value)) continue;
-    const kind = mediaKindOfUrl(token.value);
+    // A voice message's content is its file (NIP-A0): a sound, even named `.mp4`.
+    const kind = AUDIO_EVENT_KINDS.has(event.kind) && token.type !== "image" ? "audio" : mediaKindOfUrl(token.value);
     if (kind) add({ url: token.value, kind });
   }
   return items;

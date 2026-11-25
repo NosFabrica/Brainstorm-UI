@@ -4,7 +4,7 @@ import { CompromisedAuthorNotice } from "@/components/compromised/CompromisedAut
 import { RetiredAuthorNotice } from "@/components/retired/RetiredAuthorNotice";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { LISTING_EMBED_KINDS } from "@/lib/embedShape";
 import { parseListing } from "@/lib/listing";
@@ -41,6 +41,10 @@ import { FileHero } from "@/components/share/FileHero";
 import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
+import { GIT_STATUS_KIND_SET as GIT_STATUS_KINDS } from "@/lib/gitEvents";
+import { TRUSTED_LIST_KINDS } from "@/lib/trustedList";
+import { GitReplyHero, GitStatusHero, RepoStateHero } from "@/components/share/GitEventHero";
+import { ReleaseHero } from "@/components/share/ReleaseHero";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { TrustedListHero } from "@/components/share/TrustedListHero";
 import { ItemListHero } from "@/components/share/ItemListHero";
@@ -93,7 +97,7 @@ import { EntityMenu } from "@/components/share/EntityMenu";
 import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { neventFor, npubFromPubkey, nostrUriForEvent, readsAsArticle, shareUrlFor } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent, profilePath, readsAsArticle, shareUrlFor } from "@/lib/shareId";
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -194,10 +198,12 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
   // husk. Say what happened rather than render an article called "[Deleted]".
   if (note && isBlankEvent(note)) return <DeletedEvent />;
-  // A video past its NIP-40 expiration: its author meant it to be gone by now.
-  // Video kinds only for now; every other kind still shows an expired event.
-  if (note && VIDEO_KINDS.has(note.kind) && isExpired(note, Math.floor(Date.now() / 1000)))
-    return <DeletedEvent expired />;
+  // Past its NIP-40 expiration, whatever its kind: its author meant it to be gone by
+  // now, and "clients SHOULD ignore events that have expired".
+  if (note && isExpired(note, Math.floor(Date.now() / 1000))) return <DeletedEvent expired />;
+  // A profile event (kind 0) is a person: their page, never its JSON as a structural card.
+  if (note?.kind === 0 && profilePath(note.pubkey, relayHints))
+    return <Redirect to={profilePath(note.pubkey, relayHints)} replace />;
   // The kind decides, before any of the event layout's own queries run.
   if (note && readsAsArticle(note)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
@@ -416,6 +422,8 @@ function EventView({
   // 10002 a relay list (RelayListHero), 30315 a user status (UserStatusHero).
   const DEDICATED_KINDS = new Set([
     30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998, 10002, 30315,
+    // NIP-34 statuses, repo state and the legacy reply; releases; the Trusted Lists of things.
+    1622, 1630, 1631, 1632, 1633, 30618, 30063, 30393, 30394, 30395,
   ]);
   // Something for sale: a NIP-99 listing, or a NIP-15 product or auction the
   // Shop draws as one — its own page is the listing page, never the
@@ -677,9 +685,19 @@ function EventView({
                 <FileHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
+              ) : GIT_STATUS_KINDS.has(note.kind) ? (
+                // A NIP-34 status: what it set, on which issue, patch or PR.
+                <GitStatusHero event={note} />
+              ) : note.kind === 30618 ? (
+                <RepoStateHero event={note} />
+              ) : note.kind === 1622 ? (
+                // A reply from before NIP-34 moved replies to NIP-22 comments.
+                <GitReplyHero event={note} />
+              ) : note.kind === 30063 ? (
+                <ReleaseHero event={note} />
               ) : note.kind === 30000 || note.kind === 39089 || note.kind === 39092 ? (
                 <FollowSetHero event={note} />
-              ) : note.kind === 30392 ? (
+              ) : TRUSTED_LIST_KINDS.has(note.kind) ? (
                 <TrustedListHero event={note} />
               ) : note.kind === 10040 ? (
                 <DesignationHero event={note} />

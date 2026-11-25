@@ -8,6 +8,7 @@ import { OpenElsewhere } from "@/components/share/OpenElsewhere";
 import { ArticleScreen, ArticleShell, type AddressPointer, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { EventScreen } from "@/components/share/EventScreen";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { BOOKSHELF_KIND, PUBLICATION_INDEX_KIND, PUBLICATION_SECTION_KIND } from "@/lib/publication";
 
 /**
@@ -35,7 +36,8 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
   const ev = newerEvent(articleQuery.events[0], held) as ArticleEvent | undefined;
   // Deleted by overwriting: the address resolves to a husk. The event layout
   // says what happened rather than the reader showing an article called "[Deleted]".
-  if (ev && (isBlankEvent(ev) || !readsAsArticle(ev))) {
+  // Past its NIP-40 expiration too: the event layout says so (EventScreen).
+  if (ev && (isBlankEvent(ev) || isExpired(ev, Math.floor(Date.now() / 1000)) || !readsAsArticle(ev))) {
     return (
       <EventScreen event={ev as unknown as MinimalEvent} ptr={{ id: ev.id, author: ev.pubkey, relays: ptr.relays }} />
     );

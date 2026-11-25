@@ -233,3 +233,58 @@ describe("the files in a note's words are the ones its text draws", () => {
     );
   });
 });
+
+describe("NIP-A0 voice messages are sounds, whatever their file is called", () => {
+  it("a voice message's `.mp4` (the spec's own example) is never a clip", async () => {
+    const { isVideoUrl, mediaUrlOf } = await import("./mediaKind");
+    const voice = ev(1222, [], "https://blossom.test/v.mp4");
+    expect(mediaItemsOf(voice)).toEqual([{ url: "https://blossom.test/v.mp4", kind: "audio" }]);
+    expect(mediaKindOf(voice)).toBe("audio");
+    expect(isVideoUrl(voice, mediaUrlOf(voice)!)).toBe(false);
+    // Only a declared video mime makes it one.
+    expect(isVideoUrl(ev(1222, [["imeta", "url https://x.test/v.mp4", "m video/mp4"]]), "https://x.test/v.mp4")).toBe(
+      true,
+    );
+    // A note's `.mp4` is still a clip.
+    expect(isVideoUrl(ev(1, [], "https://x.test/v.mp4"), "https://x.test/v.mp4")).toBe(true);
+  });
+
+  it("a voice message's content is its file even with no extension", () => {
+    expect(mediaItemsOf(ev(1244, [], "https://blossom.test/abcdef"))).toEqual([
+      { url: "https://blossom.test/abcdef", kind: "audio" },
+    ]);
+  });
+});
+
+describe("kinds whose files are someone else's", () => {
+  it("a profile's picture and a repost's note are not media of their own", async () => {
+    const { mediaUrlOf, mediaPosterOf } = await import("./mediaKind");
+    const profile = ev(
+      0,
+      [["imeta", "url https://x.test/me.jpg", "m image/jpeg"]],
+      '{"picture":"https://x.test/me.jpg"}',
+    );
+    const repost = ev(
+      6,
+      [],
+      JSON.stringify({ content: "https://x.test/p.jpg", tags: [["image", "https://x.test/p.jpg"]] }),
+    );
+    for (const e of [profile, repost, { ...repost, kind: 16 }]) {
+      expect(mediaUrlOf(e)).toBeNull();
+      expect(mediaPosterOf(e)).toBeNull();
+      expect(mediaItemsOf(e)).toEqual([]);
+      expect(mediaKindOf(e)).toBeNull();
+    }
+  });
+});
+
+describe("a NIP-94 file's alt", () => {
+  it("describes its picture", () => {
+    const file = ev(1063, [
+      ["url", "https://x.test/map.png"],
+      ["m", "image/png"],
+      ["alt", "A trail map"],
+    ]);
+    expect(mediaItemsOf(file)[0]).toMatchObject({ kind: "photo", alt: "A trail map" });
+  });
+});

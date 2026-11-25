@@ -28,10 +28,11 @@
 import { nip19 } from "nostr-tools";
 
 export const DLIST_HEADER_KIND = 39998;
-export const DLIST_ITEM_KIND = 39999;
+/** The addressable item; lib/dlists' `MUSIC_ITEM_KIND` is the non-addressable 9999. */
+export const DLIST_ADDRESSABLE_ITEM_KIND = 39999;
 /** Every kind a header or an item may be published as, addressable first. */
 export const DLIST_HEADER_KINDS = [39998, 9998] as const;
-export const DLIST_ITEM_KINDS = [39999, 9999] as const;
+export const DLIST_ITEM_KINDS = [DLIST_ADDRESSABLE_ITEM_KIND, 9999] as const;
 
 type TaggedEvent = { tags: string[][] };
 type EventLike = { id?: string; pubkey?: string; kind?: number; tags: string[][] };
