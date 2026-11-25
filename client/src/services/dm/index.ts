@@ -122,9 +122,19 @@ export function dmAccountFor(account: BrainstormAccount): DmAccount {
   };
 }
 
+/**
+ * The Account row the running engine was started for. By row, not by pubkey: two
+ * rows can hold one identity (an extension row and a local row), and the engine
+ * opens and seals with the row's own signer — kept past a switch, it went on
+ * decrypting with the row the reader left, or one removed from the device.
+ */
+let startedFor: string | undefined;
+
 function startFor(account: BrainstormAccount | undefined) {
   const running = dmEngine();
-  if (running?.pubkey === account?.pubkey) return;
+  if (running && startedFor === account?.id) return;
+  if (!running && !account) return;
+  startedFor = account?.id;
   running?.stop();
   let next: DmEngine | null = null;
   if (account) {
