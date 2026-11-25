@@ -174,7 +174,8 @@ describe("the kinds whose meaning is in their tags", () => {
       ]),
     );
     expect(s.body).toBe("nos.lol, relay.damus.io");
-    expect(s.facts).toEqual(["2 relays"]);
+    // NIP-65: no marker is both, read and write.
+    expect(s.facts).toEqual(["2 relays", "2 read · 2 write"]);
     const badges = summarizeResult(
       ev(10008, [
         ["a", `30009:${B}:x`],
