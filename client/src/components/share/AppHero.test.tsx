@@ -282,6 +282,27 @@ describe("AppHero endorsements", () => {
 });
 
 describe("AppHero", () => {
+  it("links a listing's url and repository only when they are web addresses", () => {
+    const hostile = (withD: boolean) =>
+      listing([
+        ...(withD ? [["d", "social.flotilla"]] : []),
+        ["name", "Flotilla"],
+        ["url", "javascript:alert(document.domain)"],
+        ["repository", "data:text/html,<script>alert(1)</script>"],
+      ]);
+    const { unmount } = render(<AppHero event={hostile(true)} />);
+    expect(screen.queryByTestId("app-hero-website")).toBeNull();
+    expect(screen.queryByTestId("app-hero-source")).toBeNull();
+    expect(screen.getByTestId("app-hero-get").getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\//);
+    unmount();
+
+    // No `d`, so no Zap Store page: "Get it" would have been the url itself.
+    render(<AppHero event={hostile(false)} />);
+    expect(screen.queryByTestId("app-hero-get")).toBeNull();
+    for (const a of document.querySelectorAll("a[href]"))
+      expect(a.getAttribute("href")).not.toMatch(/^\s*(javascript|data):/i);
+  });
+
   it("presents the listing app-store style: icon, name, actions, chips, shots, description", () => {
     render(<AppHero event={FLOTILLA} />);
 
