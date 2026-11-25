@@ -37,7 +37,7 @@ export function parseLiveStream(ev: EventLike): LiveStream | null {
     id: ev.id,
     pubkey: ev.pubkey,
     d: tag("d") ?? "",
-    title: tag("title") || tag("summary") || "Live stream",
+    title: liveTitleOf(ev) || "Live stream",
     image: tag("image"),
     status: (tag("status") || "").toLowerCase(),
     startsSec: Number(tag("starts")) || 0,

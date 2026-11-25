@@ -193,6 +193,22 @@ describe("LiveHero", () => {
     }
   });
 
+  it("is titled by its `name` when it has no `title`, as its quote card is", () => {
+    render(
+      <LiveHero
+        event={{
+          ...stream([["status", "ended"]]),
+          tags: [
+            ["d", "abc"],
+            ["name", "Friday Jam"],
+            ["status", "ended"],
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("live-hero-title")).toHaveTextContent("Friday Jam");
+  });
+
   it("an ended stream with no recording still says so", () => {
     render(<LiveHero event={stream([["status", "ended"]])} />);
     expect(screen.getByText(/This stream has ended/)).toBeInTheDocument();

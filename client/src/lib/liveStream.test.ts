@@ -7,6 +7,7 @@ import {
   liveNeedsCheck,
   liveStateOf,
   onAirLabel,
+  parseLiveStream,
   pickStreams,
   verifyRecording,
   __resetRecordingChecks,
@@ -443,5 +444,23 @@ describe("liveHostClaim — a named host agreed only with NIP-53's proof", () =>
 
   it("is confirmed when the host is the signer", () => {
     expect(liveHostClaim(stream(undefined, signer))).toEqual({ pubkey: signer, confirmed: true });
+  });
+});
+
+describe("a stream named only by its `name`", () => {
+  const named = {
+    id: "n",
+    pubkey: "a".repeat(64),
+    kind: 30311,
+    created_at: 1,
+    content: "",
+    tags: [
+      ["d", "x"],
+      ["name", "Friday Jam"],
+    ],
+  };
+  // Its quote card said "Friday Jam"; its page and its row said "Live stream".
+  it("is called by its name everywhere: liveTitleOf's rule", () => {
+    expect(parseLiveStream(named)?.title).toBe("Friday Jam");
   });
 });

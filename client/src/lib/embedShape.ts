@@ -181,9 +181,8 @@ export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape
   // A roster needs someone on it: a private follow set keeps its members in encrypted content.
   if (PEOPLE_LIST_KINDS.has(kind)) return ev.tags.some((t) => t[0] === "p" && t[1]?.trim()) ? "people-list" : "note";
   // A card needs a name to say: junk on these kinds would draw "Live event", a TBA tile, "Untitled app".
-  // A space is named by its `room`, a meeting by its `title` (NIP-53).
-  if (LIVE_EMBED_KINDS.has(kind))
-    return (kind === 30311 ? hasTag(ev, "title", "name") : !!liveTitleOf(ev)) ? "live" : "note";
+  // A space is named by its `room`, a meeting by its `title` (NIP-53), a stream as every surface names it (liveTitleOf).
+  if (LIVE_EMBED_KINDS.has(kind)) return liveTitleOf(ev) ? "live" : "note";
   if (CALENDAR_EVENT_KINDS.has(kind)) return hasTag(ev, "title", "name", "start") ? "calendar-event" : "note";
   if (LISTING_EMBED_KINDS.has(kind)) return parseListing(ev) ? "listing" : "note";
   if (APP_EMBED_KINDS.has(kind)) return hasTag(ev, "name") ? "app" : "note";

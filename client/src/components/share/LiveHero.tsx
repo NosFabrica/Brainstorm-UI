@@ -4,7 +4,7 @@ import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { useSoloEmbed } from "@/lib/playback";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
-import { isWebUrl, liveStateOf } from "@/lib/liveStream";
+import { isWebUrl, liveStateOf, liveTitleOf } from "@/lib/liveStream";
 import { isVideoFileUrl } from "@/lib/linkThumb";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
@@ -20,7 +20,8 @@ import { EmojiText } from "@/components/ui/custom-emoji";
  */
 export function LiveHero({ event }: { event: MinimalEvent }) {
   const tag = (k: string) => event.tags.find((t) => t[0] === k)?.[1];
-  const title = tag("title") || tag("summary") || "Live stream";
+  // Named as every surface names a stream (liveTitleOf): its title, else its name, else its summary.
+  const title = liveTitleOf(event) || "Live stream";
   const image = tag("image") || tag("thumb");
   const streaming = tag("streaming");
   // Only a web address is a recording to play or link to (never data: or javascript:).
