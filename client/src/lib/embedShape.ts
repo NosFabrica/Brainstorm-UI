@@ -53,7 +53,13 @@ export type EmbedShape =
   /** A Zap Store listing (AppCard). */
   | "app"
   /** A NIP-34 repo, patch, pull request or issue (RepoCard). */
-  | "repo";
+  | "repo"
+  /** A NIP-34 status (1630–1633): the state it set and the item (GitStatusCard). */
+  | "git-status"
+  /** A NIP-34 repository state (30618): HEAD, branches, tags (RepoStateCard). */
+  | "repo-state"
+  /** A software release (30063, NIP-51 / NIP-82): app, version, files (ReleaseCard). */
+  | "release";
 
 /** Long-form kinds drawn as the article teaser: article, draft, publication, section, bookshelf, spec, wiki. */
 export const ARTICLE_EMBED_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30041, 30045, 30817, 30818]);
@@ -64,6 +70,9 @@ export const CALENDAR_EVENT_KINDS: ReadonlySet<number> = new Set([31922, 31923])
 export const LISTING_EMBED_KINDS: ReadonlySet<number> = new Set([30402, 30018, 30020]);
 export const APP_EMBED_KINDS: ReadonlySet<number> = new Set([32267]);
 export const REPO_EMBED_KINDS: ReadonlySet<number> = new Set([30617, 1617, 1618, 1621]);
+export const GIT_STATUS_EMBED_KINDS: ReadonlySet<number> = new Set([1630, 1631, 1632, 1633]);
+export const REPO_STATE_KIND = 30618;
+export const RELEASE_KIND = 30063;
 export const PICTURE_KIND = 20;
 export const FILE_KIND = 1063;
 /** NIP-A0 voice messages: a root and a reply. */
@@ -84,6 +93,8 @@ export const ADDRESS_CARD_KINDS: ReadonlySet<number> = new Set(
     ...LISTING_EMBED_KINDS,
     ...APP_EMBED_KINDS,
     ...REPO_EMBED_KINDS,
+    REPO_STATE_KIND,
+    RELEASE_KIND,
     ...TRACK_KINDS,
     ...VIDEO_KINDS,
   ].filter((k) => (k >= 10000 && k < 20000) || (k >= 30000 && k < 40000)),
@@ -142,6 +153,10 @@ export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape
   if (LISTING_EMBED_KINDS.has(kind)) return parseListing(ev) ? "listing" : "note";
   if (APP_EMBED_KINDS.has(kind)) return hasTag(ev, "name") ? "app" : "note";
   if (REPO_EMBED_KINDS.has(kind)) return namedGitItem(ev) ? "repo" : "note";
+  // A status always says what it set; a state needs its repo's `d`; a release, a file or an app to name.
+  if (GIT_STATUS_EMBED_KINDS.has(kind)) return "git-status";
+  if (kind === REPO_STATE_KIND) return hasTag(ev, "d") ? "repo-state" : "note";
+  if (kind === RELEASE_KIND) return hasTag(ev, "e", "a", "i") ? "release" : "note";
   if (TRACK_KINDS.has(kind)) return parseTrack(ev) ? "track" : "note";
   // A video that names its file in its words plays from there already (NoteContent).
   if (VIDEO_KINDS.has(kind)) return taggedVideoUrl(ev) ? "video" : "note";
