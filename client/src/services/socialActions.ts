@@ -4,6 +4,7 @@ import type { NostrEvent as SignedEvent } from "nostr-tools";
 import { verifySignature } from "@/lib/verifier";
 
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
+import { createdAtPast, isVersionOf, newestVersion } from "@/lib/replaceableDraft";
 import { beats, requestAll, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { outboxRelays, outboxRelaysFromDb, relayHintFor, tagWithHint } from "@/lib/relayRouting";
@@ -51,24 +52,17 @@ export interface NostrEvent {
 }
 
 /** One of `pubkey`'s own lists of `kind`: anything else is never a base, whatever a relay or cache says. */
-function isOwnList(c: NostrEvent | null | undefined, pubkey: string, kind: number): c is NostrEvent {
-  return !!c && Array.isArray(c.tags) && c.kind === kind && c.pubkey === pubkey;
-}
+const isOwnList = (c: NostrEvent | null | undefined, pubkey: string, kind: number): c is NostrEvent =>
+  isVersionOf(c as never, kind, pubkey) && Array.isArray(c!.tags);
 
 /**
  * The copy an edit builds on: the newest of `pubkey`'s own lists among the
- * candidates (NIP-01: of a replaceable event, the newest wins; on a tie, the
- * lower id). Not the longest — a device holding an older, longer snapshot
- * would republish it and bring back everyone unfollowed elsewhere since. A
- * list signed by anyone else is never a candidate.
+ * candidates (NIP-01). Not the longest — a device holding an older, longer
+ * snapshot would republish it and bring back everyone unfollowed elsewhere
+ * since. A list signed by anyone else is never a candidate.
  */
-function newestOwn(candidates: (NostrEvent | null | undefined)[], pubkey: string, kind: number): NostrEvent | null {
-  let best: NostrEvent | undefined;
-  for (const c of candidates) {
-    if (isOwnList(c, pubkey, kind) && beats(c as never, best as never)) best = c;
-  }
-  return best ?? null;
-}
+const newestOwn = (candidates: (NostrEvent | null | undefined)[], pubkey: string, kind: number) =>
+  newestVersion(candidates as never, kind, pubkey) as NostrEvent | null;
 
 /**
  * Edits to one list, one at a time. Each reads its base only once the one
@@ -91,11 +85,6 @@ function oneAtATime<T>(kind: number, pubkey: string, task: () => Promise<T>): Pr
 /** What this session last published per list: the next edit's base, whatever the relays have caught up on. */
 const lastPublished = new Map<string, NostrEvent>();
 const publishedKey = (kind: number, pubkey: string) => `${kind}:${pubkey}`;
-
-/** Seconds: now, or just past the base, so relays keep this edit over it even within the same second. */
-function createdAtPast(base: NostrEvent | null): number {
-  return Math.max(Math.floor(Date.now() / 1000), (base?.created_at ?? 0) + 1);
-}
 
 /**
  * The newest kind-3 or kind-10000 across the user's write relays.
