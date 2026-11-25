@@ -940,18 +940,19 @@ export default function Landing() {
             (follow list, activation) lives ONLY in the header's
             FinishSetupBanner — nothing setup-shaped renders under the search. */}
         <AccountCards />
-        {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
+        {/* No "someone just joined & followed you" card (WelcomeBackCard, deleted).
             New users still auto-follow the profile they join from (see SharePage) —
             that connection is benign. But this owner-facing notification was the scam
             lever: it pressured the owner to follow BACK a stranger, forming a trust
             edge that carries the owner's weight. It fired for ANY brand-new inbound
-            follower, so it can't be re-enabled safely until a backend invite-record
-            gates it to genuine, owner-issued invites. */}
+            follower, so it can't come back (git history keeps it) until a backend
+            invite-record gates it to genuine, owner-issued invites. */}
 
         {/* The home feed ("What's happening now") is unmounted for now
             (Benjamin, 2026-09-09: "let's remove this for now"); the pristine
-            home is the centered hero and nothing below it. components/feed/
-            HomeFeed keeps the bands for when it comes back. */}
+            home is the centered hero and nothing below it. Its component,
+            components/feed/HomeFeed, was deleted while unmounted; git history
+            keeps it for when it comes back. */}
         {hasSearched && (
           <>
             <BackToTop />

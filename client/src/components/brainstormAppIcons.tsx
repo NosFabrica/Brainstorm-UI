@@ -1,5 +1,5 @@
-// Custom SVG icons shared by the "Brainstorm apps" surfaces (AppsLauncher menu
-// and the About page "Brainstorm family" cards) so the same app gets the same
+// Custom SVG icons for the "Brainstorm apps" surfaces (the About page
+// "Brainstorm family" cards) so the same app gets the same
 // glyph everywhere. Each icon takes the icon color from the current text color.
 
 export const CommunitiesIcon = ({ className }: { className?: string }) => (

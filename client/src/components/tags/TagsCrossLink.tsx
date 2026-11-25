@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { Card } from "@/components/ui/card";
 import { ChevronRight, Tag as TagIcon, type LucideIcon } from "lucide-react";
 
 /**
@@ -31,19 +32,20 @@ export function TagsCrossLink({
   testId: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-brand-primary/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
-      data-testid={testId}
+    <Card
+      asChild
+      className="group flex items-center gap-3 rounded-xl px-4 py-3 shadow-none transition-colors hover:border-brand-primary/40 hover:bg-slate-50 dark:hover:bg-slate-800/60"
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-accent/10">
-        <Icon className="h-4 w-4 text-brand-deep dark:text-brand-link" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</span>
-        <span className="block text-xs text-slate-500 dark:text-slate-400">{description}</span>
-      </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600" />
-    </Link>
+      <Link href={href} data-testid={testId}>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-accent/10">
+          <Icon className="h-4 w-4 text-brand-deep dark:text-brand-link" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</span>
+          <span className="block text-xs text-slate-500 dark:text-slate-400">{description}</span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600" />
+      </Link>
+    </Card>
   );
 }

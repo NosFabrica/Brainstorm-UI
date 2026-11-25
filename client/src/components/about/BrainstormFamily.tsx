@@ -72,30 +72,31 @@ export function BrainstormFamily({ navigate }: { navigate: (href: string) => voi
           );
         if (m.live) {
           return (
-            <button
+            <Card
               key={m.id}
-              type="button"
-              onClick={() => navigate(m.live!.href)}
-              className="group flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-brand-accent/50 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 sm:p-6"
-              data-testid={`card-family-${m.id}`}
+              asChild
+              interactive
+              className="group flex flex-col gap-3 p-5 text-left hover:border-brand-accent/50 sm:p-6"
             >
-              <div className="flex items-center justify-between">
-                {iconChip}
-                <Chip tone="emerald" dot size="sm" className="font-bold uppercase tracking-wide">
-                  Live
-                </Chip>
-              </div>
-              <h3
-                className="text-lg font-bold text-slate-900 dark:text-slate-100"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {m.title}
-              </h3>
-              <p className="flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{m.desc}</p>
-              <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary transition-all group-hover:gap-2">
-                {m.live.cta} <ArrowRight className="h-4 w-4" />
-              </span>
-            </button>
+              <button type="button" onClick={() => navigate(m.live!.href)} data-testid={`card-family-${m.id}`}>
+                <div className="flex items-center justify-between">
+                  {iconChip}
+                  <Chip tone="emerald" dot size="sm" className="font-bold uppercase tracking-wide">
+                    Live
+                  </Chip>
+                </div>
+                <h3
+                  className="text-lg font-bold text-slate-900 dark:text-slate-100"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {m.title}
+                </h3>
+                <p className="flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{m.desc}</p>
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary transition-all group-hover:gap-2">
+                  {m.live.cta} <ArrowRight className="h-4 w-4" />
+                </span>
+              </button>
+            </Card>
           );
         }
         return (

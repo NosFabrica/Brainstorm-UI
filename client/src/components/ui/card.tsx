@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@/lib/utils";
 
@@ -10,22 +11,28 @@ import { cn } from "@/lib/utils";
 // `accent` is the exception the principle allows: an Aurora wash + glow for a
 // card that genuinely has to be noticed (the backup nag). Dark gets its own
 // values — `--brand-deep` flips to a light violet there (design-system.md).
+//
+// `asChild` lends the look to its one child, as Button's does: a card that is a
+// link, a button, a form or a landmark keeps its own element.
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean; accent?: boolean }
->(({ className, interactive = false, accent = false, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none",
-      accent &&
-        "border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] dark:border-brand-accent/25 dark:from-brand-primary/[0.14] dark:to-brand-accent/[0.10] dark:shadow-[0_0_15px_rgb(var(--brand-accent)/0.10)]",
-      interactive && "cursor-pointer transition-all hover:border-brand-accent/40 hover:shadow-md",
-      className,
-    )}
-    {...props}
-  />
-));
+  React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean; accent?: boolean; asChild?: boolean }
+>(({ className, interactive = false, accent = false, asChild = false, ...props }, ref) => {
+  const Comp = asChild ? Slot : "div";
+  return (
+    <Comp
+      ref={ref}
+      className={cn(
+        "rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none",
+        accent &&
+          "border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] dark:border-brand-accent/25 dark:from-brand-primary/[0.14] dark:to-brand-accent/[0.10] dark:shadow-[0_0_15px_rgb(var(--brand-accent)/0.10)]",
+        interactive && "cursor-pointer transition-all hover:border-brand-accent/40 hover:shadow-md",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(

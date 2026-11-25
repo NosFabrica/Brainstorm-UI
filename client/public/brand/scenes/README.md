@@ -3,9 +3,8 @@
 Human-Signal photography from the designer, one **light** and one **dark**
 variant per scene. Light = high-key/faded (sits under a light UI); dark = moody
 with the lit Nodes constellation baked in. Consumed by the theme-aware hero
-rotator on the homepage (`components/HomeHeroBackground.tsx`) and the login left
-panel (`pages/LoginPage.tsx`), via the manifest in
-`client/src/lib/heroScenes.ts`.
+rotator (`components/brand/HeroSceneRotator.tsx`) on the login left panel
+(`pages/LoginPage.tsx`), via the manifest in `client/src/lib/heroScenes.ts`.
 
 ## Naming
 

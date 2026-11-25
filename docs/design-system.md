@@ -222,6 +222,7 @@ backup nag, the plan you are on). Reach for `accent` rather than spelling out a
 <Card>…</Card>
 <Card interactive onClick={…}>…</Card>
 <Card accent={isMine}>…</Card>
+<Card asChild interactive><Link href={…}>…</Link></Card>   // a card that is a link, button, form or landmark keeps its element
 ```
 
 ## Explainer videos — `components/ExplainerVideo.tsx`, `config/explainers.ts`

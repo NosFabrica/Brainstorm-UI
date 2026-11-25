@@ -44,9 +44,8 @@ const HERO_PHOTO_SCENE: HeroScene = {
  * Human-Signal hero photography (designer drop), one light + one dark variant
  * per scene, served as 1920w WebP (originals were 4K; scrimmed heroes don't need
  * it). The array order is the rotation order. Consumed by `HeroSceneRotator` on
- * the homepage hero (`HomeHeroBackground`) and the login brand panel. Files live
- * in `client/public/brand/scenes/` — add or reorder scenes here and both
- * surfaces pick it up.
+ * the login brand panel. Files live in `client/public/brand/scenes/` — add or
+ * reorder scenes here and it picks them up.
  */
 export const HERO_SCENES: HeroScene[] = [
   {

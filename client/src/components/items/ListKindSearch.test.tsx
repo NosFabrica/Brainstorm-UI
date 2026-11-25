@@ -904,6 +904,27 @@ describe("a town's events on its map", () => {
     }),
   );
 
+  // A relay read, so it goes through the store's one ask per window (docs/adr/0005), not a
+  // react-query cache: a second screen asking the same town joins the first ask.
+  it("asks for a town's events once per window, however many screens show them", async () => {
+    const soon = Math.floor(Date.now() / 1000) + 3600;
+    townEvents.asked = [];
+    townEvents.list = [event("near", "Meetup by the river", "9qbc3gy", soon)];
+    itemsOf[PLACES].push(place("Il Sole Two", "restaurant", "Sarasota"));
+    try {
+      const first = page("places", "sarasota");
+      await screen.findByTestId("places-events");
+      first.unmount();
+      const second = page("places", "sarasota");
+      expect(await screen.findByTestId("places-events")).toHaveTextContent(/1/);
+      expect(townEvents.asked.filter((t) => t === "Sarasota")).toHaveLength(1);
+      expect(second.queryClient.getQueryCache().findAll({ queryKey: ["town-events"] })).toEqual([]);
+    } finally {
+      itemsOf[PLACES].pop();
+      townEvents.list = [];
+    }
+  });
+
   it("asks for no events when the words name no town", () => {
     townEvents.asked = [];
     preview("places", "cafe");

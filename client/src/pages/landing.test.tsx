@@ -126,7 +126,6 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   // A person's artist page on Wavlake (useArtistCatalogue): offline here.
   findWavlakeArtist: async () => null,
 }));
-vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
 vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));

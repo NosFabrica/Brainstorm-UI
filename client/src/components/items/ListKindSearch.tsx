@@ -12,6 +12,8 @@
  * search API returns list items with their definitions (ADR 0004).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 import { LocationExplainer } from "@/components/search/LocationExplainer";
 import { locate, LocateError, nearestArea, type Position } from "@/lib/nearMe";
 import { distanceKm, distanceWords } from "@/lib/placeDistance";
@@ -54,7 +56,7 @@ import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/place";
 import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { eventPins } from "@/lib/eventPins";
 import { handlesPointedAt, ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
 import { externalIdentitiesOf } from "@/lib/profileContent";
@@ -272,28 +274,27 @@ function PlacesPanel({ query, onSeeAll }: { query: string; onSeeAll?: () => void
   const events = useTownEventPins(map && !narrow ? town : null, pins);
   if (narrow || !town || hits.length === 0) return null;
   return (
-    <section
-      className="overflow-hidden rounded-2xl border border-slate-100 bg-white/80 dark:border-slate-800/60 dark:bg-slate-900/80"
-      data-testid="panel-places"
-    >
-      {map && <PlacesMap pins={[...pins, ...events]} className="h-36 rounded-none border-0" onOpen={onSeeAll} />}
-      <div className="p-4 sm:p-5">
-        <Heading label={`Places in ${town}`} noun={`places in ${town}`} count={found.length} onSeeAll={onSeeAll} />
-        <ul className="space-y-3">
-          {hits.map((h, i) => (
-            <PlaceRow
-              key={h.id}
-              hit={h}
-              n={i + 1}
-              trust={lineOf(h.id)}
-              rating={ratingLine(h)}
-              line={lines[i]}
-              testId="kind-preview-row"
-            />
-          ))}
-        </ul>
-      </div>
-    </section>
+    <Card asChild className="overflow-hidden border-slate-100 bg-card/80 shadow-none dark:border-slate-800/60">
+      <section data-testid="panel-places">
+        {map && <PlacesMap pins={[...pins, ...events]} className="h-36 rounded-none border-0" onOpen={onSeeAll} />}
+        <div className="p-4 sm:p-5">
+          <Heading label={`Places in ${town}`} noun={`places in ${town}`} count={found.length} onSeeAll={onSeeAll} />
+          <ul className="space-y-3">
+            {hits.map((h, i) => (
+              <PlaceRow
+                key={h.id}
+                hit={h}
+                n={i + 1}
+                trust={lineOf(h.id)}
+                rating={ratingLine(h)}
+                line={lines[i]}
+                testId="kind-preview-row"
+              />
+            ))}
+          </ul>
+        </div>
+      </section>
+    </Card>
   );
 }
 
@@ -584,15 +585,20 @@ function useTownEventPins(
   /** A searched area: its events instead, asked for by its cells and the town (fetchAreaEvents). */
   area: MapView | null = null,
 ): TownEventPin[] {
-  const events = useQuery({
-    queryKey: area ? ["area-events", area, town] : ["town-events", town],
-    queryFn: () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
-    enabled: !!area || !!town,
-    staleTime: 5 * 60_000,
-  });
-  if ((!area && !town) || !events.data) return [];
-  const byId = new Map(events.data.map((ev) => [ev.id, ev]));
-  return eventPins(events.data, Math.floor(Date.now() / 1000))
+  // A NIP-50 search the store cannot match, so no store filter: what the ask answers is the list
+  // (useStoreEvents keeps it per key, one ask per window, as every other relay read; docs/adr/0005).
+  const { events } = useStoreEvents(
+    area
+      ? `area-events:${area.south},${area.west},${area.north},${area.east}:${town ?? ""}`
+      : town
+        ? `town-events:${town}`
+        : null,
+    null,
+    () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
+  );
+  if ((!area && !town) || !events.length) return [];
+  const byId = new Map(events.map((ev) => [ev.id, ev]));
+  return eventPins(events, Math.floor(Date.now() / 1000))
     .filter((e) =>
       area
         ? e.lat >= area.south && e.lat <= area.north && e.lon >= area.west && e.lon <= area.east
@@ -645,42 +651,41 @@ function EventCard({
 }) {
   const start = new Date(event.startSec * 1000);
   return (
-    <article
-      data-testid="event-picked"
-      className={`flex overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900 ${className}`}
-    >
-      {/* Its picture fills the card's height; with none, the day it's on, as a calendar shows it. */}
-      {event.image ? (
-        <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
-      ) : (
-        <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
-          <span className="text-[11px] font-semibold uppercase tracking-wide">{shortMonth.format(start)}</span>
-          <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
-        </span>
-      )}
-      <div className="min-w-0 flex-1 space-y-1 p-3 pr-8">
-        <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
-          {event.when}
-        </span>
-        <Link
-          href={event.href}
-          className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 hover:text-brand-link dark:text-slate-100"
-        >
-          {event.name}
-        </Link>
-        <span className="flex items-center gap-2 pt-0.5 text-xs">
-          <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">{event.where ?? ""}</span>
+    <Card asChild className={cn("flex overflow-hidden shadow-lg dark:border-slate-700 dark:shadow-lg", className)}>
+      <article data-testid="event-picked">
+        {/* Its picture fills the card's height; with none, the day it's on, as a calendar shows it. */}
+        {event.image ? (
+          <img src={event.image} alt="" loading="lazy" className="w-24 shrink-0 self-stretch object-cover" />
+        ) : (
+          <span className="flex w-20 shrink-0 flex-col items-center justify-center bg-cyan-50 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
+            <span className="text-[11px] font-semibold uppercase tracking-wide">{shortMonth.format(start)}</span>
+            <span className="text-2xl font-bold leading-none">{start.getDate()}</span>
+          </span>
+        )}
+        <div className="min-w-0 flex-1 space-y-1 p-3 pr-8">
+          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+            {event.when}
+          </span>
           <Link
             href={event.href}
-            className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-brand-link hover:underline"
+            className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 hover:text-brand-link dark:text-slate-100"
           >
-            See event
-            <ArrowRight className="h-3 w-3" aria-hidden />
+            {event.name}
           </Link>
-        </span>
-      </div>
-      <CloseButton onClose={onClose} />
-    </article>
+          <span className="flex items-center gap-2 pt-0.5 text-xs">
+            <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">{event.where ?? ""}</span>
+            <Link
+              href={event.href}
+              className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-brand-link hover:underline"
+            >
+              See event
+              <ArrowRight className="h-3 w-3" aria-hidden />
+            </Link>
+          </span>
+        </div>
+        <CloseButton onClose={onClose} />
+      </article>
+    </Card>
   );
 }
 
@@ -1667,40 +1672,46 @@ function PlaceCard({
 }) {
   const label = String(n);
   return (
-    <article
-      id={onClose ? undefined : `place-card-${label}`}
-      data-label={onClose ? undefined : label}
-      data-testid={testId}
-      data-highlighted={lit ? "true" : undefined}
-      className={`rounded-2xl border bg-white p-3 transition-colors dark:bg-slate-900 ${
+    <Card
+      asChild
+      className={cn(
+        "p-3 transition-colors",
         // Open over the map it's one card, as an event's is; in the swipe row, the lit one stands out.
         onClose
-          ? "border-slate-200 shadow-lg dark:border-slate-700"
+          ? "shadow-lg dark:border-slate-700 dark:shadow-lg"
           : lit
-            ? "border-brand-primary shadow-md"
-            : "border-slate-200 shadow-md dark:border-slate-800"
-      } ${className}`}
+            ? "border-brand-primary shadow-md dark:border-brand-primary dark:shadow-md"
+            : "shadow-md dark:shadow-md",
+        className,
+      )}
     >
-      <span className={`flex items-center gap-2 ${onClose ? "pr-6" : ""}`}>
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
-          {label}
+      <article
+        id={onClose ? undefined : `place-card-${label}`}
+        data-label={onClose ? undefined : label}
+        data-testid={testId}
+        data-highlighted={lit ? "true" : undefined}
+      >
+        <span className={`flex items-center gap-2 ${onClose ? "pr-6" : ""}`}>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary text-[11px] font-bold text-white">
+            {label}
+          </span>
+          <Link
+            href={h.href}
+            className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+          >
+            {h.shown.title}
+          </Link>
         </span>
-        <Link
-          href={h.href}
-          className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-        >
-          {h.shown.title}
-        </Link>
-      </span>
-      <span className="mt-1 block space-y-0.5">
-        {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
-        {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
-        {h.place && <OpeningLine place={h.place} />}
-        <TrustLine text={trust} />
-      </span>
-      {h.place && <PlaceActions place={h.place} />}
-      {onClose && <CloseButton onClose={onClose} />}
-    </article>
+        <span className="mt-1 block space-y-0.5">
+          {line && <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{line}</span>}
+          {rating && <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">{rating}</span>}
+          {h.place && <OpeningLine place={h.place} />}
+          <TrustLine text={trust} />
+        </span>
+        {h.place && <PlaceActions place={h.place} />}
+        {onClose && <CloseButton onClose={onClose} />}
+      </article>
+    </Card>
   );
 }
 
@@ -1712,37 +1723,35 @@ function GitHubPage({ query }: { query: string }) {
   return (
     <div className="mx-auto max-w-2xl space-y-3 py-4" data-testid="kind-page-github">
       {hits.map((h) => (
-        <article
-          key={h.id}
-          className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          data-testid="kind-page-item"
-        >
-          {h.shown.image ? (
-            <img src={h.shown.image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-full object-cover" />
-          ) : (
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
-              <Github className="h-6 w-6" />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
+        <Card key={h.id} asChild className="flex items-center gap-4 border-slate-100 p-4 dark:border-slate-800">
+          <article data-testid="kind-page-item">
+            {h.shown.image ? (
+              <img src={h.shown.image} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
+                <Github className="h-6 w-6" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <Link
+                href={h.href}
+                className="block truncate text-base font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+              >
+                {h.shown.title}
+              </Link>
+              {h.shown.summary && (
+                <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{h.shown.summary}</p>
+              )}
+              <TrustLine text={lineOf(h.id)} className="mt-0.5" />
+            </div>
             <Link
               href={h.href}
-              className="block truncate text-base font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+              className="shrink-0 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
             >
-              {h.shown.title}
+              View account
             </Link>
-            {h.shown.summary && (
-              <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{h.shown.summary}</p>
-            )}
-            <TrustLine text={lineOf(h.id)} className="mt-0.5" />
-          </div>
-          <Link
-            href={h.href}
-            className="shrink-0 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
-          >
-            View account
-          </Link>
-        </article>
+          </article>
+        </Card>
       ))}
     </div>
   );

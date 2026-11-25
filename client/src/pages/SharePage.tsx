@@ -750,8 +750,8 @@ export default function SharePage() {
   // was the scam lever (it pressured the owner to follow BACK a stranger, forming a
   // trust edge that carries the owner's weight). The auto-follow alone is inert — a
   // brand-new account following you carries ~zero weight and gains nothing unless
-  // you follow back. The owner-facing notification stays off (WelcomeBackCard is
-  // unmounted) until a backend invite-record can gate a genuine reciprocal prompt.
+  // you follow back. The owner-facing notification stays off (WelcomeBackCard was
+  // deleted) until a backend invite-record can gate a genuine reciprocal prompt.
   // We also don't blanket-store this profile as a "pending invite" on mere view —
   // the auto-follow is CTA-only, so it's an intentional act, not a drive-by tag.
 

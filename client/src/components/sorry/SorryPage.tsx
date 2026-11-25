@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Card } from "@/components/ui/card";
 import { Link } from "wouter";
 import { Loader2, RefreshCw } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
@@ -154,8 +155,8 @@ export function SorryPage({
 
   if (variant === "inline") {
     return (
-      <div
-        className="rounded-2xl border border-slate-100 bg-white/80 px-5 py-8 text-center dark:border-slate-800/60 dark:bg-slate-900/80"
+      <Card
+        className="border-slate-100 bg-card/80 px-5 py-8 text-center shadow-none dark:border-slate-800/60"
         data-testid={`sorry-${scope}`}
       >
         <SorryArt className="mb-5 max-w-[190px]" />
@@ -167,7 +168,7 @@ export function SorryPage({
         </h3>
         <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-600 dark:text-slate-300">{copy.body}</p>
         <Actions onRetry={onRetry} checking={checking} nextTryInSec={nextTryInSec} secondary={secondary} />
-      </div>
+      </Card>
     );
   }
 
