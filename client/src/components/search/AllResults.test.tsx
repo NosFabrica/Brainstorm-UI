@@ -79,6 +79,38 @@ beforeEach(() => {
 });
 
 describe("AllResults", () => {
+  // A "More" page adds rows: only the targets it adds are asked; the earlier ones are the store's.
+  it("asks a further page only for the targets it adds", async () => {
+    const one = ev("1".repeat(64), 1, [], "first", B);
+    const two = ev("2".repeat(64), 1, [], "second", B);
+    const meetup = (d: string) => `31923:${B}:${d}`;
+    const page1 = [
+      ev("r".repeat(64), 7, [["e", one.id]], "+"),
+      ev("v".repeat(64), 31925, [
+        ["a", meetup("a")],
+        ["status", "accepted"],
+        ["d", "x"],
+      ]),
+    ].map(hit);
+    const page2 = [
+      ...page1,
+      hit(ev("s".repeat(64), 7, [["e", two.id]], "+")),
+      hit(
+        ev("w".repeat(64), 31925, [
+          ["a", meetup("b")],
+          ["status", "accepted"],
+          ["d", "y"],
+        ]),
+      ),
+    ];
+    const { rerender } = render(<AllResults hits={page1} settled scoreOf={() => null} query="" />);
+    await waitFor(() => expect(fetchAddrs).toHaveBeenCalledTimes(1));
+    rerender(<AllResults hits={page2} settled scoreOf={() => null} query="" />);
+    await waitFor(() => expect(fetchAddrs).toHaveBeenCalledTimes(2));
+    expect(fetchIds.mock.calls.map((c) => c[0])).toEqual([[one.id], [two.id]]);
+    expect(fetchAddrs.mock.calls[1][0]).toEqual([{ kind: 31923, pubkey: B, identifier: "b" }]);
+  });
+
   it("asks once, when settled, for every row's target — and quotes it", async () => {
     const note = ev("1".repeat(64), 1, [], "The note people reacted to", B);
     const meetup = ev(
