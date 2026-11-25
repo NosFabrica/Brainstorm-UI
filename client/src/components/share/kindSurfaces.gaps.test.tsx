@@ -416,6 +416,24 @@ describe("the readings the surfaces share", () => {
     expect(screen.getByTestId("status-label")).toHaveTextContent("Status");
     expect(summaryOf(ev(30315, [["d", "general"]], "")).title).toBe("Cleared their status");
   });
+
+  it("a status that will expire says when it ends, on its page", () => {
+    wrap(
+      <EventScreen
+        event={
+          ev(
+            30315,
+            [
+              ["d", "music"],
+              ["expiration", String(NOW + 3600)],
+            ],
+            "A song",
+          ) as MinimalEvent
+        }
+      />,
+    );
+    expect(screen.getByTestId("status-expires")).toHaveTextContent(/^Ends /);
+  });
 });
 
 describe("what a reading names, found", () => {
