@@ -11,6 +11,7 @@ import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
+import { useEventDeleted } from "@/components/share/eventDeletion";
 import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -179,10 +180,12 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   );
   const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
     MinimalEvent | null | undefined;
+  // Its author's NIP-09 deletion, asked for as the page opens.
+  const deleted = useEventDeleted(note, relayHints);
 
   // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
   // husk. Say what happened rather than render an article called "[Deleted]".
-  if (note && isBlankEvent(note)) return <DeletedEvent />;
+  if (note && (isBlankEvent(note) || deleted)) return <DeletedEvent />;
   // Past its NIP-40 expiration, whatever its kind: its author meant it to be gone by
   // now, and "clients SHOULD ignore events that have expired".
   if (note && isExpired(note, Math.floor(Date.now() / 1000))) return <DeletedEvent expired />;

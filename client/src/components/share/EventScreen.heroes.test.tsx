@@ -16,9 +16,18 @@ import type { AccountMetadata } from "@/accounts/metadata";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
-const asked = vi.hoisted(() => ({ ids: [] as string[][], profiles: [] as string[][] }));
+const asked = vi.hoisted(() => ({
+  ids: [] as string[][],
+  profiles: [] as string[][],
+  byAuthors: [] as { pubkeys: string[]; filter: Record<string, unknown> }[],
+  deletions: [] as MinimalEvent[],
+}));
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchEventsByAuthors: async (pubkeys: string[], filter: Record<string, unknown>) => {
+    asked.byAuthors.push({ pubkeys, filter });
+    return filter.kinds && (filter.kinds as number[]).includes(5) ? asked.deletions : [];
+  },
   fetchEventsByIds: async (ids: string[]) => {
     asked.ids.push(ids);
     return [];
@@ -88,6 +97,8 @@ beforeEach(() => {
   stubVisibleIntersectionObserver();
   asked.ids.length = 0;
   asked.profiles.length = 0;
+  asked.byAuthors.length = 0;
+  asked.deletions = [];
   menus.length = 0;
 });
 afterEach(() => window.history.replaceState(null, "", "/"));
@@ -154,5 +165,37 @@ describe("the thread above the page", () => {
   it("is drawn above a reply", () => {
     open(ev(1, [["e", key(7), "", "root"]], "yes"));
     expect(screen.getByTestId("thread-ancestors")).toBeInTheDocument();
+  });
+});
+
+describe("a deleted event (NIP-09)", () => {
+  it("asks its author's relays for a deletion of it, by id and, for an addressable, by address", async () => {
+    const listing = ev(30017, [["d", "stall"]], "{}");
+    open(listing);
+    const asks = asked.byAuthors.filter((a) => (a.filter.kinds as number[]).includes(5));
+    expect(asks.every((a) => a.pubkeys.length === 1 && a.pubkeys[0] === PK)).toBe(true);
+    expect(asks.map((a) => a.filter)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ "#e": [listing.id] }),
+        expect.objectContaining({ "#a": [`30017:${PK}:stall`] }),
+      ]),
+    );
+  });
+
+  it("is said to be deleted once its author's deletion arrives", async () => {
+    const note = ev(1, [], "soon gone");
+    asked.deletions = [{ ...ev(5, [["e", note.id]]), created_at: note.created_at + 5 }];
+    open(note);
+    expect(await screen.findByTestId("event-deleted")).toBeInTheDocument();
+    expect(screen.queryByText("soon gone")).toBeNull();
+  });
+
+  it("is not deleted by someone else's deletion", async () => {
+    const note = ev(1, [], "still here");
+    asked.deletions = [{ ...ev(5, [["e", note.id]]), pubkey: "9".repeat(64) }];
+    open(note);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("event-deleted")).toBeNull();
+    expect(screen.getByText("still here")).toBeInTheDocument();
   });
 });
