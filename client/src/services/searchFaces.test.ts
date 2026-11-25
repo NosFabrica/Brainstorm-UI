@@ -11,7 +11,8 @@ const reqMock = vi.fn();
 vi.mock("@/lib/searchRelay", () => ({ searchRelay: () => ({ req: (...a: unknown[]) => reqMock(...a) }) }));
 
 const storeGet = vi.fn<(pubkey?: string) => NostrEvent | undefined>(() => undefined);
-const storeAdd = vi.fn();
+/** The store's answer to an add: by default the event, kept. */
+const storeAdd = vi.fn((e: NostrEvent): NostrEvent | null => e);
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (_kind: number, pubkey: string) => storeGet(pubkey),
@@ -53,6 +54,7 @@ const answers = (events: NostrEvent[]) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  storeAdd.mockImplementation((e) => e);
   storeGet.mockReturnValue(undefined);
   loadReplaceableMock.mockResolvedValue(undefined);
   outboxMock.mockImplementation((_pk, fallback) => fallback);
@@ -95,11 +97,26 @@ describe("fetchPillProfiles", () => {
     expect((await fetchPillProfiles([JOE])).get(JOE)?.displayName).toBe("New Name");
   });
 
-  it("what the store already holds is the starting point, and every answer goes back into it", async () => {
-    storeGet.mockReturnValue(profile("Held Already", 300));
+  it("every answer goes into the store, and the face is the store's kept copy", async () => {
+    const kept = profile("Kept Copy", 300);
+    storeAdd.mockImplementation(() => kept);
+    reqMock.mockImplementation(() => answers([profile("Relay Copy", 100)]));
     const found = await fetchPillProfiles([JOE]);
-    expect(found.get(JOE)?.displayName).toBe("Held Already");
     expect(storeAdd).toHaveBeenCalled();
+    expect(found.get(JOE)?.displayName).toBe("Kept Copy");
+  });
+
+  // The search relay's answers were drawn whether the store kept them or not,
+  // and keyed by whoever signed them, asked for or not.
+  it("never draws a kind-0 the store refused, nor one for a key not asked", async () => {
+    const ana = "a".repeat(64);
+    const forged = profile("Forged", 500);
+    storeAdd.mockImplementation((e) => (e.id === forged.id ? null : e));
+    reqMock.mockImplementation(() => answers([forged, profile("Stranger", 600, ana)]));
+    loadReplaceableMock.mockResolvedValue(profile("Genuine", 100));
+    const found = await fetchPillProfiles([JOE]);
+    expect(found.get(JOE)?.displayName).toBe("Genuine");
+    expect(found.has(ana)).toBe(false);
   });
 
   // A pill whose profile is already in hand must not sit on its skeleton while two network
