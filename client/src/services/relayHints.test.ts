@@ -42,6 +42,12 @@ vi.mock("@/accounts/signing", () => ({
   },
   signingFailure: (e: unknown) => ({ success: false, error: String(e) }),
 }));
+// No relay is asked: a follow reads the user's kind 3 from the relays before it builds on one.
+vi.mock("@/lib/relayRequest", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/relayRequest")>()),
+  requestAll: async () => [],
+  requestNewestWithReach: async () => ({ newest: undefined, reach: { asked: [], answered: [] } }),
+}));
 vi.mock("@/services/nostr", () => ({
   publishToRelays: async () => ({ success: true }),
   pool: { publish: async () => [{ ok: true, from: "wss://x", message: "" }] },
