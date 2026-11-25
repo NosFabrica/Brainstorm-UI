@@ -6,8 +6,6 @@ import { useCompromisedRing } from "@/hooks/useCompromised";
 import { useMemo, useState } from "react";
 import { Link, Redirect } from "wouter";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
-import { LISTING_EMBED_KINDS } from "@/lib/embedShape";
-import { parseListing } from "@/lib/listing";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
@@ -33,16 +31,12 @@ import { tagAddressOf } from "@/lib/tagTarget";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { lookupTrustSignals } from "@/services/trustSignals";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
-import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
 import { FileHero } from "@/components/share/FileHero";
 import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
-import { isGitItem } from "@/lib/gitStatus";
-import { GIT_STATUS_KIND_SET as GIT_STATUS_KINDS } from "@/lib/gitEvents";
-import { TRUSTED_LIST_KINDS } from "@/lib/trustedList";
 import { GitReplyHero, GitStatusHero, RepoStateHero } from "@/components/share/GitEventHero";
 import { ReleaseHero } from "@/components/share/ReleaseHero";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
@@ -66,13 +60,12 @@ import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventMedia } from "@/components/share/EventMedia";
 import { SensitiveRevealScope } from "@/components/share/SensitiveMedia";
-import { hasAudioHero } from "@/lib/audioEvent";
 import { mediaItemsOf } from "@/lib/mediaKind";
 import { contentWarningOf } from "@/lib/nip36";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { ListingHero } from "@/components/share/ListingHero";
-import { ThingHero, ThingSections, hasThingPage } from "@/components/share/things";
-import { ActivityHero, hasActivityHero } from "@/components/share/activity";
+import { ThingHero, ThingSections } from "@/components/share/things";
+import { ActivityHero } from "@/components/share/activity";
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
@@ -85,12 +78,10 @@ import { RelayListHero } from "@/components/share/RelayListHero";
 import { UserStatusHero } from "@/components/share/UserStatusHero";
 import { WebBookmarkHero } from "@/components/share/WebBookmarkHero";
 import { ChatContextLine } from "@/components/share/ChatContext";
+import { NOTE_KINDS, heroFor } from "@/components/share/heroFor";
 import { CHAT_KINDS } from "@/lib/chatMessage";
-import { liveHostClaim, readMeeting } from "@/lib/liveStream";
+import { liveHostClaim } from "@/lib/liveStream";
 import { LiveHostLine } from "@/components/share/LiveHostLine";
-import { RELAY_LIST_KIND } from "@/lib/relayList";
-import { USER_STATUS_KIND } from "@/lib/userStatus";
-import { webBookmarkOf } from "@/lib/webBookmark";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
@@ -148,13 +139,6 @@ function ago(ts?: number): string {
     return "";
   }
 }
-
-// Posts read on the note card: notes, reposts, NIP-7D threads (their title as
-// the heading), NIP-22 comments (their scope above as the thread) and polls
-// (NIP-88 and zap polls, their options and tally under the question).
-// Chat messages too — NIP-C7 (9), NIP-28 channel (42), NIP-53 live chat (1311) —
-// under the place they were said (ChatContextLine).
-const NOTE_KINDS = new Set([1, 6, 11, 16, 1068, 1111, 6969, ...CHAT_KINDS]);
 
 /**
  * On-site event/note landing page (`/e/:nevent`) — Brainstorm's njump replacement
@@ -305,14 +289,28 @@ function EventView({
     enabled: !!authorPk,
   });
 
+  // An item of a Dictionary concept is drawn from its definition. Until this device knows the
+  // concepts (its first visit), a list item waits for them rather than draw its tags and swap.
+  const dlist = useMemo(() => (note ? dlistOfEvent(note) : null), [note]);
+  const asDictionaryItem =
+    !!note && (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlist));
+  // The hero the page draws, decided once: the chain below, the origin client, the refs
+  // asked for and the thread above all read it (heroFor).
+  const hero = useMemo(() => (note ? heroFor(note, asDictionaryItem) : null), [note, asDictionaryItem]);
+  // The generic fallback with no words to read (none, ciphertext, JSON): the structural card.
+  const structural =
+    !!note &&
+    hero === null &&
+    mediaItems.length === 0 &&
+    (!note.content?.trim() || contentShape(note.content).kind !== "text");
   // References inside the note (quoted notes, articles, mentions) so the rich
-  // card can embed them — same two batched queries the share page uses.
-  // A bookmark set's page reads its own items a fold at a time (ItemListHero):
-  // its hundreds of `a`s and `p`s are not asked for here all at once.
-  // An activity's hero (a reaction, a zap, a deletion…) asks for what it names itself.
+  // card can embed them — same two batched queries the share page uses. Only a
+  // page that draws the note's words asks: every other hero asks for what it
+  // names itself, a fold at a time (a bookmark set's items, a follow set's or a
+  // Trusted People list's thousands of members, an activity's post).
   const refs = useMemo(
-    () => collectRefs(note && !ITEM_LIST_KINDS.has(note.kind) && !hasActivityHero(note) ? [note] : []),
-    [note],
+    () => collectRefs(note && (hero === "note" || (hero === null && !structural)) ? [note] : []),
+    [note, hero, structural],
   );
   const refEventsQuery = useStoreEvents(
     refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
@@ -376,11 +374,6 @@ function EventView({
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
   const firstName = authorName.split(" ")[0];
 
-  // An item of a Dictionary concept is drawn from its definition. Until this device knows the
-  // concepts (its first visit), a list item waits for them rather than draw its tags and swap.
-  const asDictionaryItem =
-    !!note &&
-    (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlistOfEvent(note)));
   // A list item's page is named for the item — "vitorpamplona · GitHub Account" — not for who listed it.
   const itemView = useItemView(note ?? NO_ITEM);
   // A place's own website gives a picture (through our link-preview origin); a shared link previews with it.
@@ -412,40 +405,10 @@ function EventView({
 
   const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, eventAuthor || undefined);
   // Whether the hero below is one of the kind-specific ones, or the generic
-  // fallback (media, text, or the structural card). Mirrors the chain in the
-  // JSX: a kind with no hero of its own is the one whose publishing client
-  // is worth a way back to (the team, 2026-09-24: "open in original client").
-  // A sound (a track, an episode, a voice message) is dedicated when it has a
-  // file to play: lib/audioEvent's `hasAudioHero`, since 30054/30055 also carry
-  // other apps' records that have none.
-  // 10002 a relay list (RelayListHero), 30315 a user status (UserStatusHero).
-  const DEDICATED_KINDS = new Set([
-    30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998, 10002, 30315,
-    // NIP-34 statuses, repo state and the legacy reply; releases; the Trusted Lists of things.
-    1622, 1630, 1631, 1632, 1633, 30618, 30063, 30393, 30394, 30395,
-  ]);
-  // Something for sale: a NIP-99 listing, or a NIP-15 product or auction the
-  // Shop draws as one — its own page is the listing page, never the
-  // structural view of its JSON (a NIP-15 product's content is all data).
-  const isListingPage = !!note && LISTING_EMBED_KINDS.has(note.kind) && parseListing(note) !== null;
-  // A NIP-53 space or meeting with a name to say; a NIP-B0 bookmark with a page to open.
-  const isMeetingPage = !!note && readMeeting(note) !== null;
-  const isWebBookmarkPage = !!note && webBookmarkOf(note) !== null;
-  const renderedGenerically =
-    !!note &&
-    !asDictionaryItem &&
-    !isGitItem(note.kind) &&
-    !DEDICATED_KINDS.has(note.kind) &&
-    !isListingPage &&
-    !isMeetingPage &&
-    !isWebBookmarkPage &&
-    !hasAudioHero(note) &&
-    !ITEM_LIST_KINDS.has(note.kind) &&
-    !hasThingPage(note) &&
-    !hasActivityHero(note) &&
-    !VIDEO_KINDS.has(note.kind) &&
-    !(note.kind === 9802 && note.content.trim()) &&
-    !NOTE_KINDS.has(note.kind);
+  // fallback (media, text, or the structural card): a kind with no hero of its
+  // own is the one whose publishing client is worth a way back to (the team,
+  // 2026-09-24: "open in original client").
+  const renderedGenerically = !!note && hero === null;
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
@@ -491,10 +454,14 @@ function EventView({
   // A list's items and headers are about the thing listed, not who listed it: the
   // lister is a quiet "Listed by" under it, as on the results card, instead of the
   // header a post or an article gets (the team, 2026-10-01).
-  const quietAuthor = !!note && (!!dlistOfEvent(note) || asDictionaryItem || note.kind === 39998 || note.kind === 9998);
+  const quietAuthor = !!note && (!!dlist || asDictionaryItem || note.kind === 39998 || note.kind === 9998);
 
   // A zap, a reaction, a report…: its hero is the page, with no thread or topics of its own.
-  const activityPage = !!note && hasActivityHero(note);
+  const activityPage = hero === "activity";
+  // The conversation above: not above a hero that draws what the event is about itself —
+  // an activity's post, a git status's or a legacy git reply's issue or patch.
+  const showAncestors = hero !== "activity" && hero !== "git-status" && hero !== "git-reply";
+  const thread = useMemo(() => (note && showAncestors ? replyRefs(note) : {}), [note, showAncestors]);
 
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
@@ -578,7 +545,7 @@ function EventView({
             {/* The conversation this reply sits in — parent (+ root) above, so a
                 permalinked reply reads in context instead of floating alone.
                 Not above an activity: its hero quotes the post a reaction or zap is about. */}
-            {!hasActivityHero(note) && <ThreadAncestors note={note} relayHints={relayHints} />}
+            {showAncestors && <ThreadAncestors note={note} relayHints={relayHints} />}
 
             {/* Author header — and the ⋯, on the object it acts on (X puts it
                 on the post, not the page). A list event keeps only the ⋯ here. */}
@@ -648,19 +615,19 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`${WATERMARK_HOST} rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${thread.parentId || thread.rootId ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
               <CompromisedWatermark pubkey={authorPk} postedAt={note.created_at} eventId={note.id} />
-              {dlistOfEvent(note) ? (
+              {hero === "dlist" ? (
                 <DListHero event={note} />
-              ) : note.kind === 39998 || note.kind === 9998 ? (
+              ) : hero === "dlist-header" ? (
                 // Any other list's header: the list and its items, its tags behind "Advanced view".
                 <DListHeaderHero event={note} />
-              ) : asDictionaryItem ? (
+              ) : hero === "dictionary-item" ? (
                 // An item of a Dictionary concept: its concept's own page (ADR 0007), else drawn from its definition (ADR 0004).
                 <ItemPage event={note} />
-              ) : isGitItem(note.kind) ? (
+              ) : hero === "git-item" ? (
                 <GitItemHero
                   event={note}
                   author={{
@@ -669,64 +636,64 @@ function EventView({
                     bot: (profile as { bot?: boolean }).bot === true,
                   }}
                 />
-              ) : note.kind === 30311 ? (
+              ) : hero === "live" ? (
                 <LiveHero event={note} />
-              ) : isMeetingPage ? (
+              ) : hero === "meeting" ? (
                 // A NIP-53 meeting space or a meeting in one: its state, its way in, its people and their roles.
                 <MeetingHero event={note} />
-              ) : note.kind === RELAY_LIST_KIND ? (
+              ) : hero === "relay-list" ? (
                 <RelayListHero event={note} />
-              ) : note.kind === USER_STATUS_KIND ? (
+              ) : hero === "user-status" ? (
                 <UserStatusHero event={note} />
-              ) : isWebBookmarkPage ? (
+              ) : hero === "web-bookmark" ? (
                 <WebBookmarkHero event={note} />
-              ) : note.kind === 32267 ? (
+              ) : hero === "app" ? (
                 <AppHero event={note} />
-              ) : note.kind === 1063 ? (
+              ) : hero === "file" ? (
                 // Any file: an installer offered for download, a picture, video or sound drawn as what it is.
                 <FileHero event={note} />
-              ) : note.kind === 30617 ? (
+              ) : hero === "repo" ? (
                 <RepoHero event={note} />
-              ) : GIT_STATUS_KINDS.has(note.kind) ? (
+              ) : hero === "git-status" ? (
                 // A NIP-34 status: what it set, on which issue, patch or PR.
                 <GitStatusHero event={note} />
-              ) : note.kind === 30618 ? (
+              ) : hero === "repo-state" ? (
                 <RepoStateHero event={note} />
-              ) : note.kind === 1622 ? (
+              ) : hero === "git-reply" ? (
                 // A reply from before NIP-34 moved replies to NIP-22 comments.
                 <GitReplyHero event={note} />
-              ) : note.kind === 30063 ? (
+              ) : hero === "release" ? (
                 <ReleaseHero event={note} />
-              ) : note.kind === 30000 || note.kind === 39089 || note.kind === 39092 ? (
+              ) : hero === "follow-set" ? (
                 <FollowSetHero event={note} />
-              ) : TRUSTED_LIST_KINDS.has(note.kind) ? (
+              ) : hero === "trusted-list" ? (
                 <TrustedListHero event={note} />
-              ) : note.kind === 10040 ? (
+              ) : hero === "designation" ? (
                 <DesignationHero event={note} />
-              ) : ITEM_LIST_KINDS.has(note.kind) ? (
+              ) : hero === "item-list" ? (
                 // Bookmarks, bookmark sets, curation sets, pins: the things it holds.
                 <ItemListHero event={note} />
-              ) : hasAudioHero(note) ? (
+              ) : hero === "audio" ? (
                 // A track, a podcast episode or trailer, a voice message, an audio header.
                 <AudioHero event={note} />
-              ) : isListingPage ? (
+              ) : hero === "listing" ? (
                 <ListingHero event={note} sellerName={authorName} />
-              ) : note.kind === 31922 || note.kind === 31923 ? (
+              ) : hero === "calendar" ? (
                 <EventHero event={note} />
-              ) : hasActivityHero(note) ? (
+              ) : hero === "activity" ? (
                 // Zaps, reactions, deletions, reports, labels, votes, RSVPs, follows, trust scores.
                 // Keyed by the event: a reveal or an open fold is that event's, never the next one's.
                 <ActivityHero key={note.id} event={note} />
-              ) : hasThingPage(note) ? (
+              ) : hero === "thing" ? (
                 // Communities, fundraisers, reviews, shops, apps, calendars,
                 // badges, emoji packs, playlists, lessons, torrents (lib/thing).
                 <ThingHero event={note} />
-              ) : VIDEO_KINDS.has(note.kind) ? (
+              ) : hero === "video" ? (
                 <VideoHero event={note} nip05={profile.nip05} />
-              ) : note.kind === 9802 && note.content.trim() ? (
+              ) : hero === "highlight" ? (
                 // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
                 <HighlightHero event={note} />
-              ) : NOTE_KINDS.has(note.kind) ? (
+              ) : hero === "note" ? (
                 <SensitiveRevealScope key={note.id}>
                   {CHAT_KINDS.has(note.kind) && <ChatContextLine event={note} className="mb-3" />}
                   <ShareNoteCard
@@ -745,7 +712,7 @@ function EventView({
                     </div>
                   )}
                 </SensitiveRevealScope>
-              ) : mediaItems.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
+              ) : structural ? (
                 // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />
               ) : (
@@ -804,11 +771,11 @@ function EventView({
 
             {/* Under a listing: the seller's other things, then similar things
                 from other sellers — a shop page that leads somewhere. */}
-            {isListingPage && <ListingRelated event={note} sellerName={authorName} />}
+            {hero === "listing" && <ListingRelated event={note} sellerName={authorName} />}
 
             {/* Under a thing: what the network holds around it — a community's
                 posts, a fundraiser's supporters, a calendar's events… */}
-            {hasThingPage(note) && <ThingSections event={note} />}
+            {hero === "thing" && <ThingSections event={note} />}
 
             {/* What the network says this post is ABOUT (rung C2). Sits under
                 the note itself, where a reader has just finished it and a
