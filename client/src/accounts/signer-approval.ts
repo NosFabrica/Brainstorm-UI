@@ -8,6 +8,7 @@
  * permissions at connect doesn't help — grants get revoked and re-pairs reset them.
  */
 import { BehaviorSubject } from "rxjs";
+import { httpsHref } from "@/lib/safeHref";
 
 export type SignerApproval = {
   /** Where the signer wants the user to go. Rendered as a link, never opened for them. */
@@ -29,11 +30,18 @@ export const signerApproval$ = new BehaviorSubject<SignerApproval | null>(null);
  * and reaches us over the relay. Never rejects: applesauce rejects the pending
  * request if `onAuth` throws, which would abandon a request the user is at that
  * moment approving.
+ *
+ * Only an https link reaches the screen. The signer picks `auth_url` and we
+ * render it as an anchor the reader clicks, so a `javascript:` one would run
+ * on our origin; anything but https is dropped, and the request is left to
+ * the signer and its timeout as on a dismiss.
  */
 export function requestSignerApproval(url: string): Promise<void> {
+  const href = httpsHref(url);
+  if (!href) return Promise.resolve();
   return new Promise<void>((resolve) => {
     signerApproval$.next({
-      url,
+      url: href,
       opened: () => resolve(),
       dismiss: () => resolve(),
     });
