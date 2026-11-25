@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue, Fragment } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
@@ -79,9 +79,16 @@ import {
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import { CompromisedCard } from "@/components/admin/compromised/CompromisedCard";
 import { GrowthCard } from "@/components/admin/growth/GrowthCard";
+import { ALL_USERS_DAYS, readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { FEATURES } from "@/config/featureFlags";
-import { fetchProfile, searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
+import { searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { AdminSearchInput } from "@/components/admin/users/AdminSearchInput";
+import { LookupQueryInput } from "@/components/admin/users/LookupQueryInput";
+import { matchUsersByName } from "@/components/admin/users/matchUsersByName";
+import { useUserLookup } from "@/components/admin/users/useUserLookup";
+import { useInFlightTriggers } from "@/components/admin/users/useInFlightTriggers";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -119,31 +126,6 @@ function formatTimestamp(dateStr?: string): string {
  * them; elsewhere the header's figures read the last answer.
  */
 const POLL_OVERVIEW_MS = 60_000;
-/** The backend pages lists at 100 rows; the Overview reads a list's pages this many at a time. */
-const PAGE_BATCH = 10;
-
-/**
- * Every page of a backend list: the first, then the rest a batch at a time,
- * `onBatch` handed the items so far as each batch lands.
- */
-async function readEveryPage<T extends { items?: unknown[]; pages?: number }>(
-  fetchPage: (page: number) => Promise<T>,
-  onBatch?: (sofar: T) => void,
-): Promise<T> {
-  const first = await fetchPage(1);
-  const pages = first?.pages ?? 1;
-  let items = [...(first?.items ?? [])];
-  for (let from = 2; from <= pages; from += PAGE_BATCH) {
-    const batch = await Promise.all(
-      Array.from({ length: Math.min(PAGE_BATCH, pages - from + 1) }, (_, i) => fetchPage(from + i)),
-    );
-    items = items.concat(batch.flatMap((pg) => pg?.items ?? []));
-    onBatch?.({ ...first, items });
-  }
-  return { ...first, items };
-}
-/** The users directory lists everyone: the backend's `days` has no ceiling, and this covers the data. */
-const ALL_USERS_DAYS = 9999;
 const POLL_USERS_MS = 10_000;
 const POLL_ACTIVITY_MS = 10_000;
 const POLL_STATS_MS = 30_000;
@@ -1975,12 +1957,15 @@ function ActivityRow({
   profile,
   queuePosition,
   schedulingName,
+  triggering = false,
 }: {
   item: BrainstormRequestInstance;
   idx: number;
   onViewDetail: (item: BrainstormRequestInstance) => void;
   onNavigateToUser?: (pubkey: string) => void;
   onRetrigger?: (pubkey: string) => Promise<void>;
+  /** A run for this person is already in flight (from any control): no second request. */
+  triggering?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
   bulkStatus?: "queued" | "running" | "success" | "failed";
@@ -2008,6 +1993,8 @@ function ActivityRow({
   const pipeline = getActivityPipelineState(item);
   const style = pipelineRowStyles[pipeline];
   const isInPipeline = pipeline === "active" || pipeline === "waiting";
+  // A run already requested from another control blocks a re-trigger as one in the pipeline does.
+  const retriggerBlocked = isInPipeline || triggering;
   const isFailed = isItemFailed(item);
   const isWarning = isWarningItem(item);
   const failureStage = getFailureStage(item);
@@ -2020,7 +2007,7 @@ function ActivityRow({
 
   const handleRetrigger = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (retriggerState === "running" || isInPipeline || !item.pubkey || !onRetrigger) return;
+    if (retriggerState === "running" || retriggerBlocked || !item.pubkey || !onRetrigger) return;
     if (retriggerState === "idle" || retriggerState === "done" || retriggerState === "error") {
       setRetriggerState("confirming");
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
@@ -2217,9 +2204,9 @@ function ActivityRow({
           {item.pubkey && onRetrigger && (
             <button
               onClick={handleRetrigger}
-              disabled={retriggerState === "running" || isInPipeline}
+              disabled={retriggerState === "running" || retriggerBlocked}
               className={`inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all ${
-                isInPipeline
+                retriggerBlocked
                   ? "cursor-not-allowed text-slate-300 dark:text-slate-600"
                   : retriggerState === "confirming"
                     ? "animate-pulse border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
@@ -2232,7 +2219,7 @@ function ActivityRow({
                           : "border border-transparent text-brand-deep hover:border-brand-accent/20 hover:bg-brand-deep/5 hover:text-brand-accent"
               }`}
               title={
-                isInPipeline
+                retriggerBlocked
                   ? "Currently processing"
                   : retriggerState === "confirming"
                     ? "Click again to confirm"
@@ -2257,7 +2244,7 @@ function ActivityRow({
                   <XCircle className="h-3 w-3" />
                   <span className="hidden sm:inline">Failed</span>
                 </>
-              ) : isInPipeline ? (
+              ) : retriggerBlocked ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin opacity-40" />
                   <span className="hidden sm:inline">Active</span>
@@ -2318,7 +2305,7 @@ function ActivityRow({
                 item={item}
                 onRetrigger={item.pubkey && onRetrigger ? handleRetrigger : undefined}
                 retriggerState={retriggerState}
-                isInPipeline={isInPipeline}
+                isInPipeline={retriggerBlocked}
                 onViewDetail={(e) => {
                   e.stopPropagation();
                   onViewDetail(item);
@@ -2410,7 +2397,6 @@ export default function AdminPage() {
   // Who the Users tab's "Publish trusted lists" sent to the Trusted Lists tab.
   const [trustedListsObserver, setTrustedListsObserver] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [userSort, setUserSort] = useState<SortState>({ key: "last_triggered", dir: "desc" });
   const [userPage, setUserPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
@@ -2441,7 +2427,7 @@ export default function AdminPage() {
     const hl = params.get("highlight");
     return hl ? new Set([hl]) : new Set();
   });
-  const [triggeringPubkeys, setTriggeringPubkeys] = useState<Set<string>>(new Set());
+  const { inFlight: triggeringPubkeys, claim: claimTriggers, release: releaseTrigger } = useInFlightTriggers();
   const [isBoostActive, setIsBoostActive] = useState(false);
   const boostTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRefreshBoost = useCallback(() => {
@@ -2474,13 +2460,9 @@ export default function AdminPage() {
   const SELECT_ALL_MATCHING_CAP = 200;
   const [lookupOpen, setLookupOpen] = useState(false);
   const [lookupMode, setLookupMode] = useState<"lookup" | "onboard">("lookup");
-  const [lookupInput, setLookupInput] = useState("");
-  const [lookupRunning, setLookupRunning] = useState(false);
   const [, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(
     null,
   );
-  const [lookupError, setLookupError] = useState<string | null>(null);
-  const [lookupNameResults, setLookupNameResults] = useState<{ pubkey: string; name?: string; picture?: string }[]>([]);
   const [highlightedPubkey, setHighlightedPubkey] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("highlight") || null;
@@ -2513,13 +2495,10 @@ export default function AdminPage() {
     return true;
   }, []);
 
-  useEffect(() => {
-    const trimmed = userSearch.trim();
-    const timer = setTimeout(() => {
-      setDebouncedSearch(isNameSearch(trimmed) ? "" : trimmed);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [userSearch, isNameSearch]);
+  // `userSearch` is committed by the search box once typing pauses
+  // (AdminSearchInput), so the backend's pubkey search reads it as is; a name
+  // is matched here, against every user, and never sent.
+  const debouncedSearch = isNameSearch(userSearch.trim()) ? "" : userSearch.trim();
 
   // The claim rides on the Account's Session, so "no Session" is undecided, not
   // "not an admin" — a background re-auth clears it for the length of one
@@ -2630,39 +2609,23 @@ export default function AdminPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Every user, whatever the range: the header cards show the system's state
-  // now, on every tab, so it is read wherever the admin lands — but polled only
-  // where the whole list is drawn (the Overview, a KPI filter or name search in
-  // Users, Growth's tiers).
-  const allUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users/all"],
-    queryFn: () => readEveryPage((page) => apiClient.getAdminUsers({ days: ALL_USERS_DAYS, page, size: 100 })),
-    enabled: !!user?.isAdmin,
-    staleTime: 60_000,
-    retry: 1,
-    refetchInterval: wholeTablePoll(activeTab === "overview" || activeTab === "users" || activeTab === "growth"),
-    refetchOnWindowFocus: true,
-  });
-
-  const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/activity/overview", rangeDays],
-    // Twice the range, so the deltas have a prior window to compare with.
-    // Backend caps `size` at 100 (more 422s), so the range comes page by
-    // page, a batch at a time, each batch shown as it lands.
-    queryFn: () => {
-      const days = Math.min(rangeDays * 2, BACKEND_MAX_DAYS);
-      return readEveryPage(
-        (page) => apiClient.getAdminActivity({ page, size: 100, days }),
-        (sofar) => queryClient.setQueryData(["/api/admin/activity/overview", rangeDays], sofar),
-      );
+  // Every user (the header's figures, a KPI filter or name search in Users, a
+  // name Lookup, Growth's tiers) and the range's runs (the Overview's charts, the
+  // Activity tab's queue positions). Each pages through a whole table, so it
+  // runs only where it is drawn; the compact header on the other tabs reads the
+  // last answer, or the backend's stats.
+  const needsAllUsers =
+    activeTab === "overview" ||
+    activeTab === "growth" ||
+    (activeTab === "users" && (activeNameSearch || !!kpiFilter || lookupOpen));
+  const needsRangeActivity = activeTab === "overview" || activeTab === "activity";
+  const { allUsersQuery, overviewActivityQuery } = useAdminHeaderMetrics<AdminUsersPage, AdminUserHistoryPage>({
+    rangeDays,
+    allUsers: { enabled: !!user?.isAdmin && needsAllUsers, refetchInterval: wholeTablePoll(needsAllUsers) },
+    activity: {
+      enabled: !!user?.isAdmin && needsRangeActivity,
+      refetchInterval: wholeTablePoll(needsRangeActivity),
     },
-    // Read on every tab for the header's success rate and failures, like the
-    // users above; polled only where its charts and queue positions are drawn.
-    enabled: !!user?.isAdmin,
-    staleTime: 60_000,
-    retry: 1,
-    refetchInterval: wholeTablePoll(activeTab === "overview" || activeTab === "activity"),
-    refetchOnWindowFocus: true,
   });
 
   // The year's runs, whole, for the Growth tab: a person's first run is their
@@ -2748,21 +2711,28 @@ export default function AdminPage() {
     staleTime: 30_000,
   });
 
+  // One person's run, from any control that isn't the Users row (which confirms
+  // first, in handleTriggerGraperank): refused while that person is in flight.
+  const retriggerOne = useCallback(
+    async (pubkey: string) => {
+      if (claimTriggers([pubkey]).length === 0) throw new Error("A run for this user is already in flight.");
+      try {
+        await apiClient.triggerUserGraperank(pubkey);
+      } finally {
+        releaseTrigger(pubkey);
+      }
+    },
+    [claimTriggers, releaseTrigger],
+  );
+
   const runBulkRetrigger = useCallback(
     async (rawPubkeys: string[], source: "users" | "activity" | "retry") => {
-      const skipSet = triggeringPubkeys;
-      const seen = new Set<string>();
-      const toRun: string[] = [];
-      const skipped: string[] = [];
-      for (const pk of rawPubkeys) {
-        if (!pk || seen.has(pk)) continue;
-        seen.add(pk);
-        if (skipSet.has(pk)) {
-          skipped.push(pk);
-          continue;
-        }
-        toRun.push(pk);
-      }
+      // Claimed before anything is sent: a row's own trigger stays disabled
+      // until this run's request for that person is answered.
+      const unique = Array.from(new Set(rawPubkeys.filter(Boolean)));
+      const toRun = claimTriggers(unique);
+      const claimed = new Set(toRun);
+      const skipped = unique.filter((pk) => !claimed.has(pk));
       if (toRun.length === 0) {
         toast({
           title: "Nothing to re-trigger",
@@ -2798,6 +2768,7 @@ export default function AdminPage() {
           });
           try {
             await apiClient.triggerUserGraperank(pk);
+            releaseTrigger(pk);
             successes.push(pk);
             setBulkStatuses((prev) => {
               const next = new Map(prev);
@@ -2815,6 +2786,7 @@ export default function AdminPage() {
                 : typeof err === "object" && err !== null
                   ? JSON.stringify(err)
                   : "Unknown error";
+            releaseTrigger(pk);
             failures.push({ pubkey: pk, error: msg });
             setBulkStatuses((prev) => {
               const next = new Map(prev);
@@ -2848,7 +2820,7 @@ export default function AdminPage() {
       if (resultSource === "users") setSelectedUserPubkeys(new Set());
       else setSelectedActivityRows(new Map());
     },
-    [triggeringPubkeys, toast, triggerRefreshBoost, queryClient, bulkLastResult],
+    [claimTriggers, releaseTrigger, toast, triggerRefreshBoost, queryClient, bulkLastResult],
   );
 
   useEffect(() => {
@@ -2860,47 +2832,6 @@ export default function AdminPage() {
     setSelectedActivityRows(new Map());
     setBulkLastResult((prev) => (prev?.source === "activity" ? null : prev));
   }, [range]);
-
-  const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
-
-  useEffect(() => {
-    const activityPubkeys = activityItems.map((a) => a.pubkey).filter((pk): pk is string => !!pk);
-    if (adminUsersList.length === 0 && activityPubkeys.length === 0) return;
-    let cancelled = false;
-    const allPubkeys = [
-      ...adminUsersList.map((u) => u.pubkey),
-      ...(overviewUsersQuery.data?.items ?? []).map((u) => u.pubkey),
-      ...activityPubkeys,
-    ];
-    const seen = new Set<string>();
-    const toFetch: string[] = [];
-    for (const pk of allPubkeys) {
-      if (seen.has(pk) || userProfiles.has(pk)) continue;
-      seen.add(pk);
-      toFetch.push(pk);
-    }
-    if (toFetch.length === 0) return;
-    (async () => {
-      const results = await Promise.allSettled(toFetch.map((pk) => fetchProfile(pk, 8000)));
-      if (cancelled) return;
-      setUserProfiles((prev) => {
-        const next = new Map(prev);
-        for (let i = 0; i < toFetch.length; i++) {
-          const r = results[i];
-          if (r.status === "fulfilled" && r.value) {
-            next.set(toFetch[i], { name: r.value.display_name || r.value.name, picture: r.value.picture });
-          } else {
-            next.set(toFetch[i], {});
-          }
-        }
-        return next;
-      });
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- userProfiles is written here; adding it would loop
-  }, [adminUsersList, overviewUsersQuery.data, activityItems]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -2995,6 +2926,26 @@ export default function AdminPage() {
 
   const allUsers = allUsersQuery.data?.items ?? NONE;
   const allUsersTotal = allUsersQuery.data?.total ?? 0;
+
+  // Names and avatars for the people on screen, store-first and batched
+  // (useLiveProfiles). A name search — the directory's or Lookup's — matches
+  // against every user, so while one is open every user's profile is asked
+  // for, not only the page on screen.
+  const nameSearchOpen = activeNameSearch || lookupOpen;
+  const profilePubkeys = useMemo(() => {
+    const out: string[] = [];
+    for (const u of adminUsersList) out.push(u.pubkey);
+    for (const u of overviewUsersQuery.data?.items ?? NONE) out.push(u.pubkey);
+    for (const a of activityItems) if (a.pubkey) out.push(a.pubkey);
+    if (nameSearchOpen) for (const u of allUsers) out.push(u.pubkey);
+    return out;
+  }, [adminUsersList, overviewUsersQuery.data, activityItems, nameSearchOpen, allUsers]);
+  const liveProfiles = useLiveProfiles(profilePubkeys);
+  const userProfiles = useMemo(() => {
+    const m = new Map<string, { name?: string; picture?: string }>();
+    for (const [pk, c] of liveProfiles) m.set(pk, { name: c.display_name || c.name, picture: c.picture });
+    return m;
+  }, [liveProfiles]);
   // pubkey → scheduling tier, for the Growth tab's rows and its tier filter.
   const tiersByPubkey = useMemo(() => {
     const m = new Map<string, string>();
@@ -3004,17 +2955,15 @@ export default function AdminPage() {
   // A KPI card's filter or a name search narrows every user (allUsersQuery,
   // loaded whole), paged here; otherwise the directory is the backend's page.
   const clientFilteredUsers = activeNameSearch || !!kpiFilter;
+  // Deferred: a long directory filters without holding up the box being typed in.
+  const deferredUserSearch = useDeferredValue(userSearch);
   const filteredUsersList = useMemo(() => {
-    const trimmed = userSearch.trim();
+    const trimmed = deferredUserSearch.trim();
     const nameSearch = trimmed && isNameSearch(trimmed);
     let list = nameSearch || kpiFilter ? allUsers : adminUsersList;
     if (nameSearch) {
-      const query = trimmed.toLowerCase();
-      list = list.filter((u) => {
-        const prof = userProfiles.get(u.pubkey);
-        const name = prof?.name?.toLowerCase() ?? "";
-        return name.includes(query);
-      });
+      const matched = new Set(matchUsersByName(list, userProfiles, trimmed).map((m) => m.pubkey));
+      list = list.filter((u) => matched.has(u.pubkey));
     }
     if (kpiFilter) {
       list = list.filter((u) => {
@@ -3027,7 +2976,7 @@ export default function AdminPage() {
       });
     }
     return list;
-  }, [adminUsersList, allUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
+  }, [adminUsersList, allUsers, kpiFilter, deferredUserSearch, isNameSearch, userProfiles]);
 
   const computePipelineMetrics = (
     users: AdminUsersPage["items"],
@@ -3225,14 +3174,20 @@ export default function AdminPage() {
         : hasSystemData
           ? formatNumber(adminStats!.queueDepth)
           : "0",
-    calcs: nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "0",
+    // Without the whole-table reads (a tab that doesn't draw them, before they
+    // land) a figure the stats don't carry reads as unknown, not as zero.
+    calcs: nowMetrics ? formatNumber(nowMetrics.totalCalcs) : "—",
     rate: nowMetrics ? `${nowMetrics.successRate}%` : trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—",
-    failed: nowMetrics ? formatNumber(nowMetrics.failedCount) : formatNumber(trends.cmp.curFailed),
+    failed: nowMetrics
+      ? formatNumber(nowMetrics.failedCount)
+      : overviewActivityQuery.data
+        ? formatNumber(trends.cmp.curFailed)
+        : "—",
   };
 
   const handleTriggerGraperank = useCallback(
     async (pubkey: string) => {
-      setTriggeringPubkeys((prev) => new Set(prev).add(pubkey));
+      if (claimTriggers([pubkey]).length === 0) return;
       try {
         await apiClient.triggerUserGraperank(pubkey);
         toast({ title: "GrapeRank triggered", description: `Triggered for ${pubkey.slice(0, 12)}...` });
@@ -3243,14 +3198,10 @@ export default function AdminPage() {
         const message = err instanceof Error ? err.message : "Unknown error";
         toast({ title: "Trigger failed", description: message, variant: "destructive" });
       } finally {
-        setTriggeringPubkeys((prev) => {
-          const next = new Set(prev);
-          next.delete(pubkey);
-          return next;
-        });
+        releaseTrigger(pubkey);
       }
     },
-    [toast, queryClient, triggerRefreshBoost],
+    [claimTriggers, releaseTrigger, toast, queryClient, triggerRefreshBoost],
   );
 
   const totalPages = clientFilteredUsers
@@ -3272,7 +3223,6 @@ export default function AdminPage() {
   const jumpToUser = useCallback(
     (pubkey: string, displayName?: string) => {
       setUserSearch(pubkey);
-      setDebouncedSearch(pubkey);
       setUserPage(0);
       setKpiFilter(null);
       setLookupOpen(false);
@@ -3285,71 +3235,45 @@ export default function AdminPage() {
     [toast, userProfiles],
   );
 
-  const handleLookupPubkey = useCallback(async () => {
-    const raw = lookupInput.trim();
-    if (!raw) {
-      setLookupError("Please enter a name, pubkey, or npub");
-      return;
-    }
-    setLookupNameResults([]);
-    setLookupResult(null);
-    setLookupError(null);
-
-    let hexPubkey: string | null = null;
-    if (raw.startsWith("npub")) {
-      try {
-        const decoded = nip19.decode(raw);
-        if (decoded.type === "npub") hexPubkey = decoded.data;
-      } catch {}
-    } else if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-      hexPubkey = raw.toLowerCase();
-    }
-
-    if (!hexPubkey) {
-      const query = raw.toLowerCase();
-      const matches: { pubkey: string; name?: string; picture?: string }[] = [];
-      for (const u of adminUsersList) {
-        const prof = userProfiles.get(u.pubkey);
-        const name = prof?.name?.toLowerCase() ?? "";
-        const pk = u.pubkey.toLowerCase();
-        if (name.includes(query) || pk.includes(query)) {
-          matches.push({ pubkey: u.pubkey, name: prof?.name, picture: prof?.picture });
-        }
-      }
-      if (matches.length === 1) {
-        jumpToUser(matches[0].pubkey, matches[0].name);
-      } else if (matches.length > 1) {
-        setLookupNameResults(matches);
-      } else {
-        setLookupError(`No users found matching "${raw}" in your database`);
-      }
-      return;
-    }
-
-    setLookupRunning(true);
-    try {
+  // A key goes to the backend, which onboards it if it is new.
+  const resolveLookupPubkey = useCallback(
+    async (hexPubkey: string) => {
       const result = await apiClient.getBrainstormPubkey(hexPubkey);
       const data = typeof result === "object" && result !== null ? (result as Record<string, unknown>) : {};
       const isNew = data.created === true || data.is_new === true;
-      const canonicalPubkey =
-        typeof data.pubkey === "string"
-          ? data.pubkey
-          : typeof data.brainstorm_pubkey === "string"
-            ? data.brainstorm_pubkey
-            : hexPubkey;
       if (isNew) {
         await queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         toast({ title: "User Onboarded", description: "New user created — jumping to their row" });
       }
-      jumpToUser(canonicalPubkey);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setLookupError(msg);
-      toast({ title: "Lookup Failed", description: msg, variant: "destructive" });
-    } finally {
-      setLookupRunning(false);
-    }
-  }, [lookupInput, adminUsersList, userProfiles, jumpToUser, toast, queryClient]);
+      return typeof data.pubkey === "string"
+        ? data.pubkey
+        : typeof data.brainstorm_pubkey === "string"
+          ? data.brainstorm_pubkey
+          : hexPubkey;
+    },
+    [queryClient, toast],
+  );
+  const onLookupFailed = useCallback(
+    (message: string) => toast({ title: "Lookup Failed", description: message, variant: "destructive" }),
+    [toast],
+  );
+  // A name is matched against every user, so the whole directory is read while
+  // Lookup is open (needsAllUsers); until it lands, the page on screen stands in.
+  const {
+    lookup: handleLookup,
+    nameResults: lookupNameResults,
+    error: lookupError,
+    setError: setLookupError,
+    running: lookupRunning,
+    reset: resetLookup,
+  } = useUserLookup({
+    users: allUsersQuery.isSuccess ? allUsers : adminUsersList,
+    usersComplete: allUsersQuery.isSuccess,
+    profiles: userProfiles,
+    resolvePubkey: resolveLookupPubkey,
+    jumpToUser,
+    onFailed: onLookupFailed,
+  });
 
   const handleOnboardSearch = useCallback(async () => {
     const q = onboardSearch.trim();
@@ -3467,7 +3391,7 @@ export default function AdminPage() {
     setOnboardQueue([]);
     setOnboardingAll(false);
     queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-  }, [onboardQueue, toast, queryClient]);
+  }, [onboardQueue, toast, queryClient, setLookupError]);
 
   const handleViewRequestDetail = useCallback((item: BrainstormRequestInstance) => {
     setDetailRequestId(item.private_id);
@@ -4308,7 +4232,6 @@ export default function AdminPage() {
                                               onClick={() => {
                                                 const pk = g.latest.pubkey!;
                                                 setUserSearch(pk);
-                                                setDebouncedSearch(pk);
                                                 setActiveTab("users");
                                                 setKpiFilter(null);
                                                 setUserPage(0);
@@ -4328,7 +4251,7 @@ export default function AdminPage() {
                                               testId={`failure-group-retrigger-${idx}`}
                                               onConfirm={async (pk) => {
                                                 try {
-                                                  await apiClient.triggerUserGraperank(pk);
+                                                  await retriggerOne(pk);
                                                   toast({
                                                     title: "Request Queued",
                                                     description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...`,
@@ -4392,32 +4315,23 @@ export default function AdminPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="relative w-full sm:w-56">
-                      <input
-                        type="text"
-                        placeholder="Search name, pubkey, npub..."
+                      <AdminSearchInput
                         value={userSearch}
-                        onChange={(e) => {
-                          setUserSearch(e.target.value);
+                        onCommit={(text) => {
+                          setUserSearch(text);
                           setUserPage(0);
                         }}
+                        onClear={() => {
+                          setUserSearch("");
+                          setUserPage(0);
+                          setHighlightedPubkey(null);
+                          setExpandedRows(new Set());
+                        }}
+                        placeholder="Search name, pubkey, npub..."
                         className="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-1.5 pr-7 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
-                        data-testid="input-user-search"
+                        testId="input-user-search"
+                        clearTestId="button-clear-search"
                       />
-                      {userSearch && (
-                        <button
-                          onClick={() => {
-                            setUserSearch("");
-                            setDebouncedSearch("");
-                            setUserPage(0);
-                            setHighlightedPubkey(null);
-                            setExpandedRows(new Set());
-                          }}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                          data-testid="button-clear-search"
-                        >
-                          <XCircle className="h-3.5 w-3.5" />
-                        </button>
-                      )}
                     </div>
                     <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
                       <SelectTrigger
@@ -4438,10 +4352,9 @@ export default function AdminPage() {
                       onClick={() => {
                         setLookupOpen(true);
                         setLookupMode("lookup");
-                        setLookupInput("");
                         setLookupResult(null);
                         setLookupError(null);
-                        setLookupNameResults([]);
+                        resetLookup();
                         setOnboardSearch("");
                         setOnboardResults([]);
                         setOnboardError(null);
@@ -4498,7 +4411,7 @@ export default function AdminPage() {
                             setLookupMode("lookup");
                             setLookupResult(null);
                             setLookupError(null);
-                            setLookupNameResults([]);
+                            resetLookup();
                           }}
                           className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${lookupMode === "lookup" ? "border border-slate-200 bg-white text-brand-deep shadow-sm dark:border-slate-800 dark:bg-slate-900" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"}`}
                           data-testid="button-mode-lookup"
@@ -4522,37 +4435,7 @@ export default function AdminPage() {
 
                       {lookupMode === "lookup" ? (
                         <div className="space-y-3 overflow-hidden pt-1">
-                          <div className="flex min-w-0 gap-2">
-                            <input
-                              type="text"
-                              placeholder="Name, npub, or hex pubkey"
-                              value={lookupInput}
-                              onChange={(e) => {
-                                setLookupInput(e.target.value);
-                                setLookupError(null);
-                                setLookupNameResults([]);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !lookupRunning) handleLookupPubkey();
-                              }}
-                              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
-                              data-testid="input-lookup-pubkey"
-                            />
-                            <Button
-                              size="sm"
-                              onClick={handleLookupPubkey}
-                              disabled={lookupRunning || !lookupInput.trim()}
-                              className="no-default-hover-elevate no-default-active-elevate shrink-0 gap-1.5 text-xs"
-                              data-testid="button-submit-lookup"
-                            >
-                              {lookupRunning ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Search className="h-3.5 w-3.5" />
-                              )}
-                              {lookupRunning ? "..." : "Lookup"}
-                            </Button>
-                          </div>
+                          <LookupQueryInput running={lookupRunning} onSubmit={handleLookup} onEdit={resetLookup} />
 
                           {lookupNameResults.length > 0 && (
                             <div className="space-y-1" data-testid="lookup-name-results">
@@ -5927,7 +5810,6 @@ export default function AdminPage() {
                 tiers={tiersByPubkey}
                 onOpenPerson={(pk) => {
                   setUserSearch(pk);
-                  setDebouncedSearch(pk);
                   setActiveTab("users");
                   setKpiFilter(null);
                   setUserPage(0);
@@ -6133,7 +6015,6 @@ export default function AdminPage() {
                 }
                 onViewUser={(pk) => {
                   setUserSearch(pk);
-                  setDebouncedSearch(pk);
                   setActiveTab("users");
                   setKpiFilter(null);
                   setUserPage(0);
@@ -6448,6 +6329,7 @@ export default function AdminPage() {
                                   onViewDetail={handleViewRequestDetail}
                                   selected={isSelected}
                                   bulkStatus={bs}
+                                  triggering={!!item.pubkey && triggeringPubkeys.has(item.pubkey)}
                                   queuePosition={
                                     typeof item.private_id === "number"
                                       ? queuePositionByPrivateId.get(item.private_id)
@@ -6464,7 +6346,6 @@ export default function AdminPage() {
                                   }}
                                   onNavigateToUser={(pubkey) => {
                                     setUserSearch(pubkey);
-                                    setDebouncedSearch(pubkey);
                                     setActiveTab("users");
                                     setKpiFilter(null);
                                     setUserPage(0);
@@ -6474,7 +6355,7 @@ export default function AdminPage() {
                                   }}
                                   onRetrigger={async (pubkey) => {
                                     try {
-                                      await apiClient.triggerUserGraperank(pubkey);
+                                      await retriggerOne(pubkey);
                                       toast({
                                         title: "Request Queued",
                                         description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...`,

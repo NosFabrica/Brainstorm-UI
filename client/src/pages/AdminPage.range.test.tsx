@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
 vi.mock("@/services/api", () => ({ apiClient: api, isAuthRedirecting: () => false }));
 vi.mock("@/services/support", () => ({ ADMIN_SUPPORT_QUERY_KEY: ["support"], adminListTickets: async () => [] }));
 vi.mock("@/services/nostr", () => ({ fetchProfile: async () => null, searchNostrProfiles: async () => [] }));
+vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => null }));
 vi.mock("@/services/wotRanks", () => ({ fetchAuthorRanks: async () => ({ ranks: new Map(), source: null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
