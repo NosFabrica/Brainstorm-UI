@@ -397,6 +397,8 @@ describe("SerpRow — link metadata", () => {
     expect(source).toHaveTextContent("Wikipedia");
     expect(source).toHaveTextContent("en.wikipedia.org");
     expect(source.closest("a")?.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    // Its classes are words apart: "mt-1.5flex" was neither the spacing nor the flex row.
+    expect(source.className.split(/\s+/)).toEqual(expect.arrayContaining(["mt-1.5", "flex"]));
     // The sharer's own words describe it — they add something the title doesn't.
     expect(screen.getByText(/Worth a read/)).toBeInTheDocument();
     expect(screen.queryByText(/Professional football club/)).toBeNull();

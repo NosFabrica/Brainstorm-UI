@@ -1132,7 +1132,7 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
           )}
           <a
             {...out}
-            className={`${contentFirst ? "" : "mt-1.5"}flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400`}
+            className={`${contentFirst ? "" : "mt-1.5"} flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400`}
             data-testid="news-source"
           >
             <Favicon host={news.domain} className="h-4 w-4 shrink-0 rounded-sm object-contain" />
