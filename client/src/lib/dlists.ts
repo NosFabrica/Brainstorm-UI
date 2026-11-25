@@ -19,7 +19,13 @@ import { scopeOf } from "@/lib/searchSyntax";
 import raw from "@/config/dlists.config.json";
 
 export const DLIST_HEADER_KIND = 39998;
-export const DLIST_ITEM_KIND = 9999;
+/**
+ * The music lists' items: kind 9999, the non-addressable DList item (the
+ * Podcast Index imports are published that way), not the addressable 39999
+ * that lib/dlistFields' `DLIST_ADDRESSABLE_ITEM_KIND` names. Both are DList
+ * items (`DLIST_ITEM_KINDS`); these lists only ever hold the first.
+ */
+export const MUSIC_ITEM_KIND = 9999;
 
 export type DListCategory = "music";
 export type DListShape = "song" | "musician";
@@ -101,7 +107,7 @@ export function dlistOfEvent(
     const d = ev.tags.find((t) => t[0] === "d")?.[1];
     return d ? dlistFor(`${DLIST_HEADER_KIND}:${ev.pubkey}:${d}`, lists) : null;
   }
-  if (ev.kind === DLIST_ITEM_KIND) {
+  if (ev.kind === MUSIC_ITEM_KIND) {
     const coordinate = dlistCoordinateOf(ev);
     return coordinate ? dlistFor(coordinate, lists) : null;
   }
@@ -159,7 +165,7 @@ const feedPage = (feedId: string | undefined): string | undefined =>
   feedId ? `https://podcastindex.org/podcast/${feedId}` : undefined;
 
 export function parseDListSong(ev: EventLike): PodcastSong | null {
-  if (ev.kind !== DLIST_ITEM_KIND) return null;
+  if (ev.kind !== MUSIC_ITEM_KIND) return null;
   const title = tagOf(ev, "title");
   const audio = tagOf(ev, "url");
   if (!title || !isHttp(audio)) return null;
@@ -183,7 +189,7 @@ export function parseDListSong(ev: EventLike): PodcastSong | null {
 }
 
 export function parseDListMusician(ev: EventLike): PodcastMusician | null {
-  if (ev.kind !== DLIST_ITEM_KIND) return null;
+  if (ev.kind !== MUSIC_ITEM_KIND) return null;
   const name = tagOf(ev, "name");
   if (!name || EMAIL.test(name)) return null;
   const feedId = tagOf(ev, "feedId");

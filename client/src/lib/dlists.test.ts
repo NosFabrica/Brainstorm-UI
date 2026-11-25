@@ -176,3 +176,28 @@ describe("words against the lists", () => {
     expect(filterPodcastIndex(`from:${nip19.npubEncode("b".repeat(64))} torcon`, hits)).toEqual(hits);
   });
 });
+
+describe("the two DList item kinds", () => {
+  // Two constants were both called DLIST_ITEM_KIND, one 9999 and one 39999. Both are right:
+  // the music lists hold the non-addressable item, a list in general may hold either.
+  it("the music lists read the non-addressable item, one of the two a DList item may be", async () => {
+    const { MUSIC_ITEM_KIND } = await import("./dlists");
+    const { DLIST_ADDRESSABLE_ITEM_KIND, DLIST_ITEM_KINDS } = await import("./dlistFields");
+    expect(MUSIC_ITEM_KIND).toBe(9999);
+    expect(DLIST_ADDRESSABLE_ITEM_KIND).toBe(39999);
+    expect([...DLIST_ITEM_KINDS]).toEqual([DLIST_ADDRESSABLE_ITEM_KIND, MUSIC_ITEM_KIND]);
+    const song = (kind: number) => ({
+      id: "a".repeat(64),
+      pubkey: AUTHOR,
+      kind,
+      created_at: 1,
+      content: "",
+      tags: [
+        ["title", "Blue Hour"],
+        ["url", "https://audio.example/blue.mp3"],
+      ],
+    });
+    expect(parseDListSong(song(MUSIC_ITEM_KIND))?.title).toBe("Blue Hour");
+    expect(parseDListSong(song(DLIST_ADDRESSABLE_ITEM_KIND))).toBeNull();
+  });
+});
