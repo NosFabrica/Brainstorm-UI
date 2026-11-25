@@ -425,6 +425,17 @@ export class LocalSigner implements ISigner {
     this.generation += 1;
   }
 
+  /**
+   * Its Account left this device: the key goes from memory and the at-rest forms
+   * go from this object too. `lock` alone keeps the envelope, so anything still
+   * holding the signer (a DM engine, a queued publish) re-opened the key from it.
+   * Nothing is saved: the Account is no longer listed to be saved.
+   */
+  forget(): void {
+    this.lock();
+    this.data = {};
+  }
+
   async getPublicKey(): Promise<string> {
     await this.unlock();
     return this.inner!.getPublicKey();

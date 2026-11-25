@@ -662,6 +662,20 @@ export async function clearEventCache(): Promise<void> {
   }
 }
 
+/**
+ * An account removed from this device: its own rows go (its mute list is kept
+ * for the signed-in account only, and is private). Everyone else's stay.
+ */
+export async function forgetEventCacheFor(pubkey: string): Promise<void> {
+  const s = device();
+  if (!s) return;
+  try {
+    await s.remove(CACHED_KINDS.map((kind) => `${kind}:${pubkey}:`));
+  } catch {
+    /* nothing to do */
+  }
+}
+
 /** Profiles and routing shared a database from here on; the old one is dead. */
 export function dropLegacyProfileDb(): void {
   try {

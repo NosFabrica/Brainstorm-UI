@@ -199,6 +199,35 @@ describe("mirroring a removed account", () => {
     expect(inB.signer.unlocked).toBe(false);
   });
 
+  // A bunker row removed in one tab kept its relay subscription in every other.
+  it("shuts down the removed account's signer here too", () => {
+    const tabs = twoTabs();
+    const { a, b } = tabs;
+    const held = sharedAccounts(a.manager, b.manager, ["bunker"]);
+    const destroy = vi.fn();
+    (held.bunker.b as unknown as { signer: { destroy: () => void } }).signer.destroy = destroy;
+    tabs.settled();
+
+    a.manager.removeAccount("bunker");
+
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("retires it the app's one way, when given one", () => {
+    const bus = createBus();
+    const managerA = new AccountManager<AccountMetadata>();
+    const managerB = new AccountManager<AccountMetadata>();
+    createMirror({ manager: managerA, channel: bus.open() });
+    const retire = vi.fn((account: BrainstormAccount) => managerB.removeAccount(account));
+    createMirror({ manager: managerB, channel: bus.open(), retire });
+    const held = sharedAccounts(managerA, managerB, ["alice"]);
+
+    managerA.removeAccount("alice");
+
+    expect(retire).toHaveBeenCalledWith(held.alice.b);
+    expect(managerB.accounts).toEqual([]);
+  });
+
   it("removes an account this tab isn't signed in as, quietly", () => {
     const tabs = twoTabs();
     const { a, b } = tabs;

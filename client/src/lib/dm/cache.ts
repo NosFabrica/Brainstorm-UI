@@ -79,6 +79,8 @@ export interface DmCacheBackend {
   state(owner: string): Promise<DmState | undefined>;
   putState(state: DmState): Promise<void>;
   clear(): Promise<void>;
+  /** One account's wraps and paging state, for an account removed from this device. */
+  forget?(owner: string): Promise<void>;
   /** A check, taken now, that the cache hasn't been cleared since (sign-out). */
   guard?(): () => boolean;
 }
@@ -111,7 +113,7 @@ function build(db: IDBDatabase) {
 const CLEARED = "~cleared";
 
 function readToken(db: IDBDatabase): Promise<string | undefined> {
-  return transact<string>(db, STATE, "readonly", (store, keep) => {
+  return transact<string | undefined>(db, STATE, "readonly", (store, keep) => {
     const req = store.get(CLEARED);
     req.onsuccess = () => keep((req.result as { token?: string } | undefined)?.token);
   });
@@ -209,6 +211,19 @@ export function indexedDbBackend(): DmCacheBackend | null {
       if (asked !== epoch) return;
       await write(opened, asked, [], (tx) => tx.objectStore(STATE).put(state));
     },
+    async forget(owner) {
+      const opened = await db();
+      await new Promise<void>((resolve, reject) => {
+        const tx = opened.transaction([WRAPS, STATE], "readwrite");
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+        const wraps = tx.objectStore(WRAPS);
+        const keys = wraps.index("owner").getAllKeys(IDBKeyRange.only(owner));
+        keys.onsuccess = () => (keys.result as IDBValidKey[]).forEach((key) => wraps.delete(key));
+        tx.objectStore(STATE).delete(owner);
+      });
+    },
     guard() {
       const asked = epoch;
       return () => asked === epoch;
@@ -254,6 +269,11 @@ export interface CachedOpen {
   sealAt?: number;
   /** NIP-40, wherever it was (rumor or wrap): the wrap's tags aren't kept. */
   expiresAt?: number;
+}
+
+/** An account removed from this device: its messages and paging state go, nobody else's. */
+export async function forgetDmCacheFor(owner: string): Promise<void> {
+  await dmCacheBackend()?.forget?.(owner);
 }
 
 /** Sign-out: every account's messages and paging state go. */

@@ -118,6 +118,47 @@ function getDeviceKey(): Promise<CryptoKey> {
   return deviceKeyPromise;
 }
 
+/**
+ * Another tab deleted the device key (`deleteDeviceKey`): the key this tab holds
+ * in memory is gone from storage, and anything sealed with it now could never
+ * be opened again after a reload. Forgotten, so the next use mints a new one.
+ */
+const VAULT_CHANNEL = "brainstorm-vault";
+let vaultChannel: BroadcastChannel | null = null;
+function channel(): BroadcastChannel | null {
+  if (vaultChannel || typeof BroadcastChannel === "undefined") return vaultChannel;
+  vaultChannel = new BroadcastChannel(VAULT_CHANNEL);
+  vaultChannel.onmessage = (event) => {
+    if ((event.data as { type?: string })?.type === "device-key-deleted") deviceKeyPromise = null;
+  };
+  return vaultChannel;
+}
+if (typeof window !== "undefined") channel();
+
+/**
+ * Delete the device key, once nothing on this device is sealed with it — the
+ * last account removed from the device (accounts/device-key decides that, across
+ * tabs). Without this the key outlived every account it ever protected. Every
+ * tab forgets its copy; the next envelope mints a new key.
+ */
+export async function deleteDeviceKey(): Promise<void> {
+  deviceKeyPromise = null;
+  const db = await vaultDb();
+  try {
+    await transact(db, STORE, "readwrite", (store) => {
+      store.delete(DEVICE_KEY_ID);
+    });
+  } finally {
+    db.close();
+  }
+  deviceKeyPromise = null;
+  try {
+    channel()?.postMessage({ type: "device-key-deleted" });
+  } catch {
+    /* the other tabs hold no account; they mint afresh when one arrives */
+  }
+}
+
 // ---- public API --------------------------------------------------------------
 /**
  * Encrypt `secret` (the raw secret-key bytes) into a versioned envelope string

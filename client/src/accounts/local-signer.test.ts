@@ -434,6 +434,21 @@ describe("LocalSigner cache and Backup", () => {
     expect(signer.unlocked).toBe(false);
   });
 
+  // A removed Account's signer: still referenced by whatever ran for it (a DM engine,
+  // a queued publish), which went on re-opening the key from the envelope it kept.
+  it("lets its key go for good when its Account leaves the device", async () => {
+    const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache, requestPassword: fakePrompt() });
+    await signer.unlock();
+
+    signer.forget();
+
+    expect(signer.unlocked).toBe(false);
+    await expect(signer.unlockSilently()).resolves.toBe(false);
+    await expect(signer.unlock()).rejects.toBeInstanceOf(NoUnlockPathError);
+    expect(signer.data).toEqual({});
+  });
+
   it("signs and encrypts once unlocked", async () => {
     const { pubkey, unlockCache, envelope } = await keyFixture();
     const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });

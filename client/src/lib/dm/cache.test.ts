@@ -54,3 +54,20 @@ describe("DM cache across tabs", () => {
     expect(await a.state("next")).toMatchObject({ lastSeen: 3 });
   });
 });
+
+describe("forgetting one account", () => {
+  it("drops its wraps and state, and nobody else's", async () => {
+    const db = indexedDbBackend()!;
+    await db.putWraps([
+      { key: wrapKey("gone", "w1"), owner: "gone", wrapId: "w1", at: 10, envelope: "v1:x:y" },
+      { key: wrapKey("kept", "w2"), owner: "kept", wrapId: "w2", at: 11, envelope: "v1:x:y" },
+    ]);
+    await db.putState({ owner: "gone", lastSeen: 1 });
+    await db.putState({ owner: "kept", lastSeen: 2 });
+    await db.forget!("gone");
+    expect(await db.wraps("gone")).toEqual([]);
+    expect(await db.state("gone")).toBeUndefined();
+    expect((await db.wraps("kept")).map((r) => r.wrapId)).toEqual(["w2"]);
+    expect(await db.state("kept")).toMatchObject({ lastSeen: 2 });
+  });
+});

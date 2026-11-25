@@ -3,7 +3,8 @@
  * the envelope and the ncryptsec live *inside* `SerializedAccount.signer`, so a
  * blob is not an index pointing at keys, it **is** the keys. Nothing here may
  * ever drop an entry: what cannot be loaded is quarantined next to it, and the
- * blob as it was found is kept as a backup.
+ * blob as it was found is kept as a backup. The one exception is an Account the
+ * person let go of (`scrub`): its keys leave both, as they leave the blob.
  */
 import { AccountManager, BaseAccount, type SerializedAccount } from "applesauce-accounts";
 import type { ISigner } from "applesauce-signers";
@@ -132,6 +133,15 @@ export type Persistence = {
    * duplicate what this tab already holds.
    */
   adopt(id: string): BrainstormAccount | null;
+  /**
+   * An Account removed from this device leaves the backup and the quarantine too —
+   * by its id, and every row of its identity once no Account here signs as it.
+   * Both are otherwise never pruned, so they kept its envelope, Backup, Session and
+   * signer secrets after "Remove from device".
+   */
+  scrub(account: BrainstormAccount, options: { identityGone: boolean }): void;
+  /** Whether any storage area still holds an Account, readable or not: its blob, backup or quarantine. */
+  holdsAccounts(): boolean;
 };
 
 export function createPersistence(manager: AccountManager<AccountMetadata>, storage: StorageSeam): Persistence {
@@ -259,6 +269,36 @@ export function createPersistence(manager: AccountManager<AccountMetadata>, stor
     return entry ? restore(storage.device, entry, true) : null;
   }
 
+  function scrub(account: BrainstormAccount, { identityGone }: { identityGone: boolean }): void {
+    const gone = (entry: unknown) => {
+      const { id, pubkey } = (entry ?? {}) as { id?: unknown; pubkey?: unknown };
+      return id === account.id || (identityGone && pubkey === account.pubkey);
+    };
+    for (const store of [storage.device, storage.tab]) {
+      for (const key of [BACKUP_KEY, QUARANTINE_KEY]) {
+        const entries = readJSON(store, key);
+        // An unreadable blob names nobody we can pick out: it stays as it is.
+        if (!Array.isArray(entries)) continue;
+        const kept = entries.filter((entry) => !gone(entry));
+        if (kept.length === entries.length) continue;
+        if (kept.length) store.setItem(key, JSON.stringify(kept));
+        else store.removeItem(key);
+      }
+    }
+  }
+
+  function holdsAccounts(): boolean {
+    if (hasStoredAccounts(storage)) return true;
+    return [storage.device, storage.tab].some((store) =>
+      [BACKUP_KEY, QUARANTINE_KEY].some((key) => {
+        const raw = store.getItem(key);
+        if (raw === null) return false;
+        const entries = readJSON(store, key);
+        return !Array.isArray(entries) || entries.length > 0;
+      }),
+    );
+  }
+
   function serialise(account: BrainstormAccount): unknown {
     try {
       const json = account.toJSON();
@@ -350,5 +390,5 @@ export function createPersistence(manager: AccountManager<AccountMetadata>, stor
     return () => sub.unsubscribe();
   }
 
-  return { load, save, start, adopt };
+  return { load, save, start, adopt, scrub, holdsAccounts };
 }

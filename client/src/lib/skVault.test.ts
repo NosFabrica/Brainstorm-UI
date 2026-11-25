@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { encryptSecret, decryptSecret, isVaultSupported } from "./skVault";
+import { encryptSecret, decryptSecret, deleteDeviceKey, isVaultSupported } from "./skVault";
 
 const secret = new Uint8Array(32).fill(7);
 const pubkey = "b".repeat(64);
@@ -41,5 +41,16 @@ describe("the device-key vault", () => {
     expect(first).not.toBe(second); // a fresh iv each time
     expect(await decryptSecret(first, pubkey)).toEqual(secret);
     expect(await decryptSecret(second, pubkey)).toEqual(secret);
+  });
+});
+
+describe("deleting the device key", () => {
+  // The last account removed from the device: what the key sealed is gone, and so is the key.
+  it("leaves every envelope it sealed unopenable, and mints a new key for the next", async () => {
+    const before = await encryptSecret(secret, pubkey);
+    await deleteDeviceKey();
+    await expect(decryptSecret(before, pubkey)).rejects.toBeTruthy();
+    const after = await encryptSecret(secret, pubkey);
+    expect(await decryptSecret(after, pubkey)).toEqual(secret);
   });
 });
