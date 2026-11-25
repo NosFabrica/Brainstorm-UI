@@ -106,6 +106,47 @@ describe("GitStatusHero", () => {
     expect(await screen.findByTestId("git-status-unauthorised")).toBeInTheDocument();
   });
 
+  it("a maintainer is one of the ITEM's repo: a stranger naming their own repo in the status is not one", async () => {
+    const issue = ev(
+      1621,
+      [
+        ["a", `30617:${OWNER}:ngit`],
+        ["subject", "Crash on start"],
+      ],
+      "",
+      AUTHOR,
+    );
+    byId.set(issue.id, issue);
+    // The stranger's own announcement of a repo by the same name: they are its maintainer, not ngit's.
+    byAddress.set(
+      `30617:${STRANGER}:ngit`,
+      ev(
+        30617,
+        [
+          ["d", "ngit"],
+          ["name", "ngit"],
+        ],
+        "",
+        STRANGER,
+      ),
+    );
+    renderWithProviders(
+      <GitStatusHero
+        event={ev(
+          1632,
+          [
+            ["e", issue.id, "", "root"],
+            ["a", `30617:${STRANGER}:ngit`],
+          ],
+          "",
+          STRANGER,
+        )}
+      />,
+    );
+    expect(await screen.findByTestId("git-status-title")).toHaveTextContent("Closed: Crash on start");
+    expect(await screen.findByTestId("git-status-unauthorised")).toBeInTheDocument();
+  });
+
   it("an unmarked e names no item", () => {
     renderWithProviders(<GitStatusHero event={ev(1632, [["e", "f".repeat(64)]])} />);
     expect(screen.getByTestId("git-status-title")).toHaveTextContent("Marked closed");

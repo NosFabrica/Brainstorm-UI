@@ -35,6 +35,7 @@ import {
 } from "@/lib/publication";
 import { eventPath, profilePath } from "@/lib/shareId";
 import { OPAQUE_D, hostOf, readKind, tagValue, who, type ResultRef } from "@/lib/resultReaders";
+import { readEmbeddedEvent } from "@/lib/embeddedEvent";
 
 export type { ResultRef } from "@/lib/resultReaders";
 
@@ -303,26 +304,11 @@ export function summarizeResult(ev: SummaryEvent): ResultSummary {
   };
 }
 
-const EVENT_SHAPE = (v: unknown): v is SummaryEvent => {
-  const e = v as SummaryEvent | null;
-  return (
-    !!e &&
-    typeof e.id === "string" &&
-    typeof e.pubkey === "string" &&
-    typeof e.kind === "number" &&
-    typeof e.content === "string" &&
-    Array.isArray(e.tags)
-  );
-};
-
-/** A repost's note, when the repost carries it (NIP-18 puts the JSON in the content). */
+/** A repost's note, when the repost carries it signed (NIP-18 puts the JSON in the content; anyone can write JSON). */
 function repostedEvent(ev: SummaryEvent): SummaryEvent | null {
-  try {
-    const inner: unknown = JSON.parse(ev.content);
-    return EVENT_SHAPE(inner) ? inner : null;
-  } catch {
-    return null;
-  }
+  const e = ev.tags.find((t) => t[0] === "e" && /^[0-9a-f]{64}$/i.test(t[1] ?? ""))?.[1];
+  const a = ev.kind === 16 ? ev.tags.find((t) => t[0] === "a" && typeof t[1] === "string")?.[1] : undefined;
+  return readEmbeddedEvent(ev.content, { expectId: e, expectAddr: e ? undefined : a });
 }
 
 function summarizeKind(ev: SummaryEvent): ResultSummary {

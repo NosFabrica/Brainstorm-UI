@@ -7,6 +7,10 @@
  * can be neither the author nor the only participant; callers fetch by both
  * shapes and this only reads the event.
  */
+import { schnorr } from "@noble/curves/secp256k1.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
+
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; tags: string[][]; content: string };
 
 export interface LiveStream {
@@ -33,12 +37,12 @@ export function parseLiveStream(ev: EventLike): LiveStream | null {
     id: ev.id,
     pubkey: ev.pubkey,
     d: tag("d") ?? "",
-    title: tag("title") || tag("summary") || "Live stream",
+    title: liveTitleOf(ev) || "Live stream",
     image: tag("image"),
     status: (tag("status") || "").toLowerCase(),
     startsSec: Number(tag("starts")) || 0,
     streaming: tag("streaming"),
-    recording: tag("recording"),
+    recording: isWebUrl(tag("recording")) ? tag("recording") : undefined,
     viewers: Number.isFinite(viewers) && viewers >= 0 && tag("current_participants") ? viewers : undefined,
     createdAt: ev.created_at,
   };
@@ -78,41 +82,29 @@ export function pickStreams(events: EventLike[], nowSec = Math.floor(Date.now() 
   };
 }
 
-const recordingChecks = new Map<string, Promise<boolean>>();
-
-/** Test seam: forget every recording checked. */
-export function __resetRecordingChecks() {
-  recordingChecks.clear();
+/**
+ * A web address, the only kind of link a recording or a replay button may be.
+ * Local until cluster C's lib/safeHref lands; then this is `safeHref`.
+ */
+export function isWebUrl(url: string | undefined | null): url is string {
+  const u = url?.trim().toLowerCase() ?? "";
+  return u.startsWith("https://") || u.startsWith("http://");
 }
 
+/** Test seam: kept for callers' tests; there is nothing cached any more. */
+export function __resetRecordingChecks() {}
+
 /**
- * Whether a recording still answers. Odell's year-old replay pointed at a
- * host that no longer exists, and the card advertised a black player. A
- * recording we would play ourselves (HLS, a video file) must be fetchable
- * across origins anyway — so a HEAD that answers is the same test the player
- * would fail. YouTube is trusted: its player answers for itself, and its
- * pages refuse cross-origin reads.
+ * Whether a recording is one to offer: a web address. Odell's year-old replay
+ * pointed at a host that no longer exists, and this used to HEAD every
+ * recording from the reader's browser to find out. That is a third-party call
+ * from the reader (ADR 0007: those go through our origin, and never during
+ * search or in a card), and our origin has no probe for it. So nothing is
+ * asked: a recording that no longer answers shows when the player fails to
+ * play it. Kept a promise so its callers need no change.
  */
 export function verifyRecording(url: string): Promise<boolean> {
-  if (!recordingChecks.has(url)) {
-    let host = "";
-    try {
-      host = new URL(url).hostname.replace(/^(www|m)\./, "").toLowerCase();
-    } catch {
-      return Promise.resolve(false);
-    }
-    if (host === "youtube.com" || host === "youtu.be") {
-      recordingChecks.set(url, Promise.resolve(true));
-    } else {
-      recordingChecks.set(
-        url,
-        fetch(url, { method: "HEAD", signal: AbortSignal.timeout(6000) })
-          .then((r) => r.ok)
-          .catch(() => false),
-      );
-    }
-  }
-  return recordingChecks.get(url)!;
+  return Promise.resolve(isWebUrl(url));
 }
 
 export type LiveState = "live" | "upcoming" | "replay";
@@ -156,7 +148,7 @@ export function liveStateOf(ev: EventLike, nowSec = Math.floor(Date.now() / 1000
   const status = (tag("status") || "").toLowerCase();
   const starts = Number(tag("starts")) || 0;
   const ends = Number(tag("ends")) || 0;
-  const over = tag("recording") ? "replay" : null;
+  const over = isWebUrl(tag("recording")) ? "replay" : null;
   // A space (30312) is open, private or closed: private is in operation too, behind its own door.
   if (status === "live" || status === "open" || (ev.kind === 30312 && status === "private")) {
     // A status nobody updated is not a broadcast: platforms republish a live
@@ -194,10 +186,53 @@ export function onAirLabel(startsSec: number, nowSec = Math.floor(Date.now() / 1
 /**
  * The streamer: the `p` tag marked host (platforms publish for their streamers).
  * NIP-53's role is a displayable marker — `Host` in its examples, `host` from
- * zap.stream and Nostrich — so any case is the host.
+ * zap.stream and Nostrich — so any case is the host. Only a key: a value that is
+ * not 64 hex characters names nobody (and would throw in npub encoding).
  */
 export function liveHostOf(ev: EventLike): string | null {
-  return ev.tags.find((t) => t[0] === "p" && t[3]?.trim().toLowerCase() === "host" && t[1])?.[1] ?? null;
+  const t = ev.tags.find((t) => t[0] === "p" && t[3]?.trim().toLowerCase() === "host" && HEX64.test(t[1] ?? ""));
+  return t ? t[1].toLowerCase() : null;
+}
+
+/** Who an event names as its host, and whether they agreed to it. */
+export interface LiveHostClaim {
+  pubkey: string;
+  /**
+   * The host is the event's signer, or signed NIP-53's proof for this event's
+   * address. Otherwise the signer only says so: anyone can name anyone a host
+   * "to lure their followers" (NIP-53), so it reads as unconfirmed.
+   */
+  confirmed: boolean;
+}
+
+/**
+ * NIP-53's proof: the participant's Schnorr signature, in hex, over the SHA-256
+ * of the event's complete `a` tag (`kind:pubkey:d`). Never throws.
+ */
+export function verifyLiveProof(
+  ev: Pick<EventLike, "kind" | "pubkey" | "tags">,
+  participant: string,
+  proof: string,
+): boolean {
+  if (!/^[0-9a-f]{128}$/i.test(proof) || !HEX64.test(participant)) return false;
+  const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  try {
+    const message = sha256(utf8ToBytes(`${ev.kind}:${ev.pubkey}:${d}`));
+    return schnorr.verify(hexToBytes(proof.toLowerCase()), message, hexToBytes(participant.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
+/** The host a live event, a space or a meeting names (liveHostOf), and whether it is confirmed. Null when none. */
+export function liveHostClaim(ev: EventLike): LiveHostClaim | null {
+  const pubkey = liveHostOf(ev);
+  if (!pubkey) return null;
+  if (pubkey === ev.pubkey.toLowerCase()) return { pubkey, confirmed: true };
+  const proof = ev.tags.find(
+    (t) => t[0] === "p" && t[1]?.toLowerCase() === pubkey && t[3]?.trim().toLowerCase() === "host",
+  )?.[4];
+  return { pubkey, confirmed: !!proof && verifyLiveProof(ev, pubkey, proof.trim()) };
 }
 
 type TitledEvent = Pick<EventLike, "kind" | "tags">;

@@ -12,6 +12,7 @@
  * NIP-54 (30818); the rest as the code that reads them cites its source.
  */
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { signed, TEST_PUBKEY } from "@/test/signedEvent";
 
 export const AUTHOR = "a".repeat(64);
 export const OTHER = "b".repeat(64);
@@ -31,7 +32,22 @@ const ev = (kind: number, tags: string[][], content = ""): MinimalEvent => ({
   content,
 });
 
-const note = ev(1, [["t", "nostr"]], "Good morning from the mountains");
+// What a repost carries is its author's only under their signature (lib/embeddedEvent).
+const repostedNote = signed({
+  kind: 1,
+  tags: [["t", "nostr"]],
+  content: "Good morning from the mountains",
+  created_at: AT - 20,
+});
+const repostedPicture = signed({
+  kind: 20,
+  created_at: AT - 10,
+  content: "Sunrise",
+  tags: [
+    ["title", "Sunrise over the ridge"],
+    ["imeta", "url https://img.test/ridge.jpg", "m image/jpeg", "dim 1200x800"],
+  ],
+});
 
 export interface ContentKindFixture {
   name: string;
@@ -96,10 +112,10 @@ export const CONTENT_KIND_FIXTURES: ContentKindFixture[] = [
     event: ev(
       6,
       [
-        ["e", note.id, "wss://r.test"],
-        ["p", AUTHOR],
+        ["e", repostedNote.id, "wss://r.test"],
+        ["p", TEST_PUBKEY],
       ],
-      JSON.stringify(note),
+      JSON.stringify(repostedNote),
     ),
     shows: "Good morning from the mountains",
   },
@@ -108,22 +124,11 @@ export const CONTENT_KIND_FIXTURES: ContentKindFixture[] = [
     event: ev(
       16,
       [
-        ["e", "f".repeat(64), "wss://r.test"],
+        ["e", repostedPicture.id, "wss://r.test"],
         ["k", "20"],
-        ["p", OTHER],
+        ["p", TEST_PUBKEY],
       ],
-      JSON.stringify({
-        id: "f".repeat(64),
-        pubkey: OTHER,
-        kind: 20,
-        created_at: AT - 10,
-        content: "Sunrise",
-        tags: [
-          ["title", "Sunrise over the ridge"],
-          ["imeta", "url https://img.test/ridge.jpg", "m image/jpeg", "dim 1200x800"],
-        ],
-        sig: "0".repeat(128),
-      }),
+      JSON.stringify(repostedPicture),
     ),
     shows: "Sunrise over the ridge",
   },

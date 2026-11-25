@@ -5,12 +5,12 @@
  * it; a site or mini app lists the files it is made of, the servers that hold
  * them, and where its source lives.
  */
+import { useMemo } from "react";
 import { AppWindow, FileCode, Globe, Package, Server } from "lucide-react";
 import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
 import { MediaImg } from "@/components/ui/media-img";
 import { ReadingText } from "@/components/share/ReadingText";
-import { fetchFromSearch } from "@/services/search";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import type { Thing } from "@/lib/thing";
 import type { Detail } from "./types";
@@ -26,7 +26,7 @@ import {
   SectionNote,
   hostOf,
   npubOf,
-  useFetched,
+  useSearchEvents,
   type PageEvent,
   SafeImg,
 } from "./shared";
@@ -204,10 +204,14 @@ const FILES_FOLD = 40;
 export function AppThingSections({ event, detail }: { event: PageEvent; detail: Detail<"app"> }) {
   const d = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
   // Who recommends this handler: NIP-89 recommendations (31989) that `a`-tag it.
-  const recommenders = useFetched(detail.variant === "handler" ? `app-recs:${event.id}` : null, () =>
-    fetchFromSearch([{ kinds: [31989], "#a": [`31990:${event.pubkey}:${d}`] }], { limit: 200 }).then((evs) => [
-      ...new Set(evs.map((e) => e.pubkey)),
-    ]),
+  const recommendations = useSearchEvents(
+    detail.variant === "handler" ? `app-recs:${event.id}` : null,
+    [{ kinds: [31989], "#a": [`31990:${event.pubkey}:${d}`] }],
+    { limit: 200 },
+  );
+  const recommenders = useMemo(
+    () => (recommendations ? [...new Set(recommendations.map((e) => e.pubkey))] : undefined),
+    [recommendations],
   );
   const files = event.tags.filter((t) => t[0] === "path" && t[1]).map((t) => ({ path: t[1], hash: t[2] ?? "" }));
   if (detail.variant === "handler") {

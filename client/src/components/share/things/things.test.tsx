@@ -62,7 +62,7 @@ vi.mock("@/components/ZapModal", () => ({
 }));
 
 import { ThingHero, ThingSections, hasThingPage } from "./index";
-import { __resetThingPageCache, fetchOnce, readablePost } from "./shared";
+import { __resetThingPageCache, readablePost, useSearchEvents } from "./shared";
 
 const who = "7".repeat(64);
 let n = 0;
@@ -151,10 +151,12 @@ describe("Community pages", () => {
 });
 
 describe("Fundraiser page", () => {
-  const receipt = (sats: number, zapper: string, memo = "") =>
+  // A receipt names the goal it is for (NIP-75: its `e`), as the store filters it.
+  const receipt = (goal: NostrEvent, sats: number, zapper: string, memo = "") =>
     ev(
       9735,
       [
+        ["e", goal.id],
         ["P", zapper],
         ["bolt11", `lnbc${sats * 10}n1pjx`],
       ],
@@ -164,7 +166,7 @@ describe("Fundraiser page", () => {
 
   it("counts what the goal's zaps raised, lists them, and zaps the goal itself", async () => {
     const goal = ev(9041, [["amount", "10000000"]], "Fiatjaf Protection Fees");
-    fromSearchMock.mockResolvedValue([receipt(1000, "a".repeat(64), "GM"), receipt(56, "b".repeat(64))]);
+    fromSearchMock.mockResolvedValue([receipt(goal, 1000, "a".repeat(64), "GM"), receipt(goal, 56, "b".repeat(64))]);
     profileMapMock.mockResolvedValue(new Map([[who, { name: "Slayer", lud16: "slayer@x.test" }]]));
     page(goal);
     const g = screen.getByTestId("thing-page-goal");
@@ -186,8 +188,8 @@ describe("Fundraiser page", () => {
       ],
       "Closed goal",
     );
-    const late = { ...receipt(500, "c".repeat(64)), created_at: 1_790_000_001 };
-    fromSearchMock.mockResolvedValue([receipt(21, "a".repeat(64)), late]);
+    const late = { ...receipt(goal, 500, "c".repeat(64)), created_at: 1_790_000_001 };
+    fromSearchMock.mockResolvedValue([receipt(goal, 21, "a".repeat(64)), late]);
     profileMapMock.mockResolvedValue(new Map([[who, { name: "Slayer", lud16: "slayer@x.test" }]]));
     page(goal);
     const g = screen.getByTestId("thing-page-goal");
@@ -199,7 +201,7 @@ describe("Fundraiser page", () => {
 
   it("counts again once the zap dialog closes, one ask for hero and list", async () => {
     const goal = ev(9041, [["amount", "10000000"]], "Open goal");
-    fromSearchMock.mockResolvedValue([receipt(21, "a".repeat(64))]);
+    fromSearchMock.mockResolvedValue([receipt(goal, 21, "a".repeat(64))]);
     profileMapMock.mockResolvedValue(new Map([[who, { name: "Slayer", lud16: "slayer@x.test" }]]));
     page(goal);
     await waitFor(() => expect(screen.getByTestId("thing-page-goal")).toHaveTextContent(/21\s*sats raised/));
@@ -551,14 +553,27 @@ describe("Badge, emoji, playlist pages", () => {
   });
 });
 
-describe("fetchOnce", () => {
-  it("asks once while fresh, and forgets a failed ask", async () => {
-    const load = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(7);
-    await expect(fetchOnce("k", load)).rejects.toThrow("down");
-    await Promise.resolve();
-    expect(await fetchOnce("k", load)).toBe(7);
-    expect(await fetchOnce("k", load)).toBe(7);
-    expect(load).toHaveBeenCalledTimes(2);
+describe("a thing page's reads (ADR 0005)", () => {
+  // They were a second promise cache of relay reads beside the EventStore (fetchOnce).
+  it("hand what the relay answers to the store, and ask once for every section that shares the question", async () => {
+    const added: NostrEvent[] = [];
+    const { eventStore } = await import("@/lib/eventStore");
+    const add = vi.spyOn(eventStore, "add").mockImplementation((e: NostrEvent) => {
+      added.push(e);
+      return e;
+    });
+    const post = ev(1111, [["A", "34550:" + who + ":c"]], "hi");
+    fromSearchMock.mockResolvedValue([post]);
+    function Probe() {
+      const a = useSearchEvents("probe", [{ kinds: [1111] }]);
+      const b = useSearchEvents("probe", [{ kinds: [1111] }]);
+      return <p data-testid="probe">{`${a?.length ?? "-"}/${b?.length ?? "-"}`}</p>;
+    }
+    render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("1/1"));
+    expect(fromSearchMock).toHaveBeenCalledTimes(1);
+    expect(added).toContain(post);
+    add.mockRestore();
   });
 });
 

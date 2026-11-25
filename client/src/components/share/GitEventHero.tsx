@@ -77,15 +77,20 @@ export function GitStatusHero({ event }: { event: MinimalEvent }) {
   );
   const found = useRefEvents(refs);
   const target = status.target ? found.get(status.target) : undefined;
-  // The repo the status names, else the one its item names.
-  const repoAddress = status.repo ?? target?.tags.find((t) => t[0] === "a" && t[1]?.startsWith("30617:"))?.[1] ?? null;
+  // The repo the ITEM belongs to (its `a`), once the item is here; till then the one the status names.
+  // Authority is the item's repo's alone: a status can name any repo, its author's own included.
+  const itemRepo = target?.tags.find((t) => t[0] === "a" && t[1]?.startsWith("30617:"))?.[1] ?? null;
+  const repoAddress = itemRepo ?? status.repo;
   const repoFound = useRefEvents(
-    useMemo(() => (repoAddress && !status.repo ? [{ addr: repoAddress }] : []), [repoAddress, status.repo]),
+    useMemo(
+      () => (repoAddress && repoAddress !== status.repo ? [{ addr: repoAddress }] : []),
+      [repoAddress, status.repo],
+    ),
   );
   const repo = repoAddress ? (found.get({ addr: repoAddress }) ?? repoFound.get({ addr: repoAddress })) : undefined;
   const state = gitStatusState(status, target?.kind);
   const label = gitStatusLabel(status, target?.kind);
-  const counts = statusFromAuthority(event.pubkey, target?.pubkey, repo);
+  const counts = statusFromAuthority(event.pubkey, target?.pubkey, itemRepo ? repo : undefined);
 
   return (
     <div className="space-y-4" data-testid="git-status-hero">

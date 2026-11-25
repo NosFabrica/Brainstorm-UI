@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from "nostr-tools";
 import { summarizeResult } from "./resultSummary";
 import { readKind, who } from "./resultReaders";
+import { signed, TEST_PUBKEY } from "@/test/signedEvent";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -125,19 +126,20 @@ describe("the kinds whose meaning is in their tags", () => {
   });
 
   it("a repost is the note it carries", () => {
-    const inner = { id: NOTE, pubkey: B, kind: 1, created_at: 1, tags: [], content: "hello world", sig: "x" };
+    // Signed: a repost's JSON is its author's note only under their signature.
+    const inner = signed({ kind: 1, content: "hello world" });
     const s = summarizeResult(
       ev(
         6,
         [
-          ["e", NOTE],
-          ["p", B],
+          ["e", inner.id],
+          ["p", TEST_PUBKEY],
         ],
         JSON.stringify(inner),
       ),
     );
     expect(s.body).toBe("hello world");
-    expect(s.facts).toEqual([`Repost of ${npub(B)}`]);
+    expect(s.facts).toEqual([`Repost of ${npub(TEST_PUBKEY)}`]);
     // Without the note inside, it points at it.
     expect(
       summarizeResult(
@@ -527,5 +529,24 @@ describe("the row reads what the page reads", () => {
     expect(onchain.title).toBe(`⚡ 50,000 sats to ${npub(B)}`);
     expect(onchain.facts).toEqual(["Onchain"]);
     expect(onchain.by).toBeNull();
+  });
+});
+
+describe("readKind is read once per event", () => {
+  // A quoted activity's shape (embedShape) and its card (EmbeddedActivity) both read it.
+  it("hands the same reading back for the same event", () => {
+    const like = {
+      id: "1".repeat(64),
+      pubkey: "2".repeat(64),
+      kind: 7,
+      created_at: 1,
+      content: "+",
+      tags: [["e", "3".repeat(64)]],
+    };
+    const first = readKind(like);
+    expect(first).not.toBeNull();
+    expect(readKind(like)).toBe(first);
+    // Another event object is read afresh.
+    expect(readKind({ ...like })).not.toBe(first);
   });
 });

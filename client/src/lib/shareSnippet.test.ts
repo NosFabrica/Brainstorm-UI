@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shareSnippet } from "./shareSnippet";
+import { signed } from "@/test/signedEvent";
 
 const ev = (kind: number, tags: string[][], content: string) => ({
   id: "e".repeat(64),
@@ -42,15 +43,8 @@ describe("shareSnippet", () => {
   });
 
   it("a repost is the note it carries, never its JSON", () => {
-    const inner = {
-      id: "1".repeat(64),
-      pubkey: "b".repeat(64),
-      kind: 1,
-      created_at: 1,
-      tags: [],
-      content: "hi there",
-      sig: "x",
-    };
+    // Signed: a repost's JSON is its author's note only under their signature (lib/embeddedEvent).
+    const inner = signed({ kind: 1, content: "hi there" });
     expect(shareSnippet(ev(6, [["e", inner.id]], JSON.stringify(inner)))).toBe("hi there");
     expect(shareSnippet(ev(16, [["e", inner.id]], ""))).toBe("A repost");
   });

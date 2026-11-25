@@ -4,10 +4,10 @@
  * picture, name, what sort of place it is, whether anyone may join, its
  * rules. Below it, who runs it and what is being said there.
  */
+import { useMemo } from "react";
 import { MessagesSquare, ScrollText, Users } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { ReadingText } from "@/components/share/ReadingText";
-import { fetchFromSearch } from "@/services/search";
 import type { Detail } from "./types";
 import type { Thing } from "@/lib/thing";
 import {
@@ -18,7 +18,8 @@ import {
   PeopleRoster,
   Section,
   SectionNote,
-  useFetched,
+  taggedPeople,
+  useSearchEvents,
   type PageEvent,
   SafeImg,
 } from "./shared";
@@ -103,19 +104,21 @@ export function CommunitySections({ event, detail }: { event: PageEvent; detail:
   // A NIP-72 community's posts are NIP-22 comments on its address — the page's
   // own comment thread (EventThread) already shows them, so only relay groups
   // and public chats, whose messages it does not read, get a list here.
-  const posts = useFetched(detail.variant === "moderated" ? null : `community-posts:${event.id}`, () =>
-    fetchFromSearch(conversationFilters(event, detail.variant), { limit: 30 }),
+  const posts = useSearchEvents(
+    detail.variant === "moderated" ? null : `community-posts:${event.id}`,
+    conversationFilters(event, detail.variant),
+    { limit: 30 },
   );
   // A NIP-29 group's roster is the relay's own kind-39002 list for that group
   // id, signed by the same relay key as the group's 39000 — group ids are
   // only unique per relay, and anyone can publish a 39002 with the same `d`.
-  const members = useFetched(detail.variant === "group" ? `group-members:${event.pubkey}:${dTag(event)}` : null, () =>
-    fetchFromSearch([{ kinds: [39002], authors: [event.pubkey], "#d": [dTag(event)] }], { limit: 1 }).then((evs) => [
-      ...new Set(
-        evs.flatMap((e) => e.tags.filter((t) => t[0] === "p" && /^[0-9a-f]{64}$/i.test(t[1] ?? "")).map((t) => t[1])),
-      ),
-    ]),
+  const rosters = useSearchEvents(
+    detail.variant === "group" ? `group-members:${event.pubkey}:${dTag(event)}` : null,
+    [{ kinds: [39002], authors: [event.pubkey], "#d": [dTag(event)] }],
+    { limit: 1 },
   );
+  // The relay's newest roster: the store may hold older ones too.
+  const members = useMemo(() => taggedPeople(rosters?.slice(0, 1)), [rosters]);
   return (
     <div data-testid="thing-sections-community">
       {detail.moderators.length > 0 && (

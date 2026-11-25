@@ -29,3 +29,12 @@ describe("NIP-40 — the moment an event asked to be forgotten", () => {
     expect(expirationOf(ev(` ${NOW} `))).toBe(NOW);
   });
 });
+
+describe("an event whose tags are not there", () => {
+  // An embedded event read from JSON may carry no tags: its expiry is unknown, never a crash.
+  it("has no expiration, and has not expired", () => {
+    expect(expirationOf({} as never)).toBeUndefined();
+    expect(isExpired({ tags: undefined } as never, NOW)).toBe(false);
+    expect(isExpired({ tags: [null, ["expiration"]] } as never, NOW)).toBe(false);
+  });
+});

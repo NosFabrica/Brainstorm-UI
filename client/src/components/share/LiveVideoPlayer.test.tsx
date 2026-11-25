@@ -53,3 +53,57 @@ describe("LiveVideoPlayer — starting on arrival", () => {
     expect(screen.queryByTestId("live-unmute")).toBeNull();
   });
 });
+
+const hlsFake = vi.hoisted(() => ({ instances: [] as { src?: string; attached?: unknown; destroyed: boolean }[] }));
+vi.mock("hls.js", async () => {
+  class FakeHls {
+    static isSupported = () => true;
+    static Events = { ERROR: "error" };
+    rec = { destroyed: false } as { src?: string; attached?: unknown; destroyed: boolean };
+    constructor() {
+      hlsFake.instances.push(this.rec);
+    }
+    on() {}
+    loadSource(src: string) {
+      this.rec.src = src;
+    }
+    attachMedia(video: unknown) {
+      this.rec.attached = video;
+    }
+    destroy() {
+      this.rec.destroyed = true;
+    }
+  }
+  return {
+    get default() {
+      return FakeHls;
+    },
+  };
+});
+
+describe("LiveVideoPlayer — hls.js loading", () => {
+  beforeEach(() => {
+    // No native HLS: hls.js is imported.
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("");
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    hlsFake.instances.length = 0;
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("unmounted while hls.js loads, attaches nothing to the detached video", async () => {
+    // The import is a wait however warm the module is: unmounting in it is the race.
+    const { unmount } = render(<LiveVideoPlayer src="https://x/a.m3u8" autoStart />);
+    unmount();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(hlsFake.instances.filter((h) => h.attached && !h.destroyed)).toEqual([]);
+  });
+
+  it("follows a new src: the old stream is torn down, the new one loads", async () => {
+    const { rerender } = render(<LiveVideoPlayer src="https://x/a.m3u8" autoStart />);
+    await vi.waitFor(() => expect(hlsFake.instances[0]?.src).toBe("https://x/a.m3u8"));
+    rerender(<LiveVideoPlayer src="https://x/b.m3u8" autoStart />);
+    await vi.waitFor(() => expect(hlsFake.instances.at(-1)?.src).toBe("https://x/b.m3u8"));
+    expect(hlsFake.instances[0].destroyed).toBe(true);
+    expect(hlsFake.instances.filter((h) => !h.destroyed)).toHaveLength(1);
+  });
+});

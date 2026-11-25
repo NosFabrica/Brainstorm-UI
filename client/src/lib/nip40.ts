@@ -10,7 +10,12 @@ type Tagged = { tags: string[][] };
 
 /** Unix seconds, or nothing when the tag is missing or is not a time. */
 export function expirationOf(event: Tagged): number | undefined {
-  const value = event.tags.find((t) => t[0] === "expiration")?.[1]?.trim() ?? "";
+  // An event read from someone's JSON (a repost's) may carry no tags, or junk where a tag goes.
+  const tags: unknown = event?.tags;
+  if (!Array.isArray(tags)) return undefined;
+  const tag = (tags as unknown[]).find((t): t is string[] => Array.isArray(t) && t[0] === "expiration");
+  const raw = tag?.[1];
+  const value = typeof raw === "string" ? raw.trim() : "";
   if (!/^\d+$/.test(value)) return undefined;
   const at = Number(value);
   return Number.isSafeInteger(at) && at > 0 ? at : undefined;

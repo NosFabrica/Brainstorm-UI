@@ -20,7 +20,6 @@ import { Chip } from "@/components/ui/chip";
 import { MediaImg } from "@/components/ui/media-img";
 import { ReadingText } from "@/components/share/ReadingText";
 import { ThingCard, magnetOf } from "@/components/search/thingCards";
-import { fetchFromSearch } from "@/services/search";
 import { formatBytes } from "@/lib/formatBytes";
 import { languageName } from "@/lib/translate";
 import type { Thing, TorrentCategory } from "@/lib/thing";
@@ -35,7 +34,7 @@ import {
   PageTitle,
   Section,
   hostOf,
-  useFetched,
+  useSearchEvents,
   type PageEvent,
   useAuthors,
 } from "./shared";
@@ -124,9 +123,9 @@ export function LearningHero({ event, thing, detail }: { event: PageEvent; thing
 }
 
 export function LearningSections({ event }: { event: PageEvent }) {
-  const more = useFetched(`learning-more:${event.pubkey}`, () =>
-    fetchFromSearch([{ kinds: [30142], authors: [event.pubkey] }], { limit: 12 }),
-  );
+  const more = useSearchEvents(`learning-more:${event.pubkey}`, [{ kinds: [30142], authors: [event.pubkey] }], {
+    limit: 12,
+  });
   const others = (more ?? []).filter((e) => e.id !== event.id && tagOf(e, "d") !== tagOf(event, "d"));
   const authors = useAuthors([event.pubkey]);
   if (others.length === 0) return null;

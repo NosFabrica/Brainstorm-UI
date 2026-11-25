@@ -109,3 +109,42 @@ describe("the pages a fix put right", () => {
     expect(screen.getByTestId("note-repost-missing")).toHaveTextContent("Reposted an article");
   });
 });
+
+describe("a live event, a space or a meeting that names a host (NIP-53)", () => {
+  const SIGNER = "5".repeat(64);
+  const HOSTED = "6".repeat(64);
+  const live = (p: string[], kind = 30311): MinimalEvent => ({
+    id: kind.toString(16).padStart(64, "7"),
+    kind,
+    pubkey: SIGNER,
+    created_at: 1_790_000_000,
+    content: "",
+    tags: [["d", "show"], kind === 30312 ? ["room", "The room"] : ["title", "The show"], ["status", "ended"], p],
+  });
+  const signerLink = () => document.querySelector(`a[href="/p/${npubFromPubkey(SIGNER)}"]`);
+
+  it("survives a host that is not a key (it threw while naming the author)", () => {
+    stubVisibleIntersectionObserver();
+    expect(() => open(live(["p", "not-a-key", "", "Host"]))).not.toThrow();
+    expect(screen.getByTestId("live-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("live-host")).toBeNull();
+  });
+
+  it("is its signer's page; the host it names is a line, unconfirmed without their proof", () => {
+    stubVisibleIntersectionObserver();
+    for (const kind of [30311, 30312]) {
+      const { unmount } = open(live(["p", HOSTED, "", "Host"], kind));
+      expect(signerLink()).not.toBeNull();
+      expect(document.querySelector(`[data-testid="live-host"] a[href="/p/${npubFromPubkey(HOSTED)}"]`)).not.toBeNull();
+      expect(screen.getByTestId("live-host-unconfirmed")).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("a stream's first `p`, with no role, is nobody's byline but the signer's", () => {
+    stubVisibleIntersectionObserver();
+    open(live(["p", HOSTED]));
+    expect(signerLink()).not.toBeNull();
+    expect(document.querySelector(`a[href="/p/${npubFromPubkey(HOSTED)}"]`)).toBeNull();
+  });
+});

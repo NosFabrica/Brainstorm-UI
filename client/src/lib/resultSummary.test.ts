@@ -3,6 +3,7 @@ import { nip19 } from "nostr-tools";
 import { markdownExcerpt, summarizeResult } from "./resultSummary";
 import { kindFamily, kindTone } from "./kindFamily";
 import { kindTypeLabel } from "./kindLabel";
+import { signed, TEST_PUBKEY } from "@/test/signedEvent";
 
 const PK = "4".repeat(64);
 const ev = (kind: number, tags: string[][] = [], content = "") => ({
@@ -283,7 +284,8 @@ describe("summarizeResult — a video marked sensitive", () => {
 
   // The repost's own tags say nothing: the picture and its warning are the reposted video's.
   it("a repost inherits the warning of the video it carries", () => {
-    const flagged = short([["content-warning", "nudity"]]);
+    // Signed: a repost's JSON is its author's video only under their signature.
+    const flagged = signed({ kind: 34236, tags: short([["content-warning", "nudity"]]).tags });
     for (const kind of [6, 16]) {
       const s = summarizeResult(
         ev(
@@ -298,7 +300,9 @@ describe("summarizeResult — a video marked sensitive", () => {
       expect(s.image).toBe("https://media.divine.video/thumb");
       expect(s.sensitive).toEqual({ reason: "nudity" });
     }
-    expect(summarizeResult(ev(16, [], JSON.stringify(short()))).sensitive).toBeUndefined();
+    expect(
+      summarizeResult(ev(16, [], JSON.stringify(signed({ kind: 34236, tags: short().tags })))).sensitive,
+    ).toBeUndefined();
   });
 });
 
@@ -506,5 +510,41 @@ describe("summarizeResult — lists of things say their name and what they hold,
         ]),
       ).facts,
     ).toEqual(["1 video"]);
+  });
+});
+
+describe("a repost's row", () => {
+  // NIP-18 puts the note in the content as JSON, which anyone can write: it is the
+  // author's only under their signature.
+  it("is the reposted note when it is signed by its author", () => {
+    const inner = signed({ kind: 1, content: "the original words" });
+    const s = summarizeResult(ev(6, [["e", inner.id]], JSON.stringify(inner)));
+    expect(s.body).toBe("the original words");
+  });
+
+  it("never draws unsigned JSON as someone's note", () => {
+    const victim = "7".repeat(64);
+    const forged = {
+      id: "8".repeat(64),
+      pubkey: victim,
+      kind: 1,
+      created_at: 1,
+      tags: [],
+      content: "words they never wrote",
+      sig: "0".repeat(128),
+    };
+    const s = summarizeResult(
+      ev(
+        6,
+        [
+          ["e", forged.id],
+          ["p", victim],
+        ],
+        JSON.stringify(forged),
+      ),
+    );
+    expect(s.body).not.toBe("words they never wrote");
+    expect(s.ref).not.toBeNull();
+    expect(TEST_PUBKEY).not.toBe(victim);
   });
 });

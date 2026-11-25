@@ -1,4 +1,5 @@
 import { decodeEntity, parseNoteContent } from "@/lib/noteContent";
+import { readEmbeddedEvent } from "@/lib/embeddedEvent";
 
 /** An addressable (replaceable) event reference — what an `naddr` decodes to. */
 export interface AddressRef {
@@ -182,16 +183,13 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
 
   // Repost (NIP-18): the original event is usually embedded as JSON in content.
   if (ev.kind === 6 || ev.kind === 16) {
-    let repostEvent: MinimalEvent | undefined;
-    if (ev.content) {
-      try {
-        const parsed = JSON.parse(ev.content);
-        if (parsed && parsed.id && parsed.pubkey) repostEvent = parsed as MinimalEvent;
-      } catch {
-        // content not JSON
-      }
-    }
-    const repostId = repostEvent?.id ?? eTags[0]?.[1];
+    // Anyone can write any JSON there: it is the author's note only under their signature, and
+    // only the note the repost's `e` (or a generic repost's `a`) names. Else the `e` is asked for.
+    const eId = eTags.find((t) => HEX64.test(t[1] ?? ""))?.[1];
+    const aTag = ev.kind === 16 ? tags.find((t) => t[0] === "a" && typeof t[1] === "string")?.[1] : undefined;
+    const repostEvent =
+      readEmbeddedEvent(ev.content, { expectId: eId, expectAddr: eId ? undefined : aTag }) ?? undefined;
+    const repostId = eId?.toLowerCase() ?? repostEvent?.id ?? eTags[0]?.[1];
     const quoteRelays = eTags[0] ? tagRelay(eTags[0]) : [];
     // Include pubkeys tagged inside the reposted note's content so the embedded
     // card can show @names instead of raw npubs.

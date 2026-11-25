@@ -6,7 +6,7 @@
  * viewer to zap.stream.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { __resetRecordingChecks } from "@/lib/liveStream";
 import { LiveHero } from "./LiveHero";
 import { installSoloPlayback, playSolo } from "@/lib/playback";
@@ -154,14 +154,11 @@ describe("LiveHero", () => {
   });
 
   // Odell's replay: data.zap.stream is gone, and a black player is worse than
-  // the truth.
-  it("a recording that no longer answers reads as ended, with the loss named", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new TypeError("Failed to fetch");
-      }),
-    );
+  // the truth. The reader's browser never probes the recording's host (ADR 0007):
+  // the player trying it is what tells.
+  it("a recording that fails to play reads as ended, with the loss named", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     render(
       <LiveHero
         event={stream([
@@ -170,9 +167,46 @@ describe("LiveHero", () => {
         ])}
       />,
     );
+    const video = await screen.findByTestId("live-video");
+    await vi.waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    fireEvent.error(video);
     expect(await screen.findByTestId("replay-gone")).toHaveTextContent(/recording is no longer available/i);
     expect(screen.queryByTestId("live-player")).toBeNull();
-    expect(screen.queryByText(/Replay/)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a recording that is no web address is never a link or a player", async () => {
+    for (const recording of ["javascript:alert(1)", "data:text/html,<b>hi</b>"]) {
+      const { unmount } = render(
+        <LiveHero
+          event={stream([
+            ["status", "ended"],
+            ["recording", recording],
+          ])}
+        />,
+      );
+      expect(screen.queryByTestId("replay-external")).toBeNull();
+      expect(screen.queryByTestId("replay-video")).toBeNull();
+      expect(screen.queryByTestId("live-player")).toBeNull();
+      expect(screen.getByText(/This stream has ended/)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("is titled by its `name` when it has no `title`, as its quote card is", () => {
+    render(
+      <LiveHero
+        event={{
+          ...stream([["status", "ended"]]),
+          tags: [
+            ["d", "abc"],
+            ["name", "Friday Jam"],
+            ["status", "ended"],
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("live-hero-title")).toHaveTextContent("Friday Jam");
   });
 
   it("an ended stream with no recording still says so", () => {

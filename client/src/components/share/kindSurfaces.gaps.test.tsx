@@ -32,6 +32,14 @@ vi.mock("@/services/nostr", async () => ({
       }),
     ),
   fetchEventsByIds: async (ids: string[]) => ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : [])),
+  // By author and filter: a channel's NIP-28 metadata updates (kind 41).
+  fetchEventsByAuthors: async (pubkeys: string[], filter: { kinds?: number[]; "#e"?: string[] }) =>
+    [...byId.values()].filter(
+      (e) =>
+        pubkeys.includes(e.pubkey) &&
+        (!filter.kinds || filter.kinds.includes(e.kind)) &&
+        (!filter["#e"] || e.tags.some((t) => t[0] === "e" && filter["#e"]!.includes(t[1]))),
+    ),
 }));
 vi.mock("@/services/api", () => ({
   apiClient: { getHouseInfluence: async () => null, getTrustSignals: async () => new Map() },
@@ -416,6 +424,24 @@ describe("the readings the surfaces share", () => {
     expect(screen.getByTestId("status-label")).toHaveTextContent("Status");
     expect(summaryOf(ev(30315, [["d", "general"]], "")).title).toBe("Cleared their status");
   });
+
+  it("a status that will expire says when it ends, on its page", () => {
+    wrap(
+      <EventScreen
+        event={
+          ev(
+            30315,
+            [
+              ["d", "music"],
+              ["expiration", String(NOW + 3600)],
+            ],
+            "A song",
+          ) as MinimalEvent
+        }
+      />,
+    );
+    expect(screen.getByTestId("status-expires")).toHaveTextContent(/^Ends /);
+  });
 });
 
 describe("what a reading names, found", () => {
@@ -469,5 +495,27 @@ describe("what a reading names, found", () => {
       const lines = screen.getAllByTestId("chat-context").map((l) => l.textContent);
       expect(lines).toEqual(["Live chat·Adult Swim Metalocalypse", "Channel·Bitcoin talk"]);
     });
+  });
+
+  // NIP-28: a 41 from the channel's creator renames it; anyone else's is ignored.
+  it("a channel is named by its creator's newest kind-41 metadata", async () => {
+    const channel = held({ ...ev(40, [], JSON.stringify({ name: "Old name" })) });
+    held({
+      ...ev(41, [["e", channel.id, "", "root"]], JSON.stringify({ name: "Renamed" })),
+      created_at: channel.created_at + 10,
+    });
+    held({
+      ...ev(41, [["e", channel.id, "", "root"]], JSON.stringify({ name: "Older rename" })),
+      created_at: channel.created_at + 5,
+    });
+    held({
+      ...ev(41, [["e", channel.id, "", "root"]], JSON.stringify({ name: "Hijacked" })),
+      pubkey: HOST,
+      created_at: channel.created_at + 20,
+    });
+    wrap(
+      <EmbeddedNoteCard event={ev(42, [["e", channel.id, "", "root"]], "Hi") as MinimalEvent} author={{ name: "M" }} />,
+    );
+    await vi.waitFor(() => expect(screen.getByTestId("chat-context")).toHaveTextContent("Channel·Renamed"));
   });
 });

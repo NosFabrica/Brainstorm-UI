@@ -2,14 +2,14 @@
  * A NIP-38 user status (kind 30315) on its page: what someone is doing or
  * listening to, in their words (emoji and custom emoji drawn), and the one
  * thing it links — a page, a profile, a note or an addressable event, each
- * drawn the way a note draws that reference. A status past its NIP-40
- * expiration (a music status ends with the track) says it is over; an empty
- * one says it was cleared; an app's own record (JSON, an unknown type) says so.
+ * drawn the way a note draws that reference. One with a NIP-40 expiration
+ * (a music status ends with the track) says when it ends; past it, the page is
+ * EventScreen's expired stub. An empty one says it was cleared; an app's own
+ * record (JSON, an unknown type) says so.
  */
 import { useMemo } from "react";
 import { nip19 } from "nostr-tools";
 import { ExternalLink, Music2, Sparkles } from "lucide-react";
-import { Chip } from "@/components/ui/chip";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { NostrRef } from "@/components/share/NostrRef";
 import { statusText } from "@/components/search/relayStatusCards";
@@ -38,8 +38,6 @@ function bech32Of(link: UserStatusLink): string | null {
 export function UserStatusHero({ event }: { event: MinimalEvent }) {
   const status = useMemo(() => readUserStatus(event), [event]);
   if (!status) return null;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const expired = status.expiresAt !== undefined && status.expiresAt <= nowSec;
   const Icon = status.type === "music" ? Music2 : Sparkles;
   const link = status.link;
   const ref = link && link.type !== "url" ? bech32Of(link) : null;
@@ -50,11 +48,8 @@ export function UserStatusHero({ event }: { event: MinimalEvent }) {
         <span className="font-medium" data-testid="status-label">
           {status.label}
         </span>
-        {expired ? (
-          <Chip size="sm" tone="slate" data-testid="status-expired">
-            Expired
-          </Chip>
-        ) : status.expiresAt ? (
+        {/* Only a future end: a status past it never reaches its page (EventScreen's NIP-40 stub). */}
+        {status.expiresAt ? (
           <span className="text-xs" data-testid="status-expires">
             Ends {relativeEventTime(status.expiresAt).toLowerCase()}
           </span>
