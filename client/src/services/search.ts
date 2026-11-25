@@ -52,6 +52,7 @@ import { zapDescription } from "@/lib/zapRequest";
 import { DLIST_ITEM_KINDS } from "@/lib/dlistFields";
 import { readGitStatus } from "@/lib/gitEvents";
 import { readRelease, readReleaseAsset } from "@/lib/release";
+import { addressOf, beats } from "@/lib/newestPerAddress";
 
 export type SearchTab =
   | "top"
@@ -406,6 +407,19 @@ const RANKED_PAGE_CEILING = 600;
 const REQ_DEADLINE_MS = 10_000;
 /** What the reader sees when the relay is the reason — the sorry page's line. */
 const SEARCH_BREAK = "Search is running behind.";
+
+/**
+ * A relay's copy, through the store: what it keeps is what we show. The store verifies
+ * (null for a forged or expired event) and answers a replaceable or addressable with the
+ * newest version it holds, so a lagging relay cannot revert one (ADR 0005).
+ */
+function keepInStore(event: NostrEvent): NostrEvent | null {
+  try {
+    return eventStore.add(event) ?? null;
+  } catch {
+    return null; // a copy the verifier chokes on is no copy
+  }
+}
 
 /** Kind-0 event → the SearchResult currency the whole app renders. */
 export function kind0ToSearchResult(event: NostrEvent): SearchResult {
@@ -874,6 +888,8 @@ export function searchStream(
   let eose = false;
   let loadingMore = false;
   let exhausted = false;
+  // Keyed by address (lib/newestPerAddress): a regular event's is its id, a replaceable's or
+  // an addressable's is its kind:pubkey:d, so two versions of one are one row.
   const seen = new Set<string>();
   const pageLimit = params.limit ?? DEFAULT_LIMIT;
   let oldest = Infinity;
@@ -883,8 +899,8 @@ export function searchStream(
   const seeded = new Set(seed.map((h) => h.event.id));
   const confirmed = new Set<string>();
   for (const h of seed) {
-    if (seen.has(h.event.id)) continue;
-    seen.add(h.event.id);
+    if (seen.has(addressOf(h.event))) continue;
+    seen.add(addressOf(h.event));
     hits.push(h);
     oldest = Math.min(oldest, h.event.created_at);
   }
@@ -897,6 +913,8 @@ export function searchStream(
   let fallback: ReturnType<typeof setTimeout> | undefined;
   /** A snapshot with hits in it has gone out: arrivals after it may wait a frame. */
   let shownHits = false;
+  /** The stream's error stands until the relay answers again (an EVENT or EOSE after it). */
+  let error: string | null = null;
   const unschedule = () => {
     if (frame !== undefined) cancelAnimationFrame(frame);
     clearTimeout(fallback);
@@ -908,7 +926,8 @@ export function searchStream(
     unschedule();
     if (cancelled) return;
     if (hits.length) shownHits = true;
-    onSnapshot({ hits: [...hits], eose, timeMs: null, error: null, loadingMore, exhausted, ...partial });
+    if (partial.error !== undefined) error = partial.error;
+    onSnapshot({ hits: [...hits], eose, timeMs: null, loadingMore, exhausted, ...partial, error });
   };
   // A hit or an author arrived: on the next frame, with whatever else arrives before it.
   const emitSoon = () => {
@@ -1140,29 +1159,48 @@ export function searchStream(
         next: (msg: { type: string; event?: NostrEvent; reason?: string }) => {
           if (cancelled) return;
           answered = true;
+          // The relay is answering: a warning that it wasn't no longer stands.
+          if (msg.type === "EVENT" || msg.type === "EOSE") error = null;
           if (msg.type === "EVENT" && msg.event) {
-            const event = msg.event;
+            const relayCopy = msg.event;
             received++;
-            const owner = walksBack ? ownerOf(event) : -1;
+            const owner = walksBack ? ownerOf(relayCopy) : -1;
             if (owner >= 0) receivedBy.set(owner, (receivedBy.get(owner) ?? 0) + 1);
-            if (!hostedByThem(event)) return;
+            if (!hostedByThem(relayCopy)) return;
             // A husk deleted by overwriting is not a result (lib/blankEvent).
-            if (isBlankEvent(event)) return;
             // Nor is one past its NIP-40 expiration: "clients SHOULD ignore events that have expired".
-            if (isExpired(event, Math.floor(Date.now() / 1000))) return;
-            confirmed.add(event.id);
-            if (seen.has(event.id)) return;
-            seen.add(event.id);
-            fresh++;
-            oldest = Math.min(oldest, event.created_at);
-            if (owner >= 0) filterOldest[owner] = Math.min(filterOldest[owner], event.created_at);
+            const unshown = (e: NostrEvent) => isBlankEvent(e) || isExpired(e, Math.floor(Date.now() / 1000));
+            if (unshown(relayCopy)) return;
+            confirmed.add(relayCopy.id);
             // Into the store the moment it arrives: the search relay's corpus is
             // wider than the content relays', so a clicked result must render
-            // from what we already hold, not from relays that may lack it.
-            eventStore.add(event);
+            // from what we already hold, not from relays that may lack it. The
+            // store verifies (a refused event is no result) and answers a
+            // replaceable with the newest version it holds: a lagging relay's
+            // older copy shows as that winner (ADR 0005).
+            const event = keepInStore(relayCopy);
+            if (!event || (event !== relayCopy && unshown(event))) return;
+            confirmed.add(event.id);
+            if (owner >= 0) filterOldest[owner] = Math.min(filterOldest[owner], relayCopy.created_at);
+            oldest = Math.min(oldest, relayCopy.created_at);
+            const address = addressOf(event);
+            if (seen.has(address)) {
+              // A newer version of an address already on screen takes its row.
+              const at = hits.findIndex((h) => addressOf(h.event) === address);
+              if (at >= 0 && event.id !== hits[at].event.id && beats(event, hits[at].event)) {
+                hits[at] = { ...hits[at], event, author: noteAuthor(event) };
+                emitSoon();
+              }
+              return;
+            }
+            seen.add(address);
+            fresh++;
             const hit = { event, author: noteAuthor(event), rank: null };
-            if (!closeAtEose && seed.length) hits.splice(insertAt++, 0, hit);
-            else if (byTime) {
+            // The first page stays open on a recent-sorted stream: what it streams after its
+            // EOSE is newer than the list, which reads newest first, so it goes in by time.
+            const live = recent && !closeAtEose && eose;
+            if (!closeAtEose && seed.length && !live) hits.splice(insertAt++, 0, hit);
+            else if (byTime || live) {
               const at = hits.findIndex((h) => h.event.created_at < event.created_at);
               hits.splice(at < 0 ? hits.length : at, 0, hit);
             } else hits.push(hit);
@@ -1176,8 +1214,8 @@ export function searchStream(
               for (let i = hits.length - 1; i >= 0; i--) {
                 const id = hits[i].event.id;
                 if (seeded.has(id) && !confirmed.has(id)) {
+                  seen.delete(addressOf(hits[i].event));
                   hits.splice(i, 1);
-                  seen.delete(id);
                 }
               }
               seeded.clear();
