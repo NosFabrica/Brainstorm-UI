@@ -103,7 +103,17 @@ function roleOf(t: string[]): string | null {
   return last && !/^wss?:\/\//.test(last) ? last : null;
 }
 
+/* One reading per event object: a quoted highlight's shape and its card both ask. */
+const READINGS = new WeakMap<object, Highlight | null>();
+
 export function parseHighlight(ev: HighlightEvent): Highlight | null {
+  if (READINGS.has(ev)) return READINGS.get(ev)!;
+  const read = readHighlight(ev);
+  READINGS.set(ev, read);
+  return read;
+}
+
+function readHighlight(ev: HighlightEvent): Highlight | null {
   if (ev.kind !== 9802) return null;
   const passage = ev.content.trim();
   if (!passage) return null;

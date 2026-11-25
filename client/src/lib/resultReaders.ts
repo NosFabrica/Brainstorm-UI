@@ -839,7 +839,24 @@ function readJob(ev: ReaderEvent): ReaderResult | null {
 }
 
 /** What a reader knows of this kind, or null where the generic reading is the right one. */
+/*
+ * One reading per event object: a quoted activity's shape (lib/embedShape) and
+ * its card (EmbeddedActivity) both ask, and a feed re-renders as hits stream
+ * in. Some readers say how long ago or until (a poll's "closes in 2h", a status
+ * that expired), so a reading is kept for the minute it was made in.
+ */
+const READINGS = new WeakMap<object, { minute: number; read: ReaderResult | null }>();
+
 export function readKind(ev: ReaderEvent): ReaderResult | null {
+  const minute = Math.floor(Date.now() / 60_000);
+  const held = READINGS.get(ev);
+  if (held && held.minute === minute) return held.read;
+  const read = readKindNow(ev);
+  READINGS.set(ev, { minute, read });
+  return read;
+}
+
+function readKindNow(ev: ReaderEvent): ReaderResult | null {
   const reader = READERS.get(ev.kind);
   if (reader) return reader(ev);
   const job = readJob(ev);

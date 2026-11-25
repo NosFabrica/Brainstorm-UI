@@ -128,3 +128,19 @@ describe("tailOf", () => {
     expect(tailOf("one two three four five", 10)).toBe("…four five");
   });
 });
+
+describe("parseHighlight is read once per event", () => {
+  it("hands the same reading back for the same event", () => {
+    const h = {
+      id: "1".repeat(64),
+      pubkey: "2".repeat(64),
+      kind: 9802,
+      created_at: 1,
+      content: "a passage",
+      tags: [] as string[][],
+    };
+    const first = parseHighlight(h);
+    expect(first).not.toBeNull();
+    expect(parseHighlight(h)).toBe(first);
+  });
+});

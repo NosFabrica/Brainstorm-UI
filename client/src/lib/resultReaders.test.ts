@@ -531,3 +531,22 @@ describe("the row reads what the page reads", () => {
     expect(onchain.by).toBeNull();
   });
 });
+
+describe("readKind is read once per event", () => {
+  // A quoted activity's shape (embedShape) and its card (EmbeddedActivity) both read it.
+  it("hands the same reading back for the same event", () => {
+    const like = {
+      id: "1".repeat(64),
+      pubkey: "2".repeat(64),
+      kind: 7,
+      created_at: 1,
+      content: "+",
+      tags: [["e", "3".repeat(64)]],
+    };
+    const first = readKind(like);
+    expect(first).not.toBeNull();
+    expect(readKind(like)).toBe(first);
+    // Another event object is read afresh.
+    expect(readKind({ ...like })).not.toBe(first);
+  });
+});
