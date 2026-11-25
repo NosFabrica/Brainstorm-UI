@@ -25,8 +25,8 @@ const inputViewCls =
 
 /**
  * Reusable editor for the user's own Nostr profile (kind 0). The single source of
- * truth for the profile form — rendered inline on the Settings "Profile" tab and
- * inside ProfileEditModal. Reuses ImageUpload for avatar/banner; saves via
+ * truth for the profile form — rendered inline on the Settings "Profile" tab.
+ * Reuses ImageUpload for avatar/banner; saves via
  * publishProfile. Prefills from the cached user, then fills gaps from the live
  * kind-0.
  */
