@@ -74,6 +74,117 @@ if [ -f "$CONFIG_FILE" ]; then
   rm -f "$INLINE_CONFIG"
 fi
 
+# --- Security headers --------------------------------------------------------
+# Every response carries these (nginx.conf includes the file at server level and
+# in each location with an add_header of its own, since a location that adds
+# any header inherits none). Written here rather than in nginx.conf because the
+# policy names the page's inline scripts by their SHA-256, and one of them, the
+# inline config above, is only known now.
+#
+# CSP_MODE: `enforce` (the default), `report-only` (the browser reports a
+# violation in the console and blocks nothing: the switch to flip if a deploy
+# turns out to need something the policy refuses), or `off`.
+#
+# What the app reaches, and why each source list is what it is:
+#   script-src   our own files, the inline scripts by hash, and wasm (the
+#                signature verifier compiles nostr-wasm from bytes).
+#   style-src    'unsafe-inline': Radix and the toast/charts libraries set
+#                style attributes and inject <style>; CSS can't run script.
+#   connect-src  https: and wss:. Relays, NIP-05, LNURL, Blossom servers and
+#                link previews are wherever their owners put them.
+#   img/media    any web address, data: and blob: (pictures and voice notes
+#                come from anyone's host; DM attachments are blob: URLs).
+#   frame-src    https: (YouTube, Twitch, zap.stream, OpenStreetMap players).
+#   frame-ancestors 'none': nobody frames the page that holds a reader's keys.
+HEADERS_FILE="$UI_NGINX_ETC/security-headers.conf"
+CSP_MODE="${CSP_MODE:-enforce}"
+
+# The base64 SHA-256 of every inline <script> in the pages, one per line: the
+# CSP's 'sha256-…' sources. Byte-exact (LC_ALL=C): the hash is of the text
+# between <script …> and </script>, as the browser sees it. Comments are
+# skipped, so a `<script` written in one is not taken for a script; a script
+# with a src, or a data block (a type that isn't JavaScript), needs no hash.
+inline_script_hashes() {
+  scratch=$(mktemp -d)
+  n=0
+  for page in index 200 404; do
+    file="$UI_HTML_ROOT/${page}.html"
+    [ -f "$file" ] || continue
+    n=$((n + 1))
+    LC_ALL=C awk -v out="$scratch/$n" '
+      { doc = doc $0 "\n" }
+      END {
+        count = 0
+        rest = doc
+        for (;;) {
+          s = index(rest, "<script")
+          c = index(rest, "<!--")
+          if (c > 0 && (s == 0 || c < s)) {
+            rest = substr(rest, c + 4)
+            e = index(rest, "-->")
+            if (e == 0) break
+            rest = substr(rest, e + 3)
+            continue
+          }
+          if (s == 0) break
+          rest = substr(rest, s)
+          t = index(rest, ">")
+          if (t == 0) break
+          tag = tolower(substr(rest, 1, t))
+          rest = substr(rest, t + 1)
+          k = index(rest, "</script>")
+          if (k == 0) break
+          body = substr(rest, 1, k - 1)
+          rest = substr(rest, k + 9)
+          if (tag ~ /[ \t\n]src[ \t\n]*=/) continue
+          if (tag ~ /[ \t\n]type[ \t\n]*=/ && tag !~ /type[ \t\n]*=[ \t\n]*"?(text\/javascript|module|application\/javascript)"?[ \t\n>]/) continue
+          count++
+          f = out "." count
+          printf "%s", body > f
+          close(f)
+        }
+      }
+    ' "$file"
+  done
+  for f in "$scratch"/*; do
+    [ -f "$f" ] || continue
+    sha256sum "$f" | LC_ALL=C awk '
+      BEGIN { H = "0123456789abcdef"; B = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" }
+      {
+        hex = tolower($1); out = ""
+        for (i = 1; i <= length(hex); i += 6) {
+          chunk = substr(hex, i, 6); bytes = length(chunk) / 2; v = 0
+          for (j = 1; j <= length(chunk); j++) v = v * 16 + index(H, substr(chunk, j, 1)) - 1
+          for (j = bytes; j < 3; j++) v = v * 256
+          out = out substr(B, int(v / 262144) % 64 + 1, 1) substr(B, int(v / 4096) % 64 + 1, 1)
+          out = out (bytes > 1 ? substr(B, int(v / 64) % 64 + 1, 1) : "=") (bytes > 2 ? substr(B, v % 64 + 1, 1) : "=")
+        }
+        print out
+      }'
+  done | sort -u
+  rm -rf "$scratch"
+}
+
+SCRIPT_SOURCES="'self' 'wasm-unsafe-eval'"
+for hash in $(inline_script_hashes); do
+  SCRIPT_SOURCES="$SCRIPT_SOURCES 'sha256-$hash'"
+done
+CSP="default-src 'self'; script-src $SCRIPT_SOURCES; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; font-src 'self' data:; connect-src 'self' https: wss: data: blob:; frame-src 'self' https:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+{
+  case "$CSP_MODE" in
+    off) ;;
+    report-only) echo "add_header Content-Security-Policy-Report-Only \"$CSP\" always;" ;;
+    *) echo "add_header Content-Security-Policy \"$CSP\" always;" ;;
+  esac
+  echo 'add_header X-Content-Type-Options "nosniff" always;'
+  echo 'add_header X-Frame-Options "DENY" always;'
+  echo 'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
+  echo 'add_header Permissions-Policy "camera=(), microphone=(self), geolocation=(self), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()" always;'
+  echo 'add_header Strict-Transport-Security "max-age=31536000" always;'
+} > "$HEADERS_FILE"
+# -----------------------------------------------------------------------------
+
 # --- Site trust signals ------------------------------------------------------
 # robots.txt and the Canonical line of security.txt are per-deployment, but the
 # image is shared across production, the production alias, and staging. Both are
