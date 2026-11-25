@@ -4,7 +4,8 @@ import type { NostrEvent as SignedEvent } from "nostr-tools";
 import { verifySignature } from "@/lib/verifier";
 
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
-import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
+import { createdAtPast, isVersionOf, newestVersion } from "@/lib/replaceableDraft";
+import { beats, requestAll, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { outboxRelays, outboxRelaysFromDb, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
@@ -50,24 +51,40 @@ export interface NostrEvent {
   sig?: string;
 }
 
+/** One of `pubkey`'s own lists of `kind`: anything else is never a base, whatever a relay or cache says. */
+const isOwnList = (c: NostrEvent | null | undefined, pubkey: string, kind: number): c is NostrEvent =>
+  isVersionOf(c as never, kind, pubkey) && Array.isArray(c!.tags);
+
 /**
- * Pick the most-authoritative contact list among the candidates: the one with the
- * MOST `p` tags (ties broken by newest `created_at`). This stops us from merging
- * onto a stale/short relay response when a longer list is known.
+ * The copy an edit builds on: the newest of `pubkey`'s own lists among the
+ * candidates (NIP-01). Not the longest — a device holding an older, longer
+ * snapshot would republish it and bring back everyone unfollowed elsewhere
+ * since. A list signed by anyone else is never a candidate.
  */
-function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): NostrEvent | null {
-  let best: NostrEvent | null = null;
-  let bestCount = -1;
-  for (const c of candidates) {
-    if (!c?.tags) continue;
-    const count = countFollows(c.tags);
-    if (count > bestCount || (count === bestCount && best && c.created_at > best.created_at)) {
-      best = c;
-      bestCount = count;
-    }
-  }
-  return best;
+const newestOwn = (candidates: (NostrEvent | null | undefined)[], pubkey: string, kind: number) =>
+  newestVersion(candidates as never, kind, pubkey) as NostrEvent | null;
+
+/**
+ * Edits to one list, one at a time. Each reads its base only once the one
+ * before it has published, so a follow and a quick unfollow can't both read
+ * the list as it was before either: the unfollow used to see nobody to remove,
+ * do nothing, and lose to the follow landing after it.
+ */
+const listQueues = new Map<string, Promise<unknown>>();
+function oneAtATime<T>(kind: number, pubkey: string, task: () => Promise<T>): Promise<T> {
+  const key = `${kind}:${pubkey}`;
+  const run = (listQueues.get(key) ?? Promise.resolve()).then(task, task);
+  const tail = run.catch(() => undefined);
+  listQueues.set(key, tail);
+  void tail.then(() => {
+    if (listQueues.get(key) === tail) listQueues.delete(key);
+  });
+  return run;
 }
+
+/** What this session last published per list: the next edit's base, whatever the relays have caught up on. */
+const lastPublished = new Map<string, NostrEvent>();
+const publishedKey = (kind: number, pubkey: string) => `${kind}:${pubkey}`;
 
 /**
  * The newest kind-3 or kind-10000 across the user's write relays.
@@ -79,8 +96,10 @@ function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): N
  */
 async function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
   const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
-  const newest = await requestNewest(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
-  return (newest as NostrEvent) ?? null;
+  // Every answer, not just the newest: `authors` is a request a relay may not
+  // honour, and a newer list signed by someone else must not hide ours.
+  const found = await requestAll(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
+  return newestOwn(found as NostrEvent[], pubkey, kind);
 }
 
 export async function fetchContactList(pubkey: string): Promise<NostrEvent | null> {
@@ -113,8 +132,10 @@ async function probeContactList(
     { kinds: [3], authors: [pubkey], limit: 5 },
     timeoutMs,
   );
-  const event = (newest as NostrEvent) ?? null;
-  return { event, provenAbsent: !event && reach.answered.length * 2 > reach.asked.length };
+  const own = isOwnList(newest as NostrEvent | undefined, pubkey, 3);
+  const event = own ? (newest as NostrEvent) : null;
+  // A relay handing back someone else's list proves nothing about ours.
+  return { event, provenAbsent: !newest && reach.answered.length * 2 > reach.asked.length };
 }
 
 export async function fetchMuteList(pubkey: string): Promise<NostrEvent | null> {
@@ -140,11 +161,11 @@ export function getMutedPubkeys(muteList: NostrEvent | null): Set<string> {
 }
 
 /**
- * Resolve the authoritative current contact list to build a kind-3 edit on top
- * of. Picks the longest among {caller cache, fresh relay fetch, persisted known
- * snapshot}. Returns `{ base: null }` when we can't confirm a base AND the user
- * is known to follow people — the caller MUST abort rather than publish, or it
- * would wipe the list.
+ * Resolve the current contact list to build a kind-3 edit on top of: the
+ * newest copy signed by this key among {caller cache, fresh relay fetch,
+ * persisted snapshot, this session's last publish}. `unsafe` when we can't
+ * confirm a base AND the user is known to follow people — the caller MUST
+ * abort rather than publish, or it would wipe the list.
  *
  * `unverifiedNew` is the residual hole `unsafe` can't see: nothing found
  * anywhere AND the floor is 0 AND the key was NOT minted in this app. That is
@@ -163,9 +184,12 @@ async function resolveContactBase(
   cached?: NostrEvent | null,
 ): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean; unverifiedNew: boolean }> {
   const known = knownFollowCount(pubkey);
-  const fresh = cached ?? (await fetchContactList(pubkey));
+  // Always the relays too: the caller's copy is the store's, which the device
+  // restores at boot, so it can be as old as the last visit (as for mutes).
+  const fresh = await fetchContactList(pubkey);
   const stored = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
-  let base = pickAuthoritativeBase([cached, fresh, stored]);
+  const published = lastPublished.get(publishedKey(3, pubkey));
+  let base = newestOwn([cached, fresh, stored, published], pubkey, 3);
   const mintedHere = identityHas(pubkey, "createdInApp");
   // Nothing found and no proof of what this key is: ask the relays in a way
   // that can tell "there is no list" from "nobody answered" (#72).
@@ -176,7 +200,7 @@ async function resolveContactBase(
     } catch {
       /* best-effort warm */
     }
-    base = pickAuthoritativeBase([await fetchContactList(pubkey), stored]);
+    base = newestOwn([await fetchContactList(pubkey), stored], pubkey, 3);
     if (!base) {
       // Store-only on purpose: the `fetchOutboxRelayList` above just put the
       // kind-10002 in the store, which is what makes this the user's REAL
@@ -186,10 +210,11 @@ async function resolveContactBase(
       provablyNew = probe.provenAbsent;
     }
   }
-  // Unsafe = we have no usable base, or the best base is shorter than what we
-  // know the user follows (a stale/short relay read). Either way, don't publish.
-  const baseCount = base ? countFollows(base.tags) : 0;
-  const unsafe = (!base && known > 0) || (known > 0 && baseCount < known);
+  // Unsafe = no usable base while this device knows the user follows people.
+  // A base shorter than that count is not unsafe: if it is the newest copy, it
+  // is the list (they unfollowed elsewhere), and an older snapshot would have
+  // won the pick above had it been newer.
+  const unsafe = !base && known > 0;
   const unverifiedNew = !base && known === 0 && !mintedHere && !provablyNew;
   return { base, known, unsafe, unverifiedNew };
 }
@@ -260,9 +285,11 @@ async function publishContactList(
       kind: 3,
       tags: draft.tags,
       content: base?.content || "",
+      created_at: createdAtPast(base),
     });
     const res = await publishToRelays(signed);
     if (res.success) {
+      lastPublished.set(publishedKey(3, account.pubkey), signed as unknown as NostrEvent);
       recordFollowList(account.pubkey, signed, { authoritative: true });
       // GATE: ingest the follows server-side and WAIT for it before returning, so
       // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
@@ -280,11 +307,12 @@ async function publishContactList(
 
 /**
  * Post-publish check that our kind-3 actually became the user's newest contact
- * list on their write relays. If the newest event out there is someone else's
- * (a race with another client) or ours vanished AND what's there is shorter
- * than what we published, the follows the user just made may not stick — say
- * so instead of leaving them to find out weeks later. Never throws; the floor
- * is NOT touched here (recordFollowList already stored our own signed event).
+ * list on their write relays. If what they serve is older than what we
+ * published, ours didn't land and the follows the user just made may not
+ * stick — say so instead of leaving them to find out weeks later. A newer one
+ * is another device's later edit, which is how it should be. Never throws; the
+ * floor is NOT touched here (recordFollowList already stored our own signed
+ * event).
  */
 async function verifyPublishedContactList(published: NostrEvent): Promise<void> {
   try {
@@ -293,7 +321,7 @@ async function verifyPublishedContactList(published: NostrEvent): Promise<void> 
     const newest = await fetchContactList(published.pubkey);
     if (!newest) return; // relays quiet — nothing to conclude
     if (newest.id && published.id && newest.id === published.id) return; // landed
-    if (countFollows(newest.tags) >= countFollows(published.tags)) return; // superseded by a longer list — fine
+    if (beats(newest as never, published as never)) return; // superseded by a later edit — fine
     const { toast } = await import("@/hooks/use-toast");
     toast({
       variant: "destructive",
@@ -314,13 +342,21 @@ export async function followUser(
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
+  return oneAtATime(3, account.pubkey, () => followNow(account, targetPubkey, cachedContactList, opts));
+}
 
+async function followNow(
+  account: BrainstormAccount,
+  targetPubkey: string,
+  cachedContactList: NostrEvent | null | undefined,
+  opts: FollowOptions,
+): Promise<FollowOutcome> {
   const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
   if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
-  if (base) recordFollowList(account.pubkey, base); // remember the largest seen
+  if (base) recordFollowList(account.pubkey, base); // remember the newest seen
   const baseTags = base?.tags ?? []; // confirmed new key (or user-confirmed): genuinely empty list
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -334,7 +370,14 @@ export async function unfollowUser(
 ): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
+  return oneAtATime(3, account.pubkey, () => unfollowNow(account, targetPubkey, cachedContactList));
+}
 
+async function unfollowNow(
+  account: BrainstormAccount,
+  targetPubkey: string,
+  cachedContactList: NostrEvent | null | undefined,
+): Promise<PublishOutcome> {
   const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe || !base) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
@@ -357,7 +400,14 @@ export async function followPubkeys(targetPubkeys: string[], opts: FollowOptions
   if (!account) return NOT_LOGGED_IN;
   const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
   if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
+  return oneAtATime(3, account.pubkey, () => followManyNow(account, wanted, opts));
+}
 
+async function followManyNow(
+  account: BrainstormAccount,
+  wanted: string[],
+  opts: FollowOptions,
+): Promise<FollowOutcome> {
   const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey, opts.cachedBase);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
@@ -457,8 +507,11 @@ async function publishMuteList(
       kind: 10000,
       tags: draft.tags,
       content: base.content || "",
+      created_at: createdAtPast(base),
     });
-    return await publishToRelays(signed);
+    const res = await publishToRelays(signed);
+    if (res.success) lastPublished.set(publishedKey(10000, account.pubkey), signed as unknown as NostrEvent);
+    return res;
   } catch (e) {
     return signingFailure(e);
   }
@@ -475,8 +528,7 @@ async function publishMuteList(
  */
 async function newestMuteList(pubkey: string, cached?: NostrEvent | null): Promise<NostrEvent | null> {
   const fetched = await fetchMuteList(pubkey);
-  if (!cached || !fetched) return fetched ?? cached ?? null;
-  return cached.created_at > fetched.created_at ? cached : fetched;
+  return newestOwn([fetched, cached, lastPublished.get(publishedKey(10000, pubkey))], pubkey, 10000);
 }
 
 /**
@@ -500,7 +552,7 @@ async function resolveMuteBase(pubkey: string, cached?: NostrEvent | null): Prom
     { kinds: [10000], authors: [pubkey], limit: 5 },
     6000,
   );
-  if (newest) return newest as NostrEvent;
+  if (newest) return isOwnList(newest as NostrEvent, pubkey, 10000) ? (newest as NostrEvent) : null;
   return reach.answered.length * 2 > reach.asked.length ? empty : null;
 }
 
@@ -509,24 +561,28 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
   if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
-  const current = await resolveMuteBase(account.pubkey, cachedMuteList);
-  if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
+  return oneAtATime(10000, account.pubkey, async () => {
+    const current = await resolveMuteBase(account.pubkey, cachedMuteList);
+    if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
-  if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
+    if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  return publishMuteList(account, current, (f) => f.mutePubkey(targetPubkey));
+    return publishMuteList(account, current, (f) => f.mutePubkey(targetPubkey));
+  });
 }
 
 export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
 
-  const current = await newestMuteList(account.pubkey, cachedMuteList);
-  if (!current) return { success: false, error: "Could not fetch your mute list" };
+  return oneAtATime(10000, account.pubkey, async () => {
+    const current = await newestMuteList(account.pubkey, cachedMuteList);
+    if (!current) return { success: false, error: "Could not fetch your mute list" };
 
-  if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
+    if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  return publishMuteList(account, current, (f) => f.unmutePubkey(targetPubkey));
+    return publishMuteList(account, current, (f) => f.unmutePubkey(targetPubkey));
+  });
 }
 
 export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<PublishOutcome> {

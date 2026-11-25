@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { curatorKey } from "@/components/lists/curatorKey";
-import { shortNpub } from "@/components/messages/people";
+import { shortNpub } from "@/lib/displayName";
 import { ItemPreview } from "@/components/lists/ItemPreview";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";

@@ -3,7 +3,7 @@ import { useCompromisedRing } from "@/hooks/useCompromised";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
-import { npubFromPubkey } from "@/lib/shareId";
+import { nameOf, shortNpub } from "@/lib/displayName";
 import { cn } from "@/lib/utils";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
@@ -11,20 +11,8 @@ import type { DmRoom } from "@/lib/dm/store";
 
 export type Profiles = Map<string, ProfileContent>;
 
-const HEX_KEY = /^[0-9a-f]{64}$/;
-
-export function shortNpub(pubkey: string): string {
-  // An unverified event can carry anything as its author, and the encoder takes much that isn't a key.
-  const key = String(pubkey ?? "");
-  if (!HEX_KEY.test(key)) return `${key.slice(0, 8)}…`;
-  const npub = npubFromPubkey(key);
-  return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
-}
-
-export function nameOf(pubkey: string, profiles: Profiles): string {
-  const p = profiles.get(pubkey);
-  return (p?.display_name || p?.name || "").trim() || shortNpub(pubkey);
-}
+// The shared naming helpers (lib/displayName), re-exported for the messages UI that reads them from here.
+export { nameOf, shortNpub };
 
 export function firstName(pubkey: string, profiles: Profiles): string {
   const name = nameOf(pubkey, profiles);

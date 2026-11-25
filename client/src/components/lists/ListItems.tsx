@@ -37,7 +37,7 @@ import { ItemInspector } from "@/components/lists/ItemInspector";
 import { ItemTable, PAGE_SIZE } from "@/components/lists/ItemTable";
 import { CutOffNotice, ListHealth } from "@/components/lists/ListHealth";
 import { listManagerPath } from "@/components/lists/listManagerPath";
-import { nameOf } from "@/components/messages/people";
+import { nameOf } from "@/lib/displayName";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { useListDefinitions } from "@/hooks/useListDefinitions";
 import { useListItems } from "@/hooks/useListItems";

@@ -208,12 +208,21 @@ async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promi
  * them private messages. Also sent to the relays themselves, so a client that
  * looks there finds it.
  */
-export async function publishInboxRelays(relays: string[]): Promise<PublishOutcome> {
+export async function publishInboxRelays(
+  relays: string[],
+  /** Seconds: past the version this edit replaces (hooks/useReplaceableListDraft). */
+  { createdAt }: { createdAt?: number } = {},
+): Promise<PublishOutcome> {
   const account = accountManager.active;
   if (!account) return { success: false, error: "Sign in first." };
   let signed: NostrEvent;
   try {
-    signed = await signAs(account, { kind: DM_RELAY_LIST_KIND, tags: dmRelayTags(relays), content: "" });
+    signed = await signAs(account, {
+      kind: DM_RELAY_LIST_KIND,
+      tags: dmRelayTags(relays),
+      content: "",
+      ...(createdAt ? { created_at: createdAt } : {}),
+    });
   } catch (error) {
     return signingFailure(error);
   }

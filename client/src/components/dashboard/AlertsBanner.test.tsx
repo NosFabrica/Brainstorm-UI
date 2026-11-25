@@ -12,7 +12,8 @@ import type { NetworkAlertEntry } from "@/services/api";
 
 vi.mock("@/services/nostr", () => ({
   publishAlertPrefs: async () => ({ success: true }),
-  fetchAlertPrefs: async () => null,
+  fetchPrivateAppData: async () => ({ status: "absent" }),
+  ALERT_PREFS_D_TAG: "brainstorm.world/alert-prefs",
 }));
 
 let alerts: { data?: { data: unknown }; isLoading: boolean; isError: boolean } = { isLoading: true, isError: false };

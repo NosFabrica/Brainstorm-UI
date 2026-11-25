@@ -14,6 +14,8 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure
 
 const publishToRelays = vi.fn(async () => ({ success: true }));
 const signAs = vi.fn(async (_account: unknown, template: Record<string, unknown>) => ({
+  pubkey: "a".repeat(64),
+  created_at: Math.floor(Date.now() / 1000),
   ...template,
   id: "e".repeat(64),
   sig: "s".repeat(128),
@@ -220,47 +222,111 @@ describe("following", () => {
 });
 
 /**
- * The wipe guard. `knownFollowCount` remembers the longest list this device has
- * ever seen, and nothing may publish a shorter one over it.
+ * Which copy an edit builds on. NIP-01: of a replaceable event, the newest
+ * wins, so the newest copy signed by this key is the user's list, however
+ * short. The longest is not: a device holding an older, longer snapshot used
+ * to republish it on the next follow and bring back everyone unfollowed
+ * elsewhere since.
  */
-describe("a relay answering with a shorter list than we know about", () => {
-  beforeEach(async () => {
+describe("the base an edit builds on", () => {
+  const D = "d".repeat(64);
+  const F = "f".repeat(64);
+
+  it("builds on a newer, shorter list over an older, longer snapshot", async () => {
     const { recordFollowList } = await import("@/lib/followStore");
-    recordFollowList(ME, listEvent(3, [OTHER, "d".repeat(64), "f".repeat(64)]) as never, {
-      authoritative: true,
-    });
-  });
+    recordFollowList(ME, listEvent(3, [OTHER, D, F], 100) as never, { authoritative: true });
 
-  /**
-   * It recovers rather than refusing: the stored copy is one of the candidates
-   * `pickAuthoritativeBase` weighs, so the long list wins and the short relay
-   * answer is simply ignored. The refusal branch is the belt-and-braces for a
-   * store that has a count but no usable event — which is why the *outcome* to
-   * assert here is "did not truncate", not "declined".
-   */
-  it("builds on the stored long list, not the short answer", async () => {
-    const res = await social.followUser(THEM, listEvent(3, [OTHER]) as never);
+    const res = await social.followUser(THEM, listEvent(3, [OTHER], 200) as never);
 
     expect(res.success).toBe(true);
-    expect(signedPubkeys()).toHaveLength(4); // the three we knew, plus the new one
-    expect(signedPubkeys()).toContain(THEM);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]); // D and F were unfollowed elsewhere: they stay unfollowed
   });
 
-  it("unfollows out of the long list, so the other two survive", async () => {
-    const res = await social.unfollowUser(OTHER, listEvent(3, [OTHER]) as never);
+  it("builds on the stored snapshot when it is the newer one", async () => {
+    const { recordFollowList } = await import("@/lib/followStore");
+    recordFollowList(ME, listEvent(3, [OTHER, D, F], 200) as never, { authoritative: true });
+
+    const res = await social.unfollowUser(OTHER, listEvent(3, [OTHER], 100) as never);
 
     expect(res.success).toBe(true);
-    expect(signedPubkeys()).toHaveLength(2);
-    expect(signedPubkeys()).not.toContain(OTHER);
+    expect(signedPubkeys()).toEqual([D, F]);
   });
 
-  it("takes the longest candidate when one of them is long enough", async () => {
-    const full = listEvent(3, [OTHER, "d".repeat(64), "f".repeat(64)]);
+  /** The screen's copy is the store's, which the device restores at boot: it can be as old as the last visit. */
+  it("builds on the relays' list when it is newer than the one the screen holds", async () => {
+    relayHas.set(3, [listEvent(3, [OTHER], 200)]);
 
-    const res = await social.followUser(THEM, full as never);
+    const res = await social.followUser(THEM, listEvent(3, [OTHER, D, F], 100) as never);
 
     expect(res.success).toBe(true);
-    expect(signedPubkeys()).toHaveLength(4);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]);
+  });
+
+  it("never builds on a list someone else signed", async () => {
+    const foreign = { ...listEvent(3, [OTHER, D, F], 300), pubkey: NEWER, id: "f".repeat(64) };
+
+    const res = await social.followUser(THEM, foreign as never);
+
+    // Not ours, so not a base: the relays answered that we have none, and the list starts empty.
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("ignores a foreign list the relays hand back, and builds on ours", async () => {
+    relayHas.set(3, [listEvent(3, [OTHER], 100), { ...listEvent(3, [OTHER, D, F], 300), pubkey: NEWER, id: F }]);
+
+    const res = await social.followUser(THEM);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]);
+  });
+
+  it("publishes past the base, so relays keep the edit even within the same second", async () => {
+    const future = Math.floor(Date.now() / 1000) + 600;
+
+    await social.followUser(THEM, listEvent(3, [OTHER], future) as never);
+
+    expect((signAs.mock.calls.at(-1)?.[1] as { created_at: number }).created_at).toBe(future + 1);
+  });
+
+  it("the stored snapshot only moves forward", async () => {
+    const { recordFollowList, loadKnownFollowList } = await import("@/lib/followStore");
+    recordFollowList(ME, listEvent(3, [OTHER], 200) as never);
+    recordFollowList(ME, listEvent(3, [OTHER, D, F], 100) as never);
+    expect(loadKnownFollowList(ME)?.count).toBe(1);
+    recordFollowList(ME, { ...listEvent(3, [OTHER, D], 300), pubkey: NEWER, id: F } as never);
+    expect(loadKnownFollowList(ME)?.count).toBe(1);
+  });
+});
+
+/**
+ * Edits to one list run one after another, each on what the last one
+ * published. A follow and a quick unfollow used to read their bases at once:
+ * the unfollow saw nobody to remove and did nothing, then the follow landed.
+ */
+describe("edits in quick succession", () => {
+  it("a follow then an unfollow of the same account leaves them unfollowed", async () => {
+    const stale = listEvent(3, [OTHER], 100);
+
+    const [follow, unfollow] = await Promise.all([
+      social.followUser(THEM, stale as never),
+      social.unfollowUser(THEM, stale as never),
+    ]);
+
+    expect(follow.success && unfollow.success).toBe(true);
+    expect(signAs).toHaveBeenCalledTimes(2);
+    expect(signedPubkeys()).toEqual([OTHER]);
+    const [first, second] = signAs.mock.calls.map((c) => (c[1] as { created_at: number }).created_at);
+    expect(second).toBeGreaterThan(first);
+  });
+
+  it("two mutes in a row both stick", async () => {
+    relayHas.set(10000, [listEvent(10000, [OTHER], 100)]);
+
+    await Promise.all([social.muteUser(THEM), social.muteUser(NEWER)]);
+
+    expect(signAs).toHaveBeenCalledTimes(2);
+    expect(signedPubkeys()).toEqual([OTHER, THEM, NEWER]);
   });
 });
 
