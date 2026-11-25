@@ -1,18 +1,11 @@
-import { useState } from "react";
-import { Link } from "wouter";
-import { Archive, ArrowRight, Check, Loader2 } from "lucide-react";
-import { activeAccount } from "@/accounts/signing";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { FollowButton } from "@/components/share/FollowButton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Archive, Check, Loader2 } from "lucide-react";
+import { AccountTile, FollowAccount } from "@/components/share/AccountTile";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { useRetired } from "@/hooks/useRetired";
-import { useToast } from "@/hooks/use-toast";
-import { withListEdit } from "@/lib/listEdits";
-import { npubFromPubkey } from "@/lib/shareId";
+import { useUnfollow } from "@/hooks/useUnfollow";
+import { profileName } from "@/lib/displayName";
 import { cn } from "@/lib/utils";
-import { unfollowUser } from "@/services/socialActions";
 
 /**
  * The notice a Retired account's own page leads with.
@@ -64,56 +57,26 @@ export function RetiredBanner({ pubkey, className }: { pubkey: string | null | u
 /** The owner's Current account, in the notice's own row: who it is, and a Follow for a signed-in reader. */
 function CurrentAccount({ pubkey }: { pubkey: string }) {
   const { profile } = useLiveProfile(pubkey);
-  const rel = useRelationshipBadges(pubkey);
-  const npub = npubFromPubkey(pubkey);
-  const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
   return (
-    <div
-      className="flex w-full items-center justify-between gap-3 border-t border-slate-200 pt-3 dark:border-slate-800 sm:w-auto sm:justify-start sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"
-      data-testid="retired-current"
-    >
-      <Link
-        href={`/p/${npub}`}
-        className="group/current flex min-w-0 items-center gap-2.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-        aria-label={`Their current account: ${name}`}
-        data-testid="retired-current-link"
-      >
-        <Avatar className="h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800">
-          {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-          <AvatarFallback className="overflow-hidden">
-            <DefaultAvatarImg />
-          </AvatarFallback>
-        </Avatar>
-        <span className="min-w-0">
-          <span className="block text-[11px] font-medium leading-tight text-slate-500 dark:text-slate-400">
-            Their current account
-          </span>
-          <span className="flex items-center gap-1 text-sm font-semibold leading-snug text-slate-900 group-hover/current:underline dark:text-slate-100">
-            <span className="truncate">{name}</span>
-            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-          </span>
-        </span>
-      </Link>
-      {rel.enabled && (
-        <div className="flex shrink-0">
-          <FollowButton
-            key={String(rel.isFollowing)}
-            targetPubkey={pubkey}
-            initialFollowing={rel.isFollowing}
-            displayName={name}
-            testId="retired-current-follow"
-          />
-        </div>
-      )}
-    </div>
+    <AccountTile
+      pubkey={pubkey}
+      profile={profile}
+      kicker="Their current account"
+      ariaLabel="Their current account"
+      className="w-full justify-between border-t border-slate-200 pt-3 dark:border-slate-800 sm:w-auto sm:justify-start sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"
+      testId="retired-current"
+      linkClassName="group/current rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      nameClassName="group-hover/current:underline"
+      linkTestId="retired-current-link"
+      action={<FollowAccount pubkey={pubkey} name={profileName(profile, pubkey)} testId="retired-current-follow" />}
+    />
   );
 }
 
 /** For a reader who follows the Retired account: a plain way to stop. One click, as on a profile. */
 function RetiredUnfollow({ pubkey }: { pubkey: string }) {
-  const { toast } = useToast();
   const rel = useRelationshipBadges(pubkey);
-  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const { state, unfollow } = useUnfollow(pubkey);
   if (!rel.enabled) return null;
   if (state === "done")
     return (
@@ -125,21 +88,6 @@ function RetiredUnfollow({ pubkey }: { pubkey: string }) {
       </p>
     );
   if (!rel.isFollowing) return null;
-
-  const unfollow = async () => {
-    setState("busy");
-    const me = activeAccount()?.pubkey;
-    const send = () => unfollowUser(pubkey);
-    const res = me ? await withListEdit(3, me, pubkey, "remove", send) : await send();
-    if (res.success) {
-      setState("done");
-      toast({ title: "Unfollowed" });
-      return;
-    }
-    setState("idle");
-    if (!res.cancelled)
-      toast({ variant: "destructive", title: "Couldn't unfollow", description: res.error || "Try again." });
-  };
 
   return (
     <p className="mt-2 pl-11 text-xs text-slate-500 dark:text-slate-400">

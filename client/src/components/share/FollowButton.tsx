@@ -10,10 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { followUser, unfollowUser } from "@/services/socialActions";
-import { activeAccount } from "@/accounts/signing";
-import { withListEdit } from "@/lib/listEdits";
-import { useToast } from "@/hooks/use-toast";
+import { useFollowEdit } from "@/hooks/useUnfollow";
 
 const BASE =
   "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg text-sm md:text-[13px] font-semibold disabled:opacity-50 transition-colors";
@@ -46,9 +43,9 @@ export function FollowButton({
   /** Draw Follow as an outline: it still works, it just isn't what the page leads with. */
   quiet?: boolean;
 }) {
-  const { toast } = useToast();
+  const edit = useFollowEdit(targetPubkey);
   const [following, setFollowing] = useState(initialFollowing);
-  const [busy, setBusy] = useState(false);
+  const busy = edit.state === "busy";
   const [hover, setHover] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -57,19 +54,7 @@ export function FollowButton({
   const publish = async (next: boolean) => {
     setFollowing(next);
     setHover(false);
-    setBusy(true);
-    const send = () => (next ? followUser(targetPubkey) : unfollowUser(targetPubkey));
-    const me = activeAccount()?.pubkey;
-    const res = me ? await withListEdit(3, me, targetPubkey, next ? "add" : "remove", send) : await send();
-    setBusy(false);
-    if (res.success) {
-      toast({ title: next ? "Following" : "Unfollowed" });
-      return;
-    }
-    setFollowing(!next);
-    if (!res.cancelled) {
-      toast({ variant: "destructive", title: "Couldn't update follow", description: res.error || "Try again." });
-    }
+    if (!(await (next ? edit.follow() : edit.unfollow()))) setFollowing(!next);
   };
 
   const unfollowLook = following && hover && !busy;

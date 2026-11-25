@@ -1,15 +1,12 @@
 import { useMemo } from "react";
-import { Link } from "wouter";
-import { ArrowRight, UserCheck } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { UserCheck } from "lucide-react";
+import { AccountTile, FollowAccount } from "@/components/share/AccountTile";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
-import { FollowButton } from "@/components/share/FollowButton";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
-import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
-import { eventPath, npubFromPubkey } from "@/lib/shareId";
+import { profileName } from "@/lib/displayName";
+import { eventPath } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
 import { fetchEventsByIds } from "@/services/nostr";
 
@@ -34,7 +31,6 @@ export function SuccessorCard({
   className?: string;
 }) {
   const { profile } = useLiveProfile(pubkey);
-  const rel = useRelationshipBadges(pubkey);
   const pinnedId = latestPost ? announcementId : null;
   const pinnedFilters = useMemo(() => (pinnedId ? [{ ids: [pinnedId] }] : null), [pinnedId]);
   const pinned = useStoreEvents(pinnedId ? `successor-post:${pinnedId}` : null, pinnedFilters, () =>
@@ -43,9 +39,7 @@ export function SuccessorCard({
   // Only the new account's own word counts as its announcement.
   const announcement = pinned.events.find((e) => e.id === pinnedId && e.pubkey === pubkey);
   const notes = useRecentByKinds(latestPost && !announcement ? pubkey : null, [1], 5);
-  const npub = npubFromPubkey(pubkey);
-  const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
-  const href = `/p/${npub}`;
+  const name = profileName(profile, pubkey);
   const latest = announcement ?? notes.events[0];
   return (
     <div
@@ -58,41 +52,18 @@ export function SuccessorCard({
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
         <UserCheck className="h-3.5 w-3.5" aria-hidden="true" /> The owner's new account
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <Link
-          href={href}
-          className="group/successor flex min-w-[11rem] flex-1 items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-          aria-label={`The owner's new account: ${name}`}
-          data-testid="compromised-successor-link"
-        >
-          <Avatar className="h-10 w-10 shrink-0 border border-slate-200 dark:border-slate-800">
-            {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-            <AvatarFallback className="overflow-hidden">
-              <DefaultAvatarImg />
-            </AvatarFallback>
-          </Avatar>
-          <span className="min-w-0">
-            <span className="flex items-center gap-1 text-sm font-bold text-slate-900 group-hover/successor:underline dark:text-slate-100">
-              <span className="truncate">{name}</span>
-              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-            </span>
-            <code className="block truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">
-              {npub.slice(0, 20)}…
-            </code>
-          </span>
-        </Link>
-        {rel.enabled && (
-          <div className="flex shrink-0">
-            <FollowButton
-              key={String(rel.isFollowing)}
-              targetPubkey={pubkey}
-              initialFollowing={rel.isFollowing}
-              displayName={name}
-              testId="compromised-follow-successor"
-            />
-          </div>
-        )}
-      </div>
+      <AccountTile
+        pubkey={pubkey}
+        profile={profile}
+        showNpub
+        ariaLabel="The owner's new account"
+        className="mt-2 flex-wrap"
+        linkClassName="group/successor min-w-[11rem] flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+        avatarClassName="h-10 w-10"
+        nameClassName="font-bold group-hover/successor:underline"
+        linkTestId="compromised-successor-link"
+        action={<FollowAccount pubkey={pubkey} name={name} testId="compromised-follow-successor" />}
+      />
       {latest && (
         <div className="mt-3" data-testid="compromised-successor-post">
           <p className="mb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">

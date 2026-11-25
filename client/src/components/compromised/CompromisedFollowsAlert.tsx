@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
 import { ShieldAlert } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { AccountTile } from "@/components/share/AccountTile";
 import { useCompromisedAmong } from "@/hooks/useCompromised";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import type { CompromisedStatus } from "@/lib/compromised";
-import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
 import { CompromisedActions } from "./CompromisedActions";
 import { SuccessorCard } from "./SuccessorCard";
@@ -60,27 +57,23 @@ export function CompromisedFollowsAlert({ observer, className }: { observer: str
         </p>
         <ul className="mt-3 space-y-3">
           {list.map((status) => {
-            const npub = npubFromPubkey(status.pubkey);
             const profile = profiles.get(status.pubkey);
-            const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
             return (
               <li
                 key={status.pubkey}
                 className="space-y-2.5"
                 data-testid={`compromised-follow-${status.pubkey.slice(0, 8)}`}
               >
-                <div className="flex flex-wrap items-center gap-3">
-                  <Link href={`/p/${npub}`} className="flex min-w-0 flex-1 items-center gap-2.5 hover:opacity-80">
-                    <Avatar className="h-9 w-9 shrink-0 border border-white shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#dc2626] dark:border-slate-900 dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#ef4444]">
-                      {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-                      <AvatarFallback className="overflow-hidden">
-                        <DefaultAvatarImg />
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate text-sm font-semibold text-red-950 dark:text-red-50">{name}</span>
-                  </Link>
-                  <CompromisedActions pubkey={status.pubkey} />
-                </div>
+                <AccountTile
+                  pubkey={status.pubkey}
+                  profile={profile}
+                  arrow={false}
+                  className="flex-wrap"
+                  linkClassName="flex-1 hover:opacity-80"
+                  avatarClassName="border-white shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#dc2626] dark:border-slate-900 dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#ef4444]"
+                  nameClassName="text-red-950 dark:text-red-50"
+                  action={<CompromisedActions pubkey={status.pubkey} />}
+                />
                 {status.successorPubkey && <SuccessorCard pubkey={status.successorPubkey} latestPost={false} />}
               </li>
             );
