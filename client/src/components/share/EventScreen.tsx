@@ -182,10 +182,9 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
   // husk. Say what happened rather than render an article called "[Deleted]".
   if (note && isBlankEvent(note)) return <DeletedEvent />;
-  // A video past its NIP-40 expiration: its author meant it to be gone by now.
-  // Video kinds only for now; every other kind still shows an expired event.
-  if (note && VIDEO_KINDS.has(note.kind) && isExpired(note, Math.floor(Date.now() / 1000)))
-    return <DeletedEvent expired />;
+  // Past its NIP-40 expiration, whatever its kind: its author meant it to be gone by
+  // now, and "clients SHOULD ignore events that have expired".
+  if (note && isExpired(note, Math.floor(Date.now() / 1000))) return <DeletedEvent expired />;
   // The kind decides, before any of the event layout's own queries run.
   if (note && READER_KINDS.has(note.kind)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";

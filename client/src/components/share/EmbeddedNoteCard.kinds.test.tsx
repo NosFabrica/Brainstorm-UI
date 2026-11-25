@@ -574,3 +574,30 @@ describe("references by address and from an article", () => {
     expect(await screen.findByTestId("embedded-card")).toHaveAttribute("data-shape", "thing");
   });
 });
+
+describe("EmbeddedNoteCard — NIP-40", () => {
+  const past = () => ["expiration", String(Math.floor(Date.now() / 1000) - 60)];
+
+  it("a quoted event past its expiration is the expired stub, whatever its kind", () => {
+    for (const event of [
+      ev(1, [past()], "Flash sale until noon"),
+      ev(7, [["e", "2".repeat(64)], past()], "+"),
+      ev(30311, [["d", "s"], ["title", "Live now"], past()]),
+    ]) {
+      const { unmount } = quote(event);
+      expect(screen.getByTestId("embedded-expired")).toHaveTextContent("This post has expired.");
+      expect(screen.queryByTestId("embedded-note")).toBeNull();
+      expect(screen.queryByTestId("embedded-card")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("a quoted article past its expiration is the stub too; one still ahead shows", () => {
+    const article = (exp: string[]) => ev(30023, [["d", "a"], ["title", "Tea"], exp], "# Tea");
+    const { unmount } = renderWithProviders(<EmbeddedArticleCard event={article(past())} />);
+    expect(screen.getByTestId("embedded-expired")).toBeInTheDocument();
+    unmount();
+    quote(ev(1, [["expiration", String(Math.floor(Date.now() / 1000) + 3600)]], "Still on"));
+    expect(screen.getByTestId("embedded-note")).toHaveTextContent("Still on");
+  });
+});

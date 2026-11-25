@@ -45,6 +45,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { readProfileRows } from "@/lib/eventCache";
 import type { FirstPage } from "@/lib/headStart";
 import { zapDescription } from "@/lib/zapRequest";
@@ -1143,6 +1144,8 @@ export function searchStream(
             if (!hostedByThem(event)) return;
             // A husk deleted by overwriting is not a result (lib/blankEvent).
             if (isBlankEvent(event)) return;
+            // Nor is one past its NIP-40 expiration: "clients SHOULD ignore events that have expired".
+            if (isExpired(event, Math.floor(Date.now() / 1000))) return;
             confirmed.add(event.id);
             if (seen.has(event.id)) return;
             seen.add(event.id);

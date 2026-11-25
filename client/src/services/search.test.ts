@@ -352,6 +352,28 @@ describe("searchStream", () => {
     expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a1"]);
   });
 
+  // NIP-40: "Relays SHOULD NOT send expired events" — and "clients SHOULD ignore" the ones they do.
+  it("never turns an event past its NIP-40 expiration into a hit", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("sale", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const now = Math.floor(Date.now() / 1000);
+    const at = (id: string, expiration: string) =>
+      ({ ...ev(id, 1, "b".repeat(64), "Flash sale"), tags: [["expiration", expiration]] }) as NostrEvent;
+    subject.next(frame(at("gone", String(now - 60))));
+    subject.next(frame(at("soon", String(now + 3600))));
+    subject.next(frame(at("odd", "tomorrow")));
+    subject.next(EOSE);
+    await tick();
+    expect(
+      snaps
+        .at(-1)!
+        .hits.map((h) => h.event.id)
+        .sort(),
+    ).toEqual(["odd", "soon"]);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];

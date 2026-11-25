@@ -24,6 +24,7 @@ export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network sp
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
@@ -135,6 +136,9 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
   const [, navigate] = useLocation();
   if (blank)
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  // Past its NIP-40 expiration: the same whisper, saying so.
+  if (isExpired(event, Math.floor(Date.now() / 1000)))
+    return <DeletedStub expired className="mt-2" testId="embedded-expired" />;
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   // A publication's or a section's title is often missing; its `d` is a readable slug.

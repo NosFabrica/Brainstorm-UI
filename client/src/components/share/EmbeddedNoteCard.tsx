@@ -22,6 +22,7 @@ import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useQuotedNotes } from "@/hooks/useQuotedNotes";
 import { nip19 } from "nostr-tools";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { isExpired } from "@/lib/nip40";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { describeThing, THING_KINDS, type Thing } from "@/lib/thing";
@@ -97,6 +98,13 @@ export const EmbeddedNoteCard = memo(function EmbeddedNoteCard(props: EmbeddedNo
 });
 
 function EmbeddedNoteCardInner(props: EmbeddedNoteCardProps) {
+  // Past its NIP-40 expiration, whatever it is: its author meant it gone by now.
+  if (isExpired(props.event, Math.floor(Date.now() / 1000)))
+    return <DeletedStub expired className="mt-2" testId="embedded-expired" />;
+  return <EmbeddedNoteCardShaped {...props} />;
+}
+
+function EmbeddedNoteCardShaped(props: EmbeddedNoteCardProps) {
   // A thing is read once here, for the shape, the inline check, the body and the card alike.
   const { shape, thing } = useMemo(() => {
     const read = THING_KINDS.has(props.event.kind) ? describeThing(props.event) : null;
