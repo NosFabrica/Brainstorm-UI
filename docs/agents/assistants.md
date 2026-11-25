@@ -54,7 +54,7 @@ writer: it saves the User's own draft, so every change there is their choice.
 
 | Path                                                           | `take`                                                                           |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Activate page and the dashboard's Activate modal ("Switch")    | `["scores"]`                                                                     |
+| Activate page and the dashboard's Activate modal ("Switch")    | `["scores"]`; the page passes it only once its button says "Switch", else none   |
 | Lists update pill, Settings › Republish, the automatic publish | none                                                                             |
 | Treasure Map editor (its own save, no `take`)                  | whatever group the User changes, shown before Save as "Moves from X (site) to Y" |
 

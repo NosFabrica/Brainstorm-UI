@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { AlertCircle, Bot, Check, Loader2, Lock } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -29,7 +29,8 @@ import { ListsUpdateLine } from "@/components/ListsUpdate";
  * instead: same publish, said as a swap — nothing here is locked out.
  */
 
-type Phase = "idle" | "signing" | "publishing";
+/** `preparing`: reading their Treasure Map and Trusted Lists before the signer is asked. */
+type Phase = "idle" | "preparing" | "signing" | "publishing";
 
 /** The clients whose logos make "other apps can't see your scores" concrete. */
 const SHOWCASE_CLIENTS = SUPPORTED_CLIENTS.filter((c) => c.name === "Nostria" || c.name === "Ditto");
@@ -43,7 +44,10 @@ export default function ActivateBrainstormPage() {
   const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   // Warn before a silent overwrite: a kind-10040 naming a different provider
   // already exists, and continuing replaces it (same bar as the modal).
-  const hasOtherProvider = useTrustProviderStatus(user?.pubkey, taPubkey).data === "other";
+  const providerStatus = useTrustProviderStatus(user?.pubkey, taPubkey).data;
+  const hasOtherProvider = providerStatus === "other";
+  // Until it's known, the button can't say whether it activates or switches, so it waits.
+  const providerKnown = providerStatus !== undefined;
   // Who publishes their scores today, by name: "another provider" is never
   // nameless — often it is Brainstorm's own Assistant on another deployment.
   const provider = useRankProvider(hasOtherProvider ? user?.pubkey : null);
@@ -52,10 +56,13 @@ export default function ActivateBrainstormPage() {
   const providerHost = useVerifiedHost(provider?.pubkey) ?? "";
   // A first activation names their Trusted Lists too, when they have some —
   // one signature rather than an update later.
+  // Not known yet is `undefined`: publishBrainstormTrustAnchor looks them up itself. `null` names none.
   const lists = useTrustListsStatus(user?.pubkey, taPubkey).data;
-  const listsToName = lists?.status === "missing" ? lists.designation : null;
+  const listsToName = lists === undefined ? undefined : lists.status === "missing" ? lists.designation : null;
 
   const [phase, setPhase] = useState<Phase>("idle");
+  // Set before the first await: a second click in the same tick sees it, where `phase` hasn't re-rendered yet.
+  const inFlight = useRef(false);
   const [error, setError] = useState("");
   const [justActivated, setJustActivated] = useState(false);
   // The step counts another Assistant as done; this page is done only once Brainstorm's has the duty.
@@ -64,14 +71,22 @@ export default function ActivateBrainstormPage() {
   if (!user) return null;
 
   const handleActivate = async () => {
-    if (phase !== "idle" || !user.pubkey || !taPubkey) return;
+    if (inFlight.current || phase !== "idle" || !user.pubkey || !taPubkey || !providerKnown) return;
+    inFlight.current = true;
     setError("");
-    // "Switch" moves Scores and only Scores; lists another Assistant holds stay theirs.
-    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, {
-      lists: listsToName,
-      take: ["scores"],
-    });
-    setPhase("idle");
+    setPhase("preparing");
+    // "Switch" moves Scores and only Scores, and only when the button said Switch:
+    // lists another Assistant holds stay theirs, and nothing is taken unannounced.
+    let result: Awaited<ReturnType<typeof publishBrainstormTrustAnchor>>;
+    try {
+      result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, {
+        lists: listsToName,
+        take: hasOtherProvider ? ["scores"] : [],
+      });
+    } finally {
+      inFlight.current = false;
+      setPhase("idle");
+    }
     if (result.status === "success") {
       setJustActivated(true);
     } else if (result.status === "cancelled") {
@@ -234,11 +249,16 @@ export default function ActivateBrainstormPage() {
               <button
                 type="button"
                 onClick={handleActivate}
-                disabled={phase !== "idle" || !taPubkey}
+                disabled={phase !== "idle" || !taPubkey || !providerKnown}
                 className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
                 data-testid="button-activate-page-confirm"
               >
-                {phase === "signing" ? (
+                {phase === "preparing" || (!!taPubkey && !providerKnown) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {phase === "preparing" ? "Getting ready…" : "Reading your Treasure Map…"}
+                  </>
+                ) : phase === "signing" ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Waiting for your signature…
