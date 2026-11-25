@@ -36,6 +36,8 @@ import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
 import { tagValue } from "@/lib/tagValue";
+import { closingWords, parsePoll, parseZapPoll, zapRangeWords } from "@/lib/polls";
+import { describeDesignation } from "@/lib/nip85Declaration";
 
 export type ReaderEvent = {
   id: string;
@@ -322,6 +324,41 @@ read([1018], (ev) => {
   return { title: "Voted in a poll", body: null, facts: n > 1 ? [plural(n, "choice")] : [], ref: vote.poll };
 });
 
+// A poll (NIP-88 1068; a zap poll, 6969): its question is the generic reading's (the content),
+// its options and rules are facts — the same parse the poll card draws from (lib/polls).
+read([1068], (ev) => {
+  const poll = parsePoll(ev);
+  if (!poll) return null;
+  return {
+    facts: [
+      firstOf(
+        poll.options.map((o) => o.label || o.id),
+        4,
+        " / ",
+      ),
+      poll.multiple ? "Pick any" : "Pick one",
+      closingWords(poll.endsAt, Math.floor(Date.now() / 1000)),
+    ].filter((f): f is string => !!f),
+  };
+});
+
+read([6969], (ev) => {
+  const poll = parseZapPoll(ev);
+  if (!poll) return null;
+  return {
+    facts: [
+      firstOf(
+        poll.options.map((o) => o.label || `Option ${o.index + 1}`),
+        4,
+        " / ",
+      ),
+      "Zap poll",
+      zapRangeWords(poll),
+      closingWords(poll.closedAt, Math.floor(Date.now() / 1000)),
+    ].filter((f): f is string => !!f),
+  };
+});
+
 read([1312], (ev) => {
   const target = tagsOf(ev, "a").find((t) => t[3] === "mention") ?? tagsOf(ev, "a").at(-1);
   return {
@@ -443,6 +480,16 @@ read([30382, 30383, 30384, 30385], (ev) => {
     body: null,
     facts: scoreFacts(ev),
     ref: assertion.ref,
+  };
+});
+
+// A NIP-85 designation (10040): its rows, read for people (lib/nip85Declaration) — no content to read.
+read([10040], (ev) => {
+  const d = describeDesignation(ev);
+  return {
+    title: "Trust designation",
+    body: d.summary,
+    facts: unique(d.providers.map((p) => (p.relay ? hostOf(p.relay) : null))).slice(0, 2),
   };
 });
 

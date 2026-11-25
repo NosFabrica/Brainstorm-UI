@@ -16,7 +16,6 @@ import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarE
 import { formatListingPrice, listingStatus, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
-import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { kindLabel } from "@/lib/kindLabel";
@@ -426,11 +425,6 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         ref: source.ref,
       };
     }
-  }
-
-  if (ev.kind === 10040) {
-    const d = describeDesignation(ev);
-    return { ...base, title: base.title ?? "Trust designation", body: d.summary || null };
   }
 
   if (THING_KINDS.has(ev.kind)) {

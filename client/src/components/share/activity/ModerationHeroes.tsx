@@ -15,6 +15,7 @@ import { ReadingText } from "@/components/share/ReadingText";
 import { useRefEvents, type ProfileLite } from "@/hooks/useRefEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import {
+  HIDDEN_REPORT_REASONS,
   approvalAuthority,
   readApproval,
   readDeletion,
@@ -92,14 +93,11 @@ export function DeletionHero({ event }: { event: ActivityEvent }) {
   );
 }
 
-/** Report types that make a quote something to choose to see, not something shown. */
-const HIDDEN_REASONS = new Set(["nudity", "illegal", "malware"]);
-
 export function ReportHero({ event }: { event: ActivityEvent }) {
   const report = useMemo(() => readReport(event), [event]);
   const targets = useMemo(() => (report.event ? [report.event] : []), [report]);
   const refs = useRefEvents(targets);
-  const hide = !!report.reason && HIDDEN_REASONS.has(report.reason);
+  const hide = !!report.reason && HIDDEN_REPORT_REASONS.has(report.reason);
   const [shown, setShown] = useState(false);
   return (
     <div data-testid="report-hero">

@@ -8,8 +8,8 @@
  * or named in an article.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
-import { nip19 } from "nostr-tools";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { finalizeEvent, generateSecretKey, nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -599,5 +599,263 @@ describe("EmbeddedNoteCard — NIP-40", () => {
     unmount();
     quote(ev(1, [["expiration", String(Math.floor(Date.now() / 1000) + 3600)]], "Still on"));
     expect(screen.getByTestId("embedded-note")).toHaveTextContent("Still on");
+  });
+});
+
+describe("EmbeddedNoteCard — what someone did, and what to", () => {
+  const NOTE = "e".repeat(64);
+  const noteAbout = () => {
+    const target = { ...ev(1, [], "the note it is about"), id: NOTE, pubkey: MEMBER };
+    byId.set(NOTE, target);
+    return target;
+  };
+
+  // NIP-25: the target is the last `e`, the author the last `p`; "+" is a like, not words.
+  it("a quoted reaction says the reaction and quotes what it reacted to, one level down", async () => {
+    noteAbout();
+    quote(
+      ev(
+        7,
+        [
+          ["e", NOTE],
+          ["p", MEMBER],
+          ["k", "1"],
+        ],
+        "+",
+      ),
+    );
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Reacted ❤");
+    const target = await screen.findByTestId("embedded-activity-target");
+    expect(target).toHaveTextContent("the note it is about");
+    // Nested: the quoted note's own references stay links — no third level.
+    expect(within(target).queryByTestId("embedded-activity-target")).toBeNull();
+  });
+
+  it("a reaction quoted inside another card links its target and asks for nothing", () => {
+    noteAbout();
+    renderWithProviders(
+      <EmbeddedNoteCard
+        event={ev(
+          7,
+          [
+            ["e", NOTE],
+            ["k", "1"],
+          ],
+          "🔥",
+        )}
+        author={{ name: "Maker" }}
+        href="/e/x"
+        nested
+      />,
+    );
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Reacted 🔥");
+    expect(screen.queryByTestId("embedded-activity-target")).toBeNull();
+    expect(screen.getByTestId("embedded-activity-target-link")).toHaveTextContent("Open the note");
+  });
+
+  // NIP-09: clients SHOULD hide what a deletion names — the card links it, never quotes it.
+  it("a quoted deletion says what it deleted and why, and only links the deleted event", () => {
+    noteAbout();
+    quote(
+      ev(
+        5,
+        [
+          ["e", NOTE],
+          ["k", "1"],
+        ],
+        "posted by accident",
+      ),
+    );
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Deleted 1 event");
+    expect(screen.getByTestId("embedded-activity-body")).toHaveTextContent("posted by accident");
+    expect(screen.getByTestId("embedded-activity-facts")).toHaveTextContent("Note");
+    expect(screen.queryByTestId("embedded-activity-target")).toBeNull();
+    expect(screen.getByTestId("embedded-activity-target-link")).toBeInTheDocument();
+  });
+
+  // NIP-56: the type is the 3rd entry; a post reported as nudity is not shown in a quote.
+  it("a quoted report names its type, and a nudity report does not quote the post", () => {
+    noteAbout();
+    quote(
+      ev(1984, [
+        ["e", NOTE, "nudity"],
+        ["p", MEMBER],
+      ]),
+    );
+    expect(screen.getByTestId("embedded-activity-facts")).toHaveTextContent("Nudity");
+    expect(screen.queryByTestId("embedded-activity-target")).toBeNull();
+  });
+
+  // NIP-72: the approved post rides in the content; signed by its author, it is quoted as is.
+  it("a quoted approval quotes the post it carries without asking the relays", () => {
+    const post = finalizeEvent(
+      { kind: 1, created_at: 1_790_000_000, tags: [], content: "carried in the approval" },
+      generateSecretKey(),
+    );
+    quote(
+      ev(
+        4550,
+        [
+          ["a", `34550:${PK}:cooking`],
+          ["e", post.id],
+          ["p", post.pubkey],
+          ["k", "1"],
+        ],
+        JSON.stringify(post),
+      ),
+    );
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Approved a post");
+    expect(screen.getByTestId("embedded-activity-target")).toHaveTextContent("carried in the approval");
+  });
+
+  // NIP-52: `status` in words, `fb` beside it, the appointment by its `a`.
+  it("a quoted RSVP says going and free/busy, and quotes the event it answers", async () => {
+    const meetup = held(
+      ev(31923, [
+        ["d", "meetup"],
+        ["title", "Nostr meetup"],
+        ["start", "1790000000"],
+      ]),
+    );
+    quote(
+      ev(31925, [
+        ["a", `31923:${meetup.pubkey}:meetup`],
+        ["d", "x"],
+        ["status", "accepted"],
+        ["fb", "busy"],
+      ]),
+    );
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Going");
+    expect(screen.getByTestId("embedded-activity-facts")).toHaveTextContent("Busy");
+    expect(await screen.findByTestId("embedded-activity-target")).toHaveTextContent("Nostr meetup");
+  });
+
+  // NIP-88: a vote's `response` ids said in the poll's words once the poll is in hand.
+  it("a quoted vote shows the choice in the poll's own words", async () => {
+    const POLL_ID = "f".repeat(64);
+    byId.set(POLL_ID, {
+      ...ev(
+        1068,
+        [
+          ["option", "y1", "Yay"],
+          ["option", "n1", "Nay"],
+        ],
+        "Pineapple?",
+      ),
+      id: POLL_ID,
+    });
+    quote(
+      ev(1018, [
+        ["e", POLL_ID],
+        ["response", "n1"],
+      ]),
+    );
+    // Its id until the poll lands, then the poll's own word for it.
+    expect(await screen.findByTestId("embedded-activity-choices")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("embedded-activity-choices")).toHaveTextContent("Nay"));
+  });
+
+  // NIP-85 (NosFabrica trusted-assertions): a score is one observer's, by its provider.
+  it("a quoted trust score names whom it scores, its numbers, and whose view it is", () => {
+    quote(
+      ev(30382, [
+        ["d", MEMBER],
+        ["rank", "63"],
+        ["followers", "188"],
+      ]),
+    );
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Trust score for");
+    expect(screen.getByTestId("embedded-activity-facts")).toHaveTextContent("Rank 63 · 188 followers");
+    expect(screen.getByTestId("embedded-activity-pov")).toHaveTextContent("One observer");
+    expect(screen.queryByTestId("embedded-structural")).toBeNull();
+  });
+
+  it("a quoted designation says whose signals it trusts, from where", () => {
+    quote(ev(10040, [["30382:rank", "e".repeat(64), "wss://nip85.brainstorm.world"]]));
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Trust designation");
+    expect(screen.getByTestId("embedded-activity-body")).toHaveTextContent("Activated Brainstorm trust signals · Rank");
+    expect(screen.getByTestId("embedded-activity-facts")).toHaveTextContent("nip85.brainstorm.world");
+  });
+});
+
+describe("EmbeddedNoteCard — polls and highlights", () => {
+  // NIP-88: the question is the content, the options its `option` tags.
+  it("a quoted poll shows its options under its question, read-only", async () => {
+    quote(
+      ev(
+        1068,
+        [
+          ["option", "y1", "Yay"],
+          ["option", "n1", "Nay"],
+          ["polltype", "multiplechoice"],
+        ],
+        "Pineapple on pizza?",
+      ),
+    );
+    expect(screen.getByTestId("embedded-note")).toHaveTextContent("Pineapple on pizza?");
+    const options = await screen.findByTestId("poll-compact");
+    expect(options).toHaveTextContent("Yay");
+    expect(options).toHaveTextContent("Nay");
+    expect(options).toHaveTextContent("Pick any");
+    expect(within(options).queryByRole("button")).toBeNull();
+  });
+
+  it("a quoted zap poll shows its `poll_option`s", async () => {
+    quote(
+      ev(
+        6969,
+        [
+          ["poll_option", "0", "Yes"],
+          ["poll_option", "1", "No"],
+        ],
+        "Ship it?",
+      ),
+    );
+    const options = await screen.findByTestId("poll-compact");
+    expect(options).toHaveTextContent("Yes");
+    expect(options).toHaveTextContent("Zap poll");
+  });
+
+  // NIP-84: the source is the `source` `r` (never a `mention` one), the authors `p` with their role.
+  it("a quoted highlight shows the passage, its comment, its source and who wrote it", () => {
+    const EDITOR = "6".repeat(64);
+    quote(
+      ev(
+        9802,
+        [
+          ["r", "https://other.example/x", "mention"],
+          ["r", "https://www.source.example/essay", "source"],
+          ["p", MEMBER, "", "author"],
+          ["p", EDITOR, "", "editor"],
+          ["p", "7".repeat(64), "", "mention"],
+          ["comment", "So true"],
+        ],
+        "the words they marked",
+      ),
+    );
+    expect(screen.getByTestId("embedded-highlight-passage")).toHaveTextContent("the words they marked");
+    expect(screen.getByTestId("embedded-highlight-comment")).toHaveTextContent("So true");
+    const source = screen.getByTestId("embedded-highlight-source");
+    expect(source).toHaveTextContent("source.example");
+    expect(source).not.toHaveTextContent("other.example");
+    expect(screen.getByTestId("embedded-highlight-attribution-author")).toBeInTheDocument();
+    expect(screen.getByTestId("embedded-highlight-attribution-editor")).toHaveTextContent("edited by");
+    expect(screen.getAllByTestId("mention-chip")).toHaveLength(2);
+  });
+
+  it("a quoted highlight of an article names the article once it is in hand", async () => {
+    const article = held(
+      ev(
+        30023,
+        [
+          ["d", "essay"],
+          ["title", "On Liberty"],
+        ],
+        "# On Liberty",
+      ),
+    );
+    quote(ev(9802, [["a", `30023:${article.pubkey}:essay`]], "a passage"));
+    expect(await screen.findByText("On Liberty")).toBeInTheDocument();
+    expect(screen.getByTestId("embedded-highlight-source")).toHaveTextContent("From");
   });
 });

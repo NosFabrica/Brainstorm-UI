@@ -354,6 +354,9 @@ export function readBadgeAward(ev: ActivityEvent): BadgeAward {
 
 export const REPORT_TYPES = ["nudity", "malware", "profanity", "illegal", "spam", "impersonation", "other"];
 
+/** Report types whose post is something to choose to see, never a quote shown at once. */
+export const HIDDEN_REPORT_REASONS: ReadonlySet<string> = new Set(["nudity", "illegal", "malware"]);
+
 export interface Report {
   /** Who is reported — or, beside an event, whose event it is. */
   person: string | null;
@@ -556,6 +559,26 @@ export function readFollows(ev: ActivityEvent): Follows {
 
 export const ASSERTION_KINDS: ReadonlySet<number> = new Set([30382, 30383, 30384, 30385]);
 
+/**
+ * The kinds read here: what someone did, to whom, about what. Each has its
+ * page (components/share/activity), its quoted card and its result rows, all
+ * reading through the same parser so they agree.
+ */
+export const ACTIVITY_KINDS: ReadonlySet<number> = new Set([
+  3,
+  5,
+  7,
+  8,
+  17,
+  1018,
+  1984,
+  1985,
+  4550,
+  31925,
+  ...ZAP_KINDS,
+  ...ASSERTION_KINDS,
+]);
+
 export interface Metric {
   tag: string;
   value: number;
@@ -628,4 +651,20 @@ export function metricNoun(tag: string): string {
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
     .toLowerCase();
+}
+
+/**
+ * Whether a card or a row may quote the event an activity is about, or only
+ * link it: not what a deletion names (NIP-09: clients SHOULD hide it), not a
+ * post reported as nudity, malware or illegal, not a badge named by anyone but
+ * its issuer (NIP-58: only the issuer awards it, so the claim is no award).
+ */
+export function quotesItsTarget(ev: ActivityEvent): boolean {
+  if (ev.kind === 5) return false;
+  if (ev.kind === 8) return readBadgeAward(ev).byIssuer;
+  if (ev.kind === 1984) {
+    const reason = readReport(ev).reason;
+    return !reason || !HIDDEN_REPORT_REASONS.has(reason);
+  }
+  return true;
 }

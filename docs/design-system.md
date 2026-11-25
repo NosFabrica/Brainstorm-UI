@@ -174,7 +174,11 @@ A NIP number is never derived or invented.
 
 One exception: a quoted event drawn as words (`EmbeddedNoteCard`) that is not a note, thread or comment
 names its kind in its header, as a slate `Chip` — a quoted zap or reaction says nothing by itself. A
-quote whose kind has a card of its own is drawn as that card instead (`lib/embedShape`).
+quote whose kind has a card of its own is drawn as that card instead (`lib/embedShape`). A quoted
+activity — a reaction, zap, deletion, report, label, vote, award, approval, RSVP, follow list, trust
+score or designation — says what happened in the words its All-tab row uses (`lib/resultReaders`
+`readKind`, through `components/share/EmbeddedActivity`), and quotes what it is about one level
+down; SerpRow's `ActivityRow` says the same on the Top page. One reader per kind, every surface.
 
 ```tsx
 <KindPill event={hit.event} />

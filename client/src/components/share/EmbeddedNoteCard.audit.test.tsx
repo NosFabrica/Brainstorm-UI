@@ -50,7 +50,7 @@ describe("a quoted event with no words to read", () => {
     expect(document.querySelector("img[src*='y.png']")).toBeNull();
   });
 
-  it("app data says its alt; an empty contact list says its kind; a zap says the zap", () => {
+  it("app data says its alt; a contact list says how many it follows; a zap says the zap", () => {
     const { unmount } = quote(
       ev(
         30078,
@@ -63,8 +63,10 @@ describe("a quoted event with no words to read", () => {
     );
     expect(screen.getByTestId("embedded-structural")).toHaveTextContent("Ditto settings");
     unmount();
+    // NIP-02: a follow list is its `p` tags — counted, not one structural line.
     const contacts = quote(ev(3, [["p", "5".repeat(64)]]));
-    expect(screen.getByTestId("embedded-structural").textContent?.trim()).not.toBe("");
+    expect(screen.queryByTestId("embedded-structural")).toBeNull();
+    expect(screen.getByTestId("embedded-activity-title")).toHaveTextContent("Follows 1 person");
     contacts.unmount();
     // A zap's empty content is said in words (its amount and people), not as one structural line.
     quote(

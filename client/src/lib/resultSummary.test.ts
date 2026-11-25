@@ -328,3 +328,54 @@ describe("NKBIP-01 publications as rows", () => {
     expect(s.body).toBe("2 books · 1 shelf");
   });
 });
+
+describe("polls and designations on the All tab", () => {
+  const at = (kind: number, tags: string[][], content = "") => ({
+    id: "9".repeat(64),
+    pubkey: "4".repeat(64),
+    kind,
+    created_at: 1_790_000_000,
+    tags,
+    content,
+  });
+
+  // NIP-88: the question is the content; the options, the rule and the close are its tags.
+  it("a poll is its question, with its options and rule as facts", () => {
+    const s = summarizeResult(
+      at(
+        1068,
+        [
+          ["option", "y1", "Yay"],
+          ["option", "n1", "Nay"],
+          ["polltype", "multiplechoice"],
+        ],
+        "Pineapple on pizza?",
+      ),
+    );
+    expect(s.body).toBe("Pineapple on pizza?");
+    expect(s.facts).toEqual(["Yay / Nay", "Pick any"]);
+  });
+
+  it("a zap poll's options are its `poll_option`s, with its range", () => {
+    const s = summarizeResult(
+      at(
+        6969,
+        [
+          ["poll_option", "0", "Yes"],
+          ["poll_option", "1", "No"],
+          ["value_minimum", "10"],
+          ["value_maximum", "10"],
+        ],
+        "Ship it?",
+      ),
+    );
+    expect(s.facts).toEqual(["Yes / No", "Zap poll", "10 sats a vote"]);
+  });
+
+  it("a designation is its rows in words, and the relays they name", () => {
+    const s = summarizeResult(at(10040, [["30382:rank", "e".repeat(64), "wss://nip85.brainstorm.world"]]));
+    expect(s.title).toBe("Trust designation");
+    expect(s.body).toBe("Activated Brainstorm trust signals · Rank");
+    expect(s.facts).toEqual(["nip85.brainstorm.world"]);
+  });
+});

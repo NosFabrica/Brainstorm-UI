@@ -35,8 +35,12 @@ import { EmbeddedAudio, EmbeddedPictures, EmbeddedVideo } from "@/components/sha
 import { Favicon } from "@/components/share/LinkPreview";
 import { contentShape } from "@/lib/contentShape";
 import { WEB_BOOKMARK_KIND, webBookmarkOf } from "@/lib/webBookmark";
-import { ZAP_KINDS } from "@/lib/activity";
-import { readKind, who } from "@/lib/resultReaders";
+import { EmbeddedActivity } from "@/components/share/EmbeddedActivity";
+import { HighlightAttribution, HighlightQuote, HighlightSourceLine } from "@/components/share/HighlightQuote";
+import { LazyPollCard } from "@/components/share/LazyPollCard";
+import { useRefEvent } from "@/hooks/useRefEvent";
+import { parseHighlight, type Highlight } from "@/lib/nip84";
+import { POLL_KINDS } from "@/lib/pollKinds";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -82,8 +86,12 @@ export type EmbeddedNoteCardProps = {
  * the list, an article as its teaser, a thing, a people list, a stream, a
  * dated event, a listing, an app, a repo or a track as its card
  * (EmbeddedKindCard). A video, a picture post or a voice message keeps this
- * card's author line and shows its media; anything else its words, with its
- * kind named when it is not a note — a quoted zap or reaction is no mystery.
+ * card's author line and shows its media. What someone did — a reaction, a
+ * zap, a deletion, a report, a vote, a trust score… — is said from its tags as
+ * its result row says it, with what it is about one level down
+ * (EmbeddedActivity); a highlight is its passage, its source and its authors;
+ * a poll its question and options. Anything else is its words, with its kind
+ * named when it is not a note.
  *
  * Memoised: it is drawn many to a feed or a results list, and the list re-renders
  * as hits and profiles stream in; a card whose props didn't change is skipped.
@@ -199,15 +207,10 @@ function NoteCardBody({
   const media = shape === "video" || shape === "picture" || shape === "audio" ? shape : null;
   // A web bookmark (NIP-B0) is its link, then its saver's words: never a list of nothing.
   const bookmark = useMemo(() => (event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(event) : null), [event]);
-  // A zap receipt's own content is empty — the amount, the people and the comment are in its
-  // tags — so a quoted zap is said as the All tab's row says it: "⚡ 21 sats to @alice", from
-  // its payer once their signed request vouches for them (lib/resultReaders), then the comment.
-  const zapWords = useMemo(() => {
-    if (!ZAP_KINDS.has(event.kind) || event.content.trim()) return null;
-    const read = readKind(event);
-    if (!read?.title) return null;
-    return [read.by ? `${read.title} from ${who(read.by)}` : read.title, read.body].filter(Boolean).join("\n\n");
-  }, [event]);
+  // What someone did (a reaction, a zap, a score…) is said from its tags, as its row says it;
+  // a highlight is its passage marked and where it is from.
+  const activity = shape === "activity";
+  const highlight = useMemo(() => (shape === "highlight" ? parseHighlight(event) : null), [shape, event]);
   // Ciphertext (a private follow set, a sealed list) is not for reading: the card says so.
   // JSON (a profile, app data) or nothing at all (a contact list) is not for reading either:
   // one line says what it is — unless it is a zap, said in words above. A repost is the note it
@@ -217,14 +220,14 @@ function NoteCardBody({
     const inner = nested ? null : repostedEvent(event);
     return {
       sealed: kind === "encrypted",
-      structural: !inner && !bookmark && !zapWords && (kind === "json" || kind === "empty"),
+      structural: !inner && !bookmark && !activity && !highlight && (kind === "json" || kind === "empty"),
       reposted: inner,
     };
-  }, [event, nested, bookmark, zapWords]);
+  }, [event, nested, bookmark, activity, highlight]);
   const repostedAuthor = useLiveProfiles(reposted ? [reposted.pubkey] : []).get(reposted?.pubkey ?? "") as
     ProfileLite | undefined;
   // None of these shows its content, so nothing it names is looked up.
-  const wordless = !!shaped || !!media || structural || !!reposted;
+  const wordless = !!shaped || !!media || structural || !!reposted || activity || !!highlight;
   const linked = useLinkedArticles(nested || wordless ? EMPTY_NOTE : event);
   // The note read once, for everything below that asks what it names.
   const refs = useMemo(() => analyzeNote(event), [event]);
@@ -359,6 +362,10 @@ function NoteCardBody({
           artist={author?.display_name || author?.name}
           href={href}
         />
+      ) : activity ? (
+        <EmbeddedActivity event={event} nested={nested} />
+      ) : highlight ? (
+        <EmbeddedHighlight event={event} highlight={highlight} nested={nested} />
       ) : sealed ? (
         <p className="text-sm italic text-slate-500 dark:text-slate-400" data-testid="embedded-sealed">
           Encrypted — only its owner can read it
@@ -398,7 +405,7 @@ function NoteCardBody({
           )}
           <NoteContent
             key={revealKeyOf(event)}
-            content={zapWords ?? event.content}
+            content={event.content}
             compact
             profiles={profiles}
             imageOpensThread={!!href}
@@ -408,6 +415,8 @@ function NoteCardBody({
             embeddedCoords={cardCoords}
             embeddedIds={quoted.ids}
           />
+          {/* A poll's options under its question (NIP-88 `option`, a zap poll's `poll_option`): read-only, no tally. */}
+          {POLL_KINDS.has(event.kind) && <LazyPollCard event={event} compact />}
         </div>
       )}
       {quoted.notes.map((q) => (
@@ -431,6 +440,44 @@ function NoteCardBody({
       {linkedLists.articles.map((le) => (
         <EmbeddedListCard key={le.id} event={le} author={profiles?.get(le.pubkey)} nested />
       ))}
+    </div>
+  );
+}
+
+/**
+ * A quoted NIP-84 highlight: what its highlighter said (`comment`), the passage
+ * marked, then where it is from — the article or note by `a`/`e`, the page by
+ * its `source` `r` (never a `mention` one), a work by its `i` or text `r` — and
+ * whose it is (`p` with its role). Its source is looked up only when the card is
+ * not itself nested: one level, never a stack.
+ */
+function EmbeddedHighlight({
+  event,
+  highlight,
+  nested,
+}: {
+  event: MinimalEvent;
+  highlight: Highlight;
+  nested: boolean;
+}) {
+  const { event: sourceEvent } = useRefEvent(nested ? null : highlight.source.ref);
+  return (
+    <div data-testid="embedded-highlight">
+      {highlight.comment && (
+        <div className="mb-1.5 line-clamp-3 text-[14px]" data-testid="embedded-highlight-comment">
+          <NoteContent content={highlight.comment} compact tags={event.tags} />
+        </div>
+      )}
+      <HighlightQuote lines={highlight.comment ? 3 : 4} testId="embedded-highlight-passage">
+        {highlight.passage}
+      </HighlightQuote>
+      <HighlightSourceLine source={highlight.source} sourceEvent={sourceEvent} testId="embedded-highlight-source" />
+      <HighlightAttribution
+        attributions={highlight.attributions}
+        except={sourceEvent?.pubkey}
+        className="mt-1"
+        testId="embedded-highlight-attribution"
+      />
     </div>
   );
 }

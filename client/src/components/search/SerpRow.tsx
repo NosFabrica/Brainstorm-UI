@@ -62,6 +62,11 @@ import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
 import { parseHighlight } from "@/lib/nip84";
+import { ACTIVITY_KINDS, quotesItsTarget } from "@/lib/activity";
+import { readKind, who, type ResultRef } from "@/lib/resultReaders";
+import { summaryOf } from "@/lib/resultSummary";
+import { refPath } from "@/lib/refPath";
+import { useRefEvent } from "@/hooks/useRefEvent";
 import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
 import { WEB_BOOKMARK_KIND, webBookmarkOf, type WebBookmark } from "@/lib/webBookmark";
 
@@ -524,10 +529,100 @@ function SerpRowBody(props: SerpRowProps) {
   // A web bookmark is one link with its saver's words: the page's row, not a list of nothing.
   const bookmark = props.event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(props.event) : null;
   if (bookmark) return <WebBookmarkRow {...props} bookmark={bookmark} />;
-  return props.event.kind === 9802 && parseHighlight(props.event) ? (
-    <HighlightRow {...props} />
-  ) : (
-    <NoteRow {...props} />
+  if (props.event.kind === 9802 && parseHighlight(props.event)) return <HighlightRow {...props} />;
+  // A reaction, a zap, a report, a score…: its meaning is in its tags, said as the All tab says it.
+  if (ACTIVITY_KINDS.has(props.event.kind) && readKind(props.event)?.title) return <ActivityRow {...props} />;
+  return <NoteRow {...props} />;
+}
+
+/**
+ * What someone did — a reaction, a zap, a deletion, a report, a vote, an
+ * award, a trust score — the way the All tab's row says it (lib/resultSummary,
+ * through lib/resultReaders): what happened and to whom, a few facts, and the
+ * event it is about, quoted in two lines once it is in hand. Its `content` (a
+ * reaction's "+", a zap's nothing) is never the row's words.
+ */
+function ActivityRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
+  const [, setLocation] = useLocation();
+  const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  const s = useMemo(() => summaryOf(event), [event]);
+  // A zap is its payer's, once their signed request vouches for them.
+  const title = s.title ? (s.by ? `${s.title} from ${who(s.by)}` : s.title) : null;
+  return (
+    <div {...rowPropsFor(event, open)}>
+      <div className="min-w-0 flex-1" data-testid={`serp-activity-${event.id}`}>
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeOf={event}
+        />
+        {title && (
+          <p
+            className="mt-1.5 line-clamp-2 break-words text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100"
+            data-testid="serp-activity-title"
+          >
+            <Headline text={title} query={query} tags={event.tags} />
+          </p>
+        )}
+        {s.body && (
+          <div className="mt-1">
+            <Snippet text={s.body} query={query} lines={2} tags={event.tags} />
+          </div>
+        )}
+        {s.facts.length > 0 && (
+          <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="serp-activity-facts">
+            <Headline text={s.facts.join(" · ")} query="" />
+          </p>
+        )}
+        {s.ref && <RefQuote target={s.ref} query={query} quote={quotesItsTarget(event)} />}
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+      </div>
+    </div>
+  );
+}
+
+/** The event an activity is about, as two quoted lines once in hand; a link while it is not, or may not be shown. */
+function RefQuote({ target, query, quote }: { target: ResultRef; query: string; quote: boolean }) {
+  const [, navigate] = useLocation();
+  const { event: quoted, settled } = useRefEvent(quote ? target : null);
+  if (!quoted) {
+    if (quote && !settled) return null;
+    return (
+      <Link
+        href={refPath(target)}
+        onClick={(e) => e.stopPropagation()}
+        className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
+        data-testid="serp-activity-ref-link"
+      >
+        ↳ {quote ? "not found on the relays we asked" : "what it is about"}
+      </Link>
+    );
+  }
+  const q = summaryOf(quoted);
+  const words = q.title || q.quote || q.body || kindLabel(quoted);
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(eventPath(quoted));
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") navigate(eventPath(quoted));
+      }}
+      className="mt-2 cursor-pointer rounded-xl border border-slate-200 bg-white/70 px-3 py-2 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700"
+      data-testid="serp-activity-ref"
+    >
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+        <MentionChip uri={`nostr:${nip19.npubEncode(quoted.pubkey)}`} />
+      </div>
+      <div className="mt-0.5 text-[13px] [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
+        <Snippet text={words.slice(0, 240)} query={query} lines={2} tags={quoted.tags} />
+      </div>
+    </div>
   );
 }
 

@@ -22,6 +22,9 @@ import { extractImageUrls } from "@/lib/noteContent";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { gitItemTitleOf } from "@/lib/gitPatch";
+import { ACTIVITY_KINDS } from "@/lib/activity";
+import { parseHighlight } from "@/lib/nip84";
+import { readKind } from "@/lib/resultReaders";
 
 type EventLike = Pick<MinimalEvent, "kind" | "tags" | "content">;
 
@@ -53,7 +56,15 @@ export type EmbedShape =
   /** A Zap Store listing (AppCard). */
   | "app"
   /** A NIP-34 repo, patch, pull request or issue (RepoCard). */
-  | "repo";
+  | "repo"
+  /**
+   * What someone did — a reaction, zap, deletion, report, label, vote, award,
+   * approval, RSVP, follow list, trust score or designation: said as its
+   * result row says it, with what it is about one level down (EmbeddedActivity).
+   */
+  | "activity"
+  /** A NIP-84 highlight: its passage marked, where it is from, whose it is (HighlightQuote). */
+  | "highlight";
 
 /** Long-form kinds drawn as the article teaser: article, draft, publication, section, bookshelf, spec, wiki. */
 export const ARTICLE_EMBED_KINDS: ReadonlySet<number> = new Set([30023, 30024, 30040, 30041, 30045, 30817, 30818]);
@@ -66,6 +77,9 @@ export const APP_EMBED_KINDS: ReadonlySet<number> = new Set([32267]);
 export const REPO_EMBED_KINDS: ReadonlySet<number> = new Set([30617, 1617, 1618, 1621]);
 export const PICTURE_KIND = 20;
 export const FILE_KIND = 1063;
+/** Kinds said as what someone did (lib/activity), and a NIP-85 designation, which is its rows. */
+export const ACTIVITY_EMBED_KINDS: ReadonlySet<number> = new Set([...ACTIVITY_KINDS, 10040]);
+export const HIGHLIGHT_KIND = 9802;
 /** NIP-A0 voice messages: a root and a reply. */
 export const VOICE_KINDS: ReadonlySet<number> = new Set([1222, 1244]);
 
@@ -131,6 +145,9 @@ export function embedShapeOf(ev: MinimalEvent, thing?: Thing | null): EmbedShape
   // Deleted by overwriting: the note card's quiet stub says so.
   if (isBlankEvent(ev)) return "note";
   const { kind } = ev;
+  // Its reader has something to say — a title — or it stays its words, its kind named.
+  if (ACTIVITY_EMBED_KINDS.has(kind)) return readKind(ev)?.title ? "activity" : "note";
+  if (kind === HIGHLIGHT_KIND) return parseHighlight(ev) ? "highlight" : "note";
   if (ITEM_LIST_KINDS.has(kind)) return "item-list";
   if (ARTICLE_EMBED_KINDS.has(kind)) return "article";
   if (THING_KINDS.has(kind)) return (thing !== undefined ? thing : describeThing(ev)) ? "thing" : "note";
