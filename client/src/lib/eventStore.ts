@@ -11,6 +11,7 @@
  * the cache that must be cleared on a switch; its keys are URLs.
  */
 import { EventStore } from "applesauce-core";
+import type { IDeleteManager } from "applesauce-core/event-store";
 import { kinds } from "applesauce-core/helpers/event";
 import type { NostrEvent } from "nostr-tools";
 import { loadFastVerifierWhenBusy, verifySignature } from "./verifier";
@@ -49,11 +50,24 @@ eventStore.verifyEvent = (event: NostrEvent) => eventStore.hasEvent(event.id) ||
  * Wrapped on the instance, not subclassed: there is one store, built above
  * (services/eventStore.singleton.test).
  */
+/**
+ * The store's delete manager: private in the library's typings, and the one
+ * place that knows what a kind 5 has deleted. Read through `isDeleted` and
+ * `deletions$`.
+ */
+const deletes = (eventStore as unknown as { deletes: IDeleteManager }).deletes;
+
+/** Whether its author has deleted `event` (NIP-09), by a deletion this store has seen. */
+export const isDeleted = (event: NostrEvent): boolean => deletes.check(event);
+
+/** Fires for each pointer a deletion lands on. */
+export const deletions$ = deletes.deleted$;
+
 const libraryAdd = eventStore.add.bind(eventStore);
 eventStore.add = (event: NostrEvent, fromRelay?: string) => {
   if (event.kind === kinds.EventDeletion) {
     if (eventStore.verifyEvent && !eventStore.verifyEvent(event)) return null;
-  } else if (eventStore.deletes.check(event)) return null;
+  } else if (deletes.check(event)) return null;
   return libraryAdd(event, fromRelay);
 };
 

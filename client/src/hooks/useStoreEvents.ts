@@ -4,7 +4,7 @@ import { use$ } from "applesauce-react/hooks";
 import { matchFilters, type Filter } from "applesauce-core/helpers/filter";
 import { getExpirationTimestamp } from "applesauce-core/helpers/expiration";
 import { unixNow } from "applesauce-core/helpers/time";
-import { eventStore } from "@/lib/eventStore";
+import { deletions$, eventStore, isDeleted } from "@/lib/eventStore";
 import { askOnce, lastAnswer, type AskWindow } from "@/lib/askOnce";
 
 const NONE: NostrEvent[] = [];
@@ -37,7 +37,7 @@ function trustedAnswers(answer: unknown): NostrEvent[] {
 
 /** Not deleted by its author, not expired, and (if the store took it) not since removed. */
 function stillKept(e: NostrEvent): boolean {
-  if (eventStore.deletes.check(e)) return false;
+  if (isDeleted(e)) return false;
   const expires = getExpirationTimestamp(e);
   return !expires || expires > unixNow();
 }
@@ -104,8 +104,8 @@ export function useStoreEvents(
         return { from: returned, ids: new Set(kept).add(id) };
       });
     const removed = eventStore.remove$.subscribe((e) => ids.has(e.id) && drop(e.id));
-    const deleted = eventStore.deletes.deleted$.subscribe(() => {
-      for (const e of returned) if (eventStore.deletes.check(e)) drop(e.id);
+    const deleted = deletions$.subscribe(() => {
+      for (const e of returned) if (isDeleted(e)) drop(e.id);
     });
     return () => {
       removed.unsubscribe();
