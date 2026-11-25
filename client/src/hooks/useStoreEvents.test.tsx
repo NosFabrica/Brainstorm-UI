@@ -111,4 +111,59 @@ describe("useStoreEvents", () => {
     await act(async () => answer([]));
     await waitFor(() => expect(result.current.events.map((e) => e.created_at)).toEqual([20, 10]));
   });
+
+  // An ask's answers are kept for its window and merged back in. A deletion
+  // landing meanwhile removed the event from the store but not from the answer,
+  // so it stayed on screen; one deleted before the ask landed came back from
+  // `add` as the event itself and showed too.
+  describe("an event deleted by its author", () => {
+    const deletion = (target: NostrEvent, created_at = target.created_at + 1) =>
+      ({ ...note(target.pubkey, created_at, [["e", target.id]]), kind: 5 }) as NostrEvent;
+
+    it("leaves the list when the deletion lands after the ask", async () => {
+      const pk = "1".repeat(64);
+      const doomed = note(pk, 10);
+      const { result } = renderHook(() =>
+        useStoreEvents(`notes:${pk}`, [{ kinds: [1], authors: [pk] }], async () => [doomed]),
+      );
+      await waitFor(() => expect(result.current.events).toHaveLength(1));
+      act(() => {
+        eventStore.add(deletion(doomed));
+      });
+      await waitFor(() => expect(result.current.events).toEqual([]));
+    });
+
+    it("never shows when it was deleted before the ask returned it — filters or none", async () => {
+      const pk = "2".repeat(64);
+      const doomed = note(pk, 10);
+      eventStore.add(deletion(doomed));
+      for (const filters of [[{ kinds: [1], authors: [pk] }], null]) {
+        __resetAsks();
+        const { result } = renderHook(() => useStoreEvents(`notes:${pk}`, filters, async () => [doomed]));
+        await waitFor(() => expect(result.current.settled).toBe(true));
+        expect(result.current.events).toEqual([]);
+      }
+    });
+  });
+
+  it("drops an answer the store removes afterwards (here, a replaced version)", async () => {
+    const pk = "4".repeat(64);
+    const older = { ...note(pk, 10), kind: 10000 } as NostrEvent;
+    eventStore.add(older);
+    const { result } = renderHook(() => useStoreEvents(`mutes:${pk}`, null, async () => [older]));
+    await waitFor(() => expect(result.current.events).toHaveLength(1));
+    act(() => {
+      eventStore.add({ ...note(pk, 20), kind: 10000 } as NostrEvent);
+    });
+    await waitFor(() => expect(result.current.events).toEqual([]));
+  });
+
+  it("with no filters, shows the store's copy of an answer it holds", async () => {
+    const pk = "3".repeat(64);
+    const held = note(pk, 10);
+    eventStore.add(held);
+    const { result } = renderHook(() => useStoreEvents(`refs:${pk}`, null, async () => [{ ...held }]));
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.events[0]).toBe(eventStore.getEvent(held.id));
+  });
 });
