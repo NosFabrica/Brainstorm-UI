@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from "nostr-tools";
 import { summarizeResult } from "./resultSummary";
 import { readKind, who } from "./resultReaders";
+import { signed, TEST_PUBKEY } from "@/test/signedEvent";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -125,19 +126,20 @@ describe("the kinds whose meaning is in their tags", () => {
   });
 
   it("a repost is the note it carries", () => {
-    const inner = { id: NOTE, pubkey: B, kind: 1, created_at: 1, tags: [], content: "hello world", sig: "x" };
+    // Signed: a repost's JSON is its author's note only under their signature.
+    const inner = signed({ kind: 1, content: "hello world" });
     const s = summarizeResult(
       ev(
         6,
         [
-          ["e", NOTE],
-          ["p", B],
+          ["e", inner.id],
+          ["p", TEST_PUBKEY],
         ],
         JSON.stringify(inner),
       ),
     );
     expect(s.body).toBe("hello world");
-    expect(s.facts).toEqual([`Repost of ${npub(B)}`]);
+    expect(s.facts).toEqual([`Repost of ${npub(TEST_PUBKEY)}`]);
     // Without the note inside, it points at it.
     expect(
       summarizeResult(
