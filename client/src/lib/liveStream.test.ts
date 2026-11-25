@@ -139,12 +139,12 @@ describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => 
       ),
     ).toBeNull();
   });
-  it("rooms count only while open and titled; untitled machine records never", () => {
+  it("rooms count only while open and named by their `room`; unnamed machine records never", () => {
     expect(
       liveStateOf(
         ev(30312, [
           ["d", "r"],
-          ["title", "JB's Voice Room"],
+          ["room", "JB's Voice Room"],
           ["status", "open"],
         ]),
         now,
@@ -154,7 +154,7 @@ describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => 
       liveStateOf(
         ev(30312, [
           ["d", "r"],
-          ["title", "JB's Voice Room"],
+          ["room", "JB's Voice Room"],
           ["status", "closed"],
         ]),
         now,
@@ -169,6 +169,28 @@ describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => 
         now,
       ),
     ).toBeNull();
+    // NIP-53 names a space by `room`; a `title` is not its name.
+    expect(
+      liveStateOf(
+        ev(30312, [
+          ["d", "r"],
+          ["title", "Not a room name"],
+          ["status", "open"],
+        ]),
+        now,
+      ),
+    ).toBeNull();
+    // Private is in operation, behind its own door.
+    expect(
+      liveStateOf(
+        ev(30312, [
+          ["d", "r"],
+          ["room", "Members only"],
+          ["status", "private"],
+        ]),
+        now,
+      ),
+    ).toBe("live");
     expect(
       liveStateOf(
         ev(30313, [

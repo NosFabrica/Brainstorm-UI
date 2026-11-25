@@ -69,7 +69,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
-import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
+import { liveCategoryOf, liveHostOf, liveTitleOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
 
@@ -914,6 +914,10 @@ const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
   live: "success",
   ended: "neutral",
   planned: "info",
+  // A NIP-53 meeting space (30312): open, private (in operation, behind its door) or closed.
+  open: "success",
+  private: "info",
+  closed: "neutral",
 };
 
 export const LiveCard = memo(function LiveCard({
@@ -925,14 +929,29 @@ export const LiveCard = memo(function LiveCard({
   author: SearchResult | null;
   score?: number | null;
 }) {
-  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? "Live event";
+  // A space by its `room`, a meeting by its `title` (NIP-53); a stream as the Live tab reads it.
+  const title = liveTitleOf(event) ?? "Live event";
   const status = (tagVal(event, "status") ?? "").toLowerCase();
   const summary = tagVal(event, "summary") ?? "";
   const image = tagVal(event, "image");
   const naddr = naddrOf(event);
-  const openIn = event.kind === 30311 && naddr ? `https://zap.stream/${naddr}` : undefined;
+  // A space's way in is its `service` URL ("URL to access the room"), while it is open.
+  const service = event.kind === 30312 && status !== "closed" ? tagVal(event, "service") : undefined;
+  const openIn =
+    event.kind === 30311 && naddr
+      ? `https://zap.stream/${naddr}`
+      : service && /^https?:\/\//i.test(service)
+        ? service
+        : undefined;
+  // A meeting (30313) says when.
+  const starts = event.kind === 30313 ? Number(tagVal(event, "starts")) || 0 : 0;
   return (
-    <CardShell event={event} openInUrl={openIn} openInLabel="Watch" testId={`live-card-${event.id}`}>
+    <CardShell
+      event={event}
+      openInUrl={openIn}
+      openInLabel={event.kind === 30311 ? "Watch" : "Join"}
+      testId={`live-card-${event.id}`}
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
           {image ? (
@@ -960,6 +979,11 @@ export const LiveCard = memo(function LiveCard({
               </Chip>
             )}
           </div>
+          {starts > 0 && (
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid={`live-when-${event.id}`}>
+              {formatEventTime(starts, false)}
+            </p>
+          )}
           {summary && (
             <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
               <EmojiText text={summary} tags={event} />
@@ -998,7 +1022,7 @@ export const LiveTile = memo(function LiveTile({
   hostScore?: number | null;
 }) {
   const stream = parseLiveStream(event);
-  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? stream?.title ?? "Live";
+  const title = liveTitleOf(event) ?? stream?.title ?? "Live";
   const image = tagVal(event, "image") ?? undefined;
   // Barnoldswick's "image" was the venue's web page: when a poster fails to
   // load it gives way, and the channel's own art stands in.

@@ -98,9 +98,11 @@ export function kindTypeLabel(kind: number): string {
     // Upcoming status would contradict itself.
     case 30311:
       return "Stream";
+    // NIP-53: a meeting space, and a meeting held in one.
     case 30312:
-    case 30313:
       return "Space";
+    case 30313:
+      return "Meeting";
     case 31922:
     case 31923:
     case 31924:
@@ -133,8 +135,10 @@ export function kindTypeLabel(kind: number): string {
     case 30001:
     case 30003:
     case 30015:
-    case 30267:
       return "List";
+    // NIP-51's app curation set: a list of software applications.
+    case 30267:
+      return "App list";
     case 39089:
       return "Starter pack";
     case 30004:

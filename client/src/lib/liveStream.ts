@@ -152,13 +152,13 @@ export function liveNeedsCheck(ev: EventLike, nowSec = Math.floor(Date.now() / 1
 export function liveStateOf(ev: EventLike, nowSec = Math.floor(Date.now() / 1000)): LiveState | null {
   if (ev.kind !== 30311 && ev.kind !== 30312 && ev.kind !== 30313) return null;
   const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
-  const title = tag("title") || tag("name") || (ev.kind === 30311 ? tag("summary") : undefined);
-  if (!title) return null;
+  if (!liveTitleOf(ev)) return null;
   const status = (tag("status") || "").toLowerCase();
   const starts = Number(tag("starts")) || 0;
   const ends = Number(tag("ends")) || 0;
   const over = tag("recording") ? "replay" : null;
-  if (status === "live" || status === "open") {
+  // A space (30312) is open, private or closed: private is in operation too, behind its own door.
+  if (status === "live" || status === "open" || (ev.kind === 30312 && status === "private")) {
     // A status nobody updated is not a broadcast: platforms republish a live
     // event as viewers come and go, so one untouched for a week — or one past
     // its own end — is over (Barnoldswick: "live" since 2.4 years ago).
@@ -191,9 +191,110 @@ export function onAirLabel(startsSec: number, nowSec = Math.floor(Date.now() / 1
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-/** The streamer: the `p` tag marked host (platforms publish for their streamers). */
+/**
+ * The streamer: the `p` tag marked host (platforms publish for their streamers).
+ * NIP-53's role is a displayable marker — `Host` in its examples, `host` from
+ * zap.stream and Nostrich — so any case is the host.
+ */
 export function liveHostOf(ev: EventLike): string | null {
-  return ev.tags.find((t) => t[0] === "p" && t[3] === "host")?.[1] ?? null;
+  return ev.tags.find((t) => t[0] === "p" && t[3]?.trim().toLowerCase() === "host" && t[1])?.[1] ?? null;
+}
+
+type TitledEvent = Pick<EventLike, "kind" | "tags">;
+
+/**
+ * What a NIP-53 event is called, by its kind: a meeting space (30312) by its
+ * `room` ("Required: Display name"), a meeting (30313) by its `title`
+ * ("Required: Meeting title"), a stream (30311) by its `title` — or, as the
+ * Live tab always read streams, a `name` or its `summary`.
+ */
+export function liveTitleOf(ev: TitledEvent): string | undefined {
+  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
+  if (ev.kind === 30312) return tag("room");
+  if (ev.kind === 30313) return tag("title");
+  return tag("title") || tag("name") || tag("summary");
+}
+
+/** A role a NIP-53 `p` tag gives someone: `["p", <pubkey>, <relay>, <role>, <proof>]`. */
+export interface LiveParticipant {
+  pubkey: string;
+  /** As published, a displayable marker: "Host", "Moderator", "Speaker"… */
+  role?: string;
+  /** NIP-53's proof of agreement: without one, a client MAY show them as invited. */
+  proof: boolean;
+}
+
+/** A NIP-53 meeting space (30312) or a meeting in one (30313), read for its page and card. */
+export interface Meeting {
+  kind: 30312 | 30313;
+  title: string;
+  summary?: string;
+  image?: string;
+  /** Verbatim, lowercased: a space is open, private or closed; a meeting planned, live or ended. */
+  status: string;
+  /** 30312: the URL to access the room. Only a web address. */
+  service?: string;
+  /** 30313: the space it is in, by address (`30312:<pubkey>:<d>`), and where to find it. */
+  space?: { kind: number; pubkey: string; identifier: string; relays?: string[] };
+  startsSec: number;
+  endsSec: number;
+  currentParticipants?: number;
+  totalParticipants?: number;
+  participants: LiveParticipant[];
+  hashtags: string[];
+}
+
+const HEX64 = /^[0-9a-f]{64}$/i;
+const httpUrl = (v: string | undefined) => (v && /^https?:\/\//i.test(v) ? v : undefined);
+const count = (v: string | undefined) => {
+  const n = Number(v);
+  return v && Number.isFinite(n) && n >= 0 ? n : undefined;
+};
+
+/** Each `p` with its role, once a person; NIP-53's tag is `["p", pubkey, relay, role, proof]`. */
+export function liveParticipantsOf(ev: TitledEvent): LiveParticipant[] {
+  const seen = new Map<string, LiveParticipant>();
+  for (const t of ev.tags) {
+    if (t[0] !== "p" || !HEX64.test(t[1] ?? "")) continue;
+    const pubkey = t[1].toLowerCase();
+    if (!seen.has(pubkey)) seen.set(pubkey, { pubkey, role: t[3]?.trim() || undefined, proof: !!t[4]?.trim() });
+  }
+  return [...seen.values()];
+}
+
+/** A meeting space or meeting, by NIP-53's tags; null for any other kind or one with no name. */
+export function readMeeting(ev: TitledEvent): Meeting | null {
+  if (ev.kind !== 30312 && ev.kind !== 30313) return null;
+  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
+  const title = liveTitleOf(ev);
+  if (!title) return null;
+  let space: Meeting["space"];
+  if (ev.kind === 30313) {
+    const a = ev.tags.find((t) => t[0] === "a" && (t[1] ?? "").startsWith("30312:"));
+    const [, pubkey, ...rest] = (a?.[1] ?? "").split(":");
+    if (a && HEX64.test(pubkey ?? ""))
+      space = {
+        kind: 30312,
+        pubkey: pubkey.toLowerCase(),
+        identifier: rest.join(":"),
+        relays: /^wss?:\/\//i.test(a[2] ?? "") ? [a[2]] : undefined,
+      };
+  }
+  return {
+    kind: ev.kind,
+    title,
+    summary: tag("summary"),
+    image: httpUrl(tag("image")),
+    status: (tag("status") || "").toLowerCase(),
+    service: ev.kind === 30312 ? httpUrl(tag("service")) : undefined,
+    space,
+    startsSec: Number(tag("starts")) || 0,
+    endsSec: Number(tag("ends")) || 0,
+    currentParticipants: count(tag("current_participants")),
+    totalParticipants: count(tag("total_participants")),
+    participants: liveParticipantsOf(ev),
+    hashtags: [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim()))],
+  };
 }
 
 const GENERIC_LIVE_TAGS = new Set([
