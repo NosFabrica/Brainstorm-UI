@@ -1,5 +1,6 @@
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import type { ReportMetadata, MuteMetadata } from "./nostr";
+import { onViewerChange } from "@/lib/accountScoped";
 
 export class LRUMap<K, V> {
   private map = new Map<K, V>();
@@ -74,5 +75,8 @@ const bucket: CacheBucket =
 export const expandProfileCache = bucket.expandProfileCache;
 export const expandProfileAttempted = bucket.expandProfileAttempted;
 export const expandTrustCache = bucket.expandTrustCache;
+// The viewer's score of each person, in the active Perspective: another
+// Account or Perspective must not read it (lib/accountScoped).
+onViewerChange(() => expandTrustCache.clear());
 export const reportMetadataCache = bucket.reportMetadataCache;
 export const muteMetadataCache = bucket.muteMetadataCache;

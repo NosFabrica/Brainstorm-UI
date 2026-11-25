@@ -1,23 +1,37 @@
 import { useEffect, useState } from "react";
 import { fetchPersonEndorsements, type PersonEndorsements } from "@/services/endorsements";
+import { onAccountChange } from "@/lib/accountScoped";
+import { capMap } from "@/lib/boundedMap";
 
 /**
  * A person's "Followed by …" line for a component — one server call per
  * person and Perspective per session, shared by every card and panel that
  * asks (the useAppEndorsements discipline). Pass `null` to ask for nothing.
+ *
+ * "me" is the Active Account's network, so both maps are forgotten when the
+ * Active Account changes (lib/accountScoped), and an answer still in flight
+ * for the previous one is not kept. Capped, oldest first, for a tab left open.
  */
 const cache = new Map<string, Promise<PersonEndorsements>>();
 const settled = new Map<string, PersonEndorsements>();
+const MAX_PEOPLE = 1000;
+/** Bumped on each reset, so an answer for the previous viewer is not kept. */
+let generation = 0;
 
 function lookup(pubkey: string, personal: boolean): Promise<PersonEndorsements> {
   const key = `${pubkey}|${personal ? "me" : "house"}`;
   let p = cache.get(key);
   if (!p) {
+    const asked = generation;
     p = fetchPersonEndorsements(pubkey, { personal }).then((e) => {
-      settled.set(key, e);
+      if (asked === generation) {
+        settled.set(key, e);
+        capMap(settled, MAX_PEOPLE);
+      }
       return e;
     });
     cache.set(key, p);
+    capMap(cache, MAX_PEOPLE);
   }
   return p;
 }
@@ -47,8 +61,11 @@ export function forgetPersonEndorsements(pubkey: string): void {
   }
 }
 
-/** Test seam. */
+/** Forget everything (another viewer); also the test seam. */
 export function __resetPersonEndorsementsCache(): void {
+  generation++;
   cache.clear();
   settled.clear();
 }
+
+onAccountChange(__resetPersonEndorsementsCache);
