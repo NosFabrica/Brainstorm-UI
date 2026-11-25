@@ -35,7 +35,7 @@ import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { BADGE_LIST_KINDS, ITEM_LIST_KINDS, listNoteNoun, listTitle } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
-import { tagValue } from "@/lib/tagValue";
+import { OPAQUE_D, tagValue } from "@/lib/tagValue";
 import { gitItemSummaryOf, gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
 
 export type ReaderEvent = {
@@ -66,15 +66,9 @@ export interface ReaderResult {
 // ---- shared by the All tab's reading (lib/resultSummary, components/search/AllResults) ----
 
 export const HEX64 = /^[0-9a-f]{64}$/i;
-/** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
-// An app's own record key is a key, not a name: Shopstr writes its escrow
-// records under `shopstr:p2pk-escrow:<uuid>`.
-export const OPAQUE_D =
-  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,}|shopstr:[\s\S]*)$/i;
-
-// Lives in a leaf of its own (lib/nip71 needs it, and this module needs lib/nip71); still
-// exported here, where its callers have always found it.
-export { tagValue };
+// Live in a leaf of their own (lib/nip71 and lib/thing need them, and this module needs
+// both); still exported here, where their callers have always found them.
+export { OPAQUE_D, tagValue };
 
 /** A url or relay as its host: "wss://nos.lol/" → "nos.lol". */
 export const hostOf = (url: string) =>
