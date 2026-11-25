@@ -89,7 +89,7 @@ export function searchOnce(filters: Filter | Filter[], opts: SearchOnceOptions):
       return;
     }
     try {
-      sub = (socket.req(asked) as unknown as Observable<Message>).subscribe({
+      sub = (socket.req(filters as Parameters<Relay["req"]>[0]) as unknown as Observable<Message>).subscribe({
         next: (msg) => {
           if (done) return;
           if (msg?.type === "EVENT" && msg.event) take(msg.event);

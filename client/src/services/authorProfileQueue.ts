@@ -3,6 +3,8 @@ import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
 import { PROFILE_FRESH_MS, claimRefresh, deviceLearnedAt, readProfileRows } from "@/lib/eventCache";
 import { loadReplaceable } from "@/lib/loaders";
+import { searchOnce } from "@/lib/searchOnce";
+import { Subject } from "rxjs";
 
 /**
  * One queue of author kind-0 lookups on the search relay, shared by every
@@ -102,30 +104,25 @@ function send(authors: string[]): void {
     return;
   }
   const answered = new Set<string>();
-  let sub: { unsubscribe: () => void } | undefined;
-  const deadline = setTimeout(() => abort(lookup), LOOKUP_DEADLINE_MS);
-  const lookup: Lookup = {
-    authors,
-    close: () => {
-      clearTimeout(deadline);
-      sub?.unsubscribe();
-    },
-  };
+  const closed = new Subject<void>();
+  const lookup: Lookup = { authors, close: () => closed.next() };
   open.add(lookup);
   for (const a of authors) inFlight.set(a, lookup);
-  sub = relay.req({ kinds: [0], authors, search: "include:spam", limit: authors.length }).subscribe({
-    next: (msg: { type: string; event?: NostrEvent }) => {
-      if (msg.type === "EVENT" && msg.event?.kind === 0) {
-        const profile = msg.event;
+  // Only the store's kept copy is handed on: a profile it refused (a bad
+  // signature) never reaches a listener, and its author counts unanswered.
+  void searchOnce(
+    { kinds: [0], authors, search: "include:spam", limit: authors.length },
+    {
+      relay,
+      timeoutMs: LOOKUP_DEADLINE_MS,
+      stop: closed,
+      onEvent: (profile) => {
+        if (profile.kind !== 0) return;
         answered.add(profile.pubkey);
-        deliver(profile);
-      } else if (msg.type === "EOSE") {
-        settle(lookup, answered);
-      }
+        tell(profile.pubkey, profile);
+      },
     },
-    error: () => abort(lookup),
-  });
-  if (!open.has(lookup)) sub.unsubscribe();
+  ).then(({ answered: finished }) => (finished ? settle(lookup, answered) : abort(lookup)));
 }
 
 /** Tell whoever is waiting: the profile, or null for "there isn't one". */
@@ -141,13 +138,17 @@ function tell(pubkey: string, profile: NostrEvent | null): void {
   });
 }
 
-function deliver(profile: NostrEvent): void {
+/** Into the store, and on to whoever waits — the store's kept copy, or nothing if it refused. */
+function deliver(profile: NostrEvent): boolean {
+  let kept: NostrEvent | null;
   try {
-    eventStore.add(profile);
+    kept = eventStore.add(profile) as NostrEvent | null;
   } catch {
-    return; // not a real event
+    kept = null; // not a real event
   }
-  tell(profile.pubkey, profile);
+  if (!kept || kept.kind !== 0) return false;
+  tell(kept.pubkey, kept);
+  return true;
 }
 
 /**
@@ -196,13 +197,14 @@ async function ask(authors: string[]): Promise<void> {
       : new Map<string, never>();
     if (held.size > 0) {
       const old = Date.now() - PROFILE_FRESH_MS;
-      missing = onDisk.filter((a) => !held.has(a));
+      // A device copy the store refuses is no copy: that person is asked of the relay.
+      const kept = new Map([...held].filter(([, row]) => deliver(row.event)));
+      missing = onDisk.filter((a) => !kept.has(a));
       // Claimed, so a copy the loader is already refreshing isn't asked twice.
-      refresh = [...held.values()]
+      refresh = [...kept.values()]
         .filter((row) => row.at < old && claimRefresh(`0:${row.event.pubkey}:`, 0))
         .map((row) => row.event.pubkey);
       refresh.forEach((a) => refreshing.add(a));
-      for (const row of held.values()) deliver(row.event);
     }
   } catch {
     /* no copy to read — ask the relay for all of them */
