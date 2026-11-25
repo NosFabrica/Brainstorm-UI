@@ -5,7 +5,8 @@ import containerQueries from "@tailwindcss/container-queries";
 
 export default {
   darkMode: ["class"],
-  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  // Tests are not shipped: a class only a test names would be generated for nothing.
+  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}", "!./client/src/**/*.test.{ts,tsx}"],
   // The profile customizer reorders sections via dynamically-built `order-N`
   // classes (order-1…order-8). JIT can't see runtime-built class names, so
   // safelist them — otherwise reordering into slots 6–8 silently does nothing.
