@@ -22,6 +22,29 @@ const relayReadInQuery = (callee) => ({
 });
 
 /**
+ * A link straight from an event's tags. React puts any string into href, so a
+ * `javascript:` url someone wrote runs on our origin when it's clicked: a tag
+ * goes through safeHref (lib/safeHref) or a reader that checks it first, never
+ * into href or an iframe's src as it is.
+ */
+const TAG_READERS = "^(tagVal|tagOf|tagValue|tagValues|tagVals|firstTag)$";
+/** The tag read is the attribute's value: as it is, after `??`/`||`, either arm of `?:`, or with a `!`. */
+const rawTagIn = (attribute) =>
+  ["", "LogicalExpression > ", "ConditionalExpression > ", "TSNonNullExpression > "]
+    .map((via) => `${attribute} > JSXExpressionContainer > ${via}CallExpression[callee.name=/${TAG_READERS}/]`)
+    .join(", ");
+const RAW_TAG_LINKS = [
+  {
+    selector: rawTagIn('JSXAttribute[name.name="href"]'),
+    message: "An event's tag goes into href through safeHref (lib/safeHref), never as it is.",
+  },
+  {
+    selector: rawTagIn('JSXOpeningElement[name.name="iframe"] > JSXAttribute[name.name="src"]'),
+    message: "An event's tag goes into an iframe's src through safeHref (lib/safeHref), never as it is.",
+  },
+];
+
+/**
  * Tier two never imports tier three (docs/adr/0007): nothing outside
  * components/items/ reaches into it, and only it asks which concept has a
  * view of its own. Tier three plugs in from above, in three places: the app's
@@ -65,7 +88,12 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-hooks/exhaustive-deps": "error",
       "@tanstack/query/exhaustive-deps": "error",
-      "no-restricted-syntax": ["error", relayReadInQuery("callee.name"), relayReadInQuery("callee.property.name")],
+      "no-restricted-syntax": [
+        "error",
+        relayReadInQuery("callee.name"),
+        relayReadInQuery("callee.property.name"),
+        ...RAW_TAG_LINKS,
+      ],
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" },
