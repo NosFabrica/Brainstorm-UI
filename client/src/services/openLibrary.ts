@@ -15,6 +15,8 @@
  * Memoised for the session, failures included; a page is asked once.
  */
 
+import { safeHref } from "@/lib/safeHref";
+
 export interface BookFacts {
   subtitle: string | null;
   description: string | null;
@@ -62,7 +64,8 @@ async function readable(isbn: string | null): Promise<BookFacts["read"]> {
   );
   const hit = answer?.[key];
   const preview = str(hit?.preview);
-  const url = str(hit?.preview_url);
+  // The page links it: a web address only, whatever the upstream answered.
+  const url = safeHref(str(hit?.preview_url));
   if (!url || (preview !== "full" && preview !== "restricted")) return null;
   const ocaid = url.match(/archive\.org\/(?:details|stream)\/([^/?#]+)/)?.[1] ?? null;
   return { kind: preview, url, ocaid };

@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { nameMatchScore } from "@/lib/nameMatch";
+import { safeHref } from "@/lib/safeHref";
 
 export interface WavlakeTrack {
   id: string;
@@ -392,7 +393,8 @@ export async function fetchWavlakeTrending({ genre, limit = 12 }: { genre?: stri
         cover: t.albumArtUrl || t.artistArtUrl || undefined,
         audio: t.mediaUrl as string,
         durationSec: Number(t.duration) > 0 ? Number(t.duration) : undefined,
-        url: t.url || wavlakeTrackUrl(t.id),
+        // The page links it: a web address only, whatever the API answered.
+        url: safeHref(t.url) ?? wavlakeTrackUrl(t.id),
         source: "wavlake" as const,
         artistNpub: "",
         sats: Math.round(Number(t.msatTotal ?? 0) / 1000) || undefined,

@@ -79,6 +79,18 @@ beforeEach(() => {
 });
 
 describe("fetchGitHubAccount", () => {
+  it("keeps no repo whose address isn't a web address: the page links each one", async () => {
+    route((url) => {
+      if (url === "/github/users/vcavallo") return ok(user);
+      if (url.startsWith("/github/users/vcavallo/repos?"))
+        return ok([...repos, { ...repos[0], name: "evil", html_url: "javascript:alert(document.domain)" }]);
+      if (url.startsWith("/github/users/vcavallo/events/public?")) return ok(events);
+      return status(404);
+    });
+    const facts = await fetchGitHubAccount("vcavallo");
+    expect(facts!.repos.map((r) => r.name)).not.toContain("evil");
+  });
+
   it("asks our origin for the user, their repos and their latest public activity, and returns the facts", async () => {
     route((url) => {
       if (url === "/github/users/vcavallo") return ok(user);
