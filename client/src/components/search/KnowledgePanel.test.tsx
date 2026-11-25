@@ -1258,7 +1258,9 @@ describe("the person panel's live stream", () => {
     expect(screen.queryByTestId("person-live")).toBeNull();
   });
 
-  it("a replay whose recording no longer answers is not advertised either", async () => {
+  // The reader's browser no longer probes a recording's host during search (ADR 0007;
+  // lib/liveStream verifyRecording): a web-address recording is advertised as it is.
+  it("a replay is advertised without asking the recording's host anything", async () => {
     grinder();
     vi.stubGlobal(
       "fetch",
@@ -1274,9 +1276,8 @@ describe("the person panel's live stream", () => {
     ]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
     await screen.findByTestId("knowledge-panel-profile");
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByTestId("person-live-replay")).toBeNull();
+    expect(await screen.findByTestId("person-live-replay")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("data.zap.stream"))).toBe(false);
   });
 
   it("a replay whose recording answers is advertised and plays through our player", async () => {

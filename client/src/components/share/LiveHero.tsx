@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { useSoloEmbed } from "@/lib/playback";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
-import { verifyRecording, liveStateOf } from "@/lib/liveStream";
+import { isWebUrl, liveStateOf } from "@/lib/liveStream";
 import { isVideoFileUrl } from "@/lib/linkThumb";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
@@ -23,7 +23,9 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   const title = tag("title") || tag("summary") || "Live stream";
   const image = tag("image") || tag("thumb");
   const streaming = tag("streaming");
-  const recording = tag("recording");
+  // Only a web address is a recording to play or link to (never data: or javascript:).
+  const rawRecording = tag("recording")?.trim();
+  const recording = isWebUrl(rawRecording) ? rawRecording : undefined;
   const starts = Number(tag("starts")) || 0;
   const viewers = Number(tag("current_participants")) || 0;
   const summary = (tag("summary") || event.content || "").trim();
@@ -37,19 +39,10 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
 
   const [failed, setFailed] = useState(false);
   const [imgBroken, setImgBroken] = useState(false);
-  // null while the recording is being asked; false is a recording that is gone.
-  const [recordingOk, setRecordingOk] = useState<boolean | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    setRecordingOk(null);
-    if (!recording) return;
-    verifyRecording(recording).then((ok) => {
-      if (!cancelled) setRecordingOk(ok);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [recording]);
+  // A recording is offered as it is: nothing probes its host from the reader's
+  // browser (lib/liveStream verifyRecording). One that no longer answers says so
+  // when its player fails (`failed`).
+  const recordingOk = recording ? !failed : null;
   // Branded live-stream cover when the stream has no image / it fails to load.
   const posterImage = !image || imgBroken ? liveDefault : image;
 
@@ -126,6 +119,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
             playsInline
             className="absolute inset-0 h-full w-full object-contain"
             data-testid="replay-video"
+            onError={() => setFailed(true)}
           />
         </div>
       ) : (
@@ -170,11 +164,6 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
                 <p className="text-sm font-semibold" data-testid="replay-gone">
                   This stream has ended, and its recording is no longer available
                 </p>
-              </>
-            ) : recording && recordingOk === null ? (
-              <>
-                <Radio className="h-7 w-7 animate-pulse opacity-70" />
-                <p className="text-sm font-semibold">Checking for a recording…</p>
               </>
             ) : recording ? (
               <>

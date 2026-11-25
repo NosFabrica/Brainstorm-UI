@@ -16,49 +16,24 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { getPublicKey } from "nostr-tools";
 
-// Odell's year-old replay: the recording host (data.zap.stream) no longer
-// answers at all, and the panel advertised a black player. A recording is
-// advertised only after it has answered.
+// A recording is someone else's server: the reader's browser never probes it
+// (ADR 0007: third-party calls go through our origin, never from search or a
+// card). Only a web address is a recording; a dead one shows when it fails to play.
 describe("verifyRecording", () => {
   beforeEach(() => __resetRecordingChecks());
 
-  it("a recording that answers is playable", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("", { status: 200 })),
-    );
-    expect(await verifyRecording("https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8")).toBe(true);
-  });
-
-  it("a missing or dead recording is not", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("", { status: 404 })),
-    );
-    expect(await verifyRecording("https://data.zap.stream/recording/gone.m3u8")).toBe(false);
-    __resetRecordingChecks();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new TypeError("Failed to fetch");
-      }),
-    );
-    expect(await verifyRecording("https://data.zap.stream/recording/dead.m3u8")).toBe(false);
-  });
-
-  it("trusts YouTube without asking — its player answers for itself", async () => {
+  it("a web address is a recording, and nothing is asked to say so", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    expect(await verifyRecording("https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8")).toBe(true);
     expect(await verifyRecording("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("asks once per recording", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await verifyRecording("https://cdn.example/replay.mp4");
-    await verifyRecording("https://cdn.example/replay.mp4");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it("anything else is not one", async () => {
+    expect(await verifyRecording("data:video/mp4;base64,AAAA")).toBe(false);
+    expect(await verifyRecording("javascript:alert(1)")).toBe(false);
+    expect(await verifyRecording("not a url")).toBe(false);
   });
 });
 
@@ -67,6 +42,26 @@ describe("verifyRecording", () => {
 // radio and Owncast servers that never end), 80 ended (16 with a recording),
 // none planned; kind 30313 meetings carry the planned ones; kind 30312 rooms
 // are 8k mostly-closed, untitled machine records.
+describe("liveStateOf — a recording that is no web address is no replay", () => {
+  it("is ended, not a replay", () => {
+    const ev = (recording: string) => ({
+      id: "x",
+      pubkey: "a".repeat(64),
+      kind: 30311,
+      created_at: 1,
+      tags: [
+        ["title", "T"],
+        ["status", "ended"],
+        ["recording", recording],
+      ],
+      content: "",
+    });
+    expect(liveStateOf(ev("https://cdn.example/r.mp4"), 100)).toBe("replay");
+    expect(liveStateOf(ev("data:video/mp4;base64,AAAA"), 100)).toBeNull();
+    expect(liveStateOf(ev("javascript:alert(1)"), 100)).toBeNull();
+  });
+});
+
 describe("liveStateOf — which shelf a NIP-53 event belongs on, if any", () => {
   const now = 1_800_000_000;
   const ev = (kind: number, tags: string[][]) => ({
