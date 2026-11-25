@@ -28,13 +28,15 @@ export function useFlashSubscriptionRecord(
   id: string,
   read: (id: string) => Promise<unknown>,
   preferId?: string | null,
+  /** False to hold the read (a row not yet near the screen); a cached answer still shows. */
+  enabled = true,
 ): { pending: boolean; record: FlashSubscriptionRecord | null; rows: number } {
   const query = useQuery({
     queryKey: flashRecordKey(id),
     queryFn: async () => (await read(id)) ?? null,
     staleTime: 5 * 60_000,
     retry: false,
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
   if (query.isPending) return { pending: true, record: null, rows: 0 };
   if (query.isError) return { pending: false, record: null, rows: 0 };
