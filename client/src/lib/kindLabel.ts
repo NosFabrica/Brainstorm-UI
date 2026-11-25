@@ -103,8 +103,10 @@ export function kindTypeLabel(kind: number): string {
       return "Space";
     case 31922:
     case 31923:
-    case 31924:
       return "Event";
+    // NIP-52's calendar is a collection of events, not one: its page and card say "Calendar".
+    case 31924:
+      return "Calendar";
     case 30617:
       return "Repo";
     case 32267:

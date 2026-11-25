@@ -230,7 +230,7 @@ export const KIND_NAMES: Readonly<Record<number, string>> = {
   31890: "Feed",
   31922: "Event",
   31923: "Event",
-  31924: "Event",
+  31924: "Calendar",
   31925: "RSVP",
   31987: "Relay review",
   31989: "App",
