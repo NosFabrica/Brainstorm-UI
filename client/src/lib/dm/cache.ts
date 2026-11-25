@@ -105,17 +105,39 @@ function build(db: IDBDatabase) {
 }
 
 /**
- * Bumped by every clear. A write that was asked for before a sign-out but
- * reaches the database after it (the engine flushes as it stops) is dropped
- * rather than writing the departed account's messages back.
+ * A row in the state store no account's pubkey can be: the token of the last
+ * clear, from whichever tab made it.
  */
-let epoch = 0;
+const CLEARED = "~cleared";
 
+function readToken(db: IDBDatabase): Promise<string | undefined> {
+  return transact<string>(db, STATE, "readonly", (store, keep) => {
+    const req = store.get(CLEARED);
+    req.onsuccess = () => keep((req.result as { token?: string } | undefined)?.token);
+  });
+}
+
+/** One tab's backend (the app makes one per tab, `dmCacheBackend`). */
 export function indexedDbBackend(): DmCacheBackend | null {
   if (typeof indexedDB === "undefined") return null;
+  /**
+   * Bumped by every clear this tab makes or learns of. A write that was asked
+   * for before a sign-out but reaches the database after it (the engine flushes
+   * as it stops) is dropped rather than writing the departed account's messages
+   * back.
+   */
+  let epoch = 0;
+  /**
+   * The clear this tab last knew of. Another tab's sign-out clears the database
+   * without a word to this one, so every write checks, in its own transaction,
+   * that the stored token is still this one — a write from before that clear is
+   * dropped, and the clear becomes this tab's too.
+   */
+  let seen: string | undefined;
   let connection: Promise<IDBDatabase> | null = null;
   const db = () => {
-    connection ??= openDb(DB_NAME, 1, build).then((opened) => {
+    connection ??= openDb(DB_NAME, 1, build).then(async (opened) => {
+      seen = await readToken(opened);
       opened.onclose = () => (connection = null);
       opened.onversionchange = () => {
         opened.close();
@@ -128,6 +150,24 @@ export function indexedDbBackend(): DmCacheBackend | null {
       throw error;
     });
   };
+  /** A write, made only if no tab has cleared the database since this one last knew. */
+  const write = (opened: IDBDatabase, asked: number, stores: string[], work: (tx: IDBTransaction) => void) =>
+    new Promise<void>((resolve, reject) => {
+      const tx = opened.transaction([...new Set([STATE, ...stores])], "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+      const req = tx.objectStore(STATE).get(CLEARED);
+      req.onsuccess = () => {
+        const token = (req.result as { token?: string } | undefined)?.token;
+        if (token !== seen) {
+          seen = token;
+          epoch++;
+        }
+        // Asked before a clear this tab made or just learned of: not this session's to write.
+        if (asked === epoch) work(tx);
+      };
+    });
   return {
     async wraps(owner) {
       const rows = await transact<StoredWrap[]>(await db(), WRAPS, "readonly", (store, keep) => {
@@ -148,7 +188,10 @@ export function indexedDbBackend(): DmCacheBackend | null {
       const asked = epoch;
       const opened = await db();
       if (asked !== epoch) return;
-      await transact(opened, WRAPS, "readwrite", (store) => rows.forEach((r) => store.put(r)));
+      await write(opened, asked, [WRAPS], (tx) => {
+        const store = tx.objectStore(WRAPS);
+        rows.forEach((r) => store.put(r));
+      });
     },
     async deleteWraps(keys) {
       if (!keys.length) return;
@@ -164,7 +207,7 @@ export function indexedDbBackend(): DmCacheBackend | null {
       const asked = epoch;
       const opened = await db();
       if (asked !== epoch) return;
-      await transact(opened, STATE, "readwrite", (store) => store.put(state));
+      await write(opened, asked, [], (tx) => tx.objectStore(STATE).put(state));
     },
     guard() {
       const asked = epoch;
@@ -173,8 +216,19 @@ export function indexedDbBackend(): DmCacheBackend | null {
     async clear() {
       epoch++;
       const opened = await db();
-      await transact(opened, WRAPS, "readwrite", (store) => store.clear());
-      await transact(opened, STATE, "readwrite", (store) => store.clear());
+      const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      // Known before it commits: this tab's later writes are queued behind it, and are the new session's.
+      seen = token;
+      await new Promise<void>((resolve, reject) => {
+        const tx = opened.transaction([WRAPS, STATE], "readwrite");
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+        tx.objectStore(WRAPS).clear();
+        const state = tx.objectStore(STATE);
+        state.clear();
+        state.put({ owner: CLEARED, token });
+      });
     },
   };
 }

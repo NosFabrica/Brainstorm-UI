@@ -29,3 +29,28 @@ describe("DM cache (IndexedDB)", () => {
     expect(await db.state("me")).toBeUndefined();
   });
 });
+
+describe("DM cache across tabs", () => {
+  // Each backend is one tab's. Tab B's engine flushes as it stops; that write could
+  // reach the database after tab A's sign-out cleared it, and B's own epoch had
+  // never moved, so it went in.
+  it("drops a write from a tab that hasn't seen another tab's clear", async () => {
+    const a = indexedDbBackend()!;
+    const b = indexedDbBackend()!;
+    await b.putState({ owner: "me", lastSeen: 1 });
+    const bGuard = b.guard!();
+    await a.clear();
+    // As B's engine flushes on stop: both at once.
+    await Promise.all([
+      b.putState({ owner: "me", lastSeen: 2, outbox: "sealed rumor" }),
+      b.putWraps([{ key: wrapKey("me", "w9"), owner: "me", wrapId: "w9", at: 9, envelope: "v1:x:y" }]),
+    ]);
+    expect(await a.state("me")).toBeUndefined();
+    expect(await a.wraps("me")).toEqual([]);
+    // …and B's engines learn it: every guard taken before the clear has ended.
+    expect(bGuard()).toBe(false);
+    // What B writes from now on is for whoever signs in next, and is kept.
+    await b.putState({ owner: "next", lastSeen: 3 });
+    expect(await a.state("next")).toMatchObject({ lastSeen: 3 });
+  });
+});
