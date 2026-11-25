@@ -6,7 +6,7 @@
  * NIP-82's names 3063 software assets and the app by `i`.
  */
 import { useMemo } from "react";
-import { Download, Package } from "lucide-react";
+import { AlertTriangle, Download, Package } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -76,14 +76,15 @@ export function ReleaseAssetRow({ asset, event }: { asset: ReleaseAssetFile; eve
 
 export function ReleaseHero({ event }: { event: MinimalEvent }) {
   const release = useMemo(() => readRelease(event), [event]);
-  const appRefs = useMemo(
-    () => (release.app ? [{ addr: release.app.address, relay: release.app.relay }] : []),
-    [release],
-  );
+  // The app it is a release of, or — an `a` naming someone else's app — the one it only claims to be.
+  const named = release.app ?? release.claimedApp;
+  const appRefs = useMemo(() => (named ? [{ addr: named.address, relay: named.relay }] : []), [named]);
   const found = useRefEvents(appRefs);
-  const app = release.app ? found.get({ addr: release.app.address }) : undefined;
-  const appName =
-    app?.tags.find((t) => t[0] === "name")?.[1]?.trim() || release.app?.address.split(":").slice(2).join(":");
+  const namedApp = named ? found.get({ addr: named.address }) : undefined;
+  const namedName =
+    namedApp?.tags.find((t) => t[0] === "name")?.[1]?.trim() || named?.address.split(":").slice(2).join(":");
+  const app = release.app ? namedApp : undefined;
+  const appName = release.app ? namedName : undefined;
   const { assets, settled } = useReleaseAssets(release);
   const files = useMemo(() => assets.map((a) => ({ event: a, file: readReleaseAsset(a) })), [assets]);
   const missing = release.assets.length - files.length;
@@ -125,6 +126,21 @@ export function ReleaseHero({ event }: { event: MinimalEvent }) {
       </div>
 
       {app && <EmbeddedNoteCard event={app} href={eventPath(app)} nested />}
+
+      {release.claimedApp && (
+        // Anyone can sign a release naming any app: one by someone else than the app's publisher
+        // is not that app's, and its files are not the app's files.
+        <section className="space-y-2" data-testid="release-claimed-app">
+          <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Claims to be a release of <span className="font-semibold">{namedName}</span>, but wasn&apos;t published by
+              that app&apos;s publisher. Its files may not be the app&apos;s.
+            </span>
+          </p>
+          {namedApp && <EmbeddedNoteCard event={namedApp} href={eventPath(namedApp)} nested />}
+        </section>
+      )}
 
       {release.assets.length > 0 && (
         <section className="space-y-2" data-testid="release-assets">

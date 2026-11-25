@@ -29,8 +29,17 @@ const HEX64 = /^[0-9a-f]{64}$/i;
 
 export interface Release {
   shape: "nip82" | "nip51";
-  /** The app's address, `32267:<pubkey>:<d>`: NIP-51's `a`, or NIP-82's `i` under the publisher. */
+  /**
+   * The app's address, `32267:<pubkey>:<d>`: NIP-82's `i` under the publisher, or
+   * NIP-51's `a` when the app is the release's signer's. A release is the app's only
+   * from the app's own publisher: anyone can sign a 30063 naming any app.
+   */
   app: { address: string; relay?: string } | null;
+  /**
+   * An `a` naming someone else's app: what the release says it is a release of,
+   * unproven. Never read as `app` (its name in the title, its files as that app's).
+   */
+  claimedApp: { address: string; relay?: string } | null;
   /** NIP-82's `version`; NIP-51 names none. */
   version: string | null;
   /** The release's `d`. */
@@ -61,13 +70,12 @@ export function readRelease(ev: { pubkey: string; tags: string[][]; content: str
     const relay = relayOf(t);
     assets.push({ id: t[1].toLowerCase(), ...(relay ? { relay } : {}) });
   }
+  const tagged = appTag ? { address: appTag[1], ...(relayOf(appTag) ? { relay: relayOf(appTag) } : {}) } : null;
+  const own = !!appTag && appTag[1].split(":")[1]?.toLowerCase() === ev.pubkey.toLowerCase();
   return {
     shape: nip82 ? "nip82" : "nip51",
-    app: nip82
-      ? { address: `${APP_KIND}:${ev.pubkey}:${appId}` }
-      : appTag
-        ? { address: appTag[1], ...(relayOf(appTag) ? { relay: relayOf(appTag) } : {}) }
-        : null,
+    app: nip82 ? { address: `${APP_KIND}:${ev.pubkey}:${appId}` } : own ? tagged : null,
+    claimedApp: !nip82 && !own ? tagged : null,
     version: nip82 ? version : null,
     identifier: tag(ev.tags, "d") ?? "",
     channel: nip82 ? tag(ev.tags, "c") : null,

@@ -143,4 +143,26 @@ describe("ReleaseHero", () => {
     );
     expect(await screen.findByTestId("release-assets-missing")).toHaveTextContent("weren't found");
   });
+
+  it("a release naming someone else's app is not that app's: it only claims to be, and says so", async () => {
+    const MAKER = "1".repeat(64);
+    const app = {
+      ...ev(32267, [
+        ["d", "com.popular"],
+        ["name", "Popular"],
+      ]),
+      pubkey: MAKER,
+    };
+    byAddress.set(`32267:${MAKER}:com.popular`, app);
+    renderWithProviders(
+      <ReleaseHero
+        event={ev(30063, [
+          ["d", "com.popular@9.9"],
+          ["a", `32267:${MAKER}:com.popular`],
+        ])}
+      />,
+    );
+    expect(await screen.findByTestId("release-claimed-app")).toHaveTextContent(/claims to be a release of Popular/i);
+    expect(screen.getByTestId("release-title")).not.toHaveTextContent("Popular");
+  });
 });
