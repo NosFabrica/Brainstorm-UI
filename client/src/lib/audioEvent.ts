@@ -9,7 +9,11 @@
  * - 30055 Podcasting 2.0 trailer: `title`, `url`, `season`; the content repeats the title.
  * - 1222 / 1244 voice message and reply (NIP-A0): the file in `imeta`
  *   (`url`, `m`, `duration`); the content is the file's URL, words beside it a caption.
- * - 1808 audio header: `stream_url`, `download_url` or `url`; the content describes it.
+ * - 1808 audio header: no NIP defines it. Stemstr made it (`download_url <url> <mime>`, the
+ *   file, and `stream_url <url> <mime>`, an HLS playlist, beside `x` and `waveform`), Quartz
+ *   reads it the same way (experimental `AudioHeaderEvent`) plus a plain `url`, which is what
+ *   most publishers write now (Nosis: `url`, `blossom <hash> <mime>`, `duration`, `subject`).
+ *   The content describes it.
  *
  * 30054 and 30055 are also written by apps that are not podcasts (reading
  * progress, probed 2026-09-29): without a file to play they are not a sound,
@@ -84,7 +88,7 @@ function isAudioFile(kind: number, url: string, mime: string | undefined): boole
 
 /**
  * The files an event names, in the order the players read them, each with
- * the mime said beside it: an audio header's stream before its download, the
+ * the mime said beside it: an audio header's stream (its file first when the stream is HLS), the
  * media tags (an `audio` tag's third value is its mime, NIP-F4), each imeta,
  * any tag value named as audio, then an audio link in the words — or, for a
  * voice message, the URL its content is.
@@ -93,11 +97,24 @@ function audioCandidates(ev: EventLike): { url: string; mime?: string }[] {
   const out: { url: string; mime?: string }[] = [];
   // `m` (NIP-94), or `type` beside a 30055 trailer's `url` (Podcasting 2.0's enclosure type).
   const eventMime = ev.tags.find((t) => (t[0] === "m" || t[0] === "type") && isMime(t[1]))?.[1];
+  // Each file once, with the mime said beside it first: a `url` a `blossom` tag calls a video is
+  // not a sound because a later reading of it says nothing.
   const push = (url: string | undefined, mime?: string) => {
     const u = url?.trim();
-    if (isHttp(u)) out.push({ url: u, mime });
+    if (isHttp(u) && !out.some((c) => c.url === u)) out.push({ url: u, mime });
   };
-  if (ev.kind === 1808) for (const key of ["stream_url", "download_url"]) push(ev.tags.find((t) => t[0] === key)?.[1]);
+  // An audio header's stream, then its file — unless the stream is an HLS playlist, as
+  // Stemstr's is, which an <audio> element plays only in Safari: then the file first. Each
+  // says its mime third; a `blossom` tag says the mime of the `url` beside it.
+  if (ev.kind === 1808) {
+    const tagOf = (key: string) => ev.tags.find((tag) => tag[0] === key);
+    const stream = tagOf("stream_url");
+    const hls = /mpegurl/i.test(stream?.[2] ?? "") || /\.m3u8(?:[?#]|$)/i.test(stream?.[1] ?? "");
+    for (const t of hls ? [tagOf("download_url"), stream] : [stream, tagOf("download_url")])
+      push(t?.[1], isMime(t?.[2]) ? t?.[2] : undefined);
+    const blossomMime = ev.tags.find((t) => t[0] === "blossom" && isMime(t[2]))?.[2];
+    push(ev.tags.find((t) => t[0] === "url")?.[1], blossomMime ?? eventMime);
+  }
   for (const key of ["media", "url", "stream", "streaming", "enclosure", "audio"])
     for (const t of ev.tags) if (t[0] === key) push(t[1], isMime(t[2]) ? t[2] : eventMime);
   for (const t of ev.tags) {
@@ -117,7 +134,7 @@ function audioCandidates(ev: EventLike): { url: string; mime?: string }[] {
   return out;
 }
 
-/** The file to play: the first one the event names that is a sound (an audio header's stream before its download). */
+/** The file to play: the first one the event names that is a sound (an audio header's stream, unless it is HLS). */
 export function audioOf(ev: EventLike): string | undefined {
   return audioCandidates(ev).find((c) => isAudioFile(ev.kind, c.url, c.mime))?.url;
 }
