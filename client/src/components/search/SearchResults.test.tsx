@@ -669,6 +669,23 @@ describe("SearchResults", () => {
     });
   });
 
+  // NIP-84: the Notes tab drew a highlight as a note of its passage, with no source. It is the
+  // highlight row the Top page and the All tab draw: the passage marked, and where it is from.
+  it("draws a highlight on the Notes tab as its passage and its source, not as a note", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="essay" pov="nosfabrica" />);
+    const highlight = ev("hl1", 9802, "4".repeat(64), "the words they marked", [
+      ["r", "https://source.example/essay", "source"],
+      ["r", "https://other.example", "mention"],
+    ]);
+    emit({ hits: [{ event: highlight, author: null, rank: null }], eose: true, timeMs: 100 });
+    const passage = await screen.findByTestId("serp-highlight-passage");
+    expect(passage).toHaveTextContent("the words they marked");
+    expect(screen.getByTestId("serp-highlight-source")).toHaveTextContent("source.example");
+    expect(screen.getByTestId("serp-highlight-source")).not.toHaveTextContent("other.example");
+    expect(screen.queryByTestId("note-card")).toBeNull();
+  });
+
   // Content tabs land on what's fresh by default; a typed sort: always wins,
   // and People stays trust-ranked.
   it("content tabs default to newest-first on the wire", () => {

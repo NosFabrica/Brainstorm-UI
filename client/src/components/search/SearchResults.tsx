@@ -95,6 +95,7 @@ import {
   type ListGroupView,
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
+import { parseHighlight } from "@/lib/nip84";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
@@ -3507,6 +3508,12 @@ export const SearchResults = memo(function SearchResults({
                               />,
                             );
                           }
+                          // A NIP-84 highlight is its passage marked and where it is from (SerpRow's
+                          // HighlightRow), as on the Top page and the All tab — never its passage as a bare note.
+                          if (event.kind === 9802 && parseHighlight(event))
+                            return wrap(
+                              <SerpRow event={event} author={hit.author} score={scoreOf(event.pubkey)} query={query} />,
+                            );
                           if (NOTE_KINDS.has(event.kind) && tab !== "media") {
                             return wrap(
                               <ShareNoteCard
