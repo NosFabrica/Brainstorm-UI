@@ -6,6 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
+import { signed } from "@/test/signedEvent";
 
 vi.mock("@/services/nostr", async () => ({ ...(await import("@/test/fakeNostr")).nostrReadDefaults }));
 vi.mock("@/lib/eventStore", async () => ({
@@ -59,7 +60,8 @@ describe("AllResultRow — a video marked sensitive", () => {
 
   // A repost draws the reposted video's picture, so the reposted video's warning decides.
   it("shows a placeholder for a repost of a flagged video", () => {
-    const flagged = short([withPoster, ["content-warning", "nudity"]]);
+    // Signed: a repost's JSON is its author's video only under their signature (lib/embeddedEvent).
+    const flagged = signed({ kind: 34236, tags: short([withPoster, ["content-warning", "nudity"]]).tags });
     const repost = {
       id: "2".repeat(64),
       kind: 16,
@@ -68,7 +70,7 @@ describe("AllResultRow — a video marked sensitive", () => {
       sig: "s",
       content: JSON.stringify(flagged),
       tags: [
-        ["e", ID],
+        ["e", flagged.id],
         ["k", "34236"],
         ["p", flagged.pubkey],
       ],
@@ -82,14 +84,15 @@ describe("AllResultRow — a video marked sensitive", () => {
   });
 
   it("leaves a repost of an unflagged video's poster as it was", () => {
+    const unflagged = signed({ kind: 34236, tags: short([withPoster]).tags });
     const repost = {
       id: "3".repeat(64),
       kind: 16,
       pubkey: "8".repeat(64),
       created_at: 1_790_000_100,
       sig: "s",
-      content: JSON.stringify(short([withPoster])),
-      tags: [["e", ID]],
+      content: JSON.stringify(unflagged),
+      tags: [["e", unflagged.id]],
     } as NostrEvent;
     render(<AllResultRow event={repost} author={null} query="" />);
     expect(screen.queryByTestId("sensitive-tile")).toBeNull();
