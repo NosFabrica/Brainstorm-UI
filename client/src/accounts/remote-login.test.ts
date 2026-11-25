@@ -10,7 +10,14 @@ import {
   isPairingCancelled,
   remoteSignerMessage,
 } from "./remote-login";
-import { isRemoteSignerTimeout, NIP46_PERMISSIONS, PAIRING_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "./remote-signer";
+import {
+  CONNECT_TIMEOUT_MS,
+  isRemoteSignerTimeout,
+  NIP46_PERMISSIONS,
+  PAIRING_TIMEOUT_MS,
+  RemoteSigner,
+  REQUEST_TIMEOUT_MS,
+} from "./remote-signer";
 import { createFakeRemoteSigner } from "./remote-test-fakes";
 import { installRemoteTransport } from "./remote-transport";
 
@@ -151,6 +158,40 @@ describe("pairing with a pasted bunker:// URI", () => {
     fake.failWith("connect", "already connected");
 
     await expect(connectWithBunkerURI(fake.bunkerURI())).rejects.toThrow("already connected");
+  });
+
+  // Each failed paste opened a subscription on the signer's relays and left it running:
+  // the library closes it when the signer answers no, not when it never answers.
+  it("closes the connection it opened when the signer never answers", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const close = vi.spyOn(RemoteSigner.prototype, "close");
+    try {
+      const fake = createFakeRemoteSigner();
+      installRemoteTransport(fake.pool);
+      fake.swallow("connect");
+
+      const login = connectWithBunkerURI(fake.bunkerURI());
+      const failed = expect(login).rejects.toSatisfy(isRemoteSignerTimeout);
+      await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS + 100);
+      await failed;
+
+      expect(close).toHaveBeenCalled();
+    } finally {
+      close.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("closes the connection it opened when the signer turns it down", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    fake.failWith("connect", "invalid secret");
+    const close = vi.spyOn(RemoteSigner.prototype, "close");
+
+    await expect(connectWithBunkerURI(fake.bunkerURI())).rejects.toThrow("invalid secret");
+
+    expect(close).toHaveBeenCalled();
+    close.mockRestore();
   });
 });
 

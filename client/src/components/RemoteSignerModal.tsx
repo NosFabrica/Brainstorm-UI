@@ -21,10 +21,12 @@ import {
   bunkerUriProblem,
   connectWithBunkerURI,
   isPairingCancelled,
+  releaseUnadopted,
   remoteSignerMessage,
   type RemotePairing,
 } from "@/accounts/remote-login";
-import { appMetadata } from "@/accounts/remote-signer";
+import { accountManager } from "@/accounts";
+import { appMetadata, type RemoteAccount } from "@/accounts/remote-signer";
 import type { Observable } from "rxjs";
 import { relaysReachable$ } from "@/accounts/remote-transport";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -59,7 +61,13 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
 
   const finish = useCallback(
     async (account: BrainstormAccount, pairing?: RemotePairing) => {
-      await signInWithExternalSigner(account);
+      try {
+        await signInWithExternalSigner(account);
+      } catch (error) {
+        // Not signed in, so nothing will sign over this connection: one per retry, otherwise.
+        releaseUnadopted(account as RemoteAccount, (id) => !!accountManager.getAccount(id));
+        throw error;
+      }
       // Before the screen closes: closing cancels the pairing, and cancelling
       // would shut the connection this Account now signs over.
       pairing?.keep();

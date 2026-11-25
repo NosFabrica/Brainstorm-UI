@@ -34,6 +34,7 @@ const beginRemotePairing = vi.fn(() => {
   return made;
 });
 const connectWithBunkerURI = vi.fn();
+const releaseUnadopted = vi.fn();
 const signInWithExternalSigner = vi.fn();
 let completed: Promise<unknown>;
 let problem: string | null = null;
@@ -46,6 +47,7 @@ vi.mock("@/accounts/remote-login", () => ({
   bunkerUriProblem: (input: string) => (input.trim() ? problem : "Paste the link."),
   connectWithBunkerURI: (uri: string) => connectWithBunkerURI(uri),
   isPairingCancelled: (error: unknown) => (error as { name?: string })?.name === "PairingCancelled",
+  releaseUnadopted: (account: unknown, adopted: (id: string) => boolean) => releaseUnadopted(account, adopted),
   remoteSignerMessage: (error: unknown) => (error as Error)?.message ?? "",
 }));
 vi.mock("@/accounts/remote-transport", () => ({ relaysReachable$: () => reachable$ }));
@@ -53,6 +55,7 @@ vi.mock("@/accounts/login-flow", () => ({
   signInWithExternalSigner: (account: unknown) => signInWithExternalSigner(account),
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mobile }));
+vi.mock("@/accounts", () => ({ accountManager: { getAccount: () => undefined } }));
 
 function open(props: Record<string, unknown> = {}) {
   return renderWithProviders(<RemoteSignerModal open onOpenChange={() => {}} onSignedIn={() => {}} {...props} />);
@@ -293,6 +296,23 @@ describe("pasting a link", () => {
 
     await waitFor(() => expect(signInWithExternalSigner).toHaveBeenCalledWith({ pubkey: "abc" }));
     expect(onSignedIn).toHaveBeenCalled();
+  });
+
+  // Each failed attempt left its signer's subscription running for the life of the tab.
+  it("lets the connection go when signing in with it fails", async () => {
+    const account = { id: "row", pubkey: "abc" };
+    connectWithBunkerURI.mockResolvedValue(account);
+    signInWithExternalSigner.mockRejectedValue(new Error("Auth verification failed (500)"));
+    open();
+
+    fireEvent.click(screen.getByTestId("button-paste-bunker"));
+    fireEvent.change(screen.getByTestId("input-bunker-uri"), {
+      target: { value: "bunker://abc?relay=wss://x" },
+    });
+    fireEvent.click(screen.getByTestId("button-connect-bunker"));
+
+    await waitFor(() => expect(releaseUnadopted).toHaveBeenCalledWith(account, expect.any(Function)));
+    expect(screen.getByTestId("text-remote-signer-error")).toHaveTextContent("Auth verification failed");
   });
 
   it("warns that the link is single-use before they go and fetch a stale one", () => {
