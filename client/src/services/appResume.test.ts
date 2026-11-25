@@ -8,7 +8,9 @@ const invalidateQueries = vi.fn(() => Promise.resolve());
 let back: (awayMs: number, how: "visible" | "pageshow" | "online") => void = () => {};
 let clock = 0;
 
+const reopenWindows = vi.fn();
 vi.mock("@/lib/relayPool", () => ({ wakeRelays }));
+vi.mock("@/lib/askOnce", () => ({ reopenWindows }));
 vi.mock("@/lib/serviceWorker", () => ({ checkForUpdate }));
 vi.mock("@/lib/queryClient", () => ({ queryClient: { invalidateQueries } }));
 vi.mock("@/lib/appResume", () => ({
@@ -54,6 +56,15 @@ describe("coming back to the app", () => {
   it("asks the API again only after a long absence", () => {
     back(REFRESH_AFTER_MS, "visible");
     expect(invalidateQueries).toHaveBeenCalledTimes(1);
+  });
+
+  // The relay reads live in the store, asked once per key per window
+  // (lib/askOnce); invalidating react-query never reached them.
+  it("re-opens the relay asks after a long absence, and only then", () => {
+    back(REFRESH_AFTER_MS - 1, "visible");
+    expect(reopenWindows).not.toHaveBeenCalled();
+    back(REFRESH_AFTER_MS, "visible");
+    expect(reopenWindows).toHaveBeenCalledTimes(1);
   });
 
   it("leaves the tag reads to their own staleTime — the API's answers are refetched", () => {

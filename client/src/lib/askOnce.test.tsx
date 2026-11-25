@@ -7,6 +7,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import {
+  EMPTY_RETRY_MS,
+  MAX_ANSWERS,
   MAX_KEYS,
   REPLACEABLE_ASK_WINDOW,
   __askSizes,
@@ -15,6 +17,7 @@ import {
   forgetSettled,
   isDue,
   lastAnswer,
+  reopenWindows,
   replaceableAskKey,
 } from "./askOnce";
 import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
@@ -47,6 +50,46 @@ describe("bounded", () => {
     forgetSettled();
     expect(isDue("note")).toBe(true);
     expect(lastAnswer("note")).toBeUndefined();
+  });
+});
+
+describe("only an ask that found something keeps its window", () => {
+  it("a failed ask may be asked again at once", async () => {
+    await askOnce("down", { minMs: 60_000 }, () => Promise.reject(new Error("no relay"))).catch(() => {});
+    await Promise.resolve();
+    expect(isDue("down")).toBe(true);
+  });
+
+  it("an empty answer is asked again after a short wait, not the whole window", async () => {
+    const now = Date.now();
+    await askOnce("empty", { minMs: 60 * 60_000 }, async () => []);
+    expect(isDue("empty", now + 1000)).toBe(false);
+    expect(isDue("empty", now + EMPTY_RETRY_MS + 1000)).toBe(true);
+    await askOnce("found", { minMs: 60 * 60_000 }, async () => [1]);
+    expect(isDue("found", now + EMPTY_RETRY_MS + 1000)).toBe(false);
+  });
+
+  it("coming back to the app re-opens every window and keeps the answers", async () => {
+    await askOnce("feed", { minMs: 60_000 }, async () => [1]);
+    reopenWindows();
+    expect(isDue("feed")).toBe(true);
+    expect(lastAnswer("feed")).toEqual([1]);
+  });
+});
+
+describe("what is kept", () => {
+  it("keeps fewer answers than windows: an answer is a whole list", async () => {
+    for (let i = 0; i < MAX_ANSWERS + 20; i++) await askOnce(`a${i}`, { minMs: 60_000 }, async () => [i]);
+    expect(__askSizes().answers).toBeLessThanOrEqual(MAX_ANSWERS);
+    expect(__askSizes().windows).toBe(MAX_ANSWERS + 20);
+  });
+
+  it("holds a long key as its hash, and answers to it the same", async () => {
+    const long = `coords:${"30023:" + "a".repeat(64) + ":x,".repeat(1)}`.repeat(200);
+    await askOnce(long, { minMs: 60_000 }, async () => [42]);
+    expect(lastAnswer(long)).toEqual([42]);
+    expect(isDue(long)).toBe(false);
+    expect(lastAnswer(long.slice(0, -1) + "y")).toBeUndefined();
   });
 });
 
