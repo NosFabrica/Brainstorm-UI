@@ -99,3 +99,22 @@ describe("parseCalendarEvent — a list item", () => {
     expect(off.title).toBe("Hackday");
   });
 });
+
+describe("parseCalendarEvent — NIP-52 defines no status", () => {
+  const nip52 = (tags: string[][]) =>
+    ({ id: "1".repeat(64), kind: 31923, pubkey: "2".repeat(64), created_at: 1, content: "", tags }) as never;
+
+  it("a NIP-52 event's status tag is not read; its title saying so is", () => {
+    expect(
+      parseCalendarEvent(
+        nip52([
+          ["title", "Meetup"],
+          ["status", "cancelled"],
+        ]),
+      ).cancelled,
+    ).toBe(false);
+    const off = parseCalendarEvent(nip52([["title", "Cancelled: Meetup"]]));
+    expect(off.cancelled).toBe(true);
+    expect(off.title).toBe("Meetup");
+  });
+});

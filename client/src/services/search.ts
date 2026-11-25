@@ -2283,7 +2283,12 @@ export interface EventRsvps {
   going: number;
   /** Their pubkeys, newest answer first — the faces on the card. */
   faces: string[];
+  /** Everyone going, newest answer first: what a lens counts ("K you trust"). */
+  people: string[];
 }
+
+/** An RSVP dated further ahead than this is not counted: a future date would pin its answer. */
+const RSVP_FUTURE_SLACK_S = 86_400;
 
 /**
  * Who is going, for a page of calendar events: NIP-52 RSVPs (kind 31925)
@@ -2303,7 +2308,7 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
         if (msg.type === "EVENT" && msg.event) {
           const ev = msg.event;
           const addr = ev.tags.find((t) => t[0] === "a" && wanted.has(t[1]))?.[1];
-          if (!addr) return;
+          if (!addr || ev.created_at > Date.now() / 1000 + RSVP_FUTURE_SLACK_S) return;
           const status = (ev.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase();
           const people = latest.get(addr) ?? new Map();
           const known = people.get(ev.pubkey);
@@ -2324,7 +2329,12 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
         const going = [...people.entries()]
           .filter(([, v]) => v.status === "accepted")
           .sort((a, b) => b[1].at - a[1].at);
-        if (going.length) out.set(addr, { going: going.length, faces: going.slice(0, 6).map(([pk]) => pk) });
+        if (going.length)
+          out.set(addr, {
+            going: going.length,
+            faces: going.slice(0, 6).map(([pk]) => pk),
+            people: going.map(([pk]) => pk),
+          });
       }
       resolve(out);
     }

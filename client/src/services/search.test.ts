@@ -3089,8 +3089,20 @@ describe("fetchEventRsvps", () => {
     subject.next(frame(rsvp("r5", B, "4".repeat(64), "accepted", 140)));
     subject.next(EOSE);
     const byEvent = await pending;
-    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)] });
-    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)] });
+    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)], people: ["1".repeat(64)] });
+    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)], people: ["4".repeat(64)] });
+  });
+
+  it("ignores an RSVP dated more than a day ahead: a future date would pin its answer", async () => {
+    const { subject } = controllable();
+    const A = "31923:" + "a".repeat(64) + ":later";
+    const pending = fetchEventRsvps([A]);
+    await tick();
+    const now = Math.floor(Date.now() / 1000);
+    subject.next(frame(rsvp("f1", A, "1".repeat(64), "accepted", now + 3 * 86_400)));
+    subject.next(frame(rsvp("f2", A, "2".repeat(64), "accepted", now)));
+    subject.next(EOSE);
+    expect((await pending).get(A)).toEqual({ going: 1, faces: ["2".repeat(64)], people: ["2".repeat(64)] });
   });
 
   it("asks nothing for an empty page", async () => {

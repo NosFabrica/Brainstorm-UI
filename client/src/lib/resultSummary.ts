@@ -388,6 +388,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       body: cal.summary ? markdownExcerpt(cal.summary) : null,
       image: isHttp(cal.image) ? cal.image : base.image,
       facts: [
+        cal.cancelled ? "Cancelled" : null,
         cal.startSec ? formatEventDate(cal.startSec, cal.isDateOnly) : null,
         cal.location ? shortPlace(cal.location) : null,
       ].filter((f): f is string => !!f),
