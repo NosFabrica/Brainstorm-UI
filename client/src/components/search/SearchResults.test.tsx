@@ -1165,6 +1165,25 @@ describe("SearchResults", () => {
     // card's corner was squeezing titles to "Kansas City Sovereign…" on a
     // phone, where the event page has the real button: it hides below sm and
     // the title takes the width.
+    // A date-only event (31922) today starts at local midnight, before now: it is today's, not ongoing.
+    it("a date-only event today is filed under Today, not Ongoing", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="raystown" pov="nosfabrica" />);
+      const pk = "c".repeat(64);
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const fair = ev("e-fair", 31922, pk, "", [
+        ["d", "fair"],
+        ["title", "County Fair"],
+        ["start", today],
+      ]);
+      emit({ hits: [{ event: fair, author: author(pk, "Raystown Events"), rank: null }], eose: true, timeMs: 120 });
+      await screen.findByTestId("event-card-e-fair");
+      const [day] = screen.getAllByTestId(/^event-day-/);
+      expect(day.getAttribute("data-testid")).toBe(`event-day-${today}`);
+      expect(day).toHaveTextContent("Today");
+    });
+
     it('an event already running leads Upcoming under "Ongoing", and phones give the title its width', async () => {
       setUrlTab("events");
       render(<SearchResults query="raystown" pov="nosfabrica" />);

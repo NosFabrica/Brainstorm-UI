@@ -2572,6 +2572,8 @@ export const SearchResults = memo(function SearchResults({
     if (tab !== "events") return out;
     let last: string | null = null;
     const nowSec = Math.floor(Date.now() / 1000);
+    // A date-only event starts at local midnight: begun before today, not before now, is running.
+    const todaySec = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
     for (const row of displayHits) {
       if (row.hit.event.kind === CALENDAR_KIND) {
         if (last === "calendars") continue;
@@ -2583,7 +2585,7 @@ export const SearchResults = memo(function SearchResults({
       const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
       // Already running — a conference on its second day, a walk series that
       // started last week — is not a date to lead Upcoming with; it is "Ongoing".
-      if (d && cal.startSec < nowSec && !isOver(cal) && effectiveWhen !== "past") {
+      if (d && cal.startSec < (cal.isDateOnly ? todaySec : nowSec) && !isOver(cal) && effectiveWhen !== "past") {
         if (last === "ongoing") continue;
         last = "ongoing";
         out.set(row.hit.event.id, { key: "ongoing", startSec: 0, label: "Ongoing" });
