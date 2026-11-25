@@ -8,6 +8,7 @@ import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
 import { RemoteAccount } from "@/accounts/remote-signer";
 import { BrainstormExtensionAccount, EXTENSION_WRAP_DEADLINE_MS } from "@/accounts/extension";
+import { AmberAccount, AMBER_WRAP_DEADLINE_MS } from "@/accounts/amber";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
@@ -92,11 +93,17 @@ function openerFor(account: BrainstormAccount) {
  *   asked, showing "unreachable" and losing the extension's verdict on the first.
  *   Its deadline covers the signer's own worst case, so the signer always decides
  *   first; never given up early.
+ * - Amber: one at a time too — each request is an app switch, and Amber answers one
+ *   at a time. No deadline of the engine's: Amber's own, per request, starts when the
+ *   request is made (accounts/amber), so nothing is given up while it waits its turn
+ *   and then asked for anyway.
  */
 export function engineOptionsFor(account: BrainstormAccount) {
   if (account instanceof RemoteAccount) return { concurrency: REMOTE_DECRYPT_CONCURRENCY, dropDetection: true };
   if (account instanceof BrainstormExtensionAccount)
     return { concurrency: 1, dropDetection: false, decryptTimeoutMs: EXTENSION_WRAP_DEADLINE_MS };
+  if (account instanceof AmberAccount)
+    return { concurrency: 1, dropDetection: false, decryptTimeoutMs: AMBER_WRAP_DEADLINE_MS };
   return { dropDetection: false };
 }
 

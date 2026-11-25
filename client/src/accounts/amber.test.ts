@@ -54,3 +54,22 @@ describe("an Amber that never answers", () => {
     await settled;
   });
 });
+
+describe("a request Amber was too late for", () => {
+  // Timed out, the library still held it as pending: the next return to the app read
+  // the clipboard into a request nobody was waiting for any more.
+  it("is let go of, so a late answer is read into nothing", async () => {
+    vi.useFakeTimers();
+    const signer = new TimedAmberSigner();
+    vi.spyOn(window, "open").mockReturnValue(null);
+    const rejectPending = vi.spyOn(signer, "rejectPending");
+
+    const waiting = signer.nip44Decrypt("a".repeat(64), "ciphertext");
+    const settled = expect(waiting).rejects.toThrow(/Amber didn't answer/);
+    await vi.advanceTimersByTimeAsync(AMBER_TIMEOUT_MS + 1_000);
+    await settled;
+
+    // Once when the request was made (the library's own), once when it ran out.
+    expect(rejectPending).toHaveBeenCalledTimes(2);
+  });
+});

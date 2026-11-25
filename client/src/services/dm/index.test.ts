@@ -39,7 +39,8 @@ vi.mock("@/accounts", () => ({
   },
 }));
 
-const { startDirectMessages, dmEngine } = await import("./index");
+const { startDirectMessages, dmEngine, engineOptionsFor } = await import("./index");
+const { AmberAccount } = await import("@/accounts/amber");
 
 const PK = "a".repeat(64);
 const row = (id: string, pubkey = PK): Row => ({ id, pubkey, signEvent: async () => Promise.reject() as never });
@@ -74,5 +75,17 @@ describe("startDirectMessages", () => {
     stop();
     expect(engines[0].stop).toHaveBeenCalledTimes(1);
     expect(dmEngine()).toBeNull();
+  });
+});
+
+describe("opening wraps through Amber", () => {
+  // Every request is an app switch of up to a minute. Two at a time, the second sat in
+  // the account's queue behind the first's two switches, ran out the 45s wrap deadline
+  // before Amber was ever asked, and was asked anyway once its turn came.
+  it("asks one wrap at a time, and never gives one up before Amber's own deadline does", () => {
+    const amber = Object.create(AmberAccount.prototype);
+    const options = engineOptionsFor(amber);
+    expect(options).toMatchObject({ concurrency: 1, dropDetection: false });
+    expect(options.decryptTimeoutMs).toBe(Number.POSITIVE_INFINITY);
   });
 });
