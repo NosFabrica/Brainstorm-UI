@@ -399,9 +399,40 @@ describe("the rest of the activities", () => {
       ),
     ).toMatchObject({ word: "Not going", freeBusy: null });
     expect(readRsvp(ev(31925, [["status", "whatever"]]))).toMatchObject({ status: null, word: "Replied" });
+    // NIP-52: the `a` is a 31922 or 31923; an address of any other kind is no appointment.
+    expect(
+      readRsvp(
+        ev(31925, [
+          ["a", `30023:${ALICE}:essay`],
+          ["a", appt],
+          ["status", "accepted"],
+        ]),
+      ).appointment,
+    ).toBe(appt);
+    expect(
+      readRsvp(
+        ev(31925, [
+          ["a", `30023:${ALICE}:essay`],
+          ["status", "accepted"],
+        ]),
+      ).appointment,
+    ).toBeNull();
   });
 
-  it("a follow list (3): the people each once, and followed hashtags", () => {
+  // NIP-56: the type is the 3rd entry of the `e`, `p` or `x` tag reported.
+  it("a report of a blob (1984): its type from the `x`, the event that carries it from the `e`", () => {
+    const r = readReport(
+      ev(1984, [
+        ["x", "f".repeat(64), "malware"],
+        ["e", NOTE],
+        ["p", ALICE],
+      ]),
+    );
+    expect(r).toMatchObject({ reason: "malware", event: { id: NOTE }, person: ALICE });
+  });
+
+  // NIP-02 defines only `p` tags: a `t` is no followed hashtag.
+  it("a follow list (3): the people each once, and nothing else", () => {
     expect(
       readFollows(
         ev(3, [
@@ -412,7 +443,7 @@ describe("the rest of the activities", () => {
           ["t", "bitcoin"],
         ]),
       ),
-    ).toEqual({ people: [ALICE, PAYER], hashtags: ["bitcoin"] });
+    ).toEqual({ people: [ALICE, PAYER] });
   });
 
   it("targetsOf skips what is not an event or an address", () => {
@@ -691,10 +722,10 @@ describe("labels", () => {
         ["l", "funny"],
       ]),
     );
+    // NIP-32: no mark is `ugc`, so a bare "funny" is the `ugc` one again.
     expect(l.labels).toEqual([
       { value: "funny", namespace: "ugc" },
       { value: "funny", namespace: "com.example" },
-      { value: "funny", namespace: null },
     ]);
   });
 });

@@ -55,7 +55,11 @@ export interface ZapRequest {
   content: string;
   /** Its tags, string ones only. */
   tags: string[][];
-  /** `anon` (NIP-57): signed by a throwaway key, so it names nobody. */
+  /**
+   * `anon`: signed by a throwaway key, so it names nobody. Not in NIP-57's text
+   * (private zaps were a proposal); read because clients write it for an anonymous zap,
+   * and it only ever makes a payer less named, never more.
+   */
   anonymous: boolean;
   /**
    * Signed, a 9734, and about what the receipt says it is about: the same set
