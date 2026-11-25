@@ -5,6 +5,7 @@ import { TrustedListMembers } from "./TrustedListMembers";
 import { Chip } from "@/components/ui/chip";
 import { StatTile } from "@/components/ui/stat-tile";
 import type { Tone } from "@/lib/tones";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import type { TrustedListRunData, TrustedListTagResult } from "@/services/api";
 
 const STATUS: Record<TrustedListTagResult["status"], { label: string; tone: Tone }> = {
@@ -30,6 +31,13 @@ const EMPTY: Record<NonNullable<TrustedListRunData["empty_reason"]>, { title: st
 };
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** What a list of things holds (its `tagging-target`): a kind in words, else the list header's name. */
+function targetWord(t: TrustedListTagResult): string | null {
+  const target = t.tagging_target?.trim();
+  if (!target || t.kind === 30392) return null;
+  return /^\d+$/.test(target) ? kindTypeLabel(Number(target)) : target;
+}
 
 /** What one run did for one observer: the counts, then every list it touched. */
 export function TrustedListRunResult({ run, observerName }: { run: TrustedListRunData; observerName: string }) {
@@ -68,6 +76,16 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
             >
               <span className="min-w-0 truncate text-sm font-medium text-slate-900 dark:text-slate-100" title={t.d_tag}>
                 {t.slug}
+                {/* A list of things says what was tagged: "espresso · Books". */}
+                {targetWord(t) && (
+                  <span
+                    className="font-normal text-slate-500 dark:text-slate-400"
+                    data-testid={`trusted-list-target-${t.slug}`}
+                  >
+                    {" "}
+                    · {targetWord(t)}
+                  </span>
+                )}
               </span>
               <Chip tone={STATUS[t.status].tone} size="sm">
                 {STATUS[t.status].label}
@@ -102,6 +120,7 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
                   observer={run.observer}
                   signingPubkey={run.signing_pubkey}
                   dTag={t.d_tag}
+                  kind={t.kind}
                   testId={`trusted-list-members-${t.slug}`}
                 />
               )}

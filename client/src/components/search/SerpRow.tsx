@@ -9,8 +9,13 @@
  */
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { CompromisedMark } from "@/components/compromised/CompromisedMark";
-import { ListCard } from "@/components/search/cards";
+import { EventCard, ListCard } from "@/components/search/cards";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { GIT_REPLY_KIND, GIT_STATUS_KIND_SET, REPO_STATE_KIND } from "@/lib/gitEvents";
+import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
+import { RELEASE_KIND } from "@/lib/release";
+import { GitStatusCard, ReleaseCard, RepoStateCard } from "@/components/search/kindCards";
+import { CALENDAR_EVENT_KINDS } from "@/lib/embedShape";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { createContext, memo, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
@@ -44,7 +49,6 @@ import { summaryOf } from "@/lib/resultSummary";
 import { VOICE_KINDS, embedAudioUrl } from "@/lib/embedShape";
 import { mediaItemsOf } from "@/lib/mediaKind";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
-import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { analyzeNote } from "@/lib/noteRefs";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { ProfileLite } from "@/hooks/useNoteRefs";
@@ -550,8 +554,31 @@ function SerpRowBody(props: SerpRowProps) {
   // "Structured data". It is a people list — drawn as one, with its scores.
   // A bookmark set has no words of its own, or only sealed ones: its card
   // says what it holds and shows the first few.
+  // Every Trusted List (30392–30395) the same way: the lists of things are ITEM_LIST_KINDS.
   if (props.event.kind === TRUSTED_PEOPLE_KIND || ITEM_LIST_KINDS.has(props.event.kind))
     return <ListCard event={props.event} author={props.author} score={props.score} />;
+  // A NIP-34 status or repo state, or a release, says its meaning in its tags: its card says it.
+  const typed = { event: props.event, author: props.author, score: props.score };
+  if (GIT_STATUS_KIND_SET.has(props.event.kind)) return <GitStatusCard {...typed} />;
+  if (props.event.kind === REPO_STATE_KIND) return <RepoStateCard {...typed} />;
+  if (props.event.kind === RELEASE_KIND) return <ReleaseCard {...typed} />;
+  // A legacy NIP-34 reply is a comment that names its kind: a bare row of its words says nothing of git.
+  if (props.event.kind === GIT_REPLY_KIND)
+    return (
+      <EmbeddedNoteCard
+        event={props.event}
+        author={
+          props.author
+            ? { name: props.author.name, display_name: props.author.displayName, picture: props.author.picture }
+            : undefined
+        }
+        href={eventPath(props.event)}
+        trustScore01={props.score}
+      />
+    );
+  // A dated NIP-52 event is its date first: the card the Events tab draws, its tile leading.
+  if (CALENDAR_EVENT_KINDS.has(props.event.kind) && props.event.tags.some((t) => t[0] === "start" && t[1]))
+    return <EventCard {...typed} dateTile rsvp={false} />;
   // A web bookmark is one link with its saver's words: the page's row, not a list of nothing.
   const bookmark = props.event.kind === WEB_BOOKMARK_KIND ? webBookmarkOf(props.event) : null;
   if (bookmark) return <WebBookmarkRow {...props} bookmark={bookmark} />;

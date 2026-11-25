@@ -2926,6 +2926,27 @@ describe("fetchGitStatuses", () => {
     expect(statuses.has(quiet)).toBe(false);
   });
 
+  it("reads the item from the e marked root, and a 1631's reply-marked revision, never another e (NIP-34)", async () => {
+    const { subject } = controllable();
+    const issue = "1".repeat(64),
+      revision = "2".repeat(64),
+      mentioned = "3".repeat(64);
+    const pending = fetchGitStatuses([issue, revision, mentioned]);
+    await tick();
+    const merged = status("s1", 1631, issue, 100);
+    merged.tags.push(["e", revision, "", "reply"], ["e", mentioned]);
+    const closed = status("s2", 1632, issue, 90);
+    closed.tags.push(["e", mentioned, "", "reply"]);
+    subject.next(frame(merged));
+    subject.next(frame(closed));
+    subject.next(EOSE);
+    const statuses = await pending;
+    expect(statuses.get(issue)).toEqual({ kind: 1631, at: 100 });
+    expect(statuses.get(revision)).toEqual({ kind: 1631, at: 100 });
+    // Unmarked, or a revision of a status that is not 1631: names nothing.
+    expect(statuses.has(mentioned)).toBe(false);
+  });
+
   it("asks nothing for an empty page", async () => {
     controllable();
     expect((await fetchGitStatuses([])).size).toBe(0);
@@ -3090,8 +3111,20 @@ describe("fetchEventRsvps", () => {
     subject.next(frame(rsvp("r5", B, "4".repeat(64), "accepted", 140)));
     subject.next(EOSE);
     const byEvent = await pending;
-    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)] });
-    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)] });
+    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)], people: ["1".repeat(64)] });
+    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)], people: ["4".repeat(64)] });
+  });
+
+  it("ignores an RSVP dated more than a day ahead: a future date would pin its answer", async () => {
+    const { subject } = controllable();
+    const A = "31923:" + "a".repeat(64) + ":later";
+    const pending = fetchEventRsvps([A]);
+    await tick();
+    const now = Math.floor(Date.now() / 1000);
+    subject.next(frame(rsvp("f1", A, "1".repeat(64), "accepted", now + 3 * 86_400)));
+    subject.next(frame(rsvp("f2", A, "2".repeat(64), "accepted", now)));
+    subject.next(EOSE);
+    expect((await pending).get(A)).toEqual({ going: 1, faces: ["2".repeat(64)], people: ["2".repeat(64)] });
   });
 
   it("asks nothing for an empty page", async () => {
@@ -3109,6 +3142,9 @@ describe("fetchReleases", () => {
   it("returns the app's releases newest-first, ignoring other apps", async () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
+    // An `e` names an event: a hex id (the asset's), one per release here.
+    const assetOf = (d: string) =>
+      d.endsWith("2133") ? "3".repeat(64) : d.endsWith("2132") ? "2".repeat(64) : "9".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
       ({
         id: d,
@@ -3116,7 +3152,7 @@ describe("fetchReleases", () => {
         pubkey: publisher,
         tags: [
           ["d", d],
-          ["e", `asset-${d}`],
+          ["e", assetOf(d)],
         ],
         content: `notes for ${d}`,
         created_at: at,
@@ -3143,15 +3179,51 @@ describe("fetchReleases", () => {
         version: "1.0.2133",
         at: 200,
         notes: "notes for place.poster.app@1.0.2133",
-        assetIds: ["asset-place.poster.app@1.0.2133"],
+        assetIds: ["3".repeat(64)],
       },
       {
         version: "1.0.2132",
         at: 100,
         notes: "notes for place.poster.app@1.0.2132",
-        assetIds: ["asset-place.poster.app@1.0.2132"],
+        assetIds: ["2".repeat(64)],
       },
     ]);
+  });
+
+  it("reads a NIP-82 release's version from its version tag, and a NIP-51 one by its app's a", async () => {
+    const { subject } = controllable();
+    const publisher = "b".repeat(64);
+    const pending = fetchReleases("com.example.app", publisher);
+    await tick();
+    const ev = (id: string, tags: string[][], at: number) =>
+      ({ id, kind: 30063, pubkey: publisher, tags, content: "", created_at: at, sig: "s" }) as NostrEvent;
+    subject.next(
+      frame(
+        ev(
+          "n82",
+          [
+            ["i", "com.example.app"],
+            ["version", "2.0.0-rc1"],
+            ["d", "com.example.app@2.0.0-rc1"],
+          ],
+          300,
+        ),
+      ),
+    );
+    subject.next(
+      frame(
+        ev(
+          "n51",
+          [
+            ["d", "set-1"],
+            ["a", `32267:${publisher}:com.example.app`],
+          ],
+          200,
+        ),
+      ),
+    );
+    subject.next(EOSE);
+    expect((await pending).map((r) => r.version)).toEqual(["2.0.0-rc1", "set-1"]);
   });
 
   it("resolves empty when the app has no releases", async () => {

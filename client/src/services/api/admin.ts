@@ -29,6 +29,13 @@ export interface TrustedListTagResult {
   member_count: number;
   /** Set when the list failed to publish. */
   error?: string | null;
+  /**
+   * The list's kind (brainstorm_server#128): 30392 people, 30393 notes, 30394 addressed
+   * events. Absent from servers before it: a people list.
+   */
+  kind?: number;
+  /** What a 30393/30394 lists, as its `tagging-target` tag says: a kind number or a list's header. */
+  tagging_target?: string | null;
 }
 
 /** What one run did for one observer (server PR #86, `TrustedListRunData`). */

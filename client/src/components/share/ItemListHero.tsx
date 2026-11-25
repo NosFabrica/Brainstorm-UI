@@ -129,7 +129,23 @@ function pagesOf<T>(items: T[], pages: number, size: number): T[][] {
   );
 }
 
-function NotesPage({ notes }: { notes: ListNote[] }) {
+/** A member's score on a Trusted List, above its card: what the list says of it. */
+type ScoreOf = (key: string) => number | null | undefined;
+
+function ScoreLine({ score }: { score: number | null | undefined }) {
+  if (score === null || score === undefined) return null;
+  return (
+    <span
+      className="mb-1 block text-right font-mono text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300"
+      title={`Score ${score} of 100 on this list`}
+      data-testid="item-list-score"
+    >
+      {score}
+    </span>
+  );
+}
+
+function NotesPage({ notes, scoreOf }: { notes: ListNote[]; scoreOf?: ScoreOf }) {
   const byId = useListNotes(notes);
   return (
     <>
@@ -137,6 +153,7 @@ function NotesPage({ notes }: { notes: ListNote[] }) {
         const q = byId.get(n.id);
         return (
           <li key={n.id} data-testid={`item-list-note-${n.id}`}>
+            {scoreOf && <ScoreLine score={scoreOf(n.id)} />}
             {q ? (
               <EmbeddedNoteCard
                 event={q.event}
@@ -163,7 +180,15 @@ function NotesPage({ notes }: { notes: ListNote[] }) {
   );
 }
 
-function ListNotes({ notes, noun }: { notes: ListNote[]; noun: ListNoteNoun }) {
+export function ListNotes({
+  notes,
+  noun = "note",
+  scoreOf,
+}: {
+  notes: ListNote[];
+  noun?: ListNoteNoun;
+  scoreOf?: ScoreOf;
+}) {
   const [pages, setPages] = useState(1);
   const left = notes.length - pages * NOTES_FOLD;
   // A curation set of videos or pictures holds videos or pictures (NIP-51), not notes.
@@ -173,7 +198,7 @@ function ListNotes({ notes, noun }: { notes: ListNote[]; noun: ListNoteNoun }) {
       <SectionHeader kicker={notes.length === 1 ? word : `${word}s`} />
       <ul className="space-y-2">
         {pagesOf(notes, pages, NOTES_FOLD).map((page, i) => (
-          <NotesPage key={i} notes={page} />
+          <NotesPage key={i} notes={page} scoreOf={scoreOf} />
         ))}
       </ul>
       {left > 0 && (
@@ -205,7 +230,7 @@ function AddressRow({ address }: { address: AddressRef }) {
   );
 }
 
-function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
+function AddressesPage({ addresses, scoreOf }: { addresses: AddressRef[]; scoreOf?: ScoreOf }) {
   const readable = useMemo(() => addresses.filter((a) => READER_KINDS.has(a.kind)), [addresses]);
   const { articles } = useArticlesByRefs(readable);
   const byCoord = useMemo(
@@ -223,14 +248,17 @@ function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
       {addresses.map((a) => {
         const article = byCoord.get(addrCoord(a));
         return (
-          <li key={addrCoord(a)}>{article ? <EmbeddedArticleCard event={article} /> : <AddressRow address={a} />}</li>
+          <li key={addrCoord(a)}>
+            {scoreOf && <ScoreLine score={scoreOf(addrCoord(a))} />}
+            {article ? <EmbeddedArticleCard event={article} /> : <AddressRow address={a} />}
+          </li>
         );
       })}
     </>
   );
 }
 
-function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
+export function ListAddresses({ addresses, scoreOf }: { addresses: AddressRef[]; scoreOf?: ScoreOf }) {
   const [pages, setPages] = useState(1);
   const left = addresses.length - pages * ADDRESSES_FOLD;
   // Named for what they are when they are all one thing: "Articles", "Videos".
@@ -242,7 +270,7 @@ function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
       <SectionHeader kicker={heading} />
       <ul className="space-y-2">
         {pagesOf(addresses, pages, ADDRESSES_FOLD).map((page, i) => (
-          <AddressesPage key={i} addresses={page} />
+          <AddressesPage key={i} addresses={page} scoreOf={scoreOf} />
         ))}
       </ul>
       {left > 0 && (

@@ -79,7 +79,10 @@ import {
 } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { groupPeoplePacks } from "@/lib/listGroups";
-import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { TRUSTED_ITEM_LIST_KINDS, TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { GIT_STATUS_KIND_SET, REPO_STATE_KIND } from "@/lib/gitEvents";
+import { RELEASE_KIND } from "@/lib/release";
+import { GitStatusCard, ReleaseCard, RepoStateCard } from "@/components/search/kindCards";
 import { WEB_BOOKMARK_KIND } from "@/lib/webBookmark";
 import {
   AppCard,
@@ -271,7 +274,11 @@ function recipeTopics(e: NostrEvent): string[] {
 // Lists tab (the relay holds a copy per perspective), but a `kind:` or a
 // mixed answer that meets one shows it as the people list it is. A web
 // bookmark sits on the Lists tab but is one link: its row is the page's.
-const LIST_KINDS = new Set([...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_KIND), TRUSTED_PEOPLE_KIND]);
+const LIST_KINDS = new Set([
+  ...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_KIND),
+  TRUSTED_PEOPLE_KIND,
+  ...TRUSTED_ITEM_LIST_KINDS,
+]);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
@@ -3563,6 +3570,10 @@ export const SearchResults = memo(function SearchResults({
                                 forkOf={forkOf}
                               />,
                             );
+                          // NIP-34 statuses and repo state, and releases: their own cards (components/search/kindCards).
+                          if (GIT_STATUS_KIND_SET.has(event.kind)) return wrap(<GitStatusCard {...typed} />);
+                          if (event.kind === REPO_STATE_KIND) return wrap(<RepoStateCard {...typed} />);
+                          if (event.kind === RELEASE_KIND) return wrap(<ReleaseCard {...typed} />);
                           if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
                           if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
                           if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);

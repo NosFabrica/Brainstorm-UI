@@ -7,7 +7,7 @@
  * favicons; the first link earns a metadata card when the proxy knows it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { nip19 } from "nostr-tools";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
@@ -34,8 +34,21 @@ const rsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: nu
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchEventRsvps: (addresses: string[]) => rsvpsMock(addresses),
+  fetchFromSearch: (filters: unknown[]) => calendarsMock(filters),
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
+// Who is in the reader's web of trust: the keys in `trustedKeys`.
+const trustedKeys = vi.hoisted(() => new Set<string>());
+vi.mock("@/hooks/useWotItems", () => ({
+  useWotItems: <T extends { pubkey: string }>(items: T[]) => ({
+    trusted: items.filter((i) => trustedKeys.has(i.pubkey)),
+    outside: items.filter((i) => !trustedKeys.has(i.pubkey)),
+    pending: false,
+    source: "house",
+    observer: "house",
+  }),
+}));
+const calendarsMock = vi.hoisted(() => vi.fn(async (_filters: unknown[]) => [] as unknown[]));
 
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
@@ -65,6 +78,8 @@ beforeEach(() => {
   unfurlMock.mockImplementation(() => Promise.resolve(null));
   profileMapMock.mockResolvedValue(new Map());
   rsvpsMock.mockResolvedValue(new Map());
+  calendarsMock.mockResolvedValue([]);
+  trustedKeys.clear();
 });
 
 describe("EventHero", () => {
@@ -345,3 +360,114 @@ describe("EventHero — the hosts the event names", () => {
     await waitFor(() => expect(host).toHaveTextContent("By AI Builders"));
   });
 });
+
+describe("EventHero — issue #243 (NIP-52)", () => {
+  const at = (tags: string[][], extra: Partial<typeof v4v> = {}) => ({
+    ...v4v,
+    ...extra,
+    tags: [["d", "meetup"], ["title", "Python Users Group"], ["start", String(NOW + 3 * 86_400)], ...tags],
+  });
+
+  it("maps the `g` geohash on OpenStreetMap, only once asked; without one, the place's words", () => {
+    render(
+      <EventHero
+        event={at([
+          ["location", "Downtown library"],
+          ["g", "9mudwj"],
+        ])}
+      />,
+    );
+    expect(screen.getByText("Downtown library").closest("a")?.getAttribute("href")).toContain("openstreetmap.org");
+    expect(screen.queryByTestId("event-hero-map")).toBeNull();
+    fireEvent.click(screen.getByTestId("event-hero-map-show"));
+    expect(screen.getByTestId("event-hero-map").getAttribute("src")).toContain("openstreetmap.org/export/embed.html");
+  });
+
+  it("without a picture draws its poster from its date and title, not the stock one", () => {
+    render(<EventHero event={at([])} />);
+    expect(screen.getByTestId("event-hero-drawn-poster")).toHaveTextContent("Python Users Group");
+    expect(screen.queryByTestId("event-hero-image")).toBeNull();
+  });
+
+  it("adds to the calendar from the event's own .ics record when an `r` links one", () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<EventHero event={at([["r", "https://api.eventindex.space/api/1.0/events/abc.ics"]])} />);
+    fireEvent.click(screen.getByTestId("event-hero-calendar-more"));
+    fireEvent.click(screen.getByTestId("event-hero-cal-ics"));
+    expect(open).toHaveBeenCalledWith("https://api.eventindex.space/api/1.0/events/abc.ics", "_blank", "noopener");
+    open.mockRestore();
+  });
+
+  it("a title that says Cancelled: is cancelled — the title without it, no RSVP; a status tag is not NIP-52's", () => {
+    render(
+      <EventHero
+        event={{
+          ...v4v,
+          tags: [
+            ["d", "x"],
+            ["title", "Cancelled: Hack night"],
+            ["start", String(NOW + 86_400)],
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTestId("event-hero-cancelled")).toBeInTheDocument();
+    expect(screen.getByTestId("event-hero-title")).toHaveTextContent(/^Hack night$/);
+    expect(screen.queryByTestId("event-rsvp")).toBeNull();
+    cleanupAndRender(
+      <EventHero
+        event={{
+          ...v4v,
+          tags: [
+            ["d", "y"],
+            ["title", "Hack night"],
+            ["start", String(NOW + 86_400)],
+            ["status", "cancelled"],
+          ],
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("event-hero-cancelled")).toBeNull();
+  });
+
+  it("says how many going the reader trusts, their faces first", async () => {
+    const [a, b, c] = ["a1", "b2", "c3"].map((x) => x.repeat(32));
+    trustedKeys.add(c);
+    const ev = at([]);
+    rsvpsMock.mockResolvedValue(
+      new Map([[`31923:${ev.pubkey}:meetup`, { going: 3, faces: [a, b, c], people: [a, b, c] }]]),
+    );
+    render(<EventHero event={ev} />);
+    expect(await screen.findByTestId("event-hero-guests-trusted")).toHaveTextContent("1 you trust");
+    const faces = within(screen.getByTestId("event-hero-guests")).getAllByTestId(/^event-hero-guest-/);
+    expect(faces[0].getAttribute("data-testid")).toBe(`event-hero-guest-${c}`);
+  });
+
+  it("names the calendars whose own `a` lists it, asked by #a", async () => {
+    const ev = at([]);
+    const address = `31923:${ev.pubkey}:meetup`;
+    calendarsMock.mockResolvedValue([
+      {
+        id: "e".repeat(64),
+        kind: 31924,
+        pubkey: "f".repeat(64),
+        created_at: NOW,
+        content: "",
+        sig: "",
+        tags: [
+          ["d", "pythonsd"],
+          ["title", "San Diego Python"],
+          ["a", address],
+        ],
+      },
+    ]);
+    render(<EventHero event={ev} />);
+    expect(await screen.findByTestId("event-hero-calendars")).toHaveTextContent("On San Diego Python");
+    expect(calendarsMock).toHaveBeenCalledWith([{ kinds: [31924], "#a": [address] }]);
+  });
+});
+
+function cleanupAndRender(ui: React.ReactElement) {
+  cleanup();
+  return render(ui);
+}

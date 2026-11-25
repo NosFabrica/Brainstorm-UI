@@ -41,6 +41,10 @@ import { FileHero } from "@/components/share/FileHero";
 import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
+import { GIT_STATUS_KIND_SET as GIT_STATUS_KINDS } from "@/lib/gitEvents";
+import { TRUSTED_LIST_KINDS } from "@/lib/trustedList";
+import { GitReplyHero, GitStatusHero, RepoStateHero } from "@/components/share/GitEventHero";
+import { ReleaseHero } from "@/components/share/ReleaseHero";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { TrustedListHero } from "@/components/share/TrustedListHero";
 import { ItemListHero } from "@/components/share/ItemListHero";
@@ -403,6 +407,8 @@ function EventView({
   // other apps' records that have none.
   const DEDICATED_KINDS = new Set([
     30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998,
+    // NIP-34 statuses, repo state and the legacy reply; releases; the Trusted Lists of things.
+    1622, 1630, 1631, 1632, 1633, 30618, 30063, 30393, 30394, 30395,
   ]);
   // Something for sale: a NIP-99 listing, or a NIP-15 product or auction the
   // Shop draws as one — its own page is the listing page, never the
@@ -650,9 +656,19 @@ function EventView({
                 <FileHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
+              ) : GIT_STATUS_KINDS.has(note.kind) ? (
+                // A NIP-34 status: what it set, on which issue, patch or PR.
+                <GitStatusHero event={note} />
+              ) : note.kind === 30618 ? (
+                <RepoStateHero event={note} />
+              ) : note.kind === 1622 ? (
+                // A reply from before NIP-34 moved replies to NIP-22 comments.
+                <GitReplyHero event={note} />
+              ) : note.kind === 30063 ? (
+                <ReleaseHero event={note} />
               ) : note.kind === 30000 || note.kind === 39089 || note.kind === 39092 ? (
                 <FollowSetHero event={note} />
-              ) : note.kind === 30392 ? (
+              ) : TRUSTED_LIST_KINDS.has(note.kind) ? (
                 <TrustedListHero event={note} />
               ) : note.kind === 10040 ? (
                 <DesignationHero event={note} />

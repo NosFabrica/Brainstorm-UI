@@ -56,7 +56,7 @@ import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
-import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import { TRUSTED_LIST_KINDS, TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
 import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -1213,7 +1213,7 @@ export const EventCard = memo(function EventCard({
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
   const corner =
-    rsvp && !item && !past && cal.startSec > 0 ? (
+    rsvp && !item && !past && !cal.cancelled && cal.startSec > 0 ? (
       <span className="hidden sm:inline-flex">
         <RsvpButton event={event} />
       </span>
@@ -1248,6 +1248,12 @@ export const EventCard = memo(function EventCard({
                   </span>
                 )}
               </p>
+            )}
+            {/* Called off, in the host's words (lib/calendarEvent): the title alone would hide it. */}
+            {cal.cancelled && (
+              <Chip size="sm" tone="danger" data-testid={`event-cancelled-${event.id}`}>
+                Cancelled
+              </Chip>
             )}
             <KindPill event={event} mixed={false} />
           </div>
@@ -1400,7 +1406,8 @@ export const ListCard = memo(function ListCard({
   // A Trusted List (kind 30392) is a people list that says more: each member's
   // score on the tag, best first, the tag it was built from and whose web of
   // trust ranked it — all in its tags.
-  const trusted = useMemo(() => (event.kind === TRUSTED_PEOPLE_KIND ? readTrustedList(event) : null), [event]);
+  // The family's lists of things (30393–30395) say the same provenance; their members are things.
+  const trusted = useMemo(() => (TRUSTED_LIST_KINDS.has(event.kind) ? readTrustedList(event) : null), [event]);
   const ownMembers = useMemo(
     () =>
       trusted ? trusted.members.map((m) => m.pubkey) : event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]),
@@ -1410,7 +1417,11 @@ export const ListCard = memo(function ListCard({
   const folded = !!group && group.lists > 1;
   // A folded row shows the faces most lists agree on, and counts everyone once.
   const members = folded ? group.consensus : ownMembers;
-  const otherItems = event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
+  // A Trusted List counts its member tag alone: a 30393's discovery `a` and `p` are not items.
+  const otherItems =
+    trusted && trusted.kind !== TRUSTED_PEOPLE_KIND
+      ? trusted.entries.length
+      : event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
   // A people-list (Brainstorm's pinned-tag follow sets are kind 30000) counts
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
   const isPeopleList = members.length > 0 && otherItems === 0;
