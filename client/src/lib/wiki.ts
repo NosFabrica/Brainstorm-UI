@@ -24,13 +24,34 @@ export function looksAsciiDoc(content: string): boolean {
   return ASCIIDOC_SIGNS.test(content) && !MARKDOWN_HEADING.test(content);
 }
 
+const topicLink = (text: string, topic: string) => `[${text}](/?q=${encodeURIComponent(topic)}&t=articles)`;
+
+/** The reference names a page defines (`[name]: url`), as NIP-54 matches them: case-insensitively. */
+function definedReferences(content: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of content.matchAll(/^ {0,3}\[([^\]\n]{1,512})\]:/gm)) out.add(m[1].trim().toLowerCase());
+  return out;
+}
+
 function wikilinksToMarkdown(content: string): string {
-  return content.replace(
+  const withDouble = content.replace(
     /\[\[([^\]|\n]{1,512}?)(?:\|([^\]\n]{1,512}?))?\]\]/g,
     (_m, target: string, label?: string) => {
       const topic = target.trim();
-      const text = (label ?? topic).trim();
-      return `[${text}](/?q=${encodeURIComponent(topic)}&t=articles)`;
+      return topicLink((label ?? topic).trim(), topic);
+    },
+  );
+  // NIP-54's own wikilink (Djot): a reference-style link whose reference the page never
+  // defines — `[proof of work][]`, `[lightning network][Lightning Network]` — names the
+  // article on that topic. One whose reference is defined is an ordinary link and stays.
+  if (!withDouble.includes("][")) return withDouble;
+  const defined = definedReferences(withDouble);
+  return withDouble.replace(
+    /(^|[^\]!\\])\[([^[\]\n]{1,512})\]\[([^[\]\n]{0,512})\]/g,
+    (whole, before: string, label: string, ref: string) => {
+      const topic = (ref.trim() || label).trim();
+      if (!topic || defined.has(topic.toLowerCase())) return whole;
+      return `${before}${topicLink(label.trim(), topic)}`;
     },
   );
 }
