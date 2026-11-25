@@ -25,6 +25,11 @@ export function addressOf(ev: Ev): string {
 /** NIP-01: newer wins; on a tie, the lower id. */
 const beats = (a: Ev, b: Ev) => a.created_at > b.created_at || (a.created_at === b.created_at && a.id < b.id);
 
+/** Whether `candidate` replaces `held` as the version at its address (NIP-01); anything beats nothing. */
+export function isNewerVersion(candidate: Ev, held: Ev | undefined): boolean {
+  return !held || beats(candidate, held);
+}
+
 export function newestPerAddress<T extends Ev>(events: readonly T[]): T[] {
   const byAddress = new Map<string, T>();
   for (const ev of events) {

@@ -14,12 +14,14 @@ import type { MapCategory } from "@/lib/treasureMapCards";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
+import { searchOnce } from "@/lib/searchOnce";
+import type { Filter as NostrFilter } from "applesauce-core/helpers/filter";
 import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { PUBLICATION_INDEX_KIND } from "@/lib/publication";
-import { newestPerAddress } from "@/lib/newestPerAddress";
+import { isNewerVersion, newestPerAddress } from "@/lib/newestPerAddress";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
@@ -851,8 +853,7 @@ export async function fetchLiveStreams(
   for (const event of [...fromRelays, ...fromSearch]) {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] || "";
     const coord = `${event.kind}:${event.pubkey}:${d}`;
-    const previous = byCoord.get(coord);
-    if (!previous || (event.created_at || 0) > (previous.created_at || 0)) byCoord.set(coord, event);
+    if (isNewerVersion(event, byCoord.get(coord))) byCoord.set(coord, event);
   }
   return Array.from(byCoord.values())
     .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
@@ -942,12 +943,9 @@ async function askEventsByIds(
   let pooled = new Map<string, NostrEvent>();
   const allFound = () => asking.every((id) => found.has(id) || searched.has(id) || pooled.has(id));
   const done = new Subject<void>();
+  // The search leg's events are the store's kept copies already (lib/searchOnce).
   const fromSearch = (events: Iterable<NostrEvent>, into: Map<string, NostrEvent>) => {
-    for (const event of events) {
-      // The store verifies; a copy it refuses is no answer.
-      const stored = (eventStore.add(event) as NostrEvent | null) ?? null;
-      if (stored) into.set(event.id, stored);
-    }
+    for (const event of events) into.set(event.id, event);
   };
   const others = searchBeside ? besidesSearchRelay(targetRelays) : targetRelays;
   const [fetched] = await Promise.all([
@@ -1103,62 +1101,17 @@ export function querySearchRelay(
     onEvent?: (event: NostrEvent) => void;
   } = {},
 ): Promise<{ events: NostrEvent[]; answered: boolean }> {
-  return new Promise((resolve) => {
-    let relay: ReturnType<typeof searchRelay>;
-    try {
-      relay = searchRelay();
-    } catch {
-      relay = null;
-    }
-    if (!relay) return resolve({ events: [], answered: false });
-    const events: NostrEvent[] = [];
-    let answered = false;
-    let finished = false;
-    let sub: { unsubscribe: () => void } | null = null;
-    const stopping = stop?.subscribe(() => finish());
-    const timer = setTimeout(finish, timeoutMs);
-    try {
-      // One filter goes on the wire as one filter: only a batch needs the array.
-      // The lens joins a filter's own search words ("Austin") rather than replacing them.
-      const asked = filters.map((f) => ({
-        ...f,
-        search: typeof f.search === "string" && f.search.trim() ? `${f.search.trim()} include:spam` : "include:spam",
-      }));
-      sub = relay
-        .req((asked.length === 1 ? asked[0] : asked) as Parameters<typeof relay.req>[0])
-        .subscribe((msg: { type: string; event?: NostrEvent }) => {
-          if (msg.type === "EVENT" && msg.event) {
-            // The store verifies signatures and throws on a bad one; letting
-            // that escape kills the subscription and leaves everyone sharing
-            // this request waiting out the timeout.
-            // It answers null for one it refuses (a bad signature, expired): no answer either.
-            try {
-              if (!eventStore.add(msg.event)) return;
-            } catch {
-              return;
-            }
-            events.push(msg.event);
-            onEvent?.(msg.event);
-          } else if (msg.type === "EOSE") {
-            answered = true;
-            finish();
-          } else if (msg.type === "CLOSED") finish();
-        });
-      if (finished) sub.unsubscribe();
-    } catch {
-      finish();
-    }
-    function finish() {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      stopping?.unsubscribe();
-      sub?.unsubscribe();
-      resolve({ events, answered });
-    }
-  });
+  // One filter goes on the wire as one filter: only a batch needs the array.
+  // The lens joins a filter's own search words ("Austin") rather than replacing them.
+  const asked = filters.map((f) => ({
+    ...f,
+    search: typeof f.search === "string" && f.search.trim() ? `${f.search.trim()} include:spam` : "include:spam",
+  })) as NostrFilter[];
+  // Each event through the store; what comes back is the store's kept copy (lib/searchOnce).
+  return searchOnce(asked.length === 1 ? asked[0] : asked, { timeoutMs, stop, onEvent });
 }
 
+/** Events by id from the search relay, as the store kept them (lib/searchOnce). */
 function fetchFromSearchRelay(
   ids: string[],
   timeoutMs: number,
@@ -1172,38 +1125,9 @@ function fetchFromSearchRelay(
     onEvent?: (event: NostrEvent) => void;
   } = {},
 ): Promise<NostrEvent[]> {
-  return new Promise((resolve) => {
-    let relay: ReturnType<typeof searchRelay>;
-    try {
-      relay = searchRelay();
-    } catch {
-      relay = null;
-    }
-    if (!relay) return resolve([]);
-    const events: NostrEvent[] = [];
-    let finished = false;
-    // Assigned below, after `finish` may already have run: a relay can answer synchronously.
-    let sub: { unsubscribe: () => void } | null = null;
-    const stopping = stop?.subscribe(() => finish());
-    const timer = setTimeout(finish, timeoutMs);
-    sub = relay
-      .req({ ids, search: "include:spam", limit: ids.length })
-      .subscribe((msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event) {
-          events.push(msg.event);
-          onEvent?.(msg.event);
-        } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
-      });
-    if (finished) sub.unsubscribe();
-    function finish() {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      stopping?.unsubscribe();
-      sub?.unsubscribe();
-      resolve(events);
-    }
-  });
+  return searchOnce({ ids, search: "include:spam", limit: ids.length }, { timeoutMs, stop, onEvent }).then(
+    (r) => r.events,
+  );
 }
 
 /**
@@ -1304,8 +1228,8 @@ export async function fetchAddressableEvents(
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
     const key = `${event.kind}:${event.pubkey}:${d}`;
     if (!wanted.has(key)) return;
-    const existing = result.get(key);
-    if (!existing || (event.created_at || 0) > (existing.created_at || 0)) result.set(key, event);
+    // NIP-01: newer wins, a tie goes to the lower id — not to the first relay.
+    if (isNewerVersion(event, result.get(key))) result.set(key, event);
   };
   // What the store already holds is an answer too — the relays below can only
   // replace it with something newer. It is also why a held copy never sends

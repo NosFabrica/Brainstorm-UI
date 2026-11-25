@@ -189,6 +189,15 @@ describe("fetchAddressableEvents", () => {
     const map = await fetchAddressableEvents([ptr]);
     expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toBe("edited");
   });
+
+  // NIP-01: on a tie the lower id wins — not whichever relay answered first.
+  it("two copies of the same age: the lower id wins, whichever arrived first", async () => {
+    const high = { ...isis(), id: "f".repeat(64), content: "high" };
+    const low = { ...isis(), id: "0".repeat(64), content: "low" };
+    requestAllMock.mockResolvedValueOnce([high, low]);
+    const map = await fetchAddressableEvents([ptr], ptr.relays, 6000, { askSearch: false });
+    expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toBe("low");
+  });
 });
 
 // Words in a filter's search are what it asks for; the lens joins them rather than replacing them.
