@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderWithProviders } from "@/test/utils";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 
@@ -109,5 +110,69 @@ describe("TrustedListHero", () => {
     expect(screen.getByText("0 members")).toBeInTheDocument();
     expect(screen.getByTestId("set-hero-roster-empty")).toHaveTextContent("No one is on this list yet.");
     expect(screen.queryByTestId("set-hero-roster")).toBeNull();
+  });
+});
+
+describe("TrustedListHero — lists of things (30393–30395)", () => {
+  const NOTE_A = "a1".repeat(32);
+  const NOTE_B = "b2".repeat(32);
+  const base = (kind: number, tags: string[][]): NostrEvent => ({
+    ...LIST,
+    id: `${kind}`.padEnd(64, "0"),
+    kind,
+    tags: [["d", `tl-${kind}`], ["title", "stoicism Notes"], ["observer", OBSERVER], ...tags],
+    content: '{"members":[]}',
+  });
+
+  it("a 30393 lists its e members as notes, best first, each scored — never its discovery a or p", () => {
+    renderWithProviders(
+      <TrustedListHero
+        event={base(30393, [
+          ["a", `39999:${TAG_AUTHOR}:stoicism`],
+          ["p", ALICE],
+          ["e", NOTE_B, "", "40"],
+          ["e", NOTE_A, "", "90"],
+          ["tagging-target", "1"],
+          ["truncated", "500"],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("trusted-list-count")).toHaveTextContent("2 events");
+    expect(screen.getByTestId("trusted-list-target")).toHaveTextContent("Note");
+    expect(screen.getByTestId("trusted-list-truncated")).toHaveTextContent("2 of 500 shown");
+    const notes = screen.getAllByTestId(/^item-list-note-[0-9a-f]{64}$/);
+    expect(notes.map((li) => li.getAttribute("data-testid"))).toEqual([
+      `item-list-note-${NOTE_A}`,
+      `item-list-note-${NOTE_B}`,
+    ]);
+    expect(notes[0]).toHaveTextContent("90");
+    // The observer's `p` is not a member: no roster.
+    expect(screen.queryByTestId(`roster-${ALICE}`)).toBeNull();
+  });
+
+  it("a 30395 lists its NIP-73 ids, linked where they have a home; a retracted list says so and lists nothing", () => {
+    const { unmount } = renderWithProviders(
+      <TrustedListHero
+        event={base(30395, [
+          ["i", "doi:10.1000/182", "", "70"],
+          ["i", "isbn:9780141439518"],
+        ])}
+      />,
+    );
+    const ids = screen.getAllByTestId("trusted-list-identifier");
+    expect(ids[0]).toHaveTextContent("Paper · 10.1000/182");
+    expect(ids[0].querySelector("a")).toHaveAttribute("href", "https://doi.org/10.1000/182");
+    expect(ids[1]).toHaveTextContent("Book · 9780141439518");
+    unmount();
+    renderWithProviders(
+      <TrustedListHero
+        event={base(30394, [
+          ["status", "retracted"],
+          ["a", `39999:${TAG_AUTHOR}:x`],
+        ])}
+      />,
+    );
+    expect(screen.getByTestId("trusted-list-retracted")).toBeInTheDocument();
+    expect(screen.queryByTestId("trusted-list-items")).toBeNull();
   });
 });
