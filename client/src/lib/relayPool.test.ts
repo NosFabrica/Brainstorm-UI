@@ -29,7 +29,7 @@ import { PROFILE_RELAYS, SEARCH_RELAY } from "./relays";
  * A relay on a fake socket. `answer` is what it says to any REQ: an event
  * then EOSE (an open relay), or CLOSED auth-required (a gated one).
  */
-type Script = (id: string, send: (frame: unknown[]) => void, socket: FakeSocket) => void;
+type Script = (id: string, send: (frame: unknown[]) => void, socket: FakeSocket, filters: unknown[]) => void;
 const scripts = new Map<string, Script>();
 
 class FakeSocket {
@@ -76,7 +76,7 @@ class FakeSocket {
     if (frame[0] !== "REQ") return;
     const id = frame[1] as string;
     const script = scripts.get(this.url.replace(/\/$/, ""));
-    setTimeout(() => script?.(id, reply, this), 0);
+    setTimeout(() => script?.(id, reply, this, frame.slice(2)), 0);
   }
   close() {
     this.readyState = 3;
@@ -108,8 +108,10 @@ const SLOW = "wss://slow.example";
  */
 const FLAKY = "wss://flaky.example";
 let flakyDropsLeft = 0;
-scripts.set(OPEN, (id, send) => {
-  send(["EVENT", id, EVENT]);
+/** The open relay answers in the kind it was asked for, so a read of any kind gets its one event. */
+scripts.set(OPEN, (id, send, _socket, filters) => {
+  const kind = (filters[0] as { kinds?: number[] } | undefined)?.kinds?.[0] ?? EVENT.kind;
+  send(["EVENT", id, { ...EVENT, kind }]);
   send(["EOSE", id]);
 });
 scripts.set(FLAKY, (id, send) => {
@@ -228,6 +230,70 @@ describe("the app's relay pool", () => {
     await Promise.all([read(pool), read(pool, [OPEN, DEAD]), read(pool, [OPEN, SLOW])]);
     expect(Date.now() - started).toBeGreaterThan(4500);
   }, 9000);
+});
+
+/**
+ * A relay sends whatever it likes. applesauce-relay passes every EVENT on a
+ * REQ's subscription id through, matched or not, so a relay asked for
+ * `{ authors: [me], kinds: [3] }` could answer with someone else's contact
+ * list, and the app's "newest wins" reads would take it for the user's own
+ * (services/socialActions re-signed it). The pool drops what was not asked for.
+ */
+describe("events a relay sends that the filter didn't ask for", () => {
+  const ME = "a".repeat(64);
+  const STRANGER = "b".repeat(64);
+  const LIAR = "wss://liar.example";
+  const mine = { ...EVENT, id: "3".repeat(64), kind: 3, pubkey: ME, created_at: 10 } as NostrEvent;
+  const foreign = { ...EVENT, id: "4".repeat(64), kind: 3, pubkey: STRANGER, created_at: 99 } as NostrEvent;
+  const wrongKind = { ...EVENT, id: "5".repeat(64), kind: 1, pubkey: ME, created_at: 99 } as NostrEvent;
+  scripts.set(LIAR, (id, send) => {
+    send(["EVENT", id, foreign]);
+    send(["EVENT", id, wrongKind]);
+    send(["EVENT", id, { kind: 3, pubkey: ME }]);
+    send(["EVENT", id, mine]);
+    send(["EOSE", id]);
+  });
+  const asked = { kinds: [3], authors: [ME] };
+
+  it("are dropped from a one-shot read", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(pool.request([LIAR], asked, { eventStore: null }).pipe(toArray()));
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+  }, 4000);
+
+  it("are dropped from a live subscription", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(
+      pool.subscription([LIAR], asked, { eventStore: null }).pipe(
+        filter((m) => m !== "EOSE"),
+        take(1),
+        toArray(),
+      ),
+    );
+    expect(events.map((e) => (e as NostrEvent).id)).toEqual([mine.id]);
+  }, 4000);
+
+  it("are dropped from the raw frames pool.req and relay.req hand out", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    for (const req of [pool.req([LIAR], asked), pool.relay(LIAR).req(asked, { waitForAuth: false })]) {
+      const frames = await firstValueFrom(
+        req.pipe(
+          filter((m) => m.type === "EVENT" || m.type === "EOSE"),
+          take(2),
+          toArray(),
+        ),
+      );
+      expect(frames.map((m) => (m.type === "EVENT" ? m.event.id : m.type))).toEqual([mine.id, "EOSE"]);
+    }
+  }, 4000);
+
+  it("a NIP-50 search term is the relay's to judge: an event that matches the rest of the filter is kept", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const events = await firstValueFrom(
+      pool.request([LIAR], { ...asked, search: "anything" }, { eventStore: null }).pipe(toArray()),
+    );
+    expect(events.map((e) => e.id)).toEqual([mine.id]);
+  }, 4000);
 });
 
 describe("purplepag.es, the profile index", () => {

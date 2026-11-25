@@ -29,6 +29,7 @@ import {
   type RelayOptions,
 } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
+import { matchFilters, type Filter as NostrFilter } from "applesauce-core/helpers/filter";
 import {
   EMPTY,
   Subject,
@@ -162,6 +163,46 @@ export function isAuthRequiredReason(reason: string | undefined): boolean {
 
 type ReqOptions = NonNullable<Parameters<Relay["req"]>[1]>;
 type ReqMessages = ReturnType<Relay["req"]>;
+type ReqMessage = ReqMessages extends Observable<infer M> ? M : never;
+
+/**
+ * Whether a relay's EVENT answers the filters its REQ sent. A NIP-50 `search`
+ * term is the relay's to judge — `matchFilters` ignores it — and the rest
+ * (ids, kinds, authors, tags, since/until) must hold. Never throws: a malformed
+ * event (no tags, a non-string tag) is simply not an answer.
+ */
+export function answersFilters(filters: NostrFilter[], event: unknown): boolean {
+  try {
+    const e = event as { id?: unknown; pubkey?: unknown; kind?: unknown; created_at?: unknown; tags?: unknown };
+    if (!e || typeof e.id !== "string" || typeof e.pubkey !== "string") return false;
+    if (typeof e.kind !== "number" || typeof e.created_at !== "number" || !Array.isArray(e.tags)) return false;
+    return matchFilters(filters, event as Parameters<typeof matchFilters>[1]);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Drop every EVENT the relay sent that its REQ didn't ask for. applesauce-relay
+ * passes on whatever arrives on a subscription id, so a relay asked for
+ * `{ authors: [me], kinds: [3] }` could answer with another key's contact list,
+ * and every "newest wins" read (requestNewest, pickAuthoritativeBase,
+ * fetchTrustProviderList) would take it for the user's own. The filters are the
+ * ones the library reports sending, on its OPEN frame — so a live REQ whose
+ * filters change is judged by the filters now on the wire.
+ */
+function onlyWhatWasAsked(source: ReqMessages): ReqMessages {
+  return defer(() => {
+    let asked: NostrFilter[] | undefined;
+    return source.pipe(
+      filter((message: ReqMessage) => {
+        if (message.type === "OPEN") asked = message.filters as NostrFilter[];
+        if (message.type !== "EVENT") return true;
+        return !!asked && answersFilters(asked, message.event);
+      }),
+    );
+  }) as ReqMessages;
+}
 
 /** How many times a live REQ is asked again after the relay CLOSEs it; the library's `resubscribe` shape. */
 function resubscribeCount(resubscribe: ReqOptions["resubscribe"]): number {
@@ -191,7 +232,7 @@ class ReadFirstRelay extends Relay {
     }
     const asked = this.url === SEARCH_RELAY ? withSearchToken(filters) : filters;
     if (opts?.waitForAuth) return this.liveReq(asked, opts);
-    return super.req(asked, { ...opts, waitForAuth: false }).pipe(
+    return onlyWhatWasAsked(super.req(asked, { ...opts, waitForAuth: false })).pipe(
       // A refusal the library didn't recognise still tells services/relayAuth to log in.
       tap((message) => {
         if (message.type === "CLOSED" && isAuthRequiredReason(message.reason)) this.flagAuthRequired();
@@ -246,7 +287,7 @@ class ReadFirstRelay extends Relay {
         defer(() => {
           sentLoggedIn = this.authenticated;
           closedByRelay = false;
-          return super.req(filters, { ...opts, waitForAuth: false, resubscribe: undefined });
+          return onlyWhatWasAsked(super.req(filters, { ...opts, waitForAuth: false, resubscribe: undefined }));
         }),
       ),
     );
