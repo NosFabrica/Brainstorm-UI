@@ -348,3 +348,78 @@ describe("migrateV1", () => {
     });
   });
 });
+
+/**
+ * v1 could leave a session key and a persistent plaintext key side by side. The
+ * migration took the session key, and the raw hex nsec stayed in localStorage
+ * for good: nothing read it again, and nothing deleted it.
+ */
+describe("a persistent plaintext key beside the session key", () => {
+  function heldAll(storage: StorageSeam, accounts: BrainstormAccount[]) {
+    const manager = new AccountManager<AccountMetadata>();
+    for (const account of accounts) manager.addAccount(account);
+    manager.setActive(accounts[0]);
+    return createPersistence(manager, storage).start();
+  }
+
+  it("migrates it as its own remembered account, and deletes the plaintext once it's at rest", async () => {
+    const { storage, migrate } = setup();
+    const sessionSk = generateSecretKey();
+    const persistSk = generateSecretKey();
+    storage.tab.setItem(V1_KEYS.sessionKey, bytesToHex(sessionSk));
+    storage.device.setItem(V1_KEYS.legacyPlaintextKey, bytesToHex(persistSk));
+
+    const migration = migrate()!;
+    expect(migration.account.pubkey).toBe(getPublicKey(sessionSk));
+    const [persistent] = migration.others;
+    expect(persistent.pubkey).toBe(getPublicKey(persistSk));
+    expect(persistent.metadata?.remembered).toBe(true);
+    heldAll(storage, [migration.account, ...migration.others]);
+
+    await migration.finish();
+
+    expect(storage.device.getItem(V1_KEYS.legacyPlaintextKey)).toBeNull();
+    expect(storage.tab.getItem(V1_KEYS.sessionKey)).toBeNull();
+  });
+
+  it("is one remembered account when both rows hold the same key", async () => {
+    const { storage, secretKey, migrate } = setup();
+    storage.tab.setItem(V1_KEYS.sessionKey, bytesToHex(secretKey));
+    storage.device.setItem(V1_KEYS.legacyPlaintextKey, bytesToHex(secretKey));
+
+    const migration = migrate()!;
+    expect(migration.others).toEqual([]);
+    // v1 would have brought it back after the tab closed, from the persistent row.
+    expect(migration.account.metadata?.remembered).toBe(true);
+    heldAll(storage, [migration.account]);
+
+    await migration.finish();
+
+    expect(storage.device.getItem(V1_KEYS.legacyPlaintextKey)).toBeNull();
+    expect(storage.tab.getItem(V1_KEYS.sessionKey)).toBeNull();
+  });
+
+  it("is deleted on a later boot, once v2 holds that key at rest", async () => {
+    const { storage, unlockCache, secretKey, pubkey, migrate } = setup();
+    const account = await LocalAccount.fromKey(secretKey, { unlockCache });
+    account.metadata = { remembered: true };
+    storage.device.setItem(ACCOUNTS_KEY, JSON.stringify([account.toJSON()]));
+    storage.device.setItem(V1_KEYS.legacyPlaintextKey, bytesToHex(secretKey));
+
+    expect(migrate()).toBeNull();
+
+    expect(storage.device.getItem(V1_KEYS.legacyPlaintextKey)).toBeNull();
+    expect(pubkey).toBe(account.pubkey);
+  });
+
+  it("is kept on a later boot when v2 doesn't hold that key — it is the only copy", () => {
+    const { storage, secretKey, pubkey, migrate } = setup();
+    storage.device.setItem(ACCOUNTS_KEY, JSON.stringify([{ type: "extension", pubkey: "f".repeat(64) }]));
+    storage.device.setItem(V1_KEYS.legacyPlaintextKey, bytesToHex(secretKey));
+
+    expect(migrate()).toBeNull();
+
+    expect(storage.device.getItem(V1_KEYS.legacyPlaintextKey)).toBe(bytesToHex(secretKey));
+    expect(pubkey).toBeTruthy();
+  });
+});
