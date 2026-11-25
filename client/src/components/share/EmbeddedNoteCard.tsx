@@ -3,7 +3,7 @@ import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/C
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { memo, useMemo, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { BadgeCheck, ExternalLink, MessageSquare } from "lucide-react";
+import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { contentWarningOf, revealKeyOf } from "@/lib/nip36";
@@ -31,9 +31,11 @@ import { embedShapeOf, namesItsKind, type EmbedShape } from "@/lib/embedShape";
 import { kindLabel } from "@/lib/kindLabel";
 import { EmbeddedKindCard, KIND_CARD_SHAPES, type KindCardShape } from "@/components/share/EmbeddedKindCard";
 import { EmbeddedAudio, EmbeddedPictures, EmbeddedVideo } from "@/components/share/EmbeddedMedia";
-import { Favicon } from "@/components/share/LinkPreview";
 import { contentShape } from "@/lib/contentShape";
 import { WEB_BOOKMARK_KIND, webBookmarkOf } from "@/lib/webBookmark";
+import { WebBookmarkLink } from "@/components/share/WebBookmarkHero";
+import { ChatContextLine } from "@/components/share/ChatContext";
+import { CHAT_KINDS } from "@/lib/chatMessage";
 import { ZAP_KINDS } from "@/lib/activity";
 import { readKind, who } from "@/lib/resultReaders";
 
@@ -324,6 +326,8 @@ function NoteCardBody({
           {replyTargets.length > 2 && <span>+{replyTargets.length - 2}</span>}
         </p>
       )}
+      {/* A chat message says where it was said: its channel, its stream, its group. */}
+      {!nested && CHAT_KINDS.has(event.kind) && <ChatContextLine event={event} className="mb-1" />}
       {shaped ? (
         <div data-testid="embedded-thing">
           <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100">
@@ -369,25 +373,7 @@ function NoteCardBody({
         </p>
       ) : (
         <div className="line-clamp-5 text-[14px]">
-          {bookmark && (
-            <a
-              href={bookmark.url}
-              target="_blank"
-              rel="noopener"
-              onClick={(e) => e.stopPropagation()}
-              className="mb-1 block rounded-lg border border-slate-200 bg-white px-3 py-2 no-underline transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
-              data-testid="embedded-web-bookmark"
-            >
-              <span className="flex min-w-0 items-center gap-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
-                <Favicon host={bookmark.host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
-                <span className="truncate">{bookmark.host}</span>
-                <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
-              </span>
-              <span className="mt-0.5 line-clamp-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {bookmark.title ?? bookmark.url.replace(/^https?:\/\//i, "")}
-              </span>
-            </a>
-          )}
+          {bookmark && <WebBookmarkLink bookmark={bookmark} className="mb-1" />}
           <NoteContent
             key={revealKeyOf(event)}
             content={zapWords ?? event.content}

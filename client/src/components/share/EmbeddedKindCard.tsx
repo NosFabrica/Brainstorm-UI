@@ -24,6 +24,7 @@ import {
   TrackCard,
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
+import { RelayListCard, UserStatusCard } from "@/components/search/relayStatusCards";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import type { ProfileLite } from "@/hooks/useNoteRefs";
@@ -38,7 +39,7 @@ import { SensitiveCover } from "@/components/share/SensitiveMedia";
 /** The shapes this component draws; the rest are the note card's. */
 export type KindCardShape = Extract<
   EmbedShape,
-  "thing" | "people-list" | "live" | "calendar-event" | "listing" | "app" | "repo" | "track"
+  "thing" | "people-list" | "live" | "calendar-event" | "listing" | "app" | "repo" | "track" | "relay-list" | "status"
 >;
 
 export const KIND_CARD_SHAPES: ReadonlySet<EmbedShape> = new Set<KindCardShape>([
@@ -50,6 +51,8 @@ export const KIND_CARD_SHAPES: ReadonlySet<EmbedShape> = new Set<KindCardShape>(
   "app",
   "repo",
   "track",
+  "relay-list",
+  "status",
 ]);
 
 /** The cards take a search hit's author; a quote has a profile, or only a key. */
@@ -136,6 +139,10 @@ export const EmbeddedKindCard = memo(function EmbeddedKindCard({
         return <RepoCard {...typed} counts={false} />;
       case "track":
         return <TrackCard {...typed} href={href} />;
+      case "relay-list":
+        return <RelayListCard {...typed} />;
+      case "status":
+        return <UserStatusCard {...typed} />;
     }
   })();
   return (

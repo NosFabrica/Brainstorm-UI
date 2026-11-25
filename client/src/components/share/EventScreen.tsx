@@ -76,6 +76,16 @@ import { isExpired } from "@/lib/nip40";
 import { VIDEO_KINDS, publishedAtOf } from "@/lib/nip71";
 import { HighlightHero } from "@/components/share/HighlightQuote";
 import { LiveHero } from "@/components/share/LiveHero";
+import { MeetingHero } from "@/components/share/MeetingHero";
+import { RelayListHero } from "@/components/share/RelayListHero";
+import { UserStatusHero } from "@/components/share/UserStatusHero";
+import { WebBookmarkHero } from "@/components/share/WebBookmarkHero";
+import { ChatContextLine } from "@/components/share/ChatContext";
+import { CHAT_KINDS } from "@/lib/chatMessage";
+import { liveHostOf, readMeeting } from "@/lib/liveStream";
+import { RELAY_LIST_KIND } from "@/lib/relayList";
+import { USER_STATUS_KIND } from "@/lib/userStatus";
+import { webBookmarkOf } from "@/lib/webBookmark";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
@@ -83,7 +93,7 @@ import { EntityMenu } from "@/components/share/EntityMenu";
 import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS, shareUrlFor } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent, readsAsArticle, shareUrlFor } from "@/lib/shareId";
 import { ArticleScreen, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -137,7 +147,9 @@ function ago(ts?: number): string {
 // Posts read on the note card: notes, reposts, NIP-7D threads (their title as
 // the heading), NIP-22 comments (their scope above as the thread) and polls
 // (NIP-88 and zap polls, their options and tally under the question).
-const NOTE_KINDS = new Set([1, 6, 11, 16, 1068, 1111, 6969]);
+// Chat messages too — NIP-C7 (9), NIP-28 channel (42), NIP-53 live chat (1311) —
+// under the place they were said (ChatContextLine).
+const NOTE_KINDS = new Set([1, 6, 11, 16, 1068, 1111, 6969, ...CHAT_KINDS]);
 
 /**
  * On-site event/note landing page (`/e/:nevent`) — Brainstorm's njump replacement
@@ -187,7 +199,7 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   if (note && VIDEO_KINDS.has(note.kind) && isExpired(note, Math.floor(Date.now() / 1000)))
     return <DeletedEvent expired />;
   // The kind decides, before any of the event layout's own queries run.
-  if (note && READER_KINDS.has(note.kind)) {
+  if (note && readsAsArticle(note)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
     // An address that won't encode: the event layout still shows it.
     const naddr = naddrForEvent(note, relayHints);
@@ -245,12 +257,14 @@ function EventView({
   const canTagNote = !!useActiveAccountDisplay()?.pubkey;
 
   // Live events (kind 30311) are authored by the streaming platform — the WoT
-  // row should be the streamer (the `p`-tagged host), not the platform.
+  // row should be the streamer (the `p`-tagged host), not the platform. A
+  // meeting space or meeting (30312, 30313) is its Host's too, when one is named.
   const liveHost =
     note?.kind === 30311
-      ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] ||
-        note.tags.find((t) => t[0] === "p")?.[1]
-      : undefined;
+      ? liveHostOf(note) || note.tags.find((t) => t[0] === "p")?.[1]
+      : note?.kind === 30312 || note?.kind === 30313
+        ? liveHostOf(note) || undefined
+        : undefined;
   // A zap receipt stays its signer's page: the payer it names is a claim anyone
   // could write (lib/zapRequest), so only its hero names them, and says how sure.
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
@@ -399,19 +413,25 @@ function EventView({
   // A sound (a track, an episode, a voice message) is dedicated when it has a
   // file to play: lib/audioEvent's `hasAudioHero`, since 30054/30055 also carry
   // other apps' records that have none.
+  // 10002 a relay list (RelayListHero), 30315 a user status (UserStatusHero).
   const DEDICATED_KINDS = new Set([
-    30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998,
+    30311, 32267, 1063, 30617, 30000, 39089, 39092, 30392, 10040, 30402, 31922, 31923, 39998, 9998, 10002, 30315,
   ]);
   // Something for sale: a NIP-99 listing, or a NIP-15 product or auction the
   // Shop draws as one — its own page is the listing page, never the
   // structural view of its JSON (a NIP-15 product's content is all data).
   const isListingPage = !!note && LISTING_EMBED_KINDS.has(note.kind) && parseListing(note) !== null;
+  // A NIP-53 space or meeting with a name to say; a NIP-B0 bookmark with a page to open.
+  const isMeetingPage = !!note && readMeeting(note) !== null;
+  const isWebBookmarkPage = !!note && webBookmarkOf(note) !== null;
   const renderedGenerically =
     !!note &&
     !asDictionaryItem &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
     !isListingPage &&
+    !isMeetingPage &&
+    !isWebBookmarkPage &&
     !hasAudioHero(note) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
@@ -641,6 +661,15 @@ function EventView({
                 />
               ) : note.kind === 30311 ? (
                 <LiveHero event={note} />
+              ) : isMeetingPage ? (
+                // A NIP-53 meeting space or a meeting in one: its state, its way in, its people and their roles.
+                <MeetingHero event={note} />
+              ) : note.kind === RELAY_LIST_KIND ? (
+                <RelayListHero event={note} />
+              ) : note.kind === USER_STATUS_KIND ? (
+                <UserStatusHero event={note} />
+              ) : isWebBookmarkPage ? (
+                <WebBookmarkHero event={note} />
               ) : note.kind === 32267 ? (
                 <AppHero event={note} />
               ) : note.kind === 1063 ? (
@@ -679,6 +708,7 @@ function EventView({
                 <HighlightHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <SensitiveRevealScope key={note.id}>
+                  {CHAT_KINDS.has(note.kind) && <ChatContextLine event={note} className="mb-3" />}
                   <ShareNoteCard
                     event={note}
                     profiles={profiles}

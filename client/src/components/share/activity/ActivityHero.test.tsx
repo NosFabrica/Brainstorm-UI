@@ -151,8 +151,9 @@ describe("the activity hero dispatch", () => {
 
   it("leaves every other kind to the chain it had", () => {
     expect(hasActivityHero({ kind: 1 })).toBe(false);
-    expect(hasActivityHero({ kind: 10002 })).toBe(false);
-    open(ev(10002, [["r", "wss://relay.example"]], ""));
+    expect(hasActivityHero({ kind: 10000 })).toBe(false);
+    // A mute list (10000) has no hero of its own: its tags are the page. (A relay list now has one.)
+    open(ev(10000, [["p", "2".repeat(64)]], ""));
     expect(screen.getByTestId("structural-hero")).toBeInTheDocument();
     expect(screen.getByTestId("thread-mounted")).toBeInTheDocument();
   });
