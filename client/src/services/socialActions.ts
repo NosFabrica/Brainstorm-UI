@@ -184,7 +184,9 @@ async function resolveContactBase(
   cached?: NostrEvent | null,
 ): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean; unverifiedNew: boolean }> {
   const known = knownFollowCount(pubkey);
-  const fresh = cached ?? (await fetchContactList(pubkey));
+  // Always the relays too: the caller's copy is the store's, which the device
+  // restores at boot, so it can be as old as the last visit (as for mutes).
+  const fresh = await fetchContactList(pubkey);
   const stored = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
   const published = lastPublished.get(publishedKey(3, pubkey));
   let base = newestOwn([cached, fresh, stored, published], pubkey, 3);

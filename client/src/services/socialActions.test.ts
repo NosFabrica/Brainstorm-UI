@@ -252,6 +252,16 @@ describe("the base an edit builds on", () => {
     expect(signedPubkeys()).toEqual([D, F]);
   });
 
+  /** The screen's copy is the store's, which the device restores at boot: it can be as old as the last visit. */
+  it("builds on the relays' list when it is newer than the one the screen holds", async () => {
+    relayHas.set(3, [listEvent(3, [OTHER], 200)]);
+
+    const res = await social.followUser(THEM, listEvent(3, [OTHER, D, F], 100) as never);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]);
+  });
+
   it("never builds on a list someone else signed", async () => {
     const foreign = { ...listEvent(3, [OTHER, D, F], 300), pubkey: NEWER, id: "f".repeat(64) };
 
