@@ -1591,3 +1591,81 @@ describe("coming back from the device", () => {
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("whole");
   });
 });
+
+describe("DmEngine after sign-out", () => {
+  /** A cache with the real backend's guard: a clear invalidates every guard taken before it. */
+  function clearableCache() {
+    const cache = memoryCache();
+    let epoch = 0;
+    const clear = cache.clear;
+    return Object.assign(cache, {
+      guard: () => {
+        const asked = epoch;
+        return () => asked === epoch;
+      },
+      clear: async () => {
+        epoch++;
+        await clear();
+      },
+    });
+  }
+
+  // Sign-out stops the engine, then clears the cache. A send still publishing then
+  // settled afterwards, scheduled a state write and took a fresh guard when its timer
+  // fired: the sealed outbox (the message's plaintext rumor) came back after the clear,
+  // and was resent at the next sign-in.
+  it("writes nothing back once stopped and cleared, not even a send that settles late", async () => {
+    const me = person();
+    const ana = person();
+    const cache = clearableCache();
+    const c = clock();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    let answer: (r: { ok: boolean; message?: string }) => void = () => {};
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: (relay) =>
+        relay === "wss://ana.example/" ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ ok: true }),
+    };
+    const engine = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      ...c,
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    const sending = engine.send(roomKey([me.pubkey, ana.pubkey]), "a secret");
+    await settle();
+
+    engine.stop();
+    await settle();
+    await cache.clear();
+    answer({ ok: false, message: "error: down" });
+    await sending;
+    await settle();
+    c.flush();
+    await settle();
+
+    expect(cache.st.size).toBe(0);
+    expect(cache.rows.size).toBe(0);
+  });
+
+  it("drops its own stop-time flush when the clear came first", async () => {
+    const me = person();
+    const ana = person();
+    const cache = clearableCache();
+    const c = clock();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hello", NOW - 60));
+    const engine = new DmEngine(me.account(), { ...net, ...c, cache, sealer: plainSealer, now: () => NOW });
+    await engine.start();
+    await settle();
+    await cache.clear();
+    engine.stop();
+    await settle();
+    expect(cache.st.size).toBe(0);
+    expect(cache.rows.size).toBe(0);
+  });
+});

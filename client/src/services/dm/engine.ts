@@ -334,6 +334,12 @@ export class DmEngine {
   private readonly listeners = new Set<() => void>();
   private snap: DmEngineState | null = null;
   private stopped = false;
+  /**
+   * Whether the device cache is still this engine's to write: taken once, when the
+   * engine starts, so a clear (sign-out) after that ends every write it would make —
+   * its stop-time flush, and a send settling after it stopped.
+   */
+  private readonly cacheLive: () => boolean;
 
   constructor(
     private readonly account: DmAccount,
@@ -343,6 +349,7 @@ export class DmEngine {
     this.store = new DmStore(this.me);
     this.now = deps.now ?? (() => Math.floor(Date.now() / 1000));
     this.cache = deps.cache ?? null;
+    this.cacheLive = this.cache?.guard?.() ?? (() => true);
     this.maxConcurrency = deps.concurrency ?? 2;
   }
 
@@ -419,7 +426,7 @@ export class DmEngine {
     const clearRepeat = this.deps.clearRepeating ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     if (this.ticker !== undefined) clearRepeat(this.ticker);
     this.flushWrites();
-    this.persistState();
+    this.persistState({ final: true });
     this.changed();
     this.listeners.clear();
   }
@@ -859,7 +866,7 @@ export class DmEngine {
     }
     const rows = this.writes;
     this.writes = [];
-    if (rows.length && this.cache) void this.cache.putWraps(rows).catch(() => {});
+    if (rows.length && this.cache && this.cacheLive()) void this.cache.putWraps(rows).catch(() => {});
   }
 
   private async keepOpened(message: DmMessage) {
@@ -885,7 +892,7 @@ export class DmEngine {
   }
 
   private scheduleState() {
-    if (!this.cache || this.stateTimer !== undefined) return;
+    if (!this.cache || this.stopped || this.stateTimer !== undefined) return;
     const set = this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.stateTimer = set(() => {
       this.stateTimer = undefined;
@@ -895,13 +902,13 @@ export class DmEngine {
 
   /**
    * Writes go one after another, so a slow seal can't land an older state over
-   * a newer one; and a write asked for before sign-out cleared the cache is
-   * dropped, not replayed into the next account's session.
+   * a newer one; and nothing is written once sign-out has cleared the cache
+   * (`cacheLive`), not replayed into the next account's session. Once stopped,
+   * only stop's own flush writes.
    */
-  private persistState() {
-    if (!this.cache) return;
+  private persistState({ final = false }: { final?: boolean } = {}) {
+    if (!this.cache || (this.stopped && !final) || !this.cacheLive()) return;
     const cache = this.cache;
-    const stillValid = cache.guard?.();
     const base = {
       owner: this.me,
       lastSeen: this.lastSeen,
@@ -911,7 +918,7 @@ export class DmEngine {
     this.persistChain = this.persistChain
       .then(async () => {
         const outbox = await this.sealOutbox().catch(() => undefined);
-        if (stillValid && !stillValid()) return;
+        if (!this.cacheLive()) return;
         await cache.putState({ ...base, ...(outbox ? { outbox } : {}) });
       })
       .catch(() => {});
