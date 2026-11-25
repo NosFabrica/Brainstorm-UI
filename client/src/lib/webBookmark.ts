@@ -1,7 +1,8 @@
 /**
  * A NIP-B0 web bookmark (kind 39701): a link someone saved, with their words.
  * The page is the `d` tag — the URL without its scheme ("alice.blog/post") —
- * the name is the `title` tag and the description is the content. It is one
+ * the name is the `title` tag, the description is the content, `t` its topics
+ * and `published_at` when it was first published. It is one
  * link, not a list: drawn as a link row, never as a list card with "0 items".
  */
 type EventLike = { kind: number; tags: string[][]; content: string };
@@ -16,6 +17,8 @@ export interface WebBookmark {
   title: string | null;
   description: string;
   topics: string[];
+  /** NIP-B0 `published_at`: when the bookmark was first published, in unix seconds. */
+  publishedAt?: number;
 }
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
@@ -34,7 +37,9 @@ export function webBookmarkOf(ev: EventLike): WebBookmark | null {
     return null;
   }
   if (!host) return null;
+  const published = Number(ev.tags.find((t) => t[0] === "published_at")?.[1]?.trim());
   return {
+    publishedAt: Number.isSafeInteger(published) && published > 0 ? published : undefined,
     url,
     host,
     title: ev.tags.find((t) => t[0] === "title")?.[1]?.trim() || null,

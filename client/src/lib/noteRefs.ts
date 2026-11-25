@@ -357,6 +357,15 @@ export function replyRefs(ev: MinimalEvent): ReplyRefs {
   if (NIP22_KINDS.has(ev.kind)) return commentRefs(ev);
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
+  // NIP-28: a channel message's root `e` is its kind-40 channel, not a message it answers — the
+  // page names the channel above the message (ChatContextLine). Only its `reply` is a parent;
+  // unmarked, by NIP-10's deprecated positional scheme, a last `e` after the first.
+  if (ev.kind === 42) {
+    const markedReply = threadTags.find((t) => t[3] === "reply");
+    const anyMarked = threadTags.some((t) => t[3] === "root" || t[3] === "reply");
+    const reply = anyMarked ? markedReply : threadTags.length > 1 ? threadTags.at(-1) : undefined;
+    return reply ? { rootId: reply[1], parentId: reply[1] } : {};
+  }
   if (threadTags.length === 0) {
     // A chat reply names its parent with `q` (NIP-C7); chat has no deeper root.
     const chat = chatParentOf(ev);
