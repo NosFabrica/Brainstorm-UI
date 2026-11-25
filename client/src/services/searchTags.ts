@@ -61,7 +61,18 @@ export interface Lens {
   userPubkey?: string;
 }
 
-const memo = new Map<string, Promise<SearchTag[]>>();
+/** How long a whole answer stands: the relay recomputes its lists, and a tag gains people. */
+const MEMO_TTL_MS = 10 * 60 * 1000;
+/** How many answers are held: every word typed is a key, so the oldest make way. */
+const MEMO_CAP = 200;
+
+/**
+ * Answers by question. An ask in flight is held too, so a second reader joins it; once it ends
+ * it stays only if it was whole (every ask reached EOSE). A failure or a deadline's partial is
+ * dropped, so the next search asks again. Keyed by the viewer for their own perspective, so an
+ * account switch never reads another viewer's answer.
+ */
+const memo = new Map<string, { pending: Promise<SearchTag[]>; expires: number }>();
 
 /** Drop what this session has learned — tests, and nothing else. */
 export function forgetSearchTags(): void {
@@ -69,8 +80,8 @@ export function forgetSearchTags(): void {
 }
 
 /**
- * The tags `query` matches, through the reader's perspective. Asked once per
- * session for the same words, perspective and form; never rejects — a search
+ * The tags `query` matches, through the reader's perspective. Asked once a
+ * while for the same words, perspective and form; never rejects — a search
  * with no tag row beats a broken one.
  */
 export function fetchSearchTags(query: string, lens: Lens, opts: { members?: boolean } = {}): Promise<SearchTag[]> {
@@ -78,36 +89,64 @@ export function fetchSearchTags(query: string, lens: Lens, opts: { members?: boo
   if (words.length < 2) return Promise.resolve([]);
   const members = opts.members === true;
   const key = `${lens.pov === "mywot" ? (lens.userPubkey ?? "") : "house"}|${members ? "people" : "lists"}|${words.toLowerCase()}`;
-  let pending = memo.get(key);
-  if (!pending) {
-    pending = ask(words, lens, members).catch(() => []);
-    memo.set(key, pending);
-  }
-  return pending;
+  const held = memo.get(key);
+  if (held && held.expires > Date.now()) return held.pending;
+  if (held) memo.delete(key);
+  const entry = { pending: Promise.resolve<SearchTag[]>([]), expires: Infinity };
+  entry.pending = ask(words, lens, members)
+    .then(({ tags, whole }) => {
+      if (memo.get(key) === entry) {
+        if (whole) entry.expires = Date.now() + MEMO_TTL_MS;
+        else memo.delete(key);
+      }
+      return tags;
+    })
+    .catch(() => {
+      if (memo.get(key) === entry) memo.delete(key);
+      return [];
+    });
+  memo.set(key, entry);
+  // A Map iterates in insertion order: the first key is the oldest answer.
+  while (memo.size > MEMO_CAP) memo.delete(memo.keys().next().value!);
+  return entry.pending;
 }
 
-async function ask(words: string, lens: Lens, members: boolean): Promise<SearchTag[]> {
+async function ask(words: string, lens: Lens, members: boolean): Promise<{ tags: SearchTag[]; whole: boolean }> {
   const kinds = members ? [0, TAG_LIST_KIND] : [TAG_LIST_KIND];
   const house: Lens = { pov: "nosfabrica" };
   const own = lens.pov === "mywot" && lens.userPubkey ? lens.userPubkey : null;
   // Through the reader's own perspective, the house's is asked beside it: a tag the reader has no
   // list of their own for is the house's, so curating one tag doesn't drop the rest (the team,
   // 2026-10-29). Their own list, where they have one, is theirs.
-  const [houseObserver, ownHits, houseHits] = await Promise.all([
+  const [houseObserver, ownAnswer, houseAnswer] = await Promise.all([
     resolveHouseObserver(),
-    own ? collect(words, lens, kinds) : Promise.resolve([]),
-    collect(words, house, kinds),
+    own ? collectAnswer(words, lens, kinds) : Promise.resolve({ hits: [], whole: true }),
+    collectAnswer(words, house, kinds),
   ]);
-  const theirs = own ? tagsFromHits(ownHits, own) : [];
-  const houses = houseObserver ? tagsFromHits(houseHits, houseObserver) : [];
+  const theirs = own ? tagsFromHits(ownAnswer.hits, own) : [];
+  const houses = houseObserver ? tagsFromHits(houseAnswer.hits, houseObserver) : [];
   const held = new Set(theirs.map((t) => t.key));
-  return [...theirs, ...houses.filter((t) => !held.has(t.key))];
+  return {
+    tags: [...theirs, ...houses.filter((t) => !held.has(t.key))],
+    whole: ownAnswer.whole && houseAnswer.whole && !!houseObserver,
+  };
 }
 
 /** Everything the relay sends up to EOSE, an error or the deadline. */
 export function collect(words: string, lens: Lens, kinds: number[], limit = LIST_LIMIT): Promise<SearchHit[]> {
+  return collectAnswer(words, lens, kinds, limit).then((a) => a.hits);
+}
+
+/** The same, and whether it is the whole answer: the relay reached EOSE, with no error and in time. */
+function collectAnswer(
+  words: string,
+  lens: Lens,
+  kinds: number[],
+  limit = LIST_LIMIT,
+): Promise<{ hits: SearchHit[]; whole: boolean }> {
   return new Promise((resolve) => {
     let latest: SearchHit[] = [];
+    let whole = false;
     let done = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancel: (() => void) | undefined;
@@ -116,13 +155,14 @@ export function collect(words: string, lens: Lens, kinds: number[], limit = LIST
       done = true;
       clearTimeout(timer);
       cancel?.();
-      resolve(latest);
+      resolve({ hits: latest, whole });
     }
     cancel = searchStream(
       words,
       { tab: "people", pov: lens.pov, userPubkey: lens.userPubkey, kinds, limit },
       (snapshot: SearchSnapshot) => {
         latest = snapshot.hits;
+        if (snapshot.eose && !snapshot.error) whole = true;
         if (snapshot.eose || snapshot.error) finish();
       },
     );

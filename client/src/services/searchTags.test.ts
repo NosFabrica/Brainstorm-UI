@@ -1,13 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchHit, SearchParams, SearchSnapshot } from "@/services/search";
 
 // The search relay is the boundary: what it is asked, and what it sends back.
 const asked: Array<{ query: string; params: SearchParams }> = [];
 let answer: SearchHit[] = [];
+/** How the relay ends the ask: at EOSE, with an error, or not at all (the deadline ends it). */
+let ending: "eose" | "error" | "silent" = "eose";
 vi.mock("@/services/search", () => ({
   searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
     asked.push({ query, params });
-    onSnapshot({ hits: answer, eose: true, timeMs: 1, error: null });
+    if (ending === "eose") onSnapshot({ hits: answer, eose: true, timeMs: 1, error: null });
+    else if (ending === "error")
+      onSnapshot({ hits: [], eose: false, timeMs: null, error: "Search ended unexpectedly" });
+    else onSnapshot({ hits: answer, eose: false, timeMs: null, error: null });
     return Object.assign(() => {}, { more: () => {} });
   },
 }));
@@ -72,6 +77,7 @@ const profile = (pubkey: string, name: string): SearchHit => ({
 beforeEach(() => {
   asked.length = 0;
   answer = [];
+  ending = "eose";
   forgetSearchTags();
 });
 
@@ -174,5 +180,52 @@ describe("fetchSearchTags with members — the people a results page leads with"
     await fetchSearchTags("aos", { pov: "nosfabrica" });
     await fetchSearchTags("aos", { pov: "nosfabrica" }, { members: true });
     expect(asked).toHaveLength(2);
+  });
+});
+
+// What is remembered is a whole answer, for a while, and only so many of them.
+describe("fetchSearchTags — what it remembers", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("does not remember a failed ask: the next search asks again", async () => {
+    ending = "error";
+    expect(await fetchSearchTags("aos", { pov: "nosfabrica" })).toEqual([]);
+    ending = "eose";
+    answer = [list({ id: "a" })];
+    expect(await fetchSearchTags("aos", { pov: "nosfabrica" })).toHaveLength(1);
+    expect(asked).toHaveLength(2);
+  });
+
+  it("does not remember an answer the deadline cut short", async () => {
+    vi.useFakeTimers();
+    ending = "silent";
+    answer = [list({ id: "a" })];
+    const partial = fetchSearchTags("aos", { pov: "nosfabrica" });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await partial).toHaveLength(1);
+    ending = "eose";
+    await fetchSearchTags("aos", { pov: "nosfabrica" });
+    expect(asked).toHaveLength(2);
+  });
+
+  it("asks again once its answer is old", async () => {
+    vi.useFakeTimers();
+    answer = [list({ id: "a" })];
+    await fetchSearchTags("aos", { pov: "nosfabrica" });
+    await fetchSearchTags("aos", { pov: "nosfabrica" });
+    expect(asked).toHaveLength(1);
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    await fetchSearchTags("aos", { pov: "nosfabrica" });
+    expect(asked).toHaveLength(2);
+  });
+
+  it("holds only so many answers: the oldest goes first", async () => {
+    answer = [list({ id: "a" })];
+    for (let i = 0; i < 300; i++) await fetchSearchTags(`aos ${i}`, { pov: "nosfabrica" });
+    expect(asked).toHaveLength(300);
+    await fetchSearchTags("aos 299", { pov: "nosfabrica" });
+    expect(asked).toHaveLength(300);
+    await fetchSearchTags("aos 0", { pov: "nosfabrica" });
+    expect(asked).toHaveLength(301);
   });
 });
