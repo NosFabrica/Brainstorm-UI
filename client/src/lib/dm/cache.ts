@@ -19,7 +19,7 @@
  * Dropped on sign-out, like the event cache: a shared device should not keep
  * anyone's conversations past their session.
  */
-import { openDb, transact } from "@/lib/idb";
+import { transact } from "@/lib/idb";
 import { decryptSecret, encryptSecret, isVaultSupported } from "@/lib/skVault";
 import type { CursorSnapshot } from "./cursors";
 
@@ -74,6 +74,15 @@ export interface DmCacheBackend {
    * which wraps are held, before any envelope is read (services/dm/engine).
    */
   wrapKeys?(owner: string): Promise<string[]>;
+  /**
+   * A page of an owner's wraps, newest first (or oldest first), from `before`
+   * (exclusive): the engine reads the newest few hundred at boot and the rest
+   * only when Messages opens, instead of every row at once.
+   */
+  wrapsPage?(
+    owner: string,
+    page: { before?: { at: number; key: string }; limit: number; oldestFirst?: boolean },
+  ): Promise<StoredWrap[]>;
   putWraps(rows: StoredWrap[]): Promise<void>;
   deleteWraps(keys: string[]): Promise<void>;
   state(owner: string): Promise<DmState | undefined>;
@@ -98,12 +107,28 @@ export const deviceSealer: Sealer = {
   open: async (envelope, owner) => new TextDecoder().decode(await decryptSecret(envelope, owner)),
 };
 
-function build(db: IDBDatabase) {
-  if (!db.objectStoreNames.contains(WRAPS)) {
-    const s = db.createObjectStore(WRAPS, { keyPath: "key" });
-    s.createIndex("owner", "owner");
-  }
+/** Version 2 adds the owner+time index, for reading an inbox by page. */
+const DB_VERSION = 2;
+const OWNER_AT = "owner_at";
+
+function build(db: IDBDatabase, upgrade: IDBTransaction | null) {
+  const wraps = db.objectStoreNames.contains(WRAPS)
+    ? upgrade?.objectStore(WRAPS)
+    : db.createObjectStore(WRAPS, { keyPath: "key" });
+  if (wraps && !wraps.indexNames.contains("owner")) wraps.createIndex("owner", "owner");
+  if (wraps && !wraps.indexNames.contains(OWNER_AT)) wraps.createIndex(OWNER_AT, ["owner", "at"]);
   if (!db.objectStoreNames.contains(STATE)) db.createObjectStore(STATE, { keyPath: "owner" });
+}
+
+/** lib/idb's openDb, with the upgrade's own transaction: an index on an existing store needs it. */
+function openCache(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => build(req.result, req.transaction);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error("indexeddb blocked"));
+  });
 }
 
 /**
@@ -138,7 +163,7 @@ export function indexedDbBackend(): DmCacheBackend | null {
   let seen: string | undefined;
   let connection: Promise<IDBDatabase> | null = null;
   const db = () => {
-    connection ??= openDb(DB_NAME, 1, build).then(async (opened) => {
+    connection ??= openCache().then(async (opened) => {
       seen = await readToken(opened);
       opened.onclose = () => (connection = null);
       opened.onversionchange = () => {
@@ -184,6 +209,24 @@ export function indexedDbBackend(): DmCacheBackend | null {
         req.onsuccess = () => keep((req.result as IDBValidKey[]).map(String));
       });
       return keys ?? [];
+    },
+    async wrapsPage(owner, { before, limit, oldestFirst = false }) {
+      if (limit <= 0) return [];
+      const rows = await transact<StoredWrap[]>(await db(), WRAPS, "readonly", (store, keep) => {
+        const out: StoredWrap[] = [];
+        keep(out);
+        const range = IDBKeyRange.bound([owner, -Infinity], [owner, before ? before.at : Infinity]);
+        const req = store.index(OWNER_AT).openCursor(range, oldestFirst ? "next" : "prev");
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          const row = cursor.value as StoredWrap;
+          // `before` is exclusive; rows at its very second come in key order behind it.
+          if (!(before && row.at === before.at && row.key >= before.key)) out.push(row);
+          if (out.length < limit) cursor.continue();
+        };
+      });
+      return rows ?? [];
     },
     async putWraps(rows) {
       if (!rows.length) return;

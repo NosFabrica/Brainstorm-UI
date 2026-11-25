@@ -71,3 +71,51 @@ describe("forgetting one account", () => {
     expect(await db.state("kept")).toMatchObject({ lastSeen: 2 });
   });
 });
+
+describe("reading an inbox by page", () => {
+  it("hands rows over newest first, from where the last page ended, and oldest first when asked", async () => {
+    const db = indexedDbBackend()!;
+    const rows = [5, 1, 3, 3, 4, 2].map((at, i) => ({
+      key: wrapKey("pager", `w${i}`),
+      owner: "pager",
+      wrapId: `w${i}`,
+      at,
+    }));
+    await db.putWraps([...rows, { key: wrapKey("someone", "x"), owner: "someone", wrapId: "x", at: 9 }]);
+
+    const first = await db.wrapsPage!("pager", { limit: 3 });
+    expect(first.map((r) => r.at)).toEqual([5, 4, 3]);
+    const last = first.at(-1)!;
+    const second = await db.wrapsPage!("pager", { before: { at: last.at, key: last.key }, limit: 10 });
+    expect(second.map((r) => r.at)).toEqual([3, 2, 1]);
+    expect(new Set([...first, ...second].map((r) => r.wrapId)).size).toBe(6);
+    expect((await db.wrapsPage!("pager", { limit: 2, oldestFirst: true })).map((r) => r.at)).toEqual([1, 2]);
+    await db.forget!("pager");
+    await db.forget!("someone");
+  });
+
+  it("adds its index to a database the previous version made", async () => {
+    const { IDBFactory } = await import("fake-indexeddb");
+    globalThis.indexedDB = new IDBFactory();
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("brainstorm-dm", 1);
+      req.onupgradeneeded = () => {
+        const wraps = req.result.createObjectStore("wraps", { keyPath: "key" });
+        wraps.createIndex("owner", "owner");
+        req.result.createObjectStore("state", { keyPath: "owner" });
+      };
+      req.onsuccess = () => {
+        const tx = req.result.transaction("wraps", "readwrite");
+        tx.objectStore("wraps").put({ key: wrapKey("old", "w"), owner: "old", wrapId: "w", at: 7 });
+        tx.oncomplete = () => {
+          req.result.close();
+          resolve();
+        };
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    const db = indexedDbBackend()!;
+    expect((await db.wrapsPage!("old", { limit: 5 })).map((r) => r.wrapId)).toEqual(["w"]);
+  });
+});
