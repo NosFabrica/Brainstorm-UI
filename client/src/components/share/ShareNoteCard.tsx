@@ -24,6 +24,7 @@ import { EmbeddedListCard } from "@/components/share/ListPreview";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { POLL_KINDS } from "@/lib/pollKinds";
 import { LazyPollCard } from "@/components/share/LazyPollCard";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
@@ -204,7 +205,15 @@ export const ShareNoteCard = memo(function ShareNoteCard({
   const contentWarning = useMemo(() => contentWarningOf(event), [event]);
 
   if (isRepost) {
-    const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
+    // NIP-18: the post itself in the content, else a generic repost's `a` (a replaceable
+    // event, its latest version), else its `e`; its `k` names the kind before either arrives.
+    const reposted = event.kind === 16 ? a.addrs[0] : undefined;
+    const inner =
+      a.repostEvent ??
+      (reposted ? addrByCoord?.get(addrCoord(reposted)) : undefined) ??
+      (a.repostId ? eventsById.get(a.repostId) : undefined);
+    const k = event.kind === 16 ? event.tags.find((t) => t[0] === "k")?.[1] : undefined;
+    const what = k && /^\d+$/.test(k) ? kindTypeLabel(Number(k)).toLowerCase() : "note";
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
         <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -240,7 +249,9 @@ export const ShareNoteCard = memo(function ShareNoteCard({
             href={eventPath(inner)}
           />
         ) : (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Reposted a note</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500" data-testid="note-repost-missing">
+            Reposted {/^[aeiou]/.test(what) ? "an" : "a"} {what}
+          </p>
         )}
         <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>
       </div>
