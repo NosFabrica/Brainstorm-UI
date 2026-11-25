@@ -69,9 +69,18 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { EVENT_ITEM_KIND, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
-import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
+import {
+  liveCategoryOf,
+  liveHostOf,
+  liveStateLabel,
+  liveStateOf,
+  onAirLabel,
+  parseLiveStream,
+  type LiveState,
+} from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
+import { platformWords } from "@/lib/appPlatforms";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -501,21 +510,8 @@ export const MediaCard = memo(function MediaCard({
   );
 });
 
-/** "android-arm64-v8a" and friends → one human word each, deduped. */
-export function platformWords(event: NostrEvent): string[] {
-  const words = new Set<string>();
-  for (const tag of event.tags) {
-    if (tag[0] !== "f" || !tag[1]) continue;
-    const f = tag[1].toLowerCase();
-    if (f.startsWith("android")) words.add("Android");
-    else if (f.startsWith("ios")) words.add("iOS");
-    else if (f.includes("darwin") || f.includes("mac")) words.add("macOS");
-    else if (f.includes("windows")) words.add("Windows");
-    else if (f.includes("linux")) words.add("Linux");
-    else if (f.includes("web")) words.add("Web");
-  }
-  return [...words];
-}
+// One reading of an app's platforms for its card, its page and its row (lib/appPlatforms).
+export { platformWords };
 
 /**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
@@ -911,10 +907,10 @@ export const RepoCard = memo(function RepoCard({
   );
 });
 
-const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
+const LIVE_TONES: Record<LiveState, "success" | "neutral" | "info"> = {
   live: "success",
-  ended: "neutral",
-  planned: "info",
+  replay: "neutral",
+  upcoming: "info",
 };
 
 export const LiveCard = memo(function LiveCard({
@@ -927,7 +923,10 @@ export const LiveCard = memo(function LiveCard({
   score?: number | null;
 }) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? "Live event";
-  const status = (tagVal(event, "status") ?? "").toLowerCase();
+  // The Live tab's reading of it, not the raw tag: a "live" nobody updated in a week is over.
+  const state = liveStateOf(event);
+  // A space (30312/30313) keeps its own word.
+  const rawStatus = (tagVal(event, "status") ?? "").toLowerCase();
   const summary = tagVal(event, "summary") ?? "";
   const image = tagVal(event, "image");
   const naddr = naddrOf(event);
@@ -950,15 +949,26 @@ export const LiveCard = memo(function LiveCard({
               <EmojiText text={title} tags={event} />
             </p>
             <KindPill event={event} mixed={false} />
-            {status && (
+            {event.kind === 30311 ? (
               <Chip
                 size="sm"
-                tone={LIVE_TONES[status] ?? "neutral"}
-                dot={status === "live"}
+                tone={state ? LIVE_TONES[state] : "neutral"}
+                dot={state === "live"}
                 data-testid={`live-status-${event.id}`}
               >
-                {status}
+                {liveStateLabel(state)}
               </Chip>
+            ) : (
+              rawStatus && (
+                <Chip
+                  size="sm"
+                  tone={rawStatus === "live" ? "success" : rawStatus === "planned" ? "info" : "neutral"}
+                  dot={rawStatus === "live"}
+                  data-testid={`live-status-${event.id}`}
+                >
+                  {rawStatus}
+                </Chip>
+              )
             )}
           </div>
           {summary && (

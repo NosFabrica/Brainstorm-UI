@@ -26,7 +26,14 @@ import { StructuralHero } from "@/components/share/StructuralHero";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { kindTypeLabel } from "@/lib/kindLabel";
-import { addressNoun, listItemCounts, listTitle, readListItems, type ListNote } from "@/lib/listItems";
+import {
+  addressNoun,
+  listItemCounts,
+  listTitle,
+  readListItems,
+  type ListNote,
+  type ListNoteNoun,
+} from "@/lib/listItems";
 import { addrCoord, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
 import { eventPath, neventFor, READER_KINDS } from "@/lib/shareId";
 
@@ -156,12 +163,14 @@ function NotesPage({ notes }: { notes: ListNote[] }) {
   );
 }
 
-function ListNotes({ notes }: { notes: ListNote[] }) {
+function ListNotes({ notes, noun }: { notes: ListNote[]; noun: ListNoteNoun }) {
   const [pages, setPages] = useState(1);
   const left = notes.length - pages * NOTES_FOLD;
+  // A curation set of videos or pictures holds videos or pictures (NIP-51), not notes.
+  const word = noun.charAt(0).toUpperCase() + noun.slice(1);
   return (
     <section className="space-y-2" data-testid="item-list-notes">
-      <SectionHeader kicker={notes.length === 1 ? "Note" : "Notes"} />
+      <SectionHeader kicker={notes.length === 1 ? word : `${word}s`} />
       <ul className="space-y-2">
         {pagesOf(notes, pages, NOTES_FOLD).map((page, i) => (
           <NotesPage key={i} notes={page} />
@@ -353,7 +362,7 @@ export function ItemListHero({ event }: { event: MinimalEvent }) {
         )}
       </div>
 
-      {items.notes.length > 0 && <ListNotes notes={items.notes} />}
+      {items.notes.length > 0 && <ListNotes notes={items.notes} noun={items.noteNoun} />}
       {items.addresses.length > 0 && <ListAddresses addresses={items.addresses} />}
       {items.people.length > 0 && (
         <section data-testid="item-list-people">

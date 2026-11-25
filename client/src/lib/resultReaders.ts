@@ -32,14 +32,16 @@ import {
   type EventRef,
 } from "@/lib/activity";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
-import { ITEM_LIST_KINDS } from "@/lib/listItems";
+import { BADGE_LIST_KINDS, ITEM_LIST_KINDS, listNoteNoun, listTitle } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { mediaItemsOf } from "@/lib/mediaKind";
 import { formatBytes } from "@/lib/formatBytes";
 import { identifierName } from "@/lib/nip73";
-import { tagValue } from "@/lib/tagValue";
+import { OPAQUE_D, tagValue } from "@/lib/tagValue";
 import { closingWords, parsePoll, parseZapPoll, zapRangeWords } from "@/lib/polls";
 import { describeDesignation } from "@/lib/nip85Declaration";
+import { gitItemSummaryOf, gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
+import { platformWords } from "@/lib/appPlatforms";
 
 export type ReaderEvent = {
   id: string;
@@ -69,15 +71,9 @@ export interface ReaderResult {
 // ---- shared by the All tab's reading (lib/resultSummary, components/search/AllResults) ----
 
 export const HEX64 = /^[0-9a-f]{64}$/i;
-/** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
-// An app's own record key is a key, not a name: Shopstr writes its escrow
-// records under `shopstr:p2pk-escrow:<uuid>`.
-export const OPAQUE_D =
-  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,}|shopstr:[\s\S]*)$/i;
-
-// Lives in a leaf of its own (lib/nip71 needs it, and this module needs lib/nip71); still
-// exported here, where its callers have always found it.
-export { tagValue };
+// Live in a leaf of their own (lib/nip71 and lib/thing need them, and this module needs
+// both); still exported here, where their callers have always found them.
+export { OPAQUE_D, tagValue };
 
 /** A url or relay as its host: "wss://nos.lol/" → "nos.lol". */
 export const hostOf = (url: string) =>
@@ -195,7 +191,10 @@ function readList(ev: ReaderEvent): ReaderResult {
     if (Number.isFinite(k)) byKind.set(k, (byKind.get(k) ?? 0) + 1);
   }
   const counts = [
-    ...LIST_NOUNS.filter(([tag]) => tag !== "a").map(([tag, one, many]) => ({ n: tagsOf(ev, tag).length, one, many })),
+    ...LIST_NOUNS.filter(([tag]) => tag !== "a")
+      // NIP-51: a badge list's `e` is the award behind its badge; a curation set's are videos or pictures.
+      .filter(([tag]) => tag !== "e" || !BADGE_LIST_KINDS.has(ev.kind))
+      .map(([tag, one, many]) => ({ n: tagsOf(ev, tag).length, one: tag === "e" ? listNoteNoun(ev.kind) : one, many })),
     ...[...byKind].map(([k, n]) => {
       const one = kindTypeLabel(k).toLowerCase();
       return { n, one, many: one.endsWith("y") ? `${one.slice(0, -1)}ies` : `${one}s` };
@@ -227,7 +226,13 @@ function readList(ev: ReaderEvent): ReaderResult {
   return {
     // Nothing in the open and nothing sealed: say so. Sealed only: the row says it is private.
     // A named list keeps its name (the row's title), however empty.
-    title: total || encrypted || tagOf(ev, "title") || tagOf(ev, "name") || tagOf(ev, "d") ? null : "An empty list",
+    // A list of things says its name as its card and page do (lib/listItems' listTitle): pins,
+    // bookmarks and profile badges have no title of their own, and no `d`, or a slug.
+    title: ITEM_LIST_KINDS.has(ev.kind)
+      ? listTitle(ev)
+      : total || encrypted || tagOf(ev, "title") || tagOf(ev, "name") || tagOf(ev, "d")
+        ? null
+        : "An empty list",
     body: preview || null,
     facts: total ? facts : [],
     encrypted,
@@ -559,6 +564,27 @@ read([30054, 30055], (ev) => {
 });
 
 read([30312], (ev) => ({ ref: refOf(ev, "first") }));
+
+// NIP-34: a patch is git's own text — its subject and message, never its mail headers or diff —
+// and an issue or pull request its `subject`, else its first line: the reading its card and page
+// use (lib/gitPatch). An issue's `t` labels are facts; a patch's `root` marks are not labels.
+read([1617, 1618, 1621], (ev) => {
+  const patch = ev.kind === 1617 ? parsePatch(ev.content || "") : null;
+  const labels = tagsOf(ev, "t")
+    .map((t) => t[1])
+    .filter((t) => t !== "root" && t !== "root-revision");
+  return {
+    title: gitItemTitleOf(ev),
+    body: gitItemSummaryOf(ev) || null,
+    facts: unique([
+      patch?.files ? `${plural(patch.files, "file")} · +${patch.added} −${patch.removed}` : null,
+      ...labels.slice(0, 3),
+    ]),
+  };
+});
+
+// A Zap Store app: what it runs on, as its card says (its name, summary and icon are the generic reading's).
+read([32267], (ev) => ({ facts: platformWords(ev) }));
 
 read([1163], (ev) => ({ facts: unique([tagOf(ev, "dim")]), ref: refOf(ev, "first") }));
 

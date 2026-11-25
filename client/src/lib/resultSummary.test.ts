@@ -379,3 +379,132 @@ describe("polls and designations on the All tab", () => {
     expect(s.facts).toEqual(["nip85.brainstorm.world"]);
   });
 });
+
+// The All row said a stream's raw `status`: "Live" on a stream nobody had
+// updated for two years, where the Live tab, the tile and the page say it is over.
+describe("summarizeResult — a NIP-53 stream says the state the Live tab reads", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const stream = (tags: string[][], created_at: number) => ({
+    ...ev(30311, [["d", "s"], ["title", "Building a relay"], ...tags]),
+    created_at,
+  });
+
+  it("a fresh live stream is Live, with who is watching", () => {
+    const s = summarizeResult(
+      stream(
+        [
+          ["status", "live"],
+          ["current_participants", "42"],
+          ["streaming", "https://stream.example/live.m3u8"],
+        ],
+        now - 60,
+      ),
+    );
+    expect(s.facts).toEqual(["Live", "42 watching"]);
+  });
+
+  it('a "live" untouched for a week is over: a replay with a recording, else Ended', () => {
+    const stale = now - 30 * 86_400;
+    expect(summarizeResult(stream([["status", "live"]], stale)).facts).toEqual(["Ended"]);
+    expect(
+      summarizeResult(
+        stream(
+          [
+            ["status", "live"],
+            ["recording", "https://cdn.example/r.mp4"],
+          ],
+          stale,
+        ),
+      ).facts,
+    ).toEqual(["Replay"]);
+  });
+
+  it("a planned stream still ahead is Upcoming", () => {
+    expect(
+      summarizeResult(
+        stream(
+          [
+            ["status", "planned"],
+            ["starts", String(now + 3600)],
+          ],
+          now - 60,
+        ),
+      ).facts,
+    ).toEqual(["Upcoming"]);
+  });
+});
+
+// A patch has no `subject` tag (none of forty on the relay did): the All row had no
+// title and quoted git's mail headers and the diff as the patch's words.
+describe("summarizeResult — NIP-34 patches, pull requests and issues", () => {
+  const patch = [
+    `From ${"3f2a".repeat(10)} Mon Sep 17 00:00:00 2001`,
+    "From: Dev <dev@example.com>",
+    "Date: Mon, 1 Sep 2026 10:00:00 +0000",
+    "Subject: [PATCH] Fix the relay pool",
+    "",
+    "Reconnects after a drop.",
+    "---",
+    "diff --git a/pool.kt b/pool.kt",
+    "--- a/pool.kt",
+    "+++ b/pool.kt",
+    "@@ -1 +1,2 @@",
+    "-old",
+    "+new",
+    "+newer",
+  ].join("\n");
+
+  it("a patch is its subject and its message, and the size of its diff", () => {
+    const s = summarizeResult(ev(1617, [["t", "root"]], patch));
+    expect(s.title).toBe("Fix the relay pool");
+    expect(s.body).toBe("Reconnects after a drop.");
+    expect(s.facts).toEqual(["1 file · +2 −1"]);
+  });
+
+  it("an issue is its subject, its words and its labels", () => {
+    const s = summarizeResult(
+      ev(
+        1621,
+        [
+          ["subject", "Crash on empty relay list"],
+          ["t", "bug"],
+        ],
+        "It crashes when the list is empty.",
+      ),
+    );
+    expect(s.title).toBe("Crash on empty relay list");
+    expect(s.body).toBe("It crashes when the list is empty.");
+    expect(s.facts).toEqual(["bug"]);
+  });
+});
+
+describe("summarizeResult — lists of things say their name and what they hold, as their cards do", () => {
+  it("a pin list or bookmarks with no title is named as its card names it", () => {
+    expect(summarizeResult(ev(10001, [["e", "1".repeat(64)]])).title).toBe("Pinned notes");
+    expect(summarizeResult(ev(10003, [["e", "1".repeat(64)]])).title).toBe("Bookmarks");
+  });
+
+  it("a badge set counts its badges, never the awards beside them as notes", () => {
+    const s = summarizeResult(
+      ev(30008, [
+        ["d", "profile_badges"],
+        ["a", `30009:${PK}:bravery`],
+        ["e", "1".repeat(64)],
+      ]),
+    );
+    expect(s.title).toBe("Profile badges");
+    expect(s.facts).toEqual(["1 badge"]);
+  });
+
+  it("a video curation set counts videos", () => {
+    expect(
+      summarizeResult(
+        ev(30005, [
+          ["d", "talks"],
+          ["title", "Talks"],
+          ["e", "1".repeat(64)],
+        ]),
+      ).facts,
+    ).toEqual(["1 video"]);
+  });
+});

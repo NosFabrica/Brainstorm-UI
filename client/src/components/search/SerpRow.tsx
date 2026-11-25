@@ -55,6 +55,8 @@ import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { contentShape } from "@/lib/contentShape";
 import { describeThing, THING_KINDS } from "@/lib/thing";
+import { LISTING_EMBED_KINDS } from "@/lib/embedShape";
+import { parseListing } from "@/lib/listing";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
@@ -885,6 +887,19 @@ function HighlightRow({ event, author, score, query, engagement, showType = true
   );
 }
 
+/** NIP-34 patches, pull requests and issues: titled by `subject` or their text (lib/gitPatch), never a `title` tag. */
+const GIT_ITEM_KINDS = new Set([1617, 1618, 1621]);
+
+/** The kinds whose row reads through lib/resultSummary's reader: listings, streams, apps and git items. */
+function readsAsSummary(event: NostrEvent): boolean {
+  return (
+    (LISTING_EMBED_KINDS.has(event.kind) && parseListing(event) !== null) ||
+    event.kind === 30311 ||
+    event.kind === 32267 ||
+    GIT_ITEM_KINDS.has(event.kind)
+  );
+}
+
 function NoteRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
   const contentFirst = useContext(ContentFirstContext);
   const [, setLocation] = useLocation();
@@ -899,9 +914,19 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
   // A profile's content is its fields as JSON (NIP-01/24): read as the person, never as "Structured data".
   const profile = event.kind === 0 ? summaryOf(event) : null;
+  // A listing (NIP-99, NIP-15), a stream and a git item read the way their All row reads them:
+  // a NIP-15 product's name is JSON in content, a stream's state is the Live tab's, not its
+  // tag, and an issue is titled by its `subject`, a patch by its own text.
+  const read = useMemo(() => (readsAsSummary(event) ? summaryOf(event) : null), [event]);
+  // The short facts a reader gives — a price, a goal, a stream's state — on one quiet line.
+  // A market and a ballot draw their own summary below.
+  const facts =
+    read?.facts ??
+    (thing && thing.detail.type !== "market" && thing.detail.type !== "ballot" ? summaryOf(event).facts : []);
   const title =
     profile?.title ??
     thing?.title ??
+    read?.title ??
     tagVal(event, "title") ??
     tagVal(event, "name") ??
     // An untitled publication, section or shelf reads by its slug ("Section 3"), not by nothing.
@@ -928,7 +953,9 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
   // Ciphertext and JSON are not for reading: the row says what they are.
   // A news or song row returns before any of this is shown, so it reads nothing.
   const shape =
-    news || thing || profile || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
+    news || thing || profile || read || event.kind === 10040 || event.kind === 30818
+      ? null
+      : contentShape(event.content);
   const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
   // A profile, a long-form piece and a voice message each have a line of their own; the rest read below.
   const ownLine = profile
@@ -946,21 +973,23 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
       ? thing.detail.type === "ballot"
         ? "" // its answers draw below, row by row
         : (thing.description ?? "")
-      : opaque
-        ? tagVal(event, "alt") || ""
-        : event.kind === 10040
-          ? describeDesignation(event).summary
-          : (event.kind === 30818
-              ? wikiPlainText(event.content)
-              : event.kind === PUBLICATION_SECTION_KIND
-                ? sectionPlainText(event)
-                : event.kind === BOOKSHELF_KIND
-                  ? shelfLine(event)
-                  : event.content) ||
-            tagVal(event, "summary") ||
-            tagVal(event, "description") ||
-            tagVal(event, "alt") ||
-            "";
+      : read
+        ? (read.body ?? "")
+        : opaque
+          ? tagVal(event, "alt") || ""
+          : event.kind === 10040
+            ? describeDesignation(event).summary
+            : (event.kind === 30818
+                ? wikiPlainText(event.content)
+                : event.kind === PUBLICATION_SECTION_KIND
+                  ? sectionPlainText(event)
+                  : event.kind === BOOKSHELF_KIND
+                    ? shelfLine(event)
+                    : event.content) ||
+              tagVal(event, "summary") ||
+              tagVal(event, "description") ||
+              tagVal(event, "alt") ||
+              "";
   const body = ownLine ?? genericBody;
   const shapeLine =
     shape?.kind === "encrypted"
@@ -1161,6 +1190,14 @@ function NoteRow({ event, author, score, query, engagement, showType = true }: S
               durationSec={voice.durationSec}
             />
           </div>
+        )}
+        {facts.length > 0 && (
+          <p
+            className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400"
+            data-testid={`serp-facts-${event.id}`}
+          >
+            {facts.join(" · ")}
+          </p>
         )}
         {thing?.detail.type === "market" && (
           <div className="mt-2.5 max-w-md">

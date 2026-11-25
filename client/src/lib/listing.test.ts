@@ -623,3 +623,99 @@ describe("parseListing — stock and format (Open Markets)", () => {
     expect(l).toMatchObject({ stock: null, format: null });
   });
 });
+
+// NIP-99: "kind:30403 has the same structure as kind:30402 and is used to save
+// draft or inactive classified listings." It fell to the plain-event fallback
+// everywhere, its price unread.
+describe("parseListing — a NIP-99 draft (30403)", () => {
+  const draft = ev(
+    [
+      ["d", "chair"],
+      ["title", "Oak chair"],
+      ["price", "120", "USD"],
+      ["status", "active"],
+      ["image", "https://img/chair.jpg"],
+    ],
+    "Still varnishing it.",
+    30403,
+  );
+
+  it("reads like a listing, its price and pictures as written", () => {
+    expect(parseListing(draft)).toMatchObject({
+      title: "Oak chair",
+      price: { amount: 120, currency: "USD" },
+      images: ["https://img/chair.jpg"],
+    });
+  });
+
+  it("is never for sale, whatever status it carries, and says it is a draft", () => {
+    const l = parseListing(draft)!;
+    expect(l.status).toBe("draft");
+    expect(isSellable(l)).toBe(false);
+    expect(isListed(l)).toBe(false);
+    expect(listingStatus(l)).toEqual({ label: "Draft", gone: true });
+  });
+});
+
+// NIP-15 publishes an auction's fields as JSON in content (name, description,
+// images, starting_bid, start_date, duration); only the tag form was read, so
+// a spec-shaped auction was a "Structured data" event named by its `d`.
+describe("parseListing — a NIP-15 auction in its own JSON form", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const auction = (fields: Record<string, unknown>) =>
+    ev(
+      [["d", "auction-91"]],
+      JSON.stringify({ id: "auction-91", stall_id: "s1", name: "First-edition print", ...fields }),
+      30020,
+    );
+
+  it("reads its name, words, pictures and specs from content", () => {
+    const l = parseListing(
+      auction({
+        description: "Signed by the artist.",
+        images: ["https://img/print.jpg", 3],
+        starting_bid: 50000,
+        start_date: now - 60,
+        duration: 3600,
+        specs: [
+          ["size", "A3"],
+          ["paper", "cotton"],
+        ],
+      }),
+    );
+    expect(l).toMatchObject({
+      title: "First-edition print",
+      description: "Signed by the artist.",
+      images: ["https://img/print.jpg"],
+      status: "active",
+      specs: [
+        { key: "size", value: "A3" },
+        { key: "paper", value: "cotton" },
+      ],
+    });
+  });
+
+  it("ends at its start plus its duration", () => {
+    expect(parseListing(auction({ start_date: now - 7200, duration: 3600 }))?.status).toBe("ended");
+    expect(parseListing(auction({ start_date: now - 60, duration: 3600 }))?.status).toBe("active");
+  });
+
+  it("prices the opening bid only in a currency it names: the stall's is not fetched", () => {
+    expect(parseListing(auction({ starting_bid: 50000 }))?.price).toBeNull();
+    expect(parseListing(auction({ starting_bid: 50000, currency: "sat" }))?.price).toEqual({
+      amount: 50000,
+      currency: "SAT",
+    });
+  });
+
+  it("a 30018 product's NIP-15 specs are read too", () => {
+    const l = parseListing(
+      ev(
+        [],
+        JSON.stringify({ name: "Beans", currency: "sat", price: 1, specs: [["origin", "Ethiopia"], ["bad"]] }),
+        30018,
+      ),
+    );
+    expect(l?.specs).toEqual([{ key: "origin", value: "Ethiopia" }]);
+  });
+});

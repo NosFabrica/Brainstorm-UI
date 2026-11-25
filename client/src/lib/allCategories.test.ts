@@ -115,7 +115,9 @@ describe("byResults", () => {
 });
 
 it("kindsLabelled names every kind lib/kindLabel calls by a label", () => {
-  expect(kindsLabelled("Event")).toEqual([31922, 31923, 31924]);
+  expect(kindsLabelled("Event")).toEqual([31922, 31923]);
+  // NIP-52: a calendar is a set of events, named as one.
+  expect(kindsLabelled("Calendar")).toEqual([31924]);
   expect(kindsLabelled("Nothing of the sort")).toEqual([]);
 });
 
