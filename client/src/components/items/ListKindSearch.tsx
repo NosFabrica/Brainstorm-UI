@@ -54,7 +54,7 @@ import { tierThreePresentation } from "@/components/items/itemViews";
 import { openingLine, placeOf, type Place } from "@/components/items/place";
 import { pinsAreLocal, placesGroup, townNamed } from "@/lib/placeLocal";
 import { PlacesMap, type MapPin, type MapView } from "@/components/items/PlacesMap";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { eventPins } from "@/lib/eventPins";
 import { handlesPointedAt, ownsGitHub, type GitHubEvidence } from "@/lib/githubLink";
 import { externalIdentitiesOf } from "@/lib/profileContent";
@@ -584,15 +584,20 @@ function useTownEventPins(
   /** A searched area: its events instead, asked for by its cells and the town (fetchAreaEvents). */
   area: MapView | null = null,
 ): TownEventPin[] {
-  const events = useQuery({
-    queryKey: area ? ["area-events", area, town] : ["town-events", town],
-    queryFn: () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
-    enabled: !!area || !!town,
-    staleTime: 5 * 60_000,
-  });
-  if ((!area && !town) || !events.data) return [];
-  const byId = new Map(events.data.map((ev) => [ev.id, ev]));
-  return eventPins(events.data, Math.floor(Date.now() / 1000))
+  // A NIP-50 search the store cannot match, so no store filter: what the ask answers is the list
+  // (useStoreEvents keeps it per key, one ask per window, as every other relay read; docs/adr/0005).
+  const { events } = useStoreEvents(
+    area
+      ? `area-events:${area.south},${area.west},${area.north},${area.east}:${town ?? ""}`
+      : town
+        ? `town-events:${town}`
+        : null,
+    null,
+    () => (area ? fetchAreaEvents(cellsCovering(area), town) : fetchTownEvents(town!)),
+  );
+  if ((!area && !town) || !events.length) return [];
+  const byId = new Map(events.map((ev) => [ev.id, ev]));
+  return eventPins(events, Math.floor(Date.now() / 1000))
     .filter((e) =>
       area
         ? e.lat >= area.south && e.lat <= area.north && e.lon >= area.west && e.lon <= area.east
