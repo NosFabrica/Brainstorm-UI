@@ -382,3 +382,47 @@ describe("summarizeResult — a NIP-53 stream says the state the Live tab reads"
     ).toEqual(["Upcoming"]);
   });
 });
+
+// A patch has no `subject` tag (none of forty on the relay did): the All row had no
+// title and quoted git's mail headers and the diff as the patch's words.
+describe("summarizeResult — NIP-34 patches, pull requests and issues", () => {
+  const patch = [
+    `From ${"3f2a".repeat(10)} Mon Sep 17 00:00:00 2001`,
+    "From: Dev <dev@example.com>",
+    "Date: Mon, 1 Sep 2026 10:00:00 +0000",
+    "Subject: [PATCH] Fix the relay pool",
+    "",
+    "Reconnects after a drop.",
+    "---",
+    "diff --git a/pool.kt b/pool.kt",
+    "--- a/pool.kt",
+    "+++ b/pool.kt",
+    "@@ -1 +1,2 @@",
+    "-old",
+    "+new",
+    "+newer",
+  ].join("\n");
+
+  it("a patch is its subject and its message, and the size of its diff", () => {
+    const s = summarizeResult(ev(1617, [["t", "root"]], patch));
+    expect(s.title).toBe("Fix the relay pool");
+    expect(s.body).toBe("Reconnects after a drop.");
+    expect(s.facts).toEqual(["1 file · +2 −1"]);
+  });
+
+  it("an issue is its subject, its words and its labels", () => {
+    const s = summarizeResult(
+      ev(
+        1621,
+        [
+          ["subject", "Crash on empty relay list"],
+          ["t", "bug"],
+        ],
+        "It crashes when the list is empty.",
+      ),
+    );
+    expect(s.title).toBe("Crash on empty relay list");
+    expect(s.body).toBe("It crashes when the list is empty.");
+    expect(s.facts).toEqual(["bug"]);
+  });
+});

@@ -36,6 +36,7 @@ import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
 import { tagValue } from "@/lib/tagValue";
+import { gitItemSummaryOf, gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
 
 export type ReaderEvent = {
   id: string;
@@ -510,6 +511,24 @@ read([30054, 30055], (ev) => {
 });
 
 read([30312], (ev) => ({ ref: refOf(ev, "first") }));
+
+// NIP-34: a patch is git's own text — its subject and message, never its mail headers or diff —
+// and an issue or pull request its `subject`, else its first line: the reading its card and page
+// use (lib/gitPatch). An issue's `t` labels are facts; a patch's `root` marks are not labels.
+read([1617, 1618, 1621], (ev) => {
+  const patch = ev.kind === 1617 ? parsePatch(ev.content || "") : null;
+  const labels = tagsOf(ev, "t")
+    .map((t) => t[1])
+    .filter((t) => t !== "root" && t !== "root-revision");
+  return {
+    title: gitItemTitleOf(ev),
+    body: gitItemSummaryOf(ev) || null,
+    facts: unique([
+      patch?.files ? `${plural(patch.files, "file")} · +${patch.added} −${patch.removed}` : null,
+      ...labels.slice(0, 3),
+    ]),
+  };
+});
 
 read([1163], (ev) => ({ facts: unique([tagOf(ev, "dim")]), ref: refOf(ev, "first") }));
 
