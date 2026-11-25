@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { Card } from "@/components/ui/card";
 import { Github, ExternalLink, ArrowLeft } from "lucide-react";
 
 // Shared building blocks for the /developers pages — the editorial card, the
@@ -78,26 +79,25 @@ export function SectionCard({
   testId: string;
 }) {
   return (
-    <section
-      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid={testId}
-    >
-      {/* Paragraphs keep a readable measure; code and tables take the card's width. */}
-      <div className="space-y-4 p-6 sm:p-8 [&>p]:max-w-3xl">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10">
-            {icon}
+    <Card asChild className="overflow-hidden">
+      <section data-testid={testId}>
+        {/* Paragraphs keep a readable measure; code and tables take the card's width. */}
+        <div className="space-y-4 p-6 sm:p-8 [&>p]:max-w-3xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10">
+              {icon}
+            </div>
+            <h2
+              className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {title}
+            </h2>
           </div>
-          <h2
-            className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {title}
-          </h2>
+          {children}
         </div>
-        {children}
-      </div>
-    </section>
+      </section>
+    </Card>
   );
 }
 
@@ -118,25 +118,31 @@ export function OpenSourceSection() {
       </p>
       <div className="flex flex-wrap gap-3">
         {GITHUB_REPOS.map((repo) => (
-          <a
+          <Card
             key={repo.label}
-            href={repo.href}
-            target="_blank"
-            rel="noopener"
-            className="group inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-4 transition-all hover:border-brand-accent/40 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
-            data-testid={`link-github-${repo.label.toLowerCase().replace(/\s+/g, "-")}`}
+            asChild
+            className="group inline-flex items-center gap-3 rounded-xl py-2.5 pl-3 pr-4 shadow-none transition-all hover:border-brand-accent/40 hover:shadow-sm"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10">
-              <Github className="h-4 w-4 text-brand-deep" />
-            </div>
-            <div className="min-w-0">
-              <p className="whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">{repo.label}</p>
-              <p className="whitespace-nowrap text-xs leading-snug text-slate-500 dark:text-slate-400">
-                {repo.description}
-              </p>
-            </div>
-            <ExternalLink className="ml-1 h-4 w-4 shrink-0 text-brand-accent transition-transform group-hover:translate-x-0.5" />
-          </a>
+            <a
+              href={repo.href}
+              target="_blank"
+              rel="noopener"
+              data-testid={`link-github-${repo.label.toLowerCase().replace(/\s+/g, "-")}`}
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10">
+                <Github className="h-4 w-4 text-brand-deep" />
+              </div>
+              <div className="min-w-0">
+                <p className="whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {repo.label}
+                </p>
+                <p className="whitespace-nowrap text-xs leading-snug text-slate-500 dark:text-slate-400">
+                  {repo.description}
+                </p>
+              </div>
+              <ExternalLink className="ml-1 h-4 w-4 shrink-0 text-brand-accent transition-transform group-hover:translate-x-0.5" />
+            </a>
+          </Card>
         ))}
       </div>
     </SectionCard>

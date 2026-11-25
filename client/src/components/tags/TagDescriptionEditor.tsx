@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 import { Loader2, Pencil } from "lucide-react";
 import { signingProblem } from "@/accounts/signing";
 import { useToast } from "@/hooks/use-toast";
@@ -61,54 +63,55 @@ export function TagDescriptionEditor({
   };
 
   return (
-    <form
-      className={`rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 ${className ?? ""}`}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!unchanged && !edit.isPending) void save();
-      }}
-      data-testid="tag-description-form"
-    >
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span> · The name can't be changed.
-      </p>
-      <label className="mt-2 block">
-        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Description</span>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={3}
-          maxLength={TAG_DESCRIPTION_MAX}
-          placeholder="What does this tag mean?"
-          autoFocus
-          className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-          data-testid="tag-description-field"
-        />
-      </label>
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
-          {draft.length}/{TAG_DESCRIPTION_MAX}
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setDraft(null)}
-            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            data-testid="tag-description-cancel"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={unchanged || edit.isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-            data-testid="tag-description-save"
-          >
-            {edit.isPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
-            Save
-          </button>
+    <Card asChild className={cn("rounded-xl p-3 shadow-none dark:border-slate-700", className)}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!unchanged && !edit.isPending) void save();
+        }}
+        data-testid="tag-description-form"
+      >
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span> · The name can't be changed.
+        </p>
+        <label className="mt-2 block">
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Description</span>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            maxLength={TAG_DESCRIPTION_MAX}
+            placeholder="What does this tag mean?"
+            autoFocus
+            className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            data-testid="tag-description-field"
+          />
+        </label>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+            {draft.length}/{TAG_DESCRIPTION_MAX}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDraft(null)}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              data-testid="tag-description-cancel"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={unchanged || edit.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="tag-description-save"
+            >
+              {edit.isPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+              Save
+            </button>
+          </div>
         </div>
-      </div>
-    </form>
+      </form>
+    </Card>
   );
 }
