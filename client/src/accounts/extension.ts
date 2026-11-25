@@ -33,7 +33,7 @@ import { verifyEvent, type EventTemplate, type VerifiedEvent } from "applesauce-
 import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
-import { isRemoteSignerTimeout, withTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./signer-timeout";
 import { classifySignerError, SignerCouldNotDecryptError, SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;

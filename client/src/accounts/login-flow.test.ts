@@ -166,7 +166,7 @@ describe("an extension that never answers the sign-in", () => {
   // its deadline, and the login screen says what happened instead of "couldn't sign".
   it("says the extension didn't answer, and how to go on", async () => {
     const { handleLogin, LoginError } = await import("./login-flow");
-    const { RemoteSignerTimeoutError } = await import("./remote-signer");
+    const { RemoteSignerTimeoutError } = await import("./signer-timeout");
     (window as { nostr?: unknown }).nostr = { getPublicKey: async () => "a".repeat(64), signEvent: async () => ({}) };
     authenticate.mockRejectedValueOnce(new RemoteSignerTimeoutError("Your signer didn't answer the sign-in request."));
 

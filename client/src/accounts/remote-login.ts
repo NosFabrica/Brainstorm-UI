@@ -18,15 +18,8 @@
 import { NostrConnectSigner } from "applesauce-signers";
 import type { Observable } from "rxjs";
 
-import {
-  isRemoteSignerTimeout,
-  NIP46_PERMISSIONS,
-  PAIRING_TIMEOUT_MS,
-  RemoteAccount,
-  RemoteSigner,
-  RemoteSignerTimeoutError,
-  subscribeRelays,
-} from "./remote-signer";
+import { advertisedRelays, NIP46_PERMISSIONS, PAIRING_TIMEOUT_MS, RemoteAccount, RemoteSigner } from "./remote-signer";
+import { isRemoteSignerTimeout, RemoteSignerTimeoutError } from "./signer-timeout";
 
 /** A pairing we started: the URI to show, the Account it becomes, and the way out. */
 export type RemotePairing = {
@@ -98,7 +91,7 @@ export function isPairingCancelled(error: unknown): boolean {
  * error anywhere, and without a deadline the screen would wait forever.
  */
 export function beginRemotePairing(): RemotePairing {
-  const relays = subscribeRelays();
+  const relays = advertisedRelays();
   const signer = new RemoteSigner({ relays, requireConnectSecret: true });
   const uri = signer.nostrConnectURI();
 

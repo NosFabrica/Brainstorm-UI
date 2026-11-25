@@ -18,7 +18,7 @@ import {
   signingFailure,
   signingProblem,
 } from "./signing";
-import { RemoteSignerTimeoutError } from "./remote-signer";
+import { RemoteSignerTimeoutError } from "./signer-timeout";
 import { SignerDeclinedError } from "./signer-errors";
 import { SignerMismatchError } from "applesauce-accounts";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";

@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { AmberClipboardSigner } from "applesauce-signers/signers/amber-clipboard-signer";
 
 import { AMBER_TIMEOUT_MS, TimedAmberSigner } from "./amber";
-import { isRemoteSignerTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout } from "./signer-timeout";
 
 // jsdom is not Android, and the library refuses before it ever switches apps.
 // The deadline is about what happens *after* the switch, so stand the guard down.

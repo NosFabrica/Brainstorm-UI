@@ -20,7 +20,7 @@ import { AmberClipboardSigner } from "applesauce-signers/signers/amber-clipboard
 import type { SerializedAccount } from "applesauce-accounts";
 
 import type { AccountMetadata } from "./metadata";
-import { isRemoteSignerTimeout, withTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./signer-timeout";
 
 /**
  * How long Amber gets before we admit it isn't coming back.

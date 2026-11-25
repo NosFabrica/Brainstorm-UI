@@ -11,7 +11,7 @@ import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } 
 
 import { extractAdminFlag } from "@/lib/jwt";
 import { withTabLock } from "./cross-tab";
-import { withTimeout } from "./remote-signer";
+import { withTimeout } from "./signer-timeout";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import { activeAccount, canSignSilently, signAs } from "./signing";
 

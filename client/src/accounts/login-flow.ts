@@ -16,7 +16,7 @@ import { cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
 import { loadRelayList } from "@/lib/relayRouting";
 import { clearHydratedStore } from "@/services/storeHydration";
 import { sessions, SessionTransportError, SESSION_SIGN_TIMEOUT_MS } from "@/accounts/session";
-import { withTimeout } from "@/accounts/remote-signer";
+import { withTimeout } from "@/accounts/signer-timeout";
 import { classifySignerError } from "@/accounts/signer-errors";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";

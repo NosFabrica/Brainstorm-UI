@@ -18,7 +18,7 @@ import {
   toSessionTransportError,
 } from "./session";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
-import { isRemoteSignerTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout } from "./signer-timeout";
 
 function base64url(value: unknown): string {
   return btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

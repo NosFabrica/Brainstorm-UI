@@ -12,12 +12,12 @@ import {
 } from "./remote-login";
 import {
   CONNECT_TIMEOUT_MS,
-  isRemoteSignerTimeout,
   NIP46_PERMISSIONS,
   PAIRING_TIMEOUT_MS,
   RemoteSigner,
   REQUEST_TIMEOUT_MS,
 } from "./remote-signer";
+import { isRemoteSignerTimeout } from "./signer-timeout";
 import { createFakeRemoteSigner } from "./remote-test-fakes";
 import { installRemoteTransport } from "./remote-transport";
 

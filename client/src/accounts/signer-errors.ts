@@ -17,7 +17,7 @@ import { SignerMismatchError } from "applesauce-accounts";
 import { ExtensionMissingError } from "applesauce-signers";
 
 import { isUnlockCancelled } from "./local-signer";
-import { isRemoteSignerTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout } from "./signer-timeout";
 
 export type SignerErrorKind =
   /** The reader dismissed our own unlock prompt: a key held here, never asked. */
