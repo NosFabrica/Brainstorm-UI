@@ -464,7 +464,7 @@ function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: 
         </AvatarFallback>
       </Avatar>
       <span className="truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"}</span>
-      <span className="shrink-0 opacity-80">· {ago(hit.event.created_at)}</span>
+      <span className="shrink-0 opacity-80">· {ago(postedAtOf(hit.event))}</span>
       <KindPill event={hit.event} />
       <ViaRelay event={hit.event} />
     </span>

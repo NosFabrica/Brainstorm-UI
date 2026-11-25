@@ -27,6 +27,7 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
+import { postedAtOf } from "@/lib/eventDate";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -256,8 +257,9 @@ function ArticleCardBody({ event, author, trustScore01, leadKinds = [], mixed = 
               <ProfileEmojiText pubkey={event.pubkey} text={name} />
             </span>
             {nip05Verified && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
+            {/* When it was first published (NIP-23 `published_at`), as its own page dates it — not its last edit. */}
             {event.created_at ? (
-              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
+              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(postedAtOf(event))}</span>
             ) : null}
             <ViaRelay event={event} />
           </div>
