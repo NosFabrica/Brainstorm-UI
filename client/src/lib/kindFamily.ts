@@ -208,7 +208,7 @@ export const KIND_NAMES: Readonly<Record<number, string>> = {
   30385: "Id score",
   30392: "Trusted people",
   30393: "Trusted events",
-  30394: "Trusted articles",
+  30394: "Trusted addressables",
   30395: "Trusted identifiers",
   30402: "Listing",
   30403: "Draft listing",

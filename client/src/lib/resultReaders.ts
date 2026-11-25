@@ -31,7 +31,24 @@ import {
   zapAmount,
   type EventRef,
 } from "@/lib/activity";
-import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import {
+  TRUSTED_ADDRESSES_KIND,
+  TRUSTED_EVENTS_KIND,
+  TRUSTED_IDENTIFIERS_KIND,
+  TRUSTED_PEOPLE_KIND,
+  readTrustedList,
+  trustedMemberNoun,
+} from "@/lib/trustedList";
+import {
+  GIT_REPLY_KIND,
+  REPO_STATE_KIND,
+  gitStatusLabel,
+  readGitReply,
+  readGitStatus,
+  readRepoState,
+  shortCommit,
+} from "@/lib/gitEvents";
+import { RELEASE_KIND, platformFamilies, readRelease, releaseName } from "@/lib/release";
 import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { readVideo } from "@/lib/nip71";
 import { identifierName } from "@/lib/nip73";
@@ -459,6 +476,99 @@ read([TRUSTED_PEOPLE_KIND], (ev) => {
       list.sourceTag ? `From ${who(list.sourceTag.authorPubkey)}'s tag` : null,
       list.perspective ? `Ranked by ${who(list.perspective)}` : null,
     ].filter((f): f is string => !!f),
+  };
+});
+
+// A Trusted List of things: how many, from whose tag, ranked by whom — and the
+// best member quoted under the row. Only the kind's member tag is a member
+// (lib/trustedList): a 30393's discovery `a` and `p` are not counted.
+read([TRUSTED_EVENTS_KIND, TRUSTED_ADDRESSES_KIND, TRUSTED_IDENTIFIERS_KIND], (ev) => {
+  const list = readTrustedList(ev);
+  const n = list.entries.length;
+  const best = list.retracted ? undefined : list.entries[0];
+  return {
+    title: null,
+    body:
+      ev.kind === TRUSTED_IDENTIFIERS_KIND && !list.retracted
+        ? firstOf(
+            list.entries.flatMap((m) => identifierName(m.value) ?? []),
+            4,
+          ) || null
+        : null,
+    facts: [
+      list.retracted
+        ? "Retracted"
+        : n
+          ? plural(n, trustedMemberNoun(ev.kind, 1), trustedMemberNoun(ev.kind, 2))
+          : "Empty",
+      list.truncated ? (list.truncated.total ? `of ${list.truncated.total.toLocaleString()}` : "Partial") : null,
+      list.sourceTag ? `From ${who(list.sourceTag.authorPubkey)}'s tag` : null,
+      list.perspective ? `Ranked by ${who(list.perspective)}` : null,
+    ].filter((f): f is string => !!f),
+    ref: !best
+      ? null
+      : ev.kind === TRUSTED_EVENTS_KIND
+        ? { id: best.value, relay: best.hint }
+        : ev.kind === TRUSTED_ADDRESSES_KIND
+          ? { addr: best.value, relay: best.hint }
+          : null,
+  };
+});
+
+// NIP-34: a status says what it set and quotes its item; a state its refs; a legacy reply its thread.
+read([1630, 1631, 1632, 1633], (ev) => {
+  const status = readGitStatus(ev);
+  const repo = status.repo?.split(":").slice(2).join(":") || null;
+  return {
+    title: `Marked ${gitStatusLabel(status).toLowerCase()}`,
+    body: status.note || null,
+    facts: unique([
+      repo ? `in ${repo}` : null,
+      status.mergeCommit ? `merged as ${shortCommit(status.mergeCommit)}` : null,
+      status.appliedCommits.length ? `applied as ${plural(status.appliedCommits.length, "commit")}` : null,
+    ]),
+    ref: status.target,
+  };
+});
+
+read([REPO_STATE_KIND], (ev) => {
+  const state = readRepoState(ev);
+  return {
+    title: state.repoId ? `${state.repoId}: branches and tags` : "Repository state",
+    body: state.tags.length
+      ? firstOf(
+          state.tags.map((t) => t.name),
+          4,
+        )
+      : null,
+    facts: unique([
+      state.head ? `HEAD ${state.head}` : null,
+      plural(state.branches.length, "branch", "branches"),
+      plural(state.tags.length, "tag"),
+    ]),
+  };
+});
+
+read([GIT_REPLY_KIND], (ev) => {
+  const reply = readGitReply(ev);
+  const repo = reply.repo?.split(":").slice(2).join(":") || null;
+  // Its words are the generic reading's: a comment.
+  return { facts: repo ? [`Git reply in ${repo}`] : ["Git reply"], ref: reply.root };
+});
+
+// A release: which version of what, its channel, what it runs on, its files — the app quoted under it.
+read([RELEASE_KIND], (ev) => {
+  const release = readRelease(ev);
+  const app = release.app?.address.split(":").slice(2).join(":") || null;
+  return {
+    title: release.version && app ? `${app} ${release.version}` : `Release ${releaseName(release)}`,
+    body: release.notes ? clip(release.notes, 280) : null,
+    facts: unique([
+      release.channel,
+      ...platformFamilies(release.platforms),
+      release.assets.length ? plural(release.assets.length, "file") : null,
+    ]),
+    ref: release.app ? { addr: release.app.address, relay: release.app.relay } : null,
   };
 });
 
