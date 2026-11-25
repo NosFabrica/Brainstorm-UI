@@ -61,7 +61,8 @@ export const ARTICLE_EMBED_KINDS: ReadonlySet<number> = new Set([30023, 30024, 3
 export const PEOPLE_LIST_KINDS: ReadonlySet<number> = new Set([30000, 39089, TRUSTED_PEOPLE_KIND]);
 export const LIVE_EMBED_KINDS: ReadonlySet<number> = new Set([30311]);
 export const CALENDAR_EVENT_KINDS: ReadonlySet<number> = new Set([31922, 31923]);
-export const LISTING_EMBED_KINDS: ReadonlySet<number> = new Set([30402, 30018, 30020]);
+/** NIP-99 listings and drafts (30402, 30403), NIP-15 products and auctions (30018, 30020). */
+export const LISTING_EMBED_KINDS: ReadonlySet<number> = new Set([30402, 30403, 30018, 30020]);
 export const APP_EMBED_KINDS: ReadonlySet<number> = new Set([32267]);
 export const REPO_EMBED_KINDS: ReadonlySet<number> = new Set([30617, 1617, 1618, 1621]);
 export const PICTURE_KIND = 20;

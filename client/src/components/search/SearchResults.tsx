@@ -137,7 +137,7 @@ import {
 } from "@/lib/calendarEvent";
 import { dedupeEvents } from "@/lib/eventDedupe";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { isListed, parseListing } from "@/lib/listing";
+import { DRAFT_LISTING_KIND, isListed, parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
@@ -3526,7 +3526,8 @@ export const SearchResults = memo(function SearchResults({
                             return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? NO_FACES} />);
                           }
                           if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-                          if (SHOP_KINDS.has(event.kind))
+                          // A NIP-99 draft is not in the Shop, but drawn where it turns up as the listing it is.
+                          if (SHOP_KINDS.has(event.kind) || event.kind === DRAFT_LISTING_KIND)
                             return wrap(
                               <ListingCard
                                 {...typed}
