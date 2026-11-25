@@ -29,7 +29,7 @@ import {
   type RelayOptions,
 } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { matchFilters, type Filter as NostrFilter } from "applesauce-core/helpers/filter";
+import type { Filter as NostrFilter } from "applesauce-core/helpers/filter";
 import {
   EMPTY,
   Subject,
@@ -53,6 +53,7 @@ import {
   type Observable,
 } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
+import { answersFilters } from "./relayAnswers";
 import { PROFILE_RELAYS, SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
 /**
@@ -164,23 +165,6 @@ export function isAuthRequiredReason(reason: string | undefined): boolean {
 type ReqOptions = NonNullable<Parameters<Relay["req"]>[1]>;
 type ReqMessages = ReturnType<Relay["req"]>;
 type ReqMessage = ReqMessages extends Observable<infer M> ? M : never;
-
-/**
- * Whether a relay's EVENT answers the filters its REQ sent. A NIP-50 `search`
- * term is the relay's to judge — `matchFilters` ignores it — and the rest
- * (ids, kinds, authors, tags, since/until) must hold. Never throws: a malformed
- * event (no tags, a non-string tag) is simply not an answer.
- */
-export function answersFilters(filters: NostrFilter[], event: unknown): boolean {
-  try {
-    const e = event as { id?: unknown; pubkey?: unknown; kind?: unknown; created_at?: unknown; tags?: unknown };
-    if (!e || typeof e.id !== "string" || typeof e.pubkey !== "string") return false;
-    if (typeof e.kind !== "number" || typeof e.created_at !== "number" || !Array.isArray(e.tags)) return false;
-    return matchFilters(filters, event as Parameters<typeof matchFilters>[1]);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Drop every EVENT the relay sent that its REQ didn't ask for. applesauce-relay
