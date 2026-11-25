@@ -27,7 +27,7 @@ import {
 } from "@/components/score/VerificationCoin";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { lookupTrustSignals } from "@/services/trustSignals";
-import { npubFromPubkey } from "@/lib/shareId";
+import { LONG_FORM_DRAFT_KIND, npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { articleSummary, wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
@@ -542,6 +542,18 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
               {/* A spec says so before its title (Benjamin, 2026-09-24: only a spec —
                 an essay, a wiki page or a recipe looks like what it is). */}
               <KindPill event={ev} mixed={ev.kind === 30817} className="mt-5" />
+              {/* NIP-23: a 30024 is a long-form draft, same format as 30023 — never read as published. */}
+              {ev.kind === LONG_FORM_DRAFT_KIND && (
+                <p
+                  className="mt-5 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
+                  data-testid="article-draft"
+                >
+                  <Chip tone="warning" size="sm">
+                    Draft
+                  </Chip>
+                  Not published yet — its author may still change it.
+                </p>
+              )}
               <h1
                 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
                 style={{ fontFamily: "var(--font-display)" }}
