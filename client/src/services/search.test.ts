@@ -3752,3 +3752,127 @@ describe("countCategories", () => {
     );
   });
 });
+
+// Every side ask's answer goes through the store (ADR 0005): what it refuses — a forged
+// signature — counts for nothing, and a replaceable reads as the newest version it holds.
+describe("side asks keep what the store keeps", () => {
+  const PK = "a".repeat(64);
+  const forged = (over: Partial<NostrEvent>): NostrEvent =>
+    ({
+      id: "f".repeat(64),
+      kind: 1,
+      pubkey: PK,
+      created_at: 100,
+      sig: "s",
+      content: "forged",
+      tags: [],
+      ...over,
+    }) as NostrEvent;
+  const ADDR = `31923:${PK}:meetup`;
+  const GOAL = "9".repeat(64);
+  const ITEM = "1".repeat(64);
+  const cases: [string, () => Promise<unknown>, Partial<NostrEvent>, (out: unknown) => void][] = [
+    ["fetchFromSearch", () => fetchFromSearch([{ kinds: [1] }]), {}, (o) => expect(o).toEqual([])],
+    [
+      "fetchEventRsvps",
+      () => fetchEventRsvps([ADDR]),
+      {
+        kind: 31925,
+        tags: [
+          ["a", ADDR],
+          ["status", "accepted"],
+          ["d", "x"],
+        ],
+      },
+      (o) => expect((o as Map<string, unknown>).size).toBe(0),
+    ],
+    [
+      "fetchGitStatuses",
+      () => fetchGitStatuses([ITEM]),
+      { kind: 1632, tags: [["e", ITEM, "", "root"]] },
+      (o) => expect((o as Map<string, unknown>).size).toBe(0),
+    ],
+    [
+      "fetchGoalProgress",
+      () => fetchGoalProgress([GOAL]),
+      {
+        kind: 9735,
+        tags: [
+          ["e", GOAL],
+          ["P", PK],
+          ["bolt11", "lnbc10u1pjx"],
+        ],
+      },
+      (o) => expect((o as { byGoal: Map<string, unknown> }).byGoal.size).toBe(0),
+    ],
+    ["fetchAppReviews", () => fetchAppReviews("32267:x:y"), { kind: 1111 }, (o) => expect(o).toEqual([])],
+    ["fetchAppZaps", () => fetchAppZaps("32267:x:y"), { kind: 9735 }, (o) => expect(o).toEqual([])],
+    [
+      "fetchPersonVouches",
+      () => fetchPersonVouches(PK),
+      { kind: 31871, tags: [["s", "vouched"]] },
+      (o) => expect(o).toEqual([]),
+    ],
+    ["fetchRepoActivity", () => fetchRepoActivity("30617:x:y"), { kind: 1621 }, (o) => expect(o).toEqual([])],
+    ["fetchSpecsForKind", () => fetchSpecsForKind(1), { kind: 30817 }, (o) => expect(o).toEqual([])],
+    ["fetchNipPage", () => fetchNipPage(["nip-01"]), { kind: 30818 }, (o) => expect(o).toBeNull()],
+    [
+      "fetchCommentsByAddress",
+      () => fetchCommentsByAddress(null, ITEM),
+      { kind: 1111, tags: [["E", ITEM]] },
+      (o) => expect(o).toEqual([]),
+    ],
+    [
+      "fetchGitCommentCounts",
+      () => fetchGitCommentCounts([ITEM]),
+      { kind: 1111, tags: [["E", ITEM]] },
+      (o) => expect((o as Map<string, unknown>).size).toBe(0),
+    ],
+  ];
+  for (const [name, call, shape, check] of cases) {
+    it(`${name} counts nothing the store refused`, async () => {
+      const { subject } = controllable();
+      storeAddMock.mockImplementation(() => null);
+      try {
+        const pending = call();
+        await tick();
+        subject.next(frame(forged(shape)));
+        subject.next(EOSE);
+        check(await pending);
+      } finally {
+        storeAddMock.mockImplementation((e: unknown) => e);
+      }
+    });
+  }
+
+  it("fetchReleaseAsset counts nothing the store refused", async () => {
+    const subject = new Subject<ReqFrame>();
+    zapReqMock.mockImplementation(() => subject.asObservable());
+    storeAddMock.mockImplementation(() => null);
+    try {
+      const pending = fetchReleaseAsset(["asset-1"]);
+      await tick();
+      subject.next(frame(forged({ kind: 3063, tags: [["url", "https://x/app.apk"]] })));
+      subject.next(EOSE);
+      expect(await pending).toBeNull();
+    } finally {
+      storeAddMock.mockImplementation((e: unknown) => e);
+    }
+  });
+
+  it("an addressable reads as the store's newer version, not the relay's older copy", async () => {
+    const { subject } = controllable();
+    const older = { ...forged({ kind: 31923, tags: [["d", "meetup"]] }), id: "1".repeat(64), content: "old" };
+    const newer = { ...older, id: "2".repeat(64), created_at: 200, content: "new" };
+    storeAddMock.mockImplementation((e: unknown) => ((e as NostrEvent).id === older.id ? newer : e));
+    try {
+      const pending = fetchByAddress([ADDR]);
+      await tick();
+      subject.next(frame(older));
+      subject.next(EOSE);
+      expect((await pending).get(ADDR)?.content).toBe("new");
+    } finally {
+      storeAddMock.mockImplementation((e: unknown) => e);
+    }
+  });
+});
