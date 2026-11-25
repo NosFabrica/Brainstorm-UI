@@ -22,6 +22,7 @@
  * signing in never sets off a burst of approval prompts.
  */
 import type { NostrEvent } from "nostr-tools";
+import type { SignerFailure as AnySignerFailure } from "@/accounts/signing";
 import { RelayCursors } from "@/lib/dm/cursors";
 import { BackwardPager, type PageHandlers, type PagerSnapshot } from "@/lib/dm/pager";
 import {
@@ -81,19 +82,13 @@ export interface DmTransport {
 }
 
 /**
- * `refused`: the signer said no. `failed`: it threw something that isn't a no,
- * a timeout or a broken payload — Alby locked since this page enabled it
- * ("Password is not set") — so it may never have asked the reader at all.
+ * accounts/signing's reading of a signer failure, where a missing extension is
+ * one more "unreachable". `refused`: the signer said no. `failed`: it threw
+ * something that isn't a no, a timeout or a broken payload — Alby locked since
+ * this page enabled it ("Password is not set") — so it may never have asked the
+ * reader at all.
  */
-export type SignerFailure =
-  | "cancelled"
-  | "unreachable"
-  | "refused"
-  | "failed"
-  | "wrong-account"
-  | "broken"
-  /** The signer asked us to slow down: not a failure, a pace. */
-  | "rate-limited";
+export type SignerFailure = Exclude<AnySignerFailure, "missing">;
 
 export interface DmAccount {
   pubkey: string;

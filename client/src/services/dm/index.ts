@@ -10,8 +10,8 @@ import { RemoteAccount } from "@/accounts/remote-signer";
 import { BrainstormExtensionAccount, EXTENSION_WRAP_DEADLINE_MS } from "@/accounts/extension";
 import { AmberAccount, AMBER_WRAP_DEADLINE_MS } from "@/accounts/amber";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
-import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
+import { messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
+import { canSignSilently, signAs, signerFailure, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
 import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
@@ -27,25 +27,13 @@ import { ENCRYPTED_BLOSSOM_SERVERS, encryptedUploadServers, loadBlossomServers }
 import { poolTransport } from "./transport";
 import { dmEngine, setDmEngine } from "./current";
 
+/** The engine's reading of a signer failure (accounts/signing signerFailure), for this account. */
 function classifyFor(account: BrainstormAccount) {
+  const heldHere = account instanceof LocalAccount;
   return (error: unknown): SignerFailure => {
-    const kind = classifySignerError(error);
-    if (kind === "cancelled") return "cancelled";
-    // Ran out of time, or the extension isn't here yet: not a "no", and not the message's fault.
-    if (kind === "timeout" || kind === "missing") return "unreachable";
-    // Asked too fast: a pace to keep, never a fault — not even for a key held here.
-    if (kind === "rate-limited") return "rate-limited";
-    // The extension is on another profile: its key can't open these, but this account's can.
-    if (kind === "wrong-account") return "wrong-account";
-    // A key held here can't say no: once unlocked, any failure is the payload's.
-    if (account instanceof LocalAccount) return "broken";
-    // A payload that won't decrypt is broken for good.
-    if (kind === "bad-payload") return "broken";
-    // Only a "no" is a no. Anything else — Alby locked since this page enabled it
-    // ("Password is not set") — failed without asking anyone: calling it a decline
-    // told the reader they had refused a prompt they never saw. Neither is ever
-    // remembered as "unreadable".
-    return kind === "declined" ? "refused" : "failed";
+    const failure = signerFailure(error, { heldHere });
+    // The extension isn't here yet: not a "no", and not the message's fault.
+    return failure === "missing" ? "unreachable" : failure;
   };
 }
 
