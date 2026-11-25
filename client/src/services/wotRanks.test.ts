@@ -22,7 +22,9 @@ vi.mock("@/services/nostr", () => ({ fetchEventsByFilter: (...a: unknown[]) => f
 
 import { fetchAuthorRanks, inWebOfTrust, VERIFIED_RANK } from "./wotRanks";
 
-const assertion = (subject: string, rank: number, created_at = 1) => ({
+const assertion = (subject: string, rank: number, created_at = 1, pubkey = HOUSE_TA) => ({
+  kind: 30382,
+  pubkey,
   created_at,
   tags: [
     ["d", subject],
@@ -68,6 +70,14 @@ describe("fetchAuthorRanks", () => {
   it("the newest assertion about an author wins", async () => {
     fetchMock.mockResolvedValue([assertion(AVI, 90, 1), assertion(AVI, 1, 2)]);
     expect((await fetchAuthorRanks([AVI], "house")).ranks.get(AVI)).toBe(1);
+  });
+
+  // Whatever answered the read, only the scorer's own assertions about the
+  // authors asked count: a relay's stray 30382 from another key ranked nobody it should.
+  it("counts only the scorer's assertions about the authors asked", async () => {
+    fetchMock.mockResolvedValue([assertion(AVI, 99, 5, VIEWER_TA), assertion(BOT, 99, 5), assertion(AVI, 1, 1)]);
+    const r = await fetchAuthorRanks([AVI], "house");
+    expect(r.ranks).toEqual(new Map([[AVI, 1]]));
   });
 
   it("no scorer at all ranks nobody", async () => {

@@ -53,15 +53,20 @@ export async function fetchAuthorRanks(pubkeys: string[], observer: RankObserver
   const { ref, source } = resolved;
   const newest = new Map<string, { at: number; rank: number }>();
   for (let i = 0; i < unique.length; i += CHUNK) {
+    const chunk = unique.slice(i, i + CHUNK);
+    const asked = new Set(chunk);
     const events = await fetchEventsByFilter(
-      { kinds: [30382], authors: [ref.taPubkey], "#d": unique.slice(i, i + CHUNK) },
+      { kinds: [30382], authors: [ref.taPubkey], "#d": chunk },
       [ref.relay],
       TIMEOUT_MS,
     ).catch(() => []);
-    for (const ev of events as { created_at: number; tags: string[][] }[]) {
+    for (const ev of events as { kind: number; pubkey: string; created_at: number; tags: string[][] }[]) {
+      // The scorer's own assertion about someone asked, or nothing: the pool
+      // drops what a relay wasn't asked for, and this says so where it matters.
+      if (ev.kind !== 30382 || ev.pubkey !== ref.taPubkey) continue;
       const d = ev.tags.find((t) => t[0] === "d")?.[1];
       const rank = Number(ev.tags.find((t) => t[0] === "rank")?.[1]);
-      if (!d || !Number.isFinite(rank)) continue;
+      if (!d || !asked.has(d) || !Number.isFinite(rank)) continue;
       const cur = newest.get(d);
       if (!cur || ev.created_at > cur.at) newest.set(d, { at: ev.created_at, rank });
     }
