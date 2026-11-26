@@ -13,7 +13,6 @@
  * outranks the Assistant's.
  */
 import { useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -31,6 +30,7 @@ import { apiClient, AssistantDictionaryUnavailableError, type AssistantDictionar
 import { addOwnCopy, withdrawOwnCopy } from "@/services/conceptCopy";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 import type { DictionaryItem } from "@/services/dictionary";
+import { DICTIONARY_READS, readAgain } from "@/lib/readGeneration";
 
 type Keeper = "assistant" | "me";
 
@@ -56,7 +56,6 @@ export function AddToDictionary({
   /** The list's items: where Edit's "fields items carry" come from. */
   items: DictionaryItem[];
 }) {
-  const queryClient = useQueryClient();
   const [busy, setBusy] = useState<Keeper | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Keeper, string>>>({});
   // A server without the Assistant's routes: said once, and its button rests for the visit.
@@ -65,13 +64,9 @@ export function AddToDictionary({
   const [editing, setEditing] = useState(false);
   const name = assistant ? nameOf(assistant) : "";
 
-  // Every read that resolves a concept: the Dictionary, item pages, admin's summary.
-  const refresh = () =>
-    Promise.all(
-      ["dictionary", "item-concept", "admin/dictionary"].map((key) =>
-        queryClient.invalidateQueries({ queryKey: [key] }),
-      ),
-    );
+  // Every read that resolves a concept — the Dictionary, item pages, admin's summary — asked again
+  // (lib/readGeneration): a copy the Assistant published from the server isn't in the store yet.
+  const refresh = () => readAgain(DICTIONARY_READS);
 
   const run = async (keeper: Keeper, work: () => Promise<void>) => {
     if (busy) return;

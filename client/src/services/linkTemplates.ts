@@ -8,6 +8,7 @@
  * hub (services/listReads). A template that can't
  * be found is simply no link; its author may have deleted it.
  */
+import type { NostrEvent } from "nostr-tools";
 import { templateOf, templatePlaceholders, type LinkRef, type UrlTemplate } from "@/lib/linkTemplates";
 import { URL_TEMPLATES_CONCEPT, dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
@@ -19,15 +20,29 @@ const byId = new Map<string, UrlTemplate>();
 /** The templates these links pin, by id. Only well-formed templates are kept. */
 export async function fetchTemplates(refs: LinkRef[]): Promise<Map<string, UrlTemplate>> {
   const missing = [...new Set(refs.map((r) => r.templateId))].filter((id) => !byId.has(id));
-  if (missing.length) {
-    const relays = [...new Set([...refs.map((r) => r.relay).filter(Boolean), ...dictionaryRelays()])];
-    const events = await readListEvents([{ ids: missing }], TIMEOUT_MS, relays);
-    for (const ev of events as { id: string; pubkey: string; tags: string[][] }[]) {
-      const tpl = templateOf(ev);
-      if (tpl && templatePlaceholders(tpl.template)) byId.set(ev.id, tpl);
+  if (missing.length) templatesById(await readTemplateEvents(refs.filter((r) => missing.includes(r.templateId))));
+  return new Map(refs.flatMap((r) => (byId.has(r.templateId) ? [[r.templateId, byId.get(r.templateId)!]] : [])));
+}
+
+/** The template events these links pin, by id, from our index, their relay hints and the tag hub. */
+export async function readTemplateEvents(refs: LinkRef[]): Promise<NostrEvent[]> {
+  const ids = [...new Set(refs.map((r) => r.templateId))];
+  if (!ids.length) return [];
+  const relays = [...new Set([...refs.map((r) => r.relay).filter(Boolean), ...dictionaryRelays()])];
+  return readListEvents([{ ids }], TIMEOUT_MS, relays);
+}
+
+/** Of these events, the well-formed templates, by id (and known by id for the session). */
+export function templatesById(events: { id: string; pubkey: string; tags: string[][] }[]): Map<string, UrlTemplate> {
+  const out = new Map<string, UrlTemplate>();
+  for (const ev of events) {
+    const tpl = templateOf(ev);
+    if (tpl && templatePlaceholders(tpl.template)) {
+      byId.set(ev.id, tpl);
+      out.set(ev.id, tpl);
     }
   }
-  return new Map(refs.flatMap((r) => (byId.has(r.templateId) ? [[r.templateId, byId.get(r.templateId)!]] : [])));
+  return out;
 }
 
 /**

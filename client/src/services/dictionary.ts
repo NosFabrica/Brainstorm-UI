@@ -257,6 +257,95 @@ export async function houseCopyAuthors(): Promise<string[]> {
   return assistant && assistant !== house ? [house, assistant] : [house];
 }
 
+/** Who may hold a copy of the concepts for this reader: themselves, their Assistant, the house's, any managers. */
+export function copyAuthorsOf(
+  reader: DictionaryReader,
+  house: readonly string[],
+  managers: readonly string[] = [],
+): string[] {
+  return [...new Set([reader.pubkey, reader.taPubkey, ...house, ...managers].filter((a): a is string => !!a))];
+}
+
+/** Only kind-39998 headers are concepts. */
+export const conceptsOf = (concepts: readonly string[]): string[] =>
+  concepts.filter((c) => parseCoordinate(c)?.kind === 39998);
+
+/**
+ * The headers a Dictionary is decided from, as the store is asked for them:
+ * the concepts' community headers and every copy by `copyAuthors` that
+ * points at one. One filter each, unchunked — the store takes any size; the
+ * relays are asked in chunks (readDictionaryHeaders).
+ */
+export function dictionaryFilters(concepts: readonly string[], copyAuthors: readonly string[]): Filter[] {
+  const parsed = conceptsOf(concepts).map((c) => parseCoordinate(c)!);
+  if (!parsed.length) return [];
+  return [
+    { kinds: [39998], authors: [...new Set(parsed.map((c) => c.pubkey))], "#d": [...new Set(parsed.map((c) => c.d))] },
+    ...(copyAuthors.length ? [{ kinds: [39998], authors: [...copyAuthors], "#b": conceptsOf(concepts) }] : []),
+  ];
+}
+
+/** The concepts' community headers and copies, from the relays, CONCEPT_CHUNK concepts a subscription. */
+export async function readDictionaryHeaders(
+  concepts: readonly string[],
+  copyAuthors: readonly string[],
+  hubRelays: string[] = dictionaryRelays(),
+): Promise<HeaderEvent[]> {
+  const asked = conceptsOf(concepts);
+  const headerEvents: HeaderEvent[] = [];
+  for (let i = 0; i < asked.length; i += CONCEPT_CHUNK) {
+    headerEvents.push(...(await readHeaders(asked.slice(i, i + CONCEPT_CHUNK), [...copyAuthors], hubRelays)));
+  }
+  return headerEvents;
+}
+
+/**
+ * Each concept's entry, decided from these header events (lib/conceptResolution):
+ * its community header, the copies `copyAuthors` hold, and which governs for
+ * `reader`. No items: those load when something shows them (loadConceptItems).
+ */
+export function dictionaryEntriesOf(
+  headerEvents: HeaderEvent[],
+  reader: DictionaryReader,
+  concepts: readonly string[],
+  house: readonly string[],
+  copyAuthors: readonly string[],
+): DictionaryEntry[] {
+  const asked = conceptsOf(concepts);
+  const conceptSet = new Set(asked);
+  const byCoordinate = newestPerCoordinate(headerEvents);
+  const communityHeaders = new Map([...byCoordinate].filter(([coord]) => conceptSet.has(coord)));
+  const copies = [...byCoordinate.values()].filter(
+    (h) => copyAuthors.includes(h.pubkey) && !conceptSet.has(coordinateOf(h) ?? ""),
+  );
+  return asked.map((coordinate): DictionaryEntry => {
+    const candidates: EntryCandidates = {
+      community: communityHeaders.get(coordinate) ?? null,
+      house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
+      copies: Object.fromEntries(
+        copyAuthors.flatMap((a) => {
+          const copy = copyBy(a, coordinate, copies);
+          return copy ? [[a, copy]] : [];
+        }),
+      ),
+    };
+    const resolved = resolveConcept({
+      community: candidates.community,
+      communityCoordinate: coordinate,
+      personal: reader.pubkey ? candidates.copies[reader.pubkey] : null,
+      assistant: reader.taPubkey ? candidates.copies[reader.taPubkey] : null,
+      house: candidates.house,
+    });
+    return {
+      communityCoordinate: coordinate,
+      resolved,
+      inDictionary: resolved?.source === "personal" || resolved?.source === "assistant",
+      items: [],
+      candidates,
+    };
+  });
+}
+
 /**
  * `managers` are more copy authors to read beside the reader's own: whoever
  * else may manage their Dictionary (Settings › Dictionary's "Managed by").
@@ -269,59 +358,30 @@ export async function loadDictionary(
   hubRelays: string[] = dictionaryRelays(),
   { items: withItems = true, managers = [] }: { items?: boolean; managers?: string[] } = {},
 ): Promise<DictionaryEntry[]> {
-  concepts = concepts.filter((c) => parseCoordinate(c)?.kind === 39998);
+  concepts = conceptsOf(concepts);
   if (!concepts.length) return [];
   const house = await houseCopyAuthors();
-  const copyAuthors = [
-    ...new Set([reader.pubkey, reader.taPubkey, ...house, ...managers].filter((a): a is string => !!a)),
-  ];
-
-  const headerEvents: HeaderEvent[] = [];
-  for (let i = 0; i < concepts.length; i += CONCEPT_CHUNK) {
-    headerEvents.push(...(await readHeaders(concepts.slice(i, i + CONCEPT_CHUNK), copyAuthors, hubRelays)));
-  }
-  const conceptSet = new Set(concepts);
-  const byCoordinate = newestPerCoordinate(headerEvents);
-  const communityHeaders = new Map([...byCoordinate].filter(([coord]) => conceptSet.has(coord)));
-  const copies = [...byCoordinate.values()].filter(
-    (h) => copyAuthors.includes(h.pubkey) && !conceptSet.has(coordinateOf(h) ?? ""),
-  );
-
-  const candidates = concepts.map((coordinate): EntryCandidates => ({
-    community: communityHeaders.get(coordinate) ?? null,
-    house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
-    copies: Object.fromEntries(
-      copyAuthors.flatMap((a) => {
-        const copy = copyBy(a, coordinate, copies);
-        return copy ? [[a, copy]] : [];
-      }),
-    ),
-  }));
-  const resolved = concepts.map((coordinate, i) =>
-    resolveConcept({
-      community: candidates[i].community,
-      communityCoordinate: coordinate,
-      personal: reader.pubkey ? candidates[i].copies[reader.pubkey] : null,
-      assistant: reader.taPubkey ? candidates[i].copies[reader.taPubkey] : null,
-      house: candidates[i].house,
-    }),
-  );
+  const copyAuthors = copyAuthorsOf(reader, house, managers);
+  const headerEvents = await readDictionaryHeaders(concepts, copyAuthors, hubRelays);
+  const entries = dictionaryEntriesOf(headerEvents, reader, concepts, house, copyAuthors);
+  if (!withItems) return entries;
 
   // `items: false` (the Dictionary's list, an item page, admin) leaves the items to loadConceptItems.
-  const headersOf = concepts.map((c, i) => listHeaders(c, resolved[i]));
-  const items = withItems ? await loadConceptItems([...new Set(headersOf.flat())], hubRelays) : [];
-
-  return concepts.map((communityCoordinate, i) => {
+  const headersOf = entries.map((e) => listHeaders(e.communityCoordinate, e.resolved));
+  const items = await loadConceptItems([...new Set(headersOf.flat())], hubRelays);
+  return entries.map((entry, i) => {
     const mine = new Set(headersOf[i]);
-    const r = resolved[i];
-    return {
-      communityCoordinate,
-      resolved: r,
-      inDictionary: r?.source === "personal" || r?.source === "assistant",
-      items: items.filter((ev) => zValues(ev).some((z) => mine.has(z))),
-      candidates: candidates[i],
-    };
+    return { ...entry, items: items.filter((ev) => zValues(ev).some((z) => mine.has(z))) };
   });
+}
+
+/** Of these items, the ones filed under this entry's list (its community header and governing chain). */
+export function entryItems<T extends DictionaryItem>(
+  entry: Pick<DictionaryEntry, "communityCoordinate" | "resolved">,
+  items: T[],
+): T[] {
+  const mine = new Set(listHeaders(entry.communityCoordinate, entry.resolved));
+  return items.filter((ev) => zValues(ev).some((z) => mine.has(z)));
 }
 
 /**

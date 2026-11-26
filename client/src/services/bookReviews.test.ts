@@ -12,7 +12,11 @@ const io = vi.hoisted(() => ({ readListEvents: vi.fn(), signAs: vi.fn(), publish
 vi.mock("@/services/listReads", () => ({ readListEvents: io.readListEvents }));
 vi.mock("@/accounts/signing", () => ({ requireActiveAccount: () => ({ pubkey: "f".repeat(64) }), signAs: io.signAs }));
 vi.mock("@/services/tags", () => ({ publishToOutbox: io.publishToOutbox }));
-vi.mock("@/lib/relays", () => ({ SEARCH_RELAY: "wss://search.brainstorm.world/" }));
+// The reads are the places' (services/placeReviews readReviewEvents), which bring the relay module's other names in.
+vi.mock("@/lib/relays", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/relays")>()),
+  SEARCH_RELAY: "wss://search.brainstorm.world/",
+}));
 
 import { fetchBookReviews, publishBookReview, removeBookReview } from "./bookReviews";
 

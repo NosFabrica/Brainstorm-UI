@@ -202,8 +202,16 @@ async function fetchTrustSource(observerPubkey: string): Promise<TrustSourceRef 
   // read the same way: the lookup never loaded their relay list, so it asked
   // the defaults and concluded they had no scorer.
   const event = await fetchTrustProviderList(observerPubkey).catch(() => undefined);
-  if (!event) return null;
+  return trustSourceOf(event);
+}
 
+/**
+ * Where a kind 10040 says its author's rank scores live, or null when it names
+ * none (or there is no 10040). For a hook that holds the 10040 from the store
+ * (hooks/useTrustProviderStatus `useTrustProviderList`) and reads the same.
+ */
+export function trustSourceOf(event: { tags?: string[][] } | null | undefined): TrustSourceRef | null {
+  if (!event) return null;
   // NIP-85 keys the pointer per metric. We gate on `rank`, so that's the entry
   // that decides; the others (followers/hops/muters/reporters) are the same TA
   // in every declaration seen so far, but we don't rely on that.
