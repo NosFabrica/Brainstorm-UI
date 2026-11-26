@@ -3,7 +3,14 @@ import { groupOf } from "./tagTabGroups";
 
 const PK = "a".repeat(64);
 const GITHUB = `39998:${"b".repeat(64)}:github-accounts`;
-const ev = (kind: number, tags: string[][] = []) => ({ id: "1".repeat(64), kind, pubkey: PK, tags, content: "" });
+const ev = (kind: number, tags: string[][] = []) => ({
+  id: "1".repeat(64),
+  kind,
+  pubkey: PK,
+  tags,
+  content: "",
+  created_at: 0,
+});
 
 describe("groupOf", () => {
   it("is People for a profile, a list item's list, and any other kind by its name", () => {

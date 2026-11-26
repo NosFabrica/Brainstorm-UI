@@ -5,7 +5,7 @@
  * the same author used to share a `d`, so the second replaced the first.
  */
 import { describe, expect, it } from "vitest";
-import { buildEventTaggingAssertion } from "@/lib/tagging-sdk/event-tagging/builders.js";
+import { buildEventTaggingAssertion } from "@/lib/tagging-sdk/event-tagging/index.js";
 import { hash8 } from "./tags";
 
 const GH = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
@@ -21,8 +21,8 @@ async function dOf(target: { address: string } | { id: string }, slug = "verifie
     polarity: 1,
     asserterPubkey: ASSERTER,
     taPubkeys: [TA],
-    hash8: () => h,
-  }) as { tags: string[][] };
+    hash8: h === null ? undefined : () => h,
+  });
   return built.tags.find((t) => t[0] === "d")![1];
 }
 

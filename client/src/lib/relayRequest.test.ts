@@ -8,7 +8,7 @@
  * The pool is faked rather than mocked at the network layer, because what is
  * being asserted is subscription lifetime, and only the source can report that.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject, timeout } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
@@ -67,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
 });
+afterEach(() => vi.useRealTimers());
 
 describe("a request that no relay answers", () => {
   it("tears the subscription down instead of leaving the REQ open", async () => {

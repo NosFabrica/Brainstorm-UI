@@ -7,12 +7,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NostrEvent } from "nostr-tools";
+import type { wantProfile } from "@/services/authorProfileQueue";
+import type { loadReplaceable } from "@/lib/loaders";
 
-const wantProfileMock = vi.fn<(pubkey: string, onProfile: (p: NostrEvent) => void) => () => void>();
+const wantProfileMock = vi.fn<typeof wantProfile>();
 vi.mock("@/services/authorProfileQueue", () => ({
-  wantProfile: (pubkey: string, onProfile: (p: NostrEvent) => void) => wantProfileMock(pubkey, onProfile),
+  wantProfile: (...args: Parameters<typeof wantProfile>) => wantProfileMock(...args),
 }));
-const loadReplaceableMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
+const loadReplaceableMock = vi.fn<typeof loadReplaceable>(() => Promise.resolve(undefined));
 // The fallback beyond the search relay: batched, de-duped and disk-cached by its own loader.
 const loadElsewhereMock = vi.fn<(pubkey: string, timeoutMs?: number) => Promise<NostrEvent | undefined>>(() =>
   Promise.resolve(undefined),
@@ -21,7 +23,7 @@ vi.mock("@/lib/loaders", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/loaders")>();
   return {
     ...actual,
-    loadReplaceable: (...args: unknown[]) => loadReplaceableMock(...(args as [])),
+    loadReplaceable: (...args: Parameters<typeof loadReplaceable>) => loadReplaceableMock(...args),
     loadProfileElsewhere: (pubkey: string, timeoutMs?: number) => loadElsewhereMock(pubkey, timeoutMs),
   };
 });
@@ -63,7 +65,7 @@ const profile = (pubkey: string, name: string): NostrEvent =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  loadReplaceableMock.mockResolvedValue(null);
+  loadReplaceableMock.mockResolvedValue(undefined);
   requestAllMock.mockResolvedValue([]);
   loadElsewhereMock.mockResolvedValue(undefined);
 });

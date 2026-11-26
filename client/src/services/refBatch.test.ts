@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 
-const fetchIds = vi.hoisted(() => vi.fn((_ids: string[], _relays?: string[]) => Promise.resolve([])));
-const fetchAddrs = vi.hoisted(() => vi.fn((_coords: unknown[]) => Promise.resolve(new Map())));
+const fetchIds = vi.hoisted(() => vi.fn<typeof fetchEventsByIds>(() => Promise.resolve([])));
+const fetchAddrs = vi.hoisted(() => vi.fn<typeof fetchAddressableEvents>(() => Promise.resolve(new Map())));
 vi.mock("@/services/nostr", () => ({ fetchEventsByIds: fetchIds, fetchAddressableEvents: fetchAddrs }));
 
 import { fetchRefBatched } from "./refBatch";

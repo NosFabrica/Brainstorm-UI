@@ -14,7 +14,10 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   const RealAudio = window.Audio;
-  vi.spyOn(window, "Audio").mockImplementation(() => (element ??= new RealAudio()));
+  // A `function`, not an arrow: the code calls `new Audio()`, and vitest constructs through the mock.
+  vi.spyOn(window, "Audio").mockImplementation(function () {
+    return (element ??= new RealAudio());
+  });
 });
 afterEach(() => {
   vi.restoreAllMocks();

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 import { __resetAsks } from "@/lib/askOnce";
 import { __resetListEdits } from "@/lib/listEdits";
 import { eventStore } from "@/lib/eventStore";
@@ -163,6 +163,9 @@ class OfflineWebSocket extends EventTarget {
   constructor(url: string | URL) {
     super();
     this.url = String(url);
+    // TEST_WS_REPORT=1 names each test that dialled a relay: one waiting on this socket waits
+    // out its deadline (a routing lookup's 2.5 s), which is time and nothing else.
+    if (process.env.TEST_WS_REPORT) console.warn(`[ws-report] ${expect.getState().currentTestName}: ${this.url}`);
   }
 
   send(): void {}

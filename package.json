@@ -11,6 +11,7 @@
     "build": "vite build",
     "build:lists": "vite build --config vite.lists.config.ts",
     "check": "tsc",
+    "check:tests": "tsc -p tsconfig.test.json",
     "test": "LC_ALL=en-US vitest run",
     "test:watch": "LC_ALL=en-US vitest",
     "e2e": "playwright test -c e2e/playwright.config.ts",
@@ -101,14 +102,14 @@
     "postcss": "^8.4.47",
     "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.8.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "simple-git-hooks": "^2.14.0",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "5.6.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^7.3.8",
-    "vitest": "^2.1.9"
+    "vitest": "5.1.0"
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged --concurrent false"

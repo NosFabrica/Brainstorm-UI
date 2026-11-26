@@ -83,6 +83,15 @@ const clickPublish = async (user: { click: (el: Element) => Promise<void> } = us
   await user.click(screen.getByTestId("list-editor-publish"));
 };
 const fieldRow = (i: number) => screen.getByTestId(`list-editor-field-${i}`);
+/**
+ * Puts `text` at the end of a field as one edit (a click, then a paste): for the fields where no
+ * single keystroke is under test. Typing it a key at a time re-rendered this form once a key, and
+ * made this the suite's slowest file.
+ */
+const fill = async (field: HTMLElement, text: string) => {
+  await userEvent.click(field);
+  await userEvent.paste(text);
+};
 const pick = async (trigger: HTMLElement, option: string | RegExp) => {
   await userEvent.click(trigger);
   await userEvent.click(await screen.findByRole("option", { name: option }));
@@ -91,10 +100,10 @@ const pick = async (trigger: HTMLElement, option: string | RegExp) => {
 /** A new list with one field, "name", as its title. */
 async function startList() {
   editor();
-  await userEvent.type(screen.getByTestId("list-editor-plural"), "Food Trucks");
-  await userEvent.type(screen.getByTestId("list-editor-singular"), "Food Truck");
+  await fill(screen.getByTestId("list-editor-plural"), "Food Trucks");
+  await fill(screen.getByTestId("list-editor-singular"), "Food Truck");
   await userEvent.click(screen.getByTestId("list-editor-add-field"));
-  await userEvent.type(within(fieldRow(0)).getByTestId("list-editor-field-name"), "name");
+  await fill(within(fieldRow(0)).getByTestId("list-editor-field-name"), "name");
   await pick(screen.getByTestId("list-editor-display-title"), "name");
 }
 
@@ -121,7 +130,7 @@ describe("ListEditor — a new list", () => {
 
   it("draws the example item as it's typed", async () => {
     await startList();
-    await userEvent.type(screen.getByTestId("list-example-name"), "Wolf's Burger Truck");
+    await fill(screen.getByTestId("list-example-name"), "Wolf's Burger Truck");
     expect(within(screen.getByTestId("list-preview")).getByTestId("dlist-item-title")).toHaveTextContent(
       "Wolf's Burger Truck",
     );
@@ -130,9 +139,9 @@ describe("ListEditor — a new list", () => {
   it("keeps an example through a change of type — text to url makes it a link — but not through a rename", async () => {
     await startList();
     await userEvent.click(screen.getByTestId("list-editor-add-field"));
-    await userEvent.type(within(fieldRow(1)).getByTestId("list-editor-field-name"), "site");
+    await fill(within(fieldRow(1)).getByTestId("list-editor-field-name"), "site");
     await userEvent.click(screen.getByTestId("list-editor-fact-site"));
-    await userEvent.type(screen.getByTestId("list-example-site"), "https://wolfs.example");
+    await fill(screen.getByTestId("list-example-site"), "https://wolfs.example");
     const fact = () => within(screen.getByTestId("list-preview")).getByTestId("dlist-item-fact");
     expect(within(fact()).queryByRole("link")).toBeNull();
 
@@ -147,11 +156,11 @@ describe("ListEditor — a new list", () => {
   it("spells out what a URL template expands to, as values change", async () => {
     await startList();
     await userEvent.click(screen.getByTestId("list-editor-add-field"));
-    await userEvent.type(within(fieldRow(1)).getByTestId("list-editor-field-name"), "btcmap-id");
+    await fill(within(fieldRow(1)).getByTestId("list-editor-field-name"), "btcmap-id");
     await pick(screen.getByTestId("list-editor-add-link"), /BTC Map place/);
     expect(screen.getByTestId("list-preview-links")).toHaveTextContent("{id} ← btcmap-id = —");
     expect(screen.getByTestId("list-preview-links")).toHaveTextContent("every placeholder needs a value");
-    await userEvent.type(screen.getByTestId("list-example-btcmap-id"), "28718");
+    await fill(screen.getByTestId("list-example-btcmap-id"), "28718");
     expect(within(screen.getByTestId("list-preview-links")).getByTestId("list-preview-links-href")).toHaveTextContent(
       "https://btcmap.org/merchant/28718",
     );
@@ -160,11 +169,11 @@ describe("ListEditor — a new list", () => {
   it("won't take an identifier already in use, and publishes what it shows", async () => {
     const onPublished = vi.fn();
     editor(null, onPublished);
-    await userEvent.type(screen.getByTestId("list-editor-plural"), "Taken");
-    await userEvent.type(screen.getByTestId("list-editor-singular"), "Taken");
+    await fill(screen.getByTestId("list-editor-plural"), "Taken");
+    await fill(screen.getByTestId("list-editor-singular"), "Taken");
     expect(screen.getByTestId("list-editor-problems")).toHaveTextContent('You already have a list at "taken"');
     await userEvent.clear(screen.getByTestId("list-editor-d"));
-    await userEvent.type(screen.getByTestId("list-editor-d"), "fresh");
+    await fill(screen.getByTestId("list-editor-d"), "fresh");
     await clickPublish();
     expect(publish.mock.calls[0][0].tags[0]).toEqual(["d", "fresh"]);
     expect(onPublished).toHaveBeenCalledWith(`39998:${ME}:fresh`);
@@ -192,7 +201,7 @@ describe("ListEditor — a published list", () => {
   it("edits it in place, keeping its d and what the form doesn't speak", async () => {
     editor(header(ME));
     expect(screen.getByTestId("list-editor-d")).toHaveTextContent("food-trucks");
-    await userEvent.type(screen.getByTestId("list-editor-description"), "Trucks that take bitcoin");
+    await fill(screen.getByTestId("list-editor-description"), "Trucks that take bitcoin");
     await clickPublish();
     const published = publish.mock.calls[0][0].tags;
     expect(published).toContainEqual(["license", "ODbL-1.0"]);
@@ -244,7 +253,7 @@ describe("ListEditor — a newer version arriving while it's open", () => {
     lists.at.set("food-trucks", v1);
     const { rerender } = renderWithProviders(at(v1));
     await waitFor(() => expect(screen.getByTestId("list-editor-publish")).toBeEnabled());
-    await userEvent.type(screen.getByTestId("list-editor-description"), "Mine");
+    await fill(screen.getByTestId("list-editor-description"), "Mine");
     rerender(at(v2));
 
     expect(await screen.findByTestId("list-editor-version-stale")).toBeInTheDocument();
@@ -258,7 +267,7 @@ describe("ListEditor — a newer version arriving while it's open", () => {
     lists.at.set("food-trucks", v1);
     renderWithProviders(at(v1));
     await waitFor(() => expect(screen.getByTestId("list-editor-publish")).toBeEnabled());
-    await userEvent.type(screen.getByTestId("list-editor-description"), "Mine");
+    await fill(screen.getByTestId("list-editor-description"), "Mine");
     lists.at.set("food-trucks", v2);
     await userEvent.click(screen.getByTestId("list-editor-publish"));
     expect(await screen.findByTestId("list-editor-error")).toHaveTextContent("A newer version arrived");
@@ -289,8 +298,8 @@ describe("ListEditor — a new list at an identifier already in use", () => {
   it("finds a list at that d the loaded lists didn't have, and won't publish over it", async () => {
     lists.at.set("books", books);
     renderWithProviders(<ListEditor header={null} me={ME} takenDs={new Set()} onPublished={() => {}} />);
-    await userEvent.type(screen.getByTestId("list-editor-plural"), "Books");
-    await userEvent.type(screen.getByTestId("list-editor-singular"), "Book");
+    await fill(screen.getByTestId("list-editor-plural"), "Books");
+    await fill(screen.getByTestId("list-editor-singular"), "Book");
     expect(await screen.findByText(/You already have a list at "books"/, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByTestId("list-editor-publish")).toBeDisabled();
   });
@@ -299,8 +308,8 @@ describe("ListEditor — a new list at an identifier already in use", () => {
     let release: (() => void) | undefined;
     lists.hold = (answer) => (release = answer);
     renderWithProviders(<ListEditor header={null} me={ME} takenDs={new Set()} onPublished={() => {}} />);
-    await userEvent.type(screen.getByTestId("list-editor-plural"), "Books");
-    await userEvent.type(screen.getByTestId("list-editor-singular"), "Book");
+    await fill(screen.getByTestId("list-editor-plural"), "Books");
+    await fill(screen.getByTestId("list-editor-singular"), "Book");
     expect(screen.getByTestId("list-editor-checking-d")).toBeInTheDocument();
     expect(screen.getByTestId("list-editor-publish")).toBeDisabled();
     await waitFor(() => expect(release).toBeDefined(), { timeout: 3000 });
@@ -535,9 +544,9 @@ describe("ListEditor — a new URL template", () => {
   async function draftTemplate(field: string, name: string, url: string) {
     await startList();
     await userEvent.click(screen.getByTestId("list-editor-add-field"));
-    await userEvent.type(within(fieldRow(1)).getByTestId("list-editor-field-name"), field);
+    await fill(within(fieldRow(1)).getByTestId("list-editor-field-name"), field);
     await userEvent.click(screen.getByTestId("list-editor-new-template"));
-    if (name) await userEvent.type(screen.getByTestId("list-editor-draft-template-0-name"), name);
+    if (name) await fill(screen.getByTestId("list-editor-draft-template-0-name"), name);
     await userEvent.clear(screen.getByTestId("list-editor-draft-template-0-url"));
     await userEvent.paste(url);
   }
@@ -545,7 +554,7 @@ describe("ListEditor — a new URL template", () => {
 
   it("previews a drafted template's link, its placeholder bound to the field it names", async () => {
     await draftTemplate("isbn", "Open Library book", OPEN_LIBRARY);
-    await userEvent.type(screen.getByTestId("list-example-isbn"), "9780140328721");
+    await fill(screen.getByTestId("list-example-isbn"), "9780140328721");
     expect(within(screen.getByTestId("list-preview-links")).getByTestId("list-preview-links-href")).toHaveTextContent(
       "https://openlibrary.org/isbn/9780140328721",
     );

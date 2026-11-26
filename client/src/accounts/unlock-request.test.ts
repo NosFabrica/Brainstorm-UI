@@ -9,8 +9,10 @@ import { requestRecoveryPassword, unlockPrompt$, type UnlockPrompt } from "./unl
 const PUBKEY = "a".repeat(64);
 
 /** A signer stand-in: the store only ever reads its pubkey. */
-function fakeRequest(attempt = vi.fn(async () => ({ ok: true }) as const)): RecoveryPasswordRequest {
-  return { signer: { pubkey: PUBKEY } as unknown as LocalSigner, attempt };
+function fakeRequest(
+  attempt: RecoveryPasswordRequest["attempt"] = vi.fn(async () => ({ ok: true }) as const),
+): RecoveryPasswordRequest {
+  return { signer: { pubkey: PUBKEY } as unknown as LocalSigner, hasPassword: true, attempt };
 }
 
 /** The next prompt to appear on screen. */
@@ -43,10 +45,10 @@ describe("raising the unlock prompt", () => {
 
   it("stays open on a wrong password, and reports why", async () => {
     const attempt = vi
-      .fn<[string], Promise<{ ok: boolean; reason?: string }>>()
+      .fn<RecoveryPasswordRequest["attempt"]>()
       .mockResolvedValueOnce({ ok: false, reason: "wrong-password" })
       .mockResolvedValueOnce({ ok: true });
-    const pending = requestRecoveryPassword(fakeRequest(attempt as unknown as RecoveryPasswordRequest["attempt"]));
+    const pending = requestRecoveryPassword(fakeRequest(attempt));
     const prompt = await nextPrompt();
 
     await expect(prompt.submit("nope")).resolves.toEqual({ ok: false, reason: "wrong-password" });

@@ -65,11 +65,13 @@ describe("retiring an account", () => {
         return rows as never;
       },
       getAccount: (id: string) => rows.find((row) => row.id === id) as never,
-      removeAccount: (account: { id: string }) =>
-        void rows.splice(
-          rows.findIndex((row) => row.id === account.id),
+      removeAccount: (account: string | { id: string }) => {
+        const id = typeof account === "string" ? account : account.id;
+        rows.splice(
+          rows.findIndex((row) => row.id === id),
           1,
-        ),
+        );
+      },
     };
   }
 

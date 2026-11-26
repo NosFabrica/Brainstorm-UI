@@ -10,10 +10,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
+import type { requestAll } from "@/lib/relayRequest";
 
-const requestAllMock = vi.fn<() => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+const requestAllMock = vi.fn<typeof requestAll>(() => Promise.resolve([]));
 vi.mock("@/lib/relayRequest", () => ({
-  requestAll: (...args: unknown[]) => requestAllMock(...(args as [])),
+  requestAll: (...args: Parameters<typeof requestAll>) => requestAllMock(...args),
   requestNewest: vi.fn(),
   requestNewestRaw: vi.fn(),
   requestOne: vi.fn(),
@@ -94,12 +95,12 @@ describe("fetchAddressableEvents", () => {
   it("asks the read to stop the moment every wanted address has a copy", async () => {
     requestAllMock.mockResolvedValueOnce([isis()]);
     await fetchAddressableEvents([ptr], ptr.relays);
-    const opts = requestAllMock.mock.calls[0][3] as { enough?: (collected: Map<string, NostrEvent>) => boolean };
+    const opts = requestAllMock.mock.calls[0][3];
     expect(opts?.enough).toBeTypeOf("function");
     const other = { ...isis(), id: "2".repeat(64), tags: [["d", "osiris"]] } as NostrEvent;
-    expect(opts.enough!(new Map([[other.id, other]]))).toBe(false);
+    expect(opts!.enough!(new Map([[other.id, other]]))).toBe(false);
     expect(
-      opts.enough!(
+      opts!.enough!(
         new Map([
           [other.id, other],
           [isis().id, isis()],
@@ -168,7 +169,7 @@ describe("fetchAddressableEvents", () => {
   it("asks an naddr's own relay hint beside the default relays", async () => {
     requestAllMock.mockResolvedValueOnce([isis()]);
     await fetchAddressableEvents([{ ...ptr, relays: ["wss://hint.example/"] }]);
-    const asked = requestAllMock.mock.calls[0][0] as unknown as string[];
+    const asked = requestAllMock.mock.calls[0][0];
     expect(asked).toEqual(expect.arrayContaining([...BESIDES_SEARCH, "wss://hint.example/"]));
   });
 

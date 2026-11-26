@@ -55,7 +55,7 @@ describe("bounded", () => {
 
 describe("only an ask that found something keeps its window", () => {
   it("a failed ask may be asked again at once", async () => {
-    await askOnce("down", { minMs: 60_000 }, () => Promise.reject(new Error("no relay"))).catch(() => {});
+    await askOnce("down", { minMs: 60_000 }, () => Promise.reject(new Error("no relay")))?.catch(() => {});
     await Promise.resolve();
     expect(isDue("down")).toBe(true);
   });

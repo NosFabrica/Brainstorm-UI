@@ -51,6 +51,9 @@ jobs:
       - name: Typecheck
         run: npm run check
 
+      - name: Typecheck tests
+        run: npm run check:tests
+
       - name: Test
         run: npm test
 

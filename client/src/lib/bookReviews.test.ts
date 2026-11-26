@@ -113,7 +113,6 @@ describe("the books contract, section 11", () => {
   it("F: a record, then its removal (e, a, k), is no review", () => {
     const review = unbnd();
     const removal = ev({
-      kind: 5,
       created_at: NOW - 60,
       ...removalTemplate({ id: review.id, pubkey: A, tags: review.tags }),
     });

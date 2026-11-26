@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
+import type { apiClient } from "@/services/api";
 
 const ME = "a".repeat(64),
   T = "f".repeat(64),
@@ -34,10 +35,11 @@ let scores: Record<string, number | null | undefined> = {};
 let flags: Record<string, boolean | undefined> = {};
 let origin = { origin: ME, originPov: "global" as "global" | "personalized", isFallback: false, loading: false };
 
+type Api = typeof apiClient;
 const api = vi.hoisted(() => ({
   getShortestPath: vi.fn(),
   getShortestHops: vi.fn(),
-  getMyTrustSignals: vi.fn(async () => new Map()),
+  getMyTrustSignals: vi.fn<Api["getMyTrustSignals"]>(async () => new Map()),
   getHouseInfluence: vi.fn(async () => null),
   getUserOverview: vi.fn(async () => null),
 }));
@@ -141,7 +143,7 @@ describe("the Connection page", () => {
     await waitFor(() => expect(fetchProfileMap).toHaveBeenCalled());
     // Your own scores: one batch for every account in the network.
     await waitFor(() => expect(api.getMyTrustSignals).toHaveBeenCalledTimes(1));
-    expect(new Set(api.getMyTrustSignals.mock.calls[0][0] as string[])).toEqual(new Set([ME, C1, C2, C3, C4, C5, T]));
+    expect(new Set(api.getMyTrustSignals.mock.calls[0][0])).toEqual(new Set([ME, C1, C2, C3, C4, C5, T]));
     const before = {
       paths: api.getShortestPath.mock.calls.length,
       profiles: fetchProfileMap.mock.calls.length,

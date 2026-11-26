@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { AdminBillingPlanMapping, SchedulingItem } from "@/services/api";
+import type { AdminBillingPlanMapping, FlashServiceItem, SchedulingItem } from "@/services/api";
 import { PlanMappingsCard } from "./PlanMappingsCard";
 
 const getAdminBillingPlanMappings = vi.fn<() => Promise<AdminBillingPlanMapping[]>>();
@@ -210,7 +210,7 @@ describe("PlanMappingsCard", () => {
     ]);
     const { container } = renderCard();
     await waitFor(() => expect(screen.getByTestId("billing-plan-1").textContent).toContain("$2.00"));
-    const order = [...(container.querelectorAll ? [] : container.querySelectorAll('[data-testid^="billing-plan-"]'))]
+    const order = [...container.querySelectorAll('[data-testid^="billing-plan-"]')]
       .map((e) => e.getAttribute("data-testid") as string)
       .filter((id) => /^billing-plan-\d+$/.test(id));
     expect(order).toEqual(["billing-plan-1", "billing-plan-2", "billing-plan-3"]);

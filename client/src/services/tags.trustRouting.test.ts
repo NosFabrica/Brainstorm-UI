@@ -42,7 +42,6 @@ vi.mock("./nostr", () => ({
   },
   fetchTrustProviderList: (pk: string) => h.fetchTrustProviderList(pk),
   signEventLocally: async (e: unknown) => e,
-  loadOutboxRelayListFromDb: () => [],
   getCurrentUser: () => null,
   publishToRelays: async () => ({ success: true }),
   PROFILE_RELAYS: ["wss://purplepag.es/"],

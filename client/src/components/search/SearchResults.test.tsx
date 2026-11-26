@@ -13,17 +13,18 @@ import { scopedSearchHref } from "@/lib/searchSyntax";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
-import type { SearchSnapshot } from "@/services/search";
+import type { RepoCounts, SearchSnapshot } from "@/services/search";
+import type { ServerStatus } from "@/lib/serverStatus";
 import type { RibbonList } from "@/hooks/useListRibbon";
 
 const streamMock = vi.fn();
 const moreMock = vi.fn();
-const serverStatusMock = vi.fn(() => ({
-  api: "ok" as const,
-  search: "ok" as const,
+const serverStatusMock = vi.fn<() => ServerStatus>(() => ({
+  api: "ok",
+  search: "ok",
   recovery: 0,
   checking: false,
-  nextProbeAt: null as number | null,
+  nextProbeAt: null,
 }));
 const retryNowMock = vi.fn();
 // List items among results read the Dictionary through the account; they have their own tests.
@@ -70,7 +71,7 @@ vi.mock("@/services/search", async (importOriginal) => {
       return cancelMock;
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
-    fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
+    fetchRepoCounts: (address: string) => repoCountsMock(address),
     // Handed the items themselves (whose status counts is their author's), recorded by id.
     fetchGitStatuses: (items: (string | { id: string })[]) => {
       gitItemsAsked.push(...items);
@@ -127,8 +128,8 @@ const gitItemsAsked: (string | { id: string })[] = [];
 const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() =>
   Promise.resolve(new Map()),
 );
-const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>(() =>
-  Promise.resolve({ issues: 0, patches: 0 }),
+const repoCountsMock = vi.fn<(address: string) => Promise<RepoCounts>>(() =>
+  Promise.resolve({ issues: 0, patches: 0, contributors: [], lastAt: null }),
 );
 
 // Member piles hydrate through fetchProfileMap — stubbed so jsdom never
@@ -278,7 +279,7 @@ const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: bo
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
-import { ListKindsContext } from "@/hooks/useListKinds";
+import { ListKindsContext, type ListKindSearch } from "@/hooks/useListKinds";
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { KIND_FIXTURES } from "@/test/kindFixtures";
 import { FEATURES } from "@/config/featureFlags";
@@ -388,7 +389,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   recentByKindsMock.mockResolvedValue([]);
   profileMapMock.clear();
-  repoCountsMock.mockResolvedValue({ issues: 0, patches: 0 });
+  repoCountsMock.mockResolvedValue({ issues: 0, patches: 0, contributors: [], lastAt: null });
   endorsementsMock.mockReturnValue(null);
   followsMock = new Set();
   personEndorsementsMock.mockReturnValue(null);
@@ -3678,6 +3679,7 @@ describe("SearchResults", () => {
       ],
       eose: true,
       timeMs: 140,
+      error: null,
     });
 
     const card = await screen.findByTestId("media-card-ep395");
@@ -4518,6 +4520,7 @@ describe("SearchResults", () => {
             artist: {
               id: "wl-handled",
               name: "Handled",
+              url: "https://wavlake.com/artist/wl-handled",
               artworkUrl: "https://img/handled.jpg",
               artistNpub: handled.npub,
             },
@@ -5441,13 +5444,15 @@ describe("a person's handle on their search card", () => {
 // The kinds with a look of their own (Books, Places, GitHub accounts) are handed down from the
 // app's root; each has a page of its own, listed under More with its neighbours.
 describe("a kind's own page", () => {
-  const kinds = [
+  const kinds: ListKindSearch[] = [
     {
       key: "books",
       label: "Books",
       group: "Read & listen",
       community: "39998:b:books",
       Preview: () => null,
+      Warm: () => null,
+      Suggestion: () => null,
       Page: ({ query }: { query: string }) => <div data-testid="kind-page-books">{query}</div>,
     },
     {
@@ -5456,6 +5461,8 @@ describe("a kind's own page", () => {
       group: "Out & about",
       community: "39998:p:places",
       Preview: () => null,
+      Warm: () => null,
+      Suggestion: () => null,
       Page: ({ query }: { query: string }) => <div data-testid="kind-page-places">{query}</div>,
     },
   ];
@@ -5539,6 +5546,7 @@ describe("All's categories", () => {
     more: false,
     href: "/e/naddr1places",
     headers: [PLACES],
+    whole: false,
   };
   const row = (n: string, kind: number) => ({
     event: ev(n.repeat(64), kind, "a".repeat(64), "fork & coin burgers"),

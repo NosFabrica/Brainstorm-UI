@@ -57,6 +57,7 @@ function show(map: Partial<AssistantTreasureMap>) {
     error: null,
     set: vi.fn(async (on: boolean) => ({ on, published: true, event: null, relays: [] })),
     publishing: false,
+    lastPublish: null,
     ...map,
   };
   renderWithProviders(<TreasureMapSetupPage />);

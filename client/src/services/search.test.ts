@@ -2783,7 +2783,7 @@ describe("zapStoreUrl", () => {
   });
 
   it("is null for a listing without a d identifier", () => {
-    expect(zapStoreUrl({ kind: 32267, pubkey: "b".repeat(64), tags: [] } as NostrEvent)).toBeNull();
+    expect(zapStoreUrl({ kind: 32267, pubkey: "b".repeat(64), tags: [] })).toBeNull();
   });
 });
 

@@ -3,9 +3,10 @@
  * the profile publish's backoff, long enough for a switch.
  */
 import { describe, expect, it, vi } from "vitest";
+import type { publishProfile as realPublishProfile } from "@/services/nostr";
 
 const announceRelayList = vi.fn(async () => ({ success: true }));
-const publishProfile = vi.fn(async () => ({ success: true }));
+const publishProfile = vi.fn<typeof realPublishProfile>(async () => ({ success: true }));
 
 vi.mock("./session", () => ({
   sessions: {},
@@ -18,7 +19,7 @@ vi.mock("@/services/nostr", () => ({
   announceRelayList: () => announceRelayList(),
   cacheProfile: vi.fn(),
   fetchProfile: vi.fn(async () => null),
-  publishProfile: (content: unknown) => publishProfile(content as never),
+  publishProfile: (...a: Parameters<typeof realPublishProfile>) => publishProfile(...a),
 }));
 
 describe("the first-run setup", () => {

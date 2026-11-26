@@ -72,10 +72,10 @@ afterEach(() => vi.useRealTimers());
 describe("the author queue and the device's own copy", () => {
   it("answers from the device without asking the relay", async () => {
     held.set("a".repeat(64), { event: profile("a".repeat(64)), at: Date.now() });
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile("a".repeat(64), (p) => got.push(p));
     await settle();
-    expect(got.map((p) => p.pubkey)).toEqual(["a".repeat(64)]);
+    expect(got.map((p) => p?.pubkey)).toEqual(["a".repeat(64)]);
     expect(reqMock).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,7 @@ describe("the author queue and the device's own copy", () => {
   it("shows an old copy at once and asks after it, so the next visit is right", async () => {
     const stale = Date.now() - PROFILE_FRESH_MS - 1;
     held.set("d".repeat(64), { event: profile("d".repeat(64)), at: stale });
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile("d".repeat(64), (p) => got.push(p));
     await settle();
     expect(got).toHaveLength(1);
@@ -127,7 +127,7 @@ describe("the author queue and the device's own copy", () => {
     const pk = "9".repeat(64);
     expect(claimRefresh(`0:${pk}:`, 0)).toBe(true); // the loader got there first
     held.set(pk, { event: profile(pk), at: Date.now() - PROFILE_FRESH_MS - 1 });
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile(pk, (p) => got.push(p));
     await settle();
     expect(got).toHaveLength(1); // still shown
@@ -139,7 +139,7 @@ describe("the author queue and the store", () => {
   it("answers someone the store holds at once, without reading the device or asking a relay", async () => {
     const pk = "1".repeat(64);
     inStore.set(pk, profile(pk));
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile(pk, (p) => got.push(p));
     expect(got).toHaveLength(1); // no flush to wait for
     await settle();
@@ -152,7 +152,7 @@ describe("the author queue and the store", () => {
     const copy = profile(pk);
     inStore.set(pk, copy);
     learned.set(copy.id, Date.now() - PROFILE_FRESH_MS - 1);
-    const got: NostrEvent[] = [];
+    const got: (NostrEvent | null)[] = [];
     wantProfile(pk, (p) => got.push(p));
     expect(got).toHaveLength(1);
     await settle();

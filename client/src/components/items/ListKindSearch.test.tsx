@@ -1655,7 +1655,7 @@ describe("the Places map, held steady", () => {
 // their claim, or their verified root handle is on the domain named for the account. Never a name.
 describe("one person, one row", () => {
   const OWNER = "a1".repeat(32);
-  const github = (people?: { pubkey: string; nip05?: string }[]) => {
+  const github = (people?: { pubkey: string; nip05?: string; website?: string }[]) => {
     const kind = LIST_KINDS.find((k) => k.key === "github")!;
     return renderWithProviders(<kind.Suggestion query="riverdev" slot="follow" people={people} />);
   };

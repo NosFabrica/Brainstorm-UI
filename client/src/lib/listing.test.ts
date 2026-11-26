@@ -7,6 +7,7 @@ import {
   listingCardLine,
   listingStatus,
   shippingOf,
+  type Listing,
 } from "./listing";
 
 // NIP-99 as the marketplaces publish it (probed 2026-09-04: Shopstr,
@@ -278,7 +279,7 @@ describe("formatListingPrice — shown exactly as priced, never converted", () =
 });
 
 describe("listingCardLine — one quiet line: where it is, what shipping costs", () => {
-  const base = {
+  const base: Listing = {
     id: "l1",
     pubkey: "a".repeat(64),
     d: "l1",
@@ -287,12 +288,19 @@ describe("listingCardLine — one quiet line: where it is, what shipping costs",
     description: "",
     price: { amount: 12, currency: "USD" },
     images: [],
-    location: null as string | null,
+    location: null,
     status: "active",
     hidden: false,
+    preOrder: false,
+    stock: null,
+    format: null,
+    productType: null,
+    parent: null,
+    specs: [],
     categories: [],
     shopUrl: null,
-    shipping: [] as { name: string; amount: number; currency: string }[],
+    shipping: [],
+    shippingRefs: [],
     createdAt: 0,
   };
 

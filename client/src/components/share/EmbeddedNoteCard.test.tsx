@@ -8,11 +8,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { nip19 } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
+import type { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { renderWithProviders } from "@/test/utils";
 
 const AUTHOR = "3".repeat(64);
-const ARTICLE = {
+const ARTICLE: NostrEvent = {
   id: "a".repeat(64),
   kind: 30023,
   pubkey: AUTHOR,
@@ -26,10 +27,12 @@ const ARTICLE = {
     ["image", "https://img/cover.jpg"],
   ],
 };
-const addressable = vi.fn(async () => new Map([[`30023:${AUTHOR}:back-to-school-2026`, ARTICLE]]));
+const addressable = vi.fn<typeof fetchAddressableEvents>(
+  async () => new Map([[`30023:${AUTHOR}:back-to-school-2026`, ARTICLE]]),
+);
 const QUOTED_AUTHOR = "7".repeat(64);
 const MENTIONED = "8".repeat(64);
-const QUOTED = {
+const QUOTED: NostrEvent = {
   id: "d".repeat(64),
   kind: 1,
   pubkey: QUOTED_AUTHOR,
@@ -38,11 +41,11 @@ const QUOTED = {
   content: "Some days posting here feels like nobody's listening.",
   tags: [],
 };
-const byIds = vi.fn(async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
+const byIds = vi.fn<typeof fetchEventsByIds>(async (ids) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
 
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
-  fetchAddressableEvents: (c: unknown) => addressable(c),
+  fetchAddressableEvents: (...a: Parameters<typeof fetchAddressableEvents>) => addressable(...a),
   fetchEventsByIds: (ids: string[]) => byIds(ids),
   fetchProfileMap: async (pks: string[]) =>
     new Map(

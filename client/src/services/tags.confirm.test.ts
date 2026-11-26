@@ -50,18 +50,26 @@ vi.mock("./nostr", () => ({
     );
   },
   fetchTrustProviderList: async () => undefined,
-  loadOutboxRelayListFromDb: (_pk: string, seeds: string[]) => seeds,
   publishToRelays: async () => ({ success: true }),
   PROFILE_RELAYS: ["wss://purplepag.es/"],
 }));
+// Offline routing: nobody has a relay list, and the lookup says so at once. Unmocked it asks the
+// relays, which never answer here, until its 2.5 s deadline: on every publish and tag read.
+vi.mock("@/lib/loaders", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/loaders")>()),
+  loadReplaceable: async () => undefined,
+}));
+
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => ({ pubkey: VIEWER }),
   requireActiveAccount: () => ({ pubkey: VIEWER }),
   signAs: async (_account: unknown, template: Parameters<typeof finalizeEvent>[0]) => finalizeEvent(template, h.sk),
 }));
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
+  // The relays here never keep a tagging for the read-back to find: no wall-clock wait between its asks.
+  (await import("./tags")).__confirmWait.ms = 0;
   h.held = [];
   h.dropsTaggings = false;
   h.slowBy = 0;

@@ -104,7 +104,7 @@ describe("the unlock modal", () => {
 
   it("shows a wrong password inline and takes another go", async () => {
     const attempt = vi
-      .fn<[string], Promise<UnlockAttemptResult>>()
+      .fn<(password: string) => Promise<UnlockAttemptResult>>()
       .mockResolvedValueOnce({ ok: false, reason: "wrong-password" })
       .mockResolvedValueOnce({ ok: true });
     const { pending } = await raise(attempt);

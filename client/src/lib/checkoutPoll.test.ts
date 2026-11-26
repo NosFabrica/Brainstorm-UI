@@ -170,9 +170,10 @@ describe("checkoutPoll — the wait between paying and being served", () => {
     // focus does. It must not become a second poll loop.
     const { startCheckoutPoll } = await freshModule();
     const { qc } = fakeClient();
-    const w = { closed: false } as Window;
+    // Only `closed` is read, and the test flips it: a plain object, not a Window's read-only one.
+    const w = { closed: false };
 
-    startCheckoutPoll(qc, { checkoutWindow: w });
+    startCheckoutPoll(qc, { checkoutWindow: w as Window });
     await vi.advanceTimersByTimeAsync(0);
     expect(refreshSubscription).toHaveBeenCalledTimes(1);
 
