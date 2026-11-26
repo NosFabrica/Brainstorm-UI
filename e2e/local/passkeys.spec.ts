@@ -11,7 +11,16 @@
  */
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
-import { ACCOUNTS_KEY, addAuthenticator, localAccount, signedOut, sql, vaultOpens, wipeDevice } from "./stack";
+import {
+  ACCOUNTS_KEY,
+  addAuthenticator,
+  localAccount,
+  signedOut,
+  skipFirstRun,
+  sql,
+  vaultOpens,
+  wipeDevice,
+} from "./stack";
 
 test.describe.configure({ mode: "serial" });
 
@@ -23,6 +32,7 @@ const PASSWORD = "correct horse battery";
 
 test.beforeAll(async ({ browser }) => {
   context = await browser.newContext({ viewport: { width: 420, height: 900 } });
+  await skipFirstRun(context);
   page = await context.newPage();
   await addAuthenticator(context, page);
 });
