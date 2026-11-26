@@ -67,7 +67,7 @@ export function bootstrapAccounts({
     const finish = migration.finish;
     migrated = new Promise<void>((resolve) => {
       schedule(() => {
-        finish()
+        void finish()
           .catch((err) => console.error("accounts: migration follow-up failed", err))
           .then(() => resolve());
       });
