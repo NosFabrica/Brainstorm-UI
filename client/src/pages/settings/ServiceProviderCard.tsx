@@ -256,7 +256,7 @@ export function ServiceProviderCard({
                         className="rounded-xl bg-brand-primary text-white shadow-lg shadow-brand-primary/25 hover:bg-brand-primary-hover"
                         onClick={() => {
                           setNip85ConfirmOpen(false);
-                          handleRepublishNip85();
+                          void handleRepublishNip85();
                         }}
                         data-testid="button-confirm-nip85-continue"
                       >
@@ -324,7 +324,7 @@ export function ServiceProviderCard({
                         className="rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/25 hover:bg-red-700"
                         onClick={() => {
                           setDeactivateConfirmOpen(false);
-                          handleDeactivateNip85();
+                          void handleDeactivateNip85();
                         }}
                         data-testid="button-confirm-deactivate-continue"
                       >

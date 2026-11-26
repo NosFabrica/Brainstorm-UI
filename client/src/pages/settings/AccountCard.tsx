@@ -182,7 +182,7 @@ export function AccountCard({
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={handleBackupDownload}
+                    onClick={() => void handleBackupDownload()}
                     disabled={!canBackup || backupBusy}
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                     data-testid="button-account-download-backup"
@@ -288,7 +288,7 @@ export function AccountCard({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={handleRevealSecret}
+                  onClick={() => void handleRevealSecret()}
                   disabled={revealBusy}
                   className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-brand-deep disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300"
                   data-testid="button-account-reveal-secret"
