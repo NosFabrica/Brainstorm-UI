@@ -1,20 +1,15 @@
-import { CompromisedMark } from "@/components/compromised/CompromisedMark";
 import { CompromisedWatermark, WATERMARK_HOST } from "@/components/compromised/CompromisedWatermark";
 import { useCompromisedRing } from "@/hooks/useCompromised";
 import { memo, useMemo, type MouseEvent } from "react";
-import { Link, useLocation } from "wouter";
-import { BadgeCheck, MessageSquare } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { NoteContent } from "@/components/share/NoteContent";
-import { contentWarningOf, revealKeyOf } from "@/lib/nip36";
+import { useLocation } from "wouter";
+import { revealKeyOf } from "@/lib/nip36";
 import { SensitiveRevealBoundary } from "@/components/share/SensitiveMedia";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
 import { npubFromPubkey } from "@/lib/shareId";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { analyzeNote, noteHeadingOf, type MinimalEvent } from "@/lib/noteRefs";
+import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useArticlesByRefs, useLinkedArticles } from "@/hooks/useLinkedArticles";
 import { EmbeddedListCard } from "@/components/share/ListPreview";
@@ -24,44 +19,27 @@ import { nip19 } from "nostr-tools";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { isExpired } from "@/lib/nip40";
 import { DeletedStub } from "@/components/share/DeletedStub";
-import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { describeThing, THING_KINDS, type Thing } from "@/lib/thing";
-import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
-import { Chip } from "@/components/ui/chip";
-import { embedShapeOf, namesItsKind, type EmbedShape } from "@/lib/embedShape";
-import { kindLabel } from "@/lib/kindLabel";
+import { embedShapeOf, type EmbedShape } from "@/lib/embedShape";
 import { EmbeddedKindCard, KIND_CARD_SHAPES, type KindCardShape } from "@/components/share/EmbeddedKindCard";
 import { EmbeddedAudio, EmbeddedPictures, EmbeddedVideo } from "@/components/share/EmbeddedMedia";
 import { contentShape } from "@/lib/contentShape";
 import { WEB_BOOKMARK_KIND, webBookmarkOf } from "@/lib/webBookmark";
 import { EmbeddedActivity } from "@/components/share/EmbeddedActivity";
-import { HighlightAttribution, HighlightQuote, HighlightSourceLine } from "@/components/share/HighlightQuote";
-import { LazyPollCard } from "@/components/share/LazyPollCard";
-import { useRefEvent } from "@/hooks/useRefEvent";
-import { parseHighlight, type Highlight } from "@/lib/nip84";
-import { POLL_KINDS } from "@/lib/pollKinds";
-import { WebBookmarkLink } from "@/components/share/WebBookmarkHero";
+import { parseHighlight } from "@/lib/nip84";
 import { ChatContextLine } from "@/components/share/ChatContext";
 import { CHAT_KINDS } from "@/lib/chatMessage";
-import { eventStore } from "@/lib/eventStore";
+import { EmbeddedHighlight } from "@/components/share/embed/EmbeddedHighlight";
+import { EmbeddedInlineThing, isInlineThing } from "@/components/share/embed/EmbeddedInlineThing";
+import { EmbeddedNoteHeader } from "@/components/share/embed/EmbeddedNoteHeader";
+import { EmbeddedSealed, EmbeddedStructural } from "@/components/share/embed/EmbeddedPlaceholders";
+import { EmbeddedWords } from "@/components/share/embed/EmbeddedWords";
+import { repostedEvent } from "@/components/share/embed/repostedEvent";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
 /** What a nested card asks the relays about: nothing. */
 const EMPTY_NOTE: MinimalEvent = { id: "", kind: 1, pubkey: "", created_at: 0, content: "", tags: [] };
-
-/** NIP-31: what a client that cannot read the kind should say it is. */
-const altOf = (event: MinimalEvent) => event.tags.find((t) => t[0] === "alt")?.[1]?.trim() || undefined;
-
-function ago(ts?: number): string {
-  if (!ts) return "";
-  const s = Math.floor(Date.now() / 1000 - ts);
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  if (s < 2592000) return `${Math.floor(s / 86400)}d`;
-  return `${Math.floor(s / 2592000)}mo`;
-}
 
 export type EmbeddedNoteCardProps = {
   event: MinimalEvent;
@@ -141,32 +119,6 @@ function EmbeddedNoteCardShaped(props: EmbeddedNoteCardProps) {
   return <NoteCardBody {...props} shape={shape} thing={thing} />;
 }
 
-/** Reposts (NIP-18): their content is the reposted event, as JSON. */
-const REPOST_KINDS: ReadonlySet<number> = new Set([6, 16]);
-
-/**
- * The event a repost carries in its content, when it is one: whole, signed by
- * its author, and the one its `e` names. Anyone can write JSON that names
- * someone as its author; it is drawn as theirs only under their signature.
- * The store's copy of the `e`, when it holds one, is the note itself.
- */
-function repostedEvent(event: MinimalEvent): MinimalEvent | null {
-  if (!REPOST_KINDS.has(event.kind)) return null;
-  const refs = analyzeNote(event);
-  return (
-    (refs.repostId ? (eventStore.getEvent(refs.repostId) as MinimalEvent | undefined) : undefined) ??
-    refs.repostEvent ??
-    null
-  );
-}
-
-/** A kind-38000 prediction market or ballot: drawn in the note card itself, its question and where it stands. */
-function isInlineThing(event: MinimalEvent, thing: Thing | null): boolean {
-  if (event.kind !== 38000) return false;
-  const type = thing?.detail.type;
-  return type === "market" || type === "ballot";
-}
-
 function NoteCardBody({
   event,
   author,
@@ -190,7 +142,6 @@ function NoteCardBody({
   const compromisedRing = useCompromisedRing(event.pubkey, "sm");
   const ring = compromisedRing ?? tierRing(effectiveScore01);
   const [, navigate] = useLocation();
-  const name = author?.display_name || author?.name || "Unknown";
   const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   // An article the note links is shown as its own card — the note's full
   // page does the same — and not as a bare "📄 article" link.
@@ -265,88 +216,22 @@ function NoteCardBody({
       onClick={onClick}
     >
       <CompromisedWatermark pubkey={event.pubkey} postedAt={event.created_at} eventId={event.id} />
-      <div className="mb-1.5 flex items-center gap-2">
-        <a href={npub ? `/p/${npub}` : undefined} className="flex min-w-0 items-center gap-2 hover:opacity-80">
-          <Avatar
-            className={`h-6 w-6 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${ring ?? ""}`}
-          >
-            {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="overflow-hidden rounded-full">
-              <DefaultAvatarImg />
-            </AvatarFallback>
-          </Avatar>
-          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-            <ProfileEmojiText pubkey={event.pubkey} text={name} />
-          </span>
-          {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
-          <CompromisedMark pubkey={event.pubkey} />
-        </a>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {namesItsKind(event.kind) && (
-            <Chip tone="slate" size="sm" className="shrink-0" data-testid="embedded-kind">
-              {kindLabel(event)}
-            </Chip>
-          )}
-          {typeof effectiveScore01 === "number" && Number.isFinite(effectiveScore01) && (
-            <VerificationCoin
-              score01={effectiveScore01}
-              pov="global"
-              size={22}
-              className={ring && coinReplaced ? "sr-only" : ""}
-            />
-          )}
-          {href ? (
-            // The card's way to its page from the keyboard: a link of its own, never one around the card's links.
-            <Link
-              href={href}
-              onClick={(e: MouseEvent) => e.stopPropagation()}
-              aria-label={`Open this ${kindLabel(event).toLowerCase()}`}
-              className="rounded text-xs text-slate-400 hover:text-slate-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-slate-300"
-              data-testid="embedded-open"
-            >
-              {ago(event.created_at) || "Open"}
-            </Link>
-          ) : (
-            <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
-          )}
-        </div>
-      </div>
-      {replyTargets.length > 0 && (
-        <p
-          className="mb-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400"
-          data-testid="embedded-reply-context"
-        >
-          <MessageSquare className="h-3 w-3 shrink-0 text-slate-400 dark:text-slate-500" />
-          <span>Replying to</span>
-          {replyTargets.slice(0, 2).map((pk) => {
-            const p = profiles?.get(pk);
-            return (
-              <span key={pk} className="font-medium text-brand-link">
-                @{p?.display_name || p?.name || "someone"}
-              </span>
-            );
-          })}
-          {replyTargets.length > 2 && <span>+{replyTargets.length - 2}</span>}
-        </p>
-      )}
+      <EmbeddedNoteHeader
+        event={event}
+        author={author}
+        npub={npub}
+        ring={ring}
+        nip05Verified={nip05Verified}
+        score01={effectiveScore01}
+        coinReplaced={coinReplaced}
+        href={href}
+        replyTargets={replyTargets}
+        profiles={profiles}
+      />
       {/* A chat message says where it was said: its channel, its stream, its group. */}
       {!nested && CHAT_KINDS.has(event.kind) && <ChatContextLine event={event} className="mb-1" />}
       {shaped ? (
-        <div data-testid="embedded-thing">
-          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100">
-            {shaped.title}
-          </p>
-          {shaped.detail.type === "market" && shaped.description && (
-            <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{shaped.description}</p>
-          )}
-          <div className="mt-2">
-            {shaped.detail.type === "market" ? (
-              <MarketSummary detail={shaped.detail} link={shaped.link} />
-            ) : shaped.detail.type === "ballot" ? (
-              <BallotAnswers detail={shaped.detail} />
-            ) : null}
-          </div>
-        </div>
+        <EmbeddedInlineThing thing={shaped} />
       ) : media === "video" ? (
         <EmbeddedVideo key={revealKeyOf(event)} event={event} />
       ) : media === "picture" ? (
@@ -363,9 +248,7 @@ function NoteCardBody({
       ) : highlight ? (
         <EmbeddedHighlight event={event} highlight={highlight} nested={nested} />
       ) : sealed ? (
-        <p className="text-sm italic text-slate-500 dark:text-slate-400" data-testid="embedded-sealed">
-          Encrypted — only its owner can read it
-        </p>
+        <EmbeddedSealed />
       ) : reposted ? (
         <EmbeddedNoteCard
           event={reposted}
@@ -374,37 +257,17 @@ function NoteCardBody({
           nested
         />
       ) : structural ? (
-        <p className="truncate text-sm text-slate-500 dark:text-slate-400" data-testid="embedded-structural">
-          {kindLabel(event)}
-          {altOf(event) ? ` — ${altOf(event)}` : ""}
-        </p>
+        <EmbeddedStructural event={event} />
       ) : (
-        <div className="line-clamp-5 text-[14px]">
-          {bookmark && <WebBookmarkLink bookmark={bookmark} className="mb-1" />}
-          {/* A NIP-7D thread's `title` (a note's NIP-14 subject) heads it, as on its own page. */}
-          {noteHeadingOf(event) && (
-            <p
-              className="mb-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100"
-              data-testid="embedded-heading"
-            >
-              <EmojiText text={noteHeadingOf(event)!} tags={event} />
-            </p>
-          )}
-          <NoteContent
-            key={revealKeyOf(event)}
-            content={event.content}
-            compact
-            profiles={profiles}
-            imageOpensThread={!!href}
-            tags={event.tags}
-            contentWarning={contentWarningOf(event)}
-            authorName={author?.display_name || author?.name}
-            embeddedCoords={cardCoords}
-            embeddedIds={quoted.ids}
-          />
-          {/* A poll's options under its question (NIP-88 `option`, a zap poll's `poll_option`): read-only, no tally. */}
-          {POLL_KINDS.has(event.kind) && <LazyPollCard event={event} compact />}
-        </div>
+        <EmbeddedWords
+          event={event}
+          author={author}
+          profiles={profiles}
+          href={href}
+          bookmark={bookmark}
+          embeddedCoords={cardCoords}
+          embeddedIds={quoted.ids}
+        />
       )}
       {quoted.notes.map((q) => (
         <div key={q.event.id} data-testid="embedded-quote">
@@ -427,44 +290,6 @@ function NoteCardBody({
       {linkedLists.articles.map((le) => (
         <EmbeddedListCard key={le.id} event={le} author={profiles?.get(le.pubkey)} nested />
       ))}
-    </div>
-  );
-}
-
-/**
- * A quoted NIP-84 highlight: what its highlighter said (`comment`), the passage
- * marked, then where it is from — the article or note by `a`/`e`, the page by
- * its `source` `r` (never a `mention` one), a work by its `i` or text `r` — and
- * whose it is (`p` with its role). Its source is looked up only when the card is
- * not itself nested: one level, never a stack.
- */
-function EmbeddedHighlight({
-  event,
-  highlight,
-  nested,
-}: {
-  event: MinimalEvent;
-  highlight: Highlight;
-  nested: boolean;
-}) {
-  const { event: sourceEvent } = useRefEvent(nested ? null : highlight.source.ref);
-  return (
-    <div data-testid="embedded-highlight">
-      {highlight.comment && (
-        <div className="mb-1.5 line-clamp-3 text-[14px]" data-testid="embedded-highlight-comment">
-          <NoteContent content={highlight.comment} compact tags={event.tags} />
-        </div>
-      )}
-      <HighlightQuote lines={highlight.comment ? 3 : 4} testId="embedded-highlight-passage">
-        {highlight.passage}
-      </HighlightQuote>
-      <HighlightSourceLine source={highlight.source} sourceEvent={sourceEvent} testId="embedded-highlight-source" />
-      <HighlightAttribution
-        attributions={highlight.attributions}
-        except={sourceEvent?.pubkey}
-        className="mt-1"
-        testId="embedded-highlight-attribution"
-      />
     </div>
   );
 }
