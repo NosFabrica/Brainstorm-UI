@@ -1,13 +1,43 @@
 import type { RelayLatencyState } from "./useRelayLatency";
 import { Button } from "@/components/ui/button";
 import { PROFILE_RELAYS } from "@/lib/relays";
-import { CheckCircle2, XCircle, Wifi, WifiOff, RefreshCw, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Wifi, WifiOff, RefreshCw, Loader2, CircleHelp } from "lucide-react";
 import { StatusBadge } from "../StatusBadge";
 import { PRIMARY_RELAY } from "../constants";
 
 type EndpointStatus = { isSuccess: boolean; isLoading: boolean; isError: boolean };
 /** The queries whose state the API Health card reports. */
 export type HealthEndpoints = { grapeRank: EndpointStatus; users: EndpointStatus; activity: EndpointStatus };
+
+type EndpointHealth = "healthy" | "error" | "checking" | "unknown";
+
+/**
+ * What a row says about its endpoint. Healthy only once a fetch has succeeded:
+ * a query that hasn't run (the Activity log only runs on its tab) is not known
+ * to be up, nor down.
+ */
+function endpointHealth({ isSuccess, isLoading, isError }: EndpointStatus): EndpointHealth {
+  if (isLoading) return "checking";
+  if (isError) return "error";
+  if (isSuccess) return "healthy";
+  return "unknown";
+}
+
+const HEALTH_LABEL: Record<EndpointHealth, string> = {
+  healthy: "Healthy",
+  error: "Error",
+  checking: "Checking",
+  unknown: "Unknown",
+};
+const HEALTH_CHIP: Record<EndpointHealth, string> = {
+  healthy:
+    "border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400",
+  error: "border border-red-200 bg-red-50 text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400",
+  checking:
+    "border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400",
+  unknown:
+    "border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400",
+};
 
 /** The System Health tab: the admin endpoints' state and each relay's latency. */
 export function HealthTab({ endpoints, relays }: { endpoints: HealthEndpoints; relays: RelayLatencyState }) {
@@ -34,23 +64,17 @@ export function HealthTab({ endpoints, relays }: { endpoints: HealthEndpoints; r
             // { name: "/user/self", ok: selfQuery.isSuccess, loading: selfQuery.isLoading, error: selfQuery.isError, description: "User profile & social graph" },
             {
               name: "/user/graperankResult",
-              ok: endpoints.grapeRank.isSuccess,
-              loading: endpoints.grapeRank.isLoading,
-              error: endpoints.grapeRank.isError,
+              health: endpointHealth(endpoints.grapeRank),
               description: "GrapeRank calculation result",
             },
             {
               name: "/admin/users",
-              ok: endpoints.users.isSuccess,
-              loading: endpoints.users.isLoading,
-              error: endpoints.users.isError,
+              health: endpointHealth(endpoints.users),
               description: "Platform user database",
             },
             {
               name: "/admin/activity",
-              ok: endpoints.activity.isSuccess || !endpoints.activity.isError,
-              loading: endpoints.activity.isLoading,
-              error: endpoints.activity.isError,
+              health: endpointHealth(endpoints.activity),
               description: "Platform calculation activity",
             },
           ].map((ep) => (
@@ -60,12 +84,14 @@ export function HealthTab({ endpoints, relays }: { endpoints: HealthEndpoints; r
               data-testid={`health-ep-${ep.name.replace(/[/*]/g, "-")}`}
             >
               <div className="flex items-center gap-3">
-                {ep.loading ? (
+                {ep.health === "checking" ? (
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-400 dark:text-slate-500" />
-                ) : ep.ok ? (
+                ) : ep.health === "healthy" ? (
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                ) : (
+                ) : ep.health === "error" ? (
                   <XCircle className="h-4 w-4 shrink-0 text-red-400" />
+                ) : (
+                  <CircleHelp className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
                 )}
                 <div>
                   <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">{ep.name}</span>
@@ -73,15 +99,9 @@ export function HealthTab({ endpoints, relays }: { endpoints: HealthEndpoints; r
                 </div>
               </div>
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  ep.loading
-                    ? "border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
-                    : ep.ok
-                      ? "border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400"
-                      : "border border-red-200 bg-red-50 text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400"
-                }`}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${HEALTH_CHIP[ep.health]}`}
               >
-                {ep.loading ? "Loading" : ep.ok ? "Healthy" : "Error"}
+                {HEALTH_LABEL[ep.health]}
               </span>
             </div>
           ))}
