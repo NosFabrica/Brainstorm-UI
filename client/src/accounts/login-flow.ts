@@ -39,6 +39,7 @@ import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
 import { passkeyVaultApi, PasskeyNotReadyError } from "@/services/api/passkeyVault";
+import { fetchContactList } from "@/services/socialActions";
 import {
   assertPasskey,
   credentialIdHash,
@@ -114,7 +115,6 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
       // matter of course — so without this the whole app falls back to the
       // hardcoded relay set and the user's own relays are never asked.
       await loadRelayList(pubkey).catch(() => null);
-      const { fetchContactList } = await import("@/services/socialActions");
       const ev = await fetchContactList(pubkey);
       if (ev) recordFollowList(pubkey, ev);
     } catch {

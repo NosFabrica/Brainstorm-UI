@@ -15,6 +15,8 @@
 import type { AccountManager } from "applesauce-accounts";
 
 import { dropDeviceKeyIfUnneeded } from "./device-key";
+import { forgetDmCacheFor } from "@/lib/dm/cache";
+import { forgetEventCacheFor } from "@/lib/eventCache";
 import { LocalAccount } from "./local-account";
 import type { AccountMetadata, BrainstormAccount } from "./metadata";
 import type { Persistence } from "./persist";
@@ -38,12 +40,8 @@ export function retireInMemory(account: BrainstormAccount): void {
   releaseSigner(account);
 }
 
-/** Its kept private messages and its own cached events, loaded only when needed. */
+/** Its kept private messages and its own cached events. */
 async function forgetCachesFor(pubkey: string): Promise<void> {
-  const [{ forgetDmCacheFor }, { forgetEventCacheFor }] = await Promise.all([
-    import("@/lib/dm/cache"),
-    import("@/lib/eventCache"),
-  ]);
   await Promise.all([forgetDmCacheFor(pubkey), forgetEventCacheFor(pubkey)]);
 }
 

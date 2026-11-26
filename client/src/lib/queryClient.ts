@@ -1,5 +1,5 @@
 import { onRecover, type Recovery } from "@/lib/serverStatus";
-import { dropPersistedQueries, startQueryPersistence } from "@/lib/queryPersist";
+import { dropPersistedQueries } from "@/lib/queryPersist";
 import { QueryClient, QueryFunction, type Query } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
@@ -89,13 +89,7 @@ onRecover((recovery: Recovery) => {
   void queryClient.invalidateQueries({ predicate: (query) => spoiledDuring(query, recovery.since) });
 });
 
-// The signed-in reader's own slow reads, restored from the device at boot and
-// kept as they land (lib/queryPersist). The accounts module is loaded lazily
-// so this file — imported by every test that touches the cache — doesn't
-// bootstrap accounts for them; it's in the entry already, so this resolves at
-// once in the app.
-if (import.meta.env.MODE !== "test" && typeof indexedDB !== "undefined") {
-  void import("@/accounts")
-    .then(({ accountManager }) => startQueryPersistence(queryClient, accountManager))
-    .catch(() => undefined);
-}
+// The signed-in reader's own slow reads are restored from the device at boot
+// and kept as they land (lib/queryPersist), started by main.tsx: importing the
+// accounts module here would bootstrap accounts in every test that touches
+// the cache.

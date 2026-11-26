@@ -17,6 +17,7 @@ import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient } from "./api";
 import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
 import { activeHasSession } from "@/accounts/session";
+import { toast } from "@/hooks/use-toast";
 
 /**
  * Ingest a freshly-signed kind-3 follow list into the backend synchronously, so
@@ -322,7 +323,6 @@ async function verifyPublishedContactList(published: NostrEvent): Promise<void> 
     if (!newest) return; // relays quiet — nothing to conclude
     if (newest.id && published.id && newest.id === published.id) return; // landed
     if (beats(newest as never, published as never)) return; // superseded by a later edit — fine
-    const { toast } = await import("@/hooks/use-toast");
     toast({
       variant: "destructive",
       title: "Your follow list may not have saved",

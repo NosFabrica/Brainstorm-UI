@@ -29,7 +29,6 @@ function run(set: Set<Reset>): void {
 /** Run `reset` whenever the Active Account changes. Returns an unregister. */
 export function onAccountChange(reset: Reset): () => void {
   resets.add(reset);
-  watchAccounts();
   return () => resets.delete(reset);
 }
 
@@ -56,14 +55,14 @@ export function perspectiveChanged(): void {
 let watching = false;
 
 /**
- * Follow the account manager's `active$`, from the first registration. Loaded
- * lazily, as lib/queryClient does: the accounts module bootstraps at load and
- * imports from lib/, and a test touching a cache need not bootstrap it.
+ * Follow the account manager's `active$`, once (main.tsx, at boot). Handed in
+ * rather than imported: the accounts module bootstraps at load and imports
+ * from lib/, and a test touching a cache need not bootstrap it.
  */
-function watchAccounts(): void {
-  if (watching || import.meta.env.MODE === "test") return;
+export function watchActiveAccount(active$: Observable<{ pubkey: string } | undefined>): void {
+  if (watching) return;
   watching = true;
-  void import("@/accounts").then(({ accountManager }) => followActive(accountManager.active$)).catch(() => undefined);
+  followActive(active$);
 }
 
 /** Call `accountChanged` each time `active$` names a different pubkey than before. Exposed for tests. */

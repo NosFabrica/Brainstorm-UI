@@ -183,6 +183,29 @@ function vendorChunks() {
   };
 }
 
+/**
+ * Dynamic imports of modules the entry already holds, kept on purpose: each
+ * breaks a static import cycle whose order matters at module init, not to
+ * split a chunk. Rollup warns for every one; these importers of these modules
+ * are expected, and a new one still warns.
+ */
+const CYCLE_BREAKERS: Record<string, string[]> = {
+  // lib/loaders and lib/relayRouting import lib/eventCache; the loader is built at init.
+  "client/src/lib/loaders.ts": ["client/src/lib/eventCache.ts"],
+  "client/src/lib/relayRouting.ts": ["client/src/lib/eventCache.ts"],
+  // services/api/core imports accounts/session for the session it attaches.
+  "client/src/services/api/index.ts": ["client/src/accounts/session.ts"],
+};
+const MIXED_IMPORT = /\(!\) (\S+) is dynamically imported by (.+?) but also statically imported by/;
+
+function expectedMixedImport(message: string): boolean {
+  const match = MIXED_IMPORT.exec(message);
+  if (!match) return false;
+  const local = (id: string) => path.relative(__dirname, id);
+  const allowed = CYCLE_BREAKERS[local(match[1])];
+  return !!allowed && match[2].split(", ").every((importer) => allowed.includes(local(importer)));
+}
+
 export default defineConfig({
   appType: "spa",
   plugins: [react(), fontPreloadPlugin(), spaFallbackPlugin(), serviceWorkerPlugin(), bundleBudgetPlugin()],
@@ -199,7 +222,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
-    rollupOptions: { output: { manualChunks: vendorChunks() } },
+    rollupOptions: {
+      output: { manualChunks: vendorChunks() },
+      onwarn(warning, warn) {
+        if (!expectedMixedImport(warning.message)) warn(warning);
+      },
+    },
   },
   server: {
     port: 5000,
