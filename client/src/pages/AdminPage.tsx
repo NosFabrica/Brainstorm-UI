@@ -8,31 +8,8 @@ import { ADMIN_SUPPORT_QUERY_KEY, adminListTickets } from "@/services/support";
 import { unreadCount } from "@/lib/supportSeen";
 import type { SchedulingItem } from "@/services/api";
 import { Chip } from "@/components/ui/chip";
-import {
-  Users,
-  Activity,
-  Server,
-  BarChart3,
-  ChevronDown,
-  CheckCircle2,
-  Sparkles,
-  CalendarClock,
-  LifeBuoy,
-  Receipt,
-  ListChecks,
-  TrendingUp,
-  KeyRound,
-} from "lucide-react";
 import { parseAdminTab, type AdminTab } from "./adminTabs";
-import {
-  ADMIN_RANGES,
-  BACKEND_MAX_DAYS,
-  customDays,
-  parseAdminRange,
-  rangeQuery,
-  withinRange,
-  type AdminRange,
-} from "./adminRange";
+import { parseAdminRange, rangeQuery, withinRange, type AdminRange } from "./adminRange";
 import { readEveryPage, useAdminHeaderMetrics } from "@/components/admin/useAdminHeaderMetrics";
 import { FEATURES } from "@/config/featureFlags";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
@@ -53,7 +30,7 @@ import {
   type AdminUserHistoryPage,
 } from "./admin/types";
 import { POLL_OVERVIEW_MS, POLL_STATS_MS, BOOST_INTERVAL_MS, NONE } from "./admin/constants";
-import { computePipelineMetrics, computeTrends, countQueued, getWindowConfig, parseActivityTs } from "./admin/metrics";
+import { computePipelineMetrics, computeTrends, countQueued, parseActivityTs } from "./admin/metrics";
 import { grapeRankResultOptions } from "@/services/queries/graperank";
 import { type BulkSource, useBulkRetrigger } from "@/components/admin/users/useBulkRetrigger";
 import { BulkConfirmDialog } from "./admin/BulkConfirmDialog";
@@ -76,11 +53,12 @@ import { KpiStrip, KpiCompact } from "./admin/HeaderKpis";
 import { computeHeaderFigures } from "./admin/metrics";
 import { type KpiFilter } from "./admin/types";
 import { OverviewTab } from "./admin/overview/OverviewTab";
+import { adminTabList, AdminTabBar } from "./admin/AdminTabBar";
+import { RangeSelector } from "./admin/RangeSelector";
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
 
   // Scrollbars are hidden app-wide (see index.css); admin opts back in while
   // mounted. Its wide tables need the horizontal scrollbar to show there ARE
@@ -113,8 +91,6 @@ export default function AdminPage() {
   // The range drives the Overview's figures, the Activity log and Growth;
   // the other tabs are directories and settings, so it isn't shown there.
   const rangeDriven = activeTab === "overview" || activeTab === "activity" || activeTab === "growth";
-  const [customOpen, setCustomOpen] = useState(false);
-  const [customDraft, setCustomDraft] = useState(() => String(customDays(range) ?? 14));
   const { inFlight: triggeringPubkeys, claim: claimTriggers, release: releaseTrigger } = useInFlightTriggers();
   const { isBoostActive, triggerRefreshBoost } = useRefreshBoost();
   const directory = useUsersDirectory({
@@ -376,6 +352,13 @@ export default function AdminPage() {
     setTimeout(() => setHighlightedPubkey(null), 2500);
   };
 
+  // A tab of the bar: the Users tab opens on its first page, unfiltered.
+  const selectTab = (key: AdminTab) => {
+    setActiveTab(key);
+    setUserPage(0);
+    if (key === "users") setKpiFilter(null);
+  };
+
   // A header card: the Users tab, filtered to the users it counts.
   const showKpi = (filter: KpiFilter) => {
     setKpiFilter(filter);
@@ -385,24 +368,7 @@ export default function AdminPage() {
 
   if (!user || isAuthRedirecting()) return null;
 
-  const tabs: { key: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { key: "overview", label: "Overview", icon: BarChart3 },
-    { key: "activity", label: "Activity", icon: Activity },
-    { key: "scheduling", label: "Scheduling", icon: CalendarClock },
-    { key: "support", label: "Support", icon: LifeBuoy },
-    // Gated on nothing. A fresh instance has billing enabled and zero plan
-    // mappings, which is exactly when an admin needs this tab to create the
-    // first one — gating on plans existing would be a bootstrap deadlock, and
-    // the mock flag answers an unrelated question. Where billing isn't
-    // configured the endpoints 404 and the cards say so.
-    { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
-    { key: "users", label: "Users", icon: Users },
-    { key: "trusted-lists", label: "Trusted Lists", icon: ListChecks },
-    { key: "compromised", label: "Compromised", icon: KeyRound },
-    { key: "growth", label: "Growth", icon: TrendingUp },
-    ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
-    { key: "health", label: "System Health", icon: Server },
-  ];
+  const tabs = adminTabList();
 
   return (
     <div
@@ -456,92 +422,7 @@ export default function AdminPage() {
               <span className="hidden sm:inline">· </span>values are now
               {rangeDriven ? ` · sparklines and everything below: ${trends.cfg.longLabel.toLowerCase()}` : ""}
             </span>
-            {rangeDriven && (
-              <div className="flex basis-full items-center gap-2 sm:ml-auto sm:basis-auto">
-                <div
-                  className="hidden gap-0.5 rounded-lg border-2 border-brand-accent/40 bg-white p-1 shadow-sm dark:bg-slate-900 sm:inline-flex"
-                  role="tablist"
-                  aria-label="Time range"
-                  data-testid="range-selector"
-                >
-                  {ADMIN_RANGES.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      role="tab"
-                      aria-selected={range === r}
-                      onClick={() => setRange(r)}
-                      className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${range === r ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
-                      data-testid={`button-range-${r}`}
-                    >
-                      {r === "all" ? "All" : r}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={customDays(range) !== null}
-                    onClick={() => setCustomOpen((o) => !o)}
-                    className={`cursor-pointer rounded-md px-3 py-1 text-[11px] font-bold transition-all active:scale-95 ${customDays(range) !== null ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "bg-slate-50 text-slate-600 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm dark:bg-slate-900 dark:text-slate-300"}`}
-                    data-testid="button-range-custom"
-                  >
-                    {customDays(range) !== null ? `${customDays(range)}d` : "Custom"}
-                  </button>
-                </div>
-                <select
-                  value={customDays(range) !== null ? "custom" : range}
-                  onChange={(e) =>
-                    e.target.value === "custom" ? setCustomOpen(true) : setRange(e.target.value as AdminRange)
-                  }
-                  className="rounded-lg border border-brand-accent/30 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200 sm:hidden"
-                  aria-label="Time range"
-                  data-testid="select-range"
-                >
-                  {ADMIN_RANGES.map((r) => (
-                    <option key={r} value={r}>
-                      {getWindowConfig(r).longLabel}
-                    </option>
-                  ))}
-                  <option value="custom">
-                    {customDays(range) !== null ? `Last ${customDays(range)} days` : "Custom…"}
-                  </option>
-                </select>
-                {(customOpen || customDays(range) !== null) && (
-                  <form
-                    className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"
-                    data-testid="form-range-days"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const n = Math.floor(Number(customDraft));
-                      if (n >= 1 && n <= BACKEND_MAX_DAYS) {
-                        setRange(`${n}d`);
-                        setCustomOpen(false);
-                      }
-                    }}
-                  >
-                    last
-                    <input
-                      type="number"
-                      min={1}
-                      max={BACKEND_MAX_DAYS}
-                      value={customDraft}
-                      onChange={(e) => setCustomDraft(e.target.value)}
-                      className="w-14 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                      aria-label="Days"
-                      data-testid="input-range-days"
-                    />
-                    days
-                    <button
-                      type="submit"
-                      className="rounded-md bg-brand-primary px-2 py-0.5 text-[11px] font-bold text-white"
-                      data-testid="button-range-days-apply"
-                    >
-                      Go
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
+            <RangeSelector range={range} setRange={setRange} visible={rangeDriven} />
           </div>
           {activeTab === "overview" && (
             <KpiStrip
@@ -556,104 +437,7 @@ export default function AdminPage() {
           )}
           {activeTab !== "overview" && <KpiCompact figures={headerFigures} />}
 
-          <div className="scrollbar-hide -mx-4 hidden overflow-x-auto px-4 sm:mx-0 sm:block sm:px-0">
-            <div
-              className="flex w-fit gap-1 rounded-2xl border border-brand-accent/10 bg-white/60 p-1 backdrop-blur-sm dark:bg-slate-900/60"
-              data-testid="admin-tab-bar"
-            >
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const active = activeTab === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => {
-                      setActiveTab(tab.key);
-                      setUserPage(0);
-                      if (tab.key === "users") setKpiFilter(null);
-                    }}
-                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 sm:gap-2 sm:px-4 sm:text-sm ${
-                      active
-                        ? "bg-brand-primary text-white shadow-md"
-                        : "text-slate-500 hover:bg-white/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900/80 dark:hover:text-slate-200"
-                    }`}
-                    data-testid={`tab-${tab.key}`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                    {tab.key === "support" && supportUnread > 0 && (
-                      <span
-                        className={`h-2 w-2 rounded-full ${active ? "bg-white" : "bg-brand-accent"}`}
-                        aria-label={`${supportUnread} tickets awaiting reply`}
-                        data-testid="tab-support-dot"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="sm:hidden" data-testid="admin-tab-bar-mobile">
-            {(() => {
-              const [mobileTabOpen, setMobileTabOpen] = [mobileTabDropdownOpen, setMobileTabDropdownOpen];
-              const activeTabData = tabs.find((t) => t.key === activeTab);
-              const ActiveIcon = activeTabData?.icon ?? BarChart3;
-              return (
-                <div className="relative">
-                  <button
-                    onClick={() => setMobileTabOpen(!mobileTabOpen)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-brand-accent/10 bg-white/60 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm dark:bg-slate-900/60 dark:text-slate-200"
-                    data-testid="button-tab-mobile-trigger"
-                  >
-                    <span className="flex items-center gap-2">
-                      <ActiveIcon className="h-4 w-4 text-brand-deep" />
-                      {activeTabData?.label}
-                    </span>
-                    <ChevronDown
-                      className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${mobileTabOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {mobileTabOpen && (
-                    <>
-                      <div className="fixed inset-0 z-30" onClick={() => setMobileTabOpen(false)} />
-                      <div
-                        className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-xl border border-brand-accent/15 bg-white shadow-lg dark:bg-slate-900"
-                        data-testid="dropdown-tab-mobile"
-                      >
-                        {tabs.map((tab) => {
-                          const Icon = tab.icon;
-                          const isActive = activeTab === tab.key;
-                          return (
-                            <button
-                              key={tab.key}
-                              onClick={() => {
-                                setActiveTab(tab.key);
-                                setUserPage(0);
-                                if (tab.key === "users") setKpiFilter(null);
-                                setMobileTabOpen(false);
-                              }}
-                              className={`flex w-full items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
-                                isActive
-                                  ? "bg-gradient-to-r from-brand-deep/10 to-brand-accent/10 text-brand-deep"
-                                  : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900"
-                              }`}
-                              data-testid={`tab-mobile-${tab.key}`}
-                            >
-                              <Icon
-                                className={`h-4 w-4 ${isActive ? "text-brand-deep" : "text-slate-400 dark:text-slate-500"}`}
-                              />
-                              {tab.label}
-                              {isActive && <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-brand-deep" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
+          <AdminTabBar tabs={tabs} activeTab={activeTab} onSelect={selectTab} supportUnread={supportUnread} />
 
           {activeTab === "overview" && (
             <OverviewTab
