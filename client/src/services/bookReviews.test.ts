@@ -18,7 +18,8 @@ vi.mock("@/lib/relays", async (importOriginal) => ({
   SEARCH_RELAY: "wss://search.brainstorm.world/",
 }));
 
-import { fetchBookReviews, publishBookReview, removeBookReview } from "./bookReviews";
+import { standingBookReviews } from "@/lib/bookReviews";
+import { publishBookReview, readBookReviewEvents, removeBookReview } from "./bookReviews";
 
 const LIBRARIAN = "6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b";
 const item = { id: "1".repeat(64), kind: 39999, pubkey: LIBRARIAN, tags: [["d", "ol-ol19722168w"]] };
@@ -44,7 +45,7 @@ const review = (id: string, pubkey: string, text: string) => ({
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("fetchBookReviews", () => {
+describe("readBookReviewEvents", () => {
   it("asks for the book's records by a and by d, then their removals, from the index and Unbnd's relays, and keeps those that stand", async () => {
     io.readListEvents
       .mockResolvedValueOnce([review("r1", A, "Read it twice."), review("r2", ME, "Gone.")])
@@ -61,8 +62,11 @@ describe("fetchBookReviews", () => {
           ],
         },
       ]);
-    const out = await fetchBookReviews(item);
-    expect(out.map((r) => [r.id, r.text, r.rating])).toEqual([["r1", "Read it twice.", 4]]);
+    const events = await readBookReviewEvents(BOOK);
+    expect(events.map((e) => e.id)).toEqual(["r1", "r2", "x"]);
+    expect(standingBookReviews(events, BOOK, now).map((r) => [r.id, r.text, r.rating])).toEqual([
+      ["r1", "Read it twice.", 4],
+    ]);
     expect(io.readListEvents).toHaveBeenNthCalledWith(
       1,
       [
@@ -85,7 +89,7 @@ describe("fetchBookReviews", () => {
 
   it("reads no comments: a kind 1111 is not a book's review", async () => {
     io.readListEvents.mockResolvedValueOnce([]);
-    expect(await fetchBookReviews(item)).toEqual([]);
+    expect(await readBookReviewEvents(BOOK)).toEqual([]);
     for (const [filters] of io.readListEvents.mock.calls) {
       for (const f of filters as { kinds: number[] }[]) expect(f.kinds).not.toContain(1111);
     }

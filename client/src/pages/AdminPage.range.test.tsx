@@ -30,7 +30,6 @@ vi.mock("@/services/support", () => ({ ADMIN_SUPPORT_QUERY_KEY: ["support"], adm
 vi.mock("@/services/nostr", () => ({ fetchProfile: async () => null, searchNostrProfiles: async () => [] }));
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => null }));
-vi.mock("@/services/wotRanks", () => ({ fetchAuthorRanks: async () => ({ ranks: new Map(), source: null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ isAdmin: true, pubkey: "a".repeat(64) }),
 }));

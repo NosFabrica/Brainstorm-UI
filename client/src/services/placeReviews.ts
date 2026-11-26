@@ -11,9 +11,9 @@
  * publishToOutbox) — never the hub, which keeps list events and refuses
  * reviews (the contract's section 9).
  *
- * A lens's ranks for the star value (the contract's section 8): the scorer
- * an observer names in their kind 10040 (services/trustSource), and its
- * kind 30382 ranks of the reviewers, from its own relay.
+ * A lens's ranks for the star value (the contract's section 8): the kind
+ * 30382 ranks of the reviewers, from the relay of the scorer an observer
+ * names in their kind 10040 (hooks/useLensRanks picks the scorer).
  */
 import type { NostrEvent } from "nostr-tools";
 import type { Filter } from "applesauce-core/helpers/filter";
@@ -24,9 +24,7 @@ import { SEARCH_RELAY } from "@/lib/relays";
 import {
   PLACE_REVIEW_KIND,
   placeReviewTemplate,
-  ranksFrom,
   removalTemplate,
-  reviewsByPlace,
   standingReviews,
   type PlaceReview,
   type ReviewDraft,
@@ -34,7 +32,7 @@ import {
 } from "@/lib/placeReviews";
 import { readListEvents } from "@/services/listReads";
 import { fetchEventsByFilter } from "@/services/nostr";
-import { resolveTrustSource, type TrustSourceRef } from "@/services/trustSource";
+import type { TrustSourceRef } from "@/services/trustSource";
 import { publishToOutbox } from "@/services/tags";
 
 type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
@@ -90,12 +88,6 @@ export function readPlaceReviewEvents(addresses: string[], limit = 500): Promise
   return readReviewEvents(addresses, { limit, relays: readRelays() });
 }
 
-export async function fetchPlaceReviews(item: Item): Promise<PlaceReview[]> {
-  const address = coordinateOf(item);
-  if (!address) return [];
-  return standingReviews(await readPlaceReviewEvents([address]), address, nowS());
-}
-
 /**
  * Sign and publish the reader's review of a place, or a change to the one
  * they have (`previous`, the record as signed). Hands back the review as
@@ -122,18 +114,6 @@ export async function removePlaceReview(review: Pick<PlaceReview, "id" | "pubkey
 /** The most people one request for ranks names, as Regulars asks. */
 const RANK_BATCH = 500;
 
-/**
- * Each reviewer's rank in `observer`'s lens: by the scorer their kind 10040
- * names, read from that scorer's relay. Null when the observer names no
- * scorer — there is no lens, and nobody counts through it.
- */
-export async function fetchLensRanks(observer: string, pubkeys: string[]): Promise<Map<string, number> | null> {
-  if (pubkeys.length === 0) return new Map();
-  const source = await resolveTrustSource(observer);
-  if (!source) return null;
-  return ranksFrom(await readLensRanks(source, pubkeys), source.taPubkey);
-}
-
 /** The scorer's kind 30382s about these people, from its own relay, RANK_BATCH at a time. */
 export async function readLensRanks(source: TrustSourceRef, pubkeys: string[]): Promise<NostrEvent[]> {
   const batches: string[][] = [];
@@ -142,13 +122,4 @@ export async function readLensRanks(source: TrustSourceRef, pubkeys: string[]): 
     batches.map((d) => fetchEventsByFilter({ kinds: [30382], authors: [source.taPubkey], "#d": d }, [source.relay])),
   );
   return events.flat();
-}
-
-/**
- * The reviews that stand for each of many places — a search's places — in
- * one batch: their records by `a` and by `d`, then the removals of those.
- */
-export async function fetchReviewsForPlaces(addresses: string[]): Promise<Map<string, PlaceReview[]>> {
-  if (addresses.length === 0) return new Map();
-  return reviewsByPlace(await readPlaceReviewEvents(addresses, 2000), addresses, nowS());
 }

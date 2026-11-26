@@ -104,4 +104,26 @@ describe("useWotItems", () => {
     expect(result.current.trusted).toHaveLength(1);
     expect(io.trustList).toHaveBeenCalledWith(io.viewer);
   });
+
+  it("ranks through the reader's own scorer when they name one, without asking the house", async () => {
+    io.viewer = "b".repeat(64);
+    const author = "d".repeat(64);
+    io.trustList.mockImplementation(async (pk) => (pk === io.viewer ? eventStore.add(trustList(pk)) : undefined));
+    io.ranks.mockImplementation(async () => [eventStore.add(rank(author, 50, 10))]);
+    const { result } = renderHook(() => useWotItems([{ pubkey: author }]), { wrapper: queryWrapper() });
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current).toMatchObject({ source: "observer", observer: io.viewer });
+    expect(result.current.trusted).toHaveLength(1);
+    expect(io.ranks).toHaveBeenCalledWith({ taPubkey: SCORER, relay: "wss://scores.example" }, [author]);
+    expect(io.trustList).not.toHaveBeenCalledWith(HOUSE);
+  });
+
+  it("ranks nobody, and asks for no ranks, when no scorer is named at all", async () => {
+    const author = "e".repeat(64);
+    const items = [{ pubkey: author }];
+    const { result } = renderHook(() => useWotItems(items), { wrapper: queryWrapper() });
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current).toMatchObject({ trusted: [], outside: items, source: null });
+    expect(io.ranks).not.toHaveBeenCalled();
+  });
 });

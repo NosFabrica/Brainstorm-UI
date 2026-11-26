@@ -7,7 +7,8 @@
  * own kind-10040 says their scorer publishes (services/trustSource) — the
  * same chain tags use, so a list and a tag agree on who counts. An observer
  * with no 10040 (never activated) falls back to the house, never to
- * "everyone": a missing declaration is not a reason to trust strangers.
+ * "everyone": a missing declaration is not a reason to trust strangers
+ * (hooks/useLensRanks `useAuthorRanks` picks the scorer; this reads it).
  *
  * The line is the verified line, `DEFAULT_VERIFIED_LINE` (influence 0.02),
  * on the 30382 0–100 scale: rank 2. Tags count asserters from rank 1
@@ -16,7 +17,7 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import { fetchEventsByFilter } from "@/services/nostr";
-import { resolveHouseObserver, resolveTrustSource, type TrustSourceRef } from "@/services/trustSource";
+import type { TrustSourceRef } from "@/services/trustSource";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
 
 export const VERIFIED_RANK = Math.round(DEFAULT_VERIFIED_LINE * 100);
@@ -33,27 +34,6 @@ export interface AuthorRanks {
 
 const CHUNK = 100;
 const TIMEOUT_MS = 8000;
-
-async function sourceFor(
-  observer: RankObserver,
-): Promise<{ ref: TrustSourceRef; source: "observer" | "house" } | null> {
-  const house = async () => {
-    const pk = await resolveHouseObserver();
-    const ref = pk ? await resolveTrustSource(pk) : null;
-    return ref ? { ref, source: "house" as const } : null;
-  };
-  if (observer === "house") return house();
-  const own = await resolveTrustSource(observer);
-  return own ? { ref: own, source: "observer" } : house();
-}
-
-export async function fetchAuthorRanks(pubkeys: string[], observer: RankObserver): Promise<AuthorRanks> {
-  const unique = [...new Set(pubkeys.filter(Boolean))];
-  const resolved = await sourceFor(observer);
-  if (!resolved) return { ranks: new Map(), source: null };
-  const { ref, source } = resolved;
-  return { ranks: authorRanksFrom(await readAuthorRanks(ref, unique), ref.taPubkey, unique), source };
-}
 
 /** The scorer's kind 30382s about these people, from its own relay, CHUNK at a time. */
 export async function readAuthorRanks(ref: TrustSourceRef, pubkeys: string[]): Promise<NostrEvent[]> {

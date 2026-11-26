@@ -62,13 +62,13 @@ describe("wrappers around relay reads", () => {
       "fetchAppsByAddress",
       "fetchItemReactions",
       "fetchItemsReactions",
-      "fetchPlaceReviews",
-      "fetchBookReviews",
+      "readPlaceReviewEvents",
+      "readBookReviewEvents",
       "loadConceptItems",
       "loadDictionary",
-      "fetchAuthorRanks",
-      "fetchLensRanks",
-      "fetchTemplates",
+      "readAuthorRanks",
+      "readLensRanks",
+      "readTemplateEvents",
     ])
       expect(found, name).toContain(name);
     // Pure derivations and the HTTP API are not.

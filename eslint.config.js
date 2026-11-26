@@ -17,7 +17,7 @@ import { URL, fileURLToPath } from "node:url";
  *
  * `RELAY_READS` are the primitives: the fetchers and the raw `relay.req`. A
  * wrapper around one is a relay read too (fetchItemReactions, loadConceptItems,
- * fetchAuthorRanks, …), and a name list kept by hand let every new one slip
+ * readAuthorRanks, …), and a name list kept by hand let every new one slip
  * past, so the list the rule uses is grown from these: every function in
  * client/src/services and client/src/lib that calls one, however many hops
  * down (`relayFetchers` below, pinned by lib/relayReadLint.test.ts). A new

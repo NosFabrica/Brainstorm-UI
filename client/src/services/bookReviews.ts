@@ -11,7 +11,7 @@
  * publishToOutbox) — never the hub.
  *
  * A lens's ranks for the star value are the places' (services/placeReviews
- * fetchLensRanks): the same rule for every mark.
+ * readLensRanks, through hooks/useLensRanks): the same rule for every mark.
  */
 import type { NostrEvent } from "nostr-tools";
 import { requireActiveAccount, signAs } from "@/accounts/signing";
@@ -26,12 +26,6 @@ type Item = { id: string; kind: number; pubkey: string; tags: string[][] };
 /** Where Unbnd publishes reviews beside the index (the books contract's relays). */
 const UNBND_RELAYS = ["wss://nos.lol", "wss://relay.primal.net"];
 const nowS = () => Math.floor(Date.now() / 1000);
-
-export async function fetchBookReviews(item: Item): Promise<BookReview[]> {
-  const address = coordinateOf(item);
-  if (!address) return [];
-  return standingBookReviews(await readBookReviewEvents(address), address, nowS());
-}
 
 /** The records and removals of a book's reviews (services/placeReviews readReviewEvents), from Unbnd's relays. */
 export function readBookReviewEvents(address: string): Promise<NostrEvent[]> {

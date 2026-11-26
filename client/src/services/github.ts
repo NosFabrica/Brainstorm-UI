@@ -46,7 +46,6 @@ export interface GitHubAccountFacts {
 }
 
 import { gistProves, pubkeysNamedIn, type GitHubEvidence } from "@/lib/githubLink";
-import { fetchGitHubClaimants } from "@/services/itemEngagement";
 import { safeHref } from "@/lib/safeHref";
 
 const TIMEOUT_MS = 8000;
@@ -123,8 +122,6 @@ export function topRepos(repos: GitHubRepo[], n: number): GitHubRepo[] {
     .slice(0, n);
 }
 
-const evidenceCache = new Map<string, Promise<GitHubEvidence>>();
-
 /** "https://www.Example.com/about" → "example.com"; null for no website. */
 function hostOf(blog: string | null): string | null {
   if (!blog) return null;
@@ -168,41 +165,7 @@ export async function gistProvesClaim(gist: string, handle: string, pubkey: stri
   return !!answer && gistProves({ owner: str(answer.owner?.login), text }, handle, pubkey);
 }
 
-async function gatherEvidence(handle: string): Promise<GitHubEvidence> {
-  const [profile, claimants] = await Promise.all([
-    fetchGitHubProfileEvidence(handle),
-    fetchGitHubClaimants(handle).catch(() => []),
-  ]);
-  const proofs = await Promise.all(
-    claimants
-      .filter((c) => c.proof)
-      .map(async (c) => ((await gistProvesClaim(c.proof!, handle, c.pubkey)) ? c.pubkey : null)),
-  );
-  return {
-    ...profile,
-    claimants: claimants.map((c) => c.pubkey),
-    provenClaimants: proofs.filter((p): p is string => !!p),
-  };
-}
-
-/**
- * Who GitHub says owns an account (lib/githubLink): the npubs its profile
- * names, its website's host, and the profiles whose NIP-39 claim a gist on
- * the account proves. Asked of our origin like the rest; anything but JSON is
- * nothing known. Memoised for the session, failures included.
- */
-export function fetchGitHubEvidence(handle: string): Promise<GitHubEvidence> {
-  const key = handle.toLowerCase();
-  let p = evidenceCache.get(key);
-  if (!p) {
-    p = gatherEvidence(handle);
-    evidenceCache.set(key, p);
-  }
-  return p;
-}
-
 /** Test seam. */
 export function __resetGitHub(): void {
   cache.clear();
-  evidenceCache.clear();
 }

@@ -38,7 +38,6 @@ vi.mock("@/hooks/useLiveProfile", () => ({
   useLiveProfiles: (pubkeys: string[]) => new Map(pubkeys.map((p) => [p, { name: `Person ${parseInt(p, 10)}` }])),
 }));
 vi.mock("@/services/trustSource", () => ({ resolveHouseObserver: async () => null }));
-vi.mock("@/services/wotRanks", () => ({ fetchAuthorRanks: async () => ({ ranks: new Map(), source: null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ isAdmin: true, pubkey: "a".repeat(64) }),
 }));
