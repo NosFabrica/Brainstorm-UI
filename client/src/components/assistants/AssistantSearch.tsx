@@ -38,7 +38,7 @@ export function AssistantSearch({
     if (!isNip05(typed)) return;
     let alive = true;
     const t = setTimeout(() => {
-      resolveNip05(typed)
+      void resolveNip05(typed)
         .catch(() => null)
         .then((pubkey) => alive && setResolved({ handle: typed, pubkey }));
     }, NIP05_PAUSE_MS);
