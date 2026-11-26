@@ -6,54 +6,37 @@
  * back, so stale results structurally cannot flash).
  */
 import { FEATURES } from "@/config/featureFlags";
-import { NewAccountResult } from "@/components/compromised/NewAccountResult";
-import { CurrentAccountResult } from "@/components/retired/CurrentAccountResult";
-import { retiredBy, retiredStatus } from "@/services/retired";
 import { useCompromisedAmong } from "@/hooks/useCompromised";
-import { useListKinds, type ListKindSearch } from "@/hooks/useListKinds";
+import { useListKinds } from "@/hooks/useListKinds";
 import { useTabCounts } from "@/hooks/useTabCounts";
-import { byCount, offersTab, type TabCounts, type TabEvidence } from "@/lib/tabCounts";
-import { mergePointedHits, useHandlePointers } from "@/hooks/useHandlePointers";
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
+import { offersTab, type TabEvidence } from "@/lib/tabCounts";
+import { useHandlePointers } from "@/hooks/useHandlePointers";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useLoginHref } from "@/hooks/useLoginHref";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { HelpCircle, Radar, SlidersHorizontal } from "lucide-react";
 import {
-  BROWSE_UNAVAILABLE_SORTS,
   activeFilterCount,
   applyFilters,
   browseSafeQuery,
-  datePreset,
   liftQuery,
   queryWords,
   readFilters,
-  sinceForPreset,
-  splitFilters,
-  type DatePreset,
-  type SearchFilterPatch,
   scopeOf,
   scopedSearchHref,
 } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PersonCard } from "@/components/search/PersonCard";
 import { QuietTrustChrome } from "@/components/score/VerificationCoin";
-import { ShareNoteCard } from "@/components/share/ShareNoteCard";
-import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { QueryAsSent } from "@/components/search/QueryAsSent";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventPath } from "@/lib/shareId";
-import { TAB_LABEL } from "@/lib/tabLabels";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   isKindlessTab,
   searchStream,
-  TAB_KINDS,
   type SearchHit,
   type SearchPov,
   type SearchSnapshot,
@@ -62,48 +45,46 @@ import {
   tabLabel,
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
+import { FiltersPanel } from "./FiltersPanel";
+import { MediaFacetRow, TabFacetRows } from "./TabFacetRows";
+import { TabResultCard, isPersonCard, type CardProfile, type TabCardContext } from "./TabResultCard";
+import { CALENDAR_KIND, LIVE_KINDS, NOTE_KINDS, isGitItemTab, isGitTab, isThingTab } from "./tabKinds";
+import { displayRows, tabHits, type DisplayRow } from "./pipelines";
+import { appCategoryFacets as appCategoryFacetsOf, appPlatformFacets } from "./pipelines/apps";
+import {
+  articleFacets as articleFacetsOf,
+  recipeFacets as recipeFacetsOf,
+  type ArticleType,
+} from "./pipelines/articles";
+import { eventDayHeaders as eventDayHeadersOf, type DayHeader } from "./pipelines/events";
+import { gitItemState, gitLabelFacets, gitStateFacets } from "./pipelines/git";
+import { liveCounts as countLive, liveProofUrls, liveShelfOf, liveStatesOf, provenBy } from "./pipelines/live";
+import { mediaKindFacets } from "./pipelines/media";
+import { eventsBySeller, foldShop, priceSortOf, shopFacets as shopFacetsOf } from "./pipelines/shop";
+import { MoreCategories, MoreTabs } from "./SearchTabMenus";
+import {
+  ALL_MORE_GROUPS,
+  CATEGORIES_IN_ROW,
+  COUNTED_TABS,
+  PRIMARY_TABS,
+  TAG_TAB,
+  categoryTabClass,
+  tabClass,
+  tagTabKeyOf,
+} from "./searchTabs";
+import { urlList, urlTagged, useSearchUrlState, writeListToUrl, writeTaggedToUrl } from "@/hooks/useSearchUrlState";
 import { TagFacets } from "./TagFacets";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import { fetchGitCommentCounts, fetchGitStatuses, fetchGoalProgress, type GoalProgress } from "@/services/search";
 import { useEventRsvps } from "@/hooks/useEventRsvps";
-import {
-  GIT_STATE_LABEL,
-  foldForks,
-  gitLabelsOf,
-  gitStateOf,
-  isGitItem,
-  peopleBeforeAgents,
-  type GitState,
-} from "@/lib/gitStatus";
-import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
-import { groupPeoplePacks } from "@/lib/listGroups";
-import { TRUSTED_ITEM_LIST_KINDS, TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
-import { GIT_STATUS_KIND_SET, REPO_STATE_KIND } from "@/lib/gitEvents";
-import { RELEASE_KIND } from "@/lib/release";
-import { GitStatusCard, ReleaseCard, RepoStateCard } from "@/components/search/kindCards";
-import { WEB_BOOKMARK_KIND } from "@/lib/webBookmark";
-import {
-  AppCard,
-  EventCard,
-  LiveTile,
-  ListCard,
-  MediaCard,
-  RepoCard,
-  TrackCard,
-  platformWords,
-  mediaUrlOf,
-  ListingCard,
-  type ListGroupView,
-} from "@/components/search/cards";
-import { ThingCard } from "@/components/search/thingCards";
-import { parseHighlight } from "@/lib/nip84";
-import { SerpRow } from "@/components/search/SerpRow";
+import { useGoalProgress } from "@/hooks/useGoalProgress";
+import { useGitItemAsks } from "@/hooks/useGitItemAsks";
+import { type GitState } from "@/lib/gitStatus";
+import { MediaCard, mediaUrlOf } from "@/components/search/cards";
 import { AllResults } from "@/components/search/AllResults";
 import { useListRibbon } from "@/hooks/useListRibbon";
 import {
-  belongsTo,
   categoryTestId,
   groupCategories,
   isKindKey,
@@ -111,7 +92,6 @@ import {
   pagedWords,
   PEOPLE_KEY,
   type Category,
-  type CategoryGroup,
 } from "@/lib/allCategories";
 import { knownCategory, useAllCategories } from "@/hooks/useAllCategories";
 import { useResultTags } from "@/hooks/useResultTags";
@@ -120,32 +100,13 @@ import { useTagMembers } from "@/hooks/useTagMembers";
 import { useListTags } from "@/hooks/useListTags";
 import { carriersOf } from "@/lib/resultTags";
 import { TagTabResults } from "@/components/search/TagTabResults";
-import type { NamedTag } from "@/services/namedTags";
 import { edgeFade, useScrollEdges } from "@/hooks/useScrollEdges";
 import { followHeadStart } from "@/lib/headStart";
-import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
+import { liveHostOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
-import {
-  EVENT_WHEN_LABELS,
-  EVENT_WHEN_ORDER,
-  eventWhenCounts,
-  filterEventsByWhen,
-  type EventWhen,
-} from "@/lib/eventFilters";
-import { EventDateTile } from "@/components/share/EventDateTile";
-import {
-  EVENT_ITEM_KIND,
-  isOver,
-  parseCalendarEvent as parseCal,
-  relativeEventTime as relativeDay,
-} from "@/lib/calendarEvent";
-import { dedupeEvents } from "@/lib/eventDedupe";
-import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { DRAFT_LISTING_KIND, isListed, parseListing } from "@/lib/listing";
-import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
-import { collapseDuplicateListings } from "@/lib/listingDuplicates";
-import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
-import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
+import { eventWhenCounts, type EventWhen } from "@/lib/eventFilters";
+import { cardGroupOf } from "@/lib/listingVariants";
+import { priceBands, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
@@ -154,137 +115,27 @@ import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
 import { useSearchTags } from "@/hooks/useSearchTags";
-import {
-  leadCarriersByRank,
-  leadingCarriers,
-  mergeCarrierHits,
-  matchedTagChip,
-  rankCarriers,
-  tagsCarriedBy,
-} from "@/lib/tagCarrierPeople";
+import { leadingCarriers, rankCarriers } from "@/lib/tagCarrierPeople";
 import { leadingTags } from "@/lib/tagMatch";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
-import { FacetChip, FacetRow } from "@/components/search/sections";
-import { MEDIA_KIND_LABELS, MEDIA_KIND_ORDER, mediaKindOf, type MediaKind } from "@/lib/mediaKind";
-import {
-  MEDIA_FACET_LABELS,
-  isClassicVinesTopic,
-  mediaFacetOf,
-  mediaNarrowingOf,
-  withMediaFacet,
-  type MediaFacet,
-} from "@/lib/mediaFacet";
+import { type MediaKind } from "@/lib/mediaKind";
+import { mediaFacetOf, mediaNarrowingOf, withMediaFacet, type MediaFacet } from "@/lib/mediaFacet";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { SearchPriorityContext, useSearchPriorityState } from "@/hooks/useSearchPriority";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
-import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
-import { PUBLICATION_KINDS } from "@/lib/publication";
+import { recallComposed, recallSearch, rememberComposed, rememberKey, rememberSearch } from "@/lib/searchMemory";
 
-const NOTE_KINDS = new Set(TAB_KINDS.notes);
-const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
-const MEDIA_KINDS = new Set(TAB_KINDS.media);
 /** What a named person's own lead is asked by: their notes, pictures and videos; on Music, their tracks. */
 const LEAD_MEDIA_KINDS = [1, 20, 21, 22, 34235, 34236];
 const LEAD_MUSIC_KINDS = [31337];
-const APP_KINDS = new Set(TAB_KINDS.apps);
-// Repos, Issues and PRs all draw a RepoCard; the latter two carry a state.
-const REPO_KINDS = new Set([...TAB_KINDS.repos, ...TAB_KINDS.issues, ...TAB_KINDS.prs]);
-const isGitItemTab = (tab: SearchTab) => tab === "issues" || tab === "prs";
-const isGitTab = (tab: SearchTab) => tab === "repos" || isGitItemTab(tab);
-
-/** One row of the flat list: a hit, and — when it leads a fold — how many it
- *  hides, the chip's words, and (for an opened fork) whose fork it is. */
-type DisplayRow = {
-  hit: SearchHit;
-  collapsedCount: number;
-  clusterId: string;
-  chipLabel?: string;
-  forkOf?: string;
-  /** A folded same-title follow pack: how many lists, their union, the faces most agree on. */
-  listGroup?: ListGroupView;
-};
-const LIVE_KINDS = new Set(TAB_KINDS.live);
-const EVENT_KINDS = new Set(TAB_KINDS.events);
-const MUSIC_KINDS = new Set(TAB_KINDS.music);
-const SHOP_KINDS = new Set(TAB_KINDS.shop);
-/** NIP-15 stalls and marketplaces: in the Shop, but places to buy rather than things for sale. */
-const SHOP_PLACE_KINDS = new Set([30017, 30019]);
-/** NIP-52 calendars: collections of events, with no date of their own. */
-const CALENDAR_KIND = 31924;
-/**
- * Top with a typed sort: is a kind-less list drawn with the verticals' cards, so
- * their gates hold there too — or it shows what they hide: a listing sold,
- * hidden or priceless; a stall or calendar with nothing to name it; a 31337 that
- * is game state, not a song (whose card draws nothing). All has no such gate:
- * it is every kind the relay answered, each as a row that says what it is.
- */
-function showableUnfiltered(event: NostrEvent): boolean {
-  if (SHOP_PLACE_KINDS.has(event.kind) || event.kind === CALENDAR_KIND) return describeThing(event) !== null;
-  if (SHOP_KINDS.has(event.kind)) {
-    const listing = parseListing(event);
-    return !!listing && isListed(listing);
-  }
-  if (MUSIC_KINDS.has(event.kind)) return parseTrack(event) !== null && !isTestTrack(event);
-  return true;
-}
-/** The tabs made only of kinds lib/thing reads — one ThingCard each, in a grid. */
-const isThingTab = (tab: SearchTab) => tab === "communities" || tab === "fundraisers" || tab === "reviews";
-/** What a thing tab holds — kind 38000 also carries prediction markets and ballots, which are not reviews. */
-const THING_TAB_DETAIL: Partial<Record<SearchTab, ThingDetail["type"]>> = {
-  communities: "community",
-  fundraisers: "fundraiser",
-  reviews: "review",
-};
-
-/** What kind of article a hit is — the Articles tab's type chips narrow by this. */
-type ArticleType = "article" | "spec" | "wiki" | "publication";
-const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = {
-  article: "Articles",
-  spec: "Specs",
-  wiki: "Wiki",
-  publication: "Publications",
-};
-function articleTypeOf(kind: number): ArticleType {
-  // A book, its chapters and the shelves that hold them read as one kind of thing.
-  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : PUBLICATION_KINDS.has(kind) ? "publication" : "article";
-}
-
-/**
- * A recipe's topics. zap.cooking writes each chosen category twice — plain
- * and as `zapcooking-<word>` — beside the recipe marker itself and a
- * `zapcooking-<slug>` copy of the dish (the `d` tag). The words are topics
- * whichever way they are spelled; the marker and the dish's slug are not, and
- * neither is a bare number, which is a serving count or a step.
- */
-function recipeTopics(e: NostrEvent): string[] {
-  const marker = new RegExp(`^(${RECIPE_TAGS.join("|")})(-|$)`, "i");
-  const slug = (e.tags.find((t) => t[0] === "d")?.[1] ?? "").trim().toLowerCase();
-  const words = e.tags
-    .filter((t) => t[0] === "t" && t[1])
-    .map((t) => t[1].trim().replace(/^#/, "").toLowerCase())
-    .map((t) => (marker.test(t) ? t.replace(marker, "") : t))
-    .filter((t) => t && t !== slug && !/^\d+$/.test(t));
-  return [...new Set(words)];
-}
-// Drawn as lists wherever they turn up; a Trusted List is not asked for by the
-// Lists tab (the relay holds a copy per perspective), but a `kind:` or a
-// mixed answer that meets one shows it as the people list it is. A web
-// bookmark sits on the Lists tab but is one link: its row is the page's.
-const LIST_KINDS = new Set([
-  ...TAB_KINDS.lists.filter((k) => k !== WEB_BOOKMARK_KIND),
-  TRUSTED_PEOPLE_KIND,
-  ...TRUSTED_ITEM_LIST_KINDS,
-]);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
 const NO_HITS: SearchHit[] = [];
-
-type CardProfile = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
 function profilesOf(hits: SearchHit[]) {
   const map = new Map<string, CardProfile>();
@@ -321,861 +172,6 @@ function keepSameProfiles(prev: Map<string, CardProfile> | null, next: Map<strin
   return same ? prev : next;
 }
 
-/** The empty answers rows are handed when there is nothing: one array, so a memoised card sees no change. */
-const NO_FACES: string[] = [];
-const NO_RAISED: GoalProgress = { sats: 0, zappers: [] };
-
-/**
- * A person card's author with the score the page fetched, made once per author and
- * score: a copy per render was a new prop for every memoised PersonCard.
- */
-const SCORED = new WeakMap<SearchResult, { score: number | null; result: SearchResult }>();
-function withScore(author: SearchResult, score: number | null): SearchResult {
-  if (author.wotRank != null) return author;
-  const held = SCORED.get(author);
-  if (held && held.score === score) return held.result;
-  const result = { ...author, wotRank: score };
-  SCORED.set(author, { score, result });
-  return result;
-}
-
-/** The chip for the matched tag a person carries, one object per tag (matchedTagChip makes a new one per call). */
-const TAG_CHIPS = new WeakMap<object, ReturnType<typeof matchedTagChip>>();
-function tagChipFor(carried: Parameters<typeof matchedTagChip>[0]): ReturnType<typeof matchedTagChip> {
-  const tag = carried[0];
-  if (!tag) return undefined;
-  if (!TAG_CHIPS.has(tag)) TAG_CHIPS.set(tag, matchedTagChip(carried));
-  return TAG_CHIPS.get(tag);
-}
-
-/** The Events timeline's day headers, one formatter for all of them. */
-const DAY_HEADER = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
-
-/**
- * A result row skips layout and paint while it is far off screen. `auto` in the
- * intrinsic size remembers the height a row last rendered at, so the scrollbar
- * settles as the reader goes; 180px is a typical card's height before then.
- */
-const OFFSCREEN_ROW = "[content-visibility:auto] [contain-intrinsic-size:auto_180px]";
-
-/** Google's row: the verticals in view, the long tail behind More ▾.
- *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
- *  Articles is the first thing behind More.
- *  Top is the composed page and the default. All, after it, is the
- *  relay's answer with no kinds asked and nothing composed — every kind it
- *  indexes, in its order. It is noisy, so it is never anyone's default: only
- *  a click on it gets there. */
-const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
-  { key: "top", label: TAB_LABEL.top },
-  { key: "all", label: TAB_LABEL.all },
-  { key: "people", label: TAB_LABEL.people },
-  { key: "notes", label: TAB_LABEL.notes },
-  { key: "media", label: TAB_LABEL.media },
-  { key: "shop", label: TAB_LABEL.shop },
-];
-/** On All, how many of its categories stand in the row before More. */
-const CATEGORIES_IN_ROW = 4;
-/** A tag's tab in All's row, by key: `tag:<author>:<slug>`, as the link holds it. */
-const TAG_TAB = "tag:";
-const tagTabKeyOf = (tag: NamedTag) => `${TAG_TAB}${tag.authorPubkey}:${tag.slug}`;
-/**
- * Behind More, grouped by what a person is doing — consumer things first,
- * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
- * with PRs read like a settings list). Recipes are long-form articles
- * wearing zap.cooking's tag and NIPs are protocol specs (kind 30817); both
- * stay in Articles too, labelled — these are where people look for them.
- */
-const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string }[] }[] = [
-  {
-    title: "Read & listen",
-    tabs: [
-      { key: "articles", label: TAB_LABEL.articles },
-      { key: "music", label: TAB_LABEL.music },
-      { key: "recipes", label: TAB_LABEL.recipes },
-    ],
-  },
-  {
-    title: "Out & about",
-    tabs: [
-      { key: "events", label: TAB_LABEL.events },
-      { key: "live", label: TAB_LABEL.live },
-    ],
-  },
-  {
-    title: "Build",
-    tabs: [
-      { key: "apps", label: TAB_LABEL.apps },
-      { key: "repos", label: TAB_LABEL.repos },
-      { key: "issues", label: TAB_LABEL.issues },
-      { key: "prs", label: TAB_LABEL.prs },
-      { key: "nips", label: TAB_LABEL.nips },
-    ],
-  },
-  {
-    title: "Community",
-    tabs: [
-      { key: "communities", label: TAB_LABEL.communities },
-      { key: "fundraisers", label: TAB_LABEL.fundraisers },
-      { key: "reviews", label: TAB_LABEL.reviews },
-    ],
-  },
-  { title: null, tabs: [{ key: "lists", label: TAB_LABEL.lists }] },
-];
-const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
-/** Where we're going, said under More without a door: agent suites — verifying and hiring agents — are on the roadmap (Benjamin, 2026-09-25). */
-const SOON_TABS: { key: string; label: string; title: string }[] = [
-  { key: "agents", label: "Agents", title: "Verify and hire agents — coming to Brainstorm" },
-];
-const TABS = [...PRIMARY_TABS, ...MORE_TABS];
-/**
- * All's More, under Top's More headings: what is a tab of its own in Top's row (Notes, Media, Shop)
- * heads its own group, and the rest sit where Top's More puts them. Lists and Other come from
- * lib/allCategories.
- */
-const ALL_MORE_GROUPS: { title: string; tabs: SearchTab[] }[] = [
-  { title: "Notes & people", tabs: ["notes", "people"] },
-  { title: "Media", tabs: ["media"] },
-  { title: "Shop", tabs: ["shop"] },
-  // Zap Store releases are a band on the home feed, not a tab: they are built things.
-  ...MORE_GROUPS.map((g) => ({
-    title: g.title ?? "Lists",
-    tabs: [...g.tabs.map((t) => t.key), ...(g.title === "Build" ? (["releases"] as SearchTab[]) : [])],
-  })),
-];
-
-const TAB_KEYS = new Set(TABS.map((t) => t.key));
-/** The tabs a search counts results for (hooks/useTabCounts): every vertical, the row's first. */
-const COUNTED_TABS: SearchTab[] = TABS.map((t) => t.key).filter((key) => key !== "top" && key !== "all");
-
-const tabClass = (active: boolean) =>
-  "shrink-0 px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
-  (active
-    ? "border-brand-primary text-brand-deep dark:text-brand-link"
-    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200");
-
-/** A category's tab on All: a long name ("Food and Drink Places") ends in an ellipsis, whole on hover. */
-const categoryTabClass = (active: boolean) => tabClass(active) + " max-w-[9.5rem] truncate";
-
-/** The More ▾ slot: names the folded vertical that is active (so the row
- *  always says where you are), otherwise "More". A plain disclosure, not a
- *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
-function MoreTabs({
-  tab,
-  onChange,
-  kinds = [],
-  kind = null,
-  onKind,
-  offers = () => true,
-  counts = {},
-}: {
-  tab: SearchTab;
-  onChange: (next: SearchTab) => void;
-  /** The kinds with a page of their own (hooks/useListKinds), each in its group. */
-  kinds?: readonly ListKindSearch[];
-  /** The kind whose page is open, if any. */
-  kind?: string | null;
-  onKind?: (key: string) => void;
-  /** Whether the words find anything under a tab (lib/tabCounts): one known to hold nothing isn't offered. */
-  offers?: (key: SearchTab) => boolean;
-  /** How many results each tab holds, for the order within a group: most first. */
-  counts?: TabCounts;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const activeKind = kinds.find((k) => k.key === kind);
-  const active = activeKind ?? (kind ? undefined : MORE_TABS.find((t) => t.key === tab));
-  // Each kind sits in its group, after the group's own tabs; a group nobody else uses comes before Lists.
-  // Within a group the tabs the words find most come first; a group left with nothing goes, and its
-  // heading with it.
-  const groups = useMemo(() => {
-    const out = MORE_GROUPS.map((g) => ({
-      ...g,
-      tabs: byCount(
-        g.tabs.filter((t) => offers(t.key)),
-        counts,
-      ),
-      kinds: [] as ListKindSearch[],
-    }));
-    for (const k of kinds) {
-      const g = out.find((x) => x.title === k.group);
-      if (g) g.kinds.push(k);
-      else out.splice(out.length - 1, 0, { title: k.group, tabs: [], kinds: [k] });
-    }
-    return out.filter((g) => g.tabs.length > 0 || g.kinds.length > 0);
-  }, [kinds, offers, counts]);
-  // An open menu holds still: what the counts change while it is open waits for it to close, so
-  // nothing moves or vanishes under the pointer.
-  const [held, setHeld] = useState<typeof groups | null>(null);
-  const shown = open && held ? held : groups;
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  // Nothing behind it for these words, and nothing behind it open: no More.
-  if (shown.length === 0 && !active) return null;
-
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={!!active}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) setHeld(groups);
-          setOpen(!open);
-        }}
-        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
-        data-testid="search-tab-more"
-      >
-        {active ? active.label : "More"}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label="More result types"
-          className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          {shown.map((g, gi) => (
-            <div
-              key={g.title ?? "rest"}
-              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
-              role="group"
-              aria-label={g.title ?? undefined}
-            >
-              {g.title && (
-                <div
-                  className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
-                  data-testid={`search-tab-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
-                >
-                  {g.title}
-                </div>
-              )}
-              {g.tabs.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  role="menuitem"
-                  aria-current={!kind && tab === t.key ? "true" : undefined}
-                  onClick={() => {
-                    setOpen(false);
-                    onChange(t.key);
-                  }}
-                  className={
-                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (!kind && tab === t.key
-                      ? "font-semibold text-brand-deep dark:text-brand-link"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-                  }
-                  data-testid={`search-tab-${t.key}`}
-                >
-                  {t.label}
-                </button>
-              ))}
-              {g.kinds.map((k) => (
-                <button
-                  key={k.key}
-                  type="button"
-                  role="menuitem"
-                  aria-current={kind === k.key ? "true" : undefined}
-                  onClick={() => {
-                    setOpen(false);
-                    onKind?.(k.key);
-                  }}
-                  className={
-                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (kind === k.key
-                      ? "font-semibold text-brand-deep dark:text-brand-link"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-                  }
-                  data-testid={`search-tab-${k.key}`}
-                >
-                  {k.label}
-                </button>
-              ))}
-              {g.title === "Build" &&
-                SOON_TABS.map((t) => (
-                  // A muted row, not a door: the Apps launcher's "Soon" treatment.
-                  <div
-                    key={t.key}
-                    role="menuitem"
-                    aria-disabled="true"
-                    title={t.title}
-                    className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] text-slate-400 dark:text-slate-500"
-                    data-testid={`search-tab-${t.key}-soon`}
-                  >
-                    {t.label}
-                    <span className="ml-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300 dark:text-slate-600">
-                      Soon
-                    </span>
-                  </div>
-                ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** On All, its categories past the row (hooks/useAllCategories) under MoreTabs' headings, most results first in each. */
-function MoreCategories({
-  groups,
-  pressed,
-  onPress,
-}: {
-  groups: readonly CategoryGroup[];
-  pressed: string | null;
-  onPress: (key: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const active = groups.flatMap((g) => g.categories).find((c) => c.key === pressed);
-  // An open menu holds still, as MoreTabs does: counts that land while it is open wait for it to close.
-  const [held, setHeld] = useState<readonly CategoryGroup[] | null>(null);
-  const shown = open && held ? held : groups;
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  if (shown.length === 0) return null;
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={!!active}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) setHeld(groups);
-          setOpen(!open);
-        }}
-        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
-        title={active?.name}
-        data-testid="search-tab-more"
-      >
-        <span className="max-w-[8rem] truncate">{active ? active.name : "More"}</span>
-        <ChevronDown
-          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label="More categories"
-          className="absolute right-0 top-full z-20 mt-1 max-h-[60vh] min-w-[9rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          {shown.map((g, gi) => (
-            <div
-              key={g.title}
-              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
-              role="group"
-              aria-label={g.title}
-            >
-              <div
-                className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
-                data-testid={`search-category-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
-              >
-                {g.title}
-              </div>
-              {g.categories.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  role="menuitem"
-                  aria-current={pressed === c.key ? "true" : undefined}
-                  onClick={() => {
-                    setOpen(false);
-                    onPress(c.key);
-                  }}
-                  className={
-                    "flex w-full items-center whitespace-nowrap rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (pressed === c.key
-                      ? "font-semibold text-brand-deep dark:text-brand-link"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-                  }
-                  data-testid={`search-category-${categoryTestId(c.key)}`}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function tabFromUrl(): SearchTab {
-  try {
-    const t = new URLSearchParams(window.location.search).get("t");
-    // The old combined tab's deep links keep working.
-    if (t === "code") return "repos";
-    // `everything` was the composed page before it was Top; its links — and the
-    // recent searches that saved it — still mean Top, never the raw list.
-    if (t === "everything") return "top";
-    if (t && TAB_KEYS.has(t as SearchTab)) return t as SearchTab;
-  } catch {
-    /* default below */
-  }
-  return "top";
-}
-
-/**
- * `#vine-archive` typed alone is the Media tab with Classic Vines chosen (lib/mediaFacet), where
- * any other lone hashtag is a topic page. `query` is the box's words and the panel's tokens.
- */
-const opensOnMedia = (query: string): boolean => isClassicVinesTopic(splitFilters(query).text);
-
-/** Does the address name a tab? Top is the default and is written as no tab at all. */
-function urlNamesTab(): boolean {
-  try {
-    return !!new URLSearchParams(window.location.search).get("t");
-  } catch {
-    return false;
-  }
-}
-
-/** The tab a page opens on: the URL's, or Media for a query that is Classic Vines and names no tab. */
-function openingTab(query: string): SearchTab {
-  return !urlNamesTab() && opensOnMedia(query) ? "media" : tabFromUrl();
-}
-
-/** The `t` the URL names when it isn't one of the tabs: a kind's own page, if the app has that kind. */
-function urlKind(): string | null {
-  try {
-    const t = new URLSearchParams(window.location.search).get("t");
-    return t && !TAB_KEYS.has(t as SearchTab) ? t : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The list narrowing All (`list`), by its coordinate: kept in the link so Back comes back to it. */
-function urlList(): string | null {
-  try {
-    return new URLSearchParams(window.location.search).get("list");
-  } catch {
-    return null;
-  }
-}
-
-function writeListToUrl(coordinate: string | null) {
-  try {
-    const url = new URL(window.location.href);
-    if (coordinate) url.searchParams.set("list", coordinate);
-    else url.searchParams.delete("list");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-/** The tag narrowing All's results (`tagged`), by its `<author>|<slug>` key: kept in the link like a list. */
-function urlTagged(): string | null {
-  try {
-    return new URLSearchParams(window.location.search).get("tagged");
-  } catch {
-    return null;
-  }
-}
-
-function writeTaggedToUrl(key: string | null) {
-  try {
-    const url = new URL(window.location.href);
-    if (key) url.searchParams.set("tagged", key);
-    else url.searchParams.delete("tagged");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-/** A searched map area (`area`) is the Places page's, and a pressed list or tag All's: another page or tab leaves them out of the link. */
-function writeKindToUrl(key: string) {
-  try {
-    const url = new URL(window.location.href);
-    url.searchParams.set("t", key);
-    url.searchParams.delete("area");
-    url.searchParams.delete("list");
-    url.searchParams.delete("tagged");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-function writeTabToUrl(tab: SearchTab) {
-  try {
-    const url = new URL(window.location.href);
-    if (tab === "top") url.searchParams.delete("t");
-    else url.searchParams.set("t", tab);
-    url.searchParams.delete("area");
-    url.searchParams.delete("list");
-    url.searchParams.delete("tagged");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  } catch {
-    /* URL sync is a convenience, never a blocker */
-  }
-}
-
-/** Google's Tools menu for time. */
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: "any", label: "Any time" },
-  { value: "day", label: "Past 24 hours" },
-  { value: "week", label: "Past week" },
-  { value: "month", label: "Past month" },
-  { value: "year", label: "Past year" },
-  { value: "custom", label: "Custom range" },
-];
-
-// Every option here changes the relay's order — probed 2026-09-03. "Text match
-// only" went: it ordered exactly like "Include unranked" and confused people.
-const SORT_OPTIONS = [
-  { value: "", label: "Best match" },
-  { value: "recent", label: "Newest first" },
-  { value: "rank", label: "Most trusted authors" },
-  { value: "followers", label: "Most followed authors" },
-];
-/** The Shop page's own sorts. The relay knows no prices: these ride the query
- *  as `sort:price` for the panel and the URL, and the page orders the cards
- *  itself through one Bitcoin rate (lib/exchangeRate). */
-const PRICE_SORTS = [
-  { value: "price", label: "Price: low to high" },
-  { value: "price:desc", label: "Price: high to low" },
-];
-const priceSortOf = (query: string): "asc" | "desc" | null => {
-  const sort = readFilters(query).sort;
-  return sort === "price" ? "asc" : sort === "price:desc" ? "desc" : null;
-};
-
-/**
- * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
- * rather than sinking them (vespa-relay store e1ecd7f23e), which is why it is a coarse menu
- * and not a slider: the difference between 50 and 52 is not a decision anybody makes, and
- * each step is a page of results gone.
- */
-const RANK_FLOORS: { value: number | null; label: string }[] = [
-  { value: null, label: "No floor" },
-  { value: 25, label: "Rank 25+" },
-  { value: 50, label: "Rank 50+" },
-  { value: 75, label: "Rank 75+" },
-  { value: 90, label: "Rank 90+" },
-];
-
-/** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
- *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
- *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
- *  scroll it natively). */
-
-/** The filters that are real (probed 2026-09-03). Every control rewrites the
- *  full query (words + tokens) through onQueryRewrite; the landing page keeps
- *  the tokens OUT of the visible box and in the URL's `f` instead. */
-function FiltersPanel({
-  query,
-  userPubkey,
-  tab,
-  onQueryRewrite,
-}: {
-  query: string;
-  pov: SearchPov;
-  userPubkey?: string;
-  tab: SearchTab;
-  onQueryRewrite: (next: string) => void;
-}) {
-  const loginHref = useLoginHref();
-  const sortOptions = tab === "shop" ? [...SORT_OPTIONS, ...PRICE_SORTS] : SORT_OPTIONS;
-  // What the relay will actually run: a wordless browse cannot be rank- or
-  // follower-sorted, so the panel shows the fallback and greys those two.
-  const browsing = !queryWords(query);
-  const state = readFilters(browsing ? browseSafeQuery(query) : query);
-  const preset = datePreset(state);
-  // "Custom range" stays open once chosen, even before a day is picked.
-  const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null;
-  const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
-  useEffect(() => {
-    if (advancedActive) setAdvancedOpen(true);
-  }, [advancedActive]);
-  const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
-
-  const showDates = customDates || preset === "custom";
-  // The menu is coarse, but the grammar takes any 0..100 — a hand-typed `filter:rank:gte:33`
-  // would otherwise read as "No floor" while the Filters badge counted it, which is the panel
-  // disagreeing with the search it is describing. The typed value joins the menu, in order.
-  const floors = useMemo(() => {
-    const typed = state.rankFloor;
-    if (typed == null || RANK_FLOORS.some((o) => o.value === typed)) return RANK_FLOORS;
-    return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }].sort(
-      (a, b) => (a.value ?? -1) - (b.value ?? -1),
-    );
-  }, [state.rankFloor]);
-  const segment = (on: boolean) =>
-    `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
-      on
-        ? "bg-brand-primary text-white"
-        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-    }`;
-  const field =
-    "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
-  // Every field is a caption over a control of ONE height and ONE width rule:
-  // half a phone row each (two up), a fixed column on desktop. Nothing under
-  // a control — a hint inside one column used to push its neighbour down.
-  const column =
-    "flex min-w-0 flex-1 basis-[8.5rem] flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto";
-  const control = `${field} w-full sm:w-44`;
-  // iOS Safari gives a date input its own minimum width, wider than half a phone row, so
-  // From/To day stuck out past Sort and Time (and past the panel). Without the native
-  // appearance it takes the column's width like the selects; its value then sits left, as theirs do.
-  const dateControl = `${control} min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left`;
-
-  return (
-    <div
-      className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-800/60 dark:bg-slate-900/70"
-      data-testid="search-filters-panel"
-    >
-      {!userPubkey && (
-        <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
-          Sign in to rank through your own network.{" "}
-          <Link href={loginHref} className="font-medium text-brand-link hover:underline">
-            Sign in →
-          </Link>
-        </p>
-      )}
-      <label className={column}>
-        Sort
-        <select
-          className={control}
-          value={state.sort ?? ""}
-          onChange={(e) => write({ sort: e.target.value || null })}
-          data-testid="filter-sort"
-        >
-          {sortOptions.map((o) => (
-            <option key={o.value} value={o.value} disabled={browsing && BROWSE_UNAVAILABLE_SORTS.has(o.value)}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={column}>
-        Time
-        <select
-          className={control}
-          value={showDates ? "custom" : preset}
-          onChange={(e) => {
-            const next = e.target.value as DatePreset;
-            if (next === "custom") {
-              setCustomDates(true);
-              return;
-            }
-            setCustomDates(false);
-            write({ since: sinceForPreset(next), until: null });
-          }}
-          data-testid="filter-date"
-        >
-          {DATE_PRESETS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      {showDates && (
-        <>
-          <label className={column}>
-            From day
-            <input
-              type="date"
-              className={dateControl}
-              value={state.since ?? ""}
-              onChange={(e) => write({ since: e.target.value || null })}
-              data-testid="filter-since"
-            />
-          </label>
-          <label className={column}>
-            To day
-            <input
-              type="date"
-              className={dateControl}
-              value={state.until ?? ""}
-              onChange={(e) => write({ until: e.target.value || null })}
-              data-testid="filter-until"
-            />
-          </label>
-        </>
-      )}
-      {browsing && (
-        <p className="-mt-1 basis-full text-[10px] text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
-          Trust and follower sorts need a search term
-        </p>
-      )}
-      {/* Sort and date are the two anyone uses; the rest waits behind one
-          word (the team: less busy), and comes forward by itself when one of
-          its controls is set — by a shared link, say. */}
-      <button
-        type="button"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        aria-expanded={advancedOpen}
-        className="flex basis-full items-center gap-1 text-left text-[11px] font-medium text-slate-500 hover:text-brand-link dark:text-slate-400"
-        data-testid="filters-advanced-toggle"
-      >
-        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
-        Advanced
-      </button>
-      {advancedOpen && (
-        <div className="flex basis-full flex-wrap items-end gap-x-4 gap-y-3" data-testid="filters-advanced">
-          {/* Trust distance — how far the search casts its net. The relay has no
-          hops, so this reads the viewer's own follow graph (Benjamin's
-          slider); with nobody signed in there is no "you", so it isn't there. */}
-          {userPubkey && (
-            <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Trust distance
-              <div
-                role="group"
-                aria-label="Trust distance"
-                className="inline-flex divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800"
-                data-testid="filter-reach"
-              >
-                {(
-                  [
-                    ["follows", "People you follow"],
-                    [null, "Everyone"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    aria-pressed={state.reach === value}
-                    onClick={() => write({ reach: value })}
-                    className={segment(state.reach === value)}
-                    data-testid={`filter-reach-${value ?? "all"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
-          one lifts the floor to nothing, the other raises it. Both cannot be on, so
-          choosing a floor turns the waiver off. */}
-          <label className={column}>
-            Trust floor
-            <select
-              className={control}
-              value={state.rankFloor ?? ""}
-              onChange={(e) => {
-                const next = e.target.value === "" ? null : Number(e.target.value);
-                write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
-              }}
-              data-testid="filter-rank-floor"
-            >
-              {floors.map((o) => (
-                <option key={o.label} value={o.value ?? ""}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 accent-brand-primary"
-              checked={state.includeSpam}
-              onChange={(e) =>
-                write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })
-              }
-              data-testid="filter-spam"
-            />
-            Include unranked accounts
-          </label>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * What a search had loaded, for its next life. Opening a result and coming
- * back used to restart at page one (2026-09-09): a reader ten pages deep
- * landed at the top with nothing below. Module-level so it outlives the
- * page; ten minutes and eight searches deep, which is a browsing session.
- */
-const SEARCH_MEMORY = new Map<string, { hits: SearchHit[]; scrollY: number; at: number }>();
-/** The composed page remembers a list per section, not one list. */
-const COMPOSED_MEMORY = new Map<string, { sections: Record<string, SearchHit[]>; scrollY: number; at: number }>();
-const SEARCH_MEMORY_TTL_MS = 10 * 60_000;
-const SEARCH_MEMORY_SIZE = 8;
-function rememberKey(query: string, tab: string, pov: string, userPubkey?: string): string {
-  return [query, tab, pov, userPubkey ?? ""].join("\u0000");
-}
-function rememberSearch(key: string, hits: SearchHit[], scrollY: number): void {
-  SEARCH_MEMORY.delete(key);
-  SEARCH_MEMORY.set(key, { hits, scrollY, at: Date.now() });
-  while (SEARCH_MEMORY.size > SEARCH_MEMORY_SIZE) SEARCH_MEMORY.delete(SEARCH_MEMORY.keys().next().value as string);
-}
-function rememberComposed(key: string, sections: Record<string, SearchHit[]>, scrollY: number): void {
-  if (!Object.values(sections).some((hits) => hits.length)) return;
-  COMPOSED_MEMORY.delete(key);
-  COMPOSED_MEMORY.set(key, { sections, scrollY, at: Date.now() });
-  while (COMPOSED_MEMORY.size > SEARCH_MEMORY_SIZE)
-    COMPOSED_MEMORY.delete(COMPOSED_MEMORY.keys().next().value as string);
-}
-
-function recallComposed(key: string): { sections: Record<string, SearchHit[]>; scrollY: number } | null {
-  const m = COMPOSED_MEMORY.get(key);
-  if (!m) return null;
-  if (Date.now() - m.at > SEARCH_MEMORY_TTL_MS) {
-    COMPOSED_MEMORY.delete(key);
-    return null;
-  }
-  return { sections: m.sections, scrollY: m.scrollY };
-}
-
-/** Tests: forget every search. */
-export function __resetSearchMemory(): void {
-  SEARCH_MEMORY.clear();
-  COMPOSED_MEMORY.clear();
-}
-function recallSearch(key: string): { hits: SearchHit[]; scrollY: number } | null {
-  const m = SEARCH_MEMORY.get(key);
-  if (!m) return null;
-  if (Date.now() - m.at > SEARCH_MEMORY_TTL_MS) {
-    SEARCH_MEMORY.delete(key);
-    return null;
-  }
-  return m;
-}
-
 export const SearchResults = memo(function SearchResults({
   query,
   pov,
@@ -1208,24 +204,9 @@ export const SearchResults = memo(function SearchResults({
   peopleSeed?: SearchHit[];
 }) {
   const [, setLocation] = useLocation();
-  const [tab, setTab] = useState<SearchTab>(() => openingTab(query));
+  const { tab, kindTab, changeTab, openKind } = useSearchUrlState(query);
   const kinds = useListKinds();
-  const [kindTab, setKindTab] = useState<string | null>(() => urlKind());
   const activeKind = kinds.find((k) => k.key === kindTab) ?? null;
-  // On a page already open, `#vine-archive` alone moves it to Media under the same rule as
-  // opening on it: only when the address names no tab. An address that names one is a link,
-  // Back or Forward saying where to be, or the tab the reader picked, and is not overridden.
-  // Decided as the new query renders, so the tab it was on never asks the relay for it.
-  const [queryWas, setQueryWas] = useState(query);
-  if (query !== queryWas) {
-    setQueryWas(query);
-    if (tab !== "media" && opensOnMedia(query) && !urlNamesTab()) setTab("media");
-  }
-  const landsOnMedia = tab === "media" && opensOnMedia(query);
-  useEffect(() => {
-    // The tab was chosen here, not by a click: the address has to say so for a reload or a link.
-    if (landsOnMedia) writeTabToUrl("media");
-  }, [landsOnMedia]);
   useEffect(() => {
     onTabChange?.(tab);
   }, [tab, onTabChange]);
@@ -1237,7 +218,7 @@ export const SearchResults = memo(function SearchResults({
   // The tab's live stream, so the end of the page can ask it for more.
   const streamRef = useRef<SearchHandle | null>(null);
   const firstRun = useRef(true);
-  // Result rows skip offscreen layout (OFFSCREEN_ROW) except while a remembered scroll is restored.
+  // Result rows skip offscreen layout (TabResultCard's OFFSCREEN_ROW) except while a remembered scroll is restored.
   const [rowsWhole, setRowsWhole] = useState(false);
   // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
   // 254 notes, no media-kind events, a video in most of them). The Media tab
@@ -1593,29 +574,6 @@ export const SearchResults = memo(function SearchResults({
     return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
   }, [effectiveQuery, tab, pov, userPubkey, composed, mediaFacet]);
 
-  // Back and Forward say where to be: the page the address names, a kind's or a tab. (A step in
-  // history of its own is pushed by the Places page's area search; tabs replace theirs.)
-  useEffect(() => {
-    const follow = () => {
-      setKindTab(urlKind());
-      setTab(tabFromUrl());
-    };
-    window.addEventListener("popstate", follow);
-    return () => window.removeEventListener("popstate", follow);
-  }, []);
-  const changeTab = useCallback((next: SearchTab) => {
-    setKindTab(null);
-    setTab(next);
-    writeTabToUrl(next);
-  }, []);
-  // A kind's own page (hooks/useListKinds): named in the URL like a tab, shown under the strip in
-  // place of the results. The Top page's sections stay unmounted, so nothing is asked of the relay.
-  const openKind = useCallback((key: string) => {
-    setKindTab(key);
-    setTab("top");
-    writeKindToUrl(key);
-  }, []);
-
   const openProfile = useCallback(
     (result: SearchResult) => {
       if (onOpenProfile) onOpenProfile(result);
@@ -1651,36 +609,14 @@ export const SearchResults = memo(function SearchResults({
   }, [carriers.byPubkey]);
   // Keep a ref so the render below sees a stable list even mid-stream. On the
   // Media tab the notes that carry media join the media-kind hits.
-  // The Shop as products: one card per product, its sizes and colours folded
-  // into it by the family its seller declared (lib/listingVariants, #158).
-  // Same-title copies from two apps fold first, into the one with a page —
-  // among copies for sale only: a sold copy with a page must not replace the
-  // copy on sale and then be dropped, taking the product with it.
-  const shopFold = useMemo(() => {
-    if (tab !== "shop") return null;
-    const base = snapshot?.hits ?? [];
-    return foldProductHits(
-      collapseDuplicateListings(
-        base.filter((h) => {
-          if (SHOP_PLACE_KINDS.has(h.event.kind)) return describeThing(h.event) !== null;
-          const l = parseListing(h.event);
-          return !!l && isListed(l);
-        }),
-      ),
-    );
-  }, [tab, snapshot]);
+  // The Shop as products: one card per product (pipelines/shop).
+  const shopFold = useMemo(() => (tab !== "shop" ? null : foldShop(snapshot?.hits ?? [])), [tab, snapshot]);
   // Each seller's events on the page, built once per snapshot: filtering every
   // hit per card was quadratic, and a fresh array per render defeated the card's memo.
-  const hitsBySeller = useMemo(() => {
-    const out = new Map<string, NostrEvent[]>();
-    if (tab !== "shop") return out;
-    for (const h of snapshot?.hits ?? []) {
-      const list = out.get(h.event.pubkey);
-      if (list) list.push(h.event);
-      else out.set(h.event.pubkey, [h.event]);
-    }
-    return out;
-  }, [tab, snapshot]);
+  const hitsBySeller = useMemo(
+    () => (tab !== "shop" ? new Map<string, NostrEvent[]>() : eventsBySeller(snapshot?.hits ?? [])),
+    [tab, snapshot],
+  );
   // One card group object per product per snapshot, so the card's memo holds.
   const shopCardGroups = useMemo(() => {
     const out = new Map<string, ReturnType<typeof cardGroupOf>>();
@@ -1691,51 +627,21 @@ export const SearchResults = memo(function SearchResults({
   // Who the search is about when their own profile lacks the words: the accounts the matched
   // profiles' handles belong to (hooks/useHandlePointers), asked of every People hit before the floor.
   const pointers = useHandlePointers(tab === "people" ? (snapshot?.hits ?? []) : []);
-  const rawHits = useMemo(() => {
-    const sent = snapshot?.hits ?? [];
-    // A pressed tag's own answer keeps the rows the page showed carrying it: the relay may have
-    // found those through a list whose title holds the words ("verified" finds Verified Human's
-    // people), which the narrowed ask doesn't match again.
-    const kept = streamTag && streamTag === tagFilter && tagCarriers?.length ? tagCarriers : null;
-    const sentIds = kept ? new Set(sent.map((h) => h.event.id)) : null;
-    const base = kept ? [...sent, ...kept.filter((h) => !sentIds!.has(h.event.id))] : sent;
-    // A listing is for sale or it is not a result: sold, hidden and priceless
-    // never count, so the count line and the cards agree.
-    // One product, one card: a seller's same-title copies from two apps fold
-    // into the one with a product page (lib/listingDuplicates).
-    // A NIP-15 stall or marketplace is a shop, not an item: it has no price,
-    // and stays when it has a name to show (lib/thing).
-    if (tab === "shop") return shopFold?.hits ?? [];
-    // The relay narrows by tag but cannot exclude by one: zap.cooking's own
-    // articles wear the recipe tag too. One source of truth says which is
-    // which, here, so the count line, the chips and the cards agree.
-    if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
-    // The people on a matched tag lead the People tab, once each — after the accounts the
-    // matched profiles' handles belong to.
-    if (tab === "people") return mergeCarrierHits(mergePointedHits(base, pointers.hits), leadPeople);
-    if (tab === "top") return base.filter((h) => showableUnfiltered(h.event));
-    // Only what lib/thing can name is a result — decided here, like the Shop,
-    // so "Nothing found" and the counts agree with the cards — and one card
-    // per NIP-28 channel.
-    if (isThingTab(tab))
-      return oneCardPerChannel(base.filter((h) => describeThing(h.event)?.detail.type === THING_TAB_DETAIL[tab]));
-    // Event Index's list items join the Events tab (services/search): an aggregator's NIP-52 copy of
-    // one goes, and so does a second curator's item for the same page (lib/eventDedupe).
-    if (tab === "events") {
-      const shown = base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
-      const kept = new Set(dedupeEvents(shown.map((h) => h.event)).map((e) => e.id));
-      return shown.filter((h) => kept.has(h.event.id));
-    }
-    // A named person's own tracks join the Music tab's hits, once each.
-    if (tab === "music") {
-      const seen = new Set(base.map((h) => h.event.id));
-      return [...base, ...personMedia.filter((h) => !seen.has(h.event.id))];
-    }
-    if (tab !== "media" || !mediaNotes) return base;
-    const seen = new Set(base.map((h) => h.event.id));
-    const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
-    return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits, streamTag, tagFilter, tagCarriers]);
+  // What of the relay's answer the tab keeps (pipelines tabHits): the Shop's products, the people on a
+  // matched tag, the Media tab's notes with something to look at…
+  const rawHits = useMemo(
+    () =>
+      tabHits(snapshot?.hits ?? [], {
+        tab,
+        keptCarriers: streamTag && streamTag === tagFilter && tagCarriers?.length ? tagCarriers : null,
+        shopHits: shopFold?.hits ?? null,
+        pointed: pointers.hits,
+        leadPeople,
+        personMedia,
+        mediaNotes: mediaNotes?.hits ?? null,
+      }),
+    [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold, pointers.hits, streamTag, tagFilter, tagCarriers],
+  );
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -1982,13 +888,10 @@ export const SearchResults = memo(function SearchResults({
   const extraCount =
     (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) +
     (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
-  const peopleIdx = useRef(0);
-  peopleIdx.current = 0;
 
   // Recurring events (the "liverpool" monthly-meetup dump) collapse on the
   // event-shaped tabs; a chip expands the rest of each cluster.
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
-  const clustered = tab === "events" || tab === "live" || tab === "lists";
   // Events facet by WHEN — Upcoming by default (soonest first); with nothing
   // upcoming the tab shows what just happened and says so.
   const [eventWhen, setEventWhen] = useState<EventWhen>("upcoming");
@@ -2005,54 +908,21 @@ export const SearchResults = memo(function SearchResults({
   // anyone is on; a replay counts only once its recording answers.
   const [liveShelf, setLiveShelf] = useState<LiveState | null>(null);
   useEffect(() => setLiveShelf(null), [query]);
-  const liveStates = useMemo(() => {
-    const m = new Map<string, LiveState | null>();
-    if (tab === "live") for (const h of hits) m.set(h.event.id, liveStateOf(h.event));
-    return m;
-  }, [hits, tab]);
-  // What must answer before it shows: a replay's recording, and the stream of
-  // a "live" a day or more old with no viewers to vouch for it.
-  const proofUrls = useMemo(
-    () =>
-      tab === "live"
-        ? hits
-            .map((h) =>
-              liveStates.get(h.event.id) === "replay"
-                ? (h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "")
-                : liveStates.get(h.event.id) === "live"
-                  ? (liveNeedsCheck(h.event) ?? "")
-                  : "",
-            )
-            .filter(Boolean)
-        : [],
-    [hits, tab, liveStates],
+  const liveStates = useMemo(
+    () => (tab === "live" ? liveStatesOf(hits) : new Map<string, LiveState | null>()),
+    [hits, tab],
   );
+  // What must answer before it shows (pipelines/live).
+  const proofUrls = useMemo(() => (tab === "live" ? liveProofUrls(hits, liveStates) : []), [hits, tab, liveStates]);
   const proofs = useVerifiedRecordings(proofUrls);
   const verifiedRecordings = proofs.ok;
-  const proven = useCallback(
-    (e: NostrEvent, st: LiveState | null | undefined) => {
-      if (st === "replay") return verifiedRecordings.has(e.tags.find((t) => t[0] === "recording")?.[1] ?? "");
-      if (st === "live") {
-        const url = liveNeedsCheck(e);
-        return !url || verifiedRecordings.has(url);
-      }
-      return st === "upcoming";
-    },
-    [verifiedRecordings],
-  );
+  const proven = useMemo(() => provenBy(verifiedRecordings), [verifiedRecordings]);
 
-  const liveCounts = useMemo(() => {
-    const c = { live: 0, upcoming: 0, replay: 0 };
-    if (tab !== "live") return c;
-    for (const h of hits) {
-      const st = liveStates.get(h.event.id);
-      if (st && proven(h.event, st)) c[st] += 1;
-    }
-    return c;
-  }, [hits, tab, liveStates, proven]);
-  const effectiveShelf: LiveState =
-    liveShelf ??
-    (liveCounts.live > 0 ? "live" : liveCounts.upcoming > 0 ? "upcoming" : liveCounts.replay > 0 ? "replay" : "live");
+  const liveCounts = useMemo(
+    () => (tab !== "live" ? { live: 0, upcoming: 0, replay: 0 } : countLive(hits, liveStates, proven)),
+    [hits, tab, liveStates, proven],
+  );
+  const effectiveShelf: LiveState = liveShelfOf(liveShelf, liveCounts);
   const liveShowable = liveCounts.live + liveCounts.upcoming + liveCounts.replay > 0;
   // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
   // the chips"), computed from what the results actually run on.
@@ -2076,60 +946,9 @@ export const SearchResults = memo(function SearchResults({
   // Issues and PRs tabs: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
-  const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
-  const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
+  // Fundraisers tab: what each zap goal has raised (hooks/useGoalProgress).
+  const progressOf = useGoalProgress(hits, tab);
   // Events tab: who is going — one request per page, keyed by event coordinate.
-  // Fundraisers tab: what each zap goal has raised. Like the git counts
-  // below, each streamed snapshot or "more" page asks only after the goals
-  // it adds, and a generation drops answers that land after the page emptied.
-  // `settled` holds the goals a complete answer covered: only there does no
-  // receipt mean "raised nothing" rather than "not known".
-  const [goalProgress, setGoalProgress] = useState<{ byGoal: Map<string, GoalProgress>; settled: Set<string> }>({
-    byGoal: new Map(),
-    settled: new Set(),
-  });
-  const goalIdsKey = useMemo(
-    () => (tab === "fundraisers" ? hits.filter((h) => h.event.kind === 9041).map((h) => h.event.id) : []).join(","),
-    [hits, tab],
-  );
-  // Each shown goal's closed_at: receipts after it don't count (NIP-75). Read
-  // through a ref so the fetch below stays keyed on the ids alone.
-  const goalCloses = useRef(new Map<string, number>());
-  goalCloses.current = useMemo(() => {
-    const m = new Map<string, number>();
-    if (tab !== "fundraisers") return m;
-    for (const h of hits) {
-      if (h.event.kind !== 9041) continue;
-      const closes = Number(h.event.tags.find((t) => t[0] === "closed_at")?.[1]);
-      if (Number.isFinite(closes) && closes > 0) m.set(h.event.id, closes);
-    }
-    return m;
-  }, [hits, tab]);
-  const goalFetched = useRef({ gen: 0, ids: new Set<string>() });
-  useEffect(() => {
-    const seen = goalFetched.current;
-    if (!goalIdsKey) {
-      seen.gen += 1;
-      seen.ids = new Set();
-      setGoalProgress({ byGoal: new Map(), settled: new Set() });
-      return;
-    }
-    const ids = goalIdsKey.split(",").filter((id) => !seen.ids.has(id));
-    if (ids.length === 0) return;
-    for (const id of ids) seen.ids.add(id);
-    const gen = seen.gen;
-    void fetchGoalProgress(ids, undefined, goalCloses.current).then(({ byGoal, complete }) => {
-      if (goalFetched.current.gen !== gen) return;
-      setGoalProgress((prev) => ({
-        byGoal: new Map([...prev.byGoal, ...byGoal]),
-        settled: complete ? new Set([...prev.settled, ...ids]) : prev.settled,
-      }));
-    });
-  }, [goalIdsKey]);
-  const progressOf = (e: NostrEvent): GoalProgress | undefined =>
-    tab !== "fundraisers" || e.kind !== 9041
-      ? undefined
-      : (goalProgress.byGoal.get(e.id) ?? (goalProgress.settled.has(e.id) ? NO_RAISED : undefined));
   const eventAddresses = useMemo(
     () =>
       tab === "events"
@@ -2142,80 +961,16 @@ export const SearchResults = memo(function SearchResults({
   const eventRsvps = useEventRsvps(eventAddresses);
   const rsvpsOf = (e: NostrEvent) =>
     eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
-  const gitItemIds = useMemo(
-    () => (isGitItemTab(tab) ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
-    [hits, tab],
-  );
-  const gitIdsKey = gitItemIds.join(",");
-  // Read through a ref so the asks below stay keyed on the ids alone.
-  const gitItems = useRef(new Map<string, NostrEvent>());
-  gitItems.current = useMemo(
-    () => new Map(hits.filter((h) => isGitItem(h.event.kind)).map((h) => [h.event.id, h.event])),
-    [hits],
-  );
-  // Each streamed snapshot or "more" page asks only after the ids it adds —
-  // not the whole growing list again. A generation drops answers that land
-  // after the page emptied (a new tab), so they can't refill it.
-  const gitFetched = useRef({ gen: 0, ids: new Set<string>() });
-  useEffect(() => {
-    const seen = gitFetched.current;
-    if (!gitIdsKey) {
-      seen.gen += 1;
-      seen.ids = new Set();
-      setGitStatuses(new Map());
-      setGitComments(new Map());
-      return;
-    }
-    const ids = gitIdsKey.split(",").filter((id) => !seen.ids.has(id));
-    if (ids.length === 0) return;
-    for (const id of ids) seen.ids.add(id);
-    const gen = seen.gen;
-    // The items themselves: whose status counts is their author's and their repo's (NIP-34).
-    const items = ids.map((id) => gitItems.current.get(id) ?? id);
-    void fetchGitStatuses(items).then((m) => {
-      if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
-    });
-    void fetchGitCommentCounts(ids).then((m) => {
-      if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
-    });
-  }, [gitIdsKey]);
-  const stateOf = (e: NostrEvent): GitState | null =>
-    isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null;
+  // Issues and PRs: each item's statuses and comment count (hooks/useGitItemAsks).
+  const { gitStatuses, gitComments } = useGitItemAsks(hits, tab);
+  const stateOf = (e: NostrEvent): GitState | null => gitItemState(e, gitStatuses);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
-  // The labels maintainers share, most common first. A label is a triage
-  // convention when more than one author reaches for it; one author's private
-  // vocabulary — probed 2026-09-05, a test harness's "qa", "conflict-pair",
-  // "nonlinear" led the strip — stays on their cards. On a one-author page
-  // every label is theirs anyway, so all count.
-  const repoLabelFacets = useMemo(() => {
-    if (!isGitItemTab(tab)) return [] as [string, number][];
-    const counts = new Map<string, number>();
-    const authorsOf = new Map<string, Set<string>>();
-    const authors = new Set<string>();
-    for (const h of hits) {
-      if (!isGitItem(h.event.kind)) continue;
-      authors.add(h.event.pubkey);
-      for (const l of gitLabelsOf(h.event)) {
-        counts.set(l, (counts.get(l) ?? 0) + 1);
-        (authorsOf.get(l) ?? authorsOf.set(l, new Set()).get(l)!).add(h.event.pubkey);
-      }
-    }
-    return [...counts.entries()]
-      .filter(([l]) => authors.size === 1 || (authorsOf.get(l)?.size ?? 0) > 1)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 8);
-  }, [hits, tab]);
-  const repoStateFacets = useMemo(() => {
-    if (!isGitItemTab(tab)) return [] as [GitState, number][];
-    const counts = new Map<GitState, number>();
-    for (const h of hits) {
-      const st = stateOf(h.event);
-      if (st) counts.set(st, (counts.get(st) ?? 0) + 1);
-    }
-    const order: GitState[] = ["open", "merged", "resolved", "closed", "draft"];
-    return order.filter((k) => counts.has(k)).map((k) => [k, counts.get(k)!] as [GitState, number]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, gitStatuses]);
+  // The labels maintainers share, and the states the items are in (pipelines/git).
+  const repoLabelFacets = useMemo(() => (isGitItemTab(tab) ? gitLabelFacets(hits) : []), [hits, tab]);
+  const repoStateFacets = useMemo(
+    () => (isGitItemTab(tab) ? gitStateFacets(hits, gitStatuses) : []),
+    [hits, tab, gitStatuses],
+  );
   useEffect(() => {
     setAppPlatform(null);
     setAppCategory(null);
@@ -2231,18 +986,10 @@ export const SearchResults = memo(function SearchResults({
   // The listings' own categories, counted — the Shop's facets.
   // What kinds of media the page holds, in fixed order, counted. One kind alone needs no chip
   // of its own, and neither does a page already narrowed to videos or Vines.
-  const mediaFacets = useMemo(() => {
-    if (tab !== "media" || mediaFacet) return [];
-    const counts = new Map<MediaKind, number>();
-    for (const h of hits) {
-      const k = mediaKindOf(h.event);
-      if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
-    }
-    const present = MEDIA_KIND_ORDER.filter((k) => counts.has(k)).map(
-      (k) => [k, counts.get(k)!] as [MediaKind, number],
-    );
-    return present.length > 1 ? present : [];
-  }, [tab, hits, mediaFacet]);
+  const mediaFacets = useMemo(
+    () => (tab !== "media" || mediaFacet ? [] : mediaKindFacets(hits)),
+    [tab, hits, mediaFacet],
+  );
   // Videos and Classic Vines change what is asked: the chip rewrites the query, as the Filters
   // panel does, and the page re-runs. All takes either off, and the page's own sorting with it.
   const chooseMediaFacet = (next: MediaFacet | null) => {
@@ -2255,301 +1002,77 @@ export const SearchResults = memo(function SearchResults({
     else setMediaKind((cur) => (cur === "video" ? null : "video"));
   };
   const mediaCounts = new Map(mediaFacets);
-  const shopFacets = useMemo(() => {
-    if (tab !== "shop") return [];
-    const counts = new Map<string, number>();
-    for (const h of hits)
-      for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-  }, [tab, hits]);
-  // The kinds of article among the hits, in a fixed order. Chips only when
-  // there is more than one kind to tell apart — a search for honey sees none
-  // (the team: surface a way to narrow to specs only when specs were matched).
-  const articleFacets = useMemo<ArticleType[]>(() => {
-    if (tab !== "articles") return [];
-    const present = new Set(hits.map((h) => articleTypeOf(h.event.kind)));
-    const types = (["article", "publication", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
-    return types.length > 1 ? types : [];
-  }, [tab, hits]);
-  // The recipes' own topics — chicken, soup — counted. zap.cooking's
-  // housekeeping tags (the recipe marker and its `zapcooking-<slug>` copies)
-  // name the app and the dish, not a topic, and stay out.
-  const recipeFacets = useMemo(() => {
-    if (tab !== "recipes") return [];
-    const counts = new Map<string, number>();
-    for (const h of hits) for (const t of recipeTopics(h.event)) counts.set(t, (counts.get(t) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-  }, [tab, hits]);
-  const appFacets = useMemo(() => {
-    if (tab !== "apps") return [];
-    const counts = new Map<string, number>();
-    for (const h of hits) {
-      for (const w of platformWords(h.event)) counts.set(w, (counts.get(w) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [tab, hits]);
-  // Listing t-tags of the current hits — categories. A tag that merely
-  // restates a platform word ("android") never doubles as a category.
-  const appCategoryTags = useCallback((e: NostrEvent) => {
-    const platformSet = new Set(platformWords(e).map((w) => w.toLowerCase()));
-    return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].toLowerCase()))].filter(
-      (t) => !platformSet.has(t),
-    );
-  }, []);
-  const appCategoryFacets = useMemo(() => {
-    if (tab !== "apps") return [];
-    const counts = new Map<string, number>();
-    for (const h of hits) {
-      for (const t of appCategoryTags(h.event)) counts.set(t, (counts.get(t) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-  }, [tab, hits, appCategoryTags]);
-  const displayHits = useMemo<DisplayRow[]>(() => {
-    let shown = hits;
-    // The tag's people, best first; scores land after the merge, so the order does too.
-    if (tab === "people" && carrierRank.size > 0) shown = leadCarriersByRank(shown, carrierRank);
-    // Calendars have no date to window by: they follow the dated events,
-    // whichever window is picked.
-    if (tab === "events")
-      shown = [
-        ...filterEventsByWhen(
-          shown.filter((h) => h.event.kind !== CALENDAR_KIND),
-          effectiveWhen,
-        ),
-        ...shown.filter((h) => h.event.kind === CALENDAR_KIND),
-      ];
-    // A kind of All's keeps the rows it names: a Recipe is an article's kind, and so are Articles.
-    if (category) shown = shown.filter((h) => belongsTo(category, h));
-    // A pressed tag the stream wasn't asked for keeps the rows known to carry it; one whose tags
-    // are still coming joins once they are. The tag's own answer is all carriers.
-    if (tagFilter && streamTag !== tagFilter)
-      shown = shown.filter((h) => resultTags.byHit.get(h.event.id)?.has(tagFilter));
-    // A 31337 without a title and audio is not a song (the kind is abused).
-    if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
-    if (tab === "apps" && appPlatform) {
-      shown = shown.filter((h) => platformWords(h.event).includes(appPlatform));
-    }
-    if (tab === "apps" && appCategory) {
-      shown = shown.filter((h) => appCategoryTags(h.event).includes(appCategory));
-    }
-    if (tab === "shop" && shopCategory) {
-      shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
-    }
-    // The price a Shop card shows, so the band and the sort agree with it: a
-    // product's lowest option ("From $50"), else the listing's own price.
-    const shownPrice = (h: SearchHit) => {
-      const from = shopFold?.groups.get(h.event.id)?.priceFrom;
-      if (from && from.varies && !from.mixed) return from.price;
-      return parseListing(h.event)?.price ?? null;
-    };
-    if (tab === "shop" && shopPrice && rates) {
-      const band = bands.find((b) => b.key === shopPrice);
-      shown = shown.filter((h) => {
-        const price = shownPrice(h);
-        const amount = price ? priceInCurrency(price, rates, viewerFiat) : null;
-        return amount !== null && !!band?.holds(amount);
-      });
-    }
-    if (tab === "shop" && priceSort) {
-      // Cheapest (or dearest) first; a price we cannot convert goes last either way.
-      // Keyed once, not in the comparator: a sort calls it n·log n times.
-      const keys = new Map<string, number | null>();
-      for (const h of shown) {
-        const price = shownPrice(h);
-        keys.set(h.event.id, price ? toSats(price, rates) : null);
-      }
-      const dir = priceSort === "asc" ? 1 : -1;
-      shown = [...shown].sort((a, b) => {
-        const x = keys.get(a.event.id) ?? null;
-        const y = keys.get(b.event.id) ?? null;
-        if (x === null && y === null) return 0;
-        if (x === null) return 1;
-        if (y === null) return -1;
-        return (x - y) * dir;
-      });
-    }
-    if (tab === "articles" && articleType) {
-      shown = shown.filter((h) => articleTypeOf(h.event.kind) === articleType);
-    }
-    if (tab === "recipes" && recipeTopic) {
-      shown = shown.filter((h) => recipeTopics(h.event).includes(recipeTopic));
-    }
-    if (isGitItemTab(tab) && repoState) {
-      shown = shown.filter((h) => stateOf(h.event) === repoState);
-    }
-    if (isGitItemTab(tab) && repoLabel) {
-      shown = shown.filter((h) => gitLabelsOf(h.event).includes(repoLabel));
-    }
-    if (isGitItemTab(tab)) {
-      // People's issues before agents' — the partition Latest uses for feeds.
-      shown = peopleBeforeAgents(shown, (h) => ({ event: h.event, author: h.author }));
-    }
-    if (tab === "live") {
-      const starts = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "starts")?.[1]) || 0;
-      const viewers = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "current_participants")?.[1]) || 0;
-      shown = shown.filter((h) => {
-        const st = liveStates.get(h.event.id);
-        return st === effectiveShelf && proven(h.event, st);
-      });
-      // Live: most watched first, as Twitch orders; upcoming: soonest first; replays: newest.
-      shown = [...shown].sort((a, b) =>
-        effectiveShelf === "live"
-          ? viewers(b.event) - viewers(a.event) || b.event.created_at - a.event.created_at
-          : effectiveShelf === "upcoming"
-            ? starts(a.event) - starts(b.event)
-            : b.event.created_at - a.event.created_at,
-      );
-    }
-    if (tab === "media") {
-      // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
-      // ride it. The Media tab means media: a 1063 stays only when its
-      // declared mime is image/video/audio, and not when it is a video's
-      // reusable soundtrack (lib/fileMetadata). Everything still shows the rest.
-      shown = hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
-      if (pageKind) shown = shown.filter((h) => mediaKindOf(h.event) === pageKind);
-    }
-    if (tab === "lists") {
-      // Lists must earn their place: untitled or empty ones are app
-      // machine-state, not content (Benjamin's "forced and off" browse).
-      // People-packs — the lists a searcher actually wants — lead.
-      const titled = (e: NostrEvent) => !!e.tags.find((t) => (t[0] === "title" || t[0] === "name") && t[1]?.trim());
-      const itemCount = (e: NostrEvent) => e.tags.filter((t) => ["p", "e", "a", "r"].includes(t[0])).length;
-      const isPeoplePack = (e: NostrEvent) =>
-        e.tags.some((t) => t[0] === "p") && !e.tags.some((t) => ["e", "a", "r"].includes(t[0]));
-      // Badges and emoji packs hold no p/e/a/r items; they stay when lib/thing can name them.
-      const namedThing = (e: NostrEvent) => (e.kind === 30009 || e.kind === 30030) && describeThing(e) !== null;
-      shown = hits.filter((h) => namedThing(h.event) || (titled(h.event) && itemCount(h.event) > 0));
-      shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
-    }
-    if (isGitTab(tab)) {
-      // Repos, Issues and PRs. One codebase, one card: forks fold behind the most trusted
-      // maintainer's announcement and open on a tap, each naming its parent.
-      // And one maintainer, three cards: Google's host-diversity rule. Probed
-      // 2026-09-05, one company's 23 bare repos filled the first screens; the
-      // rest now ride their third card's "+20 more from …" chip. A page that
-      // is all one author's has no one to make room for, so it stays whole.
-      const repoName = (h: SearchHit) =>
-        h.event.tags.find((t) => t[0] === "name")?.[1] ?? h.event.tags.find((t) => t[0] === "d")?.[1] ?? "the original";
-      const groups = foldForks(shown, (h) => ({
-        event: h.event,
-        score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null,
-      }));
-      const authors = new Set(shown.map((h) => h.event.pubkey));
-      const rows =
-        authors.size > 1
-          ? capPerAuthor(groups, (g) => g.primary.event.pubkey, 3)
-          : groups.map((g) => ({ item: g, overflow: [] as typeof groups }));
-      const folded: DisplayRow[] = [];
-      for (const { item: g, overflow } of rows) {
-        const id = g.primary.event.id;
-        const open = expandedClusters.has(id);
-        const forks = g.forks.length;
-        const more = overflow.reduce((n, o) => n + 1 + o.forks.length, 0);
-        const who = g.primary.author?.displayName || g.primary.author?.name || "this maintainer";
-        const parts = [
-          forks > 0 ? `${forks} ${forks === 1 ? "fork" : "forks"}` : null,
-          more > 0 ? `+${more} more from ${who}` : null,
-        ].filter(Boolean);
-        folded.push({
-          hit: g.primary,
-          collapsedCount: open ? 0 : forks + more,
-          clusterId: id,
-          chipLabel: parts.join(" · "),
-        });
-        if (open) {
-          for (const f of g.forks)
-            folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
-          for (const o of overflow) {
-            folded.push({ hit: o.primary, collapsedCount: 0, clusterId: "" });
-            for (const f of o.forks)
-              folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(o.primary) });
-          }
-        }
-      }
-      return folded;
-    }
-    if (tab === "lists") {
-      // One row per title: same-tag follow packs fold behind the most trusted
-      // curator's, the union counted once. The row promises a group, so the
-      // card itself opens the group in place — every list with its own count
-      // and door, everyone across them — rather than one list of five
-      // (Benjamin, 2026-09-09). No chip, no extra rows.
-      const folded: DisplayRow[] = [];
-      for (const g of groupPeoplePacks(shown, (h) => ({
-        event: h.event,
-        score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null,
-      }))) {
-        folded.push({
-          hit: g.primary,
-          collapsedCount: 0,
-          clusterId: "",
-          listGroup:
-            g.lists > 1
-              ? {
-                  lists: g.lists,
-                  members: g.members,
-                  consensus: g.consensus,
-                  agreement: g.agreement,
-                  items: [g.primary, ...g.others].map((h) => ({
-                    event: h.event,
-                    author: h.author,
-                    score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null,
-                  })),
-                }
-              : undefined,
-        });
-      }
-      return folded;
-    }
-    if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
-    // A calendar is not one of its events: it never folds into (or leads) an
-    // event's cluster, and stays below the dated events, unclustered.
-    const calendars = tab === "events" ? shown.filter((h) => h.event.kind === CALENDAR_KIND) : [];
-    const out: DisplayRow[] = [];
-    for (const cluster of collapseHits(
-      calendars.length ? shown.filter((h) => h.event.kind !== CALENDAR_KIND) : shown,
-    )) {
-      const id = cluster.primary.event.id;
-      const open = expandedClusters.has(id);
-      out.push({ hit: cluster.primary, collapsedCount: open ? 0 : cluster.others.length, clusterId: id });
-      if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
-    }
-    for (const h of calendars) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
-    return out;
+  const shopFacets = useMemo(() => (tab !== "shop" ? [] : shopFacetsOf(hits)), [tab, hits]);
+  // The kinds of article among the hits, and the recipes' own topics (pipelines/articles).
+  const articleFacets = useMemo<ArticleType[]>(() => (tab !== "articles" ? [] : articleFacetsOf(hits)), [tab, hits]);
+  const recipeFacets = useMemo(() => (tab !== "recipes" ? [] : recipeFacetsOf(hits)), [tab, hits]);
+  // What the apps run on, and their own categories (pipelines/apps).
+  const appFacets = useMemo(() => (tab !== "apps" ? [] : appPlatformFacets(hits)), [tab, hits]);
+  const appCategoryFacets = useMemo(() => (tab !== "apps" ? [] : appCategoryFacetsOf(hits)), [tab, hits]);
+  const displayHits = useMemo<DisplayRow[]>(
+    () =>
+      displayRows(hits, {
+        tab,
+        carrierRank,
+        when: effectiveWhen,
+        category,
+        tagFilter,
+        streamTag,
+        tagsByHit: resultTags.byHit,
+        appPlatform,
+        appCategory,
+        shopCategory,
+        shopPrice,
+        rates,
+        bands,
+        viewerFiat,
+        priceSort,
+        fold: shopFold,
+        articleType,
+        recipeTopic,
+        gitStatuses,
+        repoState,
+        repoLabel,
+        liveStates,
+        shelf: effectiveShelf,
+        proven,
+        pageKind,
+        scoreOf,
+        expanded: expandedClusters,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    carrierRank,
-    scoreOf,
-    hits,
-    tab,
-    appPlatform,
-    appCategory,
-    shopCategory,
-    shopPrice,
-    rates,
-    bands,
-    viewerFiat,
-    priceSort,
-    shopFold,
-    articleType,
-    recipeTopic,
-    pageKind,
-    repoState,
-    repoLabel,
-    gitStatuses,
-    appCategoryTags,
-    clustered,
-    expandedClusters,
-    effectiveWhen,
-    scoreOf,
-    liveStates,
-    effectiveShelf,
-    proven,
-    category,
-    tagFilter,
-    streamTag,
-    resultTags.byHit,
-  ]);
+    [
+      carrierRank,
+      scoreOf,
+      hits,
+      tab,
+      appPlatform,
+      appCategory,
+      shopCategory,
+      shopPrice,
+      rates,
+      bands,
+      viewerFiat,
+      priceSort,
+      shopFold,
+      articleType,
+      recipeTopic,
+      pageKind,
+      repoState,
+      repoLabel,
+      gitStatuses,
+      expandedClusters,
+      effectiveWhen,
+      scoreOf,
+      liveStates,
+      effectiveShelf,
+      proven,
+      category,
+      tagFilter,
+      streamTag,
+      resultTags.byHit,
+    ],
+  );
 
   // Compromised people on the page, and whose new account each one's is: the new account is
   // shown above its compromised one (NewAccountResult), so its own row further down steps aside.
@@ -2564,49 +1087,11 @@ export const SearchResults = memo(function SearchResults({
     [compromisedOnPage],
   );
 
-  // The Events tab is a timeline: the first card of each day carries a header
-  // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
-  // their time. Undated events gather at the end.
-  const eventDayHeaders = useMemo(() => {
-    const out = new Map<string, { key: string; startSec: number; label: string }>();
-    if (tab !== "events") return out;
-    let last: string | null = null;
-    const nowSec = Math.floor(Date.now() / 1000);
-    // A date-only event starts at local midnight: begun before today, not before now, is running.
-    const todaySec = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
-    for (const row of displayHits) {
-      if (row.hit.event.kind === CALENDAR_KIND) {
-        if (last === "calendars") continue;
-        last = "calendars";
-        out.set(row.hit.event.id, { key: "calendars", startSec: 0, label: "Calendars" });
-        continue;
-      }
-      const cal = parseCal(row.hit.event);
-      const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
-      // Already running — a conference on its second day, a walk series that
-      // started last week — is not a date to lead Upcoming with; it is "Ongoing".
-      if (d && cal.startSec < (cal.isDateOnly ? todaySec : nowSec) && !isOver(cal) && effectiveWhen !== "past") {
-        if (last === "ongoing") continue;
-        last = "ongoing";
-        out.set(row.hit.event.id, { key: "ongoing", startSec: 0, label: "Ongoing" });
-        continue;
-      }
-      const key = d
-        ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-        : "tba";
-      if (key === last) continue;
-      last = key;
-      const rel = d ? relativeDay(cal.startSec) : "";
-      const dayWord = rel === "Today" || rel === "Tomorrow" || rel === "Yesterday" ? rel : null;
-      const long = d ? DAY_HEADER.format(d) : "";
-      out.set(row.hit.event.id, {
-        key,
-        startSec: cal.startSec,
-        label: d ? (dayWord ? `${dayWord} · ${long}` : long) : "Date to be announced",
-      });
-    }
-    return out;
-  }, [displayHits, tab, effectiveWhen]);
+  // The Events tab is a timeline: a header on the first card of each day (pipelines/events).
+  const eventDayHeaders = useMemo(
+    () => (tab !== "events" ? new Map<string, DayHeader>() : eventDayHeadersOf(displayHits, effectiveWhen)),
+    [displayHits, tab, effectiveWhen],
+  );
 
   // A chip or a Filters control has narrowed the page.
   // Narrowed by something besides a pressed tag, which says its own count.
@@ -2656,6 +1141,38 @@ export const SearchResults = memo(function SearchResults({
   const shownHits = useMemo(() => displayHits.map((d) => d.hit), [displayHits]);
   const turnPage = useCallback(() => streamRef.current?.more(), []);
   const openTab = useCallback((next: string) => changeTab(next as SearchTab), [changeTab]);
+
+  // What every result row reads (TabResultCard): built per render, as the rows are.
+  const cardContext: TabCardContext = {
+    tab,
+    pov,
+    query,
+    rowsWhole,
+    eventDayHeaders,
+    onExpand: (clusterId) => setExpandedClusters((prev) => new Set(prev).add(clusterId)),
+    displayHits,
+    peopleOnPage,
+    newAccountOf,
+    scoreOf,
+    tagMatches,
+    carriersSettled: carriers.settled,
+    carrierSets,
+    pointedNames: pointers.namesOf,
+    openProfile,
+    onPrefetchEnter,
+    onPrefetchLeave,
+    progressOf,
+    searchedKinds,
+    profiles,
+    noteRefs,
+    rsvpsOf,
+    shopGroupOf,
+    rates,
+    hitsBySeller,
+    liveStates,
+    stateOf,
+    gitComments,
+  };
 
   return (
     <SearchPriorityContext.Provider value={searchPriority}>
@@ -2831,50 +1348,10 @@ export const SearchResults = memo(function SearchResults({
                 offered on every Media page, and a narrowed page that found nothing still needs
                 the way back. Photos and Audio join them when the loaded page mixes kinds. */}
               {tab === "media" && serverStatus.search !== "down" && (
-                <FacetRow className="mb-2" testId="media-facets">
-                  <FacetChip
-                    pressed={!mediaFacet && pageKind === null}
-                    onClick={() => chooseMediaFacet(null)}
-                    testId="media-facet-all"
-                  >
-                    All
-                  </FacetChip>
-                  {MEDIA_KIND_ORDER.map((kind) => {
-                    if (kind === "video")
-                      return (
-                        <Fragment key={kind}>
-                          <FacetChip
-                            pressed={mediaFacet === "videos" || pageKind === "video"}
-                            onClick={toggleVideos}
-                            testId="media-facet-video"
-                          >
-                            {MEDIA_FACET_LABELS.videos}
-                          </FacetChip>
-                          {onQueryRewrite && (
-                            <FacetChip
-                              pressed={mediaFacet === "vines"}
-                              onClick={() => chooseMediaFacet(mediaFacet === "vines" ? null : "vines")}
-                              testId="media-facet-vines"
-                            >
-                              {MEDIA_FACET_LABELS.vines}
-                            </FacetChip>
-                          )}
-                        </Fragment>
-                      );
-                    const count = mediaCounts.get(kind);
-                    return count === undefined ? null : (
-                      <FacetChip
-                        key={kind}
-                        pressed={pageKind === kind}
-                        onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
-                        count={count}
-                        testId={`media-facet-${kind}`}
-                      >
-                        {MEDIA_KIND_LABELS[kind]}
-                      </FacetChip>
-                    );
-                  })}
-                </FacetRow>
+                <MediaFacetRow
+                  {...{ mediaFacet, pageKind, chooseMediaFacet, toggleVideos, mediaCounts, setMediaKind }}
+                  vines={!!onQueryRewrite}
+                />
               )}
               {/* The tags the results carry, most carried first: each a filter over them. */}
               {(FEATURES.searchTagFilters || onListTab) && onAll && !tagTabKey && serverStatus.search !== "down" && (
@@ -3039,298 +1516,51 @@ export const SearchResults = memo(function SearchResults({
                 </div>
               ) : (
                 <>
-                  {tab === "events" && eventCounts && (
-                    <div className="mb-2.5">
-                      <FacetRow testId="event-facets">
-                        {EVENT_WHEN_ORDER.filter(
-                          (when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0),
-                        ).map((when) => (
-                          <button
-                            key={when}
-                            type="button"
-                            aria-pressed={effectiveWhen === when}
-                            onClick={() => setEventWhen(when)}
-                            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                              effectiveWhen === when
-                                ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                                : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                            }`}
-                            data-testid={`event-facet-${when}`}
-                          >
-                            {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
-                          </button>
-                        ))}
-                      </FacetRow>
-                      {eventsFellBack && (
-                        <p
-                          className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
-                          data-testid="event-facets-note"
-                        >
-                          No upcoming events for this search — showing past events.
-                        </p>
-                      )}
-                      {displayHits.length === 0 && !eventsFellBack && (
-                        <p
-                          className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
-                          data-testid="event-facets-empty"
-                        >
-                          No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
-                    <FacetRow className="mb-2" testId="repo-state-facets">
-                      <button
-                        type="button"
-                        onClick={() => setRepoState(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                        data-testid="repo-state-all"
-                      >
-                        All
-                      </button>
-                      {repoStateFacets.map(([st]) => (
-                        <button
-                          key={st}
-                          type="button"
-                          onClick={() => setRepoState(repoState === st ? null : st)}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                          data-testid={`repo-state-${st}`}
-                        >
-                          {GIT_STATE_LABEL[st]}
-                        </button>
-                      ))}
-                      {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
-                        <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                      )}
-                      {repoLabelFacets.map(([label]) => (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => setRepoLabel(repoLabel === label ? null : label)}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
-                          data-testid={`repo-label-${label}`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "live" &&
-                    !liveShowable &&
-                    hits.length > 0 &&
-                    // Nothing on any shelf yet. While the relay or the proofs are still
-                    // answering, hold the shape; once they have, say so — never a blank
-                    // page under a count of eleven (Joe Martin's stale "live" pair).
-                    (!snapshot?.eose || proofs.pending > 0 ? (
-                      <div
-                        className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                        data-testid="live-skeleton"
-                        aria-hidden="true"
-                      >
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="animate-pulse">
-                            <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
-                            <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
-                            <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div
-                        className="mt-2 rounded-2xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60"
-                        data-testid="live-empty"
-                      >
-                        <EmptyState
-                          icon={Radio}
-                          compact
-                          title={
-                            scopedTo
-                              ? "Nothing live from them right now"
-                              : query.trim()
-                                ? `Nothing live for “${query.trim()}” right now`
-                                : "Nothing live right now"
-                          }
-                          description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
-                        />
-                      </div>
-                    ))}
-                  {tab === "live" && liveShowable && (
-                    <FacetRow className="mb-3" testId="live-facets">
-                      {(["live", "upcoming", "replay"] as LiveState[])
-                        .filter((st) => liveCounts[st] > 0)
-                        .map((st) => (
-                          <FacetChip
-                            key={st}
-                            pressed={effectiveShelf === st}
-                            onClick={() => setLiveShelf(st)}
-                            count={liveCounts[st]}
-                            testId={`live-facet-${st === "replay" ? "replays" : st}`}
-                          >
-                            {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
-                          </FacetChip>
-                        ))}
-                    </FacetRow>
-                  )}
-                  {tab === "articles" && articleFacets.length > 0 && (
-                    <FacetRow className="mb-2" testId="article-facets">
-                      <button
-                        type="button"
-                        onClick={() => setArticleType(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          articleType === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="article-facet-all"
-                      >
-                        All
-                      </button>
-                      {articleFacets.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setArticleType((cur) => (cur === t ? null : t))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            articleType === t
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`article-facet-${t}`}
-                        >
-                          {ARTICLE_TYPE_LABEL[t]}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "recipes" && recipeFacets.length > 0 && (
-                    <FacetRow className="mb-2" testId="recipe-facets">
-                      <button
-                        type="button"
-                        onClick={() => setRecipeTopic(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          recipeTopic === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="recipe-facet-all"
-                      >
-                        All
-                      </button>
-                      {recipeFacets.map(([topic]) => (
-                        <button
-                          key={topic}
-                          type="button"
-                          onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            recipeTopic === topic
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`recipe-facet-${topic}`}
-                        >
-                          {topic}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "shop" && shopFacets.length > 0 && (
-                    <FacetRow className="mb-2" testId="shop-facets">
-                      <button
-                        type="button"
-                        onClick={() => setShopCategory(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          shopCategory === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="shop-facet-all"
-                      >
-                        All
-                      </button>
-                      {shopFacets.map(([cat]) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            shopCategory === cat
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`shop-facet-${cat}`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "shop" && rates && rawHits.length > 0 && (
-                    <FacetRow className="mb-2" testId="shop-price-facets">
-                      {bands.map((b) => (
-                        <FacetChip
-                          key={b.key}
-                          pressed={shopPrice === b.key}
-                          onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))}
-                          testId={`shop-price-${b.key}`}
-                        >
-                          {b.label}
-                        </FacetChip>
-                      ))}
-                    </FacetRow>
-                  )}
-                  {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
-                    <FacetRow className="mb-2" testId="app-facets">
-                      <button
-                        type="button"
-                        onClick={() => setAppPlatform(null)}
-                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          appPlatform === null
-                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                        }`}
-                        data-testid="app-facet-all"
-                      >
-                        All
-                      </button>
-                      {appFacets.map(([platform]) => (
-                        <button
-                          key={platform}
-                          type="button"
-                          onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            appPlatform === platform
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`app-facet-${platform.toLowerCase()}`}
-                        >
-                          {platform}
-                        </button>
-                      ))}
-                      {/* One row, like Repos: platforms, a hairline, then the apps' own
-                  categories. Licences are a fact for the app page, not a way
-                  people browse. */}
-                      {appCategoryFacets.length > 0 && (
-                        <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-                      )}
-                      {appCategoryFacets.map(([cat]) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
-                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            appCategory === cat
-                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                          data-testid={`app-cat-facet-${cat}`}
-                        >
-                          #{cat}
-                        </button>
-                      ))}
-                    </FacetRow>
-                  )}
+                  <TabFacetRows
+                    {...{
+                      tab,
+                      eventCounts,
+                      effectiveWhen,
+                      setEventWhen,
+                      eventsFellBack,
+                      displayHits,
+                      repoStateFacets,
+                      repoLabelFacets,
+                      repoState,
+                      setRepoState,
+                      repoLabel,
+                      setRepoLabel,
+                      liveShowable,
+                      hits,
+                      snapshot,
+                      proofs,
+                      scopedTo,
+                      query,
+                      liveCounts,
+                      effectiveShelf,
+                      setLiveShelf,
+                      articleFacets,
+                      articleType,
+                      setArticleType,
+                      recipeFacets,
+                      recipeTopic,
+                      setRecipeTopic,
+                      shopFacets,
+                      shopCategory,
+                      setShopCategory,
+                      rates,
+                      rawHits,
+                      bands,
+                      shopPrice,
+                      setShopPrice,
+                      appFacets,
+                      appCategoryFacets,
+                      appPlatform,
+                      setAppPlatform,
+                      appCategory,
+                      setAppCategory,
+                    }}
+                  />
                   {/* No count by default — Google dropped it from the default view too.
               The number does work only when a chip or a filter narrows the
               page: what matched, of how many. */}
@@ -3405,197 +1635,20 @@ export const SearchResults = memo(function SearchResults({
                           </div>
                         </div>
                       )}
-                      {displayHits
-                        .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
-                        .map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
-                          const { event } = hit;
-                          const chip =
-                            collapsedCount > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedClusters((prev) => new Set(prev).add(clusterId))}
-                                className="ml-1 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
-                                data-testid={`cluster-expand-${clusterId}`}
-                              >
-                                {chipLabel ?? `+${collapsedCount} more like this`}
-                              </button>
-                            ) : null;
-                          // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
-                          // shares one height; list tabs are unaffected by h-full.
-                          const day = eventDayHeaders.get(event.id);
-                          const wrap = (card: React.ReactNode) => (
-                            <div key={event.id} className={rowsWhole ? "h-full" : `h-full ${OFFSCREEN_ROW}`}>
-                              {day && (
-                                <div
-                                  className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`}
-                                  data-testid={`event-day-${day.key}`}
-                                >
-                                  {day.startSec > 0 ? (
-                                    <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
-                                  ) : (
-                                    <span
-                                      className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"
-                                      aria-hidden="true"
-                                    />
-                                  )}
-                                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                    {day.label}
-                                  </span>
-                                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
-                                </div>
-                              )}
-                              {card}
-                              {chip}
-                            </div>
-                          );
-                          if (event.kind === 0 && hit.author) {
-                            // A new account whose compromised one is on this page is already shown, above that one.
-                            const replaced = newAccountOf.get(event.pubkey);
-                            if (replaced && peopleOnPage.includes(replaced)) return null;
-                            // The same for a Current account whose Retired one is on this page.
-                            const retiredOne = retiredBy(event.pubkey)?.pubkey;
-                            if (retiredOne && peopleOnPage.includes(retiredOne)) return null;
-                            // …and a Retired account leads with its owner's Current one: that account's
-                            // own row from this page when it has one, so its score comes along.
-                            const currentOne = retiredStatus(event.pubkey)?.currentPubkey;
-                            const currentRow = currentOne
-                              ? displayHits.find((d) => d.hit.event.kind === 0 && d.hit.event.pubkey === currentOne)
-                                  ?.hit
-                              : undefined;
-                            const currentAuthor = currentRow?.author
-                              ? {
-                                  ...currentRow.author,
-                                  wotRank: currentRow.author.wotRank ?? scoreOf(currentRow.event.pubkey) ?? null,
-                                }
-                              : undefined;
-                            const idx = peopleIdx.current++;
-                            // The one tag the words matched, if this person carries it.
-                            const cardTag =
-                              tagMatches.length > 0 && carriers.settled
-                                ? tagChipFor(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
-                                : undefined;
-                            const scored = withScore(hit.author, scoreOf(event.pubkey) ?? null);
-                            return wrap(
-                              <>
-                                {/* A compromised account: the owner's new one goes first, highlighted. */}
-                                <NewAccountResult compromisedPubkey={event.pubkey} pov={pov} onOpen={openProfile} />
-                                {/* A retired account: the owner's current one goes first, lightly set apart. */}
-                                <CurrentAccountResult
-                                  retiredPubkey={event.pubkey}
-                                  known={currentAuthor}
-                                  pov={pov}
-                                  onOpen={openProfile}
-                                />
-                                <PersonCard
-                                  result={scored}
-                                  idx={idx}
-                                  pov={pov}
-                                  onOpen={openProfile}
-                                  onPrefetchEnter={onPrefetchEnter}
-                                  onPrefetchLeave={onPrefetchLeave}
-                                  showFollowedBy={idx < 3}
-                                  tag={cardTag}
-                                  pointedBy={pointers.namesOf.get(event.pubkey)}
-                                />
-                              </>,
-                            );
-                          }
-                          // The kinds with no card of their own, whichever tab they are on.
-                          if (THING_KINDS.has(event.kind)) {
-                            const thing = describeThing(event);
-                            if (thing)
-                              return wrap(
-                                <ThingCard
-                                  event={event}
-                                  author={hit.author}
-                                  score={scoreOf(event.pubkey)}
-                                  thing={thing}
-                                  progress={progressOf(event)}
-                                />,
-                              );
-                          }
-                          if (ARTICLE_KINDS.has(event.kind)) {
-                            return wrap(
-                              <EmbeddedArticleCard
-                                leadKinds={searchedKinds}
-                                mixed={tab === "articles"}
-                                event={event as MinimalEvent}
-                                author={profiles.get(event.pubkey)}
-                                trustScore01={scoreOf(event.pubkey) ?? null}
-                              />,
-                            );
-                          }
-                          // A NIP-84 highlight is its passage marked and where it is from (SerpRow's
-                          // HighlightRow), as on the Top page and the All tab — never its passage as a bare note.
-                          if (event.kind === 9802 && parseHighlight(event))
-                            return wrap(
-                              <SerpRow event={event} author={hit.author} score={scoreOf(event.pubkey)} query={query} />,
-                            );
-                          if (NOTE_KINDS.has(event.kind) && tab !== "media") {
-                            return wrap(
-                              <ShareNoteCard
-                                event={event as MinimalEvent}
-                                profiles={profiles}
-                                eventsById={noteRefs.eventsById}
-                                addrByCoord={noteRefs.addrByCoord}
-                                href={eventPath(event)}
-                                showAuthor
-                                authorScore={scoreOf(event.pubkey)}
-                              />,
-                            );
-                          }
-                          const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-                          if (EVENT_KINDS.has(event.kind) || (tab === "events" && event.kind === EVENT_ITEM_KIND)) {
-                            const r = rsvpsOf(event);
-                            return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? NO_FACES} />);
-                          }
-                          if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-                          // A NIP-99 draft is not in the Shop, but drawn where it turns up as the listing it is.
-                          if (SHOP_KINDS.has(event.kind) || event.kind === DRAFT_LISTING_KIND)
-                            return wrap(
-                              <ListingCard
-                                {...typed}
-                                group={shopGroupOf(event.id)}
-                                rates={rates}
-                                sellerListings={hitsBySeller.get(event.pubkey)}
-                              />,
-                            );
-                          if (LIVE_KINDS.has(event.kind)) {
-                            const hostPk = liveHostOf(event);
-                            return wrap(
-                              <LiveTile
-                                {...typed}
-                                state={liveStates.get(event.id) ?? liveStateOf(event)}
-                                hostScore={hostPk ? scoreOf(hostPk) : undefined}
-                              />,
-                            );
-                          }
-                          if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-                          if (REPO_KINDS.has(event.kind))
-                            return wrap(
-                              <RepoCard
-                                {...typed}
-                                state={stateOf(event) ?? undefined}
-                                comments={gitComments.get(event.id)}
-                                forkOf={forkOf}
-                              />,
-                            );
-                          // NIP-34 statuses and repo state, and releases: their own cards (components/search/kindCards).
-                          if (GIT_STATUS_KIND_SET.has(event.kind)) return wrap(<GitStatusCard {...typed} />);
-                          if (event.kind === REPO_STATE_KIND) return wrap(<RepoStateCard {...typed} />);
-                          if (event.kind === RELEASE_KIND) return wrap(<ReleaseCard {...typed} />);
-                          if (event.kind === WEB_BOOKMARK_KIND) return wrap(<SerpRow {...typed} query={query} />);
-                          if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
-                          if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
-                          // Open-set posture: an unmapped kind renders rather than vanishing —
-                          // the relay may index new kinds before this UI learns them. With
-                          // something to show it is a media card; without, the composed
-                          // page's generic row, which reads a `name` tag, a kind label and an
-                          // `alt` line (a kind-39999 place has no content and no picture, and
-                          // was a blank media tile).
-                          if (mediaUrlOf(event) !== null) return wrap(<MediaCard {...typed} />);
-                          return wrap(<SerpRow {...typed} query={query} />);
-                        })}
+                      {(() => {
+                        // The people cards' order among the rows, for the first few's "followed by".
+                        let people = 0;
+                        return displayHits
+                          .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
+                          .map((row) => (
+                            <TabResultCard
+                              key={row.hit.event.id}
+                              row={row}
+                              personIdx={isPersonCard(row.hit, cardContext) ? people++ : -1}
+                              ctx={cardContext}
+                            />
+                          ));
+                      })()}
                     </div>
                   )}
                   <MoreResults

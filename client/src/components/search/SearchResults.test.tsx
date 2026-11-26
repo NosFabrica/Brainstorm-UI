@@ -280,7 +280,8 @@ const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: bo
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
 import { ListKindsContext, type ListKindSearch } from "@/hooks/useListKinds";
-import { SearchResults, __resetSearchMemory } from "./SearchResults";
+import { SearchResults } from "./SearchResults";
+import { __resetSearchMemory } from "@/lib/searchMemory";
 import { KIND_FIXTURES } from "@/test/kindFixtures";
 import { FEATURES } from "@/config/featureFlags";
 import { __forgetTabCounts } from "@/hooks/useTabCounts";
