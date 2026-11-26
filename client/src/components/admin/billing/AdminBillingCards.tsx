@@ -1,37 +1,27 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiClient, type AdminBillingSubscription } from "@/services/api";
 import { orderedSections, subscriptionIdsByEventId, type OrderedSection } from "./divergenceSections";
-import { StatTile } from "@/components/ui/stat-tile";
-import { ScrollableTable } from "@/components/admin/ScrollableTable";
-import { sourceLabel, statusLabel } from "./billingEventCopy";
 
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 import { FlashRecordDialog, type FlashRecordTarget } from "./FlashRecordDialog";
 import { BrainstormUserPicker } from "./BrainstormUserPicker";
 import type { BrainstormUser } from "./brainstormUserSearch";
-import { BillingSortHeader } from "./BillingSortHeader";
 import { type ConfirmSubject, ConfirmSubscriptionAction } from "./ConfirmSubscriptionAction";
-import { DivergenceTierGroup, DivergenceBlock } from "./DivergenceBlock";
-import { SubscriberRow } from "./SubscriberRow";
+import { DivergenceBlock } from "./DivergenceBlock";
 import { UnresolvedSignupsBlock } from "./UnresolvedSignupsBlock";
 import { filterAndSort } from "./rosterFilter";
-import { FLASH_DASHBOARD_URL, shortNpub, th, thLast } from "./rosterShared";
+import { shortNpub } from "./rosterShared";
 import { useRosterProfiles } from "./useRosterProfiles";
 import { PAGE_SIZE, useBillingRoster } from "./useBillingRoster";
 import { useRosterActions } from "./useRosterActions";
 import { rosterStats, dismissDeliveryCount } from "./rosterStats";
+import { BillingRosterHeader } from "./BillingRosterHeader";
+import { BillingStats } from "./BillingStats";
+import { BlockConfirmDialog } from "./BlockConfirmDialog";
+import { DivergenceReport } from "./DivergenceReport";
+import { type SubscriberRowActions, SubscribersTable } from "./SubscribersTable";
 
 /**
  * The admin Billing tab: the server's subscriber roster (pubkey-keyed — every
@@ -159,8 +149,6 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all" || serviceFilter !== "all";
   // Faults first, the record below, anything this build doesn't know last.
   const sections = orderedSections(divergence);
-  const faults = sections.filter((x) => x.tier === "fault");
-  const record = sections.filter((x) => x.tier === "record");
   // An exhausted event borrows the Flash id its signup row carries.
   const handlesByEventId = subscriptionIdsByEventId(divergence);
   // Numbers first.
@@ -205,275 +193,66 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       />
     );
 
+  const rowActions: SubscriberRowActions = {
+    onBlock: setConfirmBlock,
+    onUnblock: (sub) => handleSetBlock(sub, false),
+    onResync: handleResync,
+    onViewFlashRecord: (sub) =>
+      setFlashRecordFor({
+        key: sub.pubkey,
+        label: shortNpub(sub.pubkey).short,
+        read: () => apiClient.getAdminBillingFlashRecordForSubscriber(sub.pubkey),
+      }),
+    onCancel: (sub) => {
+      setCancelReason("");
+      setConfirmCancel(sub);
+    },
+    onPause: setConfirmPause,
+    onResume: setConfirmResume,
+  };
+
   return (
     <div>
-      {/* The User Database's header, so the two rosters read as one system:
-          the name, then count · page · source, with the search and filters
-          beside them. */}
-      <div
-        className="flex flex-col gap-3 border-b border-brand-accent/10 px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-        data-testid="billing-roster-header"
-      >
-        <div>
-          <h3
-            className="text-sm font-bold text-slate-900 dark:text-slate-100"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Billing
-          </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {(filtering ? matched.length : total).toLocaleString()}{" "}
-              {(filtering ? matched.length : total) === 1 ? "subscriber" : "subscribers"}
-              {filtering ? (partial ? " on this page (reading every page…)" : " match") : ""}
-            </span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">
-              Page {page} of {pages}
-            </span>
-          </div>
-        </div>
-        {items.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full sm:w-56">
-              <input
-                type="text"
-                placeholder="Search name, npub, tier…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-1.5 pr-7 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
-                data-testid="input-billing-search"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                  data-testid="button-billing-clear-search"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            {serviceOptions.length > 1 && (
-              <div
-                role="group"
-                aria-label="Flash service"
-                className="inline-flex h-8 items-center rounded-xl border border-slate-200 bg-white/80 p-0.5 dark:border-slate-800 dark:bg-slate-900/80"
-                data-testid="billing-service-filter"
-              >
-                {[{ id: "all", label: "All services" }, ...serviceOptions].map((opt) => {
-                  const pressed = serviceFilter === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      aria-pressed={pressed}
-                      onClick={() => setServiceFilter(opt.id)}
-                      className={`h-7 rounded-lg px-2.5 text-xs font-medium transition-colors ${pressed ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"}`}
-                      data-testid={`billing-service-filter-${opt.id}`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger
-                className="h-8 w-32 rounded-xl border-slate-200 text-xs dark:border-slate-800"
-                data-testid="select-billing-status"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {statuses.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {statusLabel(s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger
-                className="h-8 w-32 rounded-xl border-slate-200 text-xs dark:border-slate-800"
-                data-testid="select-billing-source"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sources</SelectItem>
-                {sources.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {sourceLabel(s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {filtering && (
-              <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="billing-filter-count">
-                {matched.length} of {outOf}
-                {partial ? " on this page" : ""}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      <BillingRosterHeader
+        items={items}
+        total={total}
+        matched={matched}
+        outOf={outOf}
+        page={page}
+        pages={pages}
+        filtering={filtering}
+        partial={partial}
+        statuses={statuses}
+        sources={sources}
+        search={search}
+        setSearch={setSearch}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        sourceFilter={sourceFilter}
+        setSourceFilter={setSourceFilter}
+        serviceFilter={serviceFilter}
+        setServiceFilter={setServiceFilter}
+        serviceOptions={serviceOptions}
+      />
       <div className="space-y-6 px-3 py-4 sm:px-5">
-        {/* The tab's numbers in one line above its lists — counts, not the
-          subject, so they take a row and not a band. Faults is the way down to the report. */}
-        <div className="flex flex-wrap items-center gap-2" data-testid="billing-stats">
-          <StatTile compact value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
-          <StatTile
-            compact
-            value={stats.past_due}
-            label="Past due"
-            tone={stats.past_due > 0 ? "warning" : "neutral"}
-            data-testid="billing-stat-past_due"
-          />
-          <StatTile compact value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
-          <StatTile compact value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
-          <StatTile
-            compact
-            value={stats.faults}
-            label="Faults"
-            tone={stats.faults > 0 ? "warning" : "success"}
-            role="button"
-            tabIndex={0}
-            onClick={() =>
-              document
-                .querySelector('[data-testid="card-billing-divergence"]')
-                ?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ")
-                document
-                  .querySelector('[data-testid="card-billing-divergence"]')
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className="cursor-pointer transition-colors hover:border-brand-accent/40"
-            data-testid="billing-stat-faults"
-          />
-        </div>
-        {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
-        <div>
-          {items.length === 0 ? (
-            <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-empty">
-              No subscribers yet.
-            </p>
-          ) : filtered.length === 0 ? (
-            <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-no-match">
-              No subscribers match your filters.
-            </p>
-          ) : (
-            <div>
-              <ScrollableTable>
-                <table
-                  className="w-full min-w-[860px] border-collapse border border-slate-200 text-left dark:border-slate-800"
-                  data-testid="table-billing-subscribers"
-                >
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/80">
-                      <th className={th}>
-                        <BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>
-                        <BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>
-                        <BillingSortHeader label="Service" sortKey="service" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>
-                        <BillingSortHeader label="Tier" sortKey="scheduling" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>
-                        <BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>
-                        <BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>Interval</th>
-                      <th className={th}>Cycle</th>
-                      <th className={th}>
-                        <BillingSortHeader label="Next bill" sortKey="nextbill" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={th}>
-                        <BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} />
-                      </th>
-                      <th className={thLast}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((s) => (
-                      <SubscriberRow
-                        key={s.pubkey}
-                        s={s}
-                        profile={profiles.get(s.pubkey)}
-                        serviceNames={serviceNames}
-                        busy={busyKeys.has(s.pubkey)}
-                        onBlock={setConfirmBlock}
-                        onUnblock={(sub) => handleSetBlock(sub, false)}
-                        onResync={handleResync}
-                        onViewFlashRecord={(sub) =>
-                          setFlashRecordFor({
-                            key: sub.pubkey,
-                            label: shortNpub(sub.pubkey).short,
-                            read: () => apiClient.getAdminBillingFlashRecordForSubscriber(sub.pubkey),
-                          })
-                        }
-                        onCancel={(sub) => {
-                          setCancelReason("");
-                          setConfirmCancel(sub);
-                        }}
-                        onPause={setConfirmPause}
-                        onResume={setConfirmResume}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </ScrollableTable>
-              {pages > 1 && (
-                <div
-                  className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400"
-                  data-testid="billing-pager"
-                >
-                  <button
-                    type="button"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
-                    data-testid="billing-pager-prev"
-                  >
-                    <ChevronLeft className="h-3 w-3" /> Prev
-                  </button>
-                  <span className="tabular-nums">
-                    Page {page} of {pages} · {filtering ? `${matched.length} of ${outOf}` : total} subscribers
-                  </span>
-                  <button
-                    type="button"
-                    disabled={page >= pages}
-                    onClick={() => setPage((p) => p + 1)}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
-                    data-testid="billing-pager-next"
-                  >
-                    Next <ChevronRight className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          <a
-            href={FLASH_DASHBOARD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-link hover:underline"
-            data-testid="link-flash-dashboard"
-          >
-            Invoices, refunds and management live in the Flash dashboard
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        </div>
+        <BillingStats stats={stats} />
+        <SubscribersTable
+          items={items}
+          filtered={filtered}
+          matched={matched}
+          total={total}
+          outOf={outOf}
+          filtering={filtering}
+          page={page}
+          setPage={setPage}
+          pages={pages}
+          sort={sort}
+          toggleSort={toggleSort}
+          profiles={profiles}
+          serviceNames={serviceNames}
+          busyKeys={busyKeys}
+          rowActions={rowActions}
+        />
 
         {/* Divergence — the server's "everything nobody has settled" report. */}
         {/* A neutral card: most of its rows are for the record, so the warning
@@ -481,29 +260,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           (colour to communicate, not decorate). One sentence of intro — an
           admin reads this daily; each section's first sentence follows, the
           rest on hover. */}
-        <div
-          className="rounded-xl border border-slate-200 bg-white/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
-          data-testid="card-billing-divergence"
-        >
-          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Needs attention</h4>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            What Flash and Brainstorm disagree on. Faults first, then what is worth knowing.
-          </p>
-          {divergenceQuery.isError ? (
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-error">
-              Couldn't load the divergence report.
-            </p>
-          ) : sections.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-empty">
-              Nothing unsettled — Flash and the scheduler agree.
-            </p>
-          ) : (
-            <div className="mt-3 space-y-4">
-              <DivergenceTierGroup tier="fault" sections={faults} render={renderSection} />
-              <DivergenceTierGroup tier="record" sections={record} render={renderSection} />
-            </div>
-          )}
-        </div>
+        <DivergenceReport isError={divergenceQuery.isError} sections={sections} render={renderSection} />
 
         <FlashRecordDialog target={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
 
@@ -679,34 +436,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
         {/* Blocking is confirmed because of the part that surprises people: the
           money keeps moving. Unblocking isn't — it only re-opens a door. */}
-        <Dialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
-          <DialogContent data-testid="dialog-billing-block-confirm">
-            <DialogHeader>
-              <DialogTitle>Block billing for this subscriber?</DialogTitle>
-              <DialogDescription>
-                {confirmBlock
-                  ? `“${shortNpub(confirmBlock.pubkey).short}” will be withheld from paid entitlement no matter what they pay, and any tier billing granted them is taken back now. This does not cancel or refund anything — Flash keeps charging them until the subscription is cancelled.`
-                  : ""}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmBlock(null)} data-testid="button-billing-block-cancel">
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  const sub = confirmBlock;
-                  setConfirmBlock(null);
-                  if (sub) await handleSetBlock(sub, true);
-                }}
-                data-testid="button-billing-block-confirm"
-              >
-                Block billing
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <BlockConfirmDialog confirmBlock={confirmBlock} setConfirmBlock={setConfirmBlock} onBlock={handleSetBlock} />
       </div>
     </div>
   );
