@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Loader2, XCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -12,9 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { formatBillingDate } from "@/lib/plans";
-import { apiClient, type AdminBillingSubscription, type AdminBillingSubscriptionAction } from "@/services/api";
+import { apiClient, type AdminBillingSubscription } from "@/services/api";
 import {
   DIVERGENCE_META,
   orderedSections,
@@ -23,42 +20,23 @@ import {
   groupSignups,
 } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
-import { readEveryPage } from "@/components/admin/useAdminHeaderMetrics";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { sourceLabel, statusLabel } from "./billingEventCopy";
-import { flashRecordKey, recordFromBody } from "./FlashFactsStrip";
 
-import type {
-  CreateAdminBillingPlanBody,
-  SchedulingItem,
-  UnmappedPlanRow,
-  UpdateAdminBillingPlanBody,
-} from "@/services/api";
-import { DIVERGENCE_KEY, FLASH_SERVICES_KEY, POLICIES_KEY, SUBS_KEY, USERS_KEY } from "./queryKeys";
-
-const PAGE_SIZE = 100;
-const NO_SUBS: AdminBillingSubscription[] = [];
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 import { FlashRecordDialog, type FlashRecordTarget } from "./FlashRecordDialog";
 import { BrainstormUserPicker } from "./BrainstormUserPicker";
 import type { BrainstormUser } from "./brainstormUserSearch";
-import { PLANS_KEY } from "./queryKeys";
 import { BillingSortHeader } from "./BillingSortHeader";
 import { type ConfirmSubject, ConfirmSubscriptionAction } from "./ConfirmSubscriptionAction";
 import { DivergenceTierGroup, DivergenceBlock } from "./DivergenceBlock";
 import { SubscriberRow } from "./SubscriberRow";
 import { UnresolvedSignupsBlock } from "./UnresolvedSignupsBlock";
 import { filterAndSort } from "./rosterFilter";
-import {
-  type SortState,
-  FLASH_DASHBOARD_URL,
-  entitlementReasonText,
-  shortNpub,
-  th,
-  thLast,
-  type SortKey,
-} from "./rosterShared";
+import { FLASH_DASHBOARD_URL, shortNpub, th, thLast } from "./rosterShared";
 import { useRosterProfiles } from "./useRosterProfiles";
+import { PAGE_SIZE, useBillingRoster } from "./useBillingRoster";
+import { useRosterActions } from "./useRosterActions";
 
 /**
  * The admin Billing tab: the server's subscriber roster (pubkey-keyed — every
@@ -67,56 +45,48 @@ import { useRosterProfiles } from "./useRosterProfiles";
  * receive, including signups that couldn't be matched to an account.
  */
 export function AdminBillingCards({ active }: { active: boolean }) {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  // One page at a time; filters and sort stay in component state across pages.
-  const [page, setPage] = useState(1);
-  const subsQuery = useQuery({
-    queryKey: [...SUBS_KEY, page],
-    queryFn: () => apiClient.getAdminBillingSubscriptions(page, PAGE_SIZE),
-    enabled: active,
-    staleTime: 60_000,
-    retry: 1,
-    placeholderData: keepPreviousData,
-  });
-  const divergenceQuery = useQuery({
-    queryKey: DIVERGENCE_KEY,
-    queryFn: () => apiClient.getAdminBillingDivergence(),
-    enabled: active,
-    staleTime: 60_000,
-    retry: 1,
-  });
-  // Scheduling policies by id — the report names policies by id only.
-  const policiesQuery = useQuery<SchedulingItem[]>({
-    queryKey: POLICIES_KEY,
-    queryFn: () => apiClient.getSchedulingPolicies(),
-    enabled: active,
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-  // Flash keeps one service per environment, so a subscriber's service says
-  // whether they came in through production or staging (Benjamin, 2026-09-09:
-  // "right now we can't tell where the users are coming from"). The roster
-  // row carries no service; the Flash record each row reads does.
-  const servicesQuery = useQuery({
-    queryKey: FLASH_SERVICES_KEY,
-    queryFn: () => apiClient.getAdminBillingFlashServices(),
-    enabled: active,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const serviceNames = useMemo(
-    () => new Map((servicesQuery.data ?? []).map((svc) => [svc.id, svc.name])),
-    [servicesQuery.data],
-  );
-  const policyName = (id: number | null | undefined): string => {
-    if (id == null) return "—";
-    return policiesQuery.data?.find((p) => p.id === id)?.name ?? `policy #${id}`;
-  };
-  // An unmapped plan's fix is a mapping — the form opens prefilled with Flash's ids.
-  const [mappingFor, setMappingFor] = useState<UnmappedPlanRow | null>(null);
-  const [mappingSubmitting, setMappingSubmitting] = useState(false);
-  const [mappingError, setMappingError] = useState<string | null>(null);
+  const {
+    page,
+    setPage,
+    subsQuery,
+    divergenceQuery,
+    policiesQuery,
+    serviceNames,
+    policyName,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    sourceFilter,
+    setSourceFilter,
+    serviceFilter,
+    setServiceFilter,
+    sort,
+    viewingAll,
+    allLoaded,
+    rosterItems,
+    serviceOf,
+    serviceLabelOf,
+    serviceOptions,
+    toggleSort,
+  } = useBillingRoster(active);
+  const {
+    mappingFor,
+    setMappingFor,
+    mappingSubmitting,
+    mappingError,
+    setMappingError,
+    busyKeys,
+    handleCreateMapping,
+    handleResync,
+    handleResyncPubkey,
+    handleResetPubkey,
+    handleSetBlock,
+    handleCancel,
+    handleSetStatus,
+    handleAttribute,
+    handleDismiss,
+  } = useRosterActions();
   const [attributeFor, setAttributeFor] = useState<string | null>(null);
   const [attributePicked, setAttributePicked] = useState<BrainstormUser | null>(null);
   // Either common form is accepted here; only hex ever leaves. Decoding in the
@@ -133,11 +103,6 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       .filter((pk): pk is string => typeof pk === "string" && pk.length === 64),
   );
   const [dismissFor, setDismissFor] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [serviceFilter, setServiceFilter] = useState<string>("all");
-  const [sort, setSort] = useState<SortState>(null);
   const [confirmBlock, setConfirmBlock] = useState<AdminBillingSubscription | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<AdminBillingSubscription | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -146,257 +111,15 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   // The pubkey whose admin override is about to be dropped.
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [flashRecordFor, setFlashRecordFor] = useState<FlashRecordTarget | null>(null);
-  // Keyed by whatever handle the row has: a pubkey for a subscriber, a Flash
-  // subscription id for a signup that named nobody. A set: two rows' actions
-  // can run at once, and one finishing must not clear the other's spinner.
-  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(() => new Set());
-  // A search, a filter or a sort reads every page: over the page on screen it
-  // missed everyone else while the count claimed the whole roster. There is no
-  // server-side search on this list.
-  const viewingAll =
-    search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all" || serviceFilter !== "all" || !!sort;
-  const allSubsQuery = useQuery({
-    queryKey: [...SUBS_KEY, "every-page"],
-    queryFn: () => readEveryPage((p) => apiClient.getAdminBillingSubscriptions(p, PAGE_SIZE)),
-    enabled: active && viewingAll,
-    staleTime: 60_000,
-    retry: 1,
-  });
-  // Until every page is in, the page on screen stands in (and says so).
-  const allLoaded = viewingAll && !!allSubsQuery.data;
-  const rosterItems = (allLoaded ? allSubsQuery.data?.items : subsQuery.data?.items) ?? NO_SUBS;
-  // A new search starts from the first page of its results.
-  useEffect(() => {
-    setPage(1);
-  }, [viewingAll, search, statusFilter, sourceFilter, serviceFilter, sort]);
-  // The same query the rows run (same key, one fetch). The rows ask for their
-  // own as they near the screen; every row's is asked for here only when the
-  // service switch or sort needs them all. Otherwise this reads what is cached.
-  const needsEveryRecord = serviceFilter !== "all" || sort?.key === "service";
-  const recordQueries = useQueries({
-    queries: rosterItems.map((s) => ({
-      queryKey: flashRecordKey(s.pubkey),
-      queryFn: async () => (await apiClient.getAdminBillingFlashRecordForSubscriber(s.pubkey)) ?? null,
-      staleTime: 5 * 60_000,
-      retry: false,
-      enabled: needsEveryRecord,
-    })),
-  });
-  const serviceOf = useMemo(
-    () =>
-      new Map<string, string | null | undefined>(
-        rosterItems.map((s, i) => {
-          const q = recordQueries[i];
-          return [
-            s.pubkey,
-            q?.isPending ? undefined : (recordFromBody(q?.data, s.flash_subscription_id)?.serviceId ?? null),
-          ];
-        }),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rosterItems, recordQueries.map((q) => `${q.isPending}:${q.dataUpdatedAt}`).join("|")],
-  );
-  const serviceLabelOf = (id: string | null | undefined): string =>
-    id ? (serviceNames.get(id) ?? `${id.slice(0, 8)}…`) : "";
-  // The switch lists the account's services (one per environment) plus any
-  // service a row names that the list does not — and only when there is a
-  // choice to make.
-  const serviceOptions = useMemo(() => {
-    const ids = new Set<string>((servicesQuery.data ?? []).map((svc) => svc.id));
-    for (const id of serviceOf.values()) if (id) ids.add(id);
-    return Array.from(ids)
-      .map((id) => ({ id, label: serviceLabelOf(id) }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicesQuery.data, serviceOf, serviceNames]);
   const profiles = useRosterProfiles([
     ...rosterItems.map((s) => s.pubkey),
     ...reportPubkeys,
     ...(attributePubkey ? [attributePubkey] : []),
   ]);
 
-  const toggleSort = (key: SortKey) =>
-    setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
-
-  async function runAction(handle: string, fn: () => Promise<void>, failureTitle = "Action failed") {
-    setBusyKeys((prev) => new Set(prev).add(handle));
-    try {
-      await fn();
-      await queryClient.invalidateQueries({ queryKey: SUBS_KEY });
-      await queryClient.invalidateQueries({ queryKey: DIVERGENCE_KEY });
-    } catch (e) {
-      toast({
-        title: failureTitle,
-        description: e instanceof Error ? e.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setBusyKeys((prev) => {
-        const next = new Set(prev);
-        next.delete(handle);
-        return next;
-      });
-    }
-  }
-
-  async function handleCreateMapping(body: CreateAdminBillingPlanBody | UpdateAdminBillingPlanBody) {
-    setMappingSubmitting(true);
-    setMappingError(null);
-    try {
-      await apiClient.createAdminBillingPlan(body as CreateAdminBillingPlanBody);
-      await queryClient.invalidateQueries({ queryKey: PLANS_KEY });
-      await queryClient.invalidateQueries({ queryKey: DIVERGENCE_KEY });
-      setMappingFor(null);
-      toast({
-        title: "Mapping created",
-        description:
-          "The plan now grants that policy. The stuck signup replays on the next sweep — or Resync the subscriber to apply it now.",
-      });
-    } catch (e) {
-      setMappingError(e instanceof Error ? e.message : "The server refused the change.");
-    } finally {
-      setMappingSubmitting(false);
-    }
-  }
-
-  const handleResync = (s: AdminBillingSubscription) => handleResyncPubkey(s.pubkey);
-  const handleResyncPubkey = (pubkey: string) =>
-    runAction(pubkey, async () => {
-      const out = await apiClient.resyncAdminBillingSubscription(pubkey);
-      toast({
-        // `applied: false` is a normal answer, not a failure — say which it was
-        // rather than leaving the admin to guess from an unchanged row.
-        title: out.applied ? "Re-applied from Flash" : "Nothing changed",
-        description: entitlementReasonText(out.reason),
-      });
-    });
-
-  // Drops an admin's override. The server re-reads billing before it answers,
-  // so the toast names where they landed — a paying subscriber stays on what
-  // they pay for — rather than assuming the default.
-  const handleResetPubkey = (pubkey: string) =>
-    runAction(
-      pubkey,
-      async () => {
-        const out = await apiClient.clearUserSchedulingOverride(pubkey);
-        toast({
-          title: "Reset to default",
-          description: `Now on ${out.scheduling_name}. Billing decides their tier from here.`,
-        });
-        // The Users tab and the policies' member lists show the tier too.
-        await queryClient.invalidateQueries({ queryKey: USERS_KEY });
-        await queryClient.invalidateQueries({ queryKey: POLICIES_KEY });
-      },
-      "Couldn't reset to default",
-    );
-
-  const handleSetBlock = (s: AdminBillingSubscription, blocked: boolean) =>
-    runAction(s.pubkey, async () => {
-      const out = await apiClient.setAdminBillingBlock(s.pubkey, blocked);
-      toast({
-        title: blocked ? "Billing blocked" : "Billing unblocked",
-        description: blocked
-          ? out.revoked
-            ? "Their billing-granted tier was taken back. Flash is still charging them — cancel or refund there."
-            : "No billing-granted tier to take back. Flash is still charging them — cancel or refund there."
-          : "They can be granted again. The next Flash event or a resync applies it.",
-      });
-    });
-
-  /** Reads `cancellation_scheduled`, never the status — see the type's note. */
-  function cancelOutcomeToast(out: AdminBillingSubscriptionAction) {
-    if (!out.cancellation_scheduled) {
-      toast({
-        title: "Nothing was scheduled",
-        description:
-          "Flash accepted the request but reports no cancellation on this subscription. Check Flash's record before trying again.",
-        variant: "destructive",
-      });
-      return;
-    }
-    toast({
-      title: out.cancel_effective_date ? "Cancellation scheduled" : "Subscription cancelled",
-      description:
-        (out.cancel_effective_date
-          ? `Flash still reports them "${out.flash_status}" until it takes effect on ${formatBillingDate(out.cancel_effective_date)} — that is what end-of-period cancellation looks like, not a failure. They keep their tier until then. `
-          : "Flash ended it immediately. ") + tierNote(out),
-    });
-  }
-
-  /**
-   * What happened to their tier, which is a separate question from what
-   * happened in Flash. `reread_failed` means the write landed and the re-read
-   * that follows it did not — saying nothing would leave an operator believing
-   * the roster is current when it is a step behind.
-   */
-  function tierNote(out: AdminBillingSubscriptionAction): string {
-    if (out.reason === "reread_failed")
-      return "We couldn't re-read them from Flash afterwards, so their tier and the roster are a step behind — resync when Flash is back.";
-    return out.applied
-      ? "Their tier has been re-read from Flash and updated."
-      : "Their tier was left as it was — the roster shows why.";
-  }
-
-  const handleCancel = (s: AdminBillingSubscription, reason: string) =>
-    runAction(s.pubkey, async () => {
-      cancelOutcomeToast(await apiClient.cancelAdminBillingSubscription(s.pubkey, reason));
-    });
-
-  const handleSetStatus = (s: AdminBillingSubscription, status: "paused" | "active") =>
-    runAction(s.pubkey, async () => {
-      const out = await apiClient.setAdminBillingSubscriptionStatus(s.pubkey, status);
-      toast({
-        title: status === "paused" ? "Subscription paused" : "Subscription resumed",
-        description: `Flash reports them "${out.flash_status}". ${tierNote(out)}`,
-      });
-    });
-
-  /**
-   * Attributing can legitimately grant nothing — a blocked user, a
-   * subscription that has already lapsed. That is an answer, not a failure, so
-   * it is reported as one, with the server's own reason for it.
-   */
-  // How many stored deliveries a settlement actually closed — the server says,
-  // and when it is more than one the admin should hear it (a signup started and
-  // then cancelled is two deliveries; one still inside its retry budget was
-  // never even listed).
-  const settledNote = (n: number | undefined) =>
-    typeof n === "number" && n > 1 ? ` ${n} deliveries were settled.` : "";
-  const handleAttribute = (subscriptionId: string, pubkey: string) =>
-    runAction(
-      subscriptionId,
-      async () => {
-        const out = await apiClient.attributeAdminBillingUnresolved(subscriptionId, pubkey);
-        toast({
-          title: out.applied ? "Signup attributed" : "Attributed, but nothing was granted",
-          description:
-            (out.applied
-              ? "It now belongs to them and the plan's tier is applied — they're in the roster above."
-              : `${out.entitlement_reason ? entitlementReasonText(out.entitlement_reason) : "No tier was applied."} The signup is settled either way, so it leaves this report.`) +
-            settledNote(out.events_settled),
-        });
-      },
-      "Nothing was changed",
-    );
-
   /** A roster row as the confirm dialog wants it: who, plus their kind-0. */
   const subjectOf = (s: AdminBillingSubscription | null): ConfirmSubject | null =>
     s ? { pubkey: s.pubkey, profile: profiles.get(s.pubkey) } : null;
-
-  const handleDismiss = (subscriptionId: string) =>
-    runAction(
-      subscriptionId,
-      async () => {
-        const out = await apiClient.dismissAdminBillingUnresolved(subscriptionId);
-        toast({
-          title: "Signup dismissed",
-          description:
-            "Written off as nobody's — nothing was granted and this leaves the report. Flash still holds the payment; cancel or refund there if it needs it." +
-            settledNote(out.events_settled),
-        });
-      },
-      "Nothing was changed",
-    );
 
   if (subsQuery.isPending) {
     return (
