@@ -87,6 +87,36 @@ function bundleBudgetPlugin(): Plugin {
 }
 
 /**
+ * Library code the production build leaves out, though nothing would drop it
+ * on its own:
+ *
+ * - `debug`, which applesauce logs through, gives way to client/src/lib/noDebug:
+ *   in a visitor's browser it only writes when `localStorage.debug` asks. The
+ *   dev server keeps the real one for tracing relays.
+ * - applesauce-signers' serial-port signer (a hardware signer over Web Serial,
+ *   which the app doesn't offer), and @noble/secp256k1, which only it imports:
+ *   its class reads `navigator.serial` in a static field, so Rollup can't tell
+ *   that an unused copy is safe to drop. Declared free of side effects, it goes
+ *   when nothing imports it by name.
+ */
+const SIDE_EFFECT_FREE = [/\/node_modules\/applesauce-signers\/dist\/signers\/serial-port-signer\.js$/];
+
+function pruneVendorPlugin(): Plugin {
+  const noDebug = path.resolve(__dirname, "client", "src", "lib", "noDebug.ts");
+  return {
+    name: "prune-vendor",
+    apply: "build",
+    enforce: "pre",
+    resolveId(source) {
+      return source === "debug" ? noDebug : null;
+    },
+    transform(code, id) {
+      return SIDE_EFFECT_FREE.some((file) => file.test(id)) ? { code, map: null, moduleSideEffects: false } : null;
+    },
+  };
+}
+
+/**
  * The face nearly every word on first paint is set in: Figtree's Latin subset.
  * The CSS names it, so without a hint its download only starts once the
  * stylesheet has arrived and been parsed; preloaded, it overlaps the stylesheet.
@@ -208,7 +238,14 @@ function expectedMixedImport(message: string): boolean {
 
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), fontPreloadPlugin(), spaFallbackPlugin(), serviceWorkerPlugin(), bundleBudgetPlugin()],
+  plugins: [
+    pruneVendorPlugin(),
+    react(),
+    fontPreloadPlugin(),
+    spaFallbackPlugin(),
+    serviceWorkerPlugin(),
+    bundleBudgetPlugin(),
+  ],
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
