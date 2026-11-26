@@ -186,7 +186,7 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
             value={pasted}
             onChange={setPasted}
             busy={busy}
-            onSubmit={submitPasted}
+            onSubmit={() => void submitPasted()}
             onBack={() => {
               setPasting(false);
               setError(null);
@@ -199,7 +199,7 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
             showQr={showQr || !mobile}
             onShowQr={() => setShowQr(true)}
             copied={copied}
-            onCopy={copy}
+            onCopy={() => void copy()}
             waited={waited}
             onPaste={() => {
               setPasting(true);

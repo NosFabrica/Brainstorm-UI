@@ -173,7 +173,7 @@ export function BrainstormAssistantCard({
     // The profile-default POST publishes for this server's key, so only for `ta_pubkey`.
     if (!taPubkey || published?.pubkey !== taPubkey || !assistantProfile) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const next = toAssistantProfile(assistantProfile);
         setProfile(next);

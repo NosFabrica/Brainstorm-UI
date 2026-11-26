@@ -95,7 +95,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
     setPaid(false);
     setComment("");
     setVerifiedLud16(null);
-    (async () => {
+    void (async () => {
       // SECURITY: verify the recipient's signed kind-0 and take the lightning
       // address from THAT verified event — never pay an unverified / forged
       // address served by a relay.
@@ -334,7 +334,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               )}
               <button
                 type="button"
-                onClick={handleContinue}
+                onClick={() => void handleContinue()}
                 disabled={!amountValid}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 data-testid="zap-continue"
@@ -378,7 +378,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   {isWebLNAvailable() && (
                     <button
                       type="button"
-                      onClick={handleWebLN}
+                      onClick={() => void handleWebLN()}
                       disabled={paying}
                       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60"
                       data-testid="zap-webln"
@@ -390,7 +390,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => copyInvoice(invoice)}
+                      onClick={() => void copyInvoice(invoice)}
                       className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       data-testid="zap-copy-invoice"
                     >
@@ -437,7 +437,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => copyInvoice(displayAddr)}
+                  onClick={() => void copyInvoice(displayAddr)}
                   className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   data-testid="zap-copy-address"
                 >
