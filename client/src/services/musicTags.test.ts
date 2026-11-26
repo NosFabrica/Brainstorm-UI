@@ -32,6 +32,7 @@ vi.mock("@/services/tags", () => ({
 vi.mock("@/services/nostr", () => ({ fetchProfileMap: (pks: string[]) => profilesMock(pks) }));
 
 import { __resetTaggedMusicians, fetchTaggedMusicians } from "./musicTags";
+import { resultName } from "@/lib/displayName";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -42,7 +43,7 @@ describe("fetchTaggedMusicians", () => {
   it("asks for the Musician tag's trusted carriers, under the house observer, and returns them as people with their names", async () => {
     const people = await fetchTaggedMusicians();
     expect(detailMock).toHaveBeenCalledWith(TAG_AUTHOR, "musician", undefined, "house");
-    expect(people.map((p) => [p.pubkey, p.displayName ?? p.name, p.picture])).toEqual([
+    expect(people.map((p) => [p.pubkey, resultName(p), p.picture])).toEqual([
       [JOE, "Joe Martin", "https://img/joe.jpg"],
       [NOVA, "NOVA", undefined],
     ]);
