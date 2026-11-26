@@ -463,16 +463,14 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                           disabled={cardActionPending !== null || socialPending}
                           onMouseEnter={() => isFollowingUser && setCardFollowHovered(true)}
                           onMouseLeave={() => setCardFollowHovered(false)}
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
                             setCardActionPending("follow");
-                            try {
-                              if (isFollowingUser) await onUnfollow(pk);
-                              else await onFollow(pk);
-                            } finally {
+                            // Each action toasts its own outcome and resolves either way.
+                            void (isFollowingUser ? onUnfollow(pk) : onFollow(pk)).finally(() => {
                               setCardActionPending(null);
                               setCardFollowHovered(false);
-                            }
+                            });
                           }}
                           className={`inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                             isFollowingUser
@@ -507,15 +505,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                         <button
                           type="button"
                           disabled={cardActionPending !== null || socialPending}
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
                             setCardActionPending("mute");
-                            try {
-                              if (isMutedUser) await onUnmute(pk);
-                              else await onMute(pk);
-                            } finally {
-                              setCardActionPending(null);
-                            }
+                            void (isMutedUser ? onUnmute(pk) : onMute(pk)).finally(() => setCardActionPending(null));
                           }}
                           className={`inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                             isMutedUser
