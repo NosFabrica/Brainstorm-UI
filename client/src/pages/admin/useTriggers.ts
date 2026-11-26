@@ -3,6 +3,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
+/** A run wasn't sent: one for this person is already in flight, from another control. */
+export class TriggerInFlightError extends Error {
+  constructor() {
+    super("A run for this user is already in flight.");
+    this.name = "TriggerInFlightError";
+  }
+}
+
 /**
  * One person's GrapeRank run, claimed in the console's in-flight set
  * (useInFlightTriggers) so no control sends a second request for someone
@@ -25,7 +33,7 @@ export function useTriggers({
   // first, in triggerGraperank): refused while that person is in flight.
   const retriggerOne = useCallback(
     async (pubkey: string) => {
-      if (claim([pubkey]).length === 0) throw new Error("A run for this user is already in flight.");
+      if (claim([pubkey]).length === 0) throw new TriggerInFlightError();
       try {
         await apiClient.triggerUserGraperank(pubkey);
       } finally {

@@ -1,18 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/services/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, AlertTriangle, CheckCircle2, XCircle, RefreshCw, Eye, Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { parseIsoMs, isItemFailed, getFailureStage, extractErrorMessage, normalizeErrorKey } from "../failures";
 import { formatTimestamp, timeAgo, truncateError } from "../format";
 import { type BrainstormRequestInstance } from "../types";
+import { TriggerInFlightError } from "../useTriggers";
 
 /**
  * Groups the activity feed's failed requests by stage + normalized error
  * message so an admin can see *why* things are failing, expand a pattern to see
- * every affected user, and re-run the whole group in one click.
+ * every affected user, and re-run the whole group in one click. Each run goes
+ * through the console's in-flight claim (`retriggerOne`, useInFlightTriggers),
+ * so it never duplicates one a row or a bulk re-trigger already has out.
  */
 export function FailureBreakdownCard({
   items,
@@ -20,12 +22,21 @@ export function FailureBreakdownCard({
   isError,
   errorMessage,
   onViewUser,
+  triggering,
+  retriggerOne,
+  onTriggered,
 }: {
   items: BrainstormRequestInstance[];
   isLoading: boolean;
   isError: boolean;
   errorMessage?: string;
   onViewUser: (pubkey: string) => void;
+  /** People with a run in flight, from any control. */
+  triggering: ReadonlySet<string>;
+  /** One person's run, claimed in the in-flight set; throws TriggerInFlightError if it's already out. */
+  retriggerOne: (pubkey: string) => Promise<void>;
+  /** A run was sent (the console boosts its polling). */
+  onTriggered: () => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -60,27 +71,34 @@ export function FailureBreakdownCard({
     );
   }, [items]);
 
-  // FIXME(audit): sends its runs without claiming them in the console's in-flight set
-  // (useInFlightTriggers), so a group retry can duplicate a run a row or a bulk re-trigger has out.
   async function retryGroup(key: string, pubkeys: string[]) {
     if (!pubkeys.length) return;
     setRetrying(key);
     let ok = 0;
     let failed = 0;
+    let skipped = 0;
     for (const pk of pubkeys) {
+      // Already out when the retry started, or claimed by another control since.
+      if (triggering.has(pk)) {
+        skipped += 1;
+        continue;
+      }
       try {
-        await apiClient.triggerUserGraperank(pk);
+        await retriggerOne(pk);
         ok += 1;
-      } catch {
-        failed += 1;
+      } catch (err) {
+        if (err instanceof TriggerInFlightError) skipped += 1;
+        else failed += 1;
       }
     }
+    if (ok) onTriggered();
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }),
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }),
     ]);
     toast({
       title: `Re-triggered ${ok} user${ok === 1 ? "" : "s"}${failed ? ` · ${failed} failed` : ""}`,
+      description: skipped ? `${skipped} skipped (already in flight).` : undefined,
       variant: failed ? "destructive" : undefined,
     });
     setRetrying(null);

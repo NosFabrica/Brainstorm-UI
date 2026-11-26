@@ -84,6 +84,9 @@ export function ActivityTab({
         onViewUser={(pk) => {
           onOpenUser(pk);
         }}
+        triggering={triggering}
+        retriggerOne={retriggerOne}
+        onTriggered={onTriggered}
       />
 
       <div
