@@ -10,6 +10,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools";
+import { getSeenRelays } from "applesauce-core/helpers/relays";
 import { eventStore } from "./eventStore";
 
 const victimKey = generateSecretKey();
@@ -61,5 +62,37 @@ describe("the app's event store", () => {
   it("still refuses a bad signature on any other kind", () => {
     const note = sign(victimKey, { content: "real" });
     expect(eventStore.add({ ...note, content: "forged" })).toBeNull();
+  });
+});
+
+/** As a relay hands it over: JSON, so nothing of this tab's "verified" mark comes along. */
+const wire = (event: object): NostrEvent => JSON.parse(JSON.stringify(event)) as NostrEvent;
+
+describe("an id the store already holds", () => {
+  it("is no pass for a kind 5 that reuses it: the forged deletion is refused and deletes nothing", () => {
+    const note = sign(victimKey, { content: "keep me" });
+    eventStore.add(note);
+    // The held note's id and sig, under a kind 5 that names the note.
+    const forged = wire({ ...forgedDeletion([["e", note.id]], 2000), id: note.id, sig: note.sig });
+    expect(eventStore.add(forged)).toBeNull();
+    expect(eventStore.hasEvent(note.id)).toBe(true);
+  });
+
+  it("is no pass for a different body under it, whatever the kind", () => {
+    const note = sign(victimKey, { content: "real" });
+    eventStore.add(note);
+    const reaction = wire({ ...note, kind: 7, content: "+" });
+    expect(() => eventStore.add(reaction, "wss://forger.example")).not.toThrow();
+    expect(eventStore.add(wire({ ...note, content: "forged" }), "wss://forger.example")).toBeNull();
+    // Nothing of the forger's is credited to the held copy.
+    expect(getSeenRelays(eventStore.getEvent(note.id)!)?.has("wss://forger.example") ?? false).toBe(false);
+  });
+
+  it("still lets the same event in from a second relay without a second check", () => {
+    const note = sign(victimKey, { content: "twice" });
+    eventStore.add(note, "wss://a.example");
+    const again = wire(note);
+    expect(eventStore.add(again, "wss://b.example")?.id).toBe(note.id);
+    expect(getSeenRelays(eventStore.getEvent(note.id)!)?.has("wss://b.example")).toBe(true);
   });
 });

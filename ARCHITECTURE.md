@@ -70,8 +70,10 @@ pool check it on the way in, so no caller has to:
   the relay's to judge. Without it, a relay asked for one key's contact list could hand over
   another's, and every "newest wins" read would take it for the user's own.
 - **Signatures first, deletions included.** The store verifies every signature
-  (`lib/verifier`), skipping only an id it already holds. A kind 5 is verified before the
-  delete manager acts on it, so a forged deletion can't remove someone's events; and `add`
+  (`lib/verifier`), skipping only a second copy of an event it holds: the same id, over a
+  body that hashes to it (a held id over another body is a forgery and is checked). A kind 5
+  is always verified, by `verifySignature` itself, before the delete manager acts on it, so a
+  forged deletion can't remove someone's events; and `add`
   answers null for an event its author deleted, so nothing passes a deleted event on as
   kept (`lib/eventStore.ts`, `isDeleted`, `deletions$`).
 - **One-shot asks of the search relay** go through `lib/searchOnce.ts`: an event counts only

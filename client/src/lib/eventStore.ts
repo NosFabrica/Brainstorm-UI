@@ -13,6 +13,7 @@
 import { EventStore } from "applesauce-core";
 import type { IDeleteManager } from "applesauce-core/event-store";
 import { kinds } from "applesauce-core/helpers/event";
+import { getEventHash } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { loadFastVerifierWhenBusy, verifySignature } from "./verifier";
 import { connectionSpeed } from "./connection";
@@ -25,13 +26,27 @@ export const eventStore = new EventStore();
  * The store checks a signature BEFORE it looks for a duplicate (only a
  * replaceable that loses to the held copy bails out first), so a note from
  * five content relays was verified five times. An id the store already holds
- * is answered here without a check: `add` then finds it in memory, keeps the
- * copy it has and merges only the newcomer's seen-relays into it — the
- * newcomer's content and signature are thrown away, so there is nothing of
- * theirs left to trust. `hasEvent`, not `getEvent`: it doesn't touch the LRU
- * that pruning reads (lib/storePruning).
+ * is let through without a Schnorr check, but only when the newcomer's body
+ * hashes to that id: then it IS the held event (whose signature was checked
+ * on the way in), and `add` keeps the copy it has, merging only the
+ * newcomer's seen-relays into it. A held id over any other body is a forgery,
+ * whatever its kind, and is checked in full (and fails): left unchecked, a
+ * different kind made `add` throw, and any body got its relay credited as
+ * one that holds the real event. The hash is cheap next to the signature,
+ * the same trade `lib/verifier`'s own memo makes. `hasEvent`, not
+ * `getEvent`: it doesn't touch the LRU that pruning reads (lib/storePruning).
+ *
+ * A kind 5 never takes this path (see `add` below).
  */
-eventStore.verifyEvent = (event: NostrEvent) => eventStore.hasEvent(event.id) || verifySignature(event);
+const isHeldCopy = (event: NostrEvent): boolean => {
+  if (!eventStore.hasEvent(event.id)) return false;
+  try {
+    return getEventHash(event) === event.id;
+  } catch {
+    return false;
+  }
+};
+eventStore.verifyEvent = (event: NostrEvent) => isHeldCopy(event) || verifySignature(event);
 
 /**
  * Two holes in applesauce-core 6.2.0's `add`, closed here rather than at
@@ -40,8 +55,11 @@ eventStore.verifyEvent = (event: NostrEvent) => eventStore.hasEvent(event.id) ||
  * - **A kind 5 is acted on before its signature is checked.** `add` hands it
  *   straight to the delete manager, so a forged deletion — any pubkey, any
  *   created_at — removed that key's events and, dated far in the future, kept
- *   every newer genuine version of them out for the session. A kind 5 now
- *   goes through the same `verifyEvent` as every other event first.
+ *   every newer genuine version of them out for the session. A kind 5 is
+ *   now verified first, by `verifySignature` itself: never by the held-id
+ *   shortcut above, since what a kind 5 does is read from its own body, and
+ *   the store keeps no kind 5 for a genuine one to be held. Only a test that
+ *   turns verification off (`verifyEvent = undefined`) turns it off here too.
  * - **A deleted event is answered with itself, not null.** Every fetcher that
  *   passes on what `add` returns (the pool's `eventStore` option among them)
  *   handed deleted events to the screen as if the store held them. Null now
@@ -66,7 +84,7 @@ export const deletions$ = deletes.deleted$;
 const libraryAdd = eventStore.add.bind(eventStore);
 eventStore.add = (event: NostrEvent, fromRelay?: string) => {
   if (event.kind === kinds.EventDeletion) {
-    if (eventStore.verifyEvent && !eventStore.verifyEvent(event)) return null;
+    if (eventStore.verifyEvent && !verifySignature(event)) return null;
   } else if (deletes.check(event)) return null;
   return libraryAdd(event, fromRelay);
 };
